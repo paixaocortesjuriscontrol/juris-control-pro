@@ -42,6 +42,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { useSituacoesEnvioCarga } from "@/hooks/useSituacoesEnvioCarga";
 import { gerarManualDistribuicaoTst } from "@/utils/gerarManualDistribuicaoTst";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
@@ -145,6 +155,7 @@ export default function DistribuicaoTst() {
 
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   // ID do registro recém-editado/salvo. Mantém ele visível (sticky) na lista
   // mesmo se ele não bater mais com os filtros, e destaca a linha por alguns
@@ -448,10 +459,15 @@ export default function DistribuicaoTst() {
       toast.error("Apenas administradores ou coordenadores podem excluir processos. Fale com o coordenador ou administrador da coordenação.");
       return;
     }
-    if (confirm("Excluir esta distribuição?")) {
-      await deleteDado(id);
-      fetchTabsData();
-    }
+    setDeleteTargetId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTargetId) return;
+    const id = deleteTargetId;
+    setDeleteTargetId(null);
+    await deleteDado(id);
+    fetchTabsData();
   };
 
   const handleRefresh = () => {
@@ -1332,40 +1348,46 @@ export default function DistribuicaoTst() {
           </div>
         )}
 
-        {/* Mês/Ano dropdown */}
+        {/* Mês/Ano dropdown — apenas admin/coordenador */}
         {mesesAnos.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap">
-            <Label className="text-xs font-bold text-muted-foreground">Mês/Ano:</Label>
-            <Select value={filtroMesAno} onValueChange={setFiltroMesAno}>
-              <SelectTrigger className="h-8 text-xs w-64">
-                <SelectValue placeholder="Selecione o mês/ano" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">
-                  Todos meses ({mesesAnos.reduce((s, m) => s + m.count, 0)})
-                </SelectItem>
-                {mesesAnos.map(({ key, count }) => {
-                  const [y, m] = key.split("-");
-                  const label = `${mesesLabels[parseInt(m) - 1]}/${y}`;
-                  return (
-                    <SelectItem key={key} value={key}>
-                      {label} ({count})
+            {isAdminOrCoordinator && (
+              <>
+                <Label className="text-xs font-bold text-muted-foreground">Mês/Ano:</Label>
+                <Select value={filtroMesAno} onValueChange={setFiltroMesAno}>
+                  <SelectTrigger className="h-8 text-xs w-64">
+                    <SelectValue placeholder="Selecione o mês/ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">
+                      Todos meses ({mesesAnos.reduce((s, m) => s + m.count, 0)})
                     </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+                    {mesesAnos.map(({ key, count }) => {
+                      const [y, m] = key.split("-");
+                      const label = `${mesesLabels[parseInt(m) - 1]}/${y}`;
+                      return (
+                        <SelectItem key={key} value={key}>
+                          {label} ({count})
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
 
-            <div className="h-6 w-px bg-border mx-1" />
+                <div className="h-6 w-px bg-border mx-1" />
+              </>
+            )}
 
             {delegarButton}
-            <Button
-              size="sm"
-              className="h-8 text-xs"
-              onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setShowForm(true); }}
-            >
-              <Plus className="w-3 h-3 mr-1" /> Nova Distribuição
-            </Button>
+            {isAdminOrCoordinator && (
+              <Button
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setShowForm(true); }}
+              >
+                <Plus className="w-3 h-3 mr-1" /> Nova Distribuição
+              </Button>
+            )}
             {isAdminOrCoordinator && (
               <Button
                 size="sm"
@@ -1528,22 +1550,24 @@ export default function DistribuicaoTst() {
                   </SelectContent>
                 </Select>
               </div>
-              {/* VERMELHO */}
-              <div className="space-y-1">
-                <Label className="text-[10px] font-semibold text-red-600">Situação Carga Santander</Label>
-                <Select value={filtroSituacaoCarga} onValueChange={setFiltroSituacaoCarga}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Situação Carga Santander" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas</SelectItem>
-                    <SelectItem value="__sem__">Sem situação definida</SelectItem>
-                    {situacoesCarga.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* VERMELHO — apenas admin/coordenador */}
+              {isAdminOrCoordinator && (
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-semibold text-red-600">Situação Carga Santander</Label>
+                  <Select value={filtroSituacaoCarga} onValueChange={setFiltroSituacaoCarga}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Situação Carga Santander" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas</SelectItem>
+                      <SelectItem value="__sem__">Sem situação definida</SelectItem>
+                      {situacoesCarga.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               {/* LARANJA */}
               <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-orange-600">Em análise</Label>
@@ -1867,7 +1891,7 @@ export default function DistribuicaoTst() {
                               )}
                               {(() => {
                                 const sid = (d as any).situacao_envio_carga_id;
-                                if (!sid) return null;
+                                if (!sid || !isAdminOrCoordinator) return null;
                                 const s = situacoesCarga.find((x) => x.id === sid);
                                 if (!s) return null;
                                 return (
@@ -1917,7 +1941,7 @@ export default function DistribuicaoTst() {
                           )}
                           {(() => {
                             const sid = (d as any).situacao_envio_carga_id;
-                            if (!sid) return null;
+                            if (!sid || !isAdminOrCoordinator) return null;
                             const s = situacoesCarga.find((x) => x.id === sid);
                             if (!s) return null;
                             return (
@@ -2055,6 +2079,22 @@ export default function DistribuicaoTst() {
         totalCount={totalCount}
         onSuccess={async () => { setSelectedIds(new Set()); await Promise.resolve(handleRefresh()); }}
       />
+      <AlertDialog open={!!deleteTargetId} onOpenChange={(o) => { if (!o) setDeleteTargetId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir distribuição?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação removerá o processo da lista de Distribuição TST. Esta operação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }

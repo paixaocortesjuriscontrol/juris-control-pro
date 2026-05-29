@@ -16,6 +16,7 @@ import { CentralizadoresTab } from "./CentralizadoresTab";
 import { DistribuicaoTst, DistribuicaoTstInsert } from "@/hooks/useDistribuicoesTst";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { dedupeJuditAttachments } from "@/lib/juditAnexosDedup";
 
 interface Props {
@@ -45,6 +46,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const processoNumero = dado?.processo_numero || "";
   const { user } = useAuth();
   const podeVerLogJudit = user?.email?.toLowerCase() === "paixaocortesjuriscontrol@gmail.com";
+  const { isAdminOrCoordinator } = useUserRole();
 
   const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos" | "centralizadores">(initialTab);
   const [anexos, setAnexos] = useState<any[] | null>(null);
@@ -399,7 +401,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <TabsList className="justify-start">
             <TabsTrigger value="distribuicao">Distribuição TST</TabsTrigger>
-            <TabsTrigger value="centralizadores" disabled={bennerDisabled}>Centralizadores</TabsTrigger>
+            {isAdminOrCoordinator && (
+              <TabsTrigger value="centralizadores" disabled={bennerDisabled}>Centralizadores</TabsTrigger>
+            )}
             <TabsTrigger value="benner" disabled={bennerDisabled}>Dados Benner</TabsTrigger>
             {podeVerLogJudit && (
               <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
@@ -518,12 +522,14 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <AnaliseJuditTab processoNumero={processoNumero} />
         </TabsContent>
 
-        <TabsContent value="centralizadores" className="mt-4">
-          <CentralizadoresTab
-            dadoId={(bennerDado as any)?.id || (dado as any)?.id || null}
-            processoNumero={processoNumero}
-          />
-        </TabsContent>
+        {isAdminOrCoordinator && (
+          <TabsContent value="centralizadores" className="mt-4">
+            <CentralizadoresTab
+              dadoId={(bennerDado as any)?.id || (dado as any)?.id || null}
+              processoNumero={processoNumero}
+            />
+          </TabsContent>
+        )}
 
         <TabsContent value="anexos" className="mt-4">
           <AnexosJuditTab
