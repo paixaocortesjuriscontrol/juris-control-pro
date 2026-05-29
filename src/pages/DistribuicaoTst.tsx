@@ -41,6 +41,13 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { useSituacoesEnvioCarga } from "@/hooks/useSituacoesEnvioCarga";
+import {
+  useProcessoTagsCatalogo,
+  useTagsForDados,
+  fetchDadoIdsByTag,
+} from "@/hooks/useProcessoTags";
+import { ProcessoTagPicker } from "@/components/distribuicao-tst/ProcessoTagPicker";
+import { useQuery } from "@tanstack/react-query";
 import { gerarManualDistribuicaoTst } from "@/utils/gerarManualDistribuicaoTst";
 import {
   AlertDialog,
