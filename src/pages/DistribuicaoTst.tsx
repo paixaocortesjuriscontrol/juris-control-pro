@@ -1932,6 +1932,13 @@ export default function DistribuicaoTst() {
                                   </Badge>
                                 );
                               })()}
+                              {isAdminOrCoordinator && (
+                                <ProcessoTagPicker
+                                  dadoId={d.id}
+                                  tagIds={tagsMap?.get(d.id) || []}
+                                  compact
+                                />
+                              )}
                             </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
