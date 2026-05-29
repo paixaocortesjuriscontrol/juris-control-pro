@@ -506,6 +506,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     }
     if (filters.equipe === "sim") query = query.filter("equipe", "match", "[^[:space:]]");
     else if (filters.equipe === "nao") query = query.or('equipe.is.null,equipe.match."^[[:space:]]*$"');
+    if (filters.idsAllowed && filters.idsAllowed.length > 0) {
+      query = query.in("id", filters.idsAllowed);
+    }
       return query;
     };
 
