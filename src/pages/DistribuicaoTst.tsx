@@ -1348,40 +1348,46 @@ export default function DistribuicaoTst() {
           </div>
         )}
 
-        {/* Mês/Ano dropdown */}
+        {/* Mês/Ano dropdown — apenas admin/coordenador */}
         {mesesAnos.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap">
-            <Label className="text-xs font-bold text-muted-foreground">Mês/Ano:</Label>
-            <Select value={filtroMesAno} onValueChange={setFiltroMesAno}>
-              <SelectTrigger className="h-8 text-xs w-64">
-                <SelectValue placeholder="Selecione o mês/ano" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">
-                  Todos meses ({mesesAnos.reduce((s, m) => s + m.count, 0)})
-                </SelectItem>
-                {mesesAnos.map(({ key, count }) => {
-                  const [y, m] = key.split("-");
-                  const label = `${mesesLabels[parseInt(m) - 1]}/${y}`;
-                  return (
-                    <SelectItem key={key} value={key}>
-                      {label} ({count})
+            {isAdminOrCoordinator && (
+              <>
+                <Label className="text-xs font-bold text-muted-foreground">Mês/Ano:</Label>
+                <Select value={filtroMesAno} onValueChange={setFiltroMesAno}>
+                  <SelectTrigger className="h-8 text-xs w-64">
+                    <SelectValue placeholder="Selecione o mês/ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">
+                      Todos meses ({mesesAnos.reduce((s, m) => s + m.count, 0)})
                     </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+                    {mesesAnos.map(({ key, count }) => {
+                      const [y, m] = key.split("-");
+                      const label = `${mesesLabels[parseInt(m) - 1]}/${y}`;
+                      return (
+                        <SelectItem key={key} value={key}>
+                          {label} ({count})
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
 
-            <div className="h-6 w-px bg-border mx-1" />
+                <div className="h-6 w-px bg-border mx-1" />
+              </>
+            )}
 
             {delegarButton}
-            <Button
-              size="sm"
-              className="h-8 text-xs"
-              onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setShowForm(true); }}
-            >
-              <Plus className="w-3 h-3 mr-1" /> Nova Distribuição
-            </Button>
+            {isAdminOrCoordinator && (
+              <Button
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setShowForm(true); }}
+              >
+                <Plus className="w-3 h-3 mr-1" /> Nova Distribuição
+              </Button>
+            )}
             {isAdminOrCoordinator && (
               <Button
                 size="sm"
