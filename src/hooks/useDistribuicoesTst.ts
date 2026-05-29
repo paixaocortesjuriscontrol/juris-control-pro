@@ -353,6 +353,10 @@ export async function fetchAllDistribuicaoTstIds(
     if (filters.equipe === "sim") query = query.filter("equipe", "match", "[^[:space:]]");
     else if (filters.equipe === "nao") query = query.or('equipe.is.null,equipe.match."^[[:space:]]*$"');
 
+    if (filters.idsAllowed && filters.idsAllowed.length > 0) {
+      query = query.in("id", filters.idsAllowed);
+    }
+
     query = query.range(from, from + PAGE - 1);
     const { data, error } = await query;
     if (error) throw error;
