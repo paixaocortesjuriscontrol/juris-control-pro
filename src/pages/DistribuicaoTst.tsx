@@ -47,6 +47,7 @@ import {
   fetchDadoIdsByTag,
 } from "@/hooks/useProcessoTags";
 import { ProcessoTagPicker } from "@/components/distribuicao-tst/ProcessoTagPicker";
+import { BulkTagAction } from "@/components/distribuicao-tst/BulkTagAction";
 import { useQuery } from "@tanstack/react-query";
 import { gerarManualDistribuicaoTst } from "@/utils/gerarManualDistribuicaoTst";
 import {
