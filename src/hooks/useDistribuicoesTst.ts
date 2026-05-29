@@ -103,6 +103,8 @@ export interface DistribuicaoTstFilters {
   provasDigitais?: "todos" | "sim" | "nao" | "nao_selecionado";
   situacaoEnvioCargaId?: string;
   equipe?: "todos" | "sim" | "nao";
+  /** Lista de ids permitidos (intersecção). Quando vazia, retorna 0 linhas. */
+  idsAllowed?: string[] | null;
 }
 
 function bennerToDistribuicao(b: any): DistribuicaoTst {
