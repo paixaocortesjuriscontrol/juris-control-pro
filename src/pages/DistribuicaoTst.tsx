@@ -1578,16 +1578,23 @@ export default function DistribuicaoTst() {
               {/* VERMELHO — apenas admin/coordenador */}
               {isAdminOrCoordinator && (
                 <div className="space-y-1">
-                  <Label className="text-[10px] font-semibold text-red-600">Situação Carga Santander</Label>
-                  <Select value={filtroSituacaoCarga} onValueChange={setFiltroSituacaoCarga}>
+                  <Label className="text-[10px] font-semibold text-red-600">TAGs</Label>
+                  <Select value={filtroTagId} onValueChange={setFiltroTagId}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Situação Carga Santander" />
+                      <SelectValue placeholder="TAGs" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="todas">Todas</SelectItem>
-                      <SelectItem value="__sem__">Sem situação definida</SelectItem>
-                      {situacoesCarga.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
+                      {tagsCatalogo.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          <span className="inline-flex items-center gap-2">
+                            <span
+                              className="inline-block w-2 h-2 rounded-full"
+                              style={{ backgroundColor: t.cor }}
+                            />
+                            {t.nome}
+                          </span>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
