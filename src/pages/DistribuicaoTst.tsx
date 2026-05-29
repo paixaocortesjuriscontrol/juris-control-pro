@@ -41,6 +41,13 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { useSituacoesEnvioCarga } from "@/hooks/useSituacoesEnvioCarga";
+import {
+  useProcessoTagsCatalogo,
+  useTagsForDados,
+  fetchDadoIdsByTag,
+} from "@/hooks/useProcessoTags";
+import { ProcessoTagPicker } from "@/components/distribuicao-tst/ProcessoTagPicker";
+import { useQuery } from "@tanstack/react-query";
 import { gerarManualDistribuicaoTst } from "@/utils/gerarManualDistribuicaoTst";
 import {
   AlertDialog,
@@ -203,6 +210,20 @@ export default function DistribuicaoTst() {
   const [filtroSituacaoCarga, setFiltroSituacaoCarga] = useState<string>("todas");
   const [filtroEquipe, setFiltroEquipe] = useState<string>("todos");
   const { data: situacoesCarga = [] } = useSituacoesEnvioCarga();
+  // ===== TAGs (admin/coord) =====
+  const [filtroTagId, setFiltroTagId] = useState<string>("todas");
+  const { data: tagsCatalogo = [] } = useProcessoTagsCatalogo();
+  // Quando uma TAG é escolhida, busca o conjunto de ids permitidos.
+  const { data: idsAllowedFromTag } = useQuery({
+    queryKey: ["tag-filter-ids", filtroTagId],
+    enabled: filtroTagId !== "todas" && filtroTagId !== "__sem__",
+    queryFn: () => fetchDadoIdsByTag(filtroTagId),
+  });
+  const idsAllowedForFilters = filtroTagId === "todas"
+    ? undefined
+    : filtroTagId === "__sem__"
+      ? undefined // tratado abaixo
+      : (idsAllowedFromTag ?? []);
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -237,13 +258,17 @@ export default function DistribuicaoTst() {
         provasDigitais: filtroProvasDigitais !== "todos" ? (filtroProvasDigitais as any) : undefined,
         situacaoEnvioCargaId: filtroSituacaoCarga !== "todas" ? filtroSituacaoCarga : undefined,
         equipe: filtroEquipe !== "todos" ? (filtroEquipe as any) : undefined,
+      idsAllowed: idsAllowedForFilters,
       });
     }, 400);
     return () => clearTimeout(timer);
-  }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe]);
+}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, filtroTagId, JSON.stringify(idsAllowedFromTag || [])]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
+  // Mapa { dado_id => tagIds[] } para a página visível
+  const visibleDadoIds = dados.map((d) => d.id);
+  const { data: tagsMap } = useTagsForDados(visibleDadoIds);
 
   // Totais por responsável (todos os registros que batem com os filtros, ignorando o filtro de responsável)
   const countsFilters = { ...debouncedFilters, responsavelIds: undefined };
@@ -343,7 +368,7 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" || filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" || filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagId !== "todas";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -360,6 +385,7 @@ export default function DistribuicaoTst() {
     setFiltroFonteImportacao("todas");
     setFiltroProvasDigitais("todos");
     setFiltroSituacaoCarga("todas");
+    setFiltroTagId("todas");
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
@@ -1553,16 +1579,23 @@ export default function DistribuicaoTst() {
               {/* VERMELHO — apenas admin/coordenador */}
               {isAdminOrCoordinator && (
                 <div className="space-y-1">
-                  <Label className="text-[10px] font-semibold text-red-600">Situação Carga Santander</Label>
-                  <Select value={filtroSituacaoCarga} onValueChange={setFiltroSituacaoCarga}>
+                  <Label className="text-[10px] font-semibold text-red-600">TAGs</Label>
+                  <Select value={filtroTagId} onValueChange={setFiltroTagId}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Situação Carga Santander" />
+                      <SelectValue placeholder="TAGs" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="todas">Todas</SelectItem>
-                      <SelectItem value="__sem__">Sem situação definida</SelectItem>
-                      {situacoesCarga.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>
+                      {tagsCatalogo.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          <span className="inline-flex items-center gap-2">
+                            <span
+                              className="inline-block w-2 h-2 rounded-full"
+                              style={{ backgroundColor: t.cor }}
+                            />
+                            {t.nome}
+                          </span>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1900,6 +1933,13 @@ export default function DistribuicaoTst() {
                                   </Badge>
                                 );
                               })()}
+                              {isAdminOrCoordinator && (
+                                <ProcessoTagPicker
+                                  dadoId={d.id}
+                                  tagIds={tagsMap?.get(d.id) || []}
+                                  compact
+                                />
+                              )}
                             </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
@@ -1950,6 +1990,13 @@ export default function DistribuicaoTst() {
                               </Badge>
                             );
                           })()}
+                          {isAdminOrCoordinator && (
+                            <ProcessoTagPicker
+                              dadoId={d.id}
+                              tagIds={tagsMap?.get(d.id) || []}
+                              compact
+                            />
+                          )}
                         </div>
                       );
                     })()}

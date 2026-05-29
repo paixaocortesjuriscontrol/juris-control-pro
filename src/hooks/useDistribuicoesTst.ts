@@ -103,6 +103,8 @@ export interface DistribuicaoTstFilters {
   provasDigitais?: "todos" | "sim" | "nao" | "nao_selecionado";
   situacaoEnvioCargaId?: string;
   equipe?: "todos" | "sim" | "nao";
+  /** Lista de ids permitidos (intersecção). Quando vazia, retorna 0 linhas. */
+  idsAllowed?: string[] | null;
 }
 
 function bennerToDistribuicao(b: any): DistribuicaoTst {
@@ -351,6 +353,10 @@ export async function fetchAllDistribuicaoTstIds(
     if (filters.equipe === "sim") query = query.filter("equipe", "match", "[^[:space:]]");
     else if (filters.equipe === "nao") query = query.or('equipe.is.null,equipe.match."^[[:space:]]*$"');
 
+    if (filters.idsAllowed && filters.idsAllowed.length > 0) {
+      query = query.in("id", filters.idsAllowed);
+    }
+
     query = query.range(from, from + PAGE - 1);
     const { data, error } = await query;
     if (error) throw error;
@@ -500,11 +506,24 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     }
     if (filters.equipe === "sim") query = query.filter("equipe", "match", "[^[:space:]]");
     else if (filters.equipe === "nao") query = query.or('equipe.is.null,equipe.match."^[[:space:]]*$"');
+    if (filters.idsAllowed && filters.idsAllowed.length > 0) {
+      query = query.in("id", filters.idsAllowed);
+    }
       return query;
     };
 
     let rawRows: any[] = [];
     let count = 0;
+
+    // Curto-circuito: se idsAllowed foi explicitamente passado e estiver vazio,
+    // não há resultados possíveis.
+    if (filters.idsAllowed && filters.idsAllowed.length === 0) {
+      setDados([]);
+      setTotalCount(0);
+      setResponsaveisMap(new Map());
+      setLoading(false);
+      return;
+    }
 
     if (wantsUnassigned && idsWithoutResponsavel) {
       // URL com 6000+ UUIDs estoura → executa em chunks de 200, agrega client-side.
