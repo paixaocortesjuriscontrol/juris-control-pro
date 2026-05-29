@@ -59,13 +59,17 @@ export function useTagsForDados(dadoIds: string[]) {
 export function useCriarTag() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (nome: string) => {
+    mutationFn: async (input: string | { nome: string; cor?: string }) => {
+      const nome = typeof input === "string" ? input : input.nome;
+      const cor = typeof input === "string" ? undefined : input.cor;
       const clean = nome.trim();
       if (!clean) throw new Error("Nome obrigatório");
       const { data: userData } = await supabase.auth.getUser();
+      const payload: any = { nome: clean, created_by: userData.user?.id };
+      if (cor) payload.cor = cor;
       const { data, error } = await supabase
         .from("processo_tags_catalogo" as any)
-        .insert({ nome: clean, created_by: userData.user?.id } as any)
+        .insert(payload)
         .select("*")
         .single();
       if (error) throw error;
@@ -78,6 +82,42 @@ export function useCriarTag() {
     onError: (err: any) => toast.error("Erro ao criar tag: " + (err?.message || "")),
   });
 }
+
+export function useAtualizarCorTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, cor }: { id: string; cor: string }) => {
+      const { error } = await supabase
+        .from("processo_tags_catalogo" as any)
+        .update({ cor } as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["processo-tags-catalogo"] });
+    },
+    onError: (err: any) => toast.error("Erro ao atualizar cor: " + (err?.message || "")),
+  });
+}
+
+export const TAG_COLOR_PALETTE = [
+  "#ef4444", // red
+  "#f97316", // orange
+  "#f59e0b", // amber
+  "#eab308", // yellow
+  "#84cc16", // lime
+  "#22c55e", // green
+  "#10b981", // emerald
+  "#14b8a6", // teal
+  "#06b6d4", // cyan
+  "#3b82f6", // blue
+  "#6366f1", // indigo
+  "#8b5cf6", // violet
+  "#a855f7", // purple
+  "#ec4899", // pink
+  "#f43f5e", // rose
+  "#6b7280", // gray
+];
 
 export function useToggleTagInDado() {
   const qc = useQueryClient();
