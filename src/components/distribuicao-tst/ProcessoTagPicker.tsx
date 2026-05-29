@@ -72,13 +72,14 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
           onClick={(e) => e.stopPropagation()}
           title="Gerenciar TAGs"
         >
-          {tagsAplicadas.length > 0 ? (
-            badges
-          ) : (
-            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-              <Tag className="w-3 h-3" /> {compact ? "Tag" : "Adicionar TAG"}
-            </span>
-          )}
+          {tagsAplicadas.length > 0 && badges}
+          <span
+            className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
+            title={tagsAplicadas.length > 0 ? "Adicionar/remover TAGs" : "Adicionar TAG"}
+          >
+            <Tag className="w-3 h-3" />
+            {tagsAplicadas.length === 0 && (compact ? "Tag" : "Adicionar TAG")}
+          </span>
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-2" onClick={(e) => e.stopPropagation()} align="start">
