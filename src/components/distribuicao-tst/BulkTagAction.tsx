@@ -6,7 +6,13 @@ import { Tag, Plus, Loader2, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { useProcessoTagsCatalogo, useCriarTag } from "@/hooks/useProcessoTags";
+import {
+  useProcessoTagsCatalogo,
+  useCriarTag,
+  useAtualizarCorTag,
+  TAG_COLOR_PALETTE,
+} from "@/hooks/useProcessoTags";
+import { ColorPalettePicker } from "./ColorPalettePicker";
 import { fetchAllDistribuicaoTstIds, DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
 
 interface Props {
@@ -49,9 +55,12 @@ async function removeTagFromIds(ids: string[], tagId: string) {
 export function BulkTagAction({ selectedIds, filters, totalFiltered }: Props) {
   const { data: catalogo = [], isLoading } = useProcessoTagsCatalogo();
   const criar = useCriarTag();
+  const atualizarCor = useAtualizarCorTag();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [novoNome, setNovoNome] = useState("");
+  const [novaCor, setNovaCor] = useState<string>(TAG_COLOR_PALETTE[10]);
+  const [editandoCor, setEditandoCor] = useState<string | null>(null);
   const [busyTag, setBusyTag] = useState<string | null>(null);
 
   const usingSelection = selectedIds.length > 0;
@@ -101,7 +110,7 @@ export function BulkTagAction({ selectedIds, filters, totalFiltered }: Props) {
   async function handleCriar() {
     const nome = novoNome.trim();
     if (!nome) return;
-    const tag = await criar.mutateAsync(nome);
+    const tag = await criar.mutateAsync({ nome, cor: novaCor });
     setNovoNome("");
     if (tag?.id) {
       await handleApply(tag.id);
@@ -142,18 +151,19 @@ export function BulkTagAction({ selectedIds, filters, totalFiltered }: Props) {
             const removing = busyTag === t.id + ":remove";
             const anyBusy = busyTag !== null;
             return (
-              <div
-                key={t.id}
-                className="flex items-center gap-2 text-xs px-1 py-1 rounded hover:bg-muted/40"
-              >
-                <span
-                  className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: t.cor }}
-                />
-                <span className="flex-1 truncate" title={t.nome}>
-                  {t.nome}
-                </span>
-                <Button
+              <div key={t.id} className="text-xs px-1 py-1 rounded hover:bg-muted/40">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="inline-block w-3 h-3 rounded-full flex-shrink-0 border border-border hover:scale-110 transition"
+                    style={{ backgroundColor: t.cor }}
+                    onClick={() => setEditandoCor(editandoCor === t.id ? null : t.id)}
+                    title="Alterar cor"
+                  />
+                  <span className="flex-1 truncate" title={t.nome}>
+                    {t.nome}
+                  </span>
+                  <Button
                   size="sm"
                   variant="outline"
                   className="h-6 px-2 text-[10px] border-emerald-500 text-emerald-700 hover:bg-emerald-50"
@@ -173,32 +183,52 @@ export function BulkTagAction({ selectedIds, filters, totalFiltered }: Props) {
                 >
                   {removing ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
                 </Button>
+                </div>
+                {editandoCor === t.id && (
+                  <div className="pl-5 py-1">
+                    <ColorPalettePicker
+                      value={t.cor}
+                      onChange={(c) => {
+                        atualizarCor.mutate({ id: t.id, cor: c });
+                        setEditandoCor(null);
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
-        <div className="flex items-center gap-1 border-t pt-2">
-          <Input
-            value={novoNome}
-            onChange={(e) => setNovoNome(e.target.value)}
-            placeholder="Nova TAG (aplica em seguida)..."
-            className="h-7 text-xs"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleCriar();
-              }
-            }}
-          />
-          <Button
-            size="sm"
-            className="h-7 px-2"
-            disabled={!novoNome.trim() || criar.isPending}
-            onClick={handleCriar}
-            title="Criar e aplicar"
-          >
-            {criar.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-          </Button>
+        <div className="border-t pt-2 space-y-1.5">
+          <div className="flex items-center gap-1">
+            <span
+              className="inline-block w-3 h-3 rounded-full border border-border flex-shrink-0"
+              style={{ backgroundColor: novaCor }}
+              title={novaCor}
+            />
+            <Input
+              value={novoNome}
+              onChange={(e) => setNovoNome(e.target.value)}
+              placeholder="Nova TAG (aplica em seguida)..."
+              className="h-7 text-xs"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleCriar();
+                }
+              }}
+            />
+            <Button
+              size="sm"
+              className="h-7 px-2"
+              disabled={!novoNome.trim() || criar.isPending}
+              onClick={handleCriar}
+              title="Criar e aplicar"
+            >
+              {criar.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+            </Button>
+          </div>
+          <ColorPalettePicker value={novaCor} onChange={setNovaCor} />
         </div>
       </PopoverContent>
     </Popover>

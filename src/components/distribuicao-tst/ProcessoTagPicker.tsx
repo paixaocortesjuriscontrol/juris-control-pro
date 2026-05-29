@@ -9,8 +9,11 @@ import {
   useProcessoTagsCatalogo,
   useCriarTag,
   useToggleTagInDado,
+  useAtualizarCorTag,
+  TAG_COLOR_PALETTE,
   ProcessoTag,
 } from "@/hooks/useProcessoTags";
+import { ColorPalettePicker } from "./ColorPalettePicker";
 
 interface Props {
   dadoId: string;
@@ -24,8 +27,11 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
   const { data: catalogo = [], isLoading } = useProcessoTagsCatalogo();
   const criar = useCriarTag();
   const toggle = useToggleTagInDado();
+  const atualizarCor = useAtualizarCorTag();
   const [novoNome, setNovoNome] = useState("");
+  const [novaCor, setNovaCor] = useState<string>(TAG_COLOR_PALETTE[10]);
   const [open, setOpen] = useState(false);
+  const [editandoCor, setEditandoCor] = useState<string | null>(null);
 
   const tagsAplicadas: ProcessoTag[] = useMemo(() => {
     const s = new Set(tagIds);
@@ -39,7 +45,7 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
   const handleCriar = async () => {
     const nome = novoNome.trim();
     if (!nome) return;
-    const tag = await criar.mutateAsync(nome);
+    const tag = await criar.mutateAsync({ nome, cor: novaCor });
     setNovoNome("");
     if (tag?.id) {
       toggle.mutate({ dadoId, tagId: tag.id, checked: true });
@@ -92,44 +98,68 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
           {catalogo.map((t) => {
             const checked = tagIds.includes(t.id);
             return (
-              <label
+              <div
                 key={t.id}
-                className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/50 rounded px-1 py-0.5"
+                className="text-xs hover:bg-muted/50 rounded px-1 py-0.5"
               >
-                <Checkbox
-                  checked={checked}
-                  onCheckedChange={(v) => handleToggle(t.id, !!v)}
-                />
-                <span
-                  className="inline-block w-2 h-2 rounded-full"
-                  style={{ backgroundColor: t.cor }}
-                />
-                <span className="flex-1 truncate">{t.nome}</span>
-              </label>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(v) => handleToggle(t.id, !!v)}
+                  />
+                  <button
+                    type="button"
+                    className="inline-block w-3 h-3 rounded-full border border-border hover:scale-110 transition"
+                    style={{ backgroundColor: t.cor }}
+                    onClick={() => setEditandoCor(editandoCor === t.id ? null : t.id)}
+                    title="Alterar cor"
+                  />
+                  <span className="flex-1 truncate">{t.nome}</span>
+                </div>
+                {editandoCor === t.id && (
+                  <div className="pl-6 py-1">
+                    <ColorPalettePicker
+                      value={t.cor}
+                      onChange={(c) => {
+                        atualizarCor.mutate({ id: t.id, cor: c });
+                        setEditandoCor(null);
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
-        <div className="flex items-center gap-1 border-t pt-2">
-          <Input
-            value={novoNome}
-            onChange={(e) => setNovoNome(e.target.value)}
-            placeholder="Nova TAG..."
-            className="h-7 text-xs"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                handleCriar();
-              }
-            }}
-          />
-          <Button
-            size="sm"
-            className="h-7 px-2"
-            disabled={!novoNome.trim() || criar.isPending}
-            onClick={handleCriar}
-          >
-            {criar.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-          </Button>
+        <div className="border-t pt-2 space-y-1.5">
+          <div className="flex items-center gap-1">
+            <span
+              className="inline-block w-3 h-3 rounded-full border border-border flex-shrink-0"
+              style={{ backgroundColor: novaCor }}
+              title={novaCor}
+            />
+            <Input
+              value={novoNome}
+              onChange={(e) => setNovoNome(e.target.value)}
+              placeholder="Nova TAG..."
+              className="h-7 text-xs"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleCriar();
+                }
+              }}
+            />
+            <Button
+              size="sm"
+              className="h-7 px-2"
+              disabled={!novoNome.trim() || criar.isPending}
+              onClick={handleCriar}
+            >
+              {criar.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+            </Button>
+          </div>
+          <ColorPalettePicker value={novaCor} onChange={setNovaCor} />
         </div>
       </PopoverContent>
     </Popover>
