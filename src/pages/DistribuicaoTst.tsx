@@ -1483,6 +1483,13 @@ export default function DistribuicaoTst() {
               <CheckCircle2 className="w-3 h-3 mr-1" /> Finalizar Análise{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </Button>
             {isAdmin && <RespostaSantanderImport onUpdated={handleRefresh} />}
+            {isAdminOrCoordinator && (
+              <BulkTagAction
+                selectedIds={Array.from(selectedIds)}
+                filters={debouncedFilters}
+                totalFiltered={totalCount}
+              />
+            )}
           </div>
         )}
 
