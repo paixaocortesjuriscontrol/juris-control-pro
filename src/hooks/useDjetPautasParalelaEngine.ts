@@ -666,6 +666,20 @@ async function processarTribunal(
     const dataDDMMYYYY = ymdToDdmmyyyy(diaYmd);
     updateTrack(tribunal, { diaAtual: diaYmd, mensagem: `Processando ${dataDDMMYYYY}` });
 
+    // Pula sábado e domingo: DEJT não publica caderno novo nesses dias.
+    // Sem isso, o endpoint público devolve o caderno de sexta-feira e o motor
+    // reimporta as mesmas pautas com data inventada (sáb/dom).
+    const dow = new Date(`${diaYmd}T12:00:00Z`).getUTCDay();
+    if (dow === 0 || dow === 6) {
+      updateTrack(tribunal, {
+        current: progress.tracks.find((t) => t.tribunal === tribunal)!.current + 1,
+        diasSemPdf: progress.tracks.find((t) => t.tribunal === tribunal)!.diasSemPdf + 1,
+        mensagem: `Sem caderno (${dow === 0 ? "domingo" : "sábado"})`,
+      });
+      if (DELAY_BETWEEN_DAYS_MS > 0) await new Promise((r) => setTimeout(r, 50));
+      continue;
+    }
+
     try {
       const data = await buscarPautasNoNavegador(tribunal, dataDDMMYYYY, diaYmd, monsInput);
 
