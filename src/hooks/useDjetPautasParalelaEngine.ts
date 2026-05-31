@@ -421,7 +421,10 @@ function matchBlocoMonitoramento(blocoNorm: string, mon: ReturnType<typeof monit
   return null;
 }
 
-async function fetchPdfArrayBufferViaProxy(tribunal: string, dataDDMMYYYY: string): Promise<ArrayBuffer | null> {
+async function fetchPdfArrayBufferViaProxy(
+  tribunal: string,
+  dataDDMMYYYY: string,
+): Promise<{ buffer: ArrayBuffer; dataRealYmd: string | null } | null> {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
   if (!token) throw new Error("Sessão expirada");
@@ -439,7 +442,19 @@ async function fetchPdfArrayBufferViaProxy(tribunal: string, dataDDMMYYYY: strin
   const contentType = response.headers.get("content-type") || "";
   if (!response.ok) throw new Error(`PDF proxy HTTP ${response.status}`);
   if (!contentType.includes("application/pdf")) return null;
-  return await response.arrayBuffer();
+  const buffer = await response.arrayBuffer();
+  // Tenta extrair a data REAL do caderno a partir do header Last-Modified
+  // (DEJT serve sempre o caderno vigente; em fim de semana retorna o de sexta).
+  const lastMod = response.headers.get("last-modified") || response.headers.get("x-dejt-last-modified");
+  let dataRealYmd: string | null = null;
+  if (lastMod) {
+    const t = Date.parse(lastMod);
+    if (!Number.isNaN(t)) {
+      // Converte para data no fuso BRT (caderno é publicado no Brasil)
+      dataRealYmd = new Date(t).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+    }
+  }
+  return { buffer, dataRealYmd };
 }
 
 async function buscarPautasNoNavegador(
@@ -447,9 +462,18 @@ async function buscarPautasNoNavegador(
   dataDDMMYYYY: string,
   dataIso: string,
   monitoramentos: ReturnType<typeof monitoramentoToInput>[],
-): Promise<{ sem_dados: boolean; motivo?: string; totalBlocos: number; matches: MatchOut[] }> {
-  const arrayBuffer = await fetchPdfArrayBufferViaProxy(tribunal, dataDDMMYYYY);
-  if (!arrayBuffer) return { sem_dados: true, motivo: "no-pdf", totalBlocos: 0, matches: [] };
+): Promise<{ sem_dados: boolean; motivo?: string; totalBlocos: number; matches: MatchOut[]; dataRealYmd?: string | null }> {
+  const fetched = await fetchPdfArrayBufferViaProxy(tribunal, dataDDMMYYYY);
+  if (!fetched) return { sem_dados: true, motivo: "no-pdf", totalBlocos: 0, matches: [] };
+  const { buffer: arrayBuffer, dataRealYmd } = fetched;
+
+  // Se o caderno servido NÃO é da data solicitada, é fim de semana / feriado /
+  // dia sem publicação: o DEJT continua entregando o último caderno disponível.
+  // Nesse caso descartamos para evitar reimportar as mesmas pautas todo dia
+  // com data inventada.
+  if (dataRealYmd && dataRealYmd !== dataIso) {
+    return { sem_dados: true, motivo: `caderno-antigo (${dataRealYmd})`, totalBlocos: 0, matches: [], dataRealYmd };
+  }
 
   const pdfjsLib = await import("pdfjs-dist");
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
@@ -510,7 +534,7 @@ async function buscarPautasNoNavegador(
     try { await pdf.destroy(); } catch { /* ignore */ }
   }
 
-  return { sem_dados: false, totalBlocos, matches };
+  return { sem_dados: false, totalBlocos, matches, dataRealYmd };
 }
 
 // ============================================================================
@@ -641,6 +665,20 @@ async function processarTribunal(
     }
     const dataDDMMYYYY = ymdToDdmmyyyy(diaYmd);
     updateTrack(tribunal, { diaAtual: diaYmd, mensagem: `Processando ${dataDDMMYYYY}` });
+
+    // Pula sábado e domingo: DEJT não publica caderno novo nesses dias.
+    // Sem isso, o endpoint público devolve o caderno de sexta-feira e o motor
+    // reimporta as mesmas pautas com data inventada (sáb/dom).
+    const dow = new Date(`${diaYmd}T12:00:00Z`).getUTCDay();
+    if (dow === 0 || dow === 6) {
+      updateTrack(tribunal, {
+        current: progress.tracks.find((t) => t.tribunal === tribunal)!.current + 1,
+        diasSemPdf: progress.tracks.find((t) => t.tribunal === tribunal)!.diasSemPdf + 1,
+        mensagem: `Sem caderno (${dow === 0 ? "domingo" : "sábado"})`,
+      });
+      if (DELAY_BETWEEN_DAYS_MS > 0) await new Promise((r) => setTimeout(r, 50));
+      continue;
+    }
 
     try {
       const data = await buscarPautasNoNavegador(tribunal, dataDDMMYYYY, diaYmd, monsInput);
