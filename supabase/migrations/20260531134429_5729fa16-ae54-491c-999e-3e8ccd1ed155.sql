@@ -1,0 +1,1 @@
+DELETE FROM public.publicacoes_djen WHERE fonte = 'dejt-pdf' AND data_disponibilizacao::date IN ('2026-05-30','2026-05-31');
