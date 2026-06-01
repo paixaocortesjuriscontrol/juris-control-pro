@@ -601,13 +601,18 @@ export default function DistribuicaoTst() {
     }
   };
 
-  const handleToggleSubidaMassaRow = async (id: string, novoValor: boolean) => {
+  const handleToggleSubidaMassaRow = async (id: string, novoValor: boolean, processoNumero?: string | null) => {
     const { error } = await supabase
       .from("dados_benner" as any)
       .update({ subida_em_massa: novoValor } as any)
       .eq("id", id);
     if (error) { toast.error("Erro ao atualizar Subida em Massa: " + error.message); return; }
-    toast.success(novoValor ? "Marcado como Subida em Massa" : "Desmarcado de Subida em Massa");
+    const proc = processoNumero || "processo";
+    toast.success(
+      novoValor
+        ? `Marcado como Subida em Massa: ${proc}`
+        : `Desmarcado de Subida em Massa: ${proc}`
+    );
     handleRefresh();
   };
 
@@ -2043,7 +2048,7 @@ export default function DistribuicaoTst() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleToggleSubidaMassaRow(d.id, !isSubidaMassa)}
+                          onClick={() => handleToggleSubidaMassaRow(d.id, !isSubidaMassa, d.processo_numero)}
                           title={isSubidaMassa ? "Desmarcar Subida em Massa" : "Marcar Subida em Massa"}
                         >
                           <Layers className={`w-4 h-4 ${isSubidaMassa ? "text-purple-600" : "text-muted-foreground/60"}`} />
