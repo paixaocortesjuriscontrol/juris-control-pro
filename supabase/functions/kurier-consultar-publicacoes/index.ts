@@ -316,7 +316,7 @@ Deno.serve(async (req: Request) => {
     // monitoramentos para filtrar a query de monitoramentos por coordenação.
     const { data: vincCt, error: vincCtErr } = await admin
       .from("kurier_credencial_coordenacoes")
-      .select("coordenacao_id, somente_kurier_only")
+      .select("coordenacao_id, somente_kurier_only, somente_djen_only")
       .eq("credencial_id", cred.id);
     if (vincCtErr) console.warn("[kurier] erro carregar vínculos credencial→coord:", vincCtErr.message);
     const coordIdsDaCredencial = new Set<string>((vincCt ?? []).map((v: any) => v.coordenacao_id));
@@ -327,6 +327,12 @@ Deno.serve(async (req: Request) => {
     // como monitoramentos_djen.somente_kurier=true.
     const coordsSoKurier = new Set<string>(
       (vincCt ?? []).filter((v: any) => v.somente_kurier_only).map((v: any) => v.coordenacao_id),
+    );
+    // Coords com flag "Termos DJEN" ligada PARA ESTA CREDENCIAL:
+    // inverso de "Só Kurier" — só aceitam publicações que casem com
+    // monitoramentos comuns (somente_kurier != true), os Termos DJEN cadastrados.
+    const coordsTermosDjenOnly = new Set<string>(
+      (vincCt ?? []).filter((v: any) => v.somente_djen_only).map((v: any) => v.coordenacao_id),
     );
 
     // Carrega monitoramentos ativos para aplicar os termos do DJEN nas publicações
