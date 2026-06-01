@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -161,7 +161,7 @@ interface Props {
 }
 
 export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumbers, distribuicoes, idsAllowed }: Props) {
-  const [processing, setProcessing] = useState(false);
+  const [processing, setProcessing] = useState(true);
   const [phase, setPhase] = useState("");
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -172,6 +172,15 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
   const isManualSelection = !!(selectedProcessNumbers && selectedProcessNumbers.length > 0);
   const hasPreFilteredData = !!(distribuicoes && distribuicoes.length > 0);
   const hasIdsAllowed = !!(idsAllowed && idsAllowed.length > 0);
+
+  const autoStartedRef = useRef(false);
+
+  useEffect(() => {
+    if (autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    processData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const processData = async () => {
     setProcessing(true);
@@ -684,15 +693,6 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
 
   return (
     <div className="space-y-4">
-      {/* Generate Button */}
-      {!stats && !processing && (
-        <div className="flex justify-center">
-          <Button size="lg" onClick={processData} className="px-8">
-            <ArrowRight className="w-5 h-5 mr-2" />
-            Gerar Layout Carga Benner
-          </Button>
-        </div>
-      )}
 
       {/* Progress */}
       {processing && (
