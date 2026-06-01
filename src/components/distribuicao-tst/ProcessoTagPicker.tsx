@@ -107,7 +107,7 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
           </span>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-2" onClick={(e) => e.stopPropagation()} align="start">
+      <PopoverContent className="w-96 p-2" onClick={(e) => e.stopPropagation()} align="start">
         <div className="flex items-center justify-between mb-1">
           <div className="text-xs font-semibold">TAGs do processo</div>
           {tagsAplicadas.length > 0 && (
@@ -178,7 +178,7 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
                     </>
                   ) : (
                     <>
-                      <span className="flex-1 truncate">{t.nome}</span>
+                      <span className="flex-1 break-words">{t.nome}</span>
                       <button
                         type="button"
                         className="text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100"
