@@ -87,14 +87,25 @@ export function useAtualizarCorTag() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, cor }: { id: string; cor: string }) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("processo_tags_catalogo" as any)
         .update({ cor } as any)
-        .eq("id", id);
+        .eq("id", id)
+        .select("id, cor");
       if (error) throw error;
+      const rows = (data as any[]) || [];
+      if (rows.length === 0) {
+        throw new Error("Sem permissão para alterar a cor desta TAG (verifique seu perfil)");
+      }
+      return rows[0];
     },
-    onSuccess: async () => {
+    onSuccess: async (row: any) => {
+      // Atualiza o cache imediatamente para refletir a nova cor antes do refetch.
+      qc.setQueryData<ProcessoTag[]>(["processo-tags-catalogo"], (old) =>
+        (old || []).map((t) => (t.id === row.id ? { ...t, cor: row.cor } : t))
+      );
       await qc.invalidateQueries({ queryKey: ["processo-tags-catalogo"] });
+      toast.success("Cor atualizada");
     },
     onError: (err: any) => toast.error("Erro ao atualizar cor: " + (err?.message || "")),
   });
