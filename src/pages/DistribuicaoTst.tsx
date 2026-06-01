@@ -1436,6 +1436,55 @@ export default function DistribuicaoTst() {
                 {totalCount > 0 ? ` (${totalCount})` : ""}
               </Button>
             )}
+            {isAdminOrCoordinator && (
+              <>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    const ids = Array.from(selectedIds);
+                    if (!ids.length) { toast.warning("Selecione registros primeiro"); return; }
+                    const BATCH = 200;
+                    for (let i = 0; i < ids.length; i += BATCH) {
+                      const batch = ids.slice(i, i + BATCH);
+                      const { error } = await supabase.from("dados_benner" as any).update({ subida_em_massa: true } as any).in("id", batch);
+                      if (error) { toast.error("Erro: " + error.message); return; }
+                    }
+                    toast.success(`${ids.length} marcado(s) como Subida em Massa`);
+                    setSelectedIds(new Set());
+                    handleRefresh();
+                  }}
+                  disabled={selectedIds.size === 0}
+                  className="h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                  title="Marca os processos selecionados como Subida em Massa"
+                >
+                  <Layers className="w-3 h-3 mr-1" /> Marcar Subida em Massa
+                  {selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    const ids = Array.from(selectedIds);
+                    if (!ids.length) { toast.warning("Selecione registros primeiro"); return; }
+                    const BATCH = 200;
+                    for (let i = 0; i < ids.length; i += BATCH) {
+                      const batch = ids.slice(i, i + BATCH);
+                      const { error } = await supabase.from("dados_benner" as any).update({ subida_em_massa: false } as any).in("id", batch);
+                      if (error) { toast.error("Erro: " + error.message); return; }
+                    }
+                    toast.success(`${ids.length} desmarcado(s) de Subida em Massa`);
+                    setSelectedIds(new Set());
+                    handleRefresh();
+                  }}
+                  disabled={selectedIds.size === 0}
+                  className="h-8 text-xs border-purple-500 text-purple-700 hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-950/30"
+                  title="Remove a marca Subida em Massa dos processos selecionados"
+                >
+                  <X className="w-3 h-3 mr-1" /> Desmarcar Subida em Massa
+                  {selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+                </Button>
+              </>
+            )}
             <Button
               size="sm"
               onClick={handleBulkJudit}
