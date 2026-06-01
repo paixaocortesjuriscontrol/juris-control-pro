@@ -488,7 +488,11 @@ serve(async (req) => {
     const tribunalHint = String(body?.tribunal || "").trim().toUpperCase() || null;
     const comAnexos = body?.com_anexos === true;
     const forceRefresh = body?.force_refresh === true;
-    const cacheTtlDays = forceRefresh ? 0 : CACHE_TTL_DAYS_DEFAULT;
+    // Quando o usuário pede "Com anexos", precisamos forçar cache_ttl_in_days=0
+    // no crawler — caso contrário a Judit retorna o cache anterior (gerado sem
+    // anexos) e a resposta vem com attachments=[]. Forçar TTL=0 garante uma
+    // recrawl real que coleta os PDFs.
+    const cacheTtlDays = forceRefresh || comAnexos ? 0 : CACHE_TTL_DAYS_DEFAULT;
     const t0 = Date.now();
     console.log(`[buscar-judit] modo=${comAnexos ? "COM_ANEXOS (caro)" : "sem anexos"} cnj=${numero} cache_ttl=${cacheTtlDays}d`);
 
