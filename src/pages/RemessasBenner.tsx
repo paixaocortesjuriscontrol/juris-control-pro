@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Download, Mail, Upload, Ban, CheckCircle2, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Download, Mail, Upload, Ban, CheckCircle2, FileSpreadsheet, Loader2, Settings } from "lucide-react";
 import { toast } from "sonner";
 import {
   useRemessasBenner,
@@ -22,6 +23,10 @@ import {
   useConciliarRetorno,
   type RemessaBenner,
 } from "@/hooks/useRemessasBenner";
+import {
+  useConfiguracaoCargaBenner,
+  aplicarPlaceholders,
+} from "@/hooks/useConfiguracoesCargaBenner";
 
 const STATUS_COLORS: Record<string, string> = {
   gerada: "bg-slate-200 text-slate-800",
@@ -48,17 +53,24 @@ export default function RemessasBenner() {
           <h1 className="text-2xl font-bold">Remessas Carga Benner</h1>
           <p className="text-sm text-muted-foreground">Histórico de envios e conciliação com o Santander</p>
         </div>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os status</SelectItem>
-            <SelectItem value="gerada">Gerada</SelectItem>
-            <SelectItem value="enviada">Enviada</SelectItem>
-            <SelectItem value="retornada">Retornada</SelectItem>
-            <SelectItem value="conciliada">Conciliada</SelectItem>
-            <SelectItem value="cancelada">Cancelada</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os status</SelectItem>
+              <SelectItem value="gerada">Gerada</SelectItem>
+              <SelectItem value="enviada">Enviada</SelectItem>
+              <SelectItem value="retornada">Retornada</SelectItem>
+              <SelectItem value="conciliada">Conciliada</SelectItem>
+              <SelectItem value="cancelada">Cancelada</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/remessas-benner/configuracoes">
+              <Settings className="w-4 h-4 mr-1" /> Configurações
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <Card>
