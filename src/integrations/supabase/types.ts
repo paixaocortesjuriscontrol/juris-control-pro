@@ -1312,6 +1312,36 @@ export type Database = {
           },
         ]
       }
+      configuracoes_carga_benner: {
+        Row: {
+          coordenacao_id: string | null
+          email_assunto_padrao: string | null
+          email_corpo_padrao: string | null
+          email_padrao_cc: string[] | null
+          email_padrao_para: string[] | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          coordenacao_id?: string | null
+          email_assunto_padrao?: string | null
+          email_corpo_padrao?: string | null
+          email_padrao_cc?: string[] | null
+          email_padrao_para?: string[] | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          coordenacao_id?: string | null
+          email_assunto_padrao?: string | null
+          email_corpo_padrao?: string | null
+          email_padrao_cc?: string[] | null
+          email_padrao_para?: string[] | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       configuracoes_monitoramento: {
         Row: {
           ativo: boolean
@@ -6366,6 +6396,134 @@ export type Database = {
           },
         ]
       }
+      remessas_benner: {
+        Row: {
+          arquivo_nome: string | null
+          arquivo_path: string | null
+          coordenacao_id: string | null
+          created_at: string
+          created_by: string | null
+          data_conciliacao: string | null
+          data_envio: string | null
+          data_geracao: string
+          email_assunto: string | null
+          email_cc: string[] | null
+          email_corpo: string | null
+          email_destinatarios: string[] | null
+          enviado_por: string | null
+          filtros_aplicados: Json | null
+          id: string
+          numero_sequencial: string
+          observacoes: string | null
+          quantidade_aceitos: number
+          quantidade_itens: number
+          quantidade_pendentes: number
+          quantidade_rejeitados: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          arquivo_nome?: string | null
+          arquivo_path?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_conciliacao?: string | null
+          data_envio?: string | null
+          data_geracao?: string
+          email_assunto?: string | null
+          email_cc?: string[] | null
+          email_corpo?: string | null
+          email_destinatarios?: string[] | null
+          enviado_por?: string | null
+          filtros_aplicados?: Json | null
+          id?: string
+          numero_sequencial: string
+          observacoes?: string | null
+          quantidade_aceitos?: number
+          quantidade_itens?: number
+          quantidade_pendentes?: number
+          quantidade_rejeitados?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          arquivo_nome?: string | null
+          arquivo_path?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          data_conciliacao?: string | null
+          data_envio?: string | null
+          data_geracao?: string
+          email_assunto?: string | null
+          email_cc?: string[] | null
+          email_corpo?: string | null
+          email_destinatarios?: string[] | null
+          enviado_por?: string | null
+          filtros_aplicados?: Json | null
+          id?: string
+          numero_sequencial?: string
+          observacoes?: string | null
+          quantidade_aceitos?: number
+          quantidade_itens?: number
+          quantidade_pendentes?: number
+          quantidade_rejeitados?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      remessas_benner_itens: {
+        Row: {
+          created_at: string
+          dado_benner_id: string | null
+          dossie: string | null
+          id: string
+          motivo_retorno: string | null
+          processo: string | null
+          relator: string | null
+          remessa_id: string
+          status_retorno: string
+          tribunal: string | null
+          turma: string | null
+        }
+        Insert: {
+          created_at?: string
+          dado_benner_id?: string | null
+          dossie?: string | null
+          id?: string
+          motivo_retorno?: string | null
+          processo?: string | null
+          relator?: string | null
+          remessa_id: string
+          status_retorno?: string
+          tribunal?: string | null
+          turma?: string | null
+        }
+        Update: {
+          created_at?: string
+          dado_benner_id?: string | null
+          dossie?: string | null
+          id?: string
+          motivo_retorno?: string | null
+          processo?: string | null
+          relator?: string | null
+          remessa_id?: string
+          status_retorno?: string
+          tribunal?: string | null
+          turma?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remessas_benner_itens_remessa_id_fkey"
+            columns: ["remessa_id"]
+            isOneToOne: false
+            referencedRelation: "remessas_benner"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       repositorio_conversas: {
         Row: {
           created_at: string
@@ -7150,6 +7308,7 @@ export type Database = {
         Returns: number
       }
       find_processo_id_by_numero: { Args: { _numero: string }; Returns: string }
+      gerar_numero_remessa_benner: { Args: never; Returns: string }
       get_cliente_ids_for_user: {
         Args: { _user_id: string }
         Returns: string[]

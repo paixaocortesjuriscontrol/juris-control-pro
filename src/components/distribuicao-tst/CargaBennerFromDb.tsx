@@ -7,8 +7,10 @@ import { toast } from "sonner";
 import JSZip from "jszip";
 import * as XLSX from "xlsx";
 import {
-  Download, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, ArrowRight,
+  Download, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, ArrowRight, Mail,
 } from "lucide-react";
+import { useCriarRemessa } from "@/hooks/useRemessasBenner";
+import { useNavigate } from "react-router-dom";
 
 // --- Types ---
 interface Stats {
@@ -168,6 +170,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
   const [outputData, setOutputData] = useState<Record<string, any>[] | null>(null);
   const [rejectedData, setRejectedData] = useState<RejeicaoRow[]>([]);
   const [conferenciaData, setConferenciaData] = useState<Record<string, any>[] | null>(null);
+  const criarRemessa = useCriarRemessa();
+  const navigate = useNavigate();
 
   const isManualSelection = !!(selectedProcessNumbers && selectedProcessNumbers.length > 0);
   const hasPreFilteredData = !!(distribuicoes && distribuicoes.length > 0);
@@ -471,8 +475,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
     }
   };
 
-  const downloadXlsx = async (fullMode: "full" | "aq" | "ag") => {
-    if (!outputData) return;
+  const buildXlsxBlob = async (fullMode: "full" | "aq" | "ag"): Promise<{ blob: Blob; filename: string } | null> => {
+    if (!outputData) return null;
     try {
       const resp = await fetch("/templates/layout_carga_tst_template.xlsx");
       if (!resp.ok) throw new Error("Template não encontrado");
@@ -547,14 +551,48 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
 
       const suffix = fullMode === "full" ? "" : fullMode === "ag" ? "_ate_analise" : "_ate_recurso";
       const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `Layout_Carga_TST_Supabase${suffix}_${getTimestamp()}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-      toast.success("Planilha baixada!");
+      return { blob, filename: `Layout_Carga_TST_Supabase${suffix}_${getTimestamp()}.xlsx` };
     } catch (err: any) {
       toast.error("Erro ao gerar planilha: " + (err?.message || String(err)));
+      return null;
+    }
+  };
+
+  const downloadXlsx = async (fullMode: "full" | "aq" | "ag") => {
+    const res = await buildXlsxBlob(fullMode);
+    if (!res) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(res.blob);
+    a.download = res.filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast.success("Planilha baixada!");
+  };
+
+  const salvarComoRemessa = async () => {
+    if (!outputData || outputData.length === 0) return;
+    const res = await buildXlsxBlob("full");
+    if (!res) return;
+    try {
+      const itens = outputData.map((row: any) => ({
+        dossie: String(row[LAYOUT_COLS[0]] ?? ""),
+        processo: String(row["__numProcesso"] ?? ""),
+        turma: String(row[LAYOUT_COLS[4]] ?? ""),
+        relator: String(row[LAYOUT_COLS[5]] ?? ""),
+        tribunal: String(row[LAYOUT_COLS[1]] ?? ""),
+        dado_benner_id: null,
+      }));
+      const remessa = await criarRemessa.mutateAsync({
+        arquivo: res.blob,
+        arquivoNome: res.filename,
+        filtros: { ...filters, selectedProcessNumbers, idsAllowedCount: idsAllowed?.length ?? null },
+        itens,
+      });
+      toast.success(`Remessa ${remessa.numero_sequencial} criada com ${itens.length} item(ns)!`);
+      if (onClose) onClose();
+      navigate("/remessas-benner");
+    } catch (err: any) {
+      toast.error("Erro ao salvar remessa: " + (err?.message || String(err)));
     }
   };
 
@@ -824,6 +862,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
+                <Button onClick={salvarComoRemessa} disabled={criarRemessa.isPending} className="bg-emerald-600 hover:bg-emerald-700">
+                  {criarRemessa.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
+                  Salvar como Remessa
+                </Button>
                 {rejectedData.length > 0 && (
                   <Button variant="outline" onClick={downloadRejectedXlsx}>
                     <AlertCircle className="w-4 h-4 mr-2" />

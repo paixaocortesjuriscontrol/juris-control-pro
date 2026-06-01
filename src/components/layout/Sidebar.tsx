@@ -33,6 +33,7 @@ import {
   ArrowRightLeft,
   KeyRound,
   Sparkles,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
@@ -67,6 +68,7 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: FolderOpen, label: "Analisar Prazos", path: "/analisar-prazos", color: "text-sky-400" },
   { icon: Table2, label: "Planilha TST", path: "/planilha-tst", color: "text-sky-400" },
   { icon: Upload, label: "Carga Benner", path: "/carga-benner", color: "text-sky-400" },
+  { icon: Mail, label: "Remessas Benner", path: "/remessas-benner", color: "text-sky-400" },
   { icon: Sparkles, label: "IA Responde", path: "/ia-responde", color: "text-amber-400", adminOnly: true },
   { icon: ClipboardList, label: "Dados Benner", path: "/dados-benner", color: "text-sky-400" },
   { icon: Scale, label: "Pautas TST", path: "/pautas-tst", color: "text-sky-400" },

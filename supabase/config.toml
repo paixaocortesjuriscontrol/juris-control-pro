@@ -192,3 +192,6 @@ verify_jwt = true
 
 [functions.judit-processo-interno]
 verify_jwt = true
+
+[functions.enviar-remessa-benner]
+verify_jwt = true
