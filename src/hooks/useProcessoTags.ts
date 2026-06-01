@@ -87,17 +87,16 @@ export function useAtualizarCorTag() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, cor }: { id: string; cor: string }) => {
-      const { data, error } = await supabase
-        .from("processo_tags_catalogo" as any)
-        .update({ cor } as any)
-        .eq("id", id)
-        .select("id, cor");
+      const { data, error } = await supabase.rpc(
+        "atualizar_cor_processo_tag" as any,
+        { _tag_id: id, _cor: cor } as any,
+      );
       if (error) throw error;
       const rows = (data as any[]) || [];
       if (rows.length === 0) {
-        throw new Error("Sem permissão para alterar a cor desta TAG (verifique seu perfil)");
+        throw new Error("TAG não encontrada ou sem permissão");
       }
-      return rows[0];
+      return rows[0] as { id: string; cor: string };
     },
     onSuccess: async (row: any) => {
       // Atualiza o cache imediatamente para refletir a nova cor antes do refetch.

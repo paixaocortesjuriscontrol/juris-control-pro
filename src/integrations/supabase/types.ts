@@ -7056,6 +7056,13 @@ export type Database = {
       }
       analyze_publicacoes_djen: { Args: never; Returns: undefined }
       apply_data_planilha_fix: { Args: { items: Json }; Returns: number }
+      atualizar_cor_processo_tag: {
+        Args: { _cor: string; _tag_id: string }
+        Returns: {
+          cor: string
+          id: string
+        }[]
+      }
       backfill_djen_status_batch: {
         Args: { p_limit?: number }
         Returns: {
