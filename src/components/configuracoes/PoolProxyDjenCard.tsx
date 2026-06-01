@@ -6,7 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Server, Trash2, RefreshCw, FlaskConical, CheckCircle2, XCircle, BarChart3, RotateCcw } from "lucide-react";
+import { Server, Trash2, RefreshCw, FlaskConical, CheckCircle2, XCircle, BarChart3, RotateCcw, Network, Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   loadDjenProxyPool,
   saveDjenProxyPool,
@@ -22,6 +30,10 @@ import {
   updateProxySlotRemote,
   removeProxySlotRemote,
   setPoolEnabledRemote,
+  fetchSlotPublicIp,
+  supportsMultiIp,
+  discoverExtraIps,
+  invalidatePublicIpCache,
   type PoolSessionStats,
   type ProxySlotConfig,
 } from "@/utils/djenProxyPool";
@@ -33,6 +45,14 @@ interface SlotState extends ProxySlotConfig {
   uptime?: number;
 }
 
+interface MultiIpDialogState {
+  open: boolean;
+  parent: SlotState | null;
+  loading: boolean;
+  detected: Array<{ index: number; path: string; ip: string | null; saved: boolean; saving: boolean }>;
+  count: number;
+}
+
 export default function PoolProxyDjenCard() {
   const { toast } = useToast();
   const [enabled, setEnabled] = useState<boolean>(false);
@@ -41,10 +61,38 @@ export default function PoolProxyDjenCard() {
   const [testing, setTesting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<PoolSessionStats>(() => getDjenProxyPoolStats());
+  const [publicIps, setPublicIps] = useState<Record<string, string | null>>({});
+  const [multiIpCapable, setMultiIpCapable] = useState<Record<string, boolean>>({});
+  const [multiIp, setMultiIp] = useState<MultiIpDialogState>({
+    open: false,
+    parent: null,
+    loading: false,
+    detected: [],
+    count: 5,
+  });
 
   function refreshFromStorage() {
     const runtime = getDjenProxySlotsRuntime();
     setSlots(runtime.map((r) => ({ ...r })));
+  }
+
+  /** Carrega IP público e flag multi-IP para cada slot ativo. */
+  async function refreshPublicIps(currentSlots: SlotState[], force = false) {
+    await Promise.all(
+      currentSlots.map(async (s) => {
+        try {
+          const isChild = /\/proxy\/\d+$/.test(s.baseUrl.replace(/\/$/, ""));
+          const ip = await fetchSlotPublicIp(s.baseUrl, { force });
+          setPublicIps((prev) => ({ ...prev, [s.id]: ip }));
+          if (!isChild) {
+            const supports = await supportsMultiIp(s.baseUrl);
+            setMultiIpCapable((prev) => ({ ...prev, [s.id]: supports }));
+          }
+        } catch {
+          /* silencioso — chip simplesmente não aparece */
+        }
+      }),
+    );
   }
 
   useEffect(() => {
@@ -67,6 +115,13 @@ export default function PoolProxyDjenCard() {
       window.clearInterval(id);
     };
   }, []);
+
+  // Quando a lista de slots mudar, busca IPs em background.
+  useEffect(() => {
+    if (slots.length === 0) return;
+    void refreshPublicIps(slots);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slots.map((s) => s.id + s.baseUrl).join("|")]);
 
   async function handleToggle(value: boolean) {
     await setPoolEnabledRemote(value);
@@ -167,6 +222,7 @@ export default function PoolProxyDjenCard() {
 
   async function handleRecheck(slot: SlotState) {
     clearDjenProxyOfflineMark(slot.id);
+    invalidatePublicIpCache(slot.baseUrl);
     const health = await checkDjenProxyHealth(slot.baseUrl);
     if (!health.ok) {
       toast({
@@ -180,7 +236,79 @@ export default function PoolProxyDjenCard() {
         description: health.ip ? `IP de saída: ${health.ip}` : "OK",
       });
     }
+    await refreshPublicIps([slot], true);
     refreshFromStorage();
+  }
+
+  // -------------------------------------------------------------------------
+  // Multi-IP
+  // -------------------------------------------------------------------------
+
+  async function openMultiIpDialog(parent: SlotState) {
+    setMultiIp({ open: true, parent, loading: true, detected: [], count: 5 });
+    try {
+      const results = await discoverExtraIps(parent.baseUrl, 5);
+      // Marca como "saved" os paths que já existem como slot no pool.
+      const existing = loadDjenProxyPool().map((s) => s.baseUrl.replace(/\/$/, ""));
+      const parentBase = parent.baseUrl.replace(/\/$/, "");
+      setMultiIp((prev) => ({
+        ...prev,
+        loading: false,
+        detected: results.map((r) => ({
+          ...r,
+          saved: existing.includes(`${parentBase}${r.path}`),
+          saving: false,
+        })),
+      }));
+    } catch (e: any) {
+      toast({
+        title: "Falha ao descobrir IPs",
+        description: e?.message || String(e),
+        variant: "destructive",
+      });
+      setMultiIp((prev) => ({ ...prev, loading: false }));
+    }
+  }
+
+  async function handleSaveChildSlot(index: number) {
+    if (!multiIp.parent) return;
+    const parent = multiIp.parent;
+    setMultiIp((prev) => ({
+      ...prev,
+      detected: prev.detected.map((d) =>
+        d.index === index ? { ...d, saving: true } : d,
+      ),
+    }));
+    const childBase = `${parent.baseUrl.replace(/\/$/, "")}/proxy/${index}`;
+    try {
+      await addProxySlotRemote({
+        label: `${parent.label} — IP ${index}`,
+        baseUrl: childBase,
+        token: parent.token,
+      });
+      setMultiIp((prev) => ({
+        ...prev,
+        detected: prev.detected.map((d) =>
+          d.index === index ? { ...d, saved: true, saving: false } : d,
+        ),
+      }));
+      refreshFromStorage();
+      toast({ title: `IP ${index} cadastrado`, description: childBase });
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      const isDup = /duplicate|already exists|unique/i.test(msg);
+      toast({
+        title: isDup ? "IP já cadastrado" : "Erro ao salvar",
+        description: msg,
+        variant: "destructive",
+      });
+      setMultiIp((prev) => ({
+        ...prev,
+        detected: prev.detected.map((d) =>
+          d.index === index ? { ...d, saving: false } : d,
+        ),
+      }));
+    }
   }
 
   return (
@@ -301,6 +429,11 @@ export default function PoolProxyDjenCard() {
                       <Badge variant={slot.enabled ? "default" : "outline"}>
                         {slot.enabled ? "ativo" : "pausado"}
                       </Badge>
+                      {publicIps[slot.id] && (
+                        <Badge variant="secondary" className="font-mono text-[10px]">
+                          IP {publicIps[slot.id]}
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground truncate">
                       {slot.baseUrl}
@@ -311,6 +444,17 @@ export default function PoolProxyDjenCard() {
                       </p>
                     )}
                   </div>
+                  {multiIpCapable[slot.id] && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openMultiIpDialog(slot)}
+                      title="Adicionar IPs extras dessa VPS ao pool"
+                    >
+                      <Network className="h-4 w-4 mr-1" />
+                      Multi-IP
+                    </Button>
+                  )}
                   <Switch
                     checked={slot.enabled}
                     onCheckedChange={(v) => handleToggleSlot(slot.id, v)}
@@ -394,6 +538,88 @@ export default function PoolProxyDjenCard() {
           automaticamente para chamada direta sem interromper a execução.
         </p>
       </CardContent>
+
+      {/* Multi-IP discovery dialog */}
+      <Dialog
+        open={multiIp.open}
+        onOpenChange={(open) => setMultiIp((prev) => ({ ...prev, open }))}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Network className="h-5 w-5" />
+              {multiIp.parent?.label} — IPs adicionais
+            </DialogTitle>
+            <DialogDescription>
+              Detecta IPs extras servidos pela mesma VPS via{" "}
+              <code>/proxy/N</code>. Cada IP salvo vira um slot independente no
+              round-robin imediatamente (não interrompe consultas em andamento).
+            </DialogDescription>
+          </DialogHeader>
+
+          {multiIp.loading ? (
+            <div className="flex items-center justify-center py-8 text-muted-foreground gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Consultando /whoami/2..5…
+            </div>
+          ) : multiIp.detected.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">
+              Nenhum IP adicional detectado. Confirme que o <code>server.js</code>{" "}
+              está rodando com <code>LOCAL_IPS</code> configurado (ver{" "}
+              <code>gcp-djen-proxy/README.md</code>).
+            </p>
+          ) : (
+            <div className="space-y-2 py-2">
+              {multiIp.detected.map((d) => (
+                <div
+                  key={d.index}
+                  className="flex items-center gap-3 rounded-lg border p-3"
+                >
+                  <code className="text-xs font-mono shrink-0">{d.path}</code>
+                  <div className="flex-1 min-w-0">
+                    {d.ip ? (
+                      <Badge variant="secondary" className="font-mono text-[11px]">
+                        IP {d.ip}
+                      </Badge>
+                    ) : (
+                      <span className="text-xs text-destructive">
+                        sem resposta em /whoami/{d.index}
+                      </span>
+                    )}
+                  </div>
+                  {d.saved ? (
+                    <Badge variant="default" className="gap-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      no pool
+                    </Badge>
+                  ) : (
+                    <Button
+                      size="sm"
+                      disabled={!d.ip || d.saving}
+                      onClick={() => handleSaveChildSlot(d.index)}
+                    >
+                      {d.saving ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        "Salvar como slot"
+                      )}
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setMultiIp((prev) => ({ ...prev, open: false }))}
+            >
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
