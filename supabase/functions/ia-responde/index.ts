@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -288,9 +289,8 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "messages obrigatório" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY não configurada");
-    const MODEL = "gpt-4o";
+    if (!Deno.env.get("GEMINI_API_KEY")) throw new Error("GEMINI_API_KEY não configurada");
+    const MODEL = "gemini-2.5-pro";
 
     // Carrega schema real (com fallback silencioso)
     let schemaPrompt = "";
@@ -308,19 +308,12 @@ serve(async (req) => {
     const trace: any[] = [];
 
     for (let step = 0; step < 12; step++) {
-      const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          messages: convo,
-          tools: TOOLS,
-          tool_choice: "auto",
-          temperature: 0.1,
-        }),
+      const resp = await geminiChatCompletionsFetch({
+        model: MODEL,
+        messages: convo,
+        tools: TOOLS,
+        tool_choice: "auto",
+        temperature: 0.1,
       });
       if (resp.status === 429) {
         return new Response(JSON.stringify({ error: "Limite de requisições atingido. Tente novamente em instantes." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -331,7 +324,7 @@ serve(async (req) => {
       }
       const json = await resp.json();
       const msg = json.choices?.[0]?.message;
-      if (!msg) throw new Error("Resposta vazia da OpenAI");
+      if (!msg) throw new Error("Resposta vazia da IA");
 
       convo.push(msg);
 
