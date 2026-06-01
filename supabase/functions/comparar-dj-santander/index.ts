@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,9 +21,8 @@ serve(async (req) => {
       });
     }
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY não configurada");
+    if (!Deno.env.get("GEMINI_API_KEY")) {
+      throw new Error("GEMINI_API_KEY não configurada");
     }
 
     const systemPrompt = `Você é um analista jurídico especializado em extrair números de processos trabalhistas de documentos.
@@ -55,27 +55,21 @@ ${textoPdf.substring(0, 15000)}
 
 Extraia todos os números de processos de cada texto.`;
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0,
-        max_tokens: 4000,
-      }),
+    const response = await geminiChatCompletionsFetch({
+      model: "gemini-2.5-pro",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0,
+      max_tokens: 4000,
+      response_format: { type: "json_object" },
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("OpenAI error:", response.status, errorText);
-      throw new Error(`Erro OpenAI: ${response.status}`);
+      console.error("Gemini error:", response.status, errorText);
+      throw new Error(`Erro Gemini: ${response.status}`);
     }
 
     const aiData = await response.json();
