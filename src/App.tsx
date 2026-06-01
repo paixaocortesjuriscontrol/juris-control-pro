@@ -63,6 +63,7 @@ import TstPrazos from "./pages/TstPrazos";
 import AnalisarPrazos from "./pages/AnalisarPrazos";
 import PlanilhaTst from "./pages/PlanilhaTst";
 import CargaBenner from "./pages/CargaBenner";
+import RemessasBenner from "./pages/RemessasBenner";
 import DadosBenner from "./pages/DadosBenner";
 import DistribuicaoTst from "./pages/DistribuicaoTst";
 import DistribuicaoTstKanban from "./pages/DistribuicaoTstKanban";
