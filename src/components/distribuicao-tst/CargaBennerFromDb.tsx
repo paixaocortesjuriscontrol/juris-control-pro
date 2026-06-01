@@ -175,6 +175,13 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
 
   const autoStartedRef = useRef(false);
 
+  useEffect(() => {
+    if (autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    processData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const processData = async () => {
     setProcessing(true);
     setProgress(0);
