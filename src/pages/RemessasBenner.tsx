@@ -11,7 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Download, Mail, Upload, Ban, CheckCircle2, FileSpreadsheet, Loader2, Settings } from "lucide-react";
+import { Download, Mail, Upload, Ban, CheckCircle2, FileSpreadsheet, Loader2, Settings, ArrowLeft, Trash2, MoreVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
   useRemessasBenner,
@@ -21,12 +29,16 @@ import {
   useMarcarRemessaEnviada,
   useCancelarRemessa,
   useConciliarRetorno,
+  useAlterarStatusRemessa,
+  useExcluirRemessa,
   type RemessaBenner,
 } from "@/hooks/useRemessasBenner";
 import {
   useConfiguracaoCargaBenner,
   aplicarPlaceholders,
 } from "@/hooks/useConfiguracoesCargaBenner";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useNavigate } from "react-router-dom";
 
 const STATUS_COLORS: Record<string, string> = {
   gerada: "bg-slate-200 text-slate-800",
@@ -40,6 +52,10 @@ export default function RemessasBenner() {
   const { data: remessas = [], isLoading } = useRemessasBenner();
   const [filterStatus, setFilterStatus] = useState<string>("todos");
   const [selected, setSelected] = useState<RemessaBenner | null>(null);
+  const { isAdmin, isAdminOrCoordinator } = useUserRole();
+  const navigate = useNavigate();
+  const alterarStatus = useAlterarStatusRemessa();
+  const excluir = useExcluirRemessa();
 
   const filtered = useMemo(() => {
     if (filterStatus === "todos") return remessas;
@@ -49,9 +65,14 @@ export default function RemessasBenner() {
   return (
     <div className="container mx-auto py-6 space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Remessas Carga Benner</h1>
-          <p className="text-sm text-muted-foreground">Histórico de envios e conciliação com o Santander</p>
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Voltar">
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">Remessas Carga Benner</h1>
+            <p className="text-sm text-muted-foreground">Histórico de envios e conciliação com o Santander</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -97,6 +118,7 @@ export default function RemessasBenner() {
                   <TableHead className="text-right">Rejeitados</TableHead>
                   <TableHead className="text-right">Pendentes</TableHead>
                   <TableHead>Arquivo</TableHead>
+                  {isAdminOrCoordinator && <TableHead className="w-12 text-right">Ações</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -115,6 +137,45 @@ export default function RemessasBenner() {
                     <TableCell className="text-xs text-muted-foreground truncate max-w-[200px]">
                       {r.arquivo_nome || "—"}
                     </TableCell>
+                    {isAdminOrCoordinator && (
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuLabel>Alterar status</DropdownMenuLabel>
+                            {(["gerada","enviada","retornada","conciliada","cancelada"] as const)
+                              .filter((s) => s !== r.status)
+                              .map((s) => (
+                                <DropdownMenuItem
+                                  key={s}
+                                  onClick={() => alterarStatus.mutate({ remessaId: r.id, status: s })}
+                                >
+                                  <Badge className={STATUS_COLORS[s] + " mr-2"}>{s}</Badge>
+                                </DropdownMenuItem>
+                              ))}
+                            {isAdmin && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={() => {
+                                    if (confirm(`Excluir definitivamente a remessa ${r.numero_sequencial}? Esta ação não pode ser desfeita.`)) {
+                                      excluir.mutate(r);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" /> Excluir remessa
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
