@@ -1499,6 +1499,30 @@ export default function DistribuicaoTst() {
             </Button>
             {isAdmin && <RespostaSantanderImport onUpdated={handleRefresh} />}
             {isAdminOrCoordinator && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs border-purple-500 text-purple-700 hover:bg-purple-50 dark:text-purple-300 dark:hover:bg-purple-950/30"
+                  onClick={() => handleToggleSubidaMassa(true)}
+                  disabled={selectedIds.size === 0}
+                  title="Marca os registros selecionados como Subida em Massa"
+                >
+                  <CheckCircle className="w-3 h-3 mr-1" /> Marcar Subida em Massa{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => handleToggleSubidaMassa(false)}
+                  disabled={selectedIds.size === 0}
+                  title="Remove a marca Subida em Massa dos registros selecionados"
+                >
+                  <X className="w-3 h-3 mr-1" /> Desmarcar Subida em Massa{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+                </Button>
+              </>
+            )}
+            {isAdminOrCoordinator && (
               <BulkTagAction
                 selectedIds={Array.from(selectedIds)}
                 filters={debouncedFilters}
