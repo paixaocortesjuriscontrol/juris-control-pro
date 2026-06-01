@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
-const OPENAI_MODEL = "gpt-4.1";
+const AI_MODEL = "gemini-2.5-pro";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,9 +23,8 @@ serve(async (req) => {
       );
     }
 
-    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-    if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY não configurada");
+    if (!Deno.env.get("GEMINI_API_KEY")) {
+      throw new Error("GEMINI_API_KEY não configurada");
     }
 
     const systemPrompt = `Você é um analista jurídico sênior especializado em processos trabalhistas do TST.
@@ -56,14 +56,8 @@ REGRAS:
       return parts.join(" | ");
     }).join("\n");
 
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
+    const resp = await geminiChatCompletionsFetch({
+        model: AI_MODEL,
         temperature: 0.1,
         messages: [
           { role: "system", content: systemPrompt },
@@ -98,12 +92,11 @@ REGRAS:
           },
         }],
         tool_choice: { type: "function", function: { name: "complementar_processos" } },
-      }),
     });
 
     if (!resp.ok) {
-      if (resp.status === 429) throw new Error("Rate limit OpenAI - aguarde e tente novamente");
-      throw new Error(`Erro OpenAI: ${resp.status}`);
+      if (resp.status === 429) throw new Error("Rate limit Gemini - aguarde e tente novamente");
+      throw new Error(`Erro Gemini: ${resp.status}`);
     }
 
     const data = await resp.json();

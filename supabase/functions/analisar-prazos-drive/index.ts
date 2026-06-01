@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { GoogleAuth } from "npm:google-auth-library";
+import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -220,8 +221,7 @@ function base64ToUint8Array(base64: string): Uint8Array {
 // --- AI analysis ---
 
 async function analyzeWithAI(text: string, fileName: string): Promise<any[]> {
-  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY não configurada");
+  if (!Deno.env.get("GEMINI_API_KEY")) throw new Error("GEMINI_API_KEY não configurada");
 
   const systemPrompt = `Você é um analista jurídico especializado em processos trabalhistas do TST.
 Analise o documento fornecido e extraia TODOS os processos encontrados. Um único documento pode conter MÚLTIPLOS processos.
@@ -238,11 +238,8 @@ Para CADA processo encontrado, extraia:
 IMPORTANTE: Retorne TODOS os processos distintos encontrados no documento. Se houver apenas um, retorne um array com um elemento.
 Se alguma informação não for encontrada, retorne "(Não localizado)".`;
 
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { "Authorization": `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
+  const resp = await geminiChatCompletionsFetch({
+      model: "gemini-2.5-pro",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `Documento: ${fileName}\n\nConteúdo:\n${text.substring(0, 15000)}` },
@@ -279,13 +276,12 @@ Se alguma informação não for encontrada, retorne "(Não localizado)".`;
         },
       }],
       tool_choice: { type: "function", function: { name: "extrair_dados_processos" } },
-    }),
   });
 
   if (!resp.ok) {
-    if (resp.status === 429) throw new Error("Rate limit OpenAI - aguarde e tente novamente");
-    if (resp.status === 402 || resp.status === 401) throw new Error("Chave OpenAI inválida ou sem créditos");
-    throw new Error(`Erro OpenAI: ${resp.status}`);
+    if (resp.status === 429) throw new Error("Rate limit Gemini - aguarde e tente novamente");
+    if (resp.status === 402 || resp.status === 401) throw new Error("Chave Gemini inválida ou sem créditos");
+    throw new Error(`Erro Gemini: ${resp.status}`);
   }
 
   const data = await resp.json();

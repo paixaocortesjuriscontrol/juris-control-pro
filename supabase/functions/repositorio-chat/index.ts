@@ -1,13 +1,14 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -40,8 +41,8 @@ serve(async (req) => {
 
     const { messages, conversaId, tipo } = await req.json();
 
-    if (!openAIApiKey) {
-      return new Response(JSON.stringify({ error: 'OPENAI_API_KEY não configurada' }), {
+    if (!geminiApiKey) {
+      return new Response(JSON.stringify({ error: 'GEMINI_API_KEY não configurada' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -244,26 +245,19 @@ ${documentosProcessosContexto}
 
 Responda de forma profissional, precisa e útil. Use formatação markdown quando apropriado.`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...messages
-        ],
-        max_tokens: 4096,
-        temperature: 0.7,
-      }),
+    const response = await geminiChatCompletionsFetch({
+      model: 'gemini-2.5-pro',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...messages
+      ],
+      max_tokens: 4096,
+      temperature: 0.7,
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Erro OpenAI:', response.status, errorText);
+      console.error('Erro Gemini:', response.status, errorText);
       return new Response(JSON.stringify({ error: 'Erro ao comunicar com IA' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

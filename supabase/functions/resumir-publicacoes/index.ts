@@ -7,6 +7,7 @@ import {
   SYSTEM_PROMPT_FASE_TRECHO,
 } from './prompt-agente.ts';
 import { htmlParaMarkdown, isPautaDeJulgamentoMd, segmentarPauta, selecionarBlocoPorProcesso } from './markdown.ts';
+import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -325,10 +326,9 @@ serve(async (req) => {
   }
 
   try {
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-
-    if (!openAIApiKey) {
-      throw new Error('OPENAI_API_KEY não configurada');
+    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
+    if (!geminiApiKey) {
+      throw new Error('GEMINI_API_KEY não configurada');
     }
 
     const body = await req.json();
@@ -364,29 +364,25 @@ serve(async (req) => {
         );
       }
 
-      const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
+      const summaryModel = Deno.env.get('GEMINI_SUMMARY_MODEL') || 'gemini-2.5-pro';
       const SYSTEM_PROMPT_BLOCO = `Você é um advogado sênior de contencioso trabalhista. Receberá UMA publicação DJEN/DJET (em Markdown) referente a UM processo. Sua tarefa é EXTRAIR o "Conteúdo Integral" no padrão de um relatório interno de escritório — texto enxuto e cirúrgico em português jurídico, SEM markdown, SEM bullets, SEM títulos, começando direto pelo conteúdo. Regras de extração por tipo de ato:\n\n1) ACÓRDÃO/DECISÃO: comece no marcador "A C Ó R D Ã O" (ou no parágrafo dispositivo: "DOU PROVIMENTO", "Nego provimento", "DENEGO seguimento", "ACORDAM os Ministros…", "ISTO POSTO", etc.) e vá ATÉ a assinatura do Relator (linha tipo "Brasília, DD de mês de AAAA. Fulano, Ministro Relator"). DESCARTE relatório, voto integral, ementa longa e ID interno.\n\n2) DESPACHO/EDITAL/INTIMAÇÃO PARA CONTRARRAZÕES: traga o parágrafo do despacho propriamente dito (ex.: "fica(m) intimado(s) o(s) agravado(s) para…") e a assinatura do secretário/servidor. Pode incluir o fundamento legal citado no despacho, mas nada do histórico processual.\n\n3) PAUTA DE JULGAMENTO: traga o cabeçalho da sessão (data, modalidade — virtual ou presencial — com início e encerramento se houver), Relator(a)/Turma e quaisquer Complementos/observações da pauta referentes ao processo. Sem repetir partes/advogados (que já vão em campos próprios).\n\nNUNCA invente. Se um campo não constar do bloco, devolva null/[] para ele. Deduplique partes/advogados/intimados (case-insensitive). Mantenha a OAB junto ao nome do advogado quando houver.\n\nRetorne APENAS JSON válido neste formato exato:\n{\n  "orgao": "Turma/Órgão se identificado, senão null",\n  "partes": ["NOME UM", "NOME DOIS"],\n  "advogados": ["NOME UM - OAB UF12345", "..."],\n  "intimados": ["..."],\n  "conteudo_integral": "texto corrido cirúrgico aqui"\n}`;
       const userMsgBloco = `Publicação DJEN/DJET — Markdown estruturado do bloco do processo.\n\nProcesso: ${processo}\nData: ${dataPub}\n\n--- BLOCO ---\n${conteudoMd}\n--- FIM ---\n\nRetorne APENAS o JSON conforme instruído.`;
 
       let respText = '';
       try {
         for (let attempt = 0; attempt < 3; attempt++) {
-          const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${openAIApiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: summaryModel,
-              messages: [
-                { role: 'system', content: SYSTEM_PROMPT_BLOCO },
-                { role: 'user', content: userMsgBloco },
-              ],
-              max_tokens: 1500,
-              temperature: 0.1,
-              response_format: { type: 'json_object' },
-            }),
+          const resp = await geminiChatCompletionsFetch({
+            model: summaryModel,
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT_BLOCO },
+              { role: 'user', content: userMsgBloco },
+            ],
+            max_tokens: 1500,
+            temperature: 0.1,
+            response_format: { type: 'json_object' },
           });
           if (resp.status === 429) { await new Promise(r => setTimeout(r, Math.min(2000 * Math.pow(2, attempt), 10000))); continue; }
-          if (!resp.ok) throw new Error(`OpenAI error: ${resp.status}`);
+          if (!resp.ok) throw new Error(`Gemini error: ${resp.status}`);
           const aiResp = await resp.json();
           respText = aiResp.choices?.[0]?.message?.content?.trim() || '';
           break;
@@ -464,29 +460,25 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
+      const summaryModel = Deno.env.get('GEMINI_SUMMARY_MODEL') || 'gemini-2.5-pro';
       const tailLength = 6000;
       const trechoTail = conteudo.length > tailLength ? '…' + conteudo.substring(conteudo.length - tailLength) : conteudo;
       const userMsg = `PUBLICAÇÃO ÚNICA — extraia trecho_preservado e assinatura SOMENTE deste texto, lendo do FINAL para o começo. Ignore qualquer contexto anterior.\n\nProcesso: ${processo}\nData: ${dataPub}\n\n--- PORÇÃO FINAL DO TEXTO (leia de trás para frente) ---\n${trechoTail}\n--- FIM ---\n\nRetorne APENAS o JSON da Fase 2 com os campos trecho_preservado e assinatura.`;
       try {
         let respText = '';
         for (let attempt = 0; attempt < 3; attempt++) {
-          const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${openAIApiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: summaryModel,
-              messages: [
-                { role: 'system', content: SYSTEM_PROMPT_FASE_TRECHO },
-                { role: 'user', content: userMsg },
-              ],
-              max_tokens: 2000,
-              temperature: 0.1,
-              response_format: { type: 'json_object' },
-            }),
+          const resp = await geminiChatCompletionsFetch({
+            model: summaryModel,
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT_FASE_TRECHO },
+              { role: 'user', content: userMsg },
+            ],
+            max_tokens: 2000,
+            temperature: 0.1,
+            response_format: { type: 'json_object' },
           });
           if (resp.status === 429) { await new Promise(r => setTimeout(r, Math.min(2000 * Math.pow(2, attempt), 10000))); continue; }
-          if (!resp.ok) throw new Error(`OpenAI error: ${resp.status}`);
+          if (!resp.ok) throw new Error(`Gemini error: ${resp.status}`);
           const aiResp = await resp.json();
           respText = aiResp.choices?.[0]?.message?.content?.trim() || '';
           break;
@@ -545,32 +537,25 @@ serve(async (req) => {
 
       // Execução em DUAS FASES por publicação, com isolamento total entre publicações
       // (cada chamada é independente — sem histórico, sem contexto compartilhado).
-      const summaryModel = Deno.env.get('OPENAI_SUMMARY_MODEL') || 'gpt-4o';
+      const summaryModel = Deno.env.get('GEMINI_SUMMARY_MODEL') || 'gemini-2.5-pro';
       const maxRetries = 3;
       const processo = pub.processo || pub.numeroProcesso || 'N/A';
       const dataPub = pub.data || pub.dataDisponibilizacao || 'N/A';
 
-      // Helper: 1 chamada à OpenAI com retry/backoff
+      // Helper: 1 chamada à IA (Gemini) com retry/backoff
       async function callOpenAI(systemPrompt: string, userMsg: string, maxTokens: number): Promise<string> {
         let lastErr: unknown = null;
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
-            const resp = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${openAIApiKey}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                model: summaryModel,
-                messages: [
-                  { role: 'system', content: systemPrompt },
-                  { role: 'user', content: userMsg },
-                ],
-                max_tokens: maxTokens,
-                temperature: 0.1,
-                response_format: { type: 'json_object' },
-              }),
+            const resp = await geminiChatCompletionsFetch({
+              model: summaryModel,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userMsg },
+              ],
+              max_tokens: maxTokens,
+              temperature: 0.1,
+              response_format: { type: 'json_object' },
             });
             if (resp.status === 429) {
               const waitMs = Math.min(2000 * Math.pow(2, attempt), 10000);
@@ -578,7 +563,7 @@ serve(async (req) => {
               await new Promise(r => setTimeout(r, waitMs));
               continue;
             }
-            if (!resp.ok) throw new Error(`OpenAI error: ${resp.status}`);
+            if (!resp.ok) throw new Error(`Gemini error: ${resp.status}`);
             const aiResponse = await resp.json();
             return aiResponse.choices?.[0]?.message?.content?.trim() || '';
           } catch (e) {
@@ -715,8 +700,8 @@ serve(async (req) => {
       );
     }
 
-    if (!openAIApiKey) {
-      throw new Error('OPENAI_API_KEY não configurada para resumo consolidado');
+    if (!geminiApiKey) {
+      throw new Error('GEMINI_API_KEY não configurada para resumo consolidado');
     }
 
     const MAX_PUBLICACOES = 50;
@@ -739,14 +724,8 @@ serve(async (req) => {
 
     console.log(`Resumindo ${publicacoesLimitadas.length} de ${totalOriginal} publicações para monitoramento:`, monitoramentoId);
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
+    const response = await geminiChatCompletionsFetch({
+        model: 'gemini-2.5-pro',
         messages: [
           {
             role: 'system',
@@ -781,13 +760,12 @@ Seja preciso ao extrair números de processos e prazos. Use texto plano sem form
         ],
         max_tokens: 2000,
         temperature: 0.3,
-      }),
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('OpenAI API error:', errorData);
-      throw new Error(errorData.error?.message || 'Erro na API OpenAI');
+      console.error('Gemini API error:', errorData);
+      throw new Error(errorData.error?.message || 'Erro na API Gemini');
     }
 
     const data = await response.json();

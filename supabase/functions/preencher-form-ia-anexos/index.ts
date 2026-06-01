@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { validarEHidratar, type DadosJudit } from "./validar.ts";
+import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -151,8 +152,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!user) return json({ error: "Token inválido" }, 401);
 
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiKey) return json({ error: "OPENAI_API_KEY não configurada" }, 500);
+    if (!Deno.env.get("GEMINI_API_KEY")) return json({ error: "GEMINI_API_KEY não configurada" }, 500);
 
     const body = await req.json();
     const processoId: string | null = body?.processo_id || null;
@@ -301,14 +301,8 @@ Deno.serve(async (req) => {
       },
     };
 
-    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${openaiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
+    const aiRes = await geminiChatCompletionsFetch({
+        model: "gemini-2.5-pro",
         temperature: 0,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
@@ -326,12 +320,11 @@ Deno.serve(async (req) => {
         ],
         tools: [tool],
         tool_choice: { type: "function", function: { name: "preencher_formulario" } },
-      }),
     });
 
     if (!aiRes.ok) {
       const t = await aiRes.text();
-      return json({ error: `OpenAI ${aiRes.status}: ${t.substring(0, 300)}` }, 500);
+      return json({ error: `Gemini ${aiRes.status}: ${t.substring(0, 300)}` }, 500);
     }
 
     const aiJson = await aiRes.json();

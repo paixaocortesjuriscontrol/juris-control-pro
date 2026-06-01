@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -174,9 +175,8 @@ serve(async (req) => {
       );
     }
 
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      throw new Error("OPENAI_API_KEY não configurada");
+    if (!Deno.env.get('GEMINI_API_KEY')) {
+      throw new Error("GEMINI_API_KEY não configurada");
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -271,34 +271,28 @@ ${fileContent.length > 8000 ? "\n[Conteúdo truncado - documento muito grande]" 
 
     console.log(`Analisando documento: ${fileName}`);
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.3,
-        max_tokens: 1200,
-      }),
+    const response = await geminiChatCompletionsFetch({
+      model: 'gemini-2.5-pro',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 1200,
+      response_format: { type: 'json_object' },
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('OpenAI API error:', response.status, errorText);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      console.error('Gemini API error:', response.status, errorText);
+      throw new Error(`Gemini API error: ${response.status}`);
     }
 
     const data = await response.json();
     const content = data.choices[0]?.message?.content;
     
     if (!content) {
-      throw new Error("Resposta vazia da OpenAI");
+      throw new Error("Resposta vazia da IA");
     }
 
     let analysis;
