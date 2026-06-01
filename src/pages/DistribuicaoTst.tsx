@@ -1819,8 +1819,6 @@ export default function DistribuicaoTst() {
                 <TableHead>Data Real</TableHead>
                 <TableHead>Processo</TableHead>
                 <TableHead>Dossiê</TableHead>
-                <TableHead>Relator</TableHead>
-                <TableHead>Turma</TableHead>
                 <TableHead>Responsáveis</TableHead>
                 <TableHead>Benner</TableHead>
                 {isAdminOrCoordinator && <TableHead className="w-28">Ações</TableHead>}
@@ -1828,9 +1826,9 @@ export default function DistribuicaoTst() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={isAdminOrCoordinator ? 11 : 10} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={isAdminOrCoordinator ? 9 : 8} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={isAdminOrCoordinator ? 11 : 10} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={isAdminOrCoordinator ? 9 : 8} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
               ) : dados.map(d => {
                 const isPresidencia = (d.turma || "").toLowerCase().includes("presid");
                 const relatorClass = isPresidencia
@@ -2012,16 +2010,6 @@ export default function DistribuicaoTst() {
                         Não localizado
                       </button>
                     )}
-                  </TableCell>
-                  <TableCell className={cn("text-xs align-middle", relatorClass)}>
-                    <div className="inline-flex items-center gap-1 flex-wrap">
-                      <span>{relatorDisplay || "—"}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className={cn("text-xs align-middle", turmaClass)}>
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <span>{d.turma || "—"}</span>
-                    </div>
                   </TableCell>
                   <TableCell className="text-xs align-middle">
                     {responsaveis.length > 0 ? (
