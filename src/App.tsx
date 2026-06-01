@@ -158,6 +158,7 @@ function App() {
               <Route path="/analisar-prazos" element={<ProtectedRoute><AnalisarPrazos /></ProtectedRoute>} />
               <Route path="/planilha-tst" element={<ProtectedRoute><PlanilhaTst /></ProtectedRoute>} />
               <Route path="/carga-benner" element={<ProtectedRoute><CargaBenner /></ProtectedRoute>} />
+              <Route path="/remessas-benner" element={<ProtectedRoute><RemessasBenner /></ProtectedRoute>} />
               <Route path="/dados-benner" element={<ProtectedRoute><DadosBenner /></ProtectedRoute>} />
               <Route path="/distribuicao-tst" element={<ProtectedRoute><DistribuicaoTst /></ProtectedRoute>} />
               <Route path="/distribuicao-tst/kanban" element={<ProtectedRoute><DistribuicaoTstKanban /></ProtectedRoute>} />
