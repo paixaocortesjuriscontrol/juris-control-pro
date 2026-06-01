@@ -862,6 +862,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
+                <Button onClick={salvarComoRemessa} disabled={criarRemessa.isPending} className="bg-emerald-600 hover:bg-emerald-700">
+                  {criarRemessa.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
+                  Salvar como Remessa
+                </Button>
                 {rejectedData.length > 0 && (
                   <Button variant="outline" onClick={downloadRejectedXlsx}>
                     <AlertCircle className="w-4 h-4 mr-2" />
