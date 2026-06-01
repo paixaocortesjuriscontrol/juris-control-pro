@@ -178,7 +178,7 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
                     </>
                   ) : (
                     <>
-                      <span className="flex-1 truncate">{t.nome}</span>
+                      <span className="flex-1 break-words">{t.nome}</span>
                       <button
                         type="button"
                         className="text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100"
