@@ -7,8 +7,10 @@ import { toast } from "sonner";
 import JSZip from "jszip";
 import * as XLSX from "xlsx";
 import {
-  Download, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, ArrowRight,
+  Download, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, ArrowRight, Mail,
 } from "lucide-react";
+import { useCriarRemessa } from "@/hooks/useRemessasBenner";
+import { useNavigate } from "react-router-dom";
 
 // --- Types ---
 interface Stats {
