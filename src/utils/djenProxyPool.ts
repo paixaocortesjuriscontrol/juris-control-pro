@@ -505,7 +505,13 @@ function buildV1DjenUrl(baseUrl: string, fullDirectUrl: string): string {
 /** v3: GET /proxy?url=<URL-completa-encodada> */
 function buildV3ProxyUrl(baseUrl: string, fullDirectUrl: string): string {
   const base = baseUrl.replace(/\/$/, "");
-  return `${base}/proxy?url=${encodeURIComponent(fullDirectUrl)}`;
+  // Se a baseUrl do slot já termina em `/proxy/N` (slot multi-IP), não
+  // adiciona `/proxy` de novo — basta o ?url=… direto, e o server.js
+  // responde nesse path usando LOCAL_IPS[N-1].
+  const endsWithProxyIndex = /\/proxy\/\d+$/.test(base);
+  return endsWithProxyIndex
+    ? `${base}?url=${encodeURIComponent(fullDirectUrl)}`
+    : `${base}/proxy?url=${encodeURIComponent(fullDirectUrl)}`;
 }
 
 /**
