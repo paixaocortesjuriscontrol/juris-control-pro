@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -161,7 +161,7 @@ interface Props {
 }
 
 export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumbers, distribuicoes, idsAllowed }: Props) {
-  const [processing, setProcessing] = useState(false);
+  const [processing, setProcessing] = useState(true);
   const [phase, setPhase] = useState("");
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState<Stats | null>(null);
