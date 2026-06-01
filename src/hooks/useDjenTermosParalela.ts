@@ -53,7 +53,10 @@ export function useDjenTermosParalela() {
       const prevStatus = lastNotifiedStatusRef.current;
       const statusChanged = prevStatus !== p.status;
       lastNotifiedStatusRef.current = p.status;
-      if (p.status === 'concluido' && statusChanged) {
+      // Só dispara Kurier se a Paralela acabou de transicionar de 'executando' → 'concluido'
+      // nesta sessão. Evita disparo ao apenas entrar na tela (hidratação backend
+      // pode trazer status='concluido' de execuções antigas).
+      if (p.status === 'concluido' && statusChanged && prevStatus === 'executando') {
         void (async () => {
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] }),
