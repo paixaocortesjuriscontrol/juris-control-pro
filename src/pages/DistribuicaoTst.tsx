@@ -601,6 +601,27 @@ export default function DistribuicaoTst() {
     }
   };
 
+  const handleToggleSubidaMassa = async (valor: boolean) => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros primeiro"); return; }
+    const BATCH = 200;
+    try {
+      for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        const { error } = await supabase
+          .from("dados_benner" as any)
+          .update({ subida_em_massa: valor } as any)
+          .in("id", batch);
+        if (error) { toast.error("Erro ao atualizar Subida em Massa: " + error.message); return; }
+      }
+      toast.success(`${ids.length} registro(s) ${valor ? "marcado(s)" : "desmarcado(s)"} como Subida em Massa!`);
+      setSelectedIds(new Set());
+      handleRefresh();
+    } catch (err: any) {
+      toast.error("Erro: " + (err?.message || "desconhecido"));
+    }
+  };
+
   // Open Dados Benner form for a distribuição row
   const handleOpenBenner = async (dist: DistTst) => {
     // Abre o detalhe unificado já posicionado na aba "Dados Benner".
