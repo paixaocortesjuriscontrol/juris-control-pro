@@ -1107,7 +1107,7 @@ export default function DistribuicaoTst() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
               <FileSpreadsheet className="w-6 h-6 text-primary" />
-              Carga Benner (Dados do Supabase)
+              Carga Benner
             </h1>
             <Button variant="outline" onClick={() => { setShowCarga(false); setCargaDistribuicoes(null); setCargaIdsAllowed(null); }}>Voltar à Lista</Button>
           </div>
