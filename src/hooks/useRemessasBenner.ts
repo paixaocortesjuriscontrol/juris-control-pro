@@ -268,6 +268,56 @@ export function useCancelarRemessa() {
   });
 }
 
+export function useAlterarStatusRemessa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { remessaId: string; status: RemessaBenner["status"] }) => {
+      const patch: any = { status: input.status };
+      if (input.status === "enviada") {
+        const { data: userData } = await supabase.auth.getUser();
+        patch.data_envio = new Date().toISOString();
+        patch.enviado_por = userData?.user?.id ?? null;
+      }
+      if (input.status === "conciliada") {
+        patch.data_conciliacao = new Date().toISOString();
+      }
+      const { error } = await supabase
+        .from("remessas_benner" as any)
+        .update(patch as any)
+        .eq("id", input.remessaId);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["remessas_benner"] });
+      toast.success("Status atualizado");
+    },
+    onError: (err: any) => toast.error("Erro: " + (err?.message || String(err))),
+  });
+}
+
+export function useExcluirRemessa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (remessa: RemessaBenner) => {
+      // Remove file from storage (best effort)
+      if (remessa.arquivo_path) {
+        await supabase.storage.from("cargas-benner-remessas").remove([remessa.arquivo_path]);
+      }
+      // Items deleted via ON DELETE CASCADE
+      const { error } = await supabase
+        .from("remessas_benner" as any)
+        .delete()
+        .eq("id", remessa.id);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["remessas_benner"] });
+      toast.success("Remessa excluída");
+    },
+    onError: (err: any) => toast.error("Erro ao excluir: " + (err?.message || String(err))),
+  });
+}
+
 export function useConciliarRetorno() {
   const qc = useQueryClient();
   return useMutation({
