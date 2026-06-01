@@ -236,6 +236,7 @@ export function KurierCredenciaisPanel() {
                        const count = selected.size;
                        const totalCount = Array.from(selected.values()).filter((f) => f.capturaTotal).length;
                        const soKurierCount = Array.from(selected.values()).filter((f) => f.somenteKurierOnly).length;
+                       const soDjenCount = Array.from(selected.values()).filter((f) => f.somenteDjenOnly).length;
                       return (
                         <Popover>
                           <PopoverTrigger asChild>
@@ -252,9 +253,14 @@ export function KurierCredenciaisPanel() {
                                   {soKurierCount} só K
                                 </Badge>
                               )}
+                              {soDjenCount > 0 && (
+                                <Badge variant="outline" className="h-4 px-1 text-[10px]">
+                                  {soDjenCount} só DJEN
+                                </Badge>
+                              )}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-[34rem] max-h-[36rem] overflow-auto" align="start">
+                          <PopoverContent className="w-[42rem] max-h-[36rem] overflow-auto" align="start">
                             <div className="text-xs font-medium mb-1 text-muted-foreground">
                               Coordenações que usam este login
                             </div>
@@ -264,12 +270,16 @@ export function KurierCredenciaisPanel() {
                               trazidas por este login, sem aplicar termos.
                               Ligue <strong>Só Kurier</strong> para usar somente os termos cadastrados como
                               <em>"Termo só Kurier"</em> nessa coord.
+                              Ligue <strong>Termos DJEN</strong> para usar somente os termos comuns
+                              (Termos DJEN normais), ignorando os marcados como <em>"só Kurier"</em>.
+                              As três opções são mutuamente exclusivas.
                             </div>
                             <div className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground border-b pb-1 mb-1">
                               <span className="flex-1">Coordenação</span>
                               <span className="w-14 text-center">Vincular</span>
                               <span className="w-20 text-center">Captura total</span>
                               <span className="w-16 text-center">Só Kurier</span>
+                              <span className="w-20 text-center">Termos DJEN</span>
                             </div>
                             {coordenacoes.length === 0 ? (
                               <div className="text-xs text-muted-foreground">Nenhuma coordenação disponível.</div>
@@ -280,6 +290,7 @@ export function KurierCredenciaisPanel() {
                                   const flags = selected.get(coord.id);
                                   const capturaTotal = !!flags?.capturaTotal;
                                   const somenteKurierOnly = !!flags?.somenteKurierOnly;
+                                  const somenteDjenOnly = !!flags?.somenteDjenOnly;
                                   return (
                                     <div key={coord.id} className="flex items-center gap-2 text-sm hover:bg-muted/50 rounded p-1">
                                       <span className="flex-1 truncate" title={coord.nome}>{coord.nome}</span>
@@ -301,6 +312,13 @@ export function KurierCredenciaisPanel() {
                                           checked={somenteKurierOnly}
                                           disabled={!vinculado || capturaTotal}
                                           onCheckedChange={(v) => toggleSomenteKurierOnlyVinculo(c.id, coord.id, v)}
+                                        />
+                                      </div>
+                                      <div className="w-20 flex justify-center">
+                                        <Switch
+                                          checked={somenteDjenOnly}
+                                          disabled={!vinculado || capturaTotal || somenteKurierOnly}
+                                          onCheckedChange={(v) => toggleSomenteDjenOnlyVinculo(c.id, coord.id, v)}
                                         />
                                       </div>
                                     </div>
