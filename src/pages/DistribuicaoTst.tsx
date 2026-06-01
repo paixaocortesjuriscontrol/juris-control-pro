@@ -733,19 +733,11 @@ export default function DistribuicaoTst() {
         toast.info("Nenhuma distribuição encontrada com os filtros atuais.");
         return;
       }
-      toast.info(`Carregando ${ids.length} distribuição(ões)...`);
-      const allData: any[] = [];
-      const pageSize = 1000;
-      for (let i = 0; i < ids.length; i += pageSize) {
-        const batch = ids.slice(i, i + pageSize);
-        const { data, error } = await supabase
-          .from("dados_benner" as any)
-          .select("*")
-          .in("id", batch);
-        if (error) throw error;
-        if (data) allData.push(...(data as any[]));
-      }
-      setCargaDistribuicoes(allData);
+      // Abre o modal imediatamente passando apenas os IDs. O carregamento dos
+      // dados completos acontece dentro do modal com barra de progresso,
+      // evitando que o botão fique preso em "Carregando..." sem feedback.
+      setCargaDistribuicoes(null);
+      setCargaIdsAllowed(ids);
       setShowCarga(true);
     } catch (err: any) {
       toast.error("Erro ao carregar dados para carga: " + (err?.message || String(err)));
