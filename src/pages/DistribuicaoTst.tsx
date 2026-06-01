@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
@@ -601,25 +601,14 @@ export default function DistribuicaoTst() {
     }
   };
 
-  const handleToggleSubidaMassa = async (valor: boolean) => {
-    const ids = Array.from(selectedIds);
-    if (!ids.length) { toast.warning("Selecione registros primeiro"); return; }
-    const BATCH = 200;
-    try {
-      for (let i = 0; i < ids.length; i += BATCH) {
-        const batch = ids.slice(i, i + BATCH);
-        const { error } = await supabase
-          .from("dados_benner" as any)
-          .update({ subida_em_massa: valor } as any)
-          .in("id", batch);
-        if (error) { toast.error("Erro ao atualizar Subida em Massa: " + error.message); return; }
-      }
-      toast.success(`${ids.length} registro(s) ${valor ? "marcado(s)" : "desmarcado(s)"} como Subida em Massa!`);
-      setSelectedIds(new Set());
-      handleRefresh();
-    } catch (err: any) {
-      toast.error("Erro: " + (err?.message || "desconhecido"));
-    }
+  const handleToggleSubidaMassaRow = async (id: string, novoValor: boolean) => {
+    const { error } = await supabase
+      .from("dados_benner" as any)
+      .update({ subida_em_massa: novoValor } as any)
+      .eq("id", id);
+    if (error) { toast.error("Erro ao atualizar Subida em Massa: " + error.message); return; }
+    toast.success(novoValor ? "Marcado como Subida em Massa" : "Desmarcado de Subida em Massa");
+    handleRefresh();
   };
 
   // Open Dados Benner form for a distribuição row
@@ -2051,6 +2040,14 @@ export default function DistribuicaoTst() {
                   {isAdminOrCoordinator && (
                     <TableCell onClick={e => e.stopPropagation()}>
                       <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleToggleSubidaMassaRow(d.id, !isSubidaMassa)}
+                          title={isSubidaMassa ? "Desmarcar Subida em Massa" : "Marcar Subida em Massa"}
+                        >
+                          <Layers className={`w-4 h-4 ${isSubidaMassa ? "text-purple-600" : "text-muted-foreground/60"}`} />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
