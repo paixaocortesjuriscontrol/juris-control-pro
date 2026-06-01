@@ -475,8 +475,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
     }
   };
 
-  const downloadXlsx = async (fullMode: "full" | "aq" | "ag") => {
-    if (!outputData) return;
+  const buildXlsxBlob = async (fullMode: "full" | "aq" | "ag"): Promise<{ blob: Blob; filename: string } | null> => {
+    if (!outputData) return null;
     try {
       const resp = await fetch("/templates/layout_carga_tst_template.xlsx");
       if (!resp.ok) throw new Error("Template não encontrado");
@@ -551,14 +551,48 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
 
       const suffix = fullMode === "full" ? "" : fullMode === "ag" ? "_ate_analise" : "_ate_recurso";
       const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = `Layout_Carga_TST_Supabase${suffix}_${getTimestamp()}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-      toast.success("Planilha baixada!");
+      return { blob, filename: `Layout_Carga_TST_Supabase${suffix}_${getTimestamp()}.xlsx` };
     } catch (err: any) {
       toast.error("Erro ao gerar planilha: " + (err?.message || String(err)));
+      return null;
+    }
+  };
+
+  const downloadXlsx = async (fullMode: "full" | "aq" | "ag") => {
+    const res = await buildXlsxBlob(fullMode);
+    if (!res) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(res.blob);
+    a.download = res.filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast.success("Planilha baixada!");
+  };
+
+  const salvarComoRemessa = async () => {
+    if (!outputData || outputData.length === 0) return;
+    const res = await buildXlsxBlob("full");
+    if (!res) return;
+    try {
+      const itens = outputData.map((row: any) => ({
+        dossie: String(row[LAYOUT_COLS[0]] ?? ""),
+        processo: String(row["__numProcesso"] ?? ""),
+        turma: String(row[LAYOUT_COLS[4]] ?? ""),
+        relator: String(row[LAYOUT_COLS[5]] ?? ""),
+        tribunal: String(row[LAYOUT_COLS[1]] ?? ""),
+        dado_benner_id: null,
+      }));
+      const remessa = await criarRemessa.mutateAsync({
+        arquivo: res.blob,
+        arquivoNome: res.filename,
+        filtros: { ...filters, selectedProcessNumbers, idsAllowedCount: idsAllowed?.length ?? null },
+        itens,
+      });
+      toast.success(`Remessa ${remessa.numero_sequencial} criada com ${itens.length} item(ns)!`);
+      if (onClose) onClose();
+      navigate("/remessas-benner");
+    } catch (err: any) {
+      toast.error("Erro ao salvar remessa: " + (err?.message || String(err)));
     }
   };
 
