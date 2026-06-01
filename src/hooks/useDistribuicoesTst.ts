@@ -506,9 +506,6 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     }
     if (filters.equipe === "sim") query = query.filter("equipe", "match", "[^[:space:]]");
     else if (filters.equipe === "nao") query = query.or('equipe.is.null,equipe.match."^[[:space:]]*$"');
-    if (filters.idsAllowed && filters.idsAllowed.length > 0) {
-      query = query.in("id", filters.idsAllowed);
-    }
       return query;
     };
 
@@ -525,12 +522,30 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       return;
     }
 
+    // Determina o conjunto de IDs alvo a ser percorrido em chunks (evita URL gigante).
+    // Combina "sem responsável" (wantsUnassigned) e o filtro de TAGs (idsAllowed).
+    let chunkSource: string[] | null = null;
     if (wantsUnassigned && idsWithoutResponsavel) {
-      // URL com 6000+ UUIDs estoura → executa em chunks de 200, agrega client-side.
+      chunkSource = filters.idsAllowed && filters.idsAllowed.length > 0
+        ? idsWithoutResponsavel.filter((id) => filters.idsAllowed!.includes(id))
+        : idsWithoutResponsavel;
+    } else if (filters.idsAllowed && filters.idsAllowed.length > 0) {
+      chunkSource = filters.idsAllowed;
+    }
+
+    if (chunkSource) {
+      if (chunkSource.length === 0) {
+        setDados([]);
+        setTotalCount(0);
+        setResponsaveisMap(new Map());
+        setLoading(false);
+        return;
+      }
+      // URL com muitos UUIDs estoura ("Failed to fetch") → executa em chunks de 200.
       const CHUNK = 200;
       const chunks: string[][] = [];
-      for (let i = 0; i < idsWithoutResponsavel.length; i += CHUNK) {
-        chunks.push(idsWithoutResponsavel.slice(i, i + CHUNK));
+      for (let i = 0; i < chunkSource.length; i += CHUNK) {
+        chunks.push(chunkSource.slice(i, i + CHUNK));
       }
       const results = await Promise.all(chunks.map((c) => buildQuery(c, false)));
       const merged: any[] = [];
