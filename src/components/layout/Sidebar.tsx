@@ -33,6 +33,7 @@ import {
   ArrowRightLeft,
   KeyRound,
   Sparkles,
+  Mail,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
