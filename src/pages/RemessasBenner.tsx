@@ -265,15 +265,41 @@ function Info({ label, value }: { label: string; value: string }) {
 
 function EnviarEmailDialog({ remessa, onClose }: { remessa: RemessaBenner; onClose: () => void }) {
   const enviar = useEnviarRemessaEmail();
-  const [para, setPara] = useState((remessa.email_destinatarios || []).join(", "));
-  const [cc, setCc] = useState((remessa.email_cc || []).join(", "));
+  const { data: cfg } = useConfiguracaoCargaBenner();
+  const vars = { numero: remessa.numero_sequencial, quantidade: remessa.quantidade_itens };
+  const [para, setPara] = useState(
+    (remessa.email_destinatarios && remessa.email_destinatarios.length > 0
+      ? remessa.email_destinatarios
+      : cfg?.email_padrao_para || []
+    ).join(", ")
+  );
+  const [cc, setCc] = useState(
+    (remessa.email_cc && remessa.email_cc.length > 0
+      ? remessa.email_cc
+      : cfg?.email_padrao_cc || []
+    ).join(", ")
+  );
   const [assunto, setAssunto] = useState(
-    remessa.email_assunto || `Carga Benner - Remessa ${remessa.numero_sequencial}`
+    remessa.email_assunto ||
+      aplicarPlaceholders(cfg?.email_assunto_padrao || `Carga Benner - Remessa {numero}`, vars)
   );
   const [corpo, setCorpo] = useState(
     remessa.email_corpo ||
-      `Prezados,\n\nSegue em anexo a remessa ${remessa.numero_sequencial} com ${remessa.quantidade_itens} dossiê(s).\n\nAtenciosamente.`
+      aplicarPlaceholders(
+        cfg?.email_corpo_padrao ||
+          `Prezados,\n\nSegue em anexo a remessa {numero} com {quantidade} dossiê(s).\n\nAtenciosamente.`,
+        vars
+      )
   );
+
+  // Reaproveita defaults se a configuração carregar depois da abertura
+  // (apenas quando o usuário ainda não digitou nada)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useMemo(() => {
+    if (!cfg) return;
+    if (!para && cfg.email_padrao_para?.length) setPara(cfg.email_padrao_para.join(", "));
+    if (!cc && cfg.email_padrao_cc?.length) setCc(cfg.email_padrao_cc.join(", "));
+  }, [cfg]);
 
   const onSubmit = async () => {
     const paraArr = para.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
