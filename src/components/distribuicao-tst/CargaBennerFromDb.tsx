@@ -170,6 +170,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
   const [outputData, setOutputData] = useState<Record<string, any>[] | null>(null);
   const [rejectedData, setRejectedData] = useState<RejeicaoRow[]>([]);
   const [conferenciaData, setConferenciaData] = useState<Record<string, any>[] | null>(null);
+  const criarRemessa = useCriarRemessa();
+  const navigate = useNavigate();
 
   const isManualSelection = !!(selectedProcessNumbers && selectedProcessNumbers.length > 0);
   const hasPreFilteredData = !!(distribuicoes && distribuicoes.length > 0);
