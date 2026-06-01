@@ -1,36 +1,54 @@
 ## Objetivo
-Na tela **Distribuição TST**, salvar automaticamente o conteúdo atual ao trocar de aba (Distribuição TST, Centralizadores, Dados Benner, Análise Judit, Anexos), como se o usuário tivesse clicado em **Salvar**.
 
-## Arquivo a alterar
-`src/components/distribuicao-tst/DistribuicaoTstDetail.tsx`
+Adicionar uma terceira opção de filtragem por vínculo (Login Kurier × Coordenação), ao lado das já existentes:
 
-## Como funciona hoje
-- Botão **Salvar** chama `handleSaveTop()` (linha 257), que persiste:
-  - Form de Distribuição TST (via `formRef.current.save()`)
-  - Form de Dados Benner (via `bennerFormRef.current.save()`)
-  - Switches "Pronto para Enviar", "Problema Judit", "Trânsito em Julgado", "Outro escritório", "Segredo de Justiça"
-- Troca de aba: `<Tabs onValueChange={(v) => setTab(v as any)}>` (linha 390), sem auto-save.
+- **Captura total** — entrega tudo, sem filtro de termos
+- **Só Kurier** — usa apenas monitoramentos marcados como `somente_kurier = true`
+- **Termos DJEN** *(NOVA)* — usa apenas monitoramentos comuns (`somente_kurier = false`), ou seja, os "Termos DJEN normais" cadastrados na coordenação
 
-## Mudança
-Trocar o handler do `Tabs` para um novo `handleTabChange(novaAba)` que:
-1. Se a aba atual for diferente da nova **e** não estiver em pleno auto-save, chama `await handleSaveTop()`.
-2. Em seguida, faz `setTab(nova)`.
-3. Falha silenciosa: se o save falhar, ainda permite trocar de aba (o `handleSaveTop` já mostra toast de erro internamente). Sem bloqueio adicional.
+Hoje, quando nenhuma flag está ligada, o motor usa **todos** os monitoramentos (comuns + somente_kurier). A nova flag permite restringir somente aos comuns.
 
-Notas:
-- A aba **Log Judit** (visível apenas para o usuário interno) entra no mesmo fluxo — qualquer troca dispara o save.
-- Mantém o botão Salvar do header funcionando exatamente como hoje (nenhuma mudança em `handleSaveTop`).
-- Sem alterações em outros componentes, hooks, edge functions, schema ou migrations.
+## Comportamento das três flags (mutuamente exclusivas por vínculo)
 
-## Detalhes técnicos
-```tsx
-const handleTabChange = async (v: string) => {
-  if (v === tab) return;
-  try { await handleSaveTop(); } catch { /* toast já tratado dentro do save */ }
-  setTab(v as any);
-};
-// ...
-<Tabs value={tab} onValueChange={handleTabChange} ...>
-```
+| Flag ligada      | Monitoramentos considerados                       |
+|------------------|---------------------------------------------------|
+| Captura total    | Nenhum filtro — entrega tudo                      |
+| Só Kurier        | Apenas `somente_kurier = true`                    |
+| Termos DJEN      | Apenas `somente_kurier = false`                   |
+| (nenhuma)        | Todos (comportamento atual padrão)                |
 
-Indicador visual: enquanto `savingTop` for `true`, o botão Salvar do header já exibe spinner — nada novo a adicionar.
+Regras de UI:
+- Só uma das três pode estar ligada por vez no mesmo vínculo
+- Ligar "Captura total" desliga "Só Kurier" e "Termos DJEN"
+- "Só Kurier" e "Termos DJEN" ficam desabilitados quando "Captura total" estiver ligada
+
+## Mudanças técnicas
+
+### 1. Banco — migration
+- Adicionar coluna `somente_djen_only boolean NOT NULL DEFAULT false` em `kurier_credencial_coordenacoes`
+- Constraint para impedir combinações inválidas (no máx. 1 entre `captura_total`, `somente_kurier_only`, `somente_djen_only`)
+
+### 2. Edge function `kurier-consultar-publicacoes`
+- Carregar set `coordsTermosDjenOnly` (coords com `somente_djen_only = true` neste login), análogo ao `coordsSoKurier`
+- Filtro de monitoramentos (linhas 361–364):
+  - Se coord ∈ `coordsSoKurier` → `m.somente_kurier === true`
+  - Se coord ∈ `coordsTermosDjenOnly` → `m.somente_kurier !== true`
+  - Caso contrário → todos
+- Excluir essas coords do bloco de `captura_total` (já filtra por `somente_kurier_only=false`; adicionar `somente_djen_only=false`)
+
+### 3. UI `KurierCredenciaisPanel.tsx`
+- Carregar nova coluna no `select` dos vínculos
+- Adicionar coluna **"Termos DJEN"** no popover, ao lado de "Só Kurier"
+- Nova função `toggleTermosDjenOnlyVinculo`
+- Lógica de exclusão mútua: ligar uma desliga as outras
+- Badge resumo (`X só DJEN`) no botão do popover
+- Atualizar texto explicativo no topo do popover descrevendo as 3 opções
+
+### 4. Tipos
+- `src/integrations/supabase/types.ts` é regenerado automaticamente após a migration
+
+## Arquivos afetados
+
+- `supabase/migrations/<novo>.sql` (nova migration)
+- `supabase/functions/kurier-consultar-publicacoes/index.ts`
+- `src/components/configuracoes/KurierCredenciaisPanel.tsx`
