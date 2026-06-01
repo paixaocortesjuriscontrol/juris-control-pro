@@ -6,6 +6,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -28,11 +35,17 @@ import {
   MateriaBennerInsert,
 } from "@/hooks/useMateriasBenner";
 
-const empty: MateriaBennerInsert = { nome: "", descricao: "", ativo: true };
+const empty: MateriaBennerInsert = {
+  nome: "",
+  descricao: "",
+  ativo: true,
+  tipo: "Dicionário Banco",
+};
 
 export default function MateriasBennerPage() {
   const { dados, loading, saveDado, deleteDado } = useMateriasBenner();
   const [busca, setBusca] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState<string>("todos");
   const [open, setOpen] = useState(false);
   const [editando, setEditando] = useState<MateriaBenner | null>(null);
   const [form, setForm] = useState<MateriaBennerInsert>({ ...empty });
@@ -40,13 +53,15 @@ export default function MateriasBennerPage() {
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    if (!q) return dados;
-    return dados.filter(
-      (m) =>
+    return dados.filter((m) => {
+      if (filtroTipo !== "todos" && (m.tipo || "Dicionário Banco") !== filtroTipo) return false;
+      if (!q) return true;
+      return (
         m.nome.toLowerCase().includes(q) ||
-        (m.descricao || "").toLowerCase().includes(q),
-    );
-  }, [dados, busca]);
+        (m.descricao || "").toLowerCase().includes(q)
+      );
+    });
+  }, [dados, busca, filtroTipo]);
 
   const openNew = () => {
     setEditando(null);
@@ -56,7 +71,12 @@ export default function MateriasBennerPage() {
 
   const openEdit = (m: MateriaBenner) => {
     setEditando(m);
-    setForm({ nome: m.nome, descricao: m.descricao || "", ativo: m.ativo });
+    setForm({
+      nome: m.nome,
+      descricao: m.descricao || "",
+      ativo: m.ativo,
+      tipo: m.tipo || "Dicionário Banco",
+    });
     setOpen(true);
   };
 
@@ -103,6 +123,16 @@ export default function MateriasBennerPage() {
               className="pl-9"
             />
           </div>
+          <Select value={filtroTipo} onValueChange={setFiltroTipo}>
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Filtrar por tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os tipos</SelectItem>
+              <SelectItem value="Dicionário Banco">Dicionário Banco</SelectItem>
+              <SelectItem value="Advogado">Advogado</SelectItem>
+            </SelectContent>
+          </Select>
           <span className="text-sm text-muted-foreground">
             {filtrados.length} de {dados.length}
           </span>
@@ -114,6 +144,7 @@ export default function MateriasBennerPage() {
               <TableRow>
                 <TableHead className="w-[28%]">Nome</TableHead>
                 <TableHead>Descrição</TableHead>
+                <TableHead className="w-40">Tipo</TableHead>
                 <TableHead className="w-24 text-center">Status</TableHead>
                 <TableHead className="w-28 text-center">Ações</TableHead>
               </TableRow>
@@ -121,14 +152,14 @@ export default function MateriasBennerPage() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-10">
+                  <TableCell colSpan={5} className="text-center py-10">
                     <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                   </TableCell>
                 </TableRow>
               ) : filtrados.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={5}
                     className="text-center py-10 text-muted-foreground"
                   >
                     Nenhuma matéria encontrada
@@ -146,6 +177,18 @@ export default function MateriasBennerPage() {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground align-top whitespace-pre-wrap">
                       {m.descricao || "—"}
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <Badge
+                        variant={
+                          (m.tipo || "Dicionário Banco") === "Advogado"
+                            ? "default"
+                            : "outline"
+                        }
+                        className="text-xs"
+                      >
+                        {m.tipo || "Dicionário Banco"}
+                      </Badge>
                     </TableCell>
                     <TableCell className="text-center align-top">
                       {m.ativo ? (
@@ -204,6 +247,23 @@ export default function MateriasBennerPage() {
                 }
                 placeholder="Nome da matéria"
               />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo</Label>
+              <Select
+                value={form.tipo || "Dicionário Banco"}
+                onValueChange={(v) =>
+                  setForm((f) => ({ ...f, tipo: v as MateriaBennerInsert["tipo"] }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Dicionário Banco">Dicionário Banco</SelectItem>
+                  <SelectItem value="Advogado">Advogado</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Descrição</Label>
