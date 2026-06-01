@@ -1924,19 +1924,22 @@ export default function DistribuicaoTst() {
                                   Subida em Massa
                                 </Badge>
                               )}
-                              {isAdminOrCoordinator && (
+                            </div>
+                            {isAdminOrCoordinator && (
+                              <div className="mt-1">
                                 <ProcessoTagPicker
                                   dadoId={d.id}
                                   tagIds={tagsMap?.get(d.id) || []}
                                   compact
                                 />
-                              )}
-                            </div>
+                              </div>
+                            )}
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
                         );
                       }
                       return (
+                        <div className="space-y-0.5">
                         <div className={cn("break-words inline-flex items-center gap-1", situacaoClass)}>
                           <span>{raw}</span>
                           {raw && <CopyButton value={raw} label="Processo" />}
@@ -1970,13 +1973,16 @@ export default function DistribuicaoTst() {
                               Subida em Massa
                             </Badge>
                           )}
-                          {isAdminOrCoordinator && (
+                        </div>
+                        {isAdminOrCoordinator && (
+                          <div className="mt-1">
                             <ProcessoTagPicker
                               dadoId={d.id}
                               tagIds={tagsMap?.get(d.id) || []}
                               compact
                             />
-                          )}
+                          </div>
+                        )}
                         </div>
                       );
                     })()}
