@@ -110,6 +110,47 @@ export function useAtualizarCorTag() {
   });
 }
 
+export function useRenomearTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, nome }: { id: string; nome: string }) => {
+      const clean = nome.trim();
+      if (!clean) throw new Error("Nome obrigatório");
+      const { data, error } = await supabase
+        .from("processo_tags_catalogo" as any)
+        .update({ nome: clean } as any)
+        .eq("id", id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      return data as any as ProcessoTag;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["processo-tags-catalogo"] });
+      toast.success("Tag renomeada");
+    },
+    onError: (err: any) => toast.error("Erro ao renomear tag: " + (err?.message || "")),
+  });
+}
+
+export function useRemoverTodasTagsDoDado() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dadoId: string) => {
+      const { error } = await supabase
+        .from("dados_benner_processo_tags" as any)
+        .delete()
+        .eq("dado_benner_id", dadoId);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["dados-benner-tags"] });
+      toast.success("Todas as TAGs removidas");
+    },
+    onError: (err: any) => toast.error("Erro ao remover TAGs: " + (err?.message || "")),
+  });
+}
+
 export const TAG_COLOR_PALETTE = [
   "#ef4444", // red
   "#f97316", // orange
