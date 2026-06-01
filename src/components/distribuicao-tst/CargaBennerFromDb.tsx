@@ -157,9 +157,10 @@ interface Props {
   filters?: CargaFilters;
   selectedProcessNumbers?: string[];
   distribuicoes?: any[];
+  idsAllowed?: string[];
 }
 
-export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumbers, distribuicoes }: Props) {
+export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumbers, distribuicoes, idsAllowed }: Props) {
   const [processing, setProcessing] = useState(false);
   const [phase, setPhase] = useState("");
   const [progress, setProgress] = useState(0);
@@ -170,6 +171,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
 
   const isManualSelection = !!(selectedProcessNumbers && selectedProcessNumbers.length > 0);
   const hasPreFilteredData = !!(distribuicoes && distribuicoes.length > 0);
+  const hasIdsAllowed = !!(idsAllowed && idsAllowed.length > 0);
 
   const processData = async () => {
     setProcessing(true);
@@ -198,6 +200,23 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       if (hasPreFilteredData) {
         // Usa dados já filtrados pela tela (respeita 100% dos filtros aplicados)
         allDist.push(...distribuicoes!.map(mapBennerToDist));
+      } else if (hasIdsAllowed) {
+        // Carrega exatamente o conjunto de IDs filtrado pela tela, em lotes,
+        // com feedback de progresso para evitar "Carregando..." sem retorno.
+        const ids = idsAllowed!;
+        const BATCH = 500;
+        for (let i = 0; i < ids.length; i += BATCH) {
+          const batch = ids.slice(i, i + BATCH);
+          const { data, error } = await supabase
+            .from("dados_benner" as any)
+            .select("*")
+            .in("id", batch);
+          if (error) throw error;
+          if (data) allDist.push(...((data as any[]).map(mapBennerToDist)));
+          const pct = 10 + Math.round(((i + batch.length) / ids.length) * 40);
+          setProgress(Math.min(pct, 50));
+          setPhase(`Carregando distribuições do banco... (${Math.min(i + batch.length, ids.length)}/${ids.length})`);
+        }
       } else if (selectedProcessNumbers && selectedProcessNumbers.length > 0) {
         for (let i = 0; i < selectedProcessNumbers.length; i += 100) {
           const batch = selectedProcessNumbers.slice(i, i + 100);
