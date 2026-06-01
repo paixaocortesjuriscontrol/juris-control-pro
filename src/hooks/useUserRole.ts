@@ -17,7 +17,8 @@ export function useUserRole() {
   const [loading, setLoading] = useState(!hasCached);
 
   useEffect(() => {
-    async function fetchRole() {
+    let cancelled = false;
+    async function fetchRole(attempt = 0): Promise<void> {
       if (!user) {
         setRole(null);
         setLoading(false);
@@ -50,18 +51,29 @@ export function useUserRole() {
 
       if (error) {
         console.error("Error fetching user role:", error);
-        // Do NOT cache or null-out on error: keep prior role if any to avoid
-        // false redirects on transient network/auth blips.
+        // Do NOT cache or null-out on error. Keep `loading=true` and retry with
+        // backoff so AdminRoute keeps showing the spinner instead of falsely
+        // redirecting to "/" on transient network/auth blips.
+        if (cancelled) return;
+        if (attempt < 4) {
+          const delay = Math.min(500 * 2 ** attempt, 4000);
+          setTimeout(() => { if (!cancelled) void fetchRole(attempt + 1); }, delay);
+          return;
+        }
+        // After exhausting retries, release the loading state so the UI is not
+        // stuck forever; the cached null will redirect, but only as last resort.
         setLoading(false);
         return;
       } else {
+        if (cancelled) return;
         roleCache.set(user.id, resolvedRole);
         setRole(resolvedRole);
       }
       setLoading(false);
     }
 
-    fetchRole();
+    void fetchRole();
+    return () => { cancelled = true; };
   }, [user]);
 
   const isAdmin = role === "admin";
