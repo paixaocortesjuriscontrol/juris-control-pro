@@ -4,12 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tag, Plus, Loader2 } from "lucide-react";
+import { Tag, Plus, Loader2, Pencil, XCircle, Check, X } from "lucide-react";
 import {
   useProcessoTagsCatalogo,
   useCriarTag,
   useToggleTagInDado,
   useAtualizarCorTag,
+  useRenomearTag,
+  useRemoverTodasTagsDoDado,
   TAG_COLOR_PALETTE,
   ProcessoTag,
 } from "@/hooks/useProcessoTags";
@@ -28,10 +30,14 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
   const criar = useCriarTag();
   const toggle = useToggleTagInDado();
   const atualizarCor = useAtualizarCorTag();
+  const renomear = useRenomearTag();
+  const removerTodas = useRemoverTodasTagsDoDado();
   const [novoNome, setNovoNome] = useState("");
   const [novaCor, setNovaCor] = useState<string>(TAG_COLOR_PALETTE[10]);
   const [open, setOpen] = useState(false);
   const [editandoCor, setEditandoCor] = useState<string | null>(null);
+  const [editandoNome, setEditandoNome] = useState<string | null>(null);
+  const [nomeEditado, setNomeEditado] = useState("");
 
   const tagsAplicadas: ProcessoTag[] = useMemo(() => {
     const s = new Set(tagIds);
@@ -50,6 +56,19 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
     if (tag?.id) {
       toggle.mutate({ dadoId, tagId: tag.id, checked: true });
     }
+  };
+
+  const iniciarEdicaoNome = (t: ProcessoTag) => {
+    setEditandoNome(t.id);
+    setNomeEditado(t.nome);
+    setEditandoCor(null);
+  };
+
+  const salvarNome = async (id: string) => {
+    const novo = nomeEditado.trim();
+    if (!novo) return;
+    await renomear.mutateAsync({ id, nome: novo });
+    setEditandoNome(null);
   };
 
   const badges = (
@@ -89,7 +108,20 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-2" onClick={(e) => e.stopPropagation()} align="start">
-        <div className="text-xs font-semibold mb-1">TAGs do processo</div>
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-xs font-semibold">TAGs do processo</div>
+          {tagsAplicadas.length > 0 && (
+            <button
+              type="button"
+              className="text-[10px] text-destructive hover:underline inline-flex items-center gap-1"
+              onClick={() => removerTodas.mutate(dadoId)}
+              disabled={removerTodas.isPending}
+              title="Remover todas as TAGs deste processo"
+            >
+              <XCircle className="w-3 h-3" /> Limpar
+            </button>
+          )}
+        </div>
         <div className="max-h-48 overflow-y-auto space-y-1 mb-2">
           {isLoading && <Loader2 className="w-3 h-3 animate-spin" />}
           {!isLoading && catalogo.length === 0 && (
@@ -114,7 +146,49 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
                     onClick={() => setEditandoCor(editandoCor === t.id ? null : t.id)}
                     title="Alterar cor"
                   />
-                  <span className="flex-1 truncate">{t.nome}</span>
+                  {editandoNome === t.id ? (
+                    <>
+                      <Input
+                        value={nomeEditado}
+                        onChange={(e) => setNomeEditado(e.target.value)}
+                        className="h-6 text-xs flex-1"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); salvarNome(t.id); }
+                          if (e.key === "Escape") { e.preventDefault(); setEditandoNome(null); }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="text-emerald-600 hover:text-emerald-700"
+                        onClick={() => salvarNome(t.id)}
+                        disabled={renomear.isPending}
+                        title="Salvar"
+                      >
+                        <Check className="w-3 h-3" />
+                      </button>
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground"
+                        onClick={() => setEditandoNome(null)}
+                        title="Cancelar"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 truncate">{t.nome}</span>
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100"
+                        onClick={() => iniciarEdicaoNome(t)}
+                        title="Renomear TAG"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                    </>
+                  )}
                 </div>
                 {editandoCor === t.id && (
                   <div className="pl-6 py-1">
