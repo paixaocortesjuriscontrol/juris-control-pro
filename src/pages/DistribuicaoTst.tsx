@@ -1930,17 +1930,6 @@ export default function DistribuicaoTst() {
                                   Subida em Massa
                                 </Badge>
                               )}
-                              {(() => {
-                                const sid = (d as any).situacao_envio_carga_id;
-                                if (!sid || !isAdminOrCoordinator) return null;
-                                const s = situacoesCarga.find((x) => x.id === sid);
-                                if (!s) return null;
-                                return (
-                                  <Badge className="text-[10px] px-1 py-0 h-4 bg-indigo-600 hover:bg-indigo-600 text-white" title={s.nome}>
-                                    {s.codigo || s.nome}
-                                  </Badge>
-                                );
-                              })()}
                               {isAdminOrCoordinator && (
                                 <ProcessoTagPicker
                                   dadoId={d.id}
@@ -1987,17 +1976,6 @@ export default function DistribuicaoTst() {
                               Subida em Massa
                             </Badge>
                           )}
-                          {(() => {
-                            const sid = (d as any).situacao_envio_carga_id;
-                            if (!sid || !isAdminOrCoordinator) return null;
-                            const s = situacoesCarga.find((x) => x.id === sid);
-                            if (!s) return null;
-                            return (
-                              <Badge className="text-[10px] px-1 py-0 h-4 bg-indigo-600 hover:bg-indigo-600 text-white" title={s.nome}>
-                                {s.codigo || s.nome}
-                              </Badge>
-                            );
-                          })()}
                           {isAdminOrCoordinator && (
                             <ProcessoTagPicker
                               dadoId={d.id}
