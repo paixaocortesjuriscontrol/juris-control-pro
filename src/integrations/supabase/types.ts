@@ -3804,6 +3804,7 @@ export type Database = {
           coordenacao_id: string
           created_at: string
           credencial_id: string
+          somente_djen_only: boolean
           somente_kurier_only: boolean
         }
         Insert: {
@@ -3811,6 +3812,7 @@ export type Database = {
           coordenacao_id: string
           created_at?: string
           credencial_id: string
+          somente_djen_only?: boolean
           somente_kurier_only?: boolean
         }
         Update: {
@@ -3818,6 +3820,7 @@ export type Database = {
           coordenacao_id?: string
           created_at?: string
           credencial_id?: string
+          somente_djen_only?: boolean
           somente_kurier_only?: boolean
         }
         Relationships: [

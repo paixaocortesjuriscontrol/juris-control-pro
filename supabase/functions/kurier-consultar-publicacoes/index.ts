@@ -316,7 +316,7 @@ Deno.serve(async (req: Request) => {
     // monitoramentos para filtrar a query de monitoramentos por coordenação.
     const { data: vincCt, error: vincCtErr } = await admin
       .from("kurier_credencial_coordenacoes")
-      .select("coordenacao_id, somente_kurier_only")
+      .select("coordenacao_id, somente_kurier_only, somente_djen_only")
       .eq("credencial_id", cred.id);
     if (vincCtErr) console.warn("[kurier] erro carregar vínculos credencial→coord:", vincCtErr.message);
     const coordIdsDaCredencial = new Set<string>((vincCt ?? []).map((v: any) => v.coordenacao_id));
@@ -327,6 +327,12 @@ Deno.serve(async (req: Request) => {
     // como monitoramentos_djen.somente_kurier=true.
     const coordsSoKurier = new Set<string>(
       (vincCt ?? []).filter((v: any) => v.somente_kurier_only).map((v: any) => v.coordenacao_id),
+    );
+    // Coords com flag "Termos DJEN" ligada PARA ESTA CREDENCIAL:
+    // inverso de "Só Kurier" — só aceitam publicações que casem com
+    // monitoramentos comuns (somente_kurier != true), os Termos DJEN cadastrados.
+    const coordsTermosDjenOnly = new Set<string>(
+      (vincCt ?? []).filter((v: any) => v.somente_djen_only).map((v: any) => v.coordenacao_id),
     );
 
     // Carrega monitoramentos ativos para aplicar os termos do DJEN nas publicações
@@ -355,17 +361,20 @@ Deno.serve(async (req: Request) => {
       }
       const { data: monitsRaw } = await monitQuery;
       const allMonits = (monitsRaw ?? []) as any[];
-      // Filtra por coord: se a coord está marcada como "Só termos Kurier" no vínculo
-      // DESTA credencial, mantém apenas monitoramentos com somente_kurier=true; senão,
-      // mantém todos (Kurier pode usar termos comuns e os marcados como somente_kurier).
+      // Filtra por coord conforme flags do vínculo desta credencial:
+      // - "Só Kurier"      -> apenas monitoramentos com somente_kurier = true
+      // - "Termos DJEN"    -> apenas monitoramentos com somente_kurier != true (comuns)
+      // - nenhuma das duas -> todos (comportamento padrão)
       monitoramentos = allMonits.filter((m: any) => {
         const coordId = m.coordenacao_id ?? "";
-        return coordsSoKurier.has(coordId) ? m.somente_kurier === true : true;
+        if (coordsSoKurier.has(coordId)) return m.somente_kurier === true;
+        if (coordsTermosDjenOnly.has(coordId)) return m.somente_kurier !== true;
+        return true;
       }) as any;
     } else {
       console.warn(`[kurier] credencial ${cred.id} sem coordenações vinculadas — pulando matching de monitoramentos`);
     }
-    console.log(`[kurier] monitoramentos carregados: ${monitoramentos.length} (coords vinculadas: ${coordIdsArr.length}; coords só termos Kurier desta credencial: ${coordsSoKurier.size})`);
+    console.log(`[kurier] monitoramentos carregados: ${monitoramentos.length} (coords vinculadas: ${coordIdsArr.length}; só Kurier: ${coordsSoKurier.size}; só Termos DJEN: ${coordsTermosDjenOnly.size})`);
 
     // Coordenações com captura total Kurier neste login: recebem TODA publicação
     // dentro da janela, independente de match com monitoramento. A flag agora vive
@@ -378,14 +387,15 @@ Deno.serve(async (req: Request) => {
         .select("coordenacao_id, coordenacoes!inner(id, nome)")
         .eq("credencial_id", cred.id)
         .eq("captura_total", true)
-        // Coords marcadas como "Só Kurier" NÃO recebem captura total —
-        // só entram publicações que casem com termos somente_kurier=true.
-        .eq("somente_kurier_only", false);
+        // Coords marcadas como "Só Kurier" ou "Termos DJEN" NÃO recebem
+        // captura total — só entram publicações que casem com os termos do modo.
+        .eq("somente_kurier_only", false)
+        .eq("somente_djen_only", false);
       if (coordenacao_id) vincCtQuery = vincCtQuery.eq("coordenacao_id", coordenacao_id);
       const { data: vincCtData } = await vincCtQuery;
       coordsCtRaw = ((vincCtData ?? []) as any[])
         .map((v) => v.coordenacoes)
-        .filter((c) => c && coordIdsDaCredencial.has(c.id) && !coordsSoKurier.has(c.id));
+        .filter((c) => c && coordIdsDaCredencial.has(c.id) && !coordsSoKurier.has(c.id) && !coordsTermosDjenOnly.has(c.id));
     }
     const capturaTotalCoords: Array<{ id: string; monit_id: string }> = [];
     for (const c of coordsCtRaw) {

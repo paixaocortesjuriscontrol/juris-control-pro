@@ -64,24 +64,26 @@ export function KurierCredenciaisPanel() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("kurier_credencial_coordenacoes")
-        .select("credencial_id, coordenacao_id, captura_total, somente_kurier_only");
+        .select("credencial_id, coordenacao_id, captura_total, somente_kurier_only, somente_djen_only");
       if (error) throw error;
       return data as {
         credencial_id: string;
         coordenacao_id: string;
         captura_total: boolean;
         somente_kurier_only: boolean;
+        somente_djen_only: boolean;
       }[];
     },
   });
 
-  type VincFlags = { capturaTotal: boolean; somenteKurierOnly: boolean };
+  type VincFlags = { capturaTotal: boolean; somenteKurierOnly: boolean; somenteDjenOnly: boolean };
   const vinculosPorCred = new Map<string, Map<string, VincFlags>>();
   for (const v of vinculos) {
     if (!vinculosPorCred.has(v.credencial_id)) vinculosPorCred.set(v.credencial_id, new Map());
     vinculosPorCred.get(v.credencial_id)!.set(v.coordenacao_id, {
       capturaTotal: !!v.captura_total,
       somenteKurierOnly: !!v.somente_kurier_only,
+      somenteDjenOnly: !!v.somente_djen_only,
     });
   }
 
@@ -108,9 +110,11 @@ export function KurierCredenciaisPanel() {
 
   async function toggleCapturaTotalVinculo(credencialId: string, coordenacaoId: string, valor: boolean) {
     try {
+      const patch: any = { captura_total: valor };
+      if (valor) { patch.somente_kurier_only = false; patch.somente_djen_only = false; }
       const { error } = await (supabase as any)
         .from("kurier_credencial_coordenacoes")
-        .update({ captura_total: valor })
+        .update(patch)
         .eq("credencial_id", credencialId)
         .eq("coordenacao_id", coordenacaoId);
       if (error) throw error;
@@ -122,15 +126,33 @@ export function KurierCredenciaisPanel() {
 
   async function toggleSomenteKurierOnlyVinculo(credencialId: string, coordenacaoId: string, valor: boolean) {
     try {
+      const patch: any = { somente_kurier_only: valor };
+      if (valor) { patch.captura_total = false; patch.somente_djen_only = false; }
       const { error } = await (supabase as any)
         .from("kurier_credencial_coordenacoes")
-        .update({ somente_kurier_only: valor })
+        .update(patch)
         .eq("credencial_id", credencialId)
         .eq("coordenacao_id", coordenacaoId);
       if (error) throw error;
       await qc.invalidateQueries({ queryKey: ["kurier-cred-coord-vinculos"] });
     } catch (e: any) {
       toast.error(`Falha ao atualizar "Só Kurier": ${e?.message ?? e}`);
+    }
+  }
+
+  async function toggleSomenteDjenOnlyVinculo(credencialId: string, coordenacaoId: string, valor: boolean) {
+    try {
+      const patch: any = { somente_djen_only: valor };
+      if (valor) { patch.captura_total = false; patch.somente_kurier_only = false; }
+      const { error } = await (supabase as any)
+        .from("kurier_credencial_coordenacoes")
+        .update(patch)
+        .eq("credencial_id", credencialId)
+        .eq("coordenacao_id", coordenacaoId);
+      if (error) throw error;
+      await qc.invalidateQueries({ queryKey: ["kurier-cred-coord-vinculos"] });
+    } catch (e: any) {
+      toast.error(`Falha ao atualizar "Termos DJEN": ${e?.message ?? e}`);
     }
   }
 
@@ -214,6 +236,7 @@ export function KurierCredenciaisPanel() {
                        const count = selected.size;
                        const totalCount = Array.from(selected.values()).filter((f) => f.capturaTotal).length;
                        const soKurierCount = Array.from(selected.values()).filter((f) => f.somenteKurierOnly).length;
+                       const soDjenCount = Array.from(selected.values()).filter((f) => f.somenteDjenOnly).length;
                       return (
                         <Popover>
                           <PopoverTrigger asChild>
@@ -230,9 +253,14 @@ export function KurierCredenciaisPanel() {
                                   {soKurierCount} só K
                                 </Badge>
                               )}
+                              {soDjenCount > 0 && (
+                                <Badge variant="outline" className="h-4 px-1 text-[10px]">
+                                  {soDjenCount} só DJEN
+                                </Badge>
+                              )}
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-[34rem] max-h-[36rem] overflow-auto" align="start">
+                          <PopoverContent className="w-[42rem] max-h-[36rem] overflow-auto" align="start">
                             <div className="text-xs font-medium mb-1 text-muted-foreground">
                               Coordenações que usam este login
                             </div>
@@ -242,12 +270,16 @@ export function KurierCredenciaisPanel() {
                               trazidas por este login, sem aplicar termos.
                               Ligue <strong>Só Kurier</strong> para usar somente os termos cadastrados como
                               <em>"Termo só Kurier"</em> nessa coord.
+                              Ligue <strong>Termos DJEN</strong> para usar somente os termos comuns
+                              (Termos DJEN normais), ignorando os marcados como <em>"só Kurier"</em>.
+                              As três opções são mutuamente exclusivas.
                             </div>
                             <div className="flex items-center gap-2 text-[10px] font-medium text-muted-foreground border-b pb-1 mb-1">
                               <span className="flex-1">Coordenação</span>
                               <span className="w-14 text-center">Vincular</span>
                               <span className="w-20 text-center">Captura total</span>
                               <span className="w-16 text-center">Só Kurier</span>
+                              <span className="w-20 text-center">Termos DJEN</span>
                             </div>
                             {coordenacoes.length === 0 ? (
                               <div className="text-xs text-muted-foreground">Nenhuma coordenação disponível.</div>
@@ -258,6 +290,7 @@ export function KurierCredenciaisPanel() {
                                   const flags = selected.get(coord.id);
                                   const capturaTotal = !!flags?.capturaTotal;
                                   const somenteKurierOnly = !!flags?.somenteKurierOnly;
+                                  const somenteDjenOnly = !!flags?.somenteDjenOnly;
                                   return (
                                     <div key={coord.id} className="flex items-center gap-2 text-sm hover:bg-muted/50 rounded p-1">
                                       <span className="flex-1 truncate" title={coord.nome}>{coord.nome}</span>
@@ -279,6 +312,13 @@ export function KurierCredenciaisPanel() {
                                           checked={somenteKurierOnly}
                                           disabled={!vinculado || capturaTotal}
                                           onCheckedChange={(v) => toggleSomenteKurierOnlyVinculo(c.id, coord.id, v)}
+                                        />
+                                      </div>
+                                      <div className="w-20 flex justify-center">
+                                        <Switch
+                                          checked={somenteDjenOnly}
+                                          disabled={!vinculado || capturaTotal || somenteKurierOnly}
+                                          onCheckedChange={(v) => toggleSomenteDjenOnlyVinculo(c.id, coord.id, v)}
                                         />
                                       </div>
                                     </div>
