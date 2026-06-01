@@ -196,9 +196,39 @@ const server = http.createServer((req, res) => {
   } catch {
     return json(res, 400, { error: 'invalid_url' });
   }
-  const path = parsedUrl.pathname;
+  const rawPath = parsedUrl.pathname;
+
+  // Normaliza prefixo opcional `/proxy/N` — assim cada IP pode ser cadastrado
+  // como slot independente no Pool com baseUrl `.../proxy/N`, e as rotas
+  // `/health`, `/whoami` e o próprio `/proxy?url=…` continuam respondendo.
+  let prefixIdx = null; // 0-based
+  let path = rawPath;
+  const m = rawPath.match(/^\/proxy\/(\d+)(\/.*)?$/);
+  if (m) {
+    prefixIdx = parseInt(m[1], 10) - 1;
+    path = m[2] || '/';
+  }
 
   if (req.method === 'GET' && path === '/health') {
+    if (prefixIdx !== null) {
+      // Health do slot multi-IP: devolve o IP público real daquele índice.
+      if (!LOCAL_IPS.length) return json(res, 503, { error: 'multi_ip_disabled' });
+      if (prefixIdx < 0 || prefixIdx >= LOCAL_IPS.length) {
+        return json(res, 404, { error: 'index_out_of_range', total: LOCAL_IPS.length });
+      }
+      return fetchPublicIp(LOCAL_IPS[prefixIdx], (err, ip) => {
+        json(res, 200, {
+          ok: true,
+          service: 'djen-vps-proxy',
+          version: '3.0-multi-ip',
+          uptime_s: Math.floor((Date.now() - STARTED_AT) / 1000),
+          ip: ip || null,
+          index: prefixIdx + 1,
+          localAddress: LOCAL_IPS[prefixIdx],
+          whoami_error: err ? err.message : undefined,
+        });
+      });
+    }
     return json(res, 200, {
       ok: true,
       service: 'djen-vps-proxy',
@@ -211,23 +241,19 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'GET' && path === '/whoami') {
-    return handleWhoami(res, null);
+    return handleWhoami(res, prefixIdx);
   }
 
-  // /whoami/N
-  let m = path.match(/^\/whoami\/(\d+)$/);
-  if (req.method === 'GET' && m) {
-    return handleWhoami(res, parseInt(m[1], 10) - 1);
+  // /whoami/N (sem prefixo /proxy/X)
+  if (req.method === 'GET' && prefixIdx === null) {
+    const w = rawPath.match(/^\/whoami\/(\d+)$/);
+    if (w) return handleWhoami(res, parseInt(w[1], 10) - 1);
   }
 
-  if (req.method === 'GET' && path === '/proxy') {
-    return handleProxy(req, res, parsedUrl, null);
-  }
-
-  // /proxy/N
-  m = path.match(/^\/proxy\/(\d+)$/);
-  if (req.method === 'GET' && m) {
-    return handleProxy(req, res, parsedUrl, parseInt(m[1], 10) - 1);
+  // /proxy[/N]?url=…  — quando o prefixo /proxy/N foi consumido acima,
+  //   o path remanescente é '/'.
+  if (req.method === 'GET' && (path === '/proxy' || (prefixIdx !== null && path === '/'))) {
+    return handleProxy(req, res, parsedUrl, prefixIdx);
   }
 
   json(res, 404, { error: 'not_found' });
