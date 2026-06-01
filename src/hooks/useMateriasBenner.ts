@@ -7,6 +7,7 @@ export interface MateriaBenner {
   nome: string;
   descricao: string | null;
   ativo: boolean;
+  tipo: "Dicionário Banco" | "Advogado";
   created_at: string;
   updated_at: string;
 }
@@ -15,6 +16,7 @@ export type MateriaBennerInsert = {
   nome: string;
   descricao?: string | null;
   ativo?: boolean;
+  tipo?: "Dicionário Banco" | "Advogado";
 };
 
 export function useMateriasBenner(opts: { onlyAtivas?: boolean } = {}) {
@@ -52,6 +54,7 @@ export function useMateriasBenner(opts: { onlyAtivas?: boolean } = {}) {
       nome: dado.nome.trim(),
       descricao: dado.descricao?.trim() || null,
       ativo: dado.ativo ?? true,
+      tipo: dado.tipo ?? "Dicionário Banco",
     };
     if (id) {
       const { error } = await supabase
