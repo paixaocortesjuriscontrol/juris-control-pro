@@ -272,7 +272,7 @@ const secretsInfo = [
   { name: "SUPABASE_ANON_KEY", description: "Chave anônima (pública) com RLS ativo. Segura para frontend.", category: "Supabase", isPublic: true },
   { name: "SUPABASE_SERVICE_ROLE_KEY", description: "Chave de serviço com bypass de RLS. Exclusiva para Edge Functions.", category: "Supabase", isPublic: false },
   { name: "RESEND_API_KEY", description: "Chave do Resend para envio de emails transacionais.", category: "Email", isPublic: false },
-  { name: "OPENAI_API_KEY", description: "Chave da OpenAI (GPT-4o) para resumos, análises e assistente jurídico.", category: "IA", isPublic: false },
+  { name: "GEMINI_API_KEY", description: "Chave Gemini (Google AI Studio) para resumos, análises e assistente jurídico.", category: "IA", isPublic: false },
   { name: "JINA_API_KEY", description: "Chave do Jina AI para extração de conteúdo web (web scraping).", category: "IA", isPublic: false },
   { name: "ZAPI_INSTANCE_ID", description: "ID da instância Z-API para integração WhatsApp.", category: "WhatsApp", isPublic: false },
   { name: "ZAPI_TOKEN", description: "Token de autenticação Z-API para envio de mensagens.", category: "WhatsApp", isPublic: false },
