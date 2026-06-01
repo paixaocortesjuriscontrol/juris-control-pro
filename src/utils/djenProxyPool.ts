@@ -330,6 +330,103 @@ export async function checkDjenProxyHealth(
 }
 
 // ---------------------------------------------------------------------------
+// Multi-IP: /whoami e /whoami/N
+// ---------------------------------------------------------------------------
+
+const PUBLIC_IP_CACHE_TTL_MS = 5 * 60_000;
+const publicIpCache: Map<string, { ip: string; ts: number }> = new Map();
+
+function publicIpCacheKey(baseUrl: string, index?: number): string {
+  return `${baseUrl}|${index ?? "default"}`;
+}
+
+/**
+ * Busca o IP público real de uma VPS (ou de um slot multi-IP específico).
+ * Tenta `/whoami[/N]` primeiro; se 404/erro, cai para `/health.ip`.
+ * Cache em memória por 5 min (revalida com `force: true`).
+ */
+export async function fetchSlotPublicIp(
+  baseUrl: string,
+  opts?: { index?: number; force?: boolean; signal?: AbortSignal },
+): Promise<string | null> {
+  const base = baseUrl.replace(/\/$/, "");
+  const key = publicIpCacheKey(base, opts?.index);
+  const cached = publicIpCache.get(key);
+  if (!opts?.force && cached && Date.now() - cached.ts < PUBLIC_IP_CACHE_TTL_MS) {
+    return cached.ip;
+  }
+  const whoamiPath = opts?.index ? `/whoami/${opts.index}` : "/whoami";
+  try {
+    const r = await fetch(`${base}${whoamiPath}`, { method: "GET", signal: opts?.signal });
+    if (r.ok) {
+      const j: any = await r.json().catch(() => null);
+      const ip = typeof j?.ip === "string" ? j.ip : null;
+      if (ip) {
+        publicIpCache.set(key, { ip, ts: Date.now() });
+        return ip;
+      }
+    }
+  } catch {
+    // ignora — tenta fallback /health
+  }
+  if (opts?.index === undefined) {
+    try {
+      const h = await checkDjenProxyHealth(base, opts?.signal);
+      if (h.ok && h.ip) {
+        publicIpCache.set(key, { ip: h.ip, ts: Date.now() });
+        return h.ip;
+      }
+    } catch {
+      // ignora
+    }
+  }
+  return null;
+}
+
+export function invalidatePublicIpCache(baseUrl?: string): void {
+  if (!baseUrl) {
+    publicIpCache.clear();
+    return;
+  }
+  const base = baseUrl.replace(/\/$/, "");
+  for (const k of Array.from(publicIpCache.keys())) {
+    if (k.startsWith(base + "|")) publicIpCache.delete(k);
+  }
+}
+
+/** Detecta se uma VPS suporta o endpoint /whoami (= server.js v3 multi-IP). */
+export async function supportsMultiIp(baseUrl: string): Promise<boolean> {
+  const base = baseUrl.replace(/\/$/, "");
+  try {
+    const r = await fetch(`${base}/health`, { method: "GET" });
+    if (!r.ok) return false;
+    const j: any = await r.json().catch(() => null);
+    if (j?.multi_ip === true) return true;
+    // Fallback: tenta /whoami diretamente
+    const w = await fetch(`${base}/whoami`, { method: "GET" });
+    return w.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Para cada path `/proxy/N`, descobre o IP público correspondente via
+ * `/whoami/N`. Retorna lista paralela à de paths informados.
+ */
+export async function discoverExtraIps(
+  baseUrl: string,
+  count: number,
+): Promise<Array<{ index: number; path: string; ip: string | null }>> {
+  const results: Array<{ index: number; path: string; ip: string | null }> = [];
+  for (let i = 2; i <= count; i++) {
+    const ip = await fetchSlotPublicIp(baseUrl, { index: i, force: true });
+    results.push({ index: i, path: `/proxy/${i}`, ip });
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // Round-robin
 // ---------------------------------------------------------------------------
 
