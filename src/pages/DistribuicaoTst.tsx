@@ -1924,7 +1924,6 @@ export default function DistribuicaoTst() {
                                   Subida em Massa
                                 </Badge>
                               )}
-                              {isAdminOrCoordinator && (
                             </div>
                             {isAdminOrCoordinator && (
                               <div className="mt-1">
@@ -1974,7 +1973,6 @@ export default function DistribuicaoTst() {
                               Subida em Massa
                             </Badge>
                           )}
-                          {isAdminOrCoordinator && (
                         </div>
                         {isAdminOrCoordinator && (
                           <div className="mt-1">
