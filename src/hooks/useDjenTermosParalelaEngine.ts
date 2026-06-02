@@ -1145,8 +1145,10 @@ function getViasParaPaginacaoParalela(
   if (tipo === 'processo') return [];
   if (!isDjenProxyPoolEnabled()) return [];
   const ids: string[] = [];
+  const runtimeById = new Map(getDjenProxySlotsRuntime().map((slot) => [slot.id, slot]));
   for (const slot of loadDjenProxyPool()) {
-    if (slot.enabled && slot.id && slot.baseUrl && slot.token) ids.push(slot.id);
+    const runtime = runtimeById.get(slot.id);
+    if (slot.enabled && slot.id && slot.baseUrl && slot.token && runtime?.online !== false) ids.push(slot.id);
   }
   return ids.length >= 2 ? ids : [];
 }
