@@ -3361,9 +3361,10 @@ const AnaliseDjen = () => {
     return Math.max(0, base.length - allPublicacoes.length);
   }, [ocultarDuplicadas, mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, allPublicacoes.length]);
 
-  // Total de duplicadas considerando os filtros atuais (independe do toggle
-  // "Ocultar duplicadas"). Usado pelo card "Duplicadas".
-  const totalDuplicadasFiltrado = useMemo(() => {
+  // Total de publicações ÚNICAS (após deduplicação) considerando os filtros
+  // atuais — independe do toggle "Ocultar duplicadas". Usado pelo card
+  // "Publicações Únicas".
+  const totalUnicasFiltrado = useMemo(() => {
     let base = mergedPublicacoes;
     if (dataDisponibilizacao) {
       base = base.filter(pub => {
@@ -3381,7 +3382,7 @@ const AnaliseDjen = () => {
       });
     }
     const dedup = dedupePublicacoesDjen(base);
-    return Math.max(0, base.length - dedup.length);
+    return dedup.length;
   }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro]);
 
   // Paginação server-side da aba "Descartadas": cada página carrega 500 itens
@@ -3599,9 +3600,9 @@ const AnaliseDjen = () => {
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
-                  <p className="text-xs md:text-sm font-medium text-slate-600 dark:text-slate-300 truncate">Duplicadas</p>
+                  <p className="text-xs md:text-sm font-medium text-slate-600 dark:text-slate-300 truncate">Publicações Únicas</p>
                   <p className="text-xl md:text-3xl font-bold text-slate-700 dark:text-slate-200">
-                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDuplicadasFiltrado}
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalUnicasFiltrado}
                   </p>
                 </div>
                 <Copy className="w-6 h-6 md:w-10 md:h-10 text-slate-500/50 flex-shrink-0" />
