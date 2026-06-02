@@ -3369,12 +3369,16 @@ const AnaliseDjen = () => {
     return Math.max(0, base.length - allPublicacoes.length);
   }, [ocultarDuplicadas, mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, allPublicacoes.length]);
 
-  // Total de publicações ÚNICAS (após deduplicação) considerando os filtros.
-  // Vem direto do servidor (RPC get_djen_stats_per_user já deduplica por
-  // coordenação + id_djen/critério legado) e respeita data_disponibilizacao
-  // + tribunal + termo + monitoramento. Evita reprocessar milhares de linhas
-  // no navegador a cada keystroke (causa principal do travamento).
-  const totalUnicasFiltrado = totalHoje;
+  // Total de publicações ÚNICAS (após deduplicação por processo + data + conteúdo
+  // ignorando intimados — mesma regra do botão "Resumo sem repetição"). Vem do
+  // servidor (RPC get_djen_stats_per_user → total_unicas) e respeita
+  // data_disponibilizacao + tribunal + termo + monitoramento. Evita reprocessar
+  // milhares de linhas no navegador a cada keystroke.
+  const totalUnicasFiltrado = tipoOrigem === 'datajud'
+    ? totalDatajudHoje
+    : tipoOrigem === 'descartada'
+      ? (descartadasStats?.total ?? totalDescartadasHoje)
+      : (totalUnicasHoje ?? totalHoje);
 
   // Paginação server-side da aba "Descartadas": cada página carrega 500 itens
   // do banco. Total vem do COUNT exato (descartadasStats.total).
