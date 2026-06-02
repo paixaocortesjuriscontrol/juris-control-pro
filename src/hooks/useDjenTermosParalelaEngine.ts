@@ -1792,6 +1792,7 @@ async function executarLoop(
       termos_or: t.termos_or, descricao: t.descricao,
       condicao_concomitante: t.condicao_concomitante,
       coordenacao_id: t.coordenacao_id,
+      paginacao_paralela: t.paginacao_paralela,
     }));
 
     // Distribuição POR TIPO DE BUSCA × tribunal.
