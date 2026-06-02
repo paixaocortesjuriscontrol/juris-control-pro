@@ -1247,7 +1247,67 @@ async function processarTermoEmTribunal(
   };
 
   try {
-    if (tipo === 'parte') {
+    // OPT-IN por termo: paginação paralela entre VPSs no TST.
+    // Quando ativo e houver 2+ VPSs ativas no pool, cada VPS percorre páginas
+    // intercaladas (offset/step). Caso contrário, fluxo original (1 worker).
+    const viasParalelas = getViasParaPaginacaoParalela(mon, tribunal, tipo);
+    if (viasParalelas.length >= 2) {
+      const variantes = tipo === 'parte'
+        ? termosDeParte(mon).map((t) => ({
+            params: { ...baseParams, nomeParte: t },
+            meta: { __matchedByNomeParte: true, __nomeParteBusca: t },
+          }))
+        : [{ params: baseParams, meta: {} as Record<string, any> }];
+
+      for (const variante of variantes) {
+        if (signal.aborted) break;
+        const N = viasParalelas.length;
+        console.log(
+          `[DJEN Paralela][${tribunal}] 🪢 paginação paralela em ${N} VPSs ` +
+            `(termo="${mon.termo_busca}"${variante.params.nomeParte ? `, parte="${variante.params.nomeParte}"` : ''})`,
+        );
+        const tasks = viasParalelas.map((vId, idx) =>
+          buscarPjeComunicaPaginado(
+            { ...variante.params, page: idx + 1 },
+            {
+              signal,
+              maxPages: null,
+              continueUntilEmpty: true,
+              delayMs: CONFIG.delay_between_pages,
+              maxRetries: CONFIG.max_retries,
+              retryBaseDelay: CONFIG.retry_base_delay,
+              pageStep: N,
+              onRateLimit: (_w, attempt, page) => {
+                rateLimitHits++;
+                ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
+              },
+              onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via, monIdTrack),
+              forceVia: vId,
+              fallbackToDirect: vId === DIRECT_SLOT_ID,
+              fallbackToPool: vId !== DIRECT_SLOT_ID,
+            },
+          )
+            .then((resp) => {
+              addResults(resp.items, variante.meta);
+              if (resp.lastError) ultimoErro = resp.lastError;
+              return resp.items.length;
+            })
+            .catch((e: any) => {
+              if (e?.name === 'AbortError') throw e;
+              ultimoErro = e?.message || 'Falha de busca paralela';
+              return 0;
+            }),
+        );
+        const counts = await Promise.all(tasks);
+        console.log(
+          `[DJEN Paralela][${tribunal}] 🪢 paginação paralela concluída: ` +
+            `${counts.reduce((a, b) => a + b, 0)} itens brutos (antes do dedup).`,
+        );
+        if (tipo === 'parte') {
+          await abortableDelay(CONFIG.delay_between_termos_or, signal);
+        }
+      }
+    } else if (tipo === 'parte') {
       for (const termoParte of termosDeParte(mon)) {
         if (signal.aborted) break;
         const resp = await executarBusca(
