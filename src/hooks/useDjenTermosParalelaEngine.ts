@@ -2068,15 +2068,23 @@ async function executarLoop(
     }
 
     type ViaSpec = { id: string; label: string };
-    const viasProxy: ViaSpec[] = [];
+    const viasProxyBase: ViaSpec[] = [];
     const poolAtivo = isDjenProxyPoolEnabled();
     if (poolAtivo) {
+      const runtimeById = new Map(getDjenProxySlotsRuntime().map((slot) => [slot.id, slot]));
       for (const slot of loadDjenProxyPool()) {
-        if (slot.enabled && slot.id && slot.baseUrl && slot.token) {
-          viasProxy.push({ id: slot.id, label: slot.label || slot.baseUrl });
+        const runtime = runtimeById.get(slot.id);
+        if (slot.enabled && slot.id && slot.baseUrl && slot.token && runtime?.online !== false) {
+          viasProxyBase.push({ id: slot.id, label: slot.label || slot.baseUrl });
         }
       }
     }
+    const viasProxy = viasProxyBase.flatMap((via) =>
+      Array.from({ length: WORKER_LANES_PER_PROXY }, (_, idx) => ({
+        id: via.id,
+        label: `${via.label}${WORKER_LANES_PER_PROXY > 1 ? ` #${idx + 1}` : ''}`,
+      })),
+    );
     // Se houver VPS no pool, NÃO usar o browser como via — evita que um worker
     // fique preso no IP do navegador (sujeito a Failed to fetch do CloudFront
     // do PJE Comunica), penalizando os tribunais alocados a ele (ex.: TST).
@@ -2087,7 +2095,7 @@ async function executarLoop(
 
     // Concorrência efetiva = mín(nº vias, nº unidades pendentes).
     const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, totalUnidadesPendentes || 1));
-    const paginacaoParalelaEfetiva = usandoPoolVps && viasProxy.length >= 2 && monitoramentos.some((m) => {
+    const paginacaoParalelaEfetiva = usandoPoolVps && viasProxyBase.length >= 2 && monitoramentos.some((m) => {
       if (m.paginacao_paralela !== true) return false;
       if (mapMonTipoToWorkerTipo(m.tipo) === 'processo') return false;
       const tribs = expandirTribunaisDoMon(m.tribunais);
@@ -2096,6 +2104,8 @@ async function executarLoop(
     try {
       console.log('[DJEN Paralela] 🚀 Spawning workers (bandas)', {
         viasDisponiveis: vias.length,
+        vpsFisicas: viasProxyBase.length,
+        lanesPorVps: usandoPoolVps ? WORKER_LANES_PER_PROXY : 1,
         concorrenciaEfetiva,
         paginacaoParalelaEfetiva,
         totalUnidadesPendentes,
@@ -2111,11 +2121,13 @@ async function executarLoop(
     } catch {}
     updateProgress({
       concorrencia: concorrenciaEfetiva,
-      mensagem: `Banda 0/TST: ${filaBand0.length} • Banda 1/STF+STJ: ${filaBand1.length} • Banda 2/outros: ${filaBand2.length} • Banda 3/processo: ${filaBand3.length} — ${concorrenciaEfetiva} workers${paginacaoParalelaEfetiva ? ` • páginas TST: ${viasProxy.length} VPSs` : ''}`,
+      mensagem: `Banda 0/TST: ${filaBand0.length} • Banda 1/STF+STJ: ${filaBand1.length} • Banda 2/outros: ${filaBand2.length} • Banda 3/processo: ${filaBand3.length} — ${concorrenciaEfetiva} workers${usandoPoolVps ? ` (${WORKER_LANES_PER_PROXY}/VPS)` : ''}${paginacaoParalelaEfetiva ? ` • páginas TST: ${viasProxyBase.length} VPSs` : ''}`,
     });
     syncExecutionProgress({
       pool_enabled: usandoPoolVps,
       vias: vias.map(v => ({ id: v.id, label: v.label })),
+      vps_fisicas: viasProxyBase.length,
+      lanes_por_vps: usandoPoolVps ? WORKER_LANES_PER_PROXY : 1,
       tipos_ativos: tiposAtivos,
     }, true);
 
