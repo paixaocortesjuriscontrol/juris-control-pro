@@ -1253,6 +1253,8 @@ export default function CompararDjSantander() {
       // DJET e usa `dedupePublicacoesDjen` para totalizar publicações, não processos.
       type PubRow = {
         id: string;
+        tipo_origem: "termo" | "processo";
+        processo_id: string | null;
         id_djen: string | null;
         processo_numero: string | null;
         data_publicacao: string | null;
@@ -1296,6 +1298,8 @@ export default function CompararDjSantander() {
           for (const p of publicacoes as any[]) {
             rawPubs.push({
               id: String(p.id),
+              tipo_origem: "termo",
+              processo_id: null,
               id_djen: p.id_djen ?? null,
               processo_numero: p.processo_numero ?? null,
               data_publicacao: p.data_publicacao ?? null,
@@ -1320,6 +1324,49 @@ export default function CompararDjSantander() {
         }
       }
 
+      let processoOffset = 0;
+      let hasMoreProcessos = true;
+      while (hasMoreProcessos) {
+        let qProcessos = supabase
+          .from("publicacoes_djen_processos")
+          .select("id, processo_id, processo_numero, data_publicacao, data_disponibilizacao, created_at, orgao, tipo_comunicacao, conteudo, fonte, lida, tribunal, processo:processos!inner(coordenacao_id)")
+          .eq("processo.coordenacao_id", selectedCoordenacao);
+        if (startOfDay) qProcessos = qProcessos.gte("data_disponibilizacao", startOfDay);
+        if (endOfDay) qProcessos = qProcessos.lte("data_disponibilizacao", endOfDay);
+        if (pubStart) qProcessos = qProcessos.gte("data_publicacao", pubStart);
+        if (pubEnd) qProcessos = qProcessos.lte("data_publicacao", pubEnd);
+        const { data: procPubs, error: procError } = await qProcessos.range(processoOffset, processoOffset + pageSize - 1);
+
+        if (procError) {
+          console.warn("Erro ao buscar publicações DJEN por processo:", procError);
+          break;
+        }
+
+        (procPubs || []).forEach((p: any) => {
+          rawPubs.push({
+            id: String(p.id),
+            tipo_origem: "processo",
+            processo_id: p.processo_id ?? null,
+            id_djen: null,
+            processo_numero: p.processo_numero ?? null,
+            data_publicacao: p.data_publicacao ?? null,
+            data_disponibilizacao: p.data_disponibilizacao ?? null,
+            created_at: p.created_at ?? new Date().toISOString(),
+            orgao: p.orgao ?? null,
+            tipo_comunicacao: p.tipo_comunicacao ?? null,
+            conteudo: p.conteudo ?? null,
+            fonte: p.fonte ?? null,
+            lida: p.lida ?? null,
+            tribunal: p.tribunal ?? null,
+            coordenacao_id: p.processo?.coordenacao_id ?? selectedCoordenacao,
+            monitoramento_id: null,
+          });
+        });
+
+        if (!procPubs || procPubs.length < pageSize) hasMoreProcessos = false;
+        else processoOffset += pageSize;
+      }
+
       const monCoordById = new Map<string, string | null>(
         monitoramentos.map((m: any) => [m.id, m.coordenacao_id ?? null])
       );
@@ -1327,8 +1374,8 @@ export default function CompararDjSantander() {
         rawPubs.map((p): PublicacaoUnificada => ({
           id: p.id,
           id_djen: p.id_djen,
-          tipo_origem: "termo",
-          processo_id: null,
+          tipo_origem: p.tipo_origem,
+          processo_id: p.processo_id,
           processo_numero: p.processo_numero,
           conteudo: p.conteudo,
           data_publicacao: p.data_publicacao,
