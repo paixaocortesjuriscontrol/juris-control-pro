@@ -248,6 +248,7 @@ const AnaliseDjen = () => {
     dataDisponibilizacao: dataDisponibilizacaoDebounced || undefined,
     termoBusca: termoBuscaDebounced || undefined,
     monitoramentoId: monitoramentoId || undefined,
+    tribunal: tribunalFiltro || undefined,
     apenasNaoLidas,
     readStatus,
     apenasHoje: apenasHojeEfetivo,
@@ -260,7 +261,12 @@ const AnaliseDjen = () => {
     incluirDescartadas: (termoBuscaDebounced || '').replace(/\D/g, '').length >= 11
       && tipoOrigem !== 'descartada',
     page: 1,
-    pageSize: (coordenacaoFiltroEfetivo || filtroQualquerDataAtivo) ? 100000 : listLimit,
+    // PERFORMANCE: nunca pedir 100k linhas — o banco já filtra/dedupa/conta.
+    // A página atual usa paginação progressiva via `listLimit`, que cresce
+    // com o botão "Carregar mais". O backend agora aplica tribunal e
+    // data de disponibilização, então não precisamos baixar tudo para
+    // recalcular cards no cliente.
+    pageSize: Math.min(listLimit, 2000),
     desabilitarLista: tipoOrigem === 'datajud' || tipoOrigem === 'descartada',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
@@ -3361,29 +3367,12 @@ const AnaliseDjen = () => {
     return Math.max(0, base.length - allPublicacoes.length);
   }, [ocultarDuplicadas, mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, allPublicacoes.length]);
 
-  // Total de publicações ÚNICAS (após deduplicação) considerando os filtros
-  // atuais — independe do toggle "Ocultar duplicadas". Usado pelo card
-  // "Publicações Únicas".
-  const totalUnicasFiltrado = useMemo(() => {
-    let base = mergedPublicacoes;
-    if (dataDisponibilizacao) {
-      base = base.filter(pub => {
-        if (!pub.data_disponibilizacao) return false;
-        return pub.data_disponibilizacao.slice(0, 10) === dataDisponibilizacao;
-      });
-    }
-    if (tribunalFiltro) {
-      const alvo = tribunalFiltro.toUpperCase();
-      base = base.filter(pub => {
-        const t = (pub.tribunal || pub.fonte || "").toString().toUpperCase();
-        if (!t) return false;
-        const re = new RegExp(`(?:^|[^A-Z0-9])${alvo}(?:[^A-Z0-9]|$)`);
-        return re.test(t);
-      });
-    }
-    const dedup = dedupePublicacoesDjen(base);
-    return dedup.length;
-  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro]);
+  // Total de publicações ÚNICAS (após deduplicação) considerando os filtros.
+  // Vem direto do servidor (RPC get_djen_stats_per_user já deduplica por
+  // coordenação + id_djen/critério legado) e respeita data_disponibilizacao
+  // + tribunal + termo + monitoramento. Evita reprocessar milhares de linhas
+  // no navegador a cada keystroke (causa principal do travamento).
+  const totalUnicasFiltrado = totalHoje;
 
   // Paginação server-side da aba "Descartadas": cada página carrega 500 itens
   // do banco. Total vem do COUNT exato (descartadasStats.total).
@@ -3437,7 +3426,14 @@ const AnaliseDjen = () => {
     () => mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length,
     [mergedPublicacoes]
   );
-  const usarContadoresDaLista = filtroDataDisponibilizacaoAtivo || !!tribunalFiltro;
+  // PERFORMANCE/CORREÇÃO: o backend agora aplica os filtros de data de
+  // disponibilização e tribunal nas RPCs de contagem (get_djen_stats_per_user).
+  // Portanto sempre usamos os totais do servidor — eles já consideram esses
+  // filtros e a deduplicação por coordenação + id_djen. Antes, quando esses
+  // filtros estavam ativos, a tela trocava para "contadores da lista" e
+  // contava apenas as publicações da página atual, gerando totalizadores
+  // incoerentes (especialmente o "Total no período").
+  const usarContadoresDaLista = false;
   const totalGeralFiltrado = usarContadoresDaLista
     ? totalListaVisivel
     : tipoOrigem === 'datajud'

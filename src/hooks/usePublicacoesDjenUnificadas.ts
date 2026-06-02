@@ -209,6 +209,8 @@ export interface FiltrosUnificados {
   desabilitarLista?: boolean;
   /** Desliga contadores exatos pesados quando a prioridade é listar rápido. */
   desabilitarStats?: boolean;
+  /** Filtro por tribunal (sigla, ex.: 'TRT2', 'TST'). Aplicado no servidor. */
+  tribunal?: string;
 }
 
 export interface EstatisticasCoordenacao {
@@ -480,6 +482,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           : null,
         p_search_query: filtros.termoBusca || null,
         p_monitoramento_id: filtros.monitoramentoId || null,
+        p_data_disponibilizacao_inicio: dataDisponibilizacaoInicio,
+        p_data_disponibilizacao_fim: dataDisponibilizacaoFim,
+        p_tribunal: filtros.tribunal || null,
       }).abortSignal(signal);
       if (error) {
         console.error('[stats-header] get_djen_stats_per_user error', error);
@@ -548,8 +553,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // + ficar lento por 3 queries + dedup no client.
       // Para coordenação ESPECÍFICA, usamos RPC que já devolve a lista deduplicada e paginada no servidor.
         const canUseRpc = filtros.tipoOrigem !== 'descartada'
-          && filtros.tipoOrigem !== 'djet-pautas'
-          && !filtros.dataDisponibilizacao;
+          && filtros.tipoOrigem !== 'djet-pautas';
       if (canUseRpc) {
         try {
         console.debug(`[DJEN] RPC deduplicada — page=${page} pageSize=${pageSize} offset=${offsetGlobal}`);
@@ -569,6 +573,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             p_monitoramento_id: filtros.monitoramentoId ?? null,
             p_tipo_origem: filtros.tipoOrigem ?? null,
             p_read_status: readStatus,
+            p_data_disponibilizacao_inicio: dataDisponibilizacaoInicio,
+            p_data_disponibilizacao_fim: dataDisponibilizacaoFim,
+            p_tribunal: filtros.tribunal || null,
           })
           .abortSignal(signal);
 
