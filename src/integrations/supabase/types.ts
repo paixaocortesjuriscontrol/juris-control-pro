@@ -7526,6 +7526,7 @@ export type Database = {
               p_coordenacao_id?: string
               p_data_disponibilizacao_fim?: string
               p_data_disponibilizacao_inicio?: string
+              p_dedup?: boolean
               p_fim?: string
               p_inicio?: string
               p_limit?: number
