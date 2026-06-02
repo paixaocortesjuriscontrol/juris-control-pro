@@ -858,6 +858,7 @@ export default function CompararDjSantander() {
   const [djenTexto, setDjenTexto] = useState<string>("");
   const [loadingDjen, setLoadingDjen] = useState(false);
   const [djenLoaded, setDjenLoaded] = useState(false);
+  const [djenTotalPubs, setDjenTotalPubs] = useState<number>(0);
 
   // PDF Diário mode state
   const [pdfDiarioFiles, setPdfDiarioFiles] = useState<File[]>([]);
@@ -1066,6 +1067,7 @@ export default function CompararDjSantander() {
     setLoadingDjen(true);
     setDjenLoaded(false);
     setDjenProcessos([]);
+    setDjenTotalPubs(0);
     setDjenTexto("");
     setResult(null);
     try {
@@ -1210,6 +1212,7 @@ export default function CompararDjSantander() {
         .filter((n): n is string => !!n)
         .map(formatarCNJ);
       setDjenProcessos(todos);
+      setDjenTotalPubs(allPubs.length);
       // Monta um texto sintético no mesmo formato do PDF Resumo
       // ("COMUNICAÇÃO PJE #<CNJ>" como cabeçalho + corpo) para que
       // classificarTiposPorTitulo possa contar Pauta/Distribuição/CEJUSC/Outros.
@@ -1689,7 +1692,7 @@ export default function CompararDjSantander() {
                   {djenLoaded && (
                     <div className="flex items-center gap-2 text-sm">
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      <span className="text-muted-foreground">{djenProcessos.length} publicações encontradas</span>
+                      <span className="text-muted-foreground">{djenTotalPubs} publicações encontradas</span>
                     </div>
                   )}
                 </div>
@@ -1711,7 +1714,7 @@ export default function CompararDjSantander() {
                   {djenLoaded && (
                     <div className="flex items-center gap-2 text-sm">
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      <span className="text-muted-foreground">{djenProcessos.length} publicações encontradas</span>
+                      <span className="text-muted-foreground">{djenTotalPubs} publicações encontradas</span>
                     </div>
                   )}
                 </div>
@@ -1733,7 +1736,7 @@ export default function CompararDjSantander() {
                   {djenLoaded && (
                     <div className="flex items-center gap-2 text-sm">
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      <span className="text-muted-foreground">{djenProcessos.length} publicações encontradas</span>
+                      <span className="text-muted-foreground">{djenTotalPubs} publicações encontradas</span>
                     </div>
                   )}
                 </div>
@@ -1755,7 +1758,7 @@ export default function CompararDjSantander() {
                   {djenLoaded && (
                     <div className="flex items-center gap-2 text-sm">
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      <span className="text-muted-foreground">{djenProcessos.length} publicações encontradas</span>
+                      <span className="text-muted-foreground">{djenTotalPubs} publicações encontradas</span>
                     </div>
                   )}
                 </div>
