@@ -5946,6 +5946,7 @@ export type Database = {
           created_at: string
           data_disponibilizacao: string | null
           data_publicacao: string | null
+          dedup_conteudo_key: string | null
           dedup_data_ref: string | null
           dedup_head_norm: string | null
           dedup_key: string | null
@@ -5964,6 +5965,7 @@ export type Database = {
           polo_ativo: string | null
           polo_passivo: string | null
           processo_numero: string | null
+          publicacao_unica: boolean
           resumo_gerado_em: string | null
           resumo_ia: string | null
           status: Database["public"]["Enums"]["djen_status"]
@@ -5978,6 +5980,7 @@ export type Database = {
           created_at?: string
           data_disponibilizacao?: string | null
           data_publicacao?: string | null
+          dedup_conteudo_key?: string | null
           dedup_data_ref?: string | null
           dedup_head_norm?: string | null
           dedup_key?: string | null
@@ -5996,6 +5999,7 @@ export type Database = {
           polo_ativo?: string | null
           polo_passivo?: string | null
           processo_numero?: string | null
+          publicacao_unica?: boolean
           resumo_gerado_em?: string | null
           resumo_ia?: string | null
           status?: Database["public"]["Enums"]["djen_status"]
@@ -6010,6 +6014,7 @@ export type Database = {
           created_at?: string
           data_disponibilizacao?: string | null
           data_publicacao?: string | null
+          dedup_conteudo_key?: string | null
           dedup_data_ref?: string | null
           dedup_head_norm?: string | null
           dedup_key?: string | null
@@ -6028,6 +6033,7 @@ export type Database = {
           polo_ativo?: string | null
           polo_passivo?: string | null
           processo_numero?: string | null
+          publicacao_unica?: boolean
           resumo_gerado_em?: string | null
           resumo_ia?: string | null
           status?: Database["public"]["Enums"]["djen_status"]
@@ -7244,6 +7250,10 @@ export type Database = {
           restantes: number
         }[]
       }
+      backfill_publicacoes_djen_unica: {
+        Args: { p_batch_size?: number }
+        Returns: number
+      }
       calcular_primeiro_dia_util: {
         Args: { data_base: string; dias_uteis_adicionar?: number }
         Returns: string
@@ -7758,6 +7768,7 @@ export type Database = {
       mark_djen_duplicadas_global: { Args: never; Returns: number }
       mark_djenp_duplicadas_global: { Args: never; Returns: number }
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
+      rebuild_publicacoes_djen_unica_flags: { Args: never; Returns: undefined }
       search_users_basic: {
         Args: { _limit?: number; _query?: string }
         Returns: {
