@@ -170,6 +170,13 @@ const AnaliseDjen = () => {
   const LOAD_MORE_INCREMENT = 20000;
   const [listLimit, setListLimit] = useState(INITIAL_LIST_LIMIT);
 
+  // Paginação apenas de APRESENTAÇÃO (client-side): renderizar 12k+ cards
+  // trava a tela. O backend continua trazendo tudo (para totalizadores e
+  // exportações), mas a lista mostra `displayLimit` registros por vez,
+  // crescendo de 1000 em 1000 via botão "Carregar mais 1000".
+  const DISPLAY_PAGE_SIZE = 1000;
+  const [displayLimit, setDisplayLimit] = useState(DISPLAY_PAGE_SIZE);
+
   // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
   // a cada tecla (termo de busca + data digitada manualmente).
   const termoBuscaDebounced = useDebouncedValue(termoBusca, 350);
@@ -208,6 +215,7 @@ const AnaliseDjen = () => {
 
   useEffect(() => {
     setListLimit(INITIAL_LIST_LIMIT);
+    setDisplayLimit(DISPLAY_PAGE_SIZE);
     setSelectedIds(new Map<string, TipoOrigemPublicacao>());
     setExpandedPublicacoes(new Set());
     setExpandirGeralAtivo(false);
@@ -3401,6 +3409,23 @@ const AnaliseDjen = () => {
   // contém apenas a página atual.
   const publicacoesParaListagem = allPublicacoes;
 
+  // Set de IDs visíveis para a paginação CLIENT-SIDE de apresentação:
+  // limita o número de cards renderizados sem afetar agrupamentos,
+  // contadores ou exportações. Para descartadas (paginação server) o
+  // limite não se aplica (renderiza tudo da página atual).
+  const visibleIdsSet = useMemo<Set<string> | null>(() => {
+    if (tipoOrigem === 'descartada') return null;
+    if (displayLimit >= allPublicacoes.length) return null;
+    const s = new Set<string>();
+    for (let i = 0; i < displayLimit && i < allPublicacoes.length; i++) {
+      s.add(allPublicacoes[i].id);
+    }
+    return s;
+  }, [allPublicacoes, displayLimit, tipoOrigem]);
+  const totalRenderizadoNaTela = visibleIdsSet
+    ? Math.min(displayLimit, allPublicacoes.length)
+    : allPublicacoes.length;
+
   // Agrupar publicações por coordenação
   const publicacoesPorCoordenacao = publicacoesParaListagem.reduce((acc, pub) => {
     const coordId = pub.coordenacao_id || 'sem-coordenacao';
@@ -4114,7 +4139,29 @@ const AnaliseDjen = () => {
           </Card>
         ) : (
           <div className="space-y-4">
-            {coordenacoesOrdenadas.map((grupo) => {
+            {/* Controle TOPO: paginação client-side de apresentação */}
+            {visibleIdsSet && tipoOrigem !== 'descartada' && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
+                <div className="text-xs md:text-sm text-muted-foreground">
+                  Mostrando <strong>{totalRenderizadoNaTela}</strong> de{' '}
+                  <strong>{allPublicacoes.length}</strong>
+                  {temMaisResultados && (
+                    <> (total filtrado: <strong>{totalFiltradoGeral}</strong>)</>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDisplayLimit((d) => d + DISPLAY_PAGE_SIZE)}
+                >
+                  Carregar mais {Math.min(DISPLAY_PAGE_SIZE, allPublicacoes.length - totalRenderizadoNaTela)}
+                </Button>
+              </div>
+            )}
+            {coordenacoesOrdenadas
+              .filter((grupo) => !visibleIdsSet || grupo.publicacoes.some(p => visibleIdsSet.has(p.id)))
+              .map((grupo) => {
               const contadoresGrupo = getGrupoContadores(grupo);
               return (
               <Card key={grupo.coordenacao_id}>
@@ -4166,7 +4213,10 @@ const AnaliseDjen = () => {
                   <CollapsibleContent>
                     <CardContent className="pt-0 px-2 md:px-6 pb-3">
                       <div className="space-y-2 md:space-y-3">
-                        {grupo.publicacoes.map((pub) => {
+                        {(visibleIdsSet
+                          ? grupo.publicacoes.filter(p => visibleIdsSet.has(p.id))
+                          : grupo.publicacoes
+                        ).map((pub) => {
                           const isExpanded = expandedPublicacoes.has(pub.id);
                           return (
                           <div
@@ -4571,8 +4621,9 @@ const AnaliseDjen = () => {
                 </>
               ) : (
                 <>
-                  Exibindo <strong>{totalExibidoNaPagina}</strong> registros filtrados
-                  {temMaisResultados ? <> de <strong>{totalFiltradoGeral}</strong></> : null}
+                  Mostrando <strong>{totalRenderizadoNaTela}</strong> de{' '}
+                  <strong>{allPublicacoes.length}</strong>
+                  {temMaisResultados ? <> (total filtrado: <strong>{totalFiltradoGeral}</strong>)</> : null}
                 </>
               )}
             </div>
@@ -4619,7 +4670,17 @@ const AnaliseDjen = () => {
                 </Button>
               </div>
             )}
-            {tipoOrigem !== 'descartada' && temMaisResultados && !coordenacaoFiltroEfetivo && (
+            {tipoOrigem !== 'descartada' && visibleIdsSet && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDisplayLimit((d) => d + DISPLAY_PAGE_SIZE)}
+              >
+                Carregar mais {Math.min(DISPLAY_PAGE_SIZE, allPublicacoes.length - totalRenderizadoNaTela)}
+              </Button>
+            )}
+            {tipoOrigem !== 'descartada' && !visibleIdsSet && temMaisResultados && !coordenacaoFiltroEfetivo && (
               <Button
                 type="button"
                 variant="outline"
@@ -4628,7 +4689,7 @@ const AnaliseDjen = () => {
                 disabled={isFetchingPublicacoes}
               >
                 {isFetchingPublicacoes ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Carregar mais {Math.min(LOAD_MORE_INCREMENT, totalFiltradoGeral - totalExibidoNaPagina)}
+                Buscar mais do servidor (+{LOAD_MORE_INCREMENT})
               </Button>
             )}
           </div>
