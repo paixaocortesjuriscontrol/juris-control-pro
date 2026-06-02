@@ -145,6 +145,7 @@ interface Checkpoint {
 // ============================================================================
 
 const MAX_CONCURRENCY = 5;
+const WORKER_LANES_PER_PROXY = 2;
 const CONFIG = {
   delay_between_terms: 2500,
   delay_between_pages: 1800,
