@@ -361,6 +361,126 @@ function compararListas(processosDoc: string[], processosPdf: string[]): Compari
   return { processos_doc: processosDoc, processos_pdf: processosPdf, comuns, somente_doc, somente_pdf };
 }
 
+// ============================================================================
+// Cruzamento por trecho do conteúdo (fuzzy)
+// ----------------------------------------------------------------------------
+// Quebra o texto do documento da esquerda em parágrafos significativos e
+// procura, para cada um, a publicação DJEN mais parecida via similaridade de
+// Dice sobre bigramas de palavras normalizadas. Cada parágrafo é classificado
+// como "encontrado" (score >= threshold) ou "não encontrado".
+// ============================================================================
+
+interface PubConteudo {
+  cnj: string;
+  texto: string;
+}
+
+interface TrechoMatch {
+  paragrafo: string;
+  score: number;
+  cnj: string | null;
+  trechoDjen: string;
+}
+
+interface TrechoResult {
+  threshold: number;
+  matches: TrechoMatch[]; // todos os parágrafos, em ordem
+}
+
+const TRECHO_MIN_CHARS = 80;
+const TRECHO_THRESHOLD = 0.45;
+
+function normalizarTextoParaMatch(s: string): string {
+  return (s || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokensBigrams(s: string): Set<string> {
+  const norm = normalizarTextoParaMatch(s);
+  if (!norm) return new Set();
+  const tokens = norm.split(" ").filter((t) => t.length >= 2);
+  const grams = new Set<string>();
+  for (let i = 0; i < tokens.length - 1; i++) {
+    grams.add(`${tokens[i]} ${tokens[i + 1]}`);
+  }
+  // fallback p/ parágrafos muito curtos: usa os próprios tokens
+  if (grams.size === 0) tokens.forEach((t) => grams.add(t));
+  return grams;
+}
+
+function diceSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let inter = 0;
+  const [menor, maior] = a.size <= b.size ? [a, b] : [b, a];
+  for (const g of menor) if (maior.has(g)) inter++;
+  return (2 * inter) / (a.size + b.size);
+}
+
+function splitParagrafosSignificativos(texto: string): string[] {
+  if (!texto) return [];
+  // Primeiro tenta separar por linhas em branco (parágrafos); se virar um
+  // bloco gigante, cai para linhas simples.
+  const blocos = texto
+    .split(/\n\s*\n+/)
+    .map((b) => b.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const result: string[] = [];
+  for (const b of blocos) {
+    if (b.length >= TRECHO_MIN_CHARS) {
+      result.push(b);
+    } else if (b.length > 0 && result.length > 0) {
+      // junta fragmentos pequenos ao parágrafo anterior
+      result[result.length - 1] = `${result[result.length - 1]} ${b}`.trim();
+    }
+  }
+  if (result.length === 0) {
+    // fallback: usa linhas simples
+    return texto
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .filter((l) => l.length >= TRECHO_MIN_CHARS);
+  }
+  // remove duplicatas exatas
+  return [...new Set(result)];
+}
+
+function cruzarPorTrechoConteudo(
+  textoEsquerda: string,
+  pubs: PubConteudo[],
+  threshold = TRECHO_THRESHOLD
+): TrechoResult {
+  const paragrafos = splitParagrafosSignificativos(textoEsquerda);
+  const pubsGrams = pubs.map((p) => ({ ...p, grams: tokensBigrams(p.texto) }));
+  const matches: TrechoMatch[] = [];
+  for (const par of paragrafos) {
+    const pGrams = tokensBigrams(par);
+    let melhorScore = 0;
+    let melhorIdx = -1;
+    for (let i = 0; i < pubsGrams.length; i++) {
+      const score = diceSimilarity(pGrams, pubsGrams[i].grams);
+      if (score > melhorScore) {
+        melhorScore = score;
+        melhorIdx = i;
+      }
+    }
+    const melhor = melhorIdx >= 0 ? pubsGrams[melhorIdx] : null;
+    matches.push({
+      paragrafo: par,
+      score: melhorScore,
+      cnj: melhor && melhorScore >= threshold ? melhor.cnj : null,
+      trechoDjen: melhor && melhorScore >= threshold ? melhor.texto.slice(0, 240) : "",
+    });
+  }
+  return { threshold, matches };
+}
+
 function exportarPdf(
   result: ComparisonResult,
   docFileName: string,
