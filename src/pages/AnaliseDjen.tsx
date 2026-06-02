@@ -3407,15 +3407,24 @@ const AnaliseDjen = () => {
   }, [tipoOrigem, coordenacaoFiltroEfetivo, termoBuscaDebounced, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced, tribunalFiltro, monitoramentoId]);
   // Na aba descartada a paginação é server-side, então allPublicacoes já
   // contém apenas a página atual.
-  // Para as demais abas aplicamos paginação client-side APENAS de apresentação:
-  // renderizamos `displayLimit` cards por vez (default 1000) sem afetar
-  // totalizadores, seleções globais ou exportações — que continuam usando
-  // `allPublicacoes`.
-  const publicacoesParaListagem = useMemo(() => {
-    if (tipoOrigem === 'descartada') return allPublicacoes;
-    if (displayLimit >= allPublicacoes.length) return allPublicacoes;
-    return allPublicacoes.slice(0, displayLimit);
+  const publicacoesParaListagem = allPublicacoes;
+
+  // Set de IDs visíveis para a paginação CLIENT-SIDE de apresentação:
+  // limita o número de cards renderizados sem afetar agrupamentos,
+  // contadores ou exportações. Para descartadas (paginação server) o
+  // limite não se aplica (renderiza tudo da página atual).
+  const visibleIdsSet = useMemo<Set<string> | null>(() => {
+    if (tipoOrigem === 'descartada') return null;
+    if (displayLimit >= allPublicacoes.length) return null;
+    const s = new Set<string>();
+    for (let i = 0; i < displayLimit && i < allPublicacoes.length; i++) {
+      s.add(allPublicacoes[i].id);
+    }
+    return s;
   }, [allPublicacoes, displayLimit, tipoOrigem]);
+  const totalRenderizadoNaTela = visibleIdsSet
+    ? Math.min(displayLimit, allPublicacoes.length)
+    : allPublicacoes.length;
 
   // Agrupar publicações por coordenação
   const publicacoesPorCoordenacao = publicacoesParaListagem.reduce((acc, pub) => {
