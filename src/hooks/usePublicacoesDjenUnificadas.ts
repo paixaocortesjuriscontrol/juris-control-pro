@@ -209,6 +209,8 @@ export interface FiltrosUnificados {
   desabilitarLista?: boolean;
   /** Desliga contadores exatos pesados quando a prioridade é listar rápido. */
   desabilitarStats?: boolean;
+  /** Filtro por tribunal (sigla, ex.: 'TRT2', 'TST'). Aplicado no servidor. */
+  tribunal?: string;
 }
 
 export interface EstatisticasCoordenacao {
