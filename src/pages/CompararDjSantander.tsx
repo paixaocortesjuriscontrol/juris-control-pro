@@ -555,7 +555,7 @@ function exportarPdf(
   type CardSpec = { label: string; value: number; fill: [number, number, number]; border: [number, number, number]; text: [number, number, number] };
   const cards: CardSpec[] = [
     { label: `Processos no ${leftLabel}`, value: result.processos_doc.length, fill: [239, 246, 255], border: [191, 219, 254], text: [37, 99, 235] },
-    { label: `Processos no ${sourceLabel}`, value: result.processos_pdf.length, fill: [254, 242, 242], border: [254, 202, 202], text: [220, 38, 38] },
+    { label: sourceLabel === "DJEN" ? `Publicações no ${sourceLabel}` : `Processos no ${sourceLabel}`, value: result.processos_pdf.length, fill: [254, 242, 242], border: [254, 202, 202], text: [220, 38, 38] },
     { label: "Em Comum", value: result.comuns.length, fill: [240, 253, 244], border: [187, 247, 208], text: [22, 163, 74] },
     { label: `Somente no ${leftLabel}`, value: result.somente_doc.length, fill: [255, 251, 235], border: [253, 230, 138], text: [217, 119, 6] },
     { label: `Somente no ${sourceLabel}`, value: result.somente_pdf.length, fill: [255, 247, 237], border: [254, 215, 170], text: [234, 88, 12] },
@@ -2203,7 +2203,7 @@ export default function CompararDjSantander() {
             <Card>
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-red-600">{result.processos_pdf.length}</p>
-                <p className="text-xs text-muted-foreground">Processos no {sourceLabel}</p>
+                <p className="text-xs text-muted-foreground">{sourceLabel === "DJEN" ? "Publicações" : "Processos"} no {sourceLabel}</p>
               </CardContent>
             </Card>
             <Card className="border-green-200 bg-green-50 dark:bg-green-950/20">
