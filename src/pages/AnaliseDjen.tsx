@@ -3361,6 +3361,29 @@ const AnaliseDjen = () => {
     return Math.max(0, base.length - allPublicacoes.length);
   }, [ocultarDuplicadas, mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, allPublicacoes.length]);
 
+  // Total de duplicadas considerando os filtros atuais (independe do toggle
+  // "Ocultar duplicadas"). Usado pelo card "Duplicadas".
+  const totalDuplicadasFiltrado = useMemo(() => {
+    let base = mergedPublicacoes;
+    if (dataDisponibilizacao) {
+      base = base.filter(pub => {
+        if (!pub.data_disponibilizacao) return false;
+        return pub.data_disponibilizacao.slice(0, 10) === dataDisponibilizacao;
+      });
+    }
+    if (tribunalFiltro) {
+      const alvo = tribunalFiltro.toUpperCase();
+      base = base.filter(pub => {
+        const t = (pub.tribunal || pub.fonte || "").toString().toUpperCase();
+        if (!t) return false;
+        const re = new RegExp(`(?:^|[^A-Z0-9])${alvo}(?:[^A-Z0-9]|$)`);
+        return re.test(t);
+      });
+    }
+    const dedup = dedupePublicacoesDjen(base);
+    return Math.max(0, base.length - dedup.length);
+  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro]);
+
   // Paginação server-side da aba "Descartadas": cada página carrega 500 itens
   // do banco. Total vem do COUNT exato (descartadasStats.total).
   const descartadasTotalServidor = tipoOrigem === 'descartada' ? (descartadasStats?.total ?? 0) : 0;
