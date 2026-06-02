@@ -248,6 +248,7 @@ const AnaliseDjen = () => {
     dataDisponibilizacao: dataDisponibilizacaoDebounced || undefined,
     termoBusca: termoBuscaDebounced || undefined,
     monitoramentoId: monitoramentoId || undefined,
+    tribunal: tribunalFiltro || undefined,
     apenasNaoLidas,
     readStatus,
     apenasHoje: apenasHojeEfetivo,
@@ -260,7 +261,12 @@ const AnaliseDjen = () => {
     incluirDescartadas: (termoBuscaDebounced || '').replace(/\D/g, '').length >= 11
       && tipoOrigem !== 'descartada',
     page: 1,
-    pageSize: (coordenacaoFiltroEfetivo || filtroQualquerDataAtivo) ? 100000 : listLimit,
+    // PERFORMANCE: nunca pedir 100k linhas — o banco já filtra/dedupa/conta.
+    // A página atual usa paginação progressiva via `listLimit`, que cresce
+    // com o botão "Carregar mais". O backend agora aplica tribunal e
+    // data de disponibilização, então não precisamos baixar tudo para
+    // recalcular cards no cliente.
+    pageSize: Math.min(listLimit, 2000),
     desabilitarLista: tipoOrigem === 'datajud' || tipoOrigem === 'descartada',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
