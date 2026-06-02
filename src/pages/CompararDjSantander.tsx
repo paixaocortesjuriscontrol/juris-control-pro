@@ -1338,6 +1338,17 @@ export default function CompararDjSantander() {
         .map(formatarCNJ);
       setDjenProcessos(todos);
       setDjenTotalPubs(allPubs.length);
+      // Captura conteúdo por publicação para o cruzamento por trecho (fuzzy).
+      const stripHtmlPub = (s: string | null) =>
+        (s || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ");
+      setDjenPubsConteudo(
+        allPubs.map((p) => ({
+          cnj: p.processo_numero ? formatarCNJ(p.processo_numero) : "",
+          texto: [p.orgao || "", p.tipo_comunicacao || "", stripHtmlPub(p.conteudo)]
+            .filter(Boolean)
+            .join("\n"),
+        }))
+      );
       // Monta um texto sintético no mesmo formato do PDF Resumo
       // ("COMUNICAÇÃO PJE #<CNJ>" como cabeçalho + corpo) para que
       // classificarTiposPorTitulo possa contar Pauta/Distribuição/CEJUSC/Outros.
