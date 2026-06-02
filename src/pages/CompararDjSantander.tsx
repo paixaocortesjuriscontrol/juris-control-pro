@@ -1425,6 +1425,26 @@ export default function CompararDjSantander() {
     }
     setTiposEsq(esq);
     setTiposDir(dir);
+
+    // Cruzamento opcional por trecho do conteúdo (fuzzy) – só faz sentido
+    // quando o lado direito é DJEN (pois temos o conteúdo por publicação).
+    if (cruzarPorTrecho && mode !== "pdf" && djenPubsConteudo.length > 0) {
+      const textoEsquerda =
+        mode === "djen"
+          ? docTexto
+          : mode === "pdf-diario"
+          ? pdfDiarioTexto
+          : "";
+      if (textoEsquerda) {
+        setTrechoResult(cruzarPorTrechoConteudo(textoEsquerda, djenPubsConteudo));
+      } else {
+        setTrechoResult(null);
+        toast.info("Cruzamento por trecho indisponível neste modo (sem texto do documento).");
+      }
+    } else {
+      setTrechoResult(null);
+    }
+
     toast.success("Comparação concluída!");
   };
 
