@@ -305,7 +305,7 @@ export default function ErrataDjen() {
   };
 
   return (
-    <MainLayout>
+    <MainLayout title="Errata DJEN">
       <div className="container mx-auto p-4 space-y-4">
         <div className="flex items-center gap-3">
           <ArrowRightLeft className="w-6 h-6 text-primary" />
