@@ -169,6 +169,7 @@ function App() {
               <Route path="/pautas-tst" element={<ProtectedRoute><PautasTst /></ProtectedRoute>} />
               <Route path="/classificacao-tst" element={<ProtectedRoute><ClassificacaoTst /></ProtectedRoute>} />
               <Route path="/comparar-dj-santander" element={<ProtectedRoute><CompararDjSantander /></ProtectedRoute>} />
+              <Route path="/errata-djen" element={<ProtectedRoute><ErrataDjen /></ProtectedRoute>} />
               <Route path="/corrigir-planilha" element={<ProtectedRoute><CorrigirPlanilha /></ProtectedRoute>} />
               <Route path="/ia-responde" element={<AdminRoute><IaResponde /></AdminRoute>} />
                 <Route path="*" element={<NotFound />} />
