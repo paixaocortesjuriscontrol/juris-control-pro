@@ -215,6 +215,7 @@ const AnaliseDjen = () => {
 
   useEffect(() => {
     setListLimit(INITIAL_LIST_LIMIT);
+    setDisplayLimit(DISPLAY_PAGE_SIZE);
     setSelectedIds(new Map<string, TipoOrigemPublicacao>());
     setExpandedPublicacoes(new Set());
     setExpandirGeralAtivo(false);
