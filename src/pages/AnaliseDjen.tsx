@@ -3407,7 +3407,15 @@ const AnaliseDjen = () => {
   }, [tipoOrigem, coordenacaoFiltroEfetivo, termoBuscaDebounced, dataInicioDebounced, dataFimDebounced, dataDisponibilizacaoDebounced, tribunalFiltro, monitoramentoId]);
   // Na aba descartada a paginação é server-side, então allPublicacoes já
   // contém apenas a página atual.
-  const publicacoesParaListagem = allPublicacoes;
+  // Para as demais abas aplicamos paginação client-side APENAS de apresentação:
+  // renderizamos `displayLimit` cards por vez (default 1000) sem afetar
+  // totalizadores, seleções globais ou exportações — que continuam usando
+  // `allPublicacoes`.
+  const publicacoesParaListagem = useMemo(() => {
+    if (tipoOrigem === 'descartada') return allPublicacoes;
+    if (displayLimit >= allPublicacoes.length) return allPublicacoes;
+    return allPublicacoes.slice(0, displayLimit);
+  }, [allPublicacoes, displayLimit, tipoOrigem]);
 
   // Agrupar publicações por coordenação
   const publicacoesPorCoordenacao = publicacoesParaListagem.reduce((acc, pub) => {
