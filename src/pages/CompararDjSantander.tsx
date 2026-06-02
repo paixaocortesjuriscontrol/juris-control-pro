@@ -1207,15 +1207,15 @@ export default function CompararDjSantander() {
     setDjenTexto("");
     setResult(null);
     try {
-      // Format date range for query - data_disponibilizacao is stored as timestamptz
+      // Mesmo range UTC/BRT usado pela tela Análise DJEN.
       const inicioStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
       const fimStr = selectedDate ? format(selectedDateFim ?? selectedDate, "yyyy-MM-dd") : null;
-      const startOfDay = inicioStr ? `${inicioStr}T00:00:00.000Z` : null;
-      const endOfDay = fimStr ? `${fimStr}T23:59:59.999Z` : null;
+      const startOfDay = inicioStr ? dateLocalToUTCRange(inicioStr, false) : null;
+      const endOfDay = fimStr ? dateLocalToUTCRange(fimStr, true) : null;
       const pubInicioStr = selectedPubInicio ? format(selectedPubInicio, "yyyy-MM-dd") : null;
       const pubFimStr = selectedPubFim ? format(selectedPubFim, "yyyy-MM-dd") : (pubInicioStr ?? null);
-      const pubStart = pubInicioStr ? `${pubInicioStr}T00:00:00.000Z` : null;
-      const pubEnd = pubFimStr ? `${pubFimStr}T23:59:59.999Z` : null;
+      const pubStart = pubInicioStr ? dateLocalToUTCRange(pubInicioStr, false) : null;
+      const pubEnd = pubFimStr ? dateLocalToUTCRange(pubFimStr, true) : null;
 
       // Get monitoramento IDs for the selected coordenação
       const { data: monitoramentos } = await supabase
