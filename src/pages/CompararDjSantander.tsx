@@ -1691,7 +1691,7 @@ export default function CompararDjSantander() {
                   {djenLoaded && (
                     <div className="flex items-center gap-2 text-sm">
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      <span className="text-muted-foreground">{djenProcessos.length} publicações encontradas</span>
+                      <span className="text-muted-foreground">{djenTotalPubs} publicações encontradas</span>
                     </div>
                   )}
                 </div>
@@ -1713,7 +1713,7 @@ export default function CompararDjSantander() {
                   {djenLoaded && (
                     <div className="flex items-center gap-2 text-sm">
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      <span className="text-muted-foreground">{djenProcessos.length} publicações encontradas</span>
+                      <span className="text-muted-foreground">{djenTotalPubs} publicações encontradas</span>
                     </div>
                   )}
                 </div>
@@ -1735,7 +1735,7 @@ export default function CompararDjSantander() {
                   {djenLoaded && (
                     <div className="flex items-center gap-2 text-sm">
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      <span className="text-muted-foreground">{djenProcessos.length} publicações encontradas</span>
+                      <span className="text-muted-foreground">{djenTotalPubs} publicações encontradas</span>
                     </div>
                   )}
                 </div>
@@ -1757,7 +1757,7 @@ export default function CompararDjSantander() {
                   {djenLoaded && (
                     <div className="flex items-center gap-2 text-sm">
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      <span className="text-muted-foreground">{djenProcessos.length} publicações encontradas</span>
+                      <span className="text-muted-foreground">{djenTotalPubs} publicações encontradas</span>
                     </div>
                   )}
                 </div>
