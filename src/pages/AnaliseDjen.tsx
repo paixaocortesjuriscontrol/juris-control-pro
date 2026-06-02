@@ -3426,7 +3426,14 @@ const AnaliseDjen = () => {
     () => mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length,
     [mergedPublicacoes]
   );
-  const usarContadoresDaLista = filtroDataDisponibilizacaoAtivo || !!tribunalFiltro;
+  // PERFORMANCE/CORREÇÃO: o backend agora aplica os filtros de data de
+  // disponibilização e tribunal nas RPCs de contagem (get_djen_stats_per_user).
+  // Portanto sempre usamos os totais do servidor — eles já consideram esses
+  // filtros e a deduplicação por coordenação + id_djen. Antes, quando esses
+  // filtros estavam ativos, a tela trocava para "contadores da lista" e
+  // contava apenas as publicações da página atual, gerando totalizadores
+  // incoerentes (especialmente o "Total no período").
+  const usarContadoresDaLista = false;
   const totalGeralFiltrado = usarContadoresDaLista
     ? totalListaVisivel
     : tipoOrigem === 'datajud'
