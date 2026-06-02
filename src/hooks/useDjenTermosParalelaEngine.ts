@@ -2102,6 +2102,7 @@ async function executarLoop(
     const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, totalUnidadesPendentes || 1));
     const paginacaoParalelaEfetiva = usandoPoolVps && viasProxyBase.length >= 2 && monitoramentos.some((m) => {
       if (m.paginacao_paralela !== true) return false;
+      if (m.tipo === 'parte') return false;
       if (mapMonTipoToWorkerTipo(m.tipo) === 'processo') return false;
       const tribs = expandirTribunaisDoMon(m.tribunais);
       return tribs.length === 0 || tribs.includes('TST');
