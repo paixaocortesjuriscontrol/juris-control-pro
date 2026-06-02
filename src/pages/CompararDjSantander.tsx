@@ -858,6 +858,7 @@ export default function CompararDjSantander() {
   const [djenTexto, setDjenTexto] = useState<string>("");
   const [loadingDjen, setLoadingDjen] = useState(false);
   const [djenLoaded, setDjenLoaded] = useState(false);
+  const [djenTotalPubs, setDjenTotalPubs] = useState<number>(0);
 
   // PDF Diário mode state
   const [pdfDiarioFiles, setPdfDiarioFiles] = useState<File[]>([]);
@@ -1210,6 +1211,7 @@ export default function CompararDjSantander() {
         .filter((n): n is string => !!n)
         .map(formatarCNJ);
       setDjenProcessos(todos);
+      setDjenTotalPubs(allPubs.length);
       // Monta um texto sintético no mesmo formato do PDF Resumo
       // ("COMUNICAÇÃO PJE #<CNJ>" como cabeçalho + corpo) para que
       // classificarTiposPorTitulo possa contar Pauta/Distribuição/CEJUSC/Outros.
