@@ -1067,6 +1067,7 @@ export default function CompararDjSantander() {
     setLoadingDjen(true);
     setDjenLoaded(false);
     setDjenProcessos([]);
+    setDjenTotalPubs(0);
     setDjenTexto("");
     setResult(null);
     try {
