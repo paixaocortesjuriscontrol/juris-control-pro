@@ -722,6 +722,13 @@ export async function buscarPjeComunicaPaginado(
     maxRetries?: number;
     retryBaseDelay?: number;
     continueUntilEmpty?: boolean;
+    /**
+     * Passo entre páginas. Default 1 (varredura sequencial). Use >1 para
+     * varredura intercalada entre múltiplos workers (cada um com `page`
+     * diferente de 1..pageStep). Cada worker para quando sua página atual
+     * vier com `items.length < pageSize` (regra normal).
+     */
+    pageStep?: number;
     onRateLimit?: (waitMs: number, attempt: number, page: number) => void;
     onPoolVia?: (via: PoolViaInfo) => void;
     forceVia?: string;
@@ -731,6 +738,7 @@ export async function buscarPjeComunicaPaginado(
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = options?.maxPages;
   const continueUntilEmpty = options?.continueUntilEmpty ?? false;
+  const pageStep = Math.max(options?.pageStep ?? 1, 1);
   // Delay entre páginas: 800ms (valor original que funcionava na semana passada)
   const delayMs = Math.max(options?.delayMs ?? 800, 0);
   // Retry com backoff exponencial
