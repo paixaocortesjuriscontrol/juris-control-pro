@@ -4621,8 +4621,9 @@ const AnaliseDjen = () => {
                 </>
               ) : (
                 <>
-                  Exibindo <strong>{totalExibidoNaPagina}</strong> registros filtrados
-                  {temMaisResultados ? <> de <strong>{totalFiltradoGeral}</strong></> : null}
+                  Mostrando <strong>{totalRenderizadoNaTela}</strong> de{' '}
+                  <strong>{allPublicacoes.length}</strong>
+                  {temMaisResultados ? <> (total filtrado: <strong>{totalFiltradoGeral}</strong>)</> : null}
                 </>
               )}
             </div>
@@ -4669,7 +4670,17 @@ const AnaliseDjen = () => {
                 </Button>
               </div>
             )}
-            {tipoOrigem !== 'descartada' && temMaisResultados && !coordenacaoFiltroEfetivo && (
+            {tipoOrigem !== 'descartada' && visibleIdsSet && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setDisplayLimit((d) => d + DISPLAY_PAGE_SIZE)}
+              >
+                Carregar mais {Math.min(DISPLAY_PAGE_SIZE, allPublicacoes.length - totalRenderizadoNaTela)}
+              </Button>
+            )}
+            {tipoOrigem !== 'descartada' && !visibleIdsSet && temMaisResultados && !coordenacaoFiltroEfetivo && (
               <Button
                 type="button"
                 variant="outline"
@@ -4678,7 +4689,7 @@ const AnaliseDjen = () => {
                 disabled={isFetchingPublicacoes}
               >
                 {isFetchingPublicacoes ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Carregar mais {Math.min(LOAD_MORE_INCREMENT, totalFiltradoGeral - totalExibidoNaPagina)}
+                Buscar mais do servidor (+{LOAD_MORE_INCREMENT})
               </Button>
             )}
           </div>
