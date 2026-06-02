@@ -8,28 +8,11 @@ type AppRole = Database["public"]["Enums"]["app_role"];
 // Module-level cache to avoid refetching role on every navigation,
 // which was causing AdminRoute to briefly see role=null and redirect.
 const roleCache = new Map<string, AppRole | null>();
-const roleStorageKey = (userId: string) => `user-role-cache:${userId}`;
-
-function readStoredRole(userId: string): AppRole | null {
-  if (typeof window === "undefined") return null;
-  const value = window.sessionStorage.getItem(roleStorageKey(userId));
-  return value === "admin" || value === "coordenador" || value === "advogado" || value === "estagiario" ||
-    value === "assistente" || value === "secretaria" || value === "cliente" || value === "advogado_temporario"
-    ? value
-    : null;
-}
-
-function rememberRole(userId: string, role: AppRole) {
-  roleCache.set(userId, role);
-  if (typeof window !== "undefined") {
-    window.sessionStorage.setItem(roleStorageKey(userId), role);
-  }
-}
 
 export function useUserRole() {
   const { user } = useAuth();
-  const cached = user ? (roleCache.get(user.id) ?? readStoredRole(user.id)) : null;
-  const hasCached = !!cached;
+  const cached = user ? roleCache.get(user.id) : null;
+  const hasCached = user ? roleCache.has(user.id) : false;
   const [role, setRole] = useState<AppRole | null>(cached ?? null);
   const [loading, setLoading] = useState(!hasCached);
 
@@ -43,10 +26,8 @@ export function useUserRole() {
       }
 
       // If we already have a cached role for this user, use it and skip refetch.
-      const cachedRole = roleCache.get(user.id) ?? readStoredRole(user.id);
-      if (cachedRole) {
-        roleCache.set(user.id, cachedRole);
-        setRole(cachedRole);
+      if (roleCache.has(user.id)) {
+        setRole(roleCache.get(user.id) ?? null);
         setLoading(false);
         return;
       }
@@ -85,7 +66,7 @@ export function useUserRole() {
         return;
       } else {
         if (cancelled) return;
-        if (resolvedRole) rememberRole(user.id, resolvedRole);
+        roleCache.set(user.id, resolvedRole);
         setRole(resolvedRole);
       }
       setLoading(false);

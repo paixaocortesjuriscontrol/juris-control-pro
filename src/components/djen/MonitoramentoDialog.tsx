@@ -124,7 +124,6 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
   const [termoBusca, setTermoBusca] = useState(fonte?.termo_busca || '');
   const [oab, setOab] = useState(fonte?.oab || '');
   const [somenteKurier, setSomenteKurier] = useState<boolean>(!!(fonte as any)?.somente_kurier);
-  const [paginacaoParalela, setPaginacaoParalela] = useState<boolean>(!!(fonte as any)?.paginacao_paralela);
   const [selectedUfs, setSelectedUfs] = useState<string[]>([]);
   const [todasRegioes, setTodasRegioes] = useState(false);
   const [coordenacaoId, setCoordenacaoId] = useState<string>(fonte?.coordenacao_id || '');
@@ -151,7 +150,6 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       setTermoBusca(src.termo_busca || '');
       setOab(src.oab || '');
       setSomenteKurier(!!(src as any).somente_kurier);
-      setPaginacaoParalela(!!(src as any).paginacao_paralela);
       setCoordenacaoId(src.coordenacao_id || '');
       // Em duplicação, sufixar a descrição para o usuário identificar
       const baseDesc = src.descricao || '';
@@ -196,7 +194,6 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       setTermoBusca('');
       setOab('');
       setSomenteKurier(false);
-      setPaginacaoParalela(false);
       setCoordenacaoId('');
       setDescricao('');
       setExclusoes([]);
@@ -344,7 +341,6 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       uf: ufValue,
       coordenacao_id: coordenacaoId || undefined,
       somente_kurier: somenteKurier,
-      paginacao_paralela: tipo === 'parte' ? false : paginacaoParalela,
       descricao: descricao || undefined,
       exclusoes: exclusoes.length > 0 ? exclusoes : undefined,
       condicao_concomitante: condicoesConcomitantes.length > 0 ? condicoesConcomitantes.join(' | ') : undefined,
@@ -450,25 +446,6 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
                   </span>
                 </label>
               </div>
-
-              {tipo !== 'parte' && (
-              <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3">
-                <Switch
-                  id="paginacao-paralela"
-                  checked={paginacaoParalela}
-                  onCheckedChange={setPaginacaoParalela}
-                />
-                <label htmlFor="paginacao-paralela" className="cursor-pointer space-y-1 text-sm leading-none">
-                  <span className="font-medium">Paralelizar páginas entre VPSs (TST)</span>
-                  <span className="block text-xs text-muted-foreground">
-                    Avançado. Quando ativo, a busca no TST distribui as páginas
-                    entre todas as VPSs do pool (cada uma percorre páginas
-                    intercaladas). Útil para termos amplos com muitas páginas
-                    (ex.: SANTANDER). Default desligado — uma VPS por termo.
-                  </span>
-                </label>
-              </div>
-              )}
 
               {tipo === 'advogado' ? (
                 <div className="space-y-4">

@@ -121,12 +121,6 @@ interface Monitoramento {
   descricao?: string | null;
   condicao_concomitante?: string | null;
   coordenacao_id?: string | null;
-  /**
-   * Opt-in por termo. Quando true E o tribunal for TST E houver 2+ VPSs ativas
-   * no pool, a busca de páginas é intercalada entre as VPSs (offset/step).
-   * Default false → comportamento original (1 VPS percorre todas as páginas).
-   */
-  paginacao_paralela?: boolean | null;
 }
 
 interface Checkpoint {
@@ -145,7 +139,6 @@ interface Checkpoint {
 // ============================================================================
 
 const MAX_CONCURRENCY = 5;
-const WORKER_LANES_PER_PROXY = 2;
 const CONFIG = {
   delay_between_terms: 2500,
   delay_between_pages: 1800,
@@ -1132,34 +1125,6 @@ async function processarTribunalTrack(
 }
 
 /**
- * Retorna os IDs das VPSs ativas para paginação paralela. Só retorna lista não
- * vazia quando o termo tem `paginacao_paralela=true`, o tribunal é TST,
- * o tipo aceita paginação fatiada e há 2+ VPSs habilitadas no pool.
- *
- * Busca por PARTE ampla (ex.: SANTANDER) não pode ser fatiada entre VPSs:
- * a API pode devolver páginas instáveis entre chamadas simultâneas, inflando
- * resultados em relação ao fluxo sequencial que já era validado.
- */
-function getViasParaPaginacaoParalela(
-  mon: Monitoramento,
-  tribunal: string,
-  tipo: PjeSearchType,
-): string[] {
-  if (mon.paginacao_paralela !== true) return [];
-  if (tribunal !== 'TST') return [];
-  if (tipo === 'parte') return [];
-  if (tipo === 'processo') return [];
-  if (!isDjenProxyPoolEnabled()) return [];
-  const ids: string[] = [];
-  const runtimeById = new Map(getDjenProxySlotsRuntime().map((slot) => [slot.id, slot]));
-  for (const slot of loadDjenProxyPool()) {
-    const runtime = runtimeById.get(slot.id);
-    if (slot.enabled && slot.id && slot.baseUrl && slot.token && runtime?.online !== false) ids.push(slot.id);
-  }
-  return ids.length >= 2 ? ids : [];
-}
-
-/**
  * Processa um termo num tribunal específico (uma data).
  * Versão simplificada do processarTermoPro do engine Pro.
  */
@@ -1186,7 +1151,6 @@ async function processarTermoEmTribunal(
   const seen = new Set<string>();
   let rateLimitHits = preloaded?.rateLimitHits ?? 0;
   let ultimoErro: string | null = preloaded?.ultimoErro ?? null;
-  let buscaParteIncompleta = false;
 
   const addResults = (items: any[], matchMeta: Record<string, any> = {}) => {
     for (const item of items) {
@@ -1271,85 +1235,13 @@ async function processarTermoEmTribunal(
       fallbackToDirect: viaId === DIRECT_SLOT_ID,
       fallbackToPool: viaId !== DIRECT_SLOT_ID,
     });
-    if (requestParams.tipo === 'parte' && (resp.partial || (resp.failedPages ?? 0) > 0 || resp.lastError)) {
-      buscaParteIncompleta = true;
-      ultimoErro = resp.lastError || 'Busca por parte incompleta; resultados parciais não foram gravados';
-      console.warn(
-        `[DJEN Paralela][${tribunal}] Busca por parte incompleta para "${mon.termo_busca}"; ` +
-          `${resp.items.length} itens parciais descartados para evitar contagem menor que a real.`,
-      );
-      return resp;
-    }
     addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
     return resp;
   };
 
   try {
-    // OPT-IN por termo: paginação paralela entre VPSs no TST.
-    // Quando ativo e houver 2+ VPSs ativas no pool, cada VPS percorre páginas
-    // intercaladas (offset/step). Caso contrário, fluxo original (1 worker).
-    const viasParalelas = getViasParaPaginacaoParalela(mon, tribunal, tipo);
-    if (viasParalelas.length >= 2) {
-      const variantes = tipo === 'parte'
-        ? termosDeParte(mon).map((t) => ({
-            params: { ...baseParams, nomeParte: t },
-            meta: { __matchedByNomeParte: true, __nomeParteBusca: t },
-          }))
-        : [{ params: baseParams, meta: {} as Record<string, any> }];
-
-      for (const variante of variantes) {
-        if (signal.aborted) break;
-        const N = viasParalelas.length;
-        console.log(
-          `[DJEN Paralela][${tribunal}] 🪢 paginação paralela em ${N} VPSs ` +
-            `(termo="${mon.termo_busca}"${variante.params.nomeParte ? `, parte="${variante.params.nomeParte}"` : ''})`,
-        );
-        updateTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), {
-          mensagem: `🪢 Páginas paralelas: ${N} VPSs${variante.params.nomeParte ? ` • ${variante.params.nomeParte}` : ''}`,
-        }, monIdTrack);
-        const tasks = viasParalelas.map((vId, idx) =>
-          buscarPjeComunicaPaginado(
-            { ...variante.params, page: idx + 1 },
-            {
-              signal,
-              maxPages: null,
-              continueUntilEmpty: true,
-              delayMs: CONFIG.delay_between_pages,
-              maxRetries: CONFIG.max_retries,
-              retryBaseDelay: CONFIG.retry_base_delay,
-              pageStep: N,
-              onRateLimit: (_w, attempt, page) => {
-                rateLimitHits++;
-                ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
-              },
-              onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via, monIdTrack),
-              forceVia: vId,
-              fallbackToDirect: vId === DIRECT_SLOT_ID,
-              fallbackToPool: vId !== DIRECT_SLOT_ID,
-            },
-          )
-            .then((resp) => {
-              addResults(resp.items, variante.meta);
-              if (resp.lastError) ultimoErro = resp.lastError;
-              return resp.items.length;
-            })
-            .catch((e: any) => {
-              if (e?.name === 'AbortError') throw e;
-              ultimoErro = e?.message || 'Falha de busca paralela';
-              return 0;
-            }),
-        );
-        const counts = await Promise.all(tasks);
-        console.log(
-          `[DJEN Paralela][${tribunal}] 🪢 paginação paralela concluída: ` +
-            `${counts.reduce((a, b) => a + b, 0)} itens brutos (antes do dedup).`,
-        );
-        if (tipo === 'parte') {
-          await abortableDelay(CONFIG.delay_between_termos_or, signal);
-        }
-      }
-    } else if (tipo === 'parte') {
+    if (tipo === 'parte') {
       for (const termoParte of termosDeParte(mon)) {
         if (signal.aborted) break;
         const resp = await executarBusca(
@@ -1402,10 +1294,6 @@ async function processarTermoEmTribunal(
   }
 
   if (signal.aborted) {
-    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
-  }
-
-  if (tipo === 'parte' && buscaParteIncompleta) {
     return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
   }
 
@@ -1817,7 +1705,6 @@ async function executarLoop(
       termos_or: t.termos_or, descricao: t.descricao,
       condicao_concomitante: t.condicao_concomitante,
       coordenacao_id: t.coordenacao_id,
-      paginacao_paralela: t.paginacao_paralela,
     }));
 
     // Distribuição POR TIPO DE BUSCA × tribunal.
@@ -2087,23 +1974,15 @@ async function executarLoop(
     }
 
     type ViaSpec = { id: string; label: string };
-    const viasProxyBase: ViaSpec[] = [];
+    const viasProxy: ViaSpec[] = [];
     const poolAtivo = isDjenProxyPoolEnabled();
     if (poolAtivo) {
-      const runtimeById = new Map(getDjenProxySlotsRuntime().map((slot) => [slot.id, slot]));
       for (const slot of loadDjenProxyPool()) {
-        const runtime = runtimeById.get(slot.id);
-        if (slot.enabled && slot.id && slot.baseUrl && slot.token && runtime?.online !== false) {
-          viasProxyBase.push({ id: slot.id, label: slot.label || slot.baseUrl });
+        if (slot.enabled && slot.id && slot.baseUrl && slot.token) {
+          viasProxy.push({ id: slot.id, label: slot.label || slot.baseUrl });
         }
       }
     }
-    const viasProxy = viasProxyBase.flatMap((via) =>
-      Array.from({ length: WORKER_LANES_PER_PROXY }, (_, idx) => ({
-        id: via.id,
-        label: `${via.label}${WORKER_LANES_PER_PROXY > 1 ? ` #${idx + 1}` : ''}`,
-      })),
-    );
     // Se houver VPS no pool, NÃO usar o browser como via — evita que um worker
     // fique preso no IP do navegador (sujeito a Failed to fetch do CloudFront
     // do PJE Comunica), penalizando os tribunais alocados a ele (ex.: TST).
@@ -2114,20 +1993,10 @@ async function executarLoop(
 
     // Concorrência efetiva = mín(nº vias, nº unidades pendentes).
     const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, totalUnidadesPendentes || 1));
-    const paginacaoParalelaEfetiva = usandoPoolVps && viasProxyBase.length >= 2 && monitoramentos.some((m) => {
-      if (m.paginacao_paralela !== true) return false;
-      if (m.tipo === 'parte') return false;
-      if (mapMonTipoToWorkerTipo(m.tipo) === 'processo') return false;
-      const tribs = expandirTribunaisDoMon(m.tribunais);
-      return tribs.length === 0 || tribs.includes('TST');
-    });
     try {
       console.log('[DJEN Paralela] 🚀 Spawning workers (bandas)', {
         viasDisponiveis: vias.length,
-        vpsFisicas: viasProxyBase.length,
-        lanesPorVps: usandoPoolVps ? WORKER_LANES_PER_PROXY : 1,
         concorrenciaEfetiva,
-        paginacaoParalelaEfetiva,
         totalUnidadesPendentes,
         bandas: {
           band0_TST: filaBand0.length,
@@ -2141,13 +2010,11 @@ async function executarLoop(
     } catch {}
     updateProgress({
       concorrencia: concorrenciaEfetiva,
-      mensagem: `Banda 0/TST: ${filaBand0.length} • Banda 1/STF+STJ: ${filaBand1.length} • Banda 2/outros: ${filaBand2.length} • Banda 3/processo: ${filaBand3.length} — ${concorrenciaEfetiva} workers${usandoPoolVps ? ` (${WORKER_LANES_PER_PROXY}/VPS)` : ''}${paginacaoParalelaEfetiva ? ` • páginas TST: ${viasProxyBase.length} VPSs` : ''}`,
+      mensagem: `Banda 0/TST: ${filaBand0.length} • Banda 1/STF+STJ: ${filaBand1.length} • Banda 2/outros: ${filaBand2.length} • Banda 3/processo: ${filaBand3.length} — ${concorrenciaEfetiva} workers`,
     });
     syncExecutionProgress({
       pool_enabled: usandoPoolVps,
       vias: vias.map(v => ({ id: v.id, label: v.label })),
-      vps_fisicas: viasProxyBase.length,
-      lanes_por_vps: usandoPoolVps ? WORKER_LANES_PER_PROXY : 1,
       tipos_ativos: tiposAtivos,
     }, true);
 

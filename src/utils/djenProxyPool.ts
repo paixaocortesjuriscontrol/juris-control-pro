@@ -665,50 +665,38 @@ export async function fetchDjenViaPool(
       return annotateVia(rebuilt, proxySlot.id, proxySlot.label || proxySlot.baseUrl, "proxy");
     };
 
-    const callAlternatives = async (): Promise<Response | null> => {
-      if (!routing.fallbackToPool) return null;
-      const alternatives = loadDjenProxyPool().filter(
-        (s) => s.enabled && s.id !== slot.id && isOnline(s),
-      );
-      for (const alt of alternatives) {
-        try {
-          return await callProxyAsResponse(alt);
-        } catch (altErr: any) {
-          if (altErr?.name === "AbortError") throw altErr;
-          const altMessage = altErr?.message || String(altErr);
-          if (classifyProxyFailure(altMessage) === "config") markConfigError(alt.id, altMessage);
-          else markOffline(alt.id, altMessage);
-          sessionStats.errorsByProxy[alt.id] =
-            (sessionStats.errorsByProxy[alt.id] || 0) + 1;
-        }
-      }
-      return null;
-    };
-
-    if (!isOnline(slot)) {
-      sessionStats.errorsByProxy[slot.id] =
-        (sessionStats.errorsByProxy[slot.id] || 0) + 1;
-      const alternative = await callAlternatives();
-      if (alternative) return alternative;
-      if (routing.fallbackToDirect) return callDirect();
-      throw new Error(`Via forçada offline: ${slot.label || slot.id}`);
-    }
-
     try {
       return await callProxyAsResponse(slot);
     } catch (err: any) {
       if (err?.name === "AbortError") throw err;
       const message = err?.message || String(err);
-      // Em via forçada, se a VPS falhou antes de devolver uma resposta válida
-      // (ex.: TLS/certificado, proxy fora, rota errada), tira ela do pool por
-      // um curto período. Sem isso, a paginação paralela tenta a Hostinger em
-      // toda página e parece "travada", mesmo caindo depois para Google.
-      if (classifyProxyFailure(message) === "config") markConfigError(slot.id, message);
-      else markOffline(slot.id, message);
+      // Em via forçada (1 worker por VPS), não bloquear a VPS inteira no estado
+      // runtime: isso fazia os próximos tribunais começarem com "Via forçada
+      // offline" sem sequer tentar a requisição real. O retry/backoff da página
+      // já controla 429/504; aqui só registramos estatística/erro.
+      if (routing.fallbackToDirect) {
+        if (classifyProxyFailure(message) === "config") markConfigError(slot.id, message);
+        else markOffline(slot.id, message);
+      }
       sessionStats.errorsByProxy[slot.id] =
         (sessionStats.errorsByProxy[slot.id] || 0) + 1;
-      const alternative = await callAlternatives();
-      if (alternative) return alternative;
+      if (routing.fallbackToPool) {
+        const alternatives = loadDjenProxyPool().filter(
+          (s) => s.enabled && s.id !== slot.id && isOnline(s),
+        );
+        for (const alt of alternatives) {
+          try {
+            return await callProxyAsResponse(alt);
+          } catch (altErr: any) {
+            if (altErr?.name === "AbortError") throw altErr;
+            const altMessage = altErr?.message || String(altErr);
+            if (classifyProxyFailure(altMessage) === "config") markConfigError(alt.id, altMessage);
+            else markOffline(alt.id, altMessage);
+            sessionStats.errorsByProxy[alt.id] =
+              (sessionStats.errorsByProxy[alt.id] || 0) + 1;
+          }
+        }
+      }
       if (routing.fallbackToDirect) return callDirect();
       throw err;
     }

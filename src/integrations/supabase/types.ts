@@ -4198,7 +4198,6 @@ export type Database = {
           exclusoes: string[] | null
           id: string
           oab: string | null
-          paginacao_paralela: boolean
           somente_kurier: boolean
           termo_busca: string
           termos_or: string[] | null
@@ -4219,7 +4218,6 @@ export type Database = {
           exclusoes?: string[] | null
           id?: string
           oab?: string | null
-          paginacao_paralela?: boolean
           somente_kurier?: boolean
           termo_busca: string
           termos_or?: string[] | null
@@ -4240,7 +4238,6 @@ export type Database = {
           exclusoes?: string[] | null
           id?: string
           oab?: string | null
-          paginacao_paralela?: boolean
           somente_kurier?: boolean
           termo_busca?: string
           termos_or?: string[] | null

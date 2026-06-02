@@ -24,7 +24,6 @@ export interface MonitoramentoDjen {
   tribunais_ufs?: string[];
   buscar_parte?: boolean;
   somente_kurier?: boolean;
-  paginacao_paralela?: boolean;
 }
 
 export interface PublicacaoDjen {
