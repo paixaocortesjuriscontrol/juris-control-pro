@@ -2061,7 +2061,28 @@ export default function CompararDjSantander() {
       </div>
 
       {/* Buttons */}
-      <div className="flex justify-center gap-3 mb-6">
+      <div className="flex flex-col items-center gap-3 mb-6">
+        {mode !== "pdf" && (
+          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-input accent-primary"
+              checked={cruzarPorTrecho}
+              onChange={(e) => {
+                setCruzarPorTrecho(e.target.checked);
+                if (!e.target.checked) setTrechoResult(null);
+              }}
+              disabled={mode === "excel-projuris" || mode === "excel-astrea"}
+            />
+            Cruzar também por trecho do conteúdo (fuzzy)
+            {(mode === "excel-projuris" || mode === "excel-astrea") && (
+              <span className="text-xs text-muted-foreground">
+                — indisponível em modos só com planilha
+              </span>
+            )}
+          </label>
+        )}
+        <div className="flex justify-center gap-3">
         <Button
           size="lg"
           onClick={handleComparar}
@@ -2094,6 +2115,7 @@ export default function CompararDjSantander() {
             {analisando ? "Analisando motivos..." : "Analisar Motivos (PJE Comunica)"}
           </Button>
         )}
+        </div>
       </div>
 
       {/* Results */}
