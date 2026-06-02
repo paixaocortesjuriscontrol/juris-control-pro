@@ -121,6 +121,12 @@ interface Monitoramento {
   descricao?: string | null;
   condicao_concomitante?: string | null;
   coordenacao_id?: string | null;
+  /**
+   * Opt-in por termo. Quando true E o tribunal for TST E houver 2+ VPSs ativas
+   * no pool, a busca de páginas é intercalada entre as VPSs (offset/step).
+   * Default false → comportamento original (1 VPS percorre todas as páginas).
+   */
+  paginacao_paralela?: boolean | null;
 }
 
 interface Checkpoint {
