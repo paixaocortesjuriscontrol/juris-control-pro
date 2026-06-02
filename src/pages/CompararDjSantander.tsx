@@ -16,6 +16,8 @@ import JSZip from "jszip";
 import jsPDF from "jspdf";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
+import { dedupePublicacoesDjen } from "@/utils/djenDedup";
+import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 
 interface ComparisonResult {
   processos_doc: string[];
@@ -190,13 +192,22 @@ function colarCnjNaLinha(linha: string): string {
   let atual = linha;
   do {
     anterior = atual;
-    atual = atual.replace(/(\d)\s+(\d)/g, "$1$2").replace(/\s*([.\-])\s*/g, "$1");
+    atual = atual.replace(/(\d)\s+(\d)/g, "$1$2").replace(/\s*([.-])\s*/g, "$1");
   } while (atual !== anterior);
   return atual;
 }
 
 function normalizarLinha(texto: string): string {
   return texto.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function dateLocalToUTCRange(dateStr: string, isEnd: boolean): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (isEnd) {
+    const nextDay = new Date(year, month - 1, day + 1);
+    return `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, "0")}-${String(nextDay.getDate()).padStart(2, "0")}T02:59:59.999Z`;
+  }
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T03:00:00Z`;
 }
 
 const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
@@ -544,7 +555,7 @@ function exportarPdf(
   type CardSpec = { label: string; value: number; fill: [number, number, number]; border: [number, number, number]; text: [number, number, number] };
   const cards: CardSpec[] = [
     { label: `Processos no ${leftLabel}`, value: result.processos_doc.length, fill: [239, 246, 255], border: [191, 219, 254], text: [37, 99, 235] },
-    { label: `Processos no ${sourceLabel}`, value: result.processos_pdf.length, fill: [254, 242, 242], border: [254, 202, 202], text: [220, 38, 38] },
+    { label: sourceLabel === "DJEN" ? `Publicações no ${sourceLabel}` : `Processos no ${sourceLabel}`, value: result.processos_pdf.length, fill: [254, 242, 242], border: [254, 202, 202], text: [220, 38, 38] },
     { label: "Em Comum", value: result.comuns.length, fill: [240, 253, 244], border: [187, 247, 208], text: [22, 163, 74] },
     { label: `Somente no ${leftLabel}`, value: result.somente_doc.length, fill: [255, 251, 235], border: [253, 230, 138], text: [217, 119, 6] },
     { label: `Somente no ${sourceLabel}`, value: result.somente_pdf.length, fill: [255, 247, 237], border: [254, 215, 170], text: [234, 88, 12] },
@@ -1196,20 +1207,20 @@ export default function CompararDjSantander() {
     setDjenTexto("");
     setResult(null);
     try {
-      // Format date range for query - data_disponibilizacao is stored as timestamptz
+      // Mesmo range UTC/BRT usado pela tela Análise DJEN.
       const inicioStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : null;
       const fimStr = selectedDate ? format(selectedDateFim ?? selectedDate, "yyyy-MM-dd") : null;
-      const startOfDay = inicioStr ? `${inicioStr}T00:00:00.000Z` : null;
-      const endOfDay = fimStr ? `${fimStr}T23:59:59.999Z` : null;
+      const startOfDay = inicioStr ? dateLocalToUTCRange(inicioStr, false) : null;
+      const endOfDay = fimStr ? dateLocalToUTCRange(fimStr, true) : null;
       const pubInicioStr = selectedPubInicio ? format(selectedPubInicio, "yyyy-MM-dd") : null;
       const pubFimStr = selectedPubFim ? format(selectedPubFim, "yyyy-MM-dd") : (pubInicioStr ?? null);
-      const pubStart = pubInicioStr ? `${pubInicioStr}T00:00:00.000Z` : null;
-      const pubEnd = pubFimStr ? `${pubFimStr}T23:59:59.999Z` : null;
+      const pubStart = pubInicioStr ? dateLocalToUTCRange(pubInicioStr, false) : null;
+      const pubEnd = pubFimStr ? dateLocalToUTCRange(pubFimStr, true) : null;
 
       // Get monitoramento IDs for the selected coordenação
       const { data: monitoramentos } = await supabase
         .from("monitoramentos_djen")
-        .select("id, tipo, oab, uf, termo_busca, termos_or, exclusoes, tribunais, buscar_parte, ativo")
+        .select("id, tipo, oab, uf, termo_busca, termos_or, exclusoes, tribunais, buscar_parte, ativo, coordenacao_id")
         .eq("coordenacao_id", selectedCoordenacao);
 
       if (!monitoramentos || monitoramentos.length === 0) {
@@ -1237,22 +1248,24 @@ export default function CompararDjSantander() {
 
       // Fetch all publications for those monitoramentos on the selected date
       // Use pagination to get all results.
-      // Importante: aplica os MESMOS filtros e dedup da tela Análise DJEN
-      // (status IN encontrada/duplicada, exclui fonte 'dejt-pdf', dedup por
-      // (coordenacao, id_djen | legacy)) para que o total bata com o card
-      // "Total no Período" da Análise DJEN.
+      // Importante: aplica os MESMOS filtros e dedup visual da tela Análise DJEN
+      // quando há Data de Disponibilização: termo/processo normal, exclui pautas
+      // DJET e usa `dedupePublicacoesDjen` para totalizar publicações, não processos.
       type PubRow = {
         id: string;
+        tipo_origem: "termo" | "processo";
+        processo_id: string | null;
+        id_djen: string | null;
         processo_numero: string | null;
+        data_publicacao: string | null;
+        data_disponibilizacao: string | null;
+        created_at: string;
         orgao: string | null;
         tipo_comunicacao: string | null;
         conteudo: string | null;
         fonte: string | null;
-        status: string | null;
-        id_djen: string | null;
-        dedup_processo_digits: string | null;
-        dedup_data_ref: string | null;
-        dedup_head_norm: string | null;
+        lida: boolean | null;
+        tribunal: string | null;
         coordenacao_id: string | null;
         monitoramento_id: string | null;
       };
@@ -1265,11 +1278,10 @@ export default function CompararDjSantander() {
         let q = supabase
           .from("publicacoes_djen")
           .select(
-            "id, processo_numero, orgao, tipo_comunicacao, conteudo, fonte, status, id_djen, dedup_processo_digits, dedup_data_ref, dedup_head_norm, coordenacao_id, monitoramento_id"
+            "id, id_djen, processo_numero, data_publicacao, data_disponibilizacao, created_at, orgao, tipo_comunicacao, conteudo, fonte, lida, tribunal, coordenacao_id, monitoramento_id, tipo_publicacao"
           )
           .in("monitoramento_id", monIds)
-          .in("status", ["encontrada", "duplicada"])
-          .neq("fonte", "dejt-pdf");
+          .or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta");
         if (startOfDay) q = q.gte("data_disponibilizacao", startOfDay);
         if (endOfDay) q = q.lte("data_disponibilizacao", endOfDay);
         if (pubStart) q = q.gte("data_publicacao", pubStart);
@@ -1286,16 +1298,19 @@ export default function CompararDjSantander() {
           for (const p of publicacoes as any[]) {
             rawPubs.push({
               id: String(p.id),
+              tipo_origem: "termo",
+              processo_id: null,
+              id_djen: p.id_djen ?? null,
               processo_numero: p.processo_numero ?? null,
+              data_publicacao: p.data_publicacao ?? null,
+              data_disponibilizacao: p.data_disponibilizacao ?? null,
+              created_at: p.created_at ?? new Date().toISOString(),
               orgao: p.orgao ?? null,
               tipo_comunicacao: p.tipo_comunicacao ?? null,
               conteudo: p.conteudo ?? null,
               fonte: p.fonte ?? null,
-              status: p.status ?? null,
-              id_djen: p.id_djen ?? null,
-              dedup_processo_digits: p.dedup_processo_digits ?? null,
-              dedup_data_ref: p.dedup_data_ref ?? null,
-              dedup_head_norm: p.dedup_head_norm ?? null,
+              lida: p.lida ?? null,
+              tribunal: p.tribunal ?? null,
               coordenacao_id: p.coordenacao_id ?? null,
               monitoramento_id: p.monitoramento_id ?? null,
             });
@@ -1309,26 +1324,83 @@ export default function CompararDjSantander() {
         }
       }
 
-      // Dedup espelhando a RPC `get_djen_publicacoes_unificadas`:
-      //   dedup_coord = coordenacao_id (publicação) || coordenacao do monitoramento
-      //   dedup_uid   = id_djen (trim) || 'legacy|<processo_digits>|<data_ref>|<head_norm>'
+      let processoOffset = 0;
+      let hasMoreProcessos = true;
+      while (hasMoreProcessos) {
+        let qProcessos = supabase
+          .from("publicacoes_djen_processos")
+          .select("id, processo_id, processo_numero, data_publicacao, data_disponibilizacao, created_at, orgao, tipo_comunicacao, conteudo, fonte, lida, tribunal, processo:processos!inner(coordenacao_id)")
+          .eq("processo.coordenacao_id", selectedCoordenacao);
+        if (startOfDay) qProcessos = qProcessos.gte("data_disponibilizacao", startOfDay);
+        if (endOfDay) qProcessos = qProcessos.lte("data_disponibilizacao", endOfDay);
+        if (pubStart) qProcessos = qProcessos.gte("data_publicacao", pubStart);
+        if (pubEnd) qProcessos = qProcessos.lte("data_publicacao", pubEnd);
+        const { data: procPubs, error: procError } = await qProcessos.range(processoOffset, processoOffset + pageSize - 1);
+
+        if (procError) {
+          console.warn("Erro ao buscar publicações DJEN por processo:", procError);
+          break;
+        }
+
+        (procPubs || []).forEach((p: any) => {
+          rawPubs.push({
+            id: String(p.id),
+            tipo_origem: "processo",
+            processo_id: p.processo_id ?? null,
+            id_djen: null,
+            processo_numero: p.processo_numero ?? null,
+            data_publicacao: p.data_publicacao ?? null,
+            data_disponibilizacao: p.data_disponibilizacao ?? null,
+            created_at: p.created_at ?? new Date().toISOString(),
+            orgao: p.orgao ?? null,
+            tipo_comunicacao: p.tipo_comunicacao ?? null,
+            conteudo: p.conteudo ?? null,
+            fonte: p.fonte ?? null,
+            lida: p.lida ?? null,
+            tribunal: p.tribunal ?? null,
+            coordenacao_id: p.processo?.coordenacao_id ?? selectedCoordenacao,
+            monitoramento_id: null,
+          });
+        });
+
+        if (!procPubs || procPubs.length < pageSize) hasMoreProcessos = false;
+        else processoOffset += pageSize;
+      }
+
       const monCoordById = new Map<string, string | null>(
         monitoramentos.map((m: any) => [m.id, m.coordenacao_id ?? null])
       );
-      const dedupMap = new Map<string, PubRow>();
-      for (const p of rawPubs) {
-        const dedupCoord =
-          p.coordenacao_id ||
-          (p.monitoramento_id ? monCoordById.get(p.monitoramento_id) ?? null : null) ||
-          selectedCoordenacao;
-        const idDjenTrim = (p.id_djen || "").trim();
-        const dedupUid = idDjenTrim
-          ? idDjenTrim
-          : `legacy|${p.dedup_processo_digits ?? ""}|${p.dedup_data_ref ?? ""}|${p.dedup_head_norm ?? ""}`;
-        const key = `${dedupCoord}::${dedupUid}`;
-        if (!dedupMap.has(key)) dedupMap.set(key, p);
-      }
-      const allPubs = Array.from(dedupMap.values());
+      const allPubs = dedupePublicacoesDjen(
+        rawPubs.map((p): PublicacaoUnificada => ({
+          id: p.id,
+          id_djen: p.id_djen,
+          tipo_origem: p.tipo_origem,
+          processo_id: p.processo_id,
+          processo_numero: p.processo_numero,
+          conteudo: p.conteudo,
+          data_publicacao: p.data_publicacao,
+          data_disponibilizacao: p.data_disponibilizacao,
+          fonte: p.fonte,
+          lida: !!p.lida,
+          created_at: p.created_at,
+          monitoramento_id: p.monitoramento_id,
+          monitoramento_termo: null,
+          monitoramento_descricao: null,
+          monitoramento_tipo: null,
+          monitoramento_oab: null,
+          monitoramento_uf: null,
+          coordenacao_id: p.coordenacao_id || (p.monitoramento_id ? monCoordById.get(p.monitoramento_id) ?? null : null) || selectedCoordenacao,
+          coordenacao_nome: null,
+          polo_ativo: null,
+          polo_passivo: null,
+          tribunal: p.tribunal,
+          orgao: p.orgao,
+          tipo_comunicacao: p.tipo_comunicacao,
+          meio: null,
+          advogados_json: [],
+          partes_json: [],
+        }))
+      );
 
       // Uma entrada por publicação deduplicada — bate com o "Total no Período"
       // da tela Análise DJEN.
@@ -2131,7 +2203,7 @@ export default function CompararDjSantander() {
             <Card>
               <CardContent className="pt-4 text-center">
                 <p className="text-2xl font-bold text-red-600">{result.processos_pdf.length}</p>
-                <p className="text-xs text-muted-foreground">Processos no {sourceLabel}</p>
+                <p className="text-xs text-muted-foreground">{sourceLabel === "DJEN" ? "Publicações" : "Processos"} no {sourceLabel}</p>
               </CardContent>
             </Card>
             <Card className="border-green-200 bg-green-50 dark:bg-green-950/20">
