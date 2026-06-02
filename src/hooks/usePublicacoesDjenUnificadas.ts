@@ -574,6 +574,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             p_monitoramento_id: filtros.monitoramentoId ?? null,
             p_tipo_origem: filtros.tipoOrigem ?? null,
             p_read_status: readStatus,
+            p_data_disponibilizacao_inicio: dataDisponibilizacaoInicio,
+            p_data_disponibilizacao_fim: dataDisponibilizacaoFim,
+            p_tribunal: filtros.tribunal || null,
           })
           .abortSignal(signal);
 
