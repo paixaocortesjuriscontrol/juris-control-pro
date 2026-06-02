@@ -13,7 +13,8 @@ const roleStorageKey = (userId: string) => `user-role-cache:${userId}`;
 function readStoredRole(userId: string): AppRole | null {
   if (typeof window === "undefined") return null;
   const value = window.sessionStorage.getItem(roleStorageKey(userId));
-  return value === "admin" || value === "coordenador" || value === "user" || value === "advogado_temporario"
+  return value === "admin" || value === "coordenador" || value === "advogado" || value === "estagiario" ||
+    value === "assistente" || value === "secretaria" || value === "cliente" || value === "advogado_temporario"
     ? value
     : null;
 }
