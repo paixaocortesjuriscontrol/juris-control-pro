@@ -2415,6 +2415,100 @@ export default function CompararDjSantander() {
               </CardContent>
             </Card>
           </div>
+
+          {trechoResult && (
+            (() => {
+              const total = trechoResult.matches.length;
+              const encontrados = trechoResult.matches.filter((m) => m.cnj);
+              const naoEncontrados = trechoResult.matches.filter((m) => !m.cnj);
+              return (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Search className="w-4 h-4 text-blue-500" />
+                      Cruzamento por trecho do conteúdo (fuzzy)
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      {total} parágrafo(s) extraído(s) do {leftLabel} • {encontrados.length} com correspondência em alguma publicação DJEN (score ≥ {Math.round(trechoResult.threshold * 100)}%) • {naoEncontrados.length} sem correspondência.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div>
+                      <div className="text-xs font-semibold mb-2 text-foreground">
+                        Encontrados ({encontrados.length})
+                      </div>
+                      {encontrados.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">
+                          Nenhum parágrafo casou com publicações DJEN.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {encontrados.map((m, i) => (
+                            <li
+                              key={`enc-${i}`}
+                              className="rounded-md border border-green-200 dark:border-green-900/40 bg-green-50/60 dark:bg-green-950/20 p-2"
+                            >
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs font-mono bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400 border-green-200"
+                                >
+                                  {m.cnj}
+                                </Badge>
+                                <span className="text-[11px] text-muted-foreground">
+                                  Score: {Math.round(m.score * 100)}%
+                                </span>
+                              </div>
+                              <p className="text-xs text-foreground leading-snug">
+                                <span className="font-medium">DOC:</span> {m.paragrafo.slice(0, 240)}{m.paragrafo.length > 240 ? "…" : ""}
+                              </p>
+                              {m.trechoDjen && (
+                                <p className="text-[11px] text-muted-foreground leading-snug mt-1">
+                                  <span className="font-medium">DJEN:</span> {m.trechoDjen}{m.trechoDjen.length >= 240 ? "…" : ""}
+                                </p>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold mb-2 text-foreground">
+                        Sem correspondência ({naoEncontrados.length})
+                      </div>
+                      {naoEncontrados.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">
+                          Todos os parágrafos tiveram correspondência.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {naoEncontrados.map((m, i) => (
+                            <li
+                              key={`nao-${i}`}
+                              className="rounded-md border border-amber-200 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/20 p-2"
+                            >
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200"
+                                >
+                                  Melhor score: {Math.round(m.score * 100)}%
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-foreground leading-snug">
+                                {m.paragrafo.slice(0, 240)}{m.paragrafo.length > 240 ? "…" : ""}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()
+          )}
         </div>
       )}
     </MainLayout>
