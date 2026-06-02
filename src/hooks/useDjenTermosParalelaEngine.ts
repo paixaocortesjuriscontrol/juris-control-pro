@@ -1287,6 +1287,9 @@ async function processarTermoEmTribunal(
           `[DJEN Paralela][${tribunal}] 🪢 paginação paralela em ${N} VPSs ` +
             `(termo="${mon.termo_busca}"${variante.params.nomeParte ? `, parte="${variante.params.nomeParte}"` : ''})`,
         );
+        updateTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), {
+          mensagem: `🪢 Páginas paralelas: ${N} VPSs${variante.params.nomeParte ? ` • ${variante.params.nomeParte}` : ''}`,
+        }, monIdTrack);
         const tasks = viasParalelas.map((vId, idx) =>
           buscarPjeComunicaPaginado(
             { ...variante.params, page: idx + 1 },
@@ -1792,6 +1795,7 @@ async function executarLoop(
       termos_or: t.termos_or, descricao: t.descricao,
       condicao_concomitante: t.condicao_concomitante,
       coordenacao_id: t.coordenacao_id,
+      paginacao_paralela: t.paginacao_paralela,
     }));
 
     // Distribuição POR TIPO DE BUSCA × tribunal.
@@ -2080,10 +2084,17 @@ async function executarLoop(
 
     // Concorrência efetiva = mín(nº vias, nº unidades pendentes).
     const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, totalUnidadesPendentes || 1));
+    const paginacaoParalelaEfetiva = usandoPoolVps && viasProxy.length >= 2 && monitoramentos.some((m) => {
+      if (m.paginacao_paralela !== true) return false;
+      if (mapMonTipoToWorkerTipo(m.tipo) === 'processo') return false;
+      const tribs = expandirTribunaisDoMon(m.tribunais);
+      return tribs.length === 0 || tribs.includes('TST');
+    });
     try {
       console.log('[DJEN Paralela] 🚀 Spawning workers (bandas)', {
         viasDisponiveis: vias.length,
         concorrenciaEfetiva,
+        paginacaoParalelaEfetiva,
         totalUnidadesPendentes,
         bandas: {
           band0_TST: filaBand0.length,
@@ -2097,7 +2108,7 @@ async function executarLoop(
     } catch {}
     updateProgress({
       concorrencia: concorrenciaEfetiva,
-      mensagem: `Banda 0/TST: ${filaBand0.length} • Banda 1/STF+STJ: ${filaBand1.length} • Banda 2/outros: ${filaBand2.length} • Banda 3/processo: ${filaBand3.length} — ${concorrenciaEfetiva} workers`,
+      mensagem: `Banda 0/TST: ${filaBand0.length} • Banda 1/STF+STJ: ${filaBand1.length} • Banda 2/outros: ${filaBand2.length} • Banda 3/processo: ${filaBand3.length} — ${concorrenciaEfetiva} workers${paginacaoParalelaEfetiva ? ` • páginas TST: ${viasProxy.length} VPSs` : ''}`,
     });
     syncExecutionProgress({
       pool_enabled: usandoPoolVps,
