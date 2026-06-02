@@ -451,6 +451,23 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
                 </label>
               </div>
 
+              <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3">
+                <Switch
+                  id="paginacao-paralela"
+                  checked={paginacaoParalela}
+                  onCheckedChange={setPaginacaoParalela}
+                />
+                <label htmlFor="paginacao-paralela" className="cursor-pointer space-y-1 text-sm leading-none">
+                  <span className="font-medium">Paralelizar páginas entre VPSs (TST)</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Avançado. Quando ativo, a busca no TST distribui as páginas
+                    entre todas as VPSs do pool (cada uma percorre páginas
+                    intercaladas). Útil para termos amplos com muitas páginas
+                    (ex.: SANTANDER). Default desligado — uma VPS por termo.
+                  </span>
+                </label>
+              </div>
+
               {tipo === 'advogado' ? (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
