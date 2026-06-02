@@ -1109,9 +1109,27 @@ export default function CompararDjSantander() {
       );
 
       // Fetch all publications for those monitoramentos on the selected date
-      // Use pagination to get all results
-      let allProcessos: string[] = [];
-      const allPubs: Array<{ processo_numero: string | null; orgao: string | null; tipo_comunicacao: string | null; conteudo: string | null }> = [];
+      // Use pagination to get all results.
+      // Importante: aplica os MESMOS filtros e dedup da tela Análise DJEN
+      // (status IN encontrada/duplicada, exclui fonte 'dejt-pdf', dedup por
+      // (coordenacao, id_djen | legacy)) para que o total bata com o card
+      // "Total no Período" da Análise DJEN.
+      type PubRow = {
+        id: string;
+        processo_numero: string | null;
+        orgao: string | null;
+        tipo_comunicacao: string | null;
+        conteudo: string | null;
+        fonte: string | null;
+        status: string | null;
+        id_djen: string | null;
+        dedup_processo_digits: string | null;
+        dedup_data_ref: string | null;
+        dedup_head_norm: string | null;
+        coordenacao_id: string | null;
+        monitoramento_id: string | null;
+      };
+      const rawPubs: PubRow[] = [];
       const pageSize = 1000;
       let offset = 0;
       let hasMore = true;
@@ -1119,8 +1137,12 @@ export default function CompararDjSantander() {
       while (hasMore) {
         let q = supabase
           .from("publicacoes_djen")
-          .select("processo_numero, orgao, tipo_comunicacao, conteudo")
-          .in("monitoramento_id", monIds);
+          .select(
+            "id, processo_numero, orgao, tipo_comunicacao, conteudo, fonte, status, id_djen, dedup_processo_digits, dedup_data_ref, dedup_head_norm, coordenacao_id, monitoramento_id"
+          )
+          .in("monitoramento_id", monIds)
+          .in("status", ["encontrada", "duplicada"])
+          .neq("fonte", "dejt-pdf");
         if (startOfDay) q = q.gte("data_disponibilizacao", startOfDay);
         if (endOfDay) q = q.lte("data_disponibilizacao", endOfDay);
         if (pubStart) q = q.gte("data_publicacao", pubStart);
@@ -1134,16 +1156,21 @@ export default function CompararDjSantander() {
         }
 
         if (publicacoes && publicacoes.length > 0) {
-          const numeros = publicacoes
-            .map(p => p.processo_numero)
-            .filter((n): n is string => !!n);
-          allProcessos = [...allProcessos, ...numeros];
-          for (const p of publicacoes) {
-            allPubs.push({
-              processo_numero: (p as any).processo_numero ?? null,
-              orgao: (p as any).orgao ?? null,
-              tipo_comunicacao: (p as any).tipo_comunicacao ?? null,
-              conteudo: (p as any).conteudo ?? null,
+          for (const p of publicacoes as any[]) {
+            rawPubs.push({
+              id: String(p.id),
+              processo_numero: p.processo_numero ?? null,
+              orgao: p.orgao ?? null,
+              tipo_comunicacao: p.tipo_comunicacao ?? null,
+              conteudo: p.conteudo ?? null,
+              fonte: p.fonte ?? null,
+              status: p.status ?? null,
+              id_djen: p.id_djen ?? null,
+              dedup_processo_digits: p.dedup_processo_digits ?? null,
+              dedup_data_ref: p.dedup_data_ref ?? null,
+              dedup_head_norm: p.dedup_head_norm ?? null,
+              coordenacao_id: p.coordenacao_id ?? null,
+              monitoramento_id: p.monitoramento_id ?? null,
             });
           }
         }
@@ -1155,9 +1182,33 @@ export default function CompararDjSantander() {
         }
       }
 
-      // Mantém uma entrada por publicação (sem dedupe) para bater com o PDF Resumo,
-      // que também lista um item por bloco "COMUNICAÇÃO PJE #...".
-      const todos = allProcessos.map(formatarCNJ);
+      // Dedup espelhando a RPC `get_djen_publicacoes_unificadas`:
+      //   dedup_coord = coordenacao_id (publicação) || coordenacao do monitoramento
+      //   dedup_uid   = id_djen (trim) || 'legacy|<processo_digits>|<data_ref>|<head_norm>'
+      const monCoordById = new Map<string, string | null>(
+        monitoramentos.map((m: any) => [m.id, m.coordenacao_id ?? null])
+      );
+      const dedupMap = new Map<string, PubRow>();
+      for (const p of rawPubs) {
+        const dedupCoord =
+          p.coordenacao_id ||
+          (p.monitoramento_id ? monCoordById.get(p.monitoramento_id) ?? null : null) ||
+          selectedCoordenacao;
+        const idDjenTrim = (p.id_djen || "").trim();
+        const dedupUid = idDjenTrim
+          ? idDjenTrim
+          : `legacy|${p.dedup_processo_digits ?? ""}|${p.dedup_data_ref ?? ""}|${p.dedup_head_norm ?? ""}`;
+        const key = `${dedupCoord}::${dedupUid}`;
+        if (!dedupMap.has(key)) dedupMap.set(key, p);
+      }
+      const allPubs = Array.from(dedupMap.values());
+
+      // Uma entrada por publicação deduplicada — bate com o "Total no Período"
+      // da tela Análise DJEN.
+      const todos = allPubs
+        .map((p) => p.processo_numero)
+        .filter((n): n is string => !!n)
+        .map(formatarCNJ);
       setDjenProcessos(todos);
       // Monta um texto sintético no mesmo formato do PDF Resumo
       // ("COMUNICAÇÃO PJE #<CNJ>" como cabeçalho + corpo) para que
@@ -1175,7 +1226,7 @@ export default function CompararDjSantander() {
         .join("\n");
       setDjenTexto(textoSintetico);
       setDjenLoaded(true);
-      toast.success(`${todos.length} publicações encontradas no DJEN`);
+      toast.success(`${allPubs.length} publicações encontradas no DJEN`);
     } catch (err) {
       console.error("Erro ao buscar DJEN:", err);
       toast.error("Erro ao buscar publicações do DJEN");
