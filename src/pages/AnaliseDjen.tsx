@@ -3600,9 +3600,9 @@ const AnaliseDjen = () => {
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
-                  <p className="text-xs md:text-sm font-medium text-slate-600 dark:text-slate-300 truncate">Duplicadas</p>
+                  <p className="text-xs md:text-sm font-medium text-slate-600 dark:text-slate-300 truncate">Publicações Únicas</p>
                   <p className="text-xl md:text-3xl font-bold text-slate-700 dark:text-slate-200">
-                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDuplicadasFiltrado}
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalUnicasFiltrado}
                   </p>
                 </div>
                 <Copy className="w-6 h-6 md:w-10 md:h-10 text-slate-500/50 flex-shrink-0" />
