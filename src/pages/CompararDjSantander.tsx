@@ -980,6 +980,11 @@ export default function CompararDjSantander() {
   const [djenLoaded, setDjenLoaded] = useState(false);
   const [djenTotalPubs, setDjenTotalPubs] = useState<number>(0);
 
+  // Cruzamento por trecho do conteúdo (fuzzy) – opcional
+  const [cruzarPorTrecho, setCruzarPorTrecho] = useState<boolean>(false);
+  const [djenPubsConteudo, setDjenPubsConteudo] = useState<PubConteudo[]>([]);
+  const [trechoResult, setTrechoResult] = useState<TrechoResult | null>(null);
+
   // PDF Diário mode state
   const [pdfDiarioFiles, setPdfDiarioFiles] = useState<File[]>([]);
   const [pdfDiarioProcessos, setPdfDiarioProcessos] = useState<string[]>([]);
