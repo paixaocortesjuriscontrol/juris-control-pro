@@ -3361,9 +3361,10 @@ const AnaliseDjen = () => {
     return Math.max(0, base.length - allPublicacoes.length);
   }, [ocultarDuplicadas, mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, allPublicacoes.length]);
 
-  // Total de duplicadas considerando os filtros atuais (independe do toggle
-  // "Ocultar duplicadas"). Usado pelo card "Duplicadas".
-  const totalDuplicadasFiltrado = useMemo(() => {
+  // Total de publicações ÚNICAS (após deduplicação) considerando os filtros
+  // atuais — independe do toggle "Ocultar duplicadas". Usado pelo card
+  // "Publicações Únicas".
+  const totalUnicasFiltrado = useMemo(() => {
     let base = mergedPublicacoes;
     if (dataDisponibilizacao) {
       base = base.filter(pub => {
@@ -3381,7 +3382,7 @@ const AnaliseDjen = () => {
       });
     }
     const dedup = dedupePublicacoesDjen(base);
-    return Math.max(0, base.length - dedup.length);
+    return dedup.length;
   }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro]);
 
   // Paginação server-side da aba "Descartadas": cada página carrega 500 itens
