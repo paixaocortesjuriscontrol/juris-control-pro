@@ -553,8 +553,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // + ficar lento por 3 queries + dedup no client.
       // Para coordenação ESPECÍFICA, usamos RPC que já devolve a lista deduplicada e paginada no servidor.
         const canUseRpc = filtros.tipoOrigem !== 'descartada'
-          && filtros.tipoOrigem !== 'djet-pautas'
-          && !filtros.dataDisponibilizacao;
+          && filtros.tipoOrigem !== 'djet-pautas';
       if (canUseRpc) {
         try {
         console.debug(`[DJEN] RPC deduplicada — page=${page} pageSize=${pageSize} offset=${offsetGlobal}`);
