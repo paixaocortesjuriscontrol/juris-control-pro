@@ -1131,6 +1131,27 @@ async function processarTribunalTrack(
 }
 
 /**
+ * Retorna os IDs das VPSs ativas para paginação paralela. Só retorna lista não
+ * vazia quando o termo tem `paginacao_paralela=true`, o tribunal é TST,
+ * o tipo é diferente de 'processo' e há 2+ VPSs habilitadas no pool.
+ */
+function getViasParaPaginacaoParalela(
+  mon: Monitoramento,
+  tribunal: string,
+  tipo: PjeSearchType,
+): string[] {
+  if (mon.paginacao_paralela !== true) return [];
+  if (tribunal !== 'TST') return [];
+  if (tipo === 'processo') return [];
+  if (!isDjenProxyPoolEnabled()) return [];
+  const ids: string[] = [];
+  for (const slot of loadDjenProxyPool()) {
+    if (slot.enabled && slot.id && slot.baseUrl && slot.token) ids.push(slot.id);
+  }
+  return ids.length >= 2 ? ids : [];
+}
+
+/**
  * Processa um termo num tribunal específico (uma data).
  * Versão simplificada do processarTermoPro do engine Pro.
  */
