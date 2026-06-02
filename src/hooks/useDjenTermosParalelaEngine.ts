@@ -121,6 +121,12 @@ interface Monitoramento {
   descricao?: string | null;
   condicao_concomitante?: string | null;
   coordenacao_id?: string | null;
+  /**
+   * Opt-in por termo. Quando true E o tribunal for TST E houver 2+ VPSs ativas
+   * no pool, a busca de páginas é intercalada entre as VPSs (offset/step).
+   * Default false → comportamento original (1 VPS percorre todas as páginas).
+   */
+  paginacao_paralela?: boolean | null;
 }
 
 interface Checkpoint {
@@ -1125,6 +1131,27 @@ async function processarTribunalTrack(
 }
 
 /**
+ * Retorna os IDs das VPSs ativas para paginação paralela. Só retorna lista não
+ * vazia quando o termo tem `paginacao_paralela=true`, o tribunal é TST,
+ * o tipo é diferente de 'processo' e há 2+ VPSs habilitadas no pool.
+ */
+function getViasParaPaginacaoParalela(
+  mon: Monitoramento,
+  tribunal: string,
+  tipo: PjeSearchType,
+): string[] {
+  if (mon.paginacao_paralela !== true) return [];
+  if (tribunal !== 'TST') return [];
+  if (tipo === 'processo') return [];
+  if (!isDjenProxyPoolEnabled()) return [];
+  const ids: string[] = [];
+  for (const slot of loadDjenProxyPool()) {
+    if (slot.enabled && slot.id && slot.baseUrl && slot.token) ids.push(slot.id);
+  }
+  return ids.length >= 2 ? ids : [];
+}
+
+/**
  * Processa um termo num tribunal específico (uma data).
  * Versão simplificada do processarTermoPro do engine Pro.
  */
@@ -1241,7 +1268,67 @@ async function processarTermoEmTribunal(
   };
 
   try {
-    if (tipo === 'parte') {
+    // OPT-IN por termo: paginação paralela entre VPSs no TST.
+    // Quando ativo e houver 2+ VPSs ativas no pool, cada VPS percorre páginas
+    // intercaladas (offset/step). Caso contrário, fluxo original (1 worker).
+    const viasParalelas = getViasParaPaginacaoParalela(mon, tribunal, tipo);
+    if (viasParalelas.length >= 2) {
+      const variantes = tipo === 'parte'
+        ? termosDeParte(mon).map((t) => ({
+            params: { ...baseParams, nomeParte: t },
+            meta: { __matchedByNomeParte: true, __nomeParteBusca: t },
+          }))
+        : [{ params: baseParams, meta: {} as Record<string, any> }];
+
+      for (const variante of variantes) {
+        if (signal.aborted) break;
+        const N = viasParalelas.length;
+        console.log(
+          `[DJEN Paralela][${tribunal}] 🪢 paginação paralela em ${N} VPSs ` +
+            `(termo="${mon.termo_busca}"${variante.params.nomeParte ? `, parte="${variante.params.nomeParte}"` : ''})`,
+        );
+        const tasks = viasParalelas.map((vId, idx) =>
+          buscarPjeComunicaPaginado(
+            { ...variante.params, page: idx + 1 },
+            {
+              signal,
+              maxPages: null,
+              continueUntilEmpty: true,
+              delayMs: CONFIG.delay_between_pages,
+              maxRetries: CONFIG.max_retries,
+              retryBaseDelay: CONFIG.retry_base_delay,
+              pageStep: N,
+              onRateLimit: (_w, attempt, page) => {
+                rateLimitHits++;
+                ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
+              },
+              onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via, monIdTrack),
+              forceVia: vId,
+              fallbackToDirect: vId === DIRECT_SLOT_ID,
+              fallbackToPool: vId !== DIRECT_SLOT_ID,
+            },
+          )
+            .then((resp) => {
+              addResults(resp.items, variante.meta);
+              if (resp.lastError) ultimoErro = resp.lastError;
+              return resp.items.length;
+            })
+            .catch((e: any) => {
+              if (e?.name === 'AbortError') throw e;
+              ultimoErro = e?.message || 'Falha de busca paralela';
+              return 0;
+            }),
+        );
+        const counts = await Promise.all(tasks);
+        console.log(
+          `[DJEN Paralela][${tribunal}] 🪢 paginação paralela concluída: ` +
+            `${counts.reduce((a, b) => a + b, 0)} itens brutos (antes do dedup).`,
+        );
+        if (tipo === 'parte') {
+          await abortableDelay(CONFIG.delay_between_termos_or, signal);
+        }
+      }
+    } else if (tipo === 'parte') {
       for (const termoParte of termosDeParte(mon)) {
         if (signal.aborted) break;
         const resp = await executarBusca(
