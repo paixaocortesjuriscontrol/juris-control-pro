@@ -1,0 +1,3 @@
+DELETE FROM public.publicacoes_djen
+WHERE coordenacao_id = '3e47fc83-3539-4fa7-9fcf-33825120e1b7'
+  AND created_at::date = '2026-06-02';
