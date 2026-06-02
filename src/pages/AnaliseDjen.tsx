@@ -4139,7 +4139,29 @@ const AnaliseDjen = () => {
           </Card>
         ) : (
           <div className="space-y-4">
-            {coordenacoesOrdenadas.map((grupo) => {
+            {/* Controle TOPO: paginação client-side de apresentação */}
+            {visibleIdsSet && tipoOrigem !== 'descartada' && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2 px-1">
+                <div className="text-xs md:text-sm text-muted-foreground">
+                  Mostrando <strong>{totalRenderizadoNaTela}</strong> de{' '}
+                  <strong>{allPublicacoes.length}</strong>
+                  {temMaisResultados && (
+                    <> (total filtrado: <strong>{totalFiltradoGeral}</strong>)</>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDisplayLimit((d) => d + DISPLAY_PAGE_SIZE)}
+                >
+                  Carregar mais {Math.min(DISPLAY_PAGE_SIZE, allPublicacoes.length - totalRenderizadoNaTela)}
+                </Button>
+              </div>
+            )}
+            {coordenacoesOrdenadas
+              .filter((grupo) => !visibleIdsSet || grupo.publicacoes.some(p => visibleIdsSet.has(p.id)))
+              .map((grupo) => {
               const contadoresGrupo = getGrupoContadores(grupo);
               return (
               <Card key={grupo.coordenacao_id}>
