@@ -4134,6 +4134,17 @@ const AnaliseDjen = () => {
                 <p className="text-sm mt-1">
                   {apenasHoje ? "Não há publicações novas para hoje com os filtros atuais." : "Ajuste os filtros para ver publicações."}
                 </p>
+                {tipoOrigem !== 'todos' && (
+                  <div className="mt-4 flex flex-col items-center gap-2">
+                    <p className="text-xs">
+                      Filtro <strong>Tipo de Origem</strong> ativo: <strong>{tipoOrigem}</strong>
+                      {totalHoje > 0 && <> · existem <strong>{totalHoje}</strong> publicação(ões) sem esse filtro</>}
+                    </p>
+                    <Button size="sm" variant="outline" onClick={() => setTipoOrigem('todos')}>
+                      Limpar filtro de origem
+                    </Button>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
