@@ -192,7 +192,7 @@ function colarCnjNaLinha(linha: string): string {
   let atual = linha;
   do {
     anterior = atual;
-    atual = atual.replace(/(\d)\s+(\d)/g, "$1$2").replace(/\s*([.\-])\s*/g, "$1");
+    atual = atual.replace(/(\d)\s+(\d)/g, "$1$2").replace(/\s*([.-])\s*/g, "$1");
   } while (atual !== anterior);
   return atual;
 }
