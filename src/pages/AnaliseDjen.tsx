@@ -240,6 +240,8 @@ const AnaliseDjen = () => {
     totalDescartadasHoje,
     totalTermosHoje,
     totalProcessosHoje,
+    totalUnicasHoje,
+    naoLidasUnicasHoje,
   } = usePublicacoesDjenUnificadas({
     coordenacaoId: coordenacaoFiltroEfetivo,
     // Data Disponibilização filtra por data_disponibilizacao no banco; não pode virar filtro de created_at/captura.
