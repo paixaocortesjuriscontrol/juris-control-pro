@@ -1321,26 +1321,40 @@ export default function CompararDjSantander() {
         }
       }
 
-      // Dedup espelhando a RPC `get_djen_publicacoes_unificadas`:
-      //   dedup_coord = coordenacao_id (publicação) || coordenacao do monitoramento
-      //   dedup_uid   = id_djen (trim) || 'legacy|<processo_digits>|<data_ref>|<head_norm>'
       const monCoordById = new Map<string, string | null>(
         monitoramentos.map((m: any) => [m.id, m.coordenacao_id ?? null])
       );
-      const dedupMap = new Map<string, PubRow>();
-      for (const p of rawPubs) {
-        const dedupCoord =
-          p.coordenacao_id ||
-          (p.monitoramento_id ? monCoordById.get(p.monitoramento_id) ?? null : null) ||
-          selectedCoordenacao;
-        const idDjenTrim = (p.id_djen || "").trim();
-        const dedupUid = idDjenTrim
-          ? idDjenTrim
-          : `legacy|${p.dedup_processo_digits ?? ""}|${p.dedup_data_ref ?? ""}|${p.dedup_head_norm ?? ""}`;
-        const key = `${dedupCoord}::${dedupUid}`;
-        if (!dedupMap.has(key)) dedupMap.set(key, p);
-      }
-      const allPubs = Array.from(dedupMap.values());
+      const allPubs = dedupePublicacoesDjen(
+        rawPubs.map((p): PublicacaoUnificada => ({
+          id: p.id,
+          id_djen: p.id_djen,
+          tipo_origem: "termo",
+          processo_id: null,
+          processo_numero: p.processo_numero,
+          conteudo: p.conteudo,
+          data_publicacao: p.data_publicacao,
+          data_disponibilizacao: p.data_disponibilizacao,
+          fonte: p.fonte,
+          lida: !!p.lida,
+          created_at: p.created_at,
+          monitoramento_id: p.monitoramento_id,
+          monitoramento_termo: null,
+          monitoramento_descricao: null,
+          monitoramento_tipo: null,
+          monitoramento_oab: null,
+          monitoramento_uf: null,
+          coordenacao_id: p.coordenacao_id || (p.monitoramento_id ? monCoordById.get(p.monitoramento_id) ?? null : null) || selectedCoordenacao,
+          coordenacao_nome: null,
+          polo_ativo: null,
+          polo_passivo: null,
+          tribunal: p.tribunal,
+          orgao: p.orgao,
+          tipo_comunicacao: p.tipo_comunicacao,
+          meio: null,
+          advogados_json: [],
+          partes_json: [],
+        }))
+      );
 
       // Uma entrada por publicação deduplicada — bate com o "Total no Período"
       // da tela Análise DJEN.
