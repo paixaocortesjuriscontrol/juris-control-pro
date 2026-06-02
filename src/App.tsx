@@ -31,6 +31,7 @@ import Redistribuicoes from "./pages/Redistribuicoes";
 import Clientes from "./pages/Clientes";
 import ClienteDetalhes from "./pages/ClienteDetalhes";
 import CompararDjSantander from "./pages/CompararDjSantander";
+import ErrataDjen from "./pages/ErrataDjen";
 import MonitoramentoDistribuicao from "./pages/MonitoramentoDistribuicao";
 import Monitoramento360 from "./pages/Monitoramento360";
 import MonitoramentoDjen from "./pages/MonitoramentoDjen";
@@ -168,6 +169,7 @@ function App() {
               <Route path="/pautas-tst" element={<ProtectedRoute><PautasTst /></ProtectedRoute>} />
               <Route path="/classificacao-tst" element={<ProtectedRoute><ClassificacaoTst /></ProtectedRoute>} />
               <Route path="/comparar-dj-santander" element={<ProtectedRoute><CompararDjSantander /></ProtectedRoute>} />
+              <Route path="/errata-djen" element={<ProtectedRoute><ErrataDjen /></ProtectedRoute>} />
               <Route path="/corrigir-planilha" element={<ProtectedRoute><CorrigirPlanilha /></ProtectedRoute>} />
               <Route path="/ia-responde" element={<AdminRoute><IaResponde /></AdminRoute>} />
                 <Route path="*" element={<NotFound />} />
