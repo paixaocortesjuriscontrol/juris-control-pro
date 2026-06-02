@@ -7260,6 +7260,17 @@ export type Database = {
         Args: { _evento_id: string; _user_id: string }
         Returns: boolean
       }
+      compute_djen_conteudo_dedup_key: {
+        Args: {
+          p_conteudo: string
+          p_coordenacao: string
+          p_created_at: string
+          p_data_disp: string
+          p_data_pub: string
+          p_processo_numero: string
+        }
+        Returns: string
+      }
       compute_djen_dedup_key: {
         Args: {
           p_coordenacao: string
@@ -7313,6 +7324,11 @@ export type Database = {
         Args: { p_coordenacao_id: string }
         Returns: number
       }
+      djen_normalize_conteudo_sem_destinatarios: {
+        Args: { p_text: string }
+        Returns: string
+      }
+      djen_strip_destinatarios: { Args: { p_text: string }; Returns: string }
       find_processo_id_by_numero: { Args: { _numero: string }; Returns: string }
       gerar_numero_remessa_benner: { Args: never; Returns: string }
       get_cliente_ids_for_user: {
@@ -7584,8 +7600,11 @@ export type Database = {
             Returns: {
               nao_lidas_processos: number
               nao_lidas_termos: number
+              nao_lidas_unicas: number
+              total_bruto: number
               total_processos: number
               total_termos: number
+              total_unicas: number
             }[]
           }
       get_equipe_tarefas_stats: {

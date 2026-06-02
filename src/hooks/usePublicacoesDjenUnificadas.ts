@@ -377,7 +377,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       },
     ],
     queryFn: async ({ signal }) => {
-      if (!user?.id) return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0 };
+      if (!user?.id) return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0, totalUnicas: 0, naoLidasUnicas: 0 };
 
       const di = filtros.apenasHoje
         ? formatToUTC(startOfDay(new Date()))
@@ -461,15 +461,15 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           const nT = dedupedRows.filter((r: any) => !readSet.has(r.id)).length;
           const lT = Math.max(0, tT - nT);
           if (readStatus === 'nao_lidas') {
-            return { total: nT, naoLidas: nT, totalTermos: nT, totalProcessos: 0 };
+            return { total: nT, naoLidas: nT, totalTermos: nT, totalProcessos: 0, totalUnicas: nT, naoLidasUnicas: nT };
           }
           if (readStatus === 'lidas') {
-            return { total: lT, naoLidas: 0, totalTermos: lT, totalProcessos: 0 };
+            return { total: lT, naoLidas: 0, totalTermos: lT, totalProcessos: 0, totalUnicas: lT, naoLidasUnicas: 0 };
           }
-          return { total: tT, naoLidas: nT, totalTermos: tT, totalProcessos: 0 };
+          return { total: tT, naoLidas: nT, totalTermos: tT, totalProcessos: 0, totalUnicas: tT, naoLidasUnicas: nT };
         } catch (e) {
           console.warn('[stats-header] djet-pautas count failed', e);
-          return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0 };
+          return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0, totalUnicas: 0, naoLidasUnicas: 0 };
         }
       }
 
@@ -488,28 +488,34 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       }).abortSignal(signal);
       if (error) {
         console.error('[stats-header] get_djen_stats_per_user error', error);
-        return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0 };
+        return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0, totalUnicas: 0, naoLidasUnicas: 0 };
       }
       const row = Array.isArray(data) ? data[0] : data;
       const tT = Number(row?.total_termos ?? 0);
       const tP = Number(row?.total_processos ?? 0);
       const nT = Number(row?.nao_lidas_termos ?? 0);
       const nP = Number(row?.nao_lidas_processos ?? 0);
-      const total = tT + tP;
+      const totalUnicas = Number(row?.total_unicas ?? 0);
+      const naoLidasUnicas = Number(row?.nao_lidas_unicas ?? 0);
+      const totalBruto = Number(row?.total_bruto ?? (tT + tP));
+      const total = totalBruto;
       const naoLidas = nT + nP;
       const lT = Math.max(0, tT - nT);
       const lP = Math.max(0, tP - nP);
       if (readStatus === 'nao_lidas') {
-        return { total: naoLidas, naoLidas, totalTermos: nT, totalProcessos: nP };
+        return { total: naoLidas, naoLidas, totalTermos: nT, totalProcessos: nP, totalUnicas: naoLidasUnicas, naoLidasUnicas };
       }
       if (readStatus === 'lidas') {
-        return { total: lT + lP, naoLidas: 0, totalTermos: lT, totalProcessos: lP };
+        const lidasUnicas = Math.max(0, totalUnicas - naoLidasUnicas);
+        return { total: lT + lP, naoLidas: 0, totalTermos: lT, totalProcessos: lP, totalUnicas: lidasUnicas, naoLidasUnicas: 0 };
       }
       return {
         total,
         naoLidas,
         totalTermos: tT,
         totalProcessos: tP,
+        totalUnicas,
+        naoLidasUnicas,
       };
     },
     enabled: shouldLoadExactStats,
@@ -1459,6 +1465,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     naoLidasHoje: statsIndependentes?.naoLidas ?? publicacoes.filter(p => !p.lida).length,
     totalTermosHoje: statsIndependentes?.totalTermos ?? publicacoes.filter(p => p.tipo_origem === 'termo').length,
     totalProcessosHoje: statsIndependentes?.totalProcessos ?? publicacoes.filter(p => p.tipo_origem === 'processo').length,
+    totalUnicasHoje: statsIndependentes?.totalUnicas ?? publicacoes.length,
+    naoLidasUnicasHoje: statsIndependentes?.naoLidasUnicas ?? publicacoes.filter(p => !p.lida).length,
     totalDescartadasHoje,
     page,
     pageSize,
