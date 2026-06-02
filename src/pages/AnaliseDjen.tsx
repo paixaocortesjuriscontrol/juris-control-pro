@@ -163,9 +163,11 @@ const AnaliseDjen = () => {
   const [descartadasPage, setDescartadasPage] = useState(1);
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
-  // Evita travar a tela renderizando milhares de cards de uma vez.
-  const INITIAL_LIST_LIMIT = 500;
-  const LOAD_MORE_INCREMENT = 500;
+  // O backend já entrega apenas as publicações ÚNICAS (flag persistido na tabela
+  // via trigger). Trazemos um teto bem alto para que a tela mostre TUDO de uma
+  // vez — sem precisar do botão "Carregar mais" para o caso típico (~1k-3k cards).
+  const INITIAL_LIST_LIMIT = 20000;
+  const LOAD_MORE_INCREMENT = 20000;
   const [listLimit, setListLimit] = useState(INITIAL_LIST_LIMIT);
 
   // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
