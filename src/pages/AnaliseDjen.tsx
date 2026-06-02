@@ -3524,7 +3524,7 @@ const AnaliseDjen = () => {
         <DjenExecutionBanner />
 
         {/* Stats Cards - Mobile optimized */}
-        <div className="grid grid-cols-2 md:grid-cols-7 gap-2 md:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-8 gap-2 md:gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800">
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
@@ -3591,6 +3591,20 @@ const AnaliseDjen = () => {
                   </p>
                 </div>
                 <Trash2 className="w-6 h-6 md:w-10 md:h-10 text-rose-500/50 flex-shrink-0" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/30 border-slate-200 dark:border-slate-700">
+            <CardContent className="p-3 md:pt-4">
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs md:text-sm font-medium text-slate-600 dark:text-slate-300 truncate">Duplicadas</p>
+                  <p className="text-xl md:text-3xl font-bold text-slate-700 dark:text-slate-200">
+                    {isLoadingStatsCards ? <Loader2 className="w-5 h-5 animate-spin" /> : totalDuplicadasFiltrado}
+                  </p>
+                </div>
+                <Copy className="w-6 h-6 md:w-10 md:h-10 text-slate-500/50 flex-shrink-0" />
               </div>
             </CardContent>
           </Card>
