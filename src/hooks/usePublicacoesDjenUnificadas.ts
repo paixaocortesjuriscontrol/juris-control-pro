@@ -482,6 +482,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           : null,
         p_search_query: filtros.termoBusca || null,
         p_monitoramento_id: filtros.monitoramentoId || null,
+        p_data_disponibilizacao_inicio: dataDisponibilizacaoInicio,
+        p_data_disponibilizacao_fim: dataDisponibilizacaoFim,
+        p_tribunal: filtros.tribunal || null,
       }).abortSignal(signal);
       if (error) {
         console.error('[stats-header] get_djen_stats_per_user error', error);
