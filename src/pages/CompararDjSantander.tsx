@@ -16,6 +16,8 @@ import JSZip from "jszip";
 import jsPDF from "jspdf";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
+import { dedupePublicacoesDjen } from "@/utils/djenDedup";
+import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 
 interface ComparisonResult {
   processos_doc: string[];
@@ -197,6 +199,15 @@ function colarCnjNaLinha(linha: string): string {
 
 function normalizarLinha(texto: string): string {
   return texto.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function dateLocalToUTCRange(dateStr: string, isEnd: boolean): string {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (isEnd) {
+    const nextDay = new Date(year, month - 1, day + 1);
+    return `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, "0")}-${String(nextDay.getDate()).padStart(2, "0")}T02:59:59.999Z`;
+  }
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T03:00:00Z`;
 }
 
 const WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
