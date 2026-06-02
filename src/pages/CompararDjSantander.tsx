@@ -361,6 +361,126 @@ function compararListas(processosDoc: string[], processosPdf: string[]): Compari
   return { processos_doc: processosDoc, processos_pdf: processosPdf, comuns, somente_doc, somente_pdf };
 }
 
+// ============================================================================
+// Cruzamento por trecho do conteúdo (fuzzy)
+// ----------------------------------------------------------------------------
+// Quebra o texto do documento da esquerda em parágrafos significativos e
+// procura, para cada um, a publicação DJEN mais parecida via similaridade de
+// Dice sobre bigramas de palavras normalizadas. Cada parágrafo é classificado
+// como "encontrado" (score >= threshold) ou "não encontrado".
+// ============================================================================
+
+interface PubConteudo {
+  cnj: string;
+  texto: string;
+}
+
+interface TrechoMatch {
+  paragrafo: string;
+  score: number;
+  cnj: string | null;
+  trechoDjen: string;
+}
+
+interface TrechoResult {
+  threshold: number;
+  matches: TrechoMatch[]; // todos os parágrafos, em ordem
+}
+
+const TRECHO_MIN_CHARS = 80;
+const TRECHO_THRESHOLD = 0.45;
+
+function normalizarTextoParaMatch(s: string): string {
+  return (s || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokensBigrams(s: string): Set<string> {
+  const norm = normalizarTextoParaMatch(s);
+  if (!norm) return new Set();
+  const tokens = norm.split(" ").filter((t) => t.length >= 2);
+  const grams = new Set<string>();
+  for (let i = 0; i < tokens.length - 1; i++) {
+    grams.add(`${tokens[i]} ${tokens[i + 1]}`);
+  }
+  // fallback p/ parágrafos muito curtos: usa os próprios tokens
+  if (grams.size === 0) tokens.forEach((t) => grams.add(t));
+  return grams;
+}
+
+function diceSimilarity(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let inter = 0;
+  const [menor, maior] = a.size <= b.size ? [a, b] : [b, a];
+  for (const g of menor) if (maior.has(g)) inter++;
+  return (2 * inter) / (a.size + b.size);
+}
+
+function splitParagrafosSignificativos(texto: string): string[] {
+  if (!texto) return [];
+  // Primeiro tenta separar por linhas em branco (parágrafos); se virar um
+  // bloco gigante, cai para linhas simples.
+  const blocos = texto
+    .split(/\n\s*\n+/)
+    .map((b) => b.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const result: string[] = [];
+  for (const b of blocos) {
+    if (b.length >= TRECHO_MIN_CHARS) {
+      result.push(b);
+    } else if (b.length > 0 && result.length > 0) {
+      // junta fragmentos pequenos ao parágrafo anterior
+      result[result.length - 1] = `${result[result.length - 1]} ${b}`.trim();
+    }
+  }
+  if (result.length === 0) {
+    // fallback: usa linhas simples
+    return texto
+      .split(/\n+/)
+      .map((l) => l.trim())
+      .filter((l) => l.length >= TRECHO_MIN_CHARS);
+  }
+  // remove duplicatas exatas
+  return [...new Set(result)];
+}
+
+function cruzarPorTrechoConteudo(
+  textoEsquerda: string,
+  pubs: PubConteudo[],
+  threshold = TRECHO_THRESHOLD
+): TrechoResult {
+  const paragrafos = splitParagrafosSignificativos(textoEsquerda);
+  const pubsGrams = pubs.map((p) => ({ ...p, grams: tokensBigrams(p.texto) }));
+  const matches: TrechoMatch[] = [];
+  for (const par of paragrafos) {
+    const pGrams = tokensBigrams(par);
+    let melhorScore = 0;
+    let melhorIdx = -1;
+    for (let i = 0; i < pubsGrams.length; i++) {
+      const score = diceSimilarity(pGrams, pubsGrams[i].grams);
+      if (score > melhorScore) {
+        melhorScore = score;
+        melhorIdx = i;
+      }
+    }
+    const melhor = melhorIdx >= 0 ? pubsGrams[melhorIdx] : null;
+    matches.push({
+      paragrafo: par,
+      score: melhorScore,
+      cnj: melhor && melhorScore >= threshold ? melhor.cnj : null,
+      trechoDjen: melhor && melhorScore >= threshold ? melhor.texto.slice(0, 240) : "",
+    });
+  }
+  return { threshold, matches };
+}
+
 function exportarPdf(
   result: ComparisonResult,
   docFileName: string,
@@ -860,6 +980,11 @@ export default function CompararDjSantander() {
   const [djenLoaded, setDjenLoaded] = useState(false);
   const [djenTotalPubs, setDjenTotalPubs] = useState<number>(0);
 
+  // Cruzamento por trecho do conteúdo (fuzzy) – opcional
+  const [cruzarPorTrecho, setCruzarPorTrecho] = useState<boolean>(false);
+  const [djenPubsConteudo, setDjenPubsConteudo] = useState<PubConteudo[]>([]);
+  const [trechoResult, setTrechoResult] = useState<TrechoResult | null>(null);
+
   // PDF Diário mode state
   const [pdfDiarioFiles, setPdfDiarioFiles] = useState<File[]>([]);
   const [pdfDiarioProcessos, setPdfDiarioProcessos] = useState<string[]>([]);
@@ -1213,6 +1338,17 @@ export default function CompararDjSantander() {
         .map(formatarCNJ);
       setDjenProcessos(todos);
       setDjenTotalPubs(allPubs.length);
+      // Captura conteúdo por publicação para o cruzamento por trecho (fuzzy).
+      const stripHtmlPub = (s: string | null) =>
+        (s || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/gi, " ");
+      setDjenPubsConteudo(
+        allPubs.map((p) => ({
+          cnj: p.processo_numero ? formatarCNJ(p.processo_numero) : "",
+          texto: [p.orgao || "", p.tipo_comunicacao || "", stripHtmlPub(p.conteudo)]
+            .filter(Boolean)
+            .join("\n"),
+        }))
+      );
       // Monta um texto sintético no mesmo formato do PDF Resumo
       // ("COMUNICAÇÃO PJE #<CNJ>" como cabeçalho + corpo) para que
       // classificarTiposPorTitulo possa contar Pauta/Distribuição/CEJUSC/Outros.
@@ -1289,6 +1425,26 @@ export default function CompararDjSantander() {
     }
     setTiposEsq(esq);
     setTiposDir(dir);
+
+    // Cruzamento opcional por trecho do conteúdo (fuzzy) – só faz sentido
+    // quando o lado direito é DJEN (pois temos o conteúdo por publicação).
+    if (cruzarPorTrecho && mode !== "pdf" && djenPubsConteudo.length > 0) {
+      const textoEsquerda =
+        mode === "djen"
+          ? docTexto
+          : mode === "pdf-diario"
+          ? pdfDiarioTexto
+          : "";
+      if (textoEsquerda) {
+        setTrechoResult(cruzarPorTrechoConteudo(textoEsquerda, djenPubsConteudo));
+      } else {
+        setTrechoResult(null);
+        toast.info("Cruzamento por trecho indisponível neste modo (sem texto do documento).");
+      }
+    } else {
+      setTrechoResult(null);
+    }
+
     toast.success("Comparação concluída!");
   };
 
@@ -1905,7 +2061,28 @@ export default function CompararDjSantander() {
       </div>
 
       {/* Buttons */}
-      <div className="flex justify-center gap-3 mb-6">
+      <div className="flex flex-col items-center gap-3 mb-6">
+        {mode !== "pdf" && (
+          <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-input accent-primary"
+              checked={cruzarPorTrecho}
+              onChange={(e) => {
+                setCruzarPorTrecho(e.target.checked);
+                if (!e.target.checked) setTrechoResult(null);
+              }}
+              disabled={mode === "excel-projuris" || mode === "excel-astrea"}
+            />
+            Cruzar também por trecho do conteúdo (fuzzy)
+            {(mode === "excel-projuris" || mode === "excel-astrea") && (
+              <span className="text-xs text-muted-foreground">
+                — indisponível em modos só com planilha
+              </span>
+            )}
+          </label>
+        )}
+        <div className="flex justify-center gap-3">
         <Button
           size="lg"
           onClick={handleComparar}
@@ -1938,6 +2115,7 @@ export default function CompararDjSantander() {
             {analisando ? "Analisando motivos..." : "Analisar Motivos (PJE Comunica)"}
           </Button>
         )}
+        </div>
       </div>
 
       {/* Results */}
@@ -2237,6 +2415,100 @@ export default function CompararDjSantander() {
               </CardContent>
             </Card>
           </div>
+
+          {trechoResult && (
+            (() => {
+              const total = trechoResult.matches.length;
+              const encontrados = trechoResult.matches.filter((m) => m.cnj);
+              const naoEncontrados = trechoResult.matches.filter((m) => !m.cnj);
+              return (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Search className="w-4 h-4 text-blue-500" />
+                      Cruzamento por trecho do conteúdo (fuzzy)
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      {total} parágrafo(s) extraído(s) do {leftLabel} • {encontrados.length} com correspondência em alguma publicação DJEN (score ≥ {Math.round(trechoResult.threshold * 100)}%) • {naoEncontrados.length} sem correspondência.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div>
+                      <div className="text-xs font-semibold mb-2 text-foreground">
+                        Encontrados ({encontrados.length})
+                      </div>
+                      {encontrados.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">
+                          Nenhum parágrafo casou com publicações DJEN.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {encontrados.map((m, i) => (
+                            <li
+                              key={`enc-${i}`}
+                              className="rounded-md border border-green-200 dark:border-green-900/40 bg-green-50/60 dark:bg-green-950/20 p-2"
+                            >
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs font-mono bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-400 border-green-200"
+                                >
+                                  {m.cnj}
+                                </Badge>
+                                <span className="text-[11px] text-muted-foreground">
+                                  Score: {Math.round(m.score * 100)}%
+                                </span>
+                              </div>
+                              <p className="text-xs text-foreground leading-snug">
+                                <span className="font-medium">DOC:</span> {m.paragrafo.slice(0, 240)}{m.paragrafo.length > 240 ? "…" : ""}
+                              </p>
+                              {m.trechoDjen && (
+                                <p className="text-[11px] text-muted-foreground leading-snug mt-1">
+                                  <span className="font-medium">DJEN:</span> {m.trechoDjen}{m.trechoDjen.length >= 240 ? "…" : ""}
+                                </p>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-semibold mb-2 text-foreground">
+                        Sem correspondência ({naoEncontrados.length})
+                      </div>
+                      {naoEncontrados.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">
+                          Todos os parágrafos tiveram correspondência.
+                        </p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {naoEncontrados.map((m, i) => (
+                            <li
+                              key={`nao-${i}`}
+                              className="rounded-md border border-amber-200 dark:border-amber-900/40 bg-amber-50/60 dark:bg-amber-950/20 p-2"
+                            >
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 border-amber-200"
+                                >
+                                  Melhor score: {Math.round(m.score * 100)}%
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-foreground leading-snug">
+                                {m.paragrafo.slice(0, 240)}{m.paragrafo.length > 240 ? "…" : ""}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()
+          )}
         </div>
       )}
     </MainLayout>
