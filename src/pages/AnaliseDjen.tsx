@@ -170,6 +170,13 @@ const AnaliseDjen = () => {
   const LOAD_MORE_INCREMENT = 20000;
   const [listLimit, setListLimit] = useState(INITIAL_LIST_LIMIT);
 
+  // Paginação apenas de APRESENTAÇÃO (client-side): renderizar 12k+ cards
+  // trava a tela. O backend continua trazendo tudo (para totalizadores e
+  // exportações), mas a lista mostra `displayLimit` registros por vez,
+  // crescendo de 1000 em 1000 via botão "Carregar mais 1000".
+  const DISPLAY_PAGE_SIZE = 1000;
+  const [displayLimit, setDisplayLimit] = useState(DISPLAY_PAGE_SIZE);
+
   // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
   // a cada tecla (termo de busca + data digitada manualmente).
   const termoBuscaDebounced = useDebouncedValue(termoBusca, 350);
