@@ -1248,10 +1248,9 @@ export default function CompararDjSantander() {
 
       // Fetch all publications for those monitoramentos on the selected date
       // Use pagination to get all results.
-      // Importante: aplica os MESMOS filtros e dedup da tela Análise DJEN
-      // (status IN encontrada/duplicada, exclui fonte 'dejt-pdf', dedup por
-      // (coordenacao, id_djen | legacy)) para que o total bata com o card
-      // "Total no Período" da Análise DJEN.
+      // Importante: aplica os MESMOS filtros e dedup visual da tela Análise DJEN
+      // quando há Data de Disponibilização: termo/processo normal, exclui pautas
+      // DJET e usa `dedupePublicacoesDjen` para totalizar publicações, não processos.
       type PubRow = {
         id: string;
         id_djen: string | null;
