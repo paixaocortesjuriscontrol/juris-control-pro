@@ -211,6 +211,12 @@ export interface FiltrosUnificados {
   desabilitarStats?: boolean;
   /** Filtro por tribunal (sigla, ex.: 'TRT2', 'TST'). Aplicado no servidor. */
   tribunal?: string;
+  /**
+   * Quando true, a RPC aplica DISTINCT ON por (coordenacao, dedup_uid) e
+   * devolve só uma publicação por grupo de conteúdo. Default false: mostra
+   * TODAS as publicações (inclusive duplicadas) e o front decide se filtra.
+   */
+  dedupServidor?: boolean;
 }
 
 export interface EstatisticasCoordenacao {
@@ -582,6 +588,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             p_data_disponibilizacao_inicio: dataDisponibilizacaoInicio,
             p_data_disponibilizacao_fim: dataDisponibilizacaoFim,
             p_tribunal: filtros.tribunal || null,
+            p_dedup: filtros.dedupServidor === true,
           })
           .abortSignal(signal);
 
