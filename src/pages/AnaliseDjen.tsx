@@ -4191,7 +4191,10 @@ const AnaliseDjen = () => {
                   <CollapsibleContent>
                     <CardContent className="pt-0 px-2 md:px-6 pb-3">
                       <div className="space-y-2 md:space-y-3">
-                        {grupo.publicacoes.map((pub) => {
+                        {(visibleIdsSet
+                          ? grupo.publicacoes.filter(p => visibleIdsSet.has(p.id))
+                          : grupo.publicacoes
+                        ).map((pub) => {
                           const isExpanded = expandedPublicacoes.has(pub.id);
                           return (
                           <div
