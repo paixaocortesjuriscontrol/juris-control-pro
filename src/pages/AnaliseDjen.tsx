@@ -270,7 +270,7 @@ const AnaliseDjen = () => {
     // com o botão "Carregar mais". O backend agora aplica tribunal e
     // data de disponibilização, então não precisamos baixar tudo para
     // recalcular cards no cliente.
-    pageSize: Math.min(listLimit, 2000),
+    pageSize: Math.min(listLimit, 20000),
     desabilitarLista: tipoOrigem === 'datajud' || tipoOrigem === 'descartada',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
