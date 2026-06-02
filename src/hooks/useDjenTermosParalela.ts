@@ -35,6 +35,14 @@ export function useDjenTermosParalela() {
     coordenacaoId?: string;
     monitoramentoIds?: string[];
   }>({});
+  // Marca o iniciadoEm da última execução que já disparou o Kurier.
+  // Persistido em localStorage para sobreviver a recargas/abas e evitar
+  // re-disparo na mesma execução, mas garantir disparo em execuções novas
+  // detectadas via hidratação (cron/scheduler).
+  const KURIER_TRIGGER_KEY = 'djen-paralela:last-kurier-trigger-iniciado-em';
+  const lastKurierTriggerRef = useRef<string | null>(
+    typeof window !== 'undefined' ? window.localStorage.getItem(KURIER_TRIGGER_KEY) : null,
+  );
 
   useEffect(() => {
     const unsub = subscribeDjenTermosParalela((p) => {
@@ -53,10 +61,23 @@ export function useDjenTermosParalela() {
       const prevStatus = lastNotifiedStatusRef.current;
       const statusChanged = prevStatus !== p.status;
       lastNotifiedStatusRef.current = p.status;
-      // Só dispara Kurier se a Paralela acabou de transicionar de 'executando' → 'concluido'
-      // nesta sessão. Evita disparo ao apenas entrar na tela (hidratação backend
-      // pode trazer status='concluido' de execuções antigas).
-      if (p.status === 'concluido' && statusChanged && prevStatus === 'executando') {
+      // Dispara Kurier quando a Paralela conclui. Aceita dois cenários:
+      //  (a) transição local 'executando' → 'concluido' nesta sessão;
+      //  (b) hidratação trouxe uma execução nova (iniciadoEm diferente da última
+      //      já disparada), o que cobre cron/scheduler/outra aba.
+      const iniciadoEmKey = p.iniciadoEm ?? null;
+      const isNewCompletedRun =
+        p.status === 'concluido' &&
+        !!iniciadoEmKey &&
+        iniciadoEmKey !== lastKurierTriggerRef.current;
+      const shouldTriggerKurier =
+        p.status === 'concluido' &&
+        ((statusChanged && prevStatus === 'executando') || isNewCompletedRun);
+      if (shouldTriggerKurier) {
+        lastKurierTriggerRef.current = iniciadoEmKey;
+        if (iniciadoEmKey && typeof window !== 'undefined') {
+          try { window.localStorage.setItem(KURIER_TRIGGER_KEY, iniciadoEmKey); } catch {}
+        }
         void (async () => {
           await Promise.all([
             queryClient.invalidateQueries({ queryKey: ['publicacoes-djen'] }),
