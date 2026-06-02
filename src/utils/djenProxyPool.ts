@@ -665,6 +665,35 @@ export async function fetchDjenViaPool(
       return annotateVia(rebuilt, proxySlot.id, proxySlot.label || proxySlot.baseUrl, "proxy");
     };
 
+    const callAlternatives = async (): Promise<Response | null> => {
+      if (!routing.fallbackToPool) return null;
+      const alternatives = loadDjenProxyPool().filter(
+        (s) => s.enabled && s.id !== slot.id && isOnline(s),
+      );
+      for (const alt of alternatives) {
+        try {
+          return await callProxyAsResponse(alt);
+        } catch (altErr: any) {
+          if (altErr?.name === "AbortError") throw altErr;
+          const altMessage = altErr?.message || String(altErr);
+          if (classifyProxyFailure(altMessage) === "config") markConfigError(alt.id, altMessage);
+          else markOffline(alt.id, altMessage);
+          sessionStats.errorsByProxy[alt.id] =
+            (sessionStats.errorsByProxy[alt.id] || 0) + 1;
+        }
+      }
+      return null;
+    };
+
+    if (!isOnline(slot)) {
+      sessionStats.errorsByProxy[slot.id] =
+        (sessionStats.errorsByProxy[slot.id] || 0) + 1;
+      const alternative = await callAlternatives();
+      if (alternative) return alternative;
+      if (routing.fallbackToDirect) return callDirect();
+      throw new Error(`Via forçada offline: ${slot.label || slot.id}`);
+    }
+
     try {
       return await callProxyAsResponse(slot);
     } catch (err: any) {
@@ -678,23 +707,8 @@ export async function fetchDjenViaPool(
       else markOffline(slot.id, message);
       sessionStats.errorsByProxy[slot.id] =
         (sessionStats.errorsByProxy[slot.id] || 0) + 1;
-      if (routing.fallbackToPool) {
-        const alternatives = loadDjenProxyPool().filter(
-          (s) => s.enabled && s.id !== slot.id && isOnline(s),
-        );
-        for (const alt of alternatives) {
-          try {
-            return await callProxyAsResponse(alt);
-          } catch (altErr: any) {
-            if (altErr?.name === "AbortError") throw altErr;
-            const altMessage = altErr?.message || String(altErr);
-            if (classifyProxyFailure(altMessage) === "config") markConfigError(alt.id, altMessage);
-            else markOffline(alt.id, altMessage);
-            sessionStats.errorsByProxy[alt.id] =
-              (sessionStats.errorsByProxy[alt.id] || 0) + 1;
-          }
-        }
-      }
+      const alternative = await callAlternatives();
+      if (alternative) return alternative;
       if (routing.fallbackToDirect) return callDirect();
       throw err;
     }
