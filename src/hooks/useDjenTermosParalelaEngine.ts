@@ -1186,6 +1186,7 @@ async function processarTermoEmTribunal(
   const seen = new Set<string>();
   let rateLimitHits = preloaded?.rateLimitHits ?? 0;
   let ultimoErro: string | null = preloaded?.ultimoErro ?? null;
+  let buscaParteIncompleta = false;
 
   const addResults = (items: any[], matchMeta: Record<string, any> = {}) => {
     for (const item of items) {
@@ -1270,6 +1271,15 @@ async function processarTermoEmTribunal(
       fallbackToDirect: viaId === DIRECT_SLOT_ID,
       fallbackToPool: viaId !== DIRECT_SLOT_ID,
     });
+    if (requestParams.tipo === 'parte' && (resp.partial || (resp.failedPages ?? 0) > 0 || resp.lastError)) {
+      buscaParteIncompleta = true;
+      ultimoErro = resp.lastError || 'Busca por parte incompleta; resultados parciais não foram gravados';
+      console.warn(
+        `[DJEN Paralela][${tribunal}] Busca por parte incompleta para "${mon.termo_busca}"; ` +
+          `${resp.items.length} itens parciais descartados para evitar contagem menor que a real.`,
+      );
+      return resp;
+    }
     addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
     return resp;
@@ -1392,6 +1402,10 @@ async function processarTermoEmTribunal(
   }
 
   if (signal.aborted) {
+    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+  }
+
+  if (tipo === 'parte' && buscaParteIncompleta) {
     return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
   }
 
