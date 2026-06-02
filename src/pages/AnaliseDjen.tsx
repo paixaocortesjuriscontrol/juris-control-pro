@@ -253,6 +253,9 @@ const AnaliseDjen = () => {
     termoBusca: termoBuscaDebounced || undefined,
     monitoramentoId: monitoramentoId || undefined,
     tribunal: tribunalFiltro || undefined,
+    // Quando o usuário clica em "Mostrar somente únicas", aplica DISTINCT ON
+    // por (coordenação, conteúdo) no servidor. Default false: traz tudo.
+    dedupServidor: ocultarDuplicadas,
     apenasNaoLidas,
     readStatus,
     apenasHoje: apenasHojeEfetivo,
