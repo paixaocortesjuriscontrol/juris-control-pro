@@ -1134,7 +1134,11 @@ async function processarTribunalTrack(
 /**
  * Retorna os IDs das VPSs ativas para paginação paralela. Só retorna lista não
  * vazia quando o termo tem `paginacao_paralela=true`, o tribunal é TST,
- * o tipo é diferente de 'processo' e há 2+ VPSs habilitadas no pool.
+ * o tipo aceita paginação fatiada e há 2+ VPSs habilitadas no pool.
+ *
+ * Busca por PARTE ampla (ex.: SANTANDER) não pode ser fatiada entre VPSs:
+ * a API pode devolver páginas instáveis entre chamadas simultâneas, inflando
+ * resultados em relação ao fluxo sequencial que já era validado.
  */
 function getViasParaPaginacaoParalela(
   mon: Monitoramento,
@@ -1143,6 +1147,7 @@ function getViasParaPaginacaoParalela(
 ): string[] {
   if (mon.paginacao_paralela !== true) return [];
   if (tribunal !== 'TST') return [];
+  if (tipo === 'parte') return [];
   if (tipo === 'processo') return [];
   if (!isDjenProxyPoolEnabled()) return [];
   const ids: string[] = [];
@@ -2097,6 +2102,7 @@ async function executarLoop(
     const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, totalUnidadesPendentes || 1));
     const paginacaoParalelaEfetiva = usandoPoolVps && viasProxyBase.length >= 2 && monitoramentos.some((m) => {
       if (m.paginacao_paralela !== true) return false;
+      if (m.tipo === 'parte') return false;
       if (mapMonTipoToWorkerTipo(m.tipo) === 'processo') return false;
       const tribs = expandirTribunaisDoMon(m.tribunais);
       return tribs.length === 0 || tribs.includes('TST');

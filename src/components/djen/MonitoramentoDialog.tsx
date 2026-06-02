@@ -344,7 +344,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       uf: ufValue,
       coordenacao_id: coordenacaoId || undefined,
       somente_kurier: somenteKurier,
-      paginacao_paralela: paginacaoParalela,
+      paginacao_paralela: tipo === 'parte' ? false : paginacaoParalela,
       descricao: descricao || undefined,
       exclusoes: exclusoes.length > 0 ? exclusoes : undefined,
       condicao_concomitante: condicoesConcomitantes.length > 0 ? condicoesConcomitantes.join(' | ') : undefined,
@@ -451,6 +451,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
                 </label>
               </div>
 
+              {tipo !== 'parte' && (
               <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3">
                 <Switch
                   id="paginacao-paralela"
@@ -467,6 +468,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
                   </span>
                 </label>
               </div>
+              )}
 
               {tipo === 'advogado' ? (
                 <div className="space-y-4">
