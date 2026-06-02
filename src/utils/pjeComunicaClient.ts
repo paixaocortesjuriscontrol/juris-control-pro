@@ -831,7 +831,7 @@ export async function buscarPjeComunicaPaginado(
   };
 
   for (let p = startPage; ; p++) {
-    if (typeof maxPages === 'number' && Number.isFinite(maxPages) && p >= startPage + maxPages) {
+    if (typeof maxPages === 'number' && Number.isFinite(maxPages) && (p - startPage) / pageStep >= maxPages) {
       truncated = true;
       break;
     }
@@ -881,6 +881,12 @@ export async function buscarPjeComunicaPaginado(
       lastError = String(e?.message ?? 'Falha ao buscar página');
       console.warn(`[PJE Comunica] Falha na página ${p} após retries:`, e?.message);
       break;
+    }
+    if (pageStep > 1) {
+      // Loop manual quando pageStep > 1: o `p++` do for é trocado por p += pageStep.
+      // Isso permite que N workers paralelos cubram páginas 1, 1+N, 1+2N, ...
+      // sem se sobrepor.
+      p += pageStep - 1;
     }
   }
 
