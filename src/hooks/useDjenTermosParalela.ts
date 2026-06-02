@@ -71,7 +71,8 @@ export function useDjenTermosParalela() {
         !!iniciadoEmKey &&
         iniciadoEmKey !== lastKurierTriggerRef.current;
       const shouldTriggerKurier =
-        p.status === 'concluido' && statusChanged && (prevStatus === 'executando' || isNewCompletedRun);
+        p.status === 'concluido' &&
+        ((statusChanged && prevStatus === 'executando') || isNewCompletedRun);
       if (shouldTriggerKurier) {
         lastKurierTriggerRef.current = iniciadoEmKey;
         if (iniciadoEmKey && typeof window !== 'undefined') {
