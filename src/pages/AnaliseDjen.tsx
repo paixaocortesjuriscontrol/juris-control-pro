@@ -3587,6 +3587,21 @@ const AnaliseDjen = () => {
         {/* Banners de execução DJEN */}
         <DjenExecutionBanner />
 
+        {focusFromErrata && (
+          <div className="flex items-center justify-between gap-3 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2">
+            <div className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              <span>
+                Foco da <strong>Errata DJEN</strong>: exibindo apenas {focusFromErrata.ids.size} publicação(ões) exclusivas de <strong>{focusFromErrata.rotulo}</strong>.
+                Use os botões de "Gerar PDF/DOC Resumo" para resumir somente este lote.
+              </span>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setFocusFromErrata(null)}>
+              Limpar foco
+            </Button>
+          </div>
+        )}
+
         {/* Stats Cards - Mobile optimized */}
         <div className="grid grid-cols-2 md:grid-cols-8 gap-2 md:gap-4">
           <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800">
