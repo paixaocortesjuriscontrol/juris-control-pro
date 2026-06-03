@@ -6137,6 +6137,7 @@ export type Database = {
       publicacoes_djen_global_hash: {
         Row: {
           created_at: string
+          escopo_dedup: string
           hash_global: string
           id: string
           primeiro_monitoramento_id: string
@@ -6144,6 +6145,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          escopo_dedup: string
           hash_global: string
           id?: string
           primeiro_monitoramento_id: string
@@ -6151,6 +6153,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          escopo_dedup?: string
           hash_global?: string
           id?: string
           primeiro_monitoramento_id?: string
