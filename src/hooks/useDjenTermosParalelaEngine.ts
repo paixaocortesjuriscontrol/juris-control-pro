@@ -2074,11 +2074,20 @@ async function executarLoop(
             if (signal.aborted) break;
             for (const monIdAtual of step.monIds) {
               if (signal.aborted) break;
+              let unidadeOk = true;
               try {
                 await processarTribunalTrack(unit.tribunal, step.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
+                const tr = state.progress.tracks.find(
+                  t => t.tribunal === unit.tribunal && t.tipo === step.tipo && (t.monId ?? null) === (monIdAtual ?? null),
+                );
+                if (tr?.status === 'erro') {
+                  throw new Error(tr.ultimoErro || tr.mensagem || 'Track terminou com erro');
+                }
               } catch (e) {
+                unidadeOk = false;
                 console.error(`[DJEN Paralela][worker ${via.label}] erro ${step.tipo} ${unit.tribunal}${monIdAtual ? ` mon=${monIdAtual}` : ''}:`, e);
               }
+              if (!unidadeOk) continue;
               unidadesConcluidasLista.push(trackKey(step.tipo, unit.tribunal, monIdAtual));
               state.unitDone = Math.min(state.unitTotal, state.unitDone + 1);
               saveCheckpoint({
