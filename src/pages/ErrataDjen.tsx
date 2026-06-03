@@ -15,8 +15,6 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
 
-type Mode = "mesma-coord" | "duas-coord";
-
 interface Coordenacao { id: string; nome: string }
 interface PubRow {
   id: string;
