@@ -37,6 +37,8 @@ interface DiffResult {
   totalB: number;
   unicasA: number;
   unicasB: number;
+  brutasSomenteA: number;
+  brutasSomenteB: number;
 }
 
 function fmtDateTime(iso: string | null | undefined) {
@@ -246,20 +248,28 @@ export default function ErrataDjen() {
       const chavesA = new Set(pubsA.map(getPubCompareKey));
       const somenteA: PubRow[] = [];
       const seenA = new Set<string>();
+      let brutasSomenteA = 0;
       for (const p of pubsA) {
         const chave = getPubCompareKey(p);
-        if (!chavesB.has(chave) && !seenA.has(chave)) {
-          seenA.add(chave);
-          somenteA.push(p);
+        if (!chavesB.has(chave)) {
+          brutasSomenteA++;
+          if (!seenA.has(chave)) {
+            seenA.add(chave);
+            somenteA.push(p);
+          }
         }
       }
       const somenteB: PubRow[] = [];
       const seenB = new Set<string>();
+      let brutasSomenteB = 0;
       for (const p of pubsB) {
         const chave = getPubCompareKey(p);
-        if (!chavesA.has(chave) && !seenB.has(chave)) {
-          seenB.add(chave);
-          somenteB.push(p);
+        if (!chavesA.has(chave)) {
+          brutasSomenteB++;
+          if (!seenB.has(chave)) {
+            seenB.add(chave);
+            somenteB.push(p);
+          }
         }
       }
       const comuns = new Set<string>();
@@ -272,6 +282,7 @@ export default function ErrataDjen() {
         somenteA, somenteB, comuns: comuns.size, labelA, labelB,
         totalA: pubsA.length, totalB: pubsB.length,
         unicasA: chavesA.size, unicasB: chavesB.size,
+        brutasSomenteA, brutasSomenteB,
       });
       toast.success(`Comparação concluída: ${somenteA.length} + ${somenteB.length} diferenças`);
     } catch (e: any) {
@@ -393,7 +404,8 @@ export default function ErrataDjen() {
                 <CardContent>
                   <div className="text-3xl font-bold text-amber-600">{diff.somenteA.length}</div>
                   <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
-                    <div>Total: <strong>{diff.totalA}</strong> · Únicas (dedup): <strong>{diff.unicasA}</strong></div>
+                    <div>Brutas exclusivas: <strong>{diff.brutasSomenteA}</strong> · Únicas (dedup): <strong>{diff.somenteA.length}</strong></div>
+                    <div>Total lado A: <strong>{diff.totalA}</strong> · Únicas A: <strong>{diff.unicasA}</strong></div>
                   </div>
                   <Button
                     size="sm"
@@ -421,7 +433,8 @@ export default function ErrataDjen() {
                 <CardContent>
                   <div className="text-3xl font-bold text-orange-600">{diff.somenteB.length}</div>
                   <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
-                    <div>Total: <strong>{diff.totalB}</strong> · Únicas (dedup): <strong>{diff.unicasB}</strong></div>
+                    <div>Brutas exclusivas: <strong>{diff.brutasSomenteB}</strong> · Únicas (dedup): <strong>{diff.somenteB.length}</strong></div>
+                    <div>Total lado B: <strong>{diff.totalB}</strong> · Únicas B: <strong>{diff.unicasB}</strong></div>
                   </div>
                   <Button
                     size="sm"
