@@ -19,6 +19,7 @@ import { useNavigate } from "react-router-dom";
 interface Coordenacao { id: string; nome: string }
 interface PubRow {
   id: string;
+  id_djen: string | null;
   hash_conteudo: string;
   processo_numero: string | null;
   tribunal: string | null;
@@ -43,6 +44,14 @@ function fmtDateTime(iso: string | null | undefined) {
   try { return format(new Date(iso), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }); } catch { return iso; }
 }
 
+function getPubCompareKey(pub: PubRow): string {
+  const idDjen = String(pub.id_djen || "").trim();
+  if (idDjen) return `id_djen:${idDjen}`;
+  const hash = String(pub.hash_conteudo || "").trim();
+  if (hash) return `hash:${hash}`;
+  return `row:${pub.id}`;
+}
+
 /**
  * Busca TODAS as publicações de uma coordenação numa data de disponibilização,
  * independente de qual execução as capturou.
@@ -61,7 +70,7 @@ async function fetchPubsByCoordData(params: {
   for (let page = 0; page < 500; page++) {
     let q = supabase
       .from("publicacoes_djen")
-      .select("id,hash_conteudo,processo_numero,tribunal,data_disponibilizacao,conteudo,created_at")
+      .select("id,id_djen,hash_conteudo,processo_numero,tribunal,data_disponibilizacao,conteudo,created_at")
       .eq("coordenacao_id", coordenacaoId)
       .gte("data_disponibilizacao", dispStart)
       .lte("data_disponibilizacao", dispEnd)
@@ -81,6 +90,7 @@ async function fetchPubsByCoordData(params: {
 function exportarExcel(diff: DiffResult, dataDisp: string) {
   const wb = XLSX.utils.book_new();
   const toRows = (rows: PubRow[]) => rows.map((r) => ({
+    id_djen: r.id_djen || "",
     processo: r.processo_numero || "",
     tribunal: r.tribunal || "",
     data_disponibilizacao: r.data_disponibilizacao ? format(new Date(r.data_disponibilizacao), "dd/MM/yyyy") : "",
@@ -232,26 +242,28 @@ export default function ErrataDjen() {
         fetchPubsByCoordData({ coordenacaoId: coordA, dataDisp: dataAStr }),
         fetchPubsByCoordData({ coordenacaoId: coordB, dataDisp: dataBStr }),
       ]);
-      const hashesB = new Set(pubsB.map((p) => p.hash_conteudo));
-      const hashesA = new Set(pubsA.map((p) => p.hash_conteudo));
+      const chavesB = new Set(pubsB.map(getPubCompareKey));
+      const chavesA = new Set(pubsA.map(getPubCompareKey));
       const somenteA: PubRow[] = [];
       const seenA = new Set<string>();
       for (const p of pubsA) {
-        if (!hashesB.has(p.hash_conteudo) && !seenA.has(p.hash_conteudo)) {
-          seenA.add(p.hash_conteudo);
+        const chave = getPubCompareKey(p);
+        if (!chavesB.has(chave) && !seenA.has(chave)) {
+          seenA.add(chave);
           somenteA.push(p);
         }
       }
       const somenteB: PubRow[] = [];
       const seenB = new Set<string>();
       for (const p of pubsB) {
-        if (!hashesA.has(p.hash_conteudo) && !seenB.has(p.hash_conteudo)) {
-          seenB.add(p.hash_conteudo);
+        const chave = getPubCompareKey(p);
+        if (!chavesA.has(chave) && !seenB.has(chave)) {
+          seenB.add(chave);
           somenteB.push(p);
         }
       }
       const comuns = new Set<string>();
-      hashesA.forEach((h) => { if (hashesB.has(h)) comuns.add(h); });
+      chavesA.forEach((h) => { if (chavesB.has(h)) comuns.add(h); });
 
       const labelA = `${nomeCoord(coordA)} · ${format(dataA, "dd/MM/yyyy")}`;
       const labelB = `${nomeCoord(coordB)} · ${format(dataB, "dd/MM/yyyy")}`;
@@ -259,7 +271,7 @@ export default function ErrataDjen() {
       setDiff({
         somenteA, somenteB, comuns: comuns.size, labelA, labelB,
         totalA: pubsA.length, totalB: pubsB.length,
-        unicasA: hashesA.size, unicasB: hashesB.size,
+        unicasA: chavesA.size, unicasB: chavesB.size,
       });
       toast.success(`Comparação concluída: ${somenteA.length} + ${somenteB.length} diferenças`);
     } catch (e: any) {
