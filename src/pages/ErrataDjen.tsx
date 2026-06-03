@@ -6,8 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarIcon, Loader2, ArrowRightLeft, Download, FileSpreadsheet, AlertTriangle, CheckCircle2, FileText } from "lucide-react";
+import { CalendarIcon, Loader2, ArrowRightLeft, FileSpreadsheet, AlertTriangle, CheckCircle2, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -16,16 +15,7 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
 
-type Mode = "mesma-coord" | "duas-coord";
-
 interface Coordenacao { id: string; nome: string }
-interface Execucao {
-  id: string;
-  iniciado_em: string;
-  finalizado_em: string | null;
-  registros_encontrados: number | null;
-  status: string;
-}
 interface PubRow {
   id: string;
   hash_conteudo: string;
@@ -41,6 +31,8 @@ interface DiffResult {
   comuns: number;
   labelA: string;
   labelB: string;
+  totalA: number;
+  totalB: number;
 }
 
 function fmtDateTime(iso: string | null | undefined) {
@@ -48,32 +40,28 @@ function fmtDateTime(iso: string | null | undefined) {
   try { return format(new Date(iso), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }); } catch { return iso; }
 }
 
-async function fetchPubsForExecution(params: {
+/**
+ * Busca TODAS as publicações de uma coordenação numa data de disponibilização,
+ * independente de qual execução as capturou.
+ */
+async function fetchPubsByCoordData(params: {
   coordenacaoId: string;
   dataDisp: string; // yyyy-mm-dd
-  iniciadoEm: string;
-  finalizadoEm: string | null;
 }): Promise<PubRow[]> {
-  const { coordenacaoId, dataDisp, iniciadoEm, finalizadoEm } = params;
-  // window: from iniciado_em to finalizado_em + 2min (or +30min if running)
-  const end = finalizadoEm
-    ? new Date(new Date(finalizadoEm).getTime() + 2 * 60_000).toISOString()
-    : new Date(new Date(iniciadoEm).getTime() + 60 * 60_000).toISOString();
+  const { coordenacaoId, dataDisp } = params;
   const dispStart = `${dataDisp}T00:00:00.000Z`;
   const dispEnd = `${dataDisp}T23:59:59.999Z`;
 
   const all: PubRow[] = [];
   let lastId: string | null = null;
   // cursor pagination by id to bypass 1000-row limit
-  for (let page = 0; page < 200; page++) {
+  for (let page = 0; page < 500; page++) {
     let q = supabase
       .from("publicacoes_djen")
       .select("id,hash_conteudo,processo_numero,tribunal,data_disponibilizacao,conteudo,created_at")
       .eq("coordenacao_id", coordenacaoId)
       .gte("data_disponibilizacao", dispStart)
       .lte("data_disponibilizacao", dispEnd)
-      .gte("created_at", iniciadoEm)
-      .lte("created_at", end)
       .order("id", { ascending: true })
       .limit(1000);
     if (lastId) q = q.gt("id", lastId);
@@ -183,20 +171,16 @@ function exportarPdf(diff: DiffResult, dataDisp: string) {
 }
 
 export default function ErrataDjen() {
-  const [mode, setMode] = useState<Mode>("mesma-coord");
-  const [dataDisp, setDataDisp] = useState<Date>(new Date());
   const [coordenacoes, setCoordenacoes] = useState<Coordenacao[]>([]);
   const [coordA, setCoordA] = useState<string>("");
   const [coordB, setCoordB] = useState<string>("");
-  const [execucoesA, setExecucoesA] = useState<Execucao[]>([]);
-  const [execucoesB, setExecucoesB] = useState<Execucao[]>([]);
-  const [execA, setExecA] = useState<string>("");
-  const [execB, setExecB] = useState<string>("");
-  const [loadingExecs, setLoadingExecs] = useState(false);
+  const [dataA, setDataA] = useState<Date>(new Date());
+  const [dataB, setDataB] = useState<Date>(new Date());
   const [comparando, setComparando] = useState(false);
   const [diff, setDiff] = useState<DiffResult | null>(null);
 
-  const dataDispStr = useMemo(() => format(dataDisp, "yyyy-MM-dd"), [dataDisp]);
+  const dataAStr = useMemo(() => format(dataA, "yyyy-MM-dd"), [dataA]);
+  const dataBStr = useMemo(() => format(dataB, "yyyy-MM-dd"), [dataB]);
 
   // Load coordenacoes
   useEffect(() => {
@@ -210,62 +194,21 @@ export default function ErrataDjen() {
     })();
   }, []);
 
-  // Load execucoes for the chosen day (djen_paralela). Window: day -1 to day +2
-  useEffect(() => {
-    setExecA(""); setExecB("");
-    setExecucoesA([]); setExecucoesB([]);
-    setDiff(null);
-    (async () => {
-      setLoadingExecs(true);
-      try {
-        const base = new Date(dataDispStr + "T00:00:00.000Z");
-        const from = new Date(base.getTime() - 24 * 60 * 60_000).toISOString();
-        const to = new Date(base.getTime() + 72 * 60 * 60_000).toISOString();
-        const { data, error } = await supabase
-          .from("execucoes_agendadas")
-          .select("id,iniciado_em,finalizado_em,registros_encontrados,status,detalhes")
-          .eq("tipo", "djen_paralela")
-          .gte("iniciado_em", from)
-          .lte("iniciado_em", to)
-          .order("iniciado_em", { ascending: false });
-        if (error) throw error;
-        const filtered = (data || []).filter((e: any) => {
-          // só execuções cuja janela de datas inclui dataDispStr
-          const d = e.detalhes || {};
-          const ini = d.dataInicioYmd as string | undefined;
-          const fim = d.dataFimYmd as string | undefined;
-          if (!ini && !fim) return true; // se não temos info, mostra
-          const i = ini || fim;
-          const f = fim || ini;
-          return i! <= dataDispStr && dataDispStr <= f!;
-        }) as Execucao[];
-        setExecucoesA(filtered);
-        setExecucoesB(filtered);
-      } catch (e: any) {
-        toast.error("Falha ao carregar execuções: " + (e?.message || e));
-      } finally {
-        setLoadingExecs(false);
-      }
-    })();
-  }, [dataDispStr]);
-
   const nomeCoord = (id: string) => coordenacoes.find((c) => c.id === id)?.nome || "—";
 
   const handleComparar = async () => {
-    if (!execA || !execB) { toast.error("Selecione as duas execuções"); return; }
-    if (execA === execB) { toast.error("Selecione execuções diferentes"); return; }
-    const coordIdA = mode === "mesma-coord" ? coordA : coordA;
-    const coordIdB = mode === "mesma-coord" ? coordA : coordB;
-    if (!coordIdA || !coordIdB) { toast.error("Selecione a(s) coordenação(ões)"); return; }
+    if (!coordA || !coordB) { toast.error("Selecione as duas coordenações"); return; }
+    if (coordA === coordB && dataAStr === dataBStr) {
+      toast.error("Escolha coordenações ou datas diferentes para o lado A e B");
+      return;
+    }
 
     setComparando(true);
     setDiff(null);
     try {
-      const eA = execucoesA.find((e) => e.id === execA)!;
-      const eB = execucoesB.find((e) => e.id === execB)!;
       const [pubsA, pubsB] = await Promise.all([
-        fetchPubsForExecution({ coordenacaoId: coordIdA, dataDisp: dataDispStr, iniciadoEm: eA.iniciado_em, finalizadoEm: eA.finalizado_em }),
-        fetchPubsForExecution({ coordenacaoId: coordIdB, dataDisp: dataDispStr, iniciadoEm: eB.iniciado_em, finalizadoEm: eB.finalizado_em }),
+        fetchPubsByCoordData({ coordenacaoId: coordA, dataDisp: dataAStr }),
+        fetchPubsByCoordData({ coordenacaoId: coordB, dataDisp: dataBStr }),
       ]);
       const hashesB = new Set(pubsB.map((p) => p.hash_conteudo));
       const hashesA = new Set(pubsA.map((p) => p.hash_conteudo));
@@ -286,16 +229,15 @@ export default function ErrataDjen() {
         }
       }
       const comuns = new Set<string>();
-      for (const h of hashesA) if (hashesB.has(h)) comuns.add(h);
+      hashesA.forEach((h) => { if (hashesB.has(h)) comuns.add(h); });
 
-      const labelA = mode === "mesma-coord"
-        ? `Exec ${format(new Date(eA.iniciado_em), "HH:mm")}`
-        : `${nomeCoord(coordIdA).slice(0, 18)} ${format(new Date(eA.iniciado_em), "HH:mm")}`;
-      const labelB = mode === "mesma-coord"
-        ? `Exec ${format(new Date(eB.iniciado_em), "HH:mm")}`
-        : `${nomeCoord(coordIdB).slice(0, 18)} ${format(new Date(eB.iniciado_em), "HH:mm")}`;
+      const labelA = `${nomeCoord(coordA).slice(0, 22)} · ${format(dataA, "dd/MM")}`;
+      const labelB = `${nomeCoord(coordB).slice(0, 22)} · ${format(dataB, "dd/MM")}`;
 
-      setDiff({ somenteA, somenteB, comuns: comuns.size, labelA, labelB });
+      setDiff({
+        somenteA, somenteB, comuns: comuns.size, labelA, labelB,
+        totalA: pubsA.length, totalB: pubsB.length,
+      });
       toast.success(`Comparação concluída: ${somenteA.length} + ${somenteB.length} diferenças`);
     } catch (e: any) {
       toast.error("Erro ao comparar: " + (e?.message || e));
@@ -312,7 +254,7 @@ export default function ErrataDjen() {
           <div>
             <h1 className="text-2xl font-bold">Errata DJEN</h1>
             <p className="text-sm text-muted-foreground">
-              Compare execuções do DJEN Termos Paralela para identificar publicações encontradas em uma execução e ausentes em outra.
+              Compare publicações de uma coordenação/data com outra coordenação/data — independente de qual execução capturou.
             </p>
           </div>
         </div>
@@ -325,95 +267,67 @@ export default function ErrataDjen() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Tabs value={mode} onValueChange={(v) => { setMode(v as Mode); setDiff(null); }}>
-              <TabsList>
-                <TabsTrigger value="mesma-coord">Mesma coordenação · 2 execuções</TabsTrigger>
-                <TabsTrigger value="duas-coord">2 coordenações · 1 execução cada</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <p className="text-xs text-muted-foreground">
+              Compara todas as publicações já capturadas (independente da execução) para cada Lado A e B.
+              Você pode comparar duas coordenações no mesmo dia, a mesma coordenação em dias diferentes,
+              ou qualquer combinação dos dois.
+            </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Data de disponibilização</label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1", !dataDisp && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(dataDisp, "dd/MM/yyyy", { locale: ptBR })}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={dataDisp} onSelect={(d) => d && setDataDisp(d)} locale={ptBR} />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              {mode === "mesma-coord" ? (
-                <div className="md:col-span-2">
-                  <label className="text-xs font-medium text-muted-foreground">Coordenação</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* LADO A */}
+              <div className="space-y-3 rounded-md border p-3 bg-muted/30">
+                <div className="text-xs font-semibold uppercase text-muted-foreground">Lado A</div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Coordenação A</label>
                   <Select value={coordA} onValueChange={(v) => { setCoordA(v); setDiff(null); }}>
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione a coordenação" /></SelectTrigger>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       {coordenacoes.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-              ) : (
-                <>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground">Coordenação A</label>
-                    <Select value={coordA} onValueChange={(v) => { setCoordA(v); setDiff(null); }}>
-                      <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                      <SelectContent>
-                        {coordenacoes.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground">Coordenação B</label>
-                    <Select value={coordB} onValueChange={(v) => { setCoordB(v); setDiff(null); }}>
-                      <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                      <SelectContent>
-                        {coordenacoes.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">
-                  Execução A {loadingExecs && <Loader2 className="inline w-3 h-3 animate-spin ml-1" />}
-                </label>
-                <Select value={execA} onValueChange={(v) => { setExecA(v); setDiff(null); }}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione a execução" /></SelectTrigger>
-                  <SelectContent>
-                    {execucoesA.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">Nenhuma execução encontrada</div>}
-                    {execucoesA.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {fmtDateTime(e.iniciado_em)} · {e.registros_encontrados ?? 0} reg · {e.status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Data de disponibilização A</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {format(dataA, "dd/MM/yyyy", { locale: ptBR })}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={dataA} onSelect={(d) => { if (d) { setDataA(d); setDiff(null); } }} locale={ptBR} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">
-                  Execução B {loadingExecs && <Loader2 className="inline w-3 h-3 animate-spin ml-1" />}
-                </label>
-                <Select value={execB} onValueChange={(v) => { setExecB(v); setDiff(null); }}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione a execução" /></SelectTrigger>
-                  <SelectContent>
-                    {execucoesB.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">Nenhuma execução encontrada</div>}
-                    {execucoesB.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {fmtDateTime(e.iniciado_em)} · {e.registros_encontrados ?? 0} reg · {e.status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+
+              {/* LADO B */}
+              <div className="space-y-3 rounded-md border p-3 bg-muted/30">
+                <div className="text-xs font-semibold uppercase text-muted-foreground">Lado B</div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Coordenação B</label>
+                  <Select value={coordB} onValueChange={(v) => { setCoordB(v); setDiff(null); }}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {coordenacoes.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Data de disponibilização B</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {format(dataB, "dd/MM/yyyy", { locale: ptBR })}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={dataB} onSelect={(d) => { if (d) { setDataB(d); setDiff(null); } }} locale={ptBR} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             </div>
 
@@ -424,10 +338,10 @@ export default function ErrataDjen() {
               </Button>
               {diff && (
                 <>
-                  <Button variant="outline" onClick={() => exportarExcel(diff, dataDispStr)}>
+                  <Button variant="outline" onClick={() => exportarExcel(diff, dataAStr)}>
                     <FileSpreadsheet className="w-4 h-4 mr-2" /> Exportar Excel
                   </Button>
-                  <Button variant="outline" onClick={() => exportarPdf(diff, dataDispStr)}>
+                  <Button variant="outline" onClick={() => exportarPdf(diff, dataAStr)}>
                     <FileText className="w-4 h-4 mr-2" /> Exportar PDF
                   </Button>
                 </>
@@ -445,7 +359,12 @@ export default function ErrataDjen() {
               </Card>
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Em comum</CardTitle></CardHeader>
-                <CardContent><div className="text-3xl font-bold text-green-600">{diff.comuns}</div></CardContent>
+                <CardContent>
+                  <div className="text-3xl font-bold text-green-600">{diff.comuns}</div>
+                  <div className="text-[11px] text-muted-foreground mt-1">
+                    Total A: <strong>{diff.totalA}</strong> · Total B: <strong>{diff.totalB}</strong>
+                  </div>
+                </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-orange-500" /> Somente em {diff.labelB}</CardTitle></CardHeader>
