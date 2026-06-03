@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Loader2, ArrowRightLeft, FileSpreadsheet, AlertTriangle, CheckCircle2, FileText } from "lucide-react";
+import { CalendarIcon, Loader2, ArrowRightLeft, FileSpreadsheet, AlertTriangle, CheckCircle2, FileText, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 interface Coordenacao { id: string; nome: string }
 interface PubRow {
@@ -173,6 +174,7 @@ function exportarPdf(diff: DiffResult, dataDisp: string) {
 }
 
 export default function ErrataDjen() {
+  const navigate = useNavigate();
   const [coordenacoes, setCoordenacoes] = useState<Coordenacao[]>([]);
   const [coordA, setCoordA] = useState<string>("");
   const [coordB, setCoordB] = useState<string>("");
@@ -197,6 +199,24 @@ export default function ErrataDjen() {
   }, []);
 
   const nomeCoord = (id: string) => coordenacoes.find((c) => c.id === id)?.nome || "—";
+
+  // Envia os IDs únicos para a tela Análise DJEN com a coordenação selecionada
+  // e um whitelist de publicações (focus) para gerar resumos somente desse lote.
+  const irParaAnaliseDjen = (coordenacaoId: string, ids: string[], rotulo: string) => {
+    if (!coordenacaoId || ids.length === 0) {
+      toast.error("Sem publicações exclusivas para resumir.");
+      return;
+    }
+    try {
+      sessionStorage.setItem(
+        "errata-djen:focus",
+        JSON.stringify({ coordenacaoId, ids, rotulo, ts: Date.now() })
+      );
+      navigate("/analise-djen");
+    } catch (e: any) {
+      toast.error("Falha ao abrir Análise DJEN: " + (e?.message || e));
+    }
+  };
 
   const handleComparar = async () => {
     if (!coordA || !coordB) { toast.error("Selecione as duas coordenações"); return; }
@@ -358,7 +378,21 @@ export default function ErrataDjen() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" /> Somente em {diff.labelA}</CardTitle></CardHeader>
-                <CardContent><div className="text-3xl font-bold text-amber-600">{diff.somenteA.length}</div></CardContent>
+                <CardContent>
+                  <div className="text-3xl font-bold text-amber-600">{diff.somenteA.length}</div>
+                  <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
+                    <div>Total: <strong>{diff.totalA}</strong> · Únicas (dedup): <strong>{diff.unicasA}</strong></div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-3 w-full"
+                    disabled={diff.somenteA.length === 0}
+                    onClick={() => irParaAnaliseDjen(coordA, diff.somenteA.map(p => p.id), diff.labelA)}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1" /> Gerar resumos das exclusivas
+                  </Button>
+                </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Em comum</CardTitle></CardHeader>
@@ -372,7 +406,21 @@ export default function ErrataDjen() {
               </Card>
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-orange-500" /> Somente em {diff.labelB}</CardTitle></CardHeader>
-                <CardContent><div className="text-3xl font-bold text-orange-600">{diff.somenteB.length}</div></CardContent>
+                <CardContent>
+                  <div className="text-3xl font-bold text-orange-600">{diff.somenteB.length}</div>
+                  <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
+                    <div>Total: <strong>{diff.totalB}</strong> · Únicas (dedup): <strong>{diff.unicasB}</strong></div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-3 w-full"
+                    disabled={diff.somenteB.length === 0}
+                    onClick={() => irParaAnaliseDjen(coordB, diff.somenteB.map(p => p.id), diff.labelB)}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 mr-1" /> Gerar resumos das exclusivas
+                  </Button>
+                </CardContent>
               </Card>
             </div>
 
