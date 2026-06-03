@@ -1342,6 +1342,14 @@ async function processarTermoEmTribunal(
     ultimoErro = e?.message || 'Falha de busca';
   }
 
+  if (tipo === 'parte' && !signal.aborted) {
+    const resgatadas = await buscarPublicacoesParteJaEncontradasEmOutraCoordenacao(mon, diaYmd, tribunal);
+    if (resgatadas.length > 0) {
+      addResults(resgatadas, { __matchedByNomeParte: true, __resgateCoord: true });
+      console.warn(`[DJEN Paralela][${tribunal}] Parte "${mon.termo_busca}": resgatadas ${resgatadas.length} publicação(ões) já encontradas em outra coordenação para gravar nesta coordenação.`);
+    }
+  }
+
   // Retry automático: a API do PJE Comunica ocasionalmente devolve listagem
   // vazia (sem 429/5xx) para um termo que tem publicações. Antes de desistir,
   // refazemos uma única tentativa após pequeno delay.
