@@ -167,20 +167,28 @@ async function processMonitoramento(
     const conteudo = pub.conteudo || pub.texto || pub.teor || pub.descricao || JSON.stringify(pub);
     const dataPublicacao = pub.dataPublicacao || pub.dataDisponibilizacao || pub.dataDJe || dataInicio;
     const hashConteudo = generateHash(conteudo + dataPublicacao);
-    const globalHash = generateGlobalHash(conteudo, dataPublicacao);
     const idDjenRaw = (pub as any)?.id ?? (pub as any)?.id_djen ?? (pub as any)?.numeroComunicacao ?? null;
     const idDjen: string | null = (idDjenRaw === null || idDjenRaw === undefined) ? null : (String(idDjenRaw).trim() || null);
+    const globalHash = idDjen ? `id_djen:${idDjen}` : generateGlobalHash(conteudo, dataPublicacao);
 
     const escopoDedup = (monitoramento as any).coordenacao_id
       ? `coord:${(monitoramento as any).coordenacao_id}`
       : `mon:${monitoramento.id}`;
 
-    const { data: existingGlobal } = await supabase
-      .from('publicacoes_djen_global_hash')
-      .select('id')
-      .eq('escopo_dedup', escopoDedup)
-      .eq('hash_global', globalHash)
-      .maybeSingle();
+    const existingQuery = idDjen
+      ? supabase
+          .from('publicacoes_djen')
+          .select('id')
+          .eq('id_djen', idDjen)
+          .eq('coordenacao_id', (monitoramento as any).coordenacao_id ?? null)
+          .maybeSingle()
+      : supabase
+          .from('publicacoes_djen_global_hash')
+          .select('id')
+          .eq('escopo_dedup', escopoDedup)
+          .eq('hash_global', globalHash)
+          .maybeSingle();
+    const { data: existingGlobal } = await existingQuery;
 
     if (existingGlobal) {
       stats.duplicadas++;
