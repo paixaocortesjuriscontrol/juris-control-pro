@@ -246,20 +246,28 @@ export default function ErrataDjen() {
       const chavesA = new Set(pubsA.map(getPubCompareKey));
       const somenteA: PubRow[] = [];
       const seenA = new Set<string>();
+      let brutasSomenteA = 0;
       for (const p of pubsA) {
         const chave = getPubCompareKey(p);
-        if (!chavesB.has(chave) && !seenA.has(chave)) {
-          seenA.add(chave);
-          somenteA.push(p);
+        if (!chavesB.has(chave)) {
+          brutasSomenteA++;
+          if (!seenA.has(chave)) {
+            seenA.add(chave);
+            somenteA.push(p);
+          }
         }
       }
       const somenteB: PubRow[] = [];
       const seenB = new Set<string>();
+      let brutasSomenteB = 0;
       for (const p of pubsB) {
         const chave = getPubCompareKey(p);
-        if (!chavesA.has(chave) && !seenB.has(chave)) {
-          seenB.add(chave);
-          somenteB.push(p);
+        if (!chavesA.has(chave)) {
+          brutasSomenteB++;
+          if (!seenB.has(chave)) {
+            seenB.add(chave);
+            somenteB.push(p);
+          }
         }
       }
       const comuns = new Set<string>();
@@ -272,6 +280,7 @@ export default function ErrataDjen() {
         somenteA, somenteB, comuns: comuns.size, labelA, labelB,
         totalA: pubsA.length, totalB: pubsB.length,
         unicasA: chavesA.size, unicasB: chavesB.size,
+        brutasSomenteA, brutasSomenteB,
       });
       toast.success(`Comparação concluída: ${somenteA.length} + ${somenteB.length} diferenças`);
     } catch (e: any) {
