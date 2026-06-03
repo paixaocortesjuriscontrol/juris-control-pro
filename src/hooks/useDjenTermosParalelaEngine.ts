@@ -868,6 +868,58 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   return false;
 }
 
+async function buscarPublicacoesParteJaEncontradasEmOutraCoordenacao(
+  mon: Monitoramento,
+  diaYmd: string,
+  tribunal: string,
+): Promise<Record<string, unknown>[]> {
+  if (mon.tipo !== 'parte' || !mon.coordenacao_id) return [];
+
+  const resgatadas = new Map<string, Record<string, unknown>>();
+  const termosParte = termosDeParte(mon);
+  for (const termo of termosParte) {
+    const { data, error } = await supabase
+      .from('publicacoes_djen')
+      .select('id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id')
+      .eq('status', 'encontrada')
+      .eq('tribunal', tribunal)
+      .gte('data_disponibilizacao', `${diaYmd}T00:00:00.000Z`)
+      .lte('data_disponibilizacao', `${diaYmd}T23:59:59.999Z`)
+      .neq('coordenacao_id', mon.coordenacao_id)
+      .ilike('conteudo', `%${termo}%`)
+      .limit(200);
+
+    if (error) {
+      console.warn(`[DJEN Paralela][${tribunal}] Falha ao resgatar publicações já encontradas para "${termo}":`, error.message);
+      continue;
+    }
+
+    for (const row of data || []) {
+      const candidato = {
+        ...row,
+        id: row.id_djen ?? row.id,
+        texto: row.conteudo,
+        dataDisponibilizacao: row.data_disponibilizacao,
+        dataPublicacao: row.data_publicacao,
+        siglaTribunal: row.tribunal,
+        numeroProcesso: row.processo_numero,
+      };
+      const casaNaSecaoPartes = termosParte.some((t) =>
+        validarParteMetadados(candidato, t) || validarParteSecaoPartes(candidato, t),
+      );
+      if (!casaNaSecaoPartes) continue;
+      const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${row.id}`;
+      resgatadas.set(key, {
+        ...candidato,
+        __matchedByNomeParte: true,
+        __resgatadaDeOutraCoordenacao: row.coordenacao_id,
+      });
+    }
+  }
+
+  return Array.from(resgatadas.values());
+}
+
 function extrairAdvogadosEstruturados(pub: any): string[] {
   const result: string[] = [];
   const seen = new Set<string>();
@@ -1271,11 +1323,11 @@ async function processarTermoEmTribunal(
         if (!signal.aborted && resp.items.length === 0 && viaId && viaId !== DIRECT_SLOT_ID) {
           await abortableDelay(1500, signal);
           if (!signal.aborted) {
-            console.warn(`[DJEN Paralela][${tribunal}] Parte "${termoParte}": VPS retornou vazio sem erro — validando em outra rota.`);
+            console.warn(`[DJEN Paralela][${tribunal}] Parte "${termoParte}": VPS retornou vazio sem erro — validando obrigatoriamente no Direto.`);
             resp = await executarBusca(
               paramsParte,
               { __matchedByNomeParte: true, __nomeParteBusca: termoParte },
-              null,
+              DIRECT_SLOT_ID,
             );
           }
         }
@@ -1288,6 +1340,14 @@ async function processarTermoEmTribunal(
   } catch (e: any) {
     if (e?.name === 'AbortError') throw e;
     ultimoErro = e?.message || 'Falha de busca';
+  }
+
+  if (tipo === 'parte' && !signal.aborted) {
+    const resgatadas = await buscarPublicacoesParteJaEncontradasEmOutraCoordenacao(mon, diaYmd, tribunal);
+    if (resgatadas.length > 0) {
+      addResults(resgatadas, { __matchedByNomeParte: true, __resgateCoord: true });
+      console.warn(`[DJEN Paralela][${tribunal}] Parte "${mon.termo_busca}": resgatadas ${resgatadas.length} publicação(ões) já encontradas em outra coordenação para gravar nesta coordenação.`);
+    }
   }
 
   // Retry automático: a API do PJE Comunica ocasionalmente devolve listagem
@@ -1557,6 +1617,34 @@ async function consolidarResultadosTermo(
           const oneMsg = String(oneErr?.message || '');
           const oneIsConflict = oneErr && (oneErr.code === '23505' || oneMsg.includes('duplicate key'));
           if (!oneErr) inseridosCount += 1;
+          else if (oneIsConflict && row.id_djen) {
+            let reviveQuery = supabase
+              .from('publicacoes_djen')
+              .update({
+                monitoramento_id: mon.id,
+                status: 'encontrada',
+                lida: false,
+                conteudo: row.conteudo,
+                hash_conteudo: row.hash_conteudo,
+                processo_numero: row.processo_numero,
+                data_disponibilizacao: row.data_disponibilizacao,
+                data_publicacao: row.data_publicacao,
+                tribunal: row.tribunal,
+                fonte: row.fonte,
+                orgao: row.orgao,
+                tipo_comunicacao: row.tipo_comunicacao,
+                meio: row.meio,
+                advogados_json: row.advogados_json,
+                partes_json: row.partes_json,
+              })
+              .eq('id_djen', row.id_djen);
+            reviveQuery = mon.coordenacao_id
+              ? reviveQuery.eq('coordenacao_id', mon.coordenacao_id)
+              : reviveQuery.is('coordenacao_id', null);
+            const { error: reviveErr } = await reviveQuery;
+            if (!reviveErr) inseridosCount += 1;
+            else console.error(`[DJEN Paralela][${tribunal}] revive conflict error:`, reviveErr);
+          }
           else if (!oneIsConflict) console.error(`[DJEN Paralela][${tribunal}] insert individual error:`, oneErr);
         }
       }
