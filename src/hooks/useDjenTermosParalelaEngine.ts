@@ -1049,6 +1049,7 @@ async function processarTribunalTrack(
   let acumNovas = 0, acumDup = 0, acumDesc = 0, rateLimitHits = 0;
   let ultimoErro: string | null = null;
   let processed = 0;
+  let failedGroups = 0;
 
   try {
     for (const diaYmd of datas) {
@@ -1087,6 +1088,7 @@ async function processarTribunalTrack(
           ultimoErro = r.ultimoErro ?? null;
         } catch (e: any) {
           if (e?.name === 'AbortError') break;
+          failedGroups += 1;
           ultimoErro = e?.message || String(e);
           console.warn(`[DJEN Paralela][${tribunal}] erro grupo:`, e?.message);
         }
@@ -1107,11 +1109,14 @@ async function processarTribunalTrack(
     }
 
     updateTrack(tribunal, tipo, {
-      status: signal.aborted ? 'cancelado' : 'concluido',
+      status: signal.aborted ? 'cancelado' : failedGroups > 0 ? 'erro' : 'concluido',
       current: signal.aborted ? processed : total,
       finishedAt: Date.now(),
+      ultimoErro,
       mensagem: signal.aborted
         ? 'Cancelado'
+        : failedGroups > 0
+          ? `Erro em ${failedGroups} termo(s): ${ultimoErro || 'falha de busca'}`
         : `Concluído: ${acumNovas} novas, ${acumDup} duplicadas, ${acumDesc} descartadas`,
     }, monId);
   } catch (e: any) {
