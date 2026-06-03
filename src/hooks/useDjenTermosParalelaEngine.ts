@@ -868,6 +868,58 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   return false;
 }
 
+async function buscarPublicacoesParteJaEncontradasEmOutraCoordenacao(
+  mon: Monitoramento,
+  diaYmd: string,
+  tribunal: string,
+): Promise<any[]> {
+  if (mon.tipo !== 'parte' || !mon.coordenacao_id) return [];
+
+  const resgatadas = new Map<string, any>();
+  const termosParte = termosDeParte(mon);
+  for (const termo of termosParte) {
+    const { data, error } = await supabase
+      .from('publicacoes_djen')
+      .select('id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id')
+      .eq('status', 'encontrada')
+      .eq('tribunal', tribunal)
+      .gte('data_disponibilizacao', `${diaYmd}T00:00:00.000Z`)
+      .lte('data_disponibilizacao', `${diaYmd}T23:59:59.999Z`)
+      .neq('coordenacao_id', mon.coordenacao_id)
+      .ilike('conteudo', `%${termo}%`)
+      .limit(200);
+
+    if (error) {
+      console.warn(`[DJEN Paralela][${tribunal}] Falha ao resgatar publicações já encontradas para "${termo}":`, error.message);
+      continue;
+    }
+
+    for (const row of data || []) {
+      const candidato = {
+        ...row,
+        id: row.id_djen ?? row.id,
+        texto: row.conteudo,
+        dataDisponibilizacao: row.data_disponibilizacao,
+        dataPublicacao: row.data_publicacao,
+        siglaTribunal: row.tribunal,
+        numeroProcesso: row.processo_numero,
+      };
+      const casaNaSecaoPartes = termosParte.some((t) =>
+        validarParteMetadados(candidato, t) || validarParteSecaoPartes(candidato, t),
+      );
+      if (!casaNaSecaoPartes) continue;
+      const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${row.id}`;
+      resgatadas.set(key, {
+        ...candidato,
+        __matchedByNomeParte: true,
+        __resgatadaDeOutraCoordenacao: row.coordenacao_id,
+      });
+    }
+  }
+
+  return Array.from(resgatadas.values());
+}
+
 function extrairAdvogadosEstruturados(pub: any): string[] {
   const result: string[] = [];
   const seen = new Set<string>();
