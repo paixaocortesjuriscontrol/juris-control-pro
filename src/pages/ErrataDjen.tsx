@@ -19,13 +19,6 @@ import { supabase } from "@/integrations/supabase/client";
 type Mode = "mesma-coord" | "duas-coord";
 
 interface Coordenacao { id: string; nome: string }
-interface Execucao {
-  id: string;
-  iniciado_em: string;
-  finalizado_em: string | null;
-  registros_encontrados: number | null;
-  status: string;
-}
 interface PubRow {
   id: string;
   hash_conteudo: string;
@@ -41,6 +34,8 @@ interface DiffResult {
   comuns: number;
   labelA: string;
   labelB: string;
+  totalA: number;
+  totalB: number;
 }
 
 function fmtDateTime(iso: string | null | undefined) {
@@ -48,32 +43,28 @@ function fmtDateTime(iso: string | null | undefined) {
   try { return format(new Date(iso), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }); } catch { return iso; }
 }
 
-async function fetchPubsForExecution(params: {
+/**
+ * Busca TODAS as publicações de uma coordenação numa data de disponibilização,
+ * independente de qual execução as capturou.
+ */
+async function fetchPubsByCoordData(params: {
   coordenacaoId: string;
   dataDisp: string; // yyyy-mm-dd
-  iniciadoEm: string;
-  finalizadoEm: string | null;
 }): Promise<PubRow[]> {
-  const { coordenacaoId, dataDisp, iniciadoEm, finalizadoEm } = params;
-  // window: from iniciado_em to finalizado_em + 2min (or +30min if running)
-  const end = finalizadoEm
-    ? new Date(new Date(finalizadoEm).getTime() + 2 * 60_000).toISOString()
-    : new Date(new Date(iniciadoEm).getTime() + 60 * 60_000).toISOString();
+  const { coordenacaoId, dataDisp } = params;
   const dispStart = `${dataDisp}T00:00:00.000Z`;
   const dispEnd = `${dataDisp}T23:59:59.999Z`;
 
   const all: PubRow[] = [];
   let lastId: string | null = null;
   // cursor pagination by id to bypass 1000-row limit
-  for (let page = 0; page < 200; page++) {
+  for (let page = 0; page < 500; page++) {
     let q = supabase
       .from("publicacoes_djen")
       .select("id,hash_conteudo,processo_numero,tribunal,data_disponibilizacao,conteudo,created_at")
       .eq("coordenacao_id", coordenacaoId)
       .gte("data_disponibilizacao", dispStart)
       .lte("data_disponibilizacao", dispEnd)
-      .gte("created_at", iniciadoEm)
-      .lte("created_at", end)
       .order("id", { ascending: true })
       .limit(1000);
     if (lastId) q = q.gt("id", lastId);
