@@ -1,30 +1,27 @@
-# Reverter DJEN Termos Paralela ao estado anterior
+## Objetivo
 
-## Diagnóstico
+Marcar como lidas todas as publicações da **Coordenação Dr. Thomás** com `data_disponibilizacao < 02/06/2026` que ainda estão como não lidas.
 
-O motor `useDjenTermosParalelaEngine.ts` **não foi alterado hoje**. O que mudou foram apenas os arquivos do **pool de proxy multi-IP** (consumido pela Paralela):
+## Escopo identificado
 
-- `src/utils/djenProxyPool.ts` — última versão estável: commit `1cd3a5046`
-- `src/components/configuracoes/PoolProxyDjenCard.tsx` — última versão estável: commit `169ed2c72`
-- `gcp-djen-proxy/` (server.js, README.md, setup-vm06.sh) — pasta inteira criada hoje, não existia antes
+- Coordenação: `Coordenação Dr. Thomás` (id `b1ff723c-3d0b-40fb-a477-5d2ff2bd7d2f`)
+- Usuária executora: Dra. Katarine Dias (id `8bf8b0a9-bdbd-4be9-82a7-2109261e02c2`)
+- Total atual a atualizar: **232 publicações** não lidas no critério.
 
-Esses 3 itens são responsáveis pela complicação (VM multi-IP, slots manuais, etc). Revertendo eles, a Paralela volta a funcionar exatamente como estava antes da sessão de hoje.
+## Observação importante
 
-## Ações
+A tabela `publicacoes_djen` só tem o campo booleano `lida` — **não existe coluna `lida_por`/`lida_em`** para registrar quem leu. Portanto, a ação será marcar `lida = true` em lote. O nome da Dra. Katarine não fica gravado em lugar nenhum.
 
-1. Restaurar `src/utils/djenProxyPool.ts` para o blob de `1cd3a5046`.
-2. Restaurar `src/components/configuracoes/PoolProxyDjenCard.tsx` para o blob de `169ed2c72`.
-3. Deletar a pasta `gcp-djen-proxy/` inteira (criada hoje).
-4. **Não tocar** em:
-   - `src/hooks/useDjenTermosParalelaEngine.ts`
-   - `src/hooks/useDjenTermosParalela.ts`
-   - `src/utils/pjeComunicaClient.ts`
-   - VM/IPs no GCP (você cuida disso fora do código quando quiser)
+Se quiser registro auditável de "quem marcou como lida", preciso primeiro criar colunas `lida_por uuid` e `lida_em timestamptz` em `publicacoes_djen` antes do update. Me avise se quer essa rastreabilidade — caso contrário, sigo com o update simples abaixo.
 
-## Fora de escopo
+## Migração (update em lote)
 
-- Não vou mexer em nada da infraestrutura GCP (VMs, IPs reservados).  
-- Se você ainda tiver IPs reservados (`djen-vm01-ip-2..5`) e quiser apagar, rode quando quiser:  
-  `gcloud compute addresses delete djen-vm01-ip-2 djen-vm01-ip-3 djen-vm01-ip-4 djen-vm01-ip-5 --region=southamerica-east1 --quiet`
+```sql
+UPDATE public.publicacoes_djen
+SET lida = true
+WHERE coordenacao_id = 'b1ff723c-3d0b-40fb-a477-5d2ff2bd7d2f'
+  AND data_disponibilizacao < '2026-06-02'
+  AND lida = false;
+```
 
-Confirma que posso executar essa reversão?
+Sem alterações de código nem de UI.
