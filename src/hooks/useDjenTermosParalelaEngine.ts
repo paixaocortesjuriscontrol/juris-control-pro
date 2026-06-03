@@ -1617,6 +1617,34 @@ async function consolidarResultadosTermo(
           const oneMsg = String(oneErr?.message || '');
           const oneIsConflict = oneErr && (oneErr.code === '23505' || oneMsg.includes('duplicate key'));
           if (!oneErr) inseridosCount += 1;
+          else if (oneIsConflict && row.id_djen) {
+            let reviveQuery = supabase
+              .from('publicacoes_djen')
+              .update({
+                monitoramento_id: mon.id,
+                status: 'encontrada',
+                lida: false,
+                conteudo: row.conteudo,
+                hash_conteudo: row.hash_conteudo,
+                processo_numero: row.processo_numero,
+                data_disponibilizacao: row.data_disponibilizacao,
+                data_publicacao: row.data_publicacao,
+                tribunal: row.tribunal,
+                fonte: row.fonte,
+                orgao: row.orgao,
+                tipo_comunicacao: row.tipo_comunicacao,
+                meio: row.meio,
+                advogados_json: row.advogados_json,
+                partes_json: row.partes_json,
+              })
+              .eq('id_djen', row.id_djen);
+            reviveQuery = mon.coordenacao_id
+              ? reviveQuery.eq('coordenacao_id', mon.coordenacao_id)
+              : reviveQuery.is('coordenacao_id', null);
+            const { error: reviveErr } = await reviveQuery;
+            if (!reviveErr) inseridosCount += 1;
+            else console.error(`[DJEN Paralela][${tribunal}] revive conflict error:`, reviveErr);
+          }
           else if (!oneIsConflict) console.error(`[DJEN Paralela][${tribunal}] insert individual error:`, oneErr);
         }
       }
