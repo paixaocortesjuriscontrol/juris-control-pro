@@ -872,10 +872,10 @@ async function buscarPublicacoesParteJaEncontradasEmOutraCoordenacao(
   mon: Monitoramento,
   diaYmd: string,
   tribunal: string,
-): Promise<any[]> {
+): Promise<Record<string, unknown>[]> {
   if (mon.tipo !== 'parte' || !mon.coordenacao_id) return [];
 
-  const resgatadas = new Map<string, any>();
+  const resgatadas = new Map<string, Record<string, unknown>>();
   const termosParte = termosDeParte(mon);
   for (const termo of termosParte) {
     const { data, error } = await supabase
