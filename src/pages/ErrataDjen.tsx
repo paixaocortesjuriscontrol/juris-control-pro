@@ -404,8 +404,7 @@ export default function ErrataDjen() {
                 <CardContent>
                   <div className="text-3xl font-bold text-amber-600">{diff.somenteA.length}</div>
                   <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
-                    <div>Brutas exclusivas: <strong>{diff.brutasSomenteA}</strong> · Únicas (dedup): <strong>{diff.somenteA.length}</strong></div>
-                    <div>Total lado A: <strong>{diff.totalA}</strong> · Únicas A: <strong>{diff.unicasA}</strong></div>
+                    <div>Total: <strong>{diff.brutasSomenteA}</strong> · Únicas: <strong>{diff.somenteA.length}</strong></div>
                   </div>
                   <Button
                     size="sm"
@@ -433,8 +432,7 @@ export default function ErrataDjen() {
                 <CardContent>
                   <div className="text-3xl font-bold text-orange-600">{diff.somenteB.length}</div>
                   <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
-                    <div>Brutas exclusivas: <strong>{diff.brutasSomenteB}</strong> · Únicas (dedup): <strong>{diff.somenteB.length}</strong></div>
-                    <div>Total lado B: <strong>{diff.totalB}</strong> · Únicas B: <strong>{diff.unicasB}</strong></div>
+                    <div>Total: <strong>{diff.brutasSomenteB}</strong> · Únicas: <strong>{diff.somenteB.length}</strong></div>
                   </div>
                   <Button
                     size="sm"
