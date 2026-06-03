@@ -270,95 +270,67 @@ export default function ErrataDjen() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Tabs value={mode} onValueChange={(v) => { setMode(v as Mode); setDiff(null); }}>
-              <TabsList>
-                <TabsTrigger value="mesma-coord">Mesma coordenação · 2 execuções</TabsTrigger>
-                <TabsTrigger value="duas-coord">2 coordenações · 1 execução cada</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <p className="text-xs text-muted-foreground">
+              Compara todas as publicações já capturadas (independente da execução) para cada Lado A e B.
+              Você pode comparar duas coordenações no mesmo dia, a mesma coordenação em dias diferentes,
+              ou qualquer combinação dos dois.
+            </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">Data de disponibilização</label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1", !dataDisp && "text-muted-foreground")}>
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(dataDisp, "dd/MM/yyyy", { locale: ptBR })}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar mode="single" selected={dataDisp} onSelect={(d) => d && setDataDisp(d)} locale={ptBR} />
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              {mode === "mesma-coord" ? (
-                <div className="md:col-span-2">
-                  <label className="text-xs font-medium text-muted-foreground">Coordenação</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* LADO A */}
+              <div className="space-y-3 rounded-md border p-3 bg-muted/30">
+                <div className="text-xs font-semibold uppercase text-muted-foreground">Lado A</div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Coordenação A</label>
                   <Select value={coordA} onValueChange={(v) => { setCoordA(v); setDiff(null); }}>
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione a coordenação" /></SelectTrigger>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
                     <SelectContent>
                       {coordenacoes.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-              ) : (
-                <>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground">Coordenação A</label>
-                    <Select value={coordA} onValueChange={(v) => { setCoordA(v); setDiff(null); }}>
-                      <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                      <SelectContent>
-                        {coordenacoes.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground">Coordenação B</label>
-                    <Select value={coordB} onValueChange={(v) => { setCoordB(v); setDiff(null); }}>
-                      <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                      <SelectContent>
-                        {coordenacoes.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">
-                  Execução A {loadingExecs && <Loader2 className="inline w-3 h-3 animate-spin ml-1" />}
-                </label>
-                <Select value={execA} onValueChange={(v) => { setExecA(v); setDiff(null); }}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione a execução" /></SelectTrigger>
-                  <SelectContent>
-                    {execucoesA.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">Nenhuma execução encontrada</div>}
-                    {execucoesA.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {fmtDateTime(e.iniciado_em)} · {e.registros_encontrados ?? 0} reg · {e.status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Data de disponibilização A</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {format(dataA, "dd/MM/yyyy", { locale: ptBR })}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={dataA} onSelect={(d) => { if (d) { setDataA(d); setDiff(null); } }} locale={ptBR} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground">
-                  Execução B {loadingExecs && <Loader2 className="inline w-3 h-3 animate-spin ml-1" />}
-                </label>
-                <Select value={execB} onValueChange={(v) => { setExecB(v); setDiff(null); }}>
-                  <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione a execução" /></SelectTrigger>
-                  <SelectContent>
-                    {execucoesB.length === 0 && <div className="px-3 py-2 text-xs text-muted-foreground">Nenhuma execução encontrada</div>}
-                    {execucoesB.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>
-                        {fmtDateTime(e.iniciado_em)} · {e.registros_encontrados ?? 0} reg · {e.status}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+
+              {/* LADO B */}
+              <div className="space-y-3 rounded-md border p-3 bg-muted/30">
+                <div className="text-xs font-semibold uppercase text-muted-foreground">Lado B</div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Coordenação B</label>
+                  <Select value={coordB} onValueChange={(v) => { setCoordB(v); setDiff(null); }}>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {coordenacoes.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Data de disponibilização B</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal mt-1")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {format(dataB, "dd/MM/yyyy", { locale: ptBR })}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={dataB} onSelect={(d) => { if (d) { setDataB(d); setDiff(null); } }} locale={ptBR} />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             </div>
 
@@ -369,10 +341,10 @@ export default function ErrataDjen() {
               </Button>
               {diff && (
                 <>
-                  <Button variant="outline" onClick={() => exportarExcel(diff, dataDispStr)}>
+                  <Button variant="outline" onClick={() => exportarExcel(diff, dataAStr)}>
                     <FileSpreadsheet className="w-4 h-4 mr-2" /> Exportar Excel
                   </Button>
-                  <Button variant="outline" onClick={() => exportarPdf(diff, dataDispStr)}>
+                  <Button variant="outline" onClick={() => exportarPdf(diff, dataAStr)}>
                     <FileText className="w-4 h-4 mr-2" /> Exportar PDF
                   </Button>
                 </>
