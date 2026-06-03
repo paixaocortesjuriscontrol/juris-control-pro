@@ -1049,6 +1049,7 @@ async function processarTribunalTrack(
   let acumNovas = 0, acumDup = 0, acumDesc = 0, rateLimitHits = 0;
   let ultimoErro: string | null = null;
   let processed = 0;
+  let failedGroups = 0;
 
   try {
     for (const diaYmd of datas) {
@@ -1087,6 +1088,7 @@ async function processarTribunalTrack(
           ultimoErro = r.ultimoErro ?? null;
         } catch (e: any) {
           if (e?.name === 'AbortError') break;
+          failedGroups += 1;
           ultimoErro = e?.message || String(e);
           console.warn(`[DJEN Paralela][${tribunal}] erro grupo:`, e?.message);
         }
@@ -1107,11 +1109,14 @@ async function processarTribunalTrack(
     }
 
     updateTrack(tribunal, tipo, {
-      status: signal.aborted ? 'cancelado' : 'concluido',
+      status: signal.aborted ? 'cancelado' : failedGroups > 0 ? 'erro' : 'concluido',
       current: signal.aborted ? processed : total,
       finishedAt: Date.now(),
+      ultimoErro,
       mensagem: signal.aborted
         ? 'Cancelado'
+        : failedGroups > 0
+          ? `Erro em ${failedGroups} termo(s): ${ultimoErro || 'falha de busca'}`
         : `Concluído: ${acumNovas} novas, ${acumDup} duplicadas, ${acumDesc} descartadas`,
     }, monId);
   } catch (e: any) {
@@ -1199,7 +1204,11 @@ async function processarTermoEmTribunal(
     }
   }
 
-  const executarBusca = async (params: any, matchMeta: Record<string, any> = {}) => {
+  const executarBusca = async (
+    params: any,
+    matchMeta: Record<string, any> = {},
+    forceViaOverride: string | undefined | null = viaId,
+  ) => {
     const requestParams = { ...params, page: 1 };
     if (requestParams.tipo === 'parte') {
       if (requestParams.palavraChave) {
@@ -1231,9 +1240,9 @@ async function processarTermoEmTribunal(
         ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
       },
       onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via, monIdTrack),
-      forceVia: viaId,
-      fallbackToDirect: viaId === DIRECT_SLOT_ID,
-      fallbackToPool: viaId !== DIRECT_SLOT_ID,
+      forceVia: forceViaOverride ?? undefined,
+      fallbackToDirect: forceViaOverride === DIRECT_SLOT_ID,
+      fallbackToPool: !!forceViaOverride && forceViaOverride !== DIRECT_SLOT_ID,
     });
     addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
@@ -1256,6 +1265,17 @@ async function processarTermoEmTribunal(
             resp = await executarBusca(
               paramsParte,
               { __matchedByNomeParte: true, __nomeParteBusca: termoParte },
+            );
+          }
+        }
+        if (!signal.aborted && resp.items.length === 0 && viaId && viaId !== DIRECT_SLOT_ID) {
+          await abortableDelay(1500, signal);
+          if (!signal.aborted) {
+            console.warn(`[DJEN Paralela][${tribunal}] Parte "${termoParte}": VPS retornou vazio sem erro — validando em outra rota.`);
+            resp = await executarBusca(
+              paramsParte,
+              { __matchedByNomeParte: true, __nomeParteBusca: termoParte },
+              null,
             );
           }
         }
@@ -2069,11 +2089,20 @@ async function executarLoop(
             if (signal.aborted) break;
             for (const monIdAtual of step.monIds) {
               if (signal.aborted) break;
+              let unidadeOk = true;
               try {
                 await processarTribunalTrack(unit.tribunal, step.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
+                const tr = state.progress.tracks.find(
+                  t => t.tribunal === unit.tribunal && t.tipo === step.tipo && (t.monId ?? null) === (monIdAtual ?? null),
+                );
+                if (tr?.status === 'erro') {
+                  throw new Error(tr.ultimoErro || tr.mensagem || 'Track terminou com erro');
+                }
               } catch (e) {
+                unidadeOk = false;
                 console.error(`[DJEN Paralela][worker ${via.label}] erro ${step.tipo} ${unit.tribunal}${monIdAtual ? ` mon=${monIdAtual}` : ''}:`, e);
               }
+              if (!unidadeOk) continue;
               unidadesConcluidasLista.push(trackKey(step.tipo, unit.tribunal, monIdAtual));
               state.unitDone = Math.min(state.unitTotal, state.unitDone + 1);
               saveCheckpoint({
