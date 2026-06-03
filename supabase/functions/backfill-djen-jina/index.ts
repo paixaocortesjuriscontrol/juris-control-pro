@@ -229,10 +229,12 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
       if (!conteudo || conteudo.length < 20) return null;
       const dataPub = normalizeData(item, dataInicio);
       const hashConteudo = generateHash(conteudo);
-      const hashGlobal = generateGlobalHash(conteudo, dataPub);
-      return { item, conteudo, dataPub, hashConteudo, hashGlobal };
+      const idDjenRaw = (item as any)?.id ?? (item as any)?.id_djen ?? (item as any)?.numeroComunicacao ?? null;
+      const idDjen: string | null = idDjenRaw === null || idDjenRaw === undefined ? null : (String(idDjenRaw).trim() || null);
+      const hashGlobal = idDjen ? `id_djen:${idDjen}` : generateGlobalHash(conteudo, dataPub);
+      return { item, conteudo, dataPub, hashConteudo, hashGlobal, idDjen };
     })
-    .filter(Boolean) as Array<{ item: any; conteudo: string; dataPub: string; hashConteudo: string; hashGlobal: string }>;
+    .filter(Boolean) as Array<{ item: any; conteudo: string; dataPub: string; hashConteudo: string; hashGlobal: string; idDjen: string | null }>;
 
   if (prepared.length === 0) return stats;
 
@@ -266,8 +268,7 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
 
     const processo = normalizeProcesso(p.item);
     const fonte = (p.item?.tribunal || p.item?.orgao || p.item?.fonte || "DJEN").toString();
-    const idDjenRaw = (p.item as any)?.id ?? (p.item as any)?.id_djen ?? (p.item as any)?.numeroComunicacao ?? null;
-    const idDjen: string | null = (idDjenRaw === null || idDjenRaw === undefined) ? null : (String(idDjenRaw).trim() || null);
+    const idDjen = p.idDjen;
 
     const excl = shouldExclude(p.conteudo, mon.exclusoes);
     if (excl) {
