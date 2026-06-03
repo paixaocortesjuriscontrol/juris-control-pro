@@ -1204,7 +1204,11 @@ async function processarTermoEmTribunal(
     }
   }
 
-  const executarBusca = async (params: any, matchMeta: Record<string, any> = {}) => {
+  const executarBusca = async (
+    params: any,
+    matchMeta: Record<string, any> = {},
+    forceViaOverride: string | undefined | null = viaId,
+  ) => {
     const requestParams = { ...params, page: 1 };
     if (requestParams.tipo === 'parte') {
       if (requestParams.palavraChave) {
@@ -1236,9 +1240,9 @@ async function processarTermoEmTribunal(
         ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
       },
       onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via, monIdTrack),
-      forceVia: viaId,
-      fallbackToDirect: viaId === DIRECT_SLOT_ID,
-      fallbackToPool: viaId !== DIRECT_SLOT_ID,
+      forceVia: forceViaOverride ?? undefined,
+      fallbackToDirect: forceViaOverride === DIRECT_SLOT_ID,
+      fallbackToPool: !!forceViaOverride && forceViaOverride !== DIRECT_SLOT_ID,
     });
     addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
