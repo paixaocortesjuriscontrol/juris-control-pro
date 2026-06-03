@@ -174,20 +174,16 @@ function exportarPdf(diff: DiffResult, dataDisp: string) {
 }
 
 export default function ErrataDjen() {
-  const [mode, setMode] = useState<Mode>("mesma-coord");
-  const [dataDisp, setDataDisp] = useState<Date>(new Date());
   const [coordenacoes, setCoordenacoes] = useState<Coordenacao[]>([]);
   const [coordA, setCoordA] = useState<string>("");
   const [coordB, setCoordB] = useState<string>("");
-  const [execucoesA, setExecucoesA] = useState<Execucao[]>([]);
-  const [execucoesB, setExecucoesB] = useState<Execucao[]>([]);
-  const [execA, setExecA] = useState<string>("");
-  const [execB, setExecB] = useState<string>("");
-  const [loadingExecs, setLoadingExecs] = useState(false);
+  const [dataA, setDataA] = useState<Date>(new Date());
+  const [dataB, setDataB] = useState<Date>(new Date());
   const [comparando, setComparando] = useState(false);
   const [diff, setDiff] = useState<DiffResult | null>(null);
 
-  const dataDispStr = useMemo(() => format(dataDisp, "yyyy-MM-dd"), [dataDisp]);
+  const dataAStr = useMemo(() => format(dataA, "yyyy-MM-dd"), [dataA]);
+  const dataBStr = useMemo(() => format(dataB, "yyyy-MM-dd"), [dataB]);
 
   // Load coordenacoes
   useEffect(() => {
@@ -201,62 +197,21 @@ export default function ErrataDjen() {
     })();
   }, []);
 
-  // Load execucoes for the chosen day (djen_paralela). Window: day -1 to day +2
-  useEffect(() => {
-    setExecA(""); setExecB("");
-    setExecucoesA([]); setExecucoesB([]);
-    setDiff(null);
-    (async () => {
-      setLoadingExecs(true);
-      try {
-        const base = new Date(dataDispStr + "T00:00:00.000Z");
-        const from = new Date(base.getTime() - 24 * 60 * 60_000).toISOString();
-        const to = new Date(base.getTime() + 72 * 60 * 60_000).toISOString();
-        const { data, error } = await supabase
-          .from("execucoes_agendadas")
-          .select("id,iniciado_em,finalizado_em,registros_encontrados,status,detalhes")
-          .eq("tipo", "djen_paralela")
-          .gte("iniciado_em", from)
-          .lte("iniciado_em", to)
-          .order("iniciado_em", { ascending: false });
-        if (error) throw error;
-        const filtered = (data || []).filter((e: any) => {
-          // só execuções cuja janela de datas inclui dataDispStr
-          const d = e.detalhes || {};
-          const ini = d.dataInicioYmd as string | undefined;
-          const fim = d.dataFimYmd as string | undefined;
-          if (!ini && !fim) return true; // se não temos info, mostra
-          const i = ini || fim;
-          const f = fim || ini;
-          return i! <= dataDispStr && dataDispStr <= f!;
-        }) as Execucao[];
-        setExecucoesA(filtered);
-        setExecucoesB(filtered);
-      } catch (e: any) {
-        toast.error("Falha ao carregar execuções: " + (e?.message || e));
-      } finally {
-        setLoadingExecs(false);
-      }
-    })();
-  }, [dataDispStr]);
-
   const nomeCoord = (id: string) => coordenacoes.find((c) => c.id === id)?.nome || "—";
 
   const handleComparar = async () => {
-    if (!execA || !execB) { toast.error("Selecione as duas execuções"); return; }
-    if (execA === execB) { toast.error("Selecione execuções diferentes"); return; }
-    const coordIdA = mode === "mesma-coord" ? coordA : coordA;
-    const coordIdB = mode === "mesma-coord" ? coordA : coordB;
-    if (!coordIdA || !coordIdB) { toast.error("Selecione a(s) coordenação(ões)"); return; }
+    if (!coordA || !coordB) { toast.error("Selecione as duas coordenações"); return; }
+    if (coordA === coordB && dataAStr === dataBStr) {
+      toast.error("Escolha coordenações ou datas diferentes para o lado A e B");
+      return;
+    }
 
     setComparando(true);
     setDiff(null);
     try {
-      const eA = execucoesA.find((e) => e.id === execA)!;
-      const eB = execucoesB.find((e) => e.id === execB)!;
       const [pubsA, pubsB] = await Promise.all([
-        fetchPubsForExecution({ coordenacaoId: coordIdA, dataDisp: dataDispStr, iniciadoEm: eA.iniciado_em, finalizadoEm: eA.finalizado_em }),
-        fetchPubsForExecution({ coordenacaoId: coordIdB, dataDisp: dataDispStr, iniciadoEm: eB.iniciado_em, finalizadoEm: eB.finalizado_em }),
+        fetchPubsByCoordData({ coordenacaoId: coordA, dataDisp: dataAStr }),
+        fetchPubsByCoordData({ coordenacaoId: coordB, dataDisp: dataBStr }),
       ]);
       const hashesB = new Set(pubsB.map((p) => p.hash_conteudo));
       const hashesA = new Set(pubsA.map((p) => p.hash_conteudo));
@@ -277,16 +232,15 @@ export default function ErrataDjen() {
         }
       }
       const comuns = new Set<string>();
-      for (const h of hashesA) if (hashesB.has(h)) comuns.add(h);
+      hashesA.forEach((h) => { if (hashesB.has(h)) comuns.add(h); });
 
-      const labelA = mode === "mesma-coord"
-        ? `Exec ${format(new Date(eA.iniciado_em), "HH:mm")}`
-        : `${nomeCoord(coordIdA).slice(0, 18)} ${format(new Date(eA.iniciado_em), "HH:mm")}`;
-      const labelB = mode === "mesma-coord"
-        ? `Exec ${format(new Date(eB.iniciado_em), "HH:mm")}`
-        : `${nomeCoord(coordIdB).slice(0, 18)} ${format(new Date(eB.iniciado_em), "HH:mm")}`;
+      const labelA = `${nomeCoord(coordA).slice(0, 22)} · ${format(dataA, "dd/MM")}`;
+      const labelB = `${nomeCoord(coordB).slice(0, 22)} · ${format(dataB, "dd/MM")}`;
 
-      setDiff({ somenteA, somenteB, comuns: comuns.size, labelA, labelB });
+      setDiff({
+        somenteA, somenteB, comuns: comuns.size, labelA, labelB,
+        totalA: pubsA.length, totalB: pubsB.length,
+      });
       toast.success(`Comparação concluída: ${somenteA.length} + ${somenteB.length} diferenças`);
     } catch (e: any) {
       toast.error("Erro ao comparar: " + (e?.message || e));
