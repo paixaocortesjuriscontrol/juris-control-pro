@@ -37,6 +37,8 @@ interface DiffResult {
   totalB: number;
   unicasA: number;
   unicasB: number;
+  brutasSomenteA: number;
+  brutasSomenteB: number;
 }
 
 function fmtDateTime(iso: string | null | undefined) {
