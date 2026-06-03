@@ -1268,6 +1268,17 @@ async function processarTermoEmTribunal(
             );
           }
         }
+        if (!signal.aborted && resp.items.length === 0 && viaId && viaId !== DIRECT_SLOT_ID) {
+          await abortableDelay(1500, signal);
+          if (!signal.aborted) {
+            console.warn(`[DJEN Paralela][${tribunal}] Parte "${termoParte}": VPS retornou vazio sem erro — validando em outra rota.`);
+            resp = await executarBusca(
+              paramsParte,
+              { __matchedByNomeParte: true, __nomeParteBusca: termoParte },
+              null,
+            );
+          }
+        }
         console.log(`[DJEN Paralela][${tribunal}] Busca por parte termo="${termoParte}": ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
         await abortableDelay(CONFIG.delay_between_termos_or, signal);
       }
