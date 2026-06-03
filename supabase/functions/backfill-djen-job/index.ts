@@ -171,9 +171,14 @@ async function processMonitoramento(
     const idDjenRaw = (pub as any)?.id ?? (pub as any)?.id_djen ?? (pub as any)?.numeroComunicacao ?? null;
     const idDjen: string | null = (idDjenRaw === null || idDjenRaw === undefined) ? null : (String(idDjenRaw).trim() || null);
 
+    const escopoDedup = (monitoramento as any).coordenacao_id
+      ? `coord:${(monitoramento as any).coordenacao_id}`
+      : `mon:${monitoramento.id}`;
+
     const { data: existingGlobal } = await supabase
       .from('publicacoes_djen_global_hash')
       .select('id')
+      .eq('escopo_dedup', escopoDedup)
       .eq('hash_global', globalHash)
       .maybeSingle();
 
@@ -210,7 +215,8 @@ async function processMonitoramento(
       await supabase.from('publicacoes_djen_global_hash').upsert({
         hash_global: globalHash,
         primeiro_monitoramento_id: monitoramento.id,
-      }, { onConflict: 'hash_global', ignoreDuplicates: true });
+        escopo_dedup: escopoDedup,
+      }, { onConflict: 'escopo_dedup,hash_global', ignoreDuplicates: true });
       
       stats.descartadas++;
       continue;
@@ -237,7 +243,8 @@ async function processMonitoramento(
         hash_global: globalHash,
         primeiro_monitoramento_id: monitoramento.id,
         publicacao_id: insertedPub.id,
-      }, { onConflict: 'hash_global', ignoreDuplicates: true });
+        escopo_dedup: escopoDedup,
+      }, { onConflict: 'escopo_dedup,hash_global', ignoreDuplicates: true });
     }
   }
   

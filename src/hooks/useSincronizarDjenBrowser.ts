@@ -372,15 +372,22 @@ async function inserirPublicacoes(
       const dataDisponibilizacao = pub.dataDisponibilizacao || pub.dataPublicacao || '';
       const globalHash = generateGlobalHash(conteudo, dataDisponibilizacao);
       const hashConteudo = generateContentHash(conteudo, dataDisponibilizacao);
-      
-      // Verificar se já existe pelo hash global
+
+      // Escopo de dedup POR COORDENAÇÃO (cada coordenação recebe sua própria cópia).
+      // Fallback para o monitoramento quando não houver coordenação vinculada.
+      const escopoDedup = monitoramento.coordenacao_id
+        ? `coord:${monitoramento.coordenacao_id}`
+        : `mon:${monitoramento.id}`;
+
+      // Verificar se já existe pelo hash global DENTRO do escopo da coordenação
       const { data: existing } = await supabase
         .from('publicacoes_djen_global_hash')
         .select('id')
+        .eq('escopo_dedup', escopoDedup)
         .eq('hash_global', globalHash)
         .maybeSingle();
-      
-      if (existing) continue; // Já existe
+
+      if (existing) continue; // Já existe nesta coordenação
       
       // Inserir nova publicação
       const { data: inserted, error } = await supabase
@@ -409,6 +416,7 @@ async function inserirPublicacoes(
               hash_global: globalHash,
               primeiro_monitoramento_id: monitoramento.id,
               publicacao_id: inserted.id,
+              escopo_dedup: escopoDedup,
             });
         } catch {
           // Ignorar erros de duplicata
