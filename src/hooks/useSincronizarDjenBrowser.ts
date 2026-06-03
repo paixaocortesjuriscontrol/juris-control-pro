@@ -381,19 +381,13 @@ async function inserirPublicacoes(
         ? `coord:${monitoramento.coordenacao_id}`
         : `mon:${monitoramento.id}`;
 
-      const existingQuery = idDjen
-        ? supabase
-            .from('publicacoes_djen')
-            .select('id')
-            .eq('id_djen', idDjen)
-            .eq('coordenacao_id', monitoramento.coordenacao_id || null)
-            .maybeSingle()
-        : supabase
-            .from('publicacoes_djen_global_hash')
-            .select('id')
-            .eq('escopo_dedup', escopoDedup)
-            .eq('hash_global', globalHash)
-            .maybeSingle();
+      let existingQuery: any = idDjen
+        ? supabase.from('publicacoes_djen').select('id').eq('id_djen', idDjen)
+        : supabase.from('publicacoes_djen_global_hash').select('id').eq('escopo_dedup', escopoDedup).eq('hash_global', globalHash);
+      existingQuery = idDjen
+        ? (monitoramento.coordenacao_id ? existingQuery.eq('coordenacao_id', monitoramento.coordenacao_id) : existingQuery.is('coordenacao_id', null))
+        : existingQuery;
+      existingQuery = existingQuery.maybeSingle();
       const { data: existing } = await existingQuery;
 
       if (existing) continue; // Já existe nesta coordenação
