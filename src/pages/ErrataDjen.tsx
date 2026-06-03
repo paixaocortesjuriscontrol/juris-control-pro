@@ -364,8 +364,9 @@ export default function ErrataDjen() {
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Em comum</CardTitle></CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-green-600">{diff.comuns}</div>
-                  <div className="text-[11px] text-muted-foreground mt-1">
-                    Total A: <strong>{diff.totalA}</strong> · Total B: <strong>{diff.totalB}</strong>
+                  <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
+                    <div>Total A: <strong>{diff.totalA}</strong> · Únicas A: <strong>{diff.unicasA}</strong></div>
+                    <div>Total B: <strong>{diff.totalB}</strong> · Únicas B: <strong>{diff.unicasB}</strong></div>
                   </div>
                 </CardContent>
               </Card>
