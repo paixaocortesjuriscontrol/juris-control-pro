@@ -370,8 +370,10 @@ async function inserirPublicacoes(
     try {
       const conteudo = pub.texto || pub.teor || '';
       const dataDisponibilizacao = pub.dataDisponibilizacao || pub.dataPublicacao || '';
-      const globalHash = generateGlobalHash(conteudo, dataDisponibilizacao);
       const hashConteudo = generateContentHash(conteudo, dataDisponibilizacao);
+      const idDjenRaw = pub.id ?? pub.id_djen ?? pub.codigoComunicacao ?? pub.numeroComunicacao ?? null;
+      const idDjen = idDjenRaw == null ? null : String(idDjenRaw).trim() || null;
+      const globalHash = idDjen ? `id_djen:${idDjen}` : generateGlobalHash(conteudo, dataDisponibilizacao);
 
       // Escopo de dedup POR COORDENAÇÃO (cada coordenação recebe sua própria cópia).
       // Fallback para o monitoramento quando não houver coordenação vinculada.
@@ -379,19 +381,24 @@ async function inserirPublicacoes(
         ? `coord:${monitoramento.coordenacao_id}`
         : `mon:${monitoramento.id}`;
 
-      // Verificar se já existe pelo hash global DENTRO do escopo da coordenação
-      const { data: existing } = await supabase
-        .from('publicacoes_djen_global_hash')
-        .select('id')
-        .eq('escopo_dedup', escopoDedup)
-        .eq('hash_global', globalHash)
-        .maybeSingle();
+      const existingQuery = idDjen
+        ? supabase
+            .from('publicacoes_djen')
+            .select('id')
+            .eq('id_djen', idDjen)
+            .eq('coordenacao_id', monitoramento.coordenacao_id || null)
+            .maybeSingle()
+        : supabase
+            .from('publicacoes_djen_global_hash')
+            .select('id')
+            .eq('escopo_dedup', escopoDedup)
+            .eq('hash_global', globalHash)
+            .maybeSingle();
+      const { data: existing } = await existingQuery;
 
       if (existing) continue; // Já existe nesta coordenação
       
       // Inserir nova publicação
-      const idDjenRaw = pub.id ?? pub.id_djen ?? pub.codigoComunicacao ?? pub.numeroComunicacao ?? null;
-      const idDjen = idDjenRaw == null ? null : String(idDjenRaw).trim() || null;
       const { data: inserted, error } = await supabase
         .from('publicacoes_djen')
         .insert({
