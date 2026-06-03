@@ -39,6 +39,8 @@ interface DiffResult {
   unicasB: number;
   brutasSomenteA: number;
   brutasSomenteB: number;
+  unicasSomenteA: number;
+  unicasSomenteB: number;
 }
 
 function fmtDateTime(iso: string | null | undefined) {
@@ -414,9 +416,9 @@ export default function ErrataDjen() {
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-amber-500" /> Somente em {diff.labelA}</CardTitle></CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-amber-600">{diff.somenteA.length}</div>
+                  <div className="text-3xl font-bold text-amber-600">{diff.brutasSomenteA}</div>
                   <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
-                    <div>Total: <strong>{diff.brutasSomenteA}</strong> · Únicas: <strong>{diff.somenteA.length}</strong></div>
+                    <div>Total: <strong>{diff.brutasSomenteA}</strong> · Únicas: <strong>{diff.unicasSomenteA}</strong></div>
                   </div>
                   <Button
                     size="sm"
@@ -442,9 +444,9 @@ export default function ErrataDjen() {
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-orange-500" /> Somente em {diff.labelB}</CardTitle></CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-orange-600">{diff.somenteB.length}</div>
+                  <div className="text-3xl font-bold text-orange-600">{diff.brutasSomenteB}</div>
                   <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
-                    <div>Total: <strong>{diff.brutasSomenteB}</strong> · Únicas: <strong>{diff.somenteB.length}</strong></div>
+                    <div>Total: <strong>{diff.brutasSomenteB}</strong> · Únicas: <strong>{diff.unicasSomenteB}</strong></div>
                   </div>
                   <Button
                     size="sm"
