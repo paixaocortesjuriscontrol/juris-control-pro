@@ -390,11 +390,15 @@ async function inserirPublicacoes(
       if (existing) continue; // Já existe nesta coordenação
       
       // Inserir nova publicação
+      const idDjenRaw = pub.id ?? pub.id_djen ?? pub.codigoComunicacao ?? pub.numeroComunicacao ?? null;
+      const idDjen = idDjenRaw == null ? null : String(idDjenRaw).trim() || null;
       const { data: inserted, error } = await supabase
         .from('publicacoes_djen')
         .insert({
           monitoramento_id: monitoramento.id,
+          coordenacao_id: monitoramento.coordenacao_id || null,
           hash_conteudo: hashConteudo,
+          id_djen: idDjen,
           conteudo: conteudo.slice(0, 50000), // Limite de tamanho
           processo_numero: pub.numeroProcesso || null,
           data_publicacao: pub.dataPublicacao || null,
