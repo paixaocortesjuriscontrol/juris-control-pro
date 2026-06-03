@@ -213,6 +213,33 @@ const AnaliseDjen = () => {
   const [gerandoDocResumo, setGerandoDocResumo] = useState(false);
   const [gerandoDocsTST, setGerandoDocsTST] = useState(false);
 
+  // ===== Foco vindo da tela "Errata DJEN" =====
+  // Quando o usuário clica em "Gerar resumos das exclusivas" na Errata DJEN,
+  // armazenamos { coordenacaoId, ids, rotulo } em sessionStorage e navegamos
+  // para cá. Aqui aplicamos um whitelist client-side sobre `mergedPublicacoes`.
+  const [focusFromErrata, setFocusFromErrata] = useState<{ ids: Set<string>; rotulo: string } | null>(null);
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("errata-djen:focus");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as { coordenacaoId?: string; ids?: string[]; rotulo?: string };
+      sessionStorage.removeItem("errata-djen:focus");
+      if (parsed?.coordenacaoId) {
+        setCoordenacaoId(parsed.coordenacaoId);
+      }
+      if (Array.isArray(parsed?.ids) && parsed.ids.length > 0) {
+        setFocusFromErrata({ ids: new Set(parsed.ids), rotulo: parsed.rotulo || "Errata DJEN" });
+        // Abre janela ampla para que o whitelist case mesmo com publicações antigas.
+        setFiltroDia('todos');
+        setReadStatus('todas');
+        setTipoOrigem('todos');
+      }
+    } catch (e) {
+      console.warn("Falha ao ler focus da Errata DJEN:", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     setListLimit(INITIAL_LIST_LIMIT);
     setDisplayLimit(DISPLAY_PAGE_SIZE);
@@ -695,8 +722,12 @@ const AnaliseDjen = () => {
     if (tipoOrigem === 'datajud') result = datajudAsPublicacoes;
     else if (tipoOrigem === 'descartada') result = descartadasDedupData?.rows ?? [];
     else result = publicacoes;
-    return filtrarPorCoordenacaoUsuario(result);
-  }, [tipoOrigem, publicacoes, datajudAsPublicacoes, descartadasDedupData, deveRestringirPorCoordenacao, userCoordenacaoIds]);
+    result = filtrarPorCoordenacaoUsuario(result);
+    if (focusFromErrata) {
+      result = result.filter(p => focusFromErrata.ids.has(p.id));
+    }
+    return result;
+  }, [tipoOrigem, publicacoes, datajudAsPublicacoes, descartadasDedupData, deveRestringirPorCoordenacao, userCoordenacaoIds, focusFromErrata]);
 
   // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
   const isLoading = loadingUserCoord || coordenacaoId === null
