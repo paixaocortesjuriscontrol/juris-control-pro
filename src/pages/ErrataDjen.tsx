@@ -257,7 +257,7 @@ export default function ErrataDjen() {
           <div>
             <h1 className="text-2xl font-bold">Errata DJEN</h1>
             <p className="text-sm text-muted-foreground">
-              Compare execuções do DJEN Termos Paralela para identificar publicações encontradas em uma execução e ausentes em outra.
+              Compare publicações de uma coordenação/data com outra coordenação/data — independente de qual execução capturou.
             </p>
           </div>
         </div>
@@ -362,7 +362,12 @@ export default function ErrataDjen() {
               </Card>
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Em comum</CardTitle></CardHeader>
-                <CardContent><div className="text-3xl font-bold text-green-600">{diff.comuns}</div></CardContent>
+                <CardContent>
+                  <div className="text-3xl font-bold text-green-600">{diff.comuns}</div>
+                  <div className="text-[11px] text-muted-foreground mt-1">
+                    Total A: <strong>{diff.totalA}</strong> · Total B: <strong>{diff.totalB}</strong>
+                  </div>
+                </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-orange-500" /> Somente em {diff.labelB}</CardTitle></CardHeader>
