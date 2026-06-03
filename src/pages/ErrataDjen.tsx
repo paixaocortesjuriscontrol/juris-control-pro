@@ -33,6 +33,8 @@ interface DiffResult {
   labelB: string;
   totalA: number;
   totalB: number;
+  unicasA: number;
+  unicasB: number;
 }
 
 function fmtDateTime(iso: string | null | undefined) {
