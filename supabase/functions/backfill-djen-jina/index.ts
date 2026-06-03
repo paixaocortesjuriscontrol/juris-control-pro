@@ -239,11 +239,15 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
   const existingGlobal = new Set<string>();
   const globals = prepared.map((p) => p.hashGlobal);
   const chunkSize = 200;
+  const escopoDedup = (mon as any).coordenacao_id
+    ? `coord:${(mon as any).coordenacao_id}`
+    : `mon:${mon.id}`;
   for (let i = 0; i < globals.length; i += chunkSize) {
     const chunk = globals.slice(i, i + chunkSize);
     const { data: existing, error } = await supabase
       .from("publicacoes_djen_global_hash")
       .select("hash_global")
+      .eq("escopo_dedup", escopoDedup)
       .in("hash_global", chunk);
 
     if (error) {
@@ -334,6 +338,7 @@ async function processMonitoramentoForDateRange(supabase: any, mon: Monitorament
       hash_global: p.hashGlobal,
       primeiro_monitoramento_id: mon.id,
       publicacao_id: null,
+      escopo_dedup: escopoDedup,
     });
 
     if (ghErr) {
