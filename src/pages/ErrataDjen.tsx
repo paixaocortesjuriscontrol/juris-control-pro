@@ -33,6 +33,8 @@ interface DiffResult {
   labelB: string;
   totalA: number;
   totalB: number;
+  unicasA: number;
+  unicasB: number;
 }
 
 function fmtDateTime(iso: string | null | undefined) {
@@ -231,12 +233,13 @@ export default function ErrataDjen() {
       const comuns = new Set<string>();
       hashesA.forEach((h) => { if (hashesB.has(h)) comuns.add(h); });
 
-      const labelA = `${nomeCoord(coordA).slice(0, 22)} · ${format(dataA, "dd/MM")}`;
-      const labelB = `${nomeCoord(coordB).slice(0, 22)} · ${format(dataB, "dd/MM")}`;
+      const labelA = `${nomeCoord(coordA)} · ${format(dataA, "dd/MM/yyyy")}`;
+      const labelB = `${nomeCoord(coordB)} · ${format(dataB, "dd/MM/yyyy")}`;
 
       setDiff({
         somenteA, somenteB, comuns: comuns.size, labelA, labelB,
         totalA: pubsA.length, totalB: pubsB.length,
+        unicasA: hashesA.size, unicasB: hashesB.size,
       });
       toast.success(`Comparação concluída: ${somenteA.length} + ${somenteB.length} diferenças`);
     } catch (e: any) {
@@ -361,8 +364,9 @@ export default function ErrataDjen() {
                 <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500" /> Em comum</CardTitle></CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-green-600">{diff.comuns}</div>
-                  <div className="text-[11px] text-muted-foreground mt-1">
-                    Total A: <strong>{diff.totalA}</strong> · Total B: <strong>{diff.totalB}</strong>
+                  <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
+                    <div>Total A: <strong>{diff.totalA}</strong> · Únicas A: <strong>{diff.unicasA}</strong></div>
+                    <div>Total B: <strong>{diff.totalB}</strong> · Únicas B: <strong>{diff.unicasB}</strong></div>
                   </div>
                 </CardContent>
               </Card>
