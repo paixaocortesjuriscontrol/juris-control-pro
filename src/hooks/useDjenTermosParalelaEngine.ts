@@ -1244,10 +1244,21 @@ async function processarTermoEmTribunal(
     if (tipo === 'parte') {
       for (const termoParte of termosDeParte(mon)) {
         if (signal.aborted) break;
-        const resp = await executarBusca(
-          { ...baseParams, nomeParte: termoParte },
+        const paramsParte = { ...baseParams, nomeParte: termoParte };
+        let resp = await executarBusca(
+          paramsParte,
           { __matchedByNomeParte: true, __nomeParteBusca: termoParte },
         );
+        if (!signal.aborted && resp.items.length === 0) {
+          await abortableDelay(1500, signal);
+          if (!signal.aborted) {
+            console.warn(`[DJEN Paralela][${tribunal}] Parte "${termoParte}": 0 resultados na 1ª passada — refazendo busca.`);
+            resp = await executarBusca(
+              paramsParte,
+              { __matchedByNomeParte: true, __nomeParteBusca: termoParte },
+            );
+          }
+        }
         console.log(`[DJEN Paralela][${tribunal}] Busca por parte termo="${termoParte}": ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
         await abortableDelay(CONFIG.delay_between_termos_or, signal);
       }
