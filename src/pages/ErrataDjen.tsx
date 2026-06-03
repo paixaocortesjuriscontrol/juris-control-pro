@@ -233,12 +233,13 @@ export default function ErrataDjen() {
       const comuns = new Set<string>();
       hashesA.forEach((h) => { if (hashesB.has(h)) comuns.add(h); });
 
-      const labelA = `${nomeCoord(coordA).slice(0, 22)} · ${format(dataA, "dd/MM")}`;
-      const labelB = `${nomeCoord(coordB).slice(0, 22)} · ${format(dataB, "dd/MM")}`;
+      const labelA = `${nomeCoord(coordA)} · ${format(dataA, "dd/MM/yyyy")}`;
+      const labelB = `${nomeCoord(coordB)} · ${format(dataB, "dd/MM/yyyy")}`;
 
       setDiff({
         somenteA, somenteB, comuns: comuns.size, labelA, labelB,
         totalA: pubsA.length, totalB: pubsB.length,
+        unicasA: hashesA.size, unicasB: hashesB.size,
       });
       toast.success(`Comparação concluída: ${somenteA.length} + ${somenteB.length} diferenças`);
     } catch (e: any) {
