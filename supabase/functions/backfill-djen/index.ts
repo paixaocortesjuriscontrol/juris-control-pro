@@ -303,6 +303,7 @@ async function processMonitoramentoForDateRange(
       .from('publicacoes_djen')
       .insert({
         monitoramento_id: monitoramento.id,
+        coordenacao_id: (monitoramento as any).coordenacao_id ?? null,
         hash_conteudo: hashConteudo,
         id_djen: idDjen,
         data_publicacao: dataPublicacao,
