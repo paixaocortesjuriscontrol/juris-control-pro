@@ -307,6 +307,9 @@ export function CriarTarefaPublicacaoDialog({
   async function onSubmit(values: FormValues) {
     if (!publicacao || !user) return;
 
+    const responsavelPrincipal = responsaveisIds[0] || null;
+    const tipoFinal = values.tipo_tarefa || "TAREFA EQUIPE";
+
     setLoading(true);
     try {
       // Se estamos editando uma tarefa existente
@@ -314,10 +317,10 @@ export function CriarTarefaPublicacaoDialog({
         const { error } = await supabase
           .from("tarefas")
           .update({
-            responsavel_id: values.responsavel_id,
+            responsavel_id: responsavelPrincipal,
             titulo: values.titulo,
             descricao: values.descricao || null,
-            tipo_tarefa: values.tipo_tarefa,
+            tipo_tarefa: tipoFinal,
             data_vencimento: values.data_vencimento,
             data_fatal: values.data_fatal || null,
             prioridade: values.prioridade,
@@ -325,6 +328,20 @@ export function CriarTarefaPublicacaoDialog({
           .eq("id", tarefaEditandoId);
 
         if (error) throw error;
+
+        // Atualizar vínculos N:N (responsáveis e envolvidos)
+        await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefaEditandoId);
+        if (responsaveisIds.length > 0) {
+          await supabase.from("tarefa_responsaveis").insert(
+            responsaveisIds.map((uid) => ({ tarefa_id: tarefaEditandoId, usuario_id: uid }))
+          );
+        }
+        await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefaEditandoId);
+        if (envolvidosIds.length > 0) {
+          await supabase.from("tarefa_envolvidos").insert(
+            envolvidosIds.map((uid) => ({ tarefa_id: tarefaEditandoId, usuario_id: uid }))
+          );
+        }
 
         toast.success("Tarefa atualizada com sucesso!");
         queryClient.invalidateQueries({ queryKey: ["tarefas"] });
@@ -338,14 +355,16 @@ export function CriarTarefaPublicacaoDialog({
         
         // Resetar form para nova tarefa
         form.reset({
-          tipo_tarefa: "",
+          tipo_tarefa: "TAREFA EQUIPE",
           titulo: "",
           descricao: "",
-          responsavel_id: (responsaveisProcesso as any)?.[0]?.advogado?.id || "",
+          responsavel_id: "",
           data_vencimento: format(new Date(new Date().setDate(new Date().getDate() + 5)), "yyyy-MM-dd"),
           data_fatal: "",
           prioridade: "media",
         });
+        setResponsaveisIds([]);
+        setEnvolvidosIds([]);
         setObservacoesIA(null);
         return;
       }
@@ -355,10 +374,10 @@ export function CriarTarefaPublicacaoDialog({
         .from("tarefas")
         .insert({
           processo_id: publicacao.processo_id,
-          responsavel_id: values.responsavel_id,
+          responsavel_id: responsavelPrincipal,
           titulo: values.titulo,
           descricao: values.descricao || null,
-          tipo_tarefa: values.tipo_tarefa,
+          tipo_tarefa: tipoFinal,
           data_vencimento: values.data_vencimento,
           data_fatal: values.data_fatal || null,
           prioridade: values.prioridade,
@@ -371,19 +390,33 @@ export function CriarTarefaPublicacaoDialog({
 
       if (error) throw error;
 
-      // Disparar notificação para o responsável (fire and forget)
-      if (tarefa?.id && values.responsavel_id) {
-        supabase.functions.invoke("notificar-tarefa-criada", {
-          body: {
-            tarefa_id: tarefa.id,
-            titulo: values.titulo,
-            descricao: values.descricao,
-            data_vencimento: values.data_vencimento,
-            prioridade: values.prioridade,
-            processo_id: publicacao.processo_id,
-            responsavel_id: values.responsavel_id,
-          },
-        }).catch((err) => console.log("Erro ao notificar tarefa (ignorado):", err));
+      // Inserir vínculos N:N de responsáveis e envolvidos
+      if (tarefa?.id) {
+        if (responsaveisIds.length > 0) {
+          await supabase.from("tarefa_responsaveis").insert(
+            responsaveisIds.map((uid) => ({ tarefa_id: tarefa.id, usuario_id: uid }))
+          );
+        }
+        if (envolvidosIds.length > 0) {
+          await supabase.from("tarefa_envolvidos").insert(
+            envolvidosIds.map((uid) => ({ tarefa_id: tarefa.id, usuario_id: uid }))
+          );
+        }
+
+        // Disparar notificação para cada responsável (fire and forget)
+        for (const uid of responsaveisIds) {
+          supabase.functions.invoke("notificar-tarefa-criada", {
+            body: {
+              tarefa_id: tarefa.id,
+              titulo: values.titulo,
+              descricao: values.descricao,
+              data_vencimento: values.data_vencimento,
+              prioridade: values.prioridade,
+              processo_id: publicacao.processo_id,
+              responsavel_id: uid,
+            },
+          }).catch((err) => console.log("Erro ao notificar tarefa (ignorado):", err));
+        }
       }
 
       // Vincular tarefa à publicação na tabela N:N correspondente
@@ -436,13 +469,15 @@ export function CriarTarefaPublicacaoDialog({
       
       form.reset();
       // Resetar formulário mas manter dialog aberto para criar mais tarefas
-      form.setValue("tipo_tarefa", "");
+      form.setValue("tipo_tarefa", "TAREFA EQUIPE");
       form.setValue("titulo", "");
       form.setValue("descricao", "");
-      form.setValue("responsavel_id", (responsaveisProcesso as any)?.[0]?.advogado?.id || "");
+      form.setValue("responsavel_id", "");
       form.setValue("data_vencimento", format(new Date(new Date().setDate(new Date().getDate() + 5)), "yyyy-MM-dd"));
       form.setValue("data_fatal", "");
       form.setValue("prioridade", "media");
+      setResponsaveisIds([]);
+      setEnvolvidosIds([]);
     } catch (error) {
       console.error("Erro ao criar tarefa:", error);
       toast.error("Erro ao criar tarefa");
