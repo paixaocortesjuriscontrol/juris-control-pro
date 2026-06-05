@@ -40,7 +40,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
-import { ClipboardList, CalendarPlus, Clock, Gavel } from "lucide-react";
+import { ClipboardList, CalendarPlus, Clock, Gavel, Coins } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -809,6 +809,9 @@ export default function PainelControle() {
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setNovaAudienciaOpen(true)}>
                     <Gavel className="w-4 h-4 mr-2" /> Audiência
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setParcelasDialogOpen(true)}>
+                    <Coins className="w-4 h-4 mr-2" /> Parcelamento recorrente
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
