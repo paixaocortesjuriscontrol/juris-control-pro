@@ -192,6 +192,16 @@ export function ProcessoDetalhesCompletos({
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Inicializa com initialSection se fornecido (vem do ?tab= da URL)
   const [activeSection, setActiveSection] = useState<string>(initialSection || "resumo");
+
+  // Ref para o formulário Resumo — permite autosave ao trocar de seção
+  const visaoGeralRef = useRef<ProcessoVisaoGeralFormHandle>(null);
+  const handleSectionChange = (next: string) => {
+    if (activeSection === "resumo" && next !== "resumo" && visaoGeralRef.current) {
+      // Autosave em background — não bloqueia a navegação
+      visaoGeralRef.current.save().catch(() => {});
+    }
+    setActiveSection(next);
+  };
   
   // Sincroniza quando initialSection muda (navegação SPA para o mesmo processo com ?tab= diferente)
   const prevInitialSectionRef = useRef<string | undefined>(undefined);
