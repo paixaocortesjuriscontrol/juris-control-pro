@@ -55,7 +55,8 @@ import { AlertasNaoCadastradosNotificacoes } from "@/components/notificacoes/Ale
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 
-export default function Notificacoes() {
+interface NotificacoesProps { embedded?: boolean }
+export default function Notificacoes({ embedded = false }: NotificacoesProps = {}) {
   // Central de Notificações
   // Mantém a UI responsiva: carregamento incremental (evita payloads gigantes)
   const PAGE_SIZE = 200;
@@ -800,8 +801,8 @@ export default function Notificacoes() {
     setActiveTab("dashboard");
   };
 
-  return (
-    <MainLayout title="Central de Notificações" subtitle={`${stats.total} alertas encontrados`}>
+  const body = (
+    <>
       {/* Filters Bar */}
       <div className="bg-card rounded-xl border border-border/50 p-4 mb-6 animate-fade-in">
         <div className="flex flex-col gap-4">
@@ -2057,6 +2058,12 @@ export default function Notificacoes() {
         periodoFim={periodoFim}
         statusFilter={statusFilter}
       />
+    </>
+  );
+
+  return embedded ? body : (
+    <MainLayout title="Central de Notificações" subtitle={`${stats.total} alertas encontrados`}>
+      {body}
     </MainLayout>
   );
 }

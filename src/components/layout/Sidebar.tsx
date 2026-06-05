@@ -57,12 +57,9 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true },
   { icon: ArrowRightLeft, label: "Comparar DJEN", path: "/comparar-dj-santander", highlight: true },
   { icon: ArrowRightLeft, label: "Errata DJEN", path: "/errata-djen", highlight: true },
-  { icon: Scale, label: "Processos Internos", path: "/processos", highlight: true },
-  { icon: Clock, label: "Prazos Fatais", path: "/tst-prazos", highlight: true },
-  { icon: Calendar, label: "Audiências", path: "/painel-audiencias", highlight: true },
+  { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true },
   // Demais itens
-  { icon: Bell, label: "Notificações", path: "/notificacoes", color: "text-red-400" },
   { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400" },
   { icon: BookOpen, label: "Matérias Benner", path: "/materias-benner", color: "text-sky-400" },
   { icon: FolderOpen, label: "Analisar Prazos", path: "/analisar-prazos", color: "text-sky-400" },

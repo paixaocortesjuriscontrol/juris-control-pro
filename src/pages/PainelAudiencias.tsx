@@ -29,7 +29,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import { cn } from "@/lib/utils";
 
-export default function PainelAudiencias() {
+interface PainelAudienciasProps { embedded?: boolean }
+export default function PainelAudiencias({ embedded = false }: PainelAudienciasProps = {}) {
   const isMobile = useIsMobile();
   const { user } = useAuth();
 
@@ -191,12 +192,9 @@ export default function PainelAudiencias() {
     return <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/20">Detectado</Badge>;
   };
 
-  return (
-    <MainLayout 
-      title="Painel de Audiências" 
-      subtitle="Controle de audiências detectadas e cadastradas manualmente"
-    >
-      <Tabs defaultValue="lista" className="space-y-6">
+  const body = (
+    <>
+    <Tabs defaultValue="lista" className="space-y-6">
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="lista" className="gap-2">
             <Calendar className="h-4 w-4" />
@@ -624,6 +622,15 @@ export default function PainelAudiencias() {
         onOpenChange={(open) => !open && setCriarTarefaAudiencia(null)}
         audiencia={criarTarefaAudiencia}
       />
+    </>
+  );
+
+  return embedded ? body : (
+    <MainLayout
+      title="Painel de Audiências"
+      subtitle="Controle de audiências detectadas e cadastradas manualmente"
+    >
+      {body}
     </MainLayout>
   );
 }
