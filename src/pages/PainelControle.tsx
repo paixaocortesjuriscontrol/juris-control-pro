@@ -57,10 +57,12 @@ import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { toZonedTime } from "date-fns-tz";
 import { useNavigate } from "react-router-dom";
+import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
 type TabMode = "pessoal" | "escritorio";
+type ViewMode = "agenda" | "lista";
 
 // Cores dos tipos
 const TIPO_CORES: Record<string, string> = {
@@ -91,6 +93,7 @@ export default function PainelControle() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [tabMode, setTabMode] = useState<TabMode>("pessoal");
+  const [viewMode, setViewMode] = useState<ViewMode>("agenda");
   const [mesAtual, setMesAtual] = useState(new Date());
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
