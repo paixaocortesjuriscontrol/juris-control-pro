@@ -3375,6 +3375,7 @@ export type Database = {
           grupo_parcelas: string | null
           id: string
           local: string | null
+          modalidade: string | null
           numero_parcela: number | null
           processo_id: string | null
           recorrencia_dias_semana: number[] | null
@@ -3401,6 +3402,7 @@ export type Database = {
           grupo_parcelas?: string | null
           id?: string
           local?: string | null
+          modalidade?: string | null
           numero_parcela?: number | null
           processo_id?: string | null
           recorrencia_dias_semana?: number[] | null
@@ -3427,6 +3429,7 @@ export type Database = {
           grupo_parcelas?: string | null
           id?: string
           local?: string | null
+          modalidade?: string | null
           numero_parcela?: number | null
           processo_id?: string | null
           recorrencia_dias_semana?: number[] | null
