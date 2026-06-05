@@ -222,6 +222,30 @@ const AnaliseDjen = () => {
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
   const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
   const [novaAudienciaOpen, setNovaAudienciaOpen] = useState(false);
+  const [adicionarProcessoId, setAdicionarProcessoId] = useState<string | undefined>(undefined);
+  const [adicionarProcessoNumero, setAdicionarProcessoNumero] = useState<string | undefined>(undefined);
+
+  // Resolve o processo existente na base via número da publicação para pré-preencher os formulários
+  const resolverProcessoDaPublicacao = async (pub: PublicacaoUnificada) => {
+    setAdicionarProcessoId(undefined);
+    setAdicionarProcessoNumero(pub.processo_numero ?? undefined);
+    const numero = pub.processo_numero?.trim();
+    if (!numero) return;
+    const numeroDigits = numero.replace(/\D/g, "");
+    try {
+      let query = supabase.from("processos").select("id, numero").limit(1);
+      query = numeroDigits.length >= 15
+        ? query.ilike("numero", `%${numeroDigits}%`)
+        : query.ilike("numero", `%${numero}%`);
+      const { data } = await query.maybeSingle();
+      if (data?.id) {
+        setAdicionarProcessoId(data.id);
+        setAdicionarProcessoNumero(data.numero ?? numero);
+      }
+    } catch {
+      // silencioso — formulários abrem mesmo sem encontrar o processo
+    }
+  };
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
