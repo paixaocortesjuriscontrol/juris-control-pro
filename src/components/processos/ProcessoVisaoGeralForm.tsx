@@ -627,11 +627,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       {!compact && (
         <Card>
           <CardContent className="p-4 md:p-5">
-            <div className="flex flex-col gap-1">
-              <h1 className="text-lg md:text-xl font-semibold text-foreground leading-tight">
-                {(form.polo_ativo || form.reclamante || "—")} <span className="text-muted-foreground font-normal">X</span> {(form.polo_passivo || form.reclamados || "—")}
-              </h1>
-              <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-muted-foreground">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-1 min-w-0">
+                <h1 className="text-lg md:text-xl font-semibold text-foreground leading-tight">
+                  {(form.polo_ativo || form.reclamante || "—")} <span className="text-muted-foreground font-normal">X</span> {(form.polo_passivo || form.reclamados || "—")}
+                </h1>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-muted-foreground">
                 {processo?.numero && (
                   <div className="flex items-center gap-1">
                     <span className="font-medium text-foreground/70">Processo:</span>
@@ -653,7 +654,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 {processo?.created_by_user?.nome && (
                   <div><span className="font-medium text-foreground/70">Criado por:</span> <span className="text-foreground">{processo.created_by_user.nome}</span></div>
                 )}
+                </div>
               </div>
+              <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos} className="flex-shrink-0">
+                {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                Salvar alterações
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -661,9 +667,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       <Card>
         <CardContent className="p-4 md:p-6 space-y-6">
           {/* Cabeçalho do form — apenas botões de ação */}
+          {!hideJuditButtons && (
           <div className="flex items-center justify-end gap-2 flex-wrap">
-            {!hideJuditButtons && (
-              <>
               <Button
                 size="sm"
                 variant="outline"
@@ -723,13 +728,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   </Button>
                 </>
               )}
-              </>
-            )}
-            <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos}>
-                {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
-                Salvar alterações
-              </Button>
           </div>
+          )}
 
           {juditBusy && (
             <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50/60 dark:bg-emerald-950/20 dark:border-emerald-900 px-3 py-2">
