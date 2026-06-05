@@ -18,7 +18,8 @@ interface CoordResult {
   isAdmin: boolean;
 }
 
-export default function TstPrazos() {
+interface TstPrazosProps { embedded?: boolean }
+export default function TstPrazos({ embedded = false }: TstPrazosProps = {}) {
   const { user } = useAuth();
 
   const { data: coordResult } = useQuery<CoordResult>({
@@ -112,9 +113,8 @@ export default function TstPrazos() {
 
   const showSelector = isAdmin || coordenacoes.length > 1;
 
-  return (
-    <MainLayout title="Prazos Fatais">
-      <div className="flex flex-col h-full gap-4">
+  const body = (
+    <div className="flex flex-col h-full gap-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Prazos Fatais</h1>
@@ -183,7 +183,8 @@ export default function TstPrazos() {
           isImporting={isImporting}
           onCoordenacaoChange={setCoordenacaoId}
         />
-      </div>
-    </MainLayout>
+    </div>
   );
+
+  return embedded ? body : <MainLayout title="Prazos Fatais">{body}</MainLayout>;
 }
