@@ -53,6 +53,7 @@ import { Link } from "react-router-dom";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useAuth } from "@/contexts/AuthContext";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
+import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
 
 type TarefaSimples = { id: string; titulo: string; tipo_tarefa: string | null; status: string; responsavel_nome?: string; data_vencimento?: string | null; data_fatal?: string | null };
 
@@ -128,10 +129,10 @@ async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string |
 }
 
 const formSchema = z.object({
-  tipo_tarefa: z.string().min(1, "Tipo é obrigatório"),
+  tipo_tarefa: z.string().optional(),
   titulo: z.string().min(1, "Título é obrigatório").max(200),
   descricao: z.string().optional(),
-  responsavel_id: z.string().min(1, "Responsável é obrigatório"),
+  responsavel_id: z.string().optional(),
   data_vencimento: z.string().min(1, "Data prevista é obrigatória"),
   data_fatal: z.string().optional(),
   prioridade: z.enum(["baixa", "media", "alta", "urgente"]),
@@ -180,6 +181,8 @@ export function CriarTarefaPublicacaoDialog({
   const [mostrarDicaIA, setMostrarDicaIA] = useState(true);
   const [tarefaEditandoId, setTarefaEditandoId] = useState<string | null>(null);
   const openedAtRef = useRef<number>(0);
+  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
+  const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
 
   const hoje = format(new Date(), "yyyy-MM-dd");
 
@@ -203,7 +206,7 @@ export function CriarTarefaPublicacaoDialog({
       openedAtRef.current = Date.now();
 
       form.reset({
-        tipo_tarefa: "",
+        tipo_tarefa: "TAREFA EQUIPE",
         titulo: "",
         descricao: "",
         responsavel_id: "",
@@ -214,12 +217,14 @@ export function CriarTarefaPublicacaoDialog({
       setObservacoesIA(null);
       setMostrarDicaIA(true);
       setTarefaEditandoId(null);
+      setResponsaveisIds([]);
+      setEnvolvidosIds([]);
     }
   }, [open, publicacao?.id, form]);
 
   const resetParaNovaTarefa = () => {
     form.reset({
-      tipo_tarefa: "",
+      tipo_tarefa: "TAREFA EQUIPE",
       titulo: "",
       descricao: "",
       responsavel_id: "",
@@ -230,6 +235,8 @@ export function CriarTarefaPublicacaoDialog({
     setObservacoesIA(null);
     setMostrarDicaIA(true);
     setTarefaEditandoId(null);
+    setResponsaveisIds([]);
+    setEnvolvidosIds([]);
   };
 
   // Fetch membros de TODAS as coordenações (permite delegar para qualquer membro)
