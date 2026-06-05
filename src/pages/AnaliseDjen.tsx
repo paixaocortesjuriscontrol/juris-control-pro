@@ -222,6 +222,30 @@ const AnaliseDjen = () => {
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
   const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
   const [novaAudienciaOpen, setNovaAudienciaOpen] = useState(false);
+  const [adicionarProcessoId, setAdicionarProcessoId] = useState<string | undefined>(undefined);
+  const [adicionarProcessoNumero, setAdicionarProcessoNumero] = useState<string | undefined>(undefined);
+
+  // Resolve o processo existente na base via número da publicação para pré-preencher os formulários
+  const resolverProcessoDaPublicacao = async (pub: PublicacaoUnificada) => {
+    setAdicionarProcessoId(undefined);
+    setAdicionarProcessoNumero(pub.processo_numero ?? undefined);
+    const numero = pub.processo_numero?.trim();
+    if (!numero) return;
+    const numeroDigits = numero.replace(/\D/g, "");
+    try {
+      let query = supabase.from("processos").select("id, numero").limit(1);
+      query = numeroDigits.length >= 15
+        ? query.ilike("numero", `%${numeroDigits}%`)
+        : query.ilike("numero", `%${numero}%`);
+      const { data } = await query.maybeSingle();
+      if (data?.id) {
+        setAdicionarProcessoId(data.id);
+        setAdicionarProcessoNumero(data.numero ?? numero);
+      }
+    } catch {
+      // silencioso — formulários abrem mesmo sem encontrar o processo
+    }
+  };
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
@@ -4506,13 +4530,13 @@ const AnaliseDjen = () => {
                                             <DropdownMenuItem onSelect={() => setTimeout(() => handleCriarTarefa(pub), 0)}>
                                               <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setTimeout(() => setNovoEventoOpen(true), 0)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
                                               <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setTimeout(() => setNovoPrazoOpen(true), 0)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovoPrazoOpen(true); }, 0)}>
                                               <Clock className="w-4 h-4 mr-2" /> Prazo
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setTimeout(() => setNovaAudienciaOpen(true), 0)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
                                               <Gavel className="w-4 h-4 mr-2" /> Audiência
                                             </DropdownMenuItem>
                                           </DropdownMenuContent>
@@ -4597,13 +4621,13 @@ const AnaliseDjen = () => {
                                            <DropdownMenuItem onSelect={() => setTimeout(() => handleCriarTarefa(pub), 0)}>
                                              <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onSelect={() => setTimeout(() => setNovoEventoOpen(true), 0)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
                                              <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onSelect={() => setTimeout(() => setNovoPrazoOpen(true), 0)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovoPrazoOpen(true); }, 0)}>
                                              <Clock className="w-4 h-4 mr-2" /> Prazo
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onSelect={() => setTimeout(() => setNovaAudienciaOpen(true), 0)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
                                              <Gavel className="w-4 h-4 mr-2" /> Audiência
                                            </DropdownMenuItem>
                                          </DropdownMenuContent>
@@ -4849,6 +4873,7 @@ const AnaliseDjen = () => {
           open={novoEventoOpen}
           onOpenChange={setNovoEventoOpen}
           evento={null}
+          defaultProcessoId={adicionarProcessoId}
         />
 
         {/* Novo Prazo */}
@@ -4856,6 +4881,7 @@ const AnaliseDjen = () => {
           open={novoPrazoOpen}
           onOpenChange={setNovoPrazoOpen}
           prazo={null}
+          defaultProcessoId={adicionarProcessoId}
         />
 
         {/* Nova Audiência */}
@@ -4864,7 +4890,10 @@ const AnaliseDjen = () => {
             <DialogHeader>
               <DialogTitle>Nova Audiência</DialogTitle>
             </DialogHeader>
-            <CadastroAudienciaForm />
+            <CadastroAudienciaForm
+              key={`${adicionarProcessoNumero ?? "novo"}-${novaAudienciaOpen ? "open" : "closed"}`}
+              defaultProcessoNumero={adicionarProcessoNumero}
+            />
           </DialogContent>
         </Dialog>
       </div>

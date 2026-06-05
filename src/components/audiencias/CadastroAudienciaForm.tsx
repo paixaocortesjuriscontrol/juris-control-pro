@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,12 +11,16 @@ import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
-export function CadastroAudienciaForm() {
+interface CadastroAudienciaFormProps {
+  defaultProcessoNumero?: string;
+}
+
+export function CadastroAudienciaForm({ defaultProcessoNumero }: CadastroAudienciaFormProps = {}) {
   const { criarAudiencia } = useAudienciasDetectadas();
   const [advogadosSelecionados, setAdvogadosSelecionados] = useState<string[]>([]);
   const [buscandoProcesso, setBuscandoProcesso] = useState(false);
   const [formData, setFormData] = useState<Omit<NovaAudiencia, 'advogados_ids'>>({
-    processo_numero: "",
+    processo_numero: defaultProcessoNumero ?? "",
     data_audiencia: "",
     hora: "",
     hora_local: "",
@@ -39,6 +43,7 @@ export function CadastroAudienciaForm() {
     nucleo_origem: "",
     dossie: "",
   });
+  const autoBuscaRef = useRef(false);
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -50,6 +55,10 @@ export function CadastroAudienciaForm() {
       toast({ title: "Informe o número do processo", variant: "destructive" });
       return;
     }
+    return await buscarProcessoPorNumero(numero, true);
+  };
+
+  const buscarProcessoPorNumero = async (numero: string, showToast: boolean) => {
     setBuscandoProcesso(true);
     try {
       const numeroDigits = numero.replace(/\D/g, "");
@@ -63,7 +72,7 @@ export function CadastroAudienciaForm() {
       const { data, error } = await query.maybeSingle();
       if (error) throw error;
       if (!data) {
-        toast({ title: "Processo não encontrado", variant: "destructive" });
+        if (showToast) toast({ title: "Processo não encontrado", variant: "destructive" });
         return;
       }
       setFormData(prev => ({
@@ -74,13 +83,22 @@ export function CadastroAudienciaForm() {
         vara_camara: data.vara ?? prev.vara_camara,
         comarca: data.comarca ?? prev.comarca,
       }));
-      toast({ title: "Dados do processo carregados" });
+      if (showToast) toast({ title: "Dados do processo carregados" });
     } catch (err: any) {
-      toast({ title: "Erro ao buscar processo", description: err.message, variant: "destructive" });
+      if (showToast) toast({ title: "Erro ao buscar processo", description: err.message, variant: "destructive" });
     } finally {
       setBuscandoProcesso(false);
     }
   };
+
+  // Auto-buscar quando recebermos defaultProcessoNumero (ex.: vindo da publicação DJEN)
+  useEffect(() => {
+    if (defaultProcessoNumero && !autoBuscaRef.current) {
+      autoBuscaRef.current = true;
+      buscarProcessoPorNumero(defaultProcessoNumero, false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultProcessoNumero]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
