@@ -1170,6 +1170,30 @@ export default function PainelControle() {
         open={novaTarefaOpen}
         onOpenChange={setNovaTarefaOpen}
       />
+
+      {/* Novo Evento */}
+      <EventoDialog
+        open={novoEventoOpen}
+        onOpenChange={setNovoEventoOpen}
+        evento={null}
+      />
+
+      {/* Novo Prazo */}
+      <PrazoDialog
+        open={novoPrazoOpen}
+        onOpenChange={setNovoPrazoOpen}
+        prazo={null}
+      />
+
+      {/* Nova Audiência */}
+      <Dialog open={novaAudienciaOpen} onOpenChange={setNovaAudienciaOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nova Audiência</DialogTitle>
+          </DialogHeader>
+          <CadastroAudienciaForm />
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
