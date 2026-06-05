@@ -556,6 +556,14 @@ export function CriarTarefaPublicacaoDialog({
                               });
                               setTarefaEditandoId(tarefa.id);
                               setObservacoesIA(null);
+                              // Carregar responsáveis e envolvidos existentes
+                              const [{ data: resps }, { data: envs }] = await Promise.all([
+                                supabase.from("tarefa_responsaveis").select("usuario_id").eq("tarefa_id", tarefa.id),
+                                supabase.from("tarefa_envolvidos").select("usuario_id").eq("tarefa_id", tarefa.id),
+                              ]);
+                              const respIds = (resps || []).map((r: any) => r.usuario_id);
+                              setResponsaveisIds(respIds.length > 0 ? respIds : (data.responsavel_id ? [data.responsavel_id] : []));
+                              setEnvolvidosIds((envs || []).map((e: any) => e.usuario_id));
                             }
                           }}
                           className={`text-xs w-full text-left rounded px-2 py-1.5 border transition-colors ${
