@@ -62,7 +62,6 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
     dataVencimento: format(new Date(), "yyyy-MM-dd"),
     valorPadrao: "",
     intervalo: "mensal",
-    processo_id: "",
     participantes_ids: [] as string[],
     enviar_whatsapp: false,
     alerta_minutos: [30] as number[],
@@ -70,9 +69,10 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
     hora_alerta: "09:00",
   });
   
-  // Estados para busca de processo
+  // Estados para busca de processo (suporta múltiplos vínculos)
   const [coordenacaoProcessoFiltro, setCoordenacaoProcessoFiltro] = useState<string>("todas");
   const [processoSearch, setProcessoSearch] = useState("");
+  const [processoIds, setProcessoIds] = useState<string[]>([]);
   
   // Estados para participantes
   const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
@@ -115,20 +115,19 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
     },
   });
 
-  // Buscar processo selecionado para exibir
-  const { data: processoSelecionado } = useQuery({
-    queryKey: ["processo-selecionado-parcelas", formData.processo_id],
+  // Buscar processos selecionados (múltiplos) para exibir como chips
+  const { data: processosSelecionados = [] } = useQuery({
+    queryKey: ["processos-selecionados-parcelas", processoIds.slice().sort().join(",")],
     queryFn: async () => {
-      if (!formData.processo_id) return null;
+      if (processoIds.length === 0) return [];
       const { data, error } = await supabase
         .from("processos")
         .select("id, numero, polo_ativo, polo_passivo")
-        .eq("id", formData.processo_id)
-        .single();
-      if (error) return null;
-      return data;
+        .in("id", processoIds);
+      if (error) return [];
+      return data || [];
     },
-    enabled: !!formData.processo_id,
+    enabled: processoIds.length > 0,
   });
 
   // Query para buscar usuários (participantes)
@@ -223,6 +222,22 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
       const primeiraData =
         parcelasExistentes?.[0]?.data_vencimento || format(dataInicioSP, "yyyy-MM-dd");
 
+      // Carregar processos vinculados (múltiplos) com fallback ao processo_id legado
+      (async () => {
+        const { data: links } = await supabase
+          .from("evento_processos")
+          .select("processo_id")
+          .eq("evento_id", evento.id);
+        const ids = (links || []).map((l: any) => l.processo_id);
+        if (ids.length > 0) {
+          setProcessoIds(ids);
+        } else if (evento.processo_id) {
+          setProcessoIds([evento.processo_id]);
+        } else {
+          setProcessoIds([]);
+        }
+      })();
+
       setFormData((prev) => ({
         ...prev,
         titulo: evento.titulo,
@@ -231,7 +246,6 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         dataVencimento: primeiraData,
         valorPadrao: "",
         intervalo: "mensal", // Detectar intervalo se possível
-        processo_id: evento.processo_id || "",
         participantes_ids: evento.participantes?.map((p) => p.usuario_id) || [],
         enviar_whatsapp: evento.enviar_whatsapp || false,
         // quando a query de alertas carregar, usa o valor real (evita voltar para 30)
@@ -258,12 +272,12 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         dataVencimento: format(new Date(), "yyyy-MM-dd"),
         valorPadrao: "",
         intervalo: "mensal",
-        processo_id: defaultProcessoId || "",
         participantes_ids: [],
         enviar_whatsapp: false,
         alerta_minutos: [30],
         hora_alerta: "09:00",
       });
+      setProcessoIds(defaultProcessoId ? [defaultProcessoId] : []);
       setValoresIndividuais([]);
       setDatasIndividuais([]);
     }
@@ -376,7 +390,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                 `Parcelamento com ${formData.totalParcelas} parcelas. Valor total: R$ ${valorTotal}`,
               // mantém o evento de parcelamento apontando para a data da 1ª parcela, mas com um horário base para alertas
               data_inicio: `${formData.dataVencimento}T${formData.hora_alerta || "09:00"}:00-03:00`,
-              processo_id: formData.processo_id || null,
+              processo_id: processoIds[0] || null,
               total_parcelas: formData.totalParcelas,
               enviar_whatsapp: formData.enviar_whatsapp,
               recorrente: true, // Parcelamento é recorrente até terminar
@@ -393,6 +407,14 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
               evento_id: evento.id,
               usuario_id: userId,
             }))
+          );
+        }
+
+        // Sincronizar processos vinculados (múltiplos)
+        await (supabase as any).from("evento_processos").delete().eq("evento_id", evento.id);
+        if (processoIds.length > 0) {
+          await (supabase as any).from("evento_processos").insert(
+            processoIds.map((pid) => ({ evento_id: evento.id, processo_id: pid }))
           );
         }
 
@@ -443,7 +465,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
             criado_por: user.id,
             status: "pendente",
             total_parcelas: formData.totalParcelas,
-            processo_id: formData.processo_id || null,
+            processo_id: processoIds[0] || null,
             enviar_whatsapp: formData.enviar_whatsapp,
             recorrente: true, // Parcelamento é recorrente até terminar
           })
@@ -459,6 +481,13 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
               evento_id: novoEvento.id,
               usuario_id: userId,
             }))
+          );
+        }
+
+        // Vincular múltiplos processos
+        if (processoIds.length > 0) {
+          await (supabase as any).from("evento_processos").insert(
+            processoIds.map((pid) => ({ evento_id: novoEvento.id, processo_id: pid }))
           );
         }
 
@@ -548,34 +577,43 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
               />
             </div>
 
-            {/* Vincular Processo */}
+            {/* Vincular Processos (múltiplos) */}
             <div className="border rounded-lg p-4 space-y-3">
               <Label className="font-medium flex items-center gap-2">
                 <FileText className="w-4 h-4" />
-                Vincular Processo (opcional)
+                Vincular Processos (opcional)
               </Label>
-              
-              {/* Processo selecionado */}
-              {processoSelecionado && (
-                <div className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
-                  <div className="text-sm">
-                    <span className="font-medium">{processoSelecionado.numero}</span>
-                    <span className="text-muted-foreground ml-2">
-                      {processoSelecionado.polo_ativo} x {processoSelecionado.polo_passivo}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="p-1 hover:bg-muted rounded"
-                    onClick={() => setFormData({ ...formData, processo_id: "" })}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+
+              {/* Processos selecionados como chips */}
+              {processosSelecionados.length > 0 && (
+                <div className="space-y-1">
+                  {processosSelecionados.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between gap-2 p-2 bg-muted/50 rounded-md"
+                    >
+                      <div className="text-sm min-w-0 flex-1">
+                        <span className="font-medium">{p.numero}</span>
+                        <span className="text-muted-foreground ml-2 truncate">
+                          {p.polo_ativo} x {p.polo_passivo}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="p-1 hover:bg-destructive/10 rounded shrink-0"
+                        onClick={() =>
+                          setProcessoIds((prev) => prev.filter((id) => id !== p.id))
+                        }
+                        title="Remover vínculo"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
-              
-              {!formData.processo_id && (
-                <>
+
+              <>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Select value={coordenacaoProcessoFiltro} onValueChange={setCoordenacaoProcessoFiltro}>
                       <SelectTrigger className="w-full sm:w-72">
@@ -603,11 +641,14 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                   </div>
                   
                   <div className="max-h-32 overflow-y-auto space-y-1">
-                    {processos?.map((processo) => (
+                    {processos?.filter((pp) => !processoIds.includes(pp.id)).map((processo) => (
                       <div
                         key={processo.id}
                         className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer text-sm"
-                        onClick={() => setFormData({ ...formData, processo_id: processo.id })}
+                        onClick={() => {
+                          setProcessoIds((prev) => prev.includes(processo.id) ? prev : [...prev, processo.id]);
+                          setProcessoSearch("");
+                        }}
                       >
                         <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                         <span className="font-medium">{processo.numero}</span>
@@ -622,8 +663,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                       </p>
                     )}
                   </div>
-                </>
-              )}
+              </>
             </div>
 
             {/* Responsáveis/Participantes */}
