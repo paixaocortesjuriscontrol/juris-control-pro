@@ -737,13 +737,13 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => onNavigate?.("tarefas")}>
+                    <DropdownMenuItem onSelect={() => setNovaTarefaOpen(true)}>
                       <ListTodo className="w-4 h-4 mr-2" /> Tarefa
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onNavigate?.("prazo")}>
+                    <DropdownMenuItem onSelect={() => setNovoPrazoOpen(true)}>
                       <Clock className="w-4 h-4 mr-2" /> Prazo
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onNavigate?.("agenda")}>
+                    <DropdownMenuItem onSelect={() => setNovoEventoOpen(true)}>
                       <CalendarDays className="w-4 h-4 mr-2" /> Evento
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setCriarAudienciaOpen(true)}>
