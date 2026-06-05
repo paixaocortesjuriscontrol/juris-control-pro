@@ -30,6 +30,10 @@ import {
   Minimize2,
   Layers,
   Zap,
+  Plus,
+  ClipboardList,
+  CalendarPlus,
+  Clock,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -75,6 +79,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { EventoDialog } from "@/components/agenda/EventoDialog";
+import { PrazoDialog } from "@/components/prazos/PrazoDialog";
+import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
 import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicacaoDjen";
@@ -206,6 +219,9 @@ const AnaliseDjen = () => {
   );
   const [viewDialogOpen, setViewDialogOpen] = useState(false); // kept for potential future use
   const [criarTarefaDialogOpen, setCriarTarefaDialogOpen] = useState(false);
+  const [novoEventoOpen, setNovoEventoOpen] = useState(false);
+  const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
+  const [novaAudienciaOpen, setNovaAudienciaOpen] = useState(false);
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
@@ -4474,19 +4490,33 @@ const AnaliseDjen = () => {
                                          </Button>
                                        ) : null}
                                        
-                                       <Button
-                                         variant="outline"
-                                         size="sm"
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           handleCriarTarefa(pub);
-                                         }}
-                                         title="Criar tarefa a partir desta publicação"
-                                         className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
-                                       >
-                                         <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
-                                         <span className="text-xs">Criar Tarefa</span>
-                                       </Button>
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              title="Adicionar item a partir desta publicação"
+                                              className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
+                                            >
+                                              <Plus className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                              <span className="text-xs">Adicionar</span>
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
+                                            <DropdownMenuItem onClick={() => handleCriarTarefa(pub)}>
+                                              <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => setNovoEventoOpen(true)}>
+                                              <CalendarPlus className="w-4 h-4 mr-2" /> Evento
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => setNovoPrazoOpen(true)}>
+                                              <Clock className="w-4 h-4 mr-2" /> Prazo
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => setNovaAudienciaOpen(true)}>
+                                              <Gavel className="w-4 h-4 mr-2" /> Audiência
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
                                        
                                        {/* Botão Marcar como Lida individual */}
                                        {!pub.lida && (
@@ -4551,19 +4581,33 @@ const AnaliseDjen = () => {
                                       <span className="text-xs md:text-sm text-muted-foreground hover:text-foreground">
                                         Clique para ver detalhes
                                       </span>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleCriarTarefa(pub);
-                                        }}
-                                        title="Criar tarefa a partir desta publicação"
-                                        className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
-                                      >
-                                        <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
-                                        <span className="text-xs">Criar Tarefa</span>
-                                      </Button>
+                                       <DropdownMenu>
+                                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                           <Button
+                                             variant="outline"
+                                             size="sm"
+                                             title="Adicionar item a partir desta publicação"
+                                             className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
+                                           >
+                                             <Plus className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                             <span className="text-xs">Adicionar</span>
+                                           </Button>
+                                         </DropdownMenuTrigger>
+                                         <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
+                                           <DropdownMenuItem onClick={() => handleCriarTarefa(pub)}>
+                                             <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
+                                           </DropdownMenuItem>
+                                           <DropdownMenuItem onClick={() => setNovoEventoOpen(true)}>
+                                             <CalendarPlus className="w-4 h-4 mr-2" /> Evento
+                                           </DropdownMenuItem>
+                                           <DropdownMenuItem onClick={() => setNovoPrazoOpen(true)}>
+                                             <Clock className="w-4 h-4 mr-2" /> Prazo
+                                           </DropdownMenuItem>
+                                           <DropdownMenuItem onClick={() => setNovaAudienciaOpen(true)}>
+                                             <Gavel className="w-4 h-4 mr-2" /> Audiência
+                                           </DropdownMenuItem>
+                                         </DropdownMenuContent>
+                                       </DropdownMenu>
                                       
                                       {/* Botão Marcar como Lida individual */}
                                       {!pub.lida && (
@@ -4799,6 +4843,30 @@ const AnaliseDjen = () => {
           onOpenChange={setCriarTarefaDialogOpen}
           publicacao={selectedPublicacao}
         />
+
+        {/* Novo Evento */}
+        <EventoDialog
+          open={novoEventoOpen}
+          onOpenChange={setNovoEventoOpen}
+          evento={null}
+        />
+
+        {/* Novo Prazo */}
+        <PrazoDialog
+          open={novoPrazoOpen}
+          onOpenChange={setNovoPrazoOpen}
+          prazo={null}
+        />
+
+        {/* Nova Audiência */}
+        <Dialog open={novaAudienciaOpen} onOpenChange={setNovaAudienciaOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Nova Audiência</DialogTitle>
+            </DialogHeader>
+            <CadastroAudienciaForm />
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );
