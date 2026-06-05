@@ -89,7 +89,6 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: 
   const [coordenacaoProcessoFiltro, setCoordenacaoProcessoFiltro] = useState<string>("todas");
   const [participanteSearch, setParticipanteSearch] = useState("");
   const [processoSearch, setProcessoSearch] = useState("");
-  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
 
   const { data: coordenacoes } = useQuery({
@@ -227,13 +226,12 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: 
         enviar_whatsapp: evento.enviar_whatsapp ?? true,
         hora_alerta: format(dataInicio, "HH:mm") || "09:00",
       }));
-      // Carregar responsáveis e envolvidos do evento
+      // Carregar envolvidos do evento
       (async () => {
-        const [{ data: resps }, { data: envs }] = await Promise.all([
-          supabase.from("evento_responsaveis").select("usuario_id").eq("evento_id", evento.id),
-          supabase.from("evento_envolvidos").select("usuario_id").eq("evento_id", evento.id),
-        ]);
-        setResponsaveisIds((resps || []).map((r: any) => r.usuario_id));
+        const { data: envs } = await supabase
+          .from("evento_envolvidos")
+          .select("usuario_id")
+          .eq("evento_id", evento.id);
         setEnvolvidosIds((envs || []).map((e: any) => e.usuario_id));
       })();
     } else if (open) {
@@ -257,7 +255,6 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: 
         enviar_whatsapp: true,
         hora_alerta: "09:00",
       });
-      setResponsaveisIds([]);
       setEnvolvidosIds([]);
     }
   }, [evento, open, alertasEvento, defaultProcessoId]);
@@ -345,9 +342,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: 
 
   const persistirResponsaveisEnvolvidos = async (eventoId: string) => {
     await supabase.from("evento_responsaveis").delete().eq("evento_id", eventoId);
-    if (responsaveisIds.length > 0) {
+    if (formData.participantes_ids.length > 0) {
       await supabase.from("evento_responsaveis").insert(
-        responsaveisIds.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
+        formData.participantes_ids.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
       );
     }
     await supabase.from("evento_envolvidos").delete().eq("evento_id", eventoId);
