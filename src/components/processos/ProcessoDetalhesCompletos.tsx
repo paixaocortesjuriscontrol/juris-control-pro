@@ -8,7 +8,7 @@ import { AnaliseJuditTab } from "@/components/distribuicao-tst/AnaliseJuditTab";
 import { PrazoSectionEditable } from "./PrazoSectionEditable";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { BaixarAutosButton } from "./BaixarAutosButton";
-import { ProcessoVisaoGeralForm } from "./ProcessoVisaoGeralForm";
+import { ProcessoVisaoGeralForm, type ProcessoVisaoGeralFormHandle } from "./ProcessoVisaoGeralForm";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -192,6 +192,16 @@ export function ProcessoDetalhesCompletos({
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Inicializa com initialSection se fornecido (vem do ?tab= da URL)
   const [activeSection, setActiveSection] = useState<string>(initialSection || "resumo");
+
+  // Ref para o formulário Resumo — permite autosave ao trocar de seção
+  const visaoGeralRef = useRef<ProcessoVisaoGeralFormHandle>(null);
+  const handleSectionChange = (next: string) => {
+    if (activeSection === "resumo" && next !== "resumo" && visaoGeralRef.current) {
+      // Autosave em background — não bloqueia a navegação
+      visaoGeralRef.current.save().catch(() => {});
+    }
+    setActiveSection(next);
+  };
   
   // Sincroniza quando initialSection muda (navegação SPA para o mesmo processo com ?tab= diferente)
   const prevInitialSectionRef = useRef<string | undefined>(undefined);
@@ -869,7 +879,7 @@ export function ProcessoDetalhesCompletos({
                   {group.items.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => setActiveSection(item.id)}
+                      onClick={() => handleSectionChange(item.id)}
                       className={cn(
                         "flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-md whitespace-nowrap transition-colors",
                         activeSection === item.id
@@ -908,7 +918,7 @@ export function ProcessoDetalhesCompletos({
                   {group.items.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => setActiveSection(item.id)}
+                      onClick={() => handleSectionChange(item.id)}
                       className={cn(
                         "w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-left transition-colors",
                         activeSection === item.id
@@ -943,32 +953,26 @@ export function ProcessoDetalhesCompletos({
             No desktop mantemos scroll interno via overflow-y-auto + altura fixa.
           */}
           <div className="p-3 sm:p-4 sm:h-[calc(100vh-120px)] sm:overflow-y-auto">
-              {/* Barra de ações Judit sempre visível nas seções Análise/Anexos Judit
-                 — mantém Sincronizar Judit, Judit c/ anexos, Judit (Interno),
-                 Análise Judit, Anexos Judit e Salvar alterações ao alcance. */}
-              {(activeSection === "analise-judit" || activeSection === "anexos-judit") && (
-                <div className="mb-3">
-                  <ProcessoVisaoGeralForm
-                    processo={processo}
-                    audiencias={audiencias}
-                    intimacoes={intimacoes}
-                    tarefas={tarefas}
-                    movimentacoes={movimentacoes}
-                    onNavigate={setActiveSection}
-                    compact
-                  />
-                </div>
-              )}
+              {/* Toolbar global de ações Judit — sempre visível no topo, próximo ao login */}
+              <div className="mb-3 flex justify-end">
+                <ProcessoVisaoGeralForm
+                  processo={processo}
+                  onNavigate={handleSectionChange}
+                  actionsOnly
+                />
+              </div>
               {/* Resumo Section - Visão geral rápida */}
               {/* Visão Geral — formulário único editável (Resumo + Detalhes + Envolvidos) */}
               {activeSection === "resumo" && (
                 <ProcessoVisaoGeralForm
+                  ref={visaoGeralRef}
                   processo={processo}
                   audiencias={audiencias}
                   intimacoes={intimacoes}
                   tarefas={tarefas}
                   movimentacoes={movimentacoes}
-                  onNavigate={setActiveSection}
+                  onNavigate={handleSectionChange}
+                  hideJuditButtons
                 />
               )}
 

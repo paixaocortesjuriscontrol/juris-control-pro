@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +34,21 @@ interface Props {
    * manter os botões sempre visíveis sem renderizar o formulário completo.
    */
   compact?: boolean;
+  /**
+   * Renderiza APENAS a barra de botões Judit (sem o formulário e sem o botão
+   * Salvar). Útil para um toolbar global no topo da tela.
+   */
+  actionsOnly?: boolean;
+  /**
+   * Esconde os botões Judit (Sincronizar/Anexos/Interno/Análise) dentro do
+   * formulário — usado quando esses botões já estão num toolbar superior.
+   */
+  hideJuditButtons?: boolean;
 }
+
+export type ProcessoVisaoGeralFormHandle = {
+  save: () => Promise<void>;
+};
 
 // Lista de campos editáveis (whitelist) - todos da tabela processos
 const FIELDS = [
@@ -82,7 +96,7 @@ function SectionHeader({ icon: Icon, title }: { icon: any; title: string }) {
   );
 }
 
-export function ProcessoVisaoGeralForm({
+export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, Props>(function ProcessoVisaoGeralForm({
   processo,
   audiencias = [],
   intimacoes = [],
@@ -90,7 +104,9 @@ export function ProcessoVisaoGeralForm({
   movimentacoes = [],
   onNavigate,
   compact = false,
-}: Props) {
+  actionsOnly = false,
+  hideJuditButtons = false,
+}, ref) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<Record<string, any>>({});
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
@@ -554,6 +570,58 @@ export function ProcessoVisaoGeralForm({
       : "";
   const isAdmin = useMemo(() => processo?.tipo_processo === "administrativo", [processo?.tipo_processo]);
 
+  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave, form, responsaveis, processo?.id]);
+
+  // Modo "actionsOnly": renderiza apenas a barra de botões Judit (sem Save)
+  if (actionsOnly) {
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleSyncJudit(false)}
+          disabled={juditBusy || saving}
+          className="gap-1"
+        >
+          {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-emerald-600" />}
+          {syncing ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando… ${juditElapsed}s`) : "Sincronizar Judit"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleSyncJuditInterno(true)}
+          disabled={juditBusy || saving}
+          className="gap-1 border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+        >
+          {syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {syncingAnexos ? `Anexos… ${juditElapsed}s` : "Judit c/ anexos"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleSyncJuditInterno(false)}
+          disabled={juditBusy || saving}
+          className="gap-1 border-indigo-500 text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
+        >
+          {syncingInterno ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {syncingInterno ? `Interno… ${juditElapsed}s` : "Judit (Interno)"}
+        </Button>
+        {onNavigate && (
+          <>
+            <Button size="sm" variant="outline" onClick={() => onNavigate("analise-judit")} className="gap-1">
+              <Sparkles className="w-4 h-4 text-emerald-600" />
+              Análise Judit
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => onNavigate("anexos-judit")} className="gap-1">
+              <Paperclip className="w-4 h-4 text-emerald-600" />
+              Anexos Judit
+            </Button>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {!compact && (
@@ -592,20 +660,10 @@ export function ProcessoVisaoGeralForm({
       )}
       <Card>
         <CardContent className="p-4 md:p-6 space-y-6">
-          {/* Cabeçalho do form */}
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="min-w-0">
-              <h2 className="text-base font-semibold text-foreground">Visão Geral do Processo</h2>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-xs font-mono text-muted-foreground">{processo?.numero}</span>
-                {processo?.numero && (
-                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copy(processo.numero)}>
-                    <Copy className="w-3 h-3" />
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
+          {/* Cabeçalho do form — apenas botões de ação */}
+          <div className="flex items-center justify-end gap-2 flex-wrap">
+            {!hideJuditButtons && (
+              <>
               <Button
                 size="sm"
                 variant="outline"
@@ -665,11 +723,12 @@ export function ProcessoVisaoGeralForm({
                   </Button>
                 </>
               )}
-              <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos}>
+              </>
+            )}
+            <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos}>
                 {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
                 Salvar alterações
               </Button>
-            </div>
           </div>
 
           {juditBusy && (
@@ -700,7 +759,12 @@ export function ProcessoVisaoGeralForm({
                 <SectionHeader icon={FileText} title="Identificação" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <FormField label="Assunto" className="md:col-span-2">
-                    <Input className={cn(inputCls, jcls("assunto"))} value={form.assunto || ""} onChange={(e) => update("assunto", e.target.value)} />
+                    <Textarea
+                      rows={3}
+                      className={cn("text-sm min-h-[72px]", jcls("assunto"))}
+                      value={form.assunto || ""}
+                      onChange={(e) => update("assunto", e.target.value)}
+                    />
                   </FormField>
                   <FormField label="Tipo de Processo">
                     <Select value={form.tipo_processo || "judicial"} onValueChange={(v) => update("tipo_processo", v)}>
@@ -733,7 +797,37 @@ export function ProcessoVisaoGeralForm({
                     <Input className={cn(inputCls, jcls("area"))} value={form.area || ""} onChange={(e) => update("area", e.target.value)} />
                   </FormField>
                   <FormField label="Fase Processual">
-                    <Input className={cn(inputCls, jcls("fase"))} value={form.fase || ""} onChange={(e) => update("fase", e.target.value)} />
+                    {(() => {
+                      const FASES = ["Conhecimento", "Instrutória", "Recursal", "Execução"];
+                      const isPreset = FASES.includes(form.fase || "");
+                      const isOutros = !!form.fase && !isPreset;
+                      const selectValue = isPreset ? form.fase : (isOutros ? "__outros__" : "");
+                      return (
+                        <div className="space-y-1.5">
+                          <Select
+                            value={selectValue}
+                            onValueChange={(v) => {
+                              if (v === "__outros__") update("fase", form.fase && !isPreset ? form.fase : " ");
+                              else update("fase", v);
+                            }}
+                          >
+                            <SelectTrigger className={cn(inputCls, jcls("fase"))}><SelectValue placeholder="Selecione" /></SelectTrigger>
+                            <SelectContent>
+                              {FASES.map((f) => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                              <SelectItem value="__outros__">+ Outros</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {(selectValue === "__outros__" || isOutros) && (
+                            <Input
+                              className={cn(inputCls, jcls("fase"))}
+                              placeholder="Digite a fase"
+                              value={isPreset ? "" : (form.fase || "").trim()}
+                              onChange={(e) => update("fase", e.target.value)}
+                            />
+                          )}
+                        </div>
+                      );
+                    })()}
                   </FormField>
                 </div>
               </section>
@@ -749,16 +843,16 @@ export function ProcessoVisaoGeralForm({
                     <Input className={cn(inputCls, jcls("justica"))} value={form.justica || ""} onChange={(e) => update("justica", e.target.value)} />
                   </FormField>
                   <FormField label="Instância">
-                    <Input className={cn(inputCls, jcls("instancia"))} value={form.instancia || ""} onChange={(e) => update("instancia", e.target.value)} />
-                  </FormField>
-                  <FormField label="Esfera">
-                    <Input className={cn(inputCls, jcls("esfera"))} value={form.esfera || ""} onChange={(e) => update("esfera", e.target.value)} />
-                  </FormField>
-                  <FormField label="Sistema">
-                    <Input className={cn(inputCls, jcls("sistema"))} value={form.sistema || ""} onChange={(e) => update("sistema", e.target.value)} />
-                  </FormField>
-                  <FormField label="Matéria">
-                    <Input className={cn(inputCls, jcls("materia"))} value={form.materia || ""} onChange={(e) => update("materia", e.target.value)} />
+                    <Select value={form.instancia || ""} onValueChange={(v) => update("instancia", v)}>
+                      <SelectTrigger className={cn(inputCls, jcls("instancia"))}><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1ª Instância">1ª Instância</SelectItem>
+                        <SelectItem value="2ª Instância">2ª Instância</SelectItem>
+                        <SelectItem value="STJ">STJ</SelectItem>
+                        <SelectItem value="TST">TST</SelectItem>
+                        <SelectItem value="STF">STF</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </FormField>
                   <FormField label="Órgão Julgador" className="md:col-span-2">
                     <Input className={cn(inputCls, jcls("orgao_julgador"))} value={form.orgao_julgador || ""} onChange={(e) => update("orgao_julgador", e.target.value)} />
@@ -941,4 +1035,4 @@ export function ProcessoVisaoGeralForm({
       )}
     </div>
   );
-}
+});
