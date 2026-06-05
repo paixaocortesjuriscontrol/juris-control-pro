@@ -306,6 +306,10 @@ export function useCreateTarefa() {
       data_base?: string | null;
       data_fatal?: string | null;
       grupos_trabalho?: string | null;
+      prazo_dias?: number | null;
+      prazo_unidade?: "uteis" | "corridos" | null;
+      alerta_dias?: number | null;
+      alerta_unidade?: "uteis" | "corridos" | null;
     }) => {
       const { data, error } = await supabase
         .from("tarefas")
@@ -376,6 +380,10 @@ export function useUpdateTarefa() {
       data_fatal?: string | null;
       grupos_trabalho?: string | null;
       processo_id?: string | null;
+      prazo_dias?: number | null;
+      prazo_unidade?: "uteis" | "corridos" | null;
+      alerta_dias?: number | null;
+      alerta_unidade?: "uteis" | "corridos" | null;
     }) => {
       const { data, error } = await supabase
         .from("tarefas")
