@@ -19,6 +19,13 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, FileText, Search, X, UserPlus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
+import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
+import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import { useCreateEvento, useUpdateEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -31,6 +38,7 @@ interface EventoDialogProps {
   onOpenChange: (open: boolean) => void;
   evento?: EventoAgenda | null;
   defaultProcessoId?: string;
+  publicacao?: PublicacaoUnificada | null;
 }
 
 type AlertaUnidade = "minutos" | "horas" | "dias" | "semanas";
@@ -56,7 +64,7 @@ function minutosParaUnidade(min: number): { valor: number; unidade: AlertaUnidad
   return { valor: min, unidade: "minutos" };
 }
 
-export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: EventoDialogProps) {
+export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
   const isEditing = !!evento;
@@ -246,22 +254,85 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: 
   };
 
   const isPending = createEvento.isPending || updateEvento.isPending;
+  const hasPublicacao = !!publicacao;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="w-[95vw] max-w-2xl h-[90vh] max-h-[90vh] overflow-hidden flex flex-col p-0"
+        className={cn(
+          "p-0 gap-0 overflow-hidden flex flex-col",
+          hasPublicacao ? "w-[95vw] max-w-5xl h-[90vh]" : "w-[95vw] max-w-2xl h-[90vh] max-h-[90vh]"
+        )}
         aria-describedby="evento-dialog-description"
       >
-        <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
+        <DialogHeader className="sr-only">
           <DialogTitle>{isEditing ? "Editar Evento" : "Novo Evento"}</DialogTitle>
-          <p id="evento-dialog-description" className="sr-only">
-            Formulário para criar ou editar um evento na agenda
-          </p>
+          <p id="evento-dialog-description">Formulário para criar ou editar um evento na agenda</p>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6">
-          <form onSubmit={handleSubmit} className="space-y-5 pb-6">
+        <div className={cn("flex flex-1 min-h-0 overflow-hidden", hasPublicacao ? "flex-col lg:flex-row" : "flex-col")}>
+          {hasPublicacao && (
+            <div className="hidden lg:flex flex-1 border-r flex-col min-h-0">
+              <div className="p-4 border-b bg-muted/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Publicação</span>
+                </div>
+                <div className="space-y-1 text-sm">
+                  {publicacao?.processo_numero && (
+                    <div className="font-mono text-xs">{publicacao.processo_numero}</div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {publicacao?.data_publicacao && (
+                      <span>
+                        Publicado em {format(parseISO(publicacao.data_publicacao), "dd/MM/yyyy", { locale: ptBR })}
+                      </span>
+                    )}
+                    {publicacao?.tribunal && <Badge variant="outline">{publicacao.tribunal}</Badge>}
+                    {publicacao?.tipo_comunicacao && <Badge variant="outline">{publicacao.tipo_comunicacao}</Badge>}
+                  </div>
+                  {(publicacao?.polo_ativo || publicacao?.polo_passivo) && (
+                    <div className="text-xs text-muted-foreground pt-1">
+                      {publicacao?.polo_ativo} {publicacao?.polo_passivo ? `× ${publicacao.polo_passivo}` : ""}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <ScrollArea className="flex-1 p-4">
+                <div className={cn("text-sm", conteudoDisplayClasses)}>
+                  {formatConteudoParaExibicao(publicacao?.conteudo || "")}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+
+          <div className={cn("flex flex-col min-h-0", hasPublicacao ? "w-full lg:w-[520px] bg-background" : "flex-1")}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0">
+              <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
+                {isEditing ? "Editar Evento" : "Novo Evento"}
+              </h3>
+              {hasPublicacao && (
+                <BotaoPreencherIA
+                  conteudo={publicacao?.conteudo}
+                  tipoTarefa="AUDIÊNCIA"
+                  processoNumero={publicacao?.processo_numero}
+                  dataPublicacao={publicacao?.data_publicacao}
+                  size="sm"
+                  onResultado={(resultado) => {
+                    if (resultado.titulo) setTitulo(resultado.titulo);
+                    if (resultado.descricao || resultado.observacoes) {
+                      setObservacoes([resultado.descricao, resultado.observacoes].filter(Boolean).join("\n\n"));
+                    }
+                    if (resultado.data_vencimento) {
+                      setDataInicio(resultado.data_vencimento);
+                      setDataFim(resultado.data_vencimento);
+                    }
+                  }}
+                />
+              )}
+            </div>
+            <ScrollArea className="flex-1 px-6">
+              <form onSubmit={handleSubmit} className="space-y-5 pb-6" id="evento-form-content">
             {/* Título */}
             <div>
               <Label htmlFor="titulo" className="text-sm">
@@ -533,6 +604,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: 
             </div>
           </form>
         </ScrollArea>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
