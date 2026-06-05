@@ -215,7 +215,7 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
       if (!user) throw new Error('Usuário não autenticado');
 
       // Extrair advogados_ids antes de inserir
-      const { advogados_ids, ...dadosAudiencia } = novaAudiencia;
+      const { advogados_ids, envolvidos_ids, ...dadosAudiencia } = novaAudiencia;
 
       // Converter data para formato ISO completo (timestamp with time zone)
       let dataAudienciaISO: string | null = null;
@@ -272,6 +272,16 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
             },
           });
         }
+      }
+
+      // Inserir envolvidos (apenas acompanham)
+      if (envolvidos_ids && envolvidos_ids.length > 0 && audienciaCriada) {
+        await supabase.from('audiencia_envolvidos').insert(
+          envolvidos_ids.map((uid) => ({
+            audiencia_id: audienciaCriada.id,
+            usuario_id: uid,
+          }))
+        );
       }
 
       if (error) throw error;
