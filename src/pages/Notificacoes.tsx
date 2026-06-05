@@ -801,8 +801,8 @@ export default function Notificacoes({ embedded = false }: NotificacoesProps = {
     setActiveTab("dashboard");
   };
 
-  return (
-    <MainLayout title="Central de Notificações" subtitle={`${stats.total} alertas encontrados`}>
+  const body = (
+    <>
       {/* Filters Bar */}
       <div className="bg-card rounded-xl border border-border/50 p-4 mb-6 animate-fade-in">
         <div className="flex flex-col gap-4">
