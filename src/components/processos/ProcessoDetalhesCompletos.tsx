@@ -953,32 +953,26 @@ export function ProcessoDetalhesCompletos({
             No desktop mantemos scroll interno via overflow-y-auto + altura fixa.
           */}
           <div className="p-3 sm:p-4 sm:h-[calc(100vh-120px)] sm:overflow-y-auto">
-              {/* Barra de ações Judit sempre visível nas seções Análise/Anexos Judit
-                 — mantém Sincronizar Judit, Judit c/ anexos, Judit (Interno),
-                 Análise Judit, Anexos Judit e Salvar alterações ao alcance. */}
-              {(activeSection === "analise-judit" || activeSection === "anexos-judit") && (
-                <div className="mb-3">
-                  <ProcessoVisaoGeralForm
-                    processo={processo}
-                    audiencias={audiencias}
-                    intimacoes={intimacoes}
-                    tarefas={tarefas}
-                    movimentacoes={movimentacoes}
-                    onNavigate={setActiveSection}
-                    compact
-                  />
-                </div>
-              )}
+              {/* Toolbar global de ações Judit — sempre visível no topo, próximo ao login */}
+              <div className="mb-3 flex justify-end">
+                <ProcessoVisaoGeralForm
+                  processo={processo}
+                  onNavigate={handleSectionChange}
+                  actionsOnly
+                />
+              </div>
               {/* Resumo Section - Visão geral rápida */}
               {/* Visão Geral — formulário único editável (Resumo + Detalhes + Envolvidos) */}
               {activeSection === "resumo" && (
                 <ProcessoVisaoGeralForm
+                  ref={visaoGeralRef}
                   processo={processo}
                   audiencias={audiencias}
                   intimacoes={intimacoes}
                   tarefas={tarefas}
                   movimentacoes={movimentacoes}
-                  onNavigate={setActiveSection}
+                  onNavigate={handleSectionChange}
+                  hideJuditButtons
                 />
               )}
 
