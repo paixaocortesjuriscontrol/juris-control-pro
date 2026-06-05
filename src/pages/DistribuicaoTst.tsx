@@ -2175,15 +2175,16 @@ export default function DistribuicaoTst() {
       <AlertDialog open={!!deleteTargetId} onOpenChange={(o) => { if (!o) setDeleteTargetId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir distribuição?</AlertDialogTitle>
+            <AlertDialogTitle>Arquivar distribuição?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação removerá o processo da lista de Distribuição TST. Esta operação não pode ser desfeita.
+              O registro será movido para a área de arquivados e deixará de aparecer aqui.
+              Apenas administradores poderão consultar ou restaurar registros arquivados.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Excluir
+            <AlertDialogAction onClick={confirmDelete} className="bg-amber-600 text-white hover:bg-amber-700">
+              Arquivar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
