@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
@@ -1306,6 +1306,13 @@ export default function DistribuicaoTst() {
                   <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
                 </Button>
               </Link>
+              {isAdmin && (
+                <Link to="/distribuicao-tst/arquivados">
+                  <Button variant="outline">
+                    <Archive className="w-4 h-4 mr-2" /> Arquivados
+                  </Button>
+                </Link>
+              )}
               <BennerSimImport onUpdated={handleRefresh} />
               <DossiesNaoLocalizadosButton filters={debouncedFilters} selectedIds={selectedIds} />
               <Button variant="secondary" onClick={handleGerarCarga} disabled={cargaLoading}>
@@ -2102,8 +2109,8 @@ export default function DistribuicaoTst() {
                         >
                           <Layers className={`w-4 h-4 ${isSubidaMassa ? "text-purple-600" : "text-muted-foreground/60"}`} />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
-                          <Trash2 className="w-4 h-4 text-destructive" />
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)} title="Arquivar (não exclui)">
+                          <Trash2 className="w-4 h-4 text-amber-600" />
                         </Button>
                       </div>
                     </TableCell>
@@ -2175,15 +2182,16 @@ export default function DistribuicaoTst() {
       <AlertDialog open={!!deleteTargetId} onOpenChange={(o) => { if (!o) setDeleteTargetId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir distribuição?</AlertDialogTitle>
+            <AlertDialogTitle>Arquivar distribuição?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta ação removerá o processo da lista de Distribuição TST. Esta operação não pode ser desfeita.
+              O registro será movido para a área de arquivados e deixará de aparecer aqui.
+              Apenas administradores poderão consultar ou restaurar registros arquivados.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Excluir
+            <AlertDialogAction onClick={confirmDelete} className="bg-amber-600 text-white hover:bg-amber-700">
+              Arquivar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

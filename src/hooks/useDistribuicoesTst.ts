@@ -684,9 +684,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
   };
 
   const deleteDado = async (id: string) => {
-    const { error } = await supabase.from("dados_benner" as any).delete().eq("id", id);
-    if (error) { toast.error("Erro ao excluir: " + error.message); return false; }
-    toast.success("Registro excluído!");
+    const { error } = await supabase.rpc("arquivar_dados_benner" as any, { _id: id });
+    if (error) { toast.error("Erro ao arquivar: " + error.message); return false; }
+    toast.success("Registro arquivado! Apenas administradores podem restaurá-lo.");
     fetchDados();
     return true;
   };
