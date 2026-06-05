@@ -533,18 +533,31 @@ export default function PainelControle() {
       // Classificação filter
       if (painelFiltros.classificacoes.length > 0) {
         const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
-        const isAudiencia = tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA";
-        const isEvento = item.origem === "evento" || tipoUpper === "EVENTO";
-        const isTarefa = !isAudiencia && !isEvento;
+        const tipo = (item.tipo ?? "").toLowerCase();
+        const isAudiencia = tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA" || tipo === "audiencia";
+        const isPrazo = tipo === "prazo" || tipo === "prazo_parcela";
+        const isEvento = item.origem === "evento" || tipoUpper === "EVENTO" || tipo === "evento" || tipo === "parcelamento";
+        const isTarefa = !isAudiencia && !isPrazo && !isEvento;
 
         const match =
           (painelFiltros.classificacoes.includes("audiencia") && isAudiencia) ||
+          (painelFiltros.classificacoes.includes("prazo") && isPrazo) ||
           (painelFiltros.classificacoes.includes("evento") && isEvento) ||
           (painelFiltros.classificacoes.includes("tarefa") && isTarefa);
         if (!match) return false;
       }
 
-      // Situação filter
+      // Status (grupo simplificado)
+      if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
+        const st = (item.status ?? "").toLowerCase();
+        const concluido = st === "cumprido" || st === "concluido";
+        const cancelado = st === "cancelado";
+        if (painelFiltros.statusGroup === "a_concluir" && (concluido || cancelado)) return false;
+        if (painelFiltros.statusGroup === "concluidas" && !concluido) return false;
+        if (painelFiltros.statusGroup === "canceladas" && !cancelado) return false;
+      }
+
+      // Situação detalhada (avançado)
       if (painelFiltros.situacoes.length > 0) {
         if (!painelFiltros.situacoes.includes(item.status)) return false;
       }
