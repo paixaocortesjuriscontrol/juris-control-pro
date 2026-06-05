@@ -410,6 +410,14 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           );
         }
 
+        // Sincronizar processos vinculados (múltiplos)
+        await (supabase as any).from("evento_processos").delete().eq("evento_id", evento.id);
+        if (processoIds.length > 0) {
+          await (supabase as any).from("evento_processos").insert(
+            processoIds.map((pid) => ({ evento_id: evento.id, processo_id: pid }))
+          );
+        }
+
         // Atualizar parcelas - deletar antigas e criar novas
         // Isso também deleta os alertas_parcela em cascata
         await supabase.from("parcelas_evento").delete().eq("evento_id", evento.id);
