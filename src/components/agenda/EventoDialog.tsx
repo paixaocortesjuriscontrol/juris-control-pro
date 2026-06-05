@@ -27,6 +27,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, X, UserPlus, MessageCircle, Loader2, FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
 
 interface EventoDialogProps {
   open: boolean;
@@ -88,6 +89,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: 
   const [coordenacaoProcessoFiltro, setCoordenacaoProcessoFiltro] = useState<string>("todas");
   const [participanteSearch, setParticipanteSearch] = useState("");
   const [processoSearch, setProcessoSearch] = useState("");
+  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
+  const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
 
   const { data: coordenacoes } = useQuery({
     queryKey: ["coordenacoes-agenda"],
@@ -224,6 +227,15 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: 
         enviar_whatsapp: evento.enviar_whatsapp ?? true,
         hora_alerta: format(dataInicio, "HH:mm") || "09:00",
       }));
+      // Carregar responsáveis e envolvidos do evento
+      (async () => {
+        const [{ data: resps }, { data: envs }] = await Promise.all([
+          supabase.from("evento_responsaveis").select("usuario_id").eq("evento_id", evento.id),
+          supabase.from("evento_envolvidos").select("usuario_id").eq("evento_id", evento.id),
+        ]);
+        setResponsaveisIds((resps || []).map((r: any) => r.usuario_id));
+        setEnvolvidosIds((envs || []).map((e: any) => e.usuario_id));
+      })();
     } else if (open) {
       setFormData({
         titulo: "",
@@ -245,6 +257,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: 
         enviar_whatsapp: true,
         hora_alerta: "09:00",
       });
+      setResponsaveisIds([]);
+      setEnvolvidosIds([]);
     }
   }, [evento, open, alertasEvento, defaultProcessoId]);
 
@@ -285,8 +299,10 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: 
     try {
       if (isEditing && evento) {
         await updateEvento.mutateAsync({ id: evento.id, ...eventoData });
+        await persistirResponsaveisEnvolvidos(evento.id);
       } else {
-        await createEvento.mutateAsync(eventoData);
+        const novoEvento = await createEvento.mutateAsync(eventoData);
+        if (novoEvento?.id) await persistirResponsaveisEnvolvidos(novoEvento.id);
       }
 
       // Enviar WhatsApp para participantes se solicitado
@@ -324,6 +340,21 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: 
       onOpenChange(false);
     } catch (error) {
       console.error("Erro ao salvar evento:", error);
+    }
+  };
+
+  const persistirResponsaveisEnvolvidos = async (eventoId: string) => {
+    await supabase.from("evento_responsaveis").delete().eq("evento_id", eventoId);
+    if (responsaveisIds.length > 0) {
+      await supabase.from("evento_responsaveis").insert(
+        responsaveisIds.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
+      );
+    }
+    await supabase.from("evento_envolvidos").delete().eq("evento_id", eventoId);
+    if (envolvidosIds.length > 0) {
+      await supabase.from("evento_envolvidos").insert(
+        envolvidosIds.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
+      );
     }
   };
 
