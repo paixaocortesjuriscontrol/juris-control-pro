@@ -1,27 +1,46 @@
-## Objetivo
+## O que muda
 
-Marcar como lidas todas as publicações da **Coordenação Dr. Thomás** com `data_disponibilizacao < 02/06/2026` que ainda estão como não lidas.
+1. **Formulário de Tarefa** (acionado pelo botão Adicionar em Painel de Controle e Análise DJEN):
+   - Remover o campo "Tipo de Tarefa" (será fixado internamente como "TAREFA EQUIPE" ou similar).
+   - Trocar o select de Responsável único por seleção múltipla (mesmo componente usado em Audiência).
+   - Adicionar campo "Envolvidos" (também múltiplo) — pessoas que apenas acompanham.
 
-## Escopo identificado
+2. **Formulário de Evento** (`EventoDialog`):
+   - Adicionar múltiplos Responsáveis e múltiplos Envolvidos.
 
-- Coordenação: `Coordenação Dr. Thomás` (id `b1ff723c-3d0b-40fb-a477-5d2ff2bd7d2f`)
-- Usuária executora: Dra. Katarine Dias (id `8bf8b0a9-bdbd-4be9-82a7-2109261e02c2`)
-- Total atual a atualizar: **232 publicações** não lidas no critério.
+3. **Formulário de Prazo** (`PrazoDialog`):
+   - Adicionar múltiplos Responsáveis e múltiplos Envolvidos.
 
-## Observação importante
+4. **Formulário de Audiência** (`CadastroAudienciaForm`):
+   - Já tem múltiplos responsáveis. Adicionar campo "Envolvidos".
 
-A tabela `publicacoes_djen` só tem o campo booleano `lida` — **não existe coluna `lida_por`/`lida_em`** para registrar quem leu. Portanto, a ação será marcar `lida = true` em lote. O nome da Dra. Katarine não fica gravado em lugar nenhum.
+5. **Acompanhamento (Envolvidos)**: as pessoas marcadas como envolvidas recebem notificação informativa e veem o item nas listas/painéis delas, mas não são donas da execução.
 
-Se quiser registro auditável de "quem marcou como lida", preciso primeiro criar colunas `lida_por uuid` e `lida_em timestamptz` em `publicacoes_djen` antes do update. Me avise se quer essa rastreabilidade — caso contrário, sigo com o update simples abaixo.
+## Mudanças de banco (migration)
 
-## Migração (update em lote)
+Como hoje `tarefas`, `eventos_agenda` e prazos (tarefas tipo PRAZO) guardam apenas `responsavel_id` único, criar tabelas de vínculo:
 
-```sql
-UPDATE public.publicacoes_djen
-SET lida = true
-WHERE coordenacao_id = 'b1ff723c-3d0b-40fb-a477-5d2ff2bd7d2f'
-  AND data_disponibilizacao < '2026-06-02'
-  AND lida = false;
-```
+- `tarefa_responsaveis` (tarefa_id, usuario_id) — papel principal
+- `tarefa_envolvidos` (tarefa_id, usuario_id) — papel observador
+- `evento_responsaveis` (evento_id, usuario_id)
+- `evento_envolvidos` (evento_id, usuario_id)
+- `audiencia_envolvidos` (audiencia_id, usuario_id) — audiência já tem `audiencias_advogados` como responsáveis
 
-Sem alterações de código nem de UI.
+Prazos reutilizam `tarefa_responsaveis`/`tarefa_envolvidos` (continuam linhas de `tarefas`).
+
+Todas com RLS: membros da coordenação do processo podem ler/escrever; service_role total. Manter `responsavel_id` legado preenchido com o primeiro responsável escolhido para não quebrar telas existentes.
+
+## Arquivos a editar
+
+- `supabase/migrations/<novo>.sql` — criar as 5 tabelas + GRANTs + RLS + índices.
+- `src/components/djen/CriarTarefaPublicacaoDialog.tsx` (formulário "Tarefa" acionado por Adicionar): remover Tipo de Tarefa, trocar Responsável por múltiplos, adicionar Envolvidos.
+- `src/components/agenda/EventoDialog.tsx`: adicionar Responsáveis (múltiplos) e Envolvidos.
+- `src/components/prazos/PrazoDialog.tsx`: adicionar Responsáveis (múltiplos) e Envolvidos.
+- `src/components/audiencias/CadastroAudienciaForm.tsx`: adicionar Envolvidos.
+- Pequeno componente compartilhado `src/components/shared/MultiUserSelect.tsx` para reuso (lista de membros da coordenação + chips).
+
+## Pontos a confirmar com você
+
+1. Para Tarefa, qual valor fixo de `tipo_tarefa` salvar internamente (já que o campo sai do formulário)? Sugestão: `TAREFA EQUIPE`.
+2. Envolvidos devem receber notificação automática (e-mail/sino) na criação? Sugestão: somente notificação interna (sino), sem WhatsApp/e-mail.
+3. Em telas de listagem (Painel de Equipe, Minha Carteira, Kanbans), Envolvidos devem ver o item como "acompanhando" ou ficamos só com cadastro nesta etapa e exibimos depois?
