@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
-import { formatProcessoNumero } from "@/utils/cnjMask";
+import { formatProcessoNumero } from "@/lib/utils";
 
 function stripHtml(html: string): string {
   if (!html) return "";
