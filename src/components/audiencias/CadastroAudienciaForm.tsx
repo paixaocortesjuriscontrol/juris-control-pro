@@ -10,6 +10,7 @@ import { useAudienciasDetectadas, NovaAudiencia } from "@/hooks/useAudienciasDet
 import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { formatProcessoNumero } from "@/lib/utils";
 
 interface CadastroAudienciaFormProps {
   defaultProcessoNumero?: string;
@@ -62,14 +63,15 @@ export function CadastroAudienciaForm({ defaultProcessoNumero }: CadastroAudienc
     setBuscandoProcesso(true);
     try {
       const numeroDigits = numero.replace(/\D/g, "");
-      let query = supabase
+      const numeroMasked = formatProcessoNumero(numero);
+      const candidatos = Array.from(new Set([numeroMasked, numero, numeroDigits].filter(Boolean)));
+      const orExpr = candidatos.map((c) => `numero.ilike.%${c}%`).join(",");
+      const { data, error } = await supabase
         .from("processos")
         .select("numero, polo_ativo, polo_passivo, vara, comarca, tribunal")
-        .limit(1);
-      query = numeroDigits.length >= 15
-        ? query.ilike("numero", `%${numeroDigits}%`)
-        : query.ilike("numero", `%${numero}%`);
-      const { data, error } = await query.maybeSingle();
+        .or(orExpr)
+        .limit(1)
+        .maybeSingle();
       if (error) throw error;
       if (!data) {
         if (showToast) toast({ title: "Processo não encontrado", variant: "destructive" });
