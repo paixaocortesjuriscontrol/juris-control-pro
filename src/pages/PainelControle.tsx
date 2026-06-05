@@ -31,6 +31,16 @@ import {
 } from "lucide-react";
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PrazoDialog } from "@/components/prazos/PrazoDialog";
+import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
+import { ClipboardList, CalendarPlus, Clock, Gavel } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -88,6 +98,9 @@ export default function PainelControle() {
   const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
   const [selectedParcelamento, setSelectedParcelamento] = useState<EventoAgenda | null>(null);
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
+  const [novoEventoOpen, setNovoEventoOpen] = useState(false);
+  const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
+  const [novaAudienciaOpen, setNovaAudienciaOpen] = useState(false);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
@@ -777,15 +790,28 @@ export default function PainelControle() {
                 </Button>
               </div>
               <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
-              <Button
-                size="sm"
-                className="h-7 px-3 text-xs gap-1"
-                onClick={() => setNovaTarefaOpen(true)}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Nova Tarefa</span>
-                <span className="sm:hidden">Tarefa</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="h-7 px-3 text-xs gap-1">
+                    <Plus className="w-3.5 h-3.5" />
+                    Adicionar
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onClick={() => setNovaTarefaOpen(true)}>
+                    <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setNovoEventoOpen(true)}>
+                    <CalendarPlus className="w-4 h-4 mr-2" /> Evento
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setNovoPrazoOpen(true)}>
+                    <Clock className="w-4 h-4 mr-2" /> Prazo
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setNovaAudienciaOpen(true)}>
+                    <Gavel className="w-4 h-4 mr-2" /> Audiência
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
           {/* Filtro de coordenação para admin no modo escritório - mobile linha separada */}
@@ -1144,6 +1170,30 @@ export default function PainelControle() {
         open={novaTarefaOpen}
         onOpenChange={setNovaTarefaOpen}
       />
+
+      {/* Novo Evento */}
+      <EventoDialog
+        open={novoEventoOpen}
+        onOpenChange={setNovoEventoOpen}
+        evento={null}
+      />
+
+      {/* Novo Prazo */}
+      <PrazoDialog
+        open={novoPrazoOpen}
+        onOpenChange={setNovoPrazoOpen}
+        prazo={null}
+      />
+
+      {/* Nova Audiência */}
+      <Dialog open={novaAudienciaOpen} onOpenChange={setNovaAudienciaOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nova Audiência</DialogTitle>
+          </DialogHeader>
+          <CadastroAudienciaForm />
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
