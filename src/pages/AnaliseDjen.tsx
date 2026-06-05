@@ -4503,16 +4503,16 @@ const AnaliseDjen = () => {
                                             </Button>
                                           </DropdownMenuTrigger>
                                           <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
-                                            <DropdownMenuItem onClick={() => handleCriarTarefa(pub)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(() => handleCriarTarefa(pub), 0)}>
                                               <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => setNovoEventoOpen(true)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(() => setNovoEventoOpen(true), 0)}>
                                               <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => setNovoPrazoOpen(true)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(() => setNovoPrazoOpen(true), 0)}>
                                               <Clock className="w-4 h-4 mr-2" /> Prazo
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => setNovaAudienciaOpen(true)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(() => setNovaAudienciaOpen(true), 0)}>
                                               <Gavel className="w-4 h-4 mr-2" /> Audiência
                                             </DropdownMenuItem>
                                           </DropdownMenuContent>
@@ -4594,16 +4594,16 @@ const AnaliseDjen = () => {
                                            </Button>
                                          </DropdownMenuTrigger>
                                          <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
-                                           <DropdownMenuItem onClick={() => handleCriarTarefa(pub)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(() => handleCriarTarefa(pub), 0)}>
                                              <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onClick={() => setNovoEventoOpen(true)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(() => setNovoEventoOpen(true), 0)}>
                                              <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onClick={() => setNovoPrazoOpen(true)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(() => setNovoPrazoOpen(true), 0)}>
                                              <Clock className="w-4 h-4 mr-2" /> Prazo
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onClick={() => setNovaAudienciaOpen(true)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(() => setNovaAudienciaOpen(true), 0)}>
                                              <Gavel className="w-4 h-4 mr-2" /> Audiência
                                            </DropdownMenuItem>
                                          </DropdownMenuContent>
