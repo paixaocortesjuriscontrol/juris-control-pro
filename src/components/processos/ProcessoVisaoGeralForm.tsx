@@ -1,4 +1,7 @@
 import { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +21,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CriarAudienciaProcessoDialog } from "@/components/audiencias/CriarAudienciaProcessoDialog";
+import { EventoDialog } from "@/components/agenda/EventoDialog";
+import { PrazoDialog } from "@/components/prazos/PrazoDialog";
+import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { MonitoramentoToggle } from "./MonitoramentoToggle";
 import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
