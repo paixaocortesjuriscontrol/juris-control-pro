@@ -15,7 +15,6 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -112,7 +111,12 @@ const defaultFilters: Filters = {
   dataAte: "",
 };
 
-export default function ListaAtividades() {
+interface ListaAtividadesViewProps {
+  embedded?: boolean;
+  onRequestNovo?: () => void;
+}
+
+export default function ListaAtividadesView({ embedded = false, onRequestNovo }: ListaAtividadesViewProps = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<Filters>(defaultFilters);
