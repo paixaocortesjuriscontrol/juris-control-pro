@@ -4582,7 +4582,27 @@ const AnaliseDjen = () => {
                                           <span className="text-xs">Lida</span>
                                         </Button>
                                       )}
-                                      
+
+                                       {/* Botão Descartar individual */}
+                                       {(pub.tipo_origem === 'termo' || pub.tipo_origem === 'processo') && (
+                                         <Button
+                                           variant="outline"
+                                           size="sm"
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             if (window.confirm('Descartar esta publicação? Ela será movida para a aba "Descartadas".')) {
+                                               descartarManualmente.mutate({ id: pub.id, tipo_origem: pub.tipo_origem as 'termo' | 'processo' });
+                                             }
+                                           }}
+                                           disabled={descartarManualmente.isPending}
+                                           title="Descartar publicação"
+                                           className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 text-rose-600 hover:text-rose-700"
+                                         >
+                                           <Trash2 className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                           <span className="text-xs">Descartar</span>
+                                         </Button>
+                                       )}
+
                                       <Button
                                         variant="ghost"
                                         size="sm"
