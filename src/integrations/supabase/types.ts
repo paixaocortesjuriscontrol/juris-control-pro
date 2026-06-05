@@ -3333,6 +3333,39 @@ export type Database = {
           },
         ]
       }
+      evento_processos: {
+        Row: {
+          created_at: string
+          evento_id: string
+          processo_id: string
+        }
+        Insert: {
+          created_at?: string
+          evento_id: string
+          processo_id: string
+        }
+        Update: {
+          created_at?: string
+          evento_id?: string
+          processo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evento_processos_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos_agenda"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "evento_processos_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evento_responsaveis: {
         Row: {
           created_at: string
