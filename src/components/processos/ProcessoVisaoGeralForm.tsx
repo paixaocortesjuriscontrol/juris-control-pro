@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,7 +34,21 @@ interface Props {
    * manter os botões sempre visíveis sem renderizar o formulário completo.
    */
   compact?: boolean;
+  /**
+   * Renderiza APENAS a barra de botões Judit (sem o formulário e sem o botão
+   * Salvar). Útil para um toolbar global no topo da tela.
+   */
+  actionsOnly?: boolean;
+  /**
+   * Esconde os botões Judit (Sincronizar/Anexos/Interno/Análise) dentro do
+   * formulário — usado quando esses botões já estão num toolbar superior.
+   */
+  hideJuditButtons?: boolean;
 }
+
+export type ProcessoVisaoGeralFormHandle = {
+  save: () => Promise<void>;
+};
 
 // Lista de campos editáveis (whitelist) - todos da tabela processos
 const FIELDS = [
@@ -82,7 +96,7 @@ function SectionHeader({ icon: Icon, title }: { icon: any; title: string }) {
   );
 }
 
-export function ProcessoVisaoGeralForm({
+export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, Props>(function ProcessoVisaoGeralForm({
   processo,
   audiencias = [],
   intimacoes = [],
@@ -90,7 +104,9 @@ export function ProcessoVisaoGeralForm({
   movimentacoes = [],
   onNavigate,
   compact = false,
-}: Props) {
+  actionsOnly = false,
+  hideJuditButtons = false,
+}, ref) {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<Record<string, any>>({});
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
@@ -553,6 +569,58 @@ export function ProcessoVisaoGeralForm({
       ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
       : "";
   const isAdmin = useMemo(() => processo?.tipo_processo === "administrativo", [processo?.tipo_processo]);
+
+  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave, form, responsaveis, processo?.id]);
+
+  // Modo "actionsOnly": renderiza apenas a barra de botões Judit (sem Save)
+  if (actionsOnly) {
+    return (
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleSyncJudit(false)}
+          disabled={juditBusy || saving}
+          className="gap-1"
+        >
+          {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-emerald-600" />}
+          {syncing ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando… ${juditElapsed}s`) : "Sincronizar Judit"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleSyncJuditInterno(true)}
+          disabled={juditBusy || saving}
+          className="gap-1 border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+        >
+          {syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {syncingAnexos ? `Anexos… ${juditElapsed}s` : "Judit c/ anexos"}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleSyncJuditInterno(false)}
+          disabled={juditBusy || saving}
+          className="gap-1 border-indigo-500 text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
+        >
+          {syncingInterno ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {syncingInterno ? `Interno… ${juditElapsed}s` : "Judit (Interno)"}
+        </Button>
+        {onNavigate && (
+          <>
+            <Button size="sm" variant="outline" onClick={() => onNavigate("analise-judit")} className="gap-1">
+              <Sparkles className="w-4 h-4 text-emerald-600" />
+              Análise Judit
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => onNavigate("anexos-judit")} className="gap-1">
+              <Paperclip className="w-4 h-4 text-emerald-600" />
+              Anexos Judit
+            </Button>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
