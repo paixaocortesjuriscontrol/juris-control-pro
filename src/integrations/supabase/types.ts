@@ -7380,6 +7380,10 @@ export type Database = {
         Args: { p_coordenacao_id: string }
         Returns: number
       }
+      descartar_publicacao_manualmente: {
+        Args: { p_id: string; p_motivo?: string; p_tipo_origem: string }
+        Returns: Json
+      }
       djen_normalize_conteudo_sem_destinatarios: {
         Args: { p_text: string }
         Returns: string

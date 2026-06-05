@@ -533,18 +533,31 @@ export default function PainelControle() {
       // Classificação filter
       if (painelFiltros.classificacoes.length > 0) {
         const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
-        const isAudiencia = tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA";
-        const isEvento = item.origem === "evento" || tipoUpper === "EVENTO";
-        const isTarefa = !isAudiencia && !isEvento;
+        const tipo = (item.tipo ?? "").toLowerCase();
+        const isAudiencia = tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA" || tipo === "audiencia";
+        const isPrazo = tipo === "prazo" || tipo === "prazo_parcela";
+        const isEvento = item.origem === "evento" || tipoUpper === "EVENTO" || tipo === "evento" || tipo === "parcelamento";
+        const isTarefa = !isAudiencia && !isPrazo && !isEvento;
 
         const match =
           (painelFiltros.classificacoes.includes("audiencia") && isAudiencia) ||
+          (painelFiltros.classificacoes.includes("prazo") && isPrazo) ||
           (painelFiltros.classificacoes.includes("evento") && isEvento) ||
           (painelFiltros.classificacoes.includes("tarefa") && isTarefa);
         if (!match) return false;
       }
 
-      // Situação filter
+      // Status (grupo simplificado)
+      if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
+        const st = (item.status ?? "").toLowerCase();
+        const concluido = st === "cumprido" || st === "concluido";
+        const cancelado = st === "cancelado";
+        if (painelFiltros.statusGroup === "a_concluir" && (concluido || cancelado)) return false;
+        if (painelFiltros.statusGroup === "concluidas" && !concluido) return false;
+        if (painelFiltros.statusGroup === "canceladas" && !cancelado) return false;
+      }
+
+      // Situação detalhada (avançado)
       if (painelFiltros.situacoes.length > 0) {
         if (!painelFiltros.situacoes.includes(item.status)) return false;
       }
@@ -744,6 +757,25 @@ export default function PainelControle() {
               </div>
             )}
             <div className="ml-auto flex items-center gap-1.5">
+              <div className="hidden md:flex gap-1 mr-1">
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 px-3 text-xs"
+                  title="Visão em agenda (atual)"
+                >
+                  Em Agenda
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-3 text-xs"
+                  onClick={() => navigate("/lista-atividades")}
+                  title="Abrir Lista de Atividades"
+                >
+                  Em Lista
+                </Button>
+              </div>
               <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
               <Button
                 size="sm"
