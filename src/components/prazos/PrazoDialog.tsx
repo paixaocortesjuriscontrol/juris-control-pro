@@ -32,7 +32,7 @@ import { useCreatePrazo, useUpdatePrazo, type Prazo } from "@/hooks/usePrazos";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
+import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 
@@ -335,58 +335,70 @@ export function PrazoDialog({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <Label className="text-sm">Alerta</Label>
-            <div className="flex gap-2">
-              <Input
-                type="number"
-                min={0}
-                value={alertaDias}
-                onChange={(e) => setAlertaDias(parseInt(e.target.value || "0", 10))}
-                className="h-10 w-20"
-              />
-              <Select value={alertaUnidade} onValueChange={(v) => setAlertaUnidade(v as Unidade)}>
-                <SelectTrigger className="h-10 flex-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="corridos">Dia(s) antes</SelectItem>
-                  <SelectItem value="uteis">Dia(s) úteis antes</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-sm">
-              Responsável<span className="text-destructive">*</span>
-            </Label>
-            <MultiUserSelect
-              label=""
-              selectedIds={responsaveisIds}
-              onChange={setResponsaveisIds}
-              height={120}
+        <div className="space-y-1.5">
+          <Label className="text-sm">Alerta</Label>
+          <div className="flex gap-2 max-w-xs">
+            <Input
+              type="number"
+              min={0}
+              value={alertaDias}
+              onChange={(e) => setAlertaDias(parseInt(e.target.value || "0", 10))}
+              className="h-10 w-20"
             />
+            <Select value={alertaUnidade} onValueChange={(v) => setAlertaUnidade(v as Unidade)}>
+              <SelectTrigger className="h-10 flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="corridos">Dia(s) antes</SelectItem>
+                <SelectItem value="uteis">Dia(s) úteis antes</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-sm">
+            Responsáveis<span className="text-destructive">*</span>
+          </Label>
+          <PeoplePicker
+            selectedIds={responsaveisIds}
+            onChange={setResponsaveisIds}
+            placeholder="Adicionar responsável"
+            emptyLabel="Nenhum responsável selecionado"
+          />
+          {!mostrarEnvolvidos && (
             <button
               type="button"
-              onClick={() => setMostrarEnvolvidos((v) => !v)}
+              onClick={() => setMostrarEnvolvidos(true)}
               className="text-xs text-primary hover:underline"
             >
-              {mostrarEnvolvidos ? "Ocultar envolvidos" : "Envolver mais pessoas"}
+              + Envolver mais pessoas
             </button>
-          </div>
+          )}
         </div>
 
         {mostrarEnvolvidos && (
           <div className="space-y-1.5">
-            <Label className="text-sm">Envolvidos (acompanham)</Label>
-            <MultiUserSelect
-              label=""
-              helperText="Recebem o prazo apenas para acompanhamento"
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">Envolvidos (acompanham)</Label>
+              <button
+                type="button"
+                onClick={() => {
+                  setMostrarEnvolvidos(false);
+                  setEnvolvidosIds([]);
+                }}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Ocultar
+              </button>
+            </div>
+            <PeoplePicker
               selectedIds={envolvidosIds}
               onChange={setEnvolvidosIds}
-              height={140}
+              placeholder="Adicionar envolvido"
+              emptyLabel="Apenas para acompanhamento"
+              icon="users"
             />
           </div>
         )}
