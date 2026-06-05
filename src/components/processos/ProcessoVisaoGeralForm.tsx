@@ -1105,6 +1105,14 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           </div>
         </div>
       )}
+      {processo?.id && processo?.numero && (
+        <CriarAudienciaProcessoDialog
+          open={criarAudienciaOpen}
+          onOpenChange={setCriarAudienciaOpen}
+          processoId={processo.id}
+          processoNumero={processo.numero}
+        />
+      )}
     </div>
   );
 });
