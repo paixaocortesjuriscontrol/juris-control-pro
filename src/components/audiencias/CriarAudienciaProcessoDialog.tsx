@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -6,15 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus } from "lucide-react";
-import { useAudienciasDetectadas, NovaAudiencia } from "@/hooks/useAudienciasDetectadas";
-import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
-import { useAuth } from "@/contexts/AuthContext";
+import { AudienciaFormSimplificado } from "./AudienciaFormSimplificado";
 
 interface CriarAudienciaProcessoDialogProps {
   open: boolean;
@@ -49,42 +40,29 @@ export function CriarAudienciaProcessoDialog({
   processoNumero,
   processoId,
 }: CriarAudienciaProcessoDialogProps) {
-  const { user } = useAuth();
-  const { criarAudiencia } = useAudienciasDetectadas();
-  const [formData, setFormData] = useState(initialFormData);
-  const [advogadosSelecionados, setAdvogadosSelecionados] = useState<string[]>([]);
-
-  const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.data_audiencia) return;
-
-    await criarAudiencia.mutateAsync({
-      ...formData,
-      processo_id: processoId,
-      processo_numero: processoNumero,
-      advogados_ids: advogadosSelecionados,
-    });
-
-    setFormData(initialFormData);
-    setAdvogadosSelecionados([]);
-    onOpenChange(false);
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] p-0 flex flex-col">
+      <DialogContent className="sm:max-w-[640px] max-h-[92vh] p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-2">
-          <DialogTitle>Nova Audiência</DialogTitle>
+          <DialogTitle>Adicionar Audiência</DialogTitle>
           <DialogDescription>
             Processo: {processoNumero}
           </DialogDescription>
         </DialogHeader>
         <div className="overflow-y-auto px-6 pb-6 flex-1">
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <AudienciaFormSimplificado
+            defaultProcessoNumero={processoNumero}
+            defaultProcessoId={processoId}
+            showProcessoField={false}
+            hideTitleHeader
+            onSuccess={() => onOpenChange(false)}
+            onCancel={() => onOpenChange(false)}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
             {/* Data e Tipo */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
