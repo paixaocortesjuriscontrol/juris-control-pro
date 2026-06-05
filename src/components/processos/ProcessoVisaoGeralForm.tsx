@@ -69,6 +69,8 @@ const FIELDS = [
   "pasta_fisica", "pasta_cliente",
   // Descrição
   "descricao",
+  // Encerramento
+  "motivo_encerramento",
 ] as const;
 
 const NUMERIC_FIELDS = new Set(["valor_causa", "valor_condenacao", "valor_provisionado"]);
