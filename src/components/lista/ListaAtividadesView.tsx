@@ -880,6 +880,6 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
         }}
         prazo={editingPrazo}
       />
-    </MainLayout>
+    </>
   );
 }
