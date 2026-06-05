@@ -1154,6 +1154,7 @@ export default function PainelControle() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* EventoDialog para edição de eventos */}
