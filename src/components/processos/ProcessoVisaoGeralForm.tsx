@@ -131,6 +131,39 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [syncingAnexos, setSyncingAnexos] = useState(false);
   const [syncingInterno, setSyncingInterno] = useState(false);
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
+  const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
+  const [novoEventoOpen, setNovoEventoOpen] = useState(false);
+  const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
+  const { user } = useAuth();
+  const { isAdmin } = useUserRole();
+  const { data: membrosCoordenacoes = [] } = useQuery({
+    queryKey: ["membros-coordenacoes-processo-adicionar", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [] as string[];
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id")
+        .eq("usuario_id", user.id);
+      if (error) throw error;
+      return (data || []).map((m: any) => m.coordenacao_id as string);
+    },
+    enabled: novaTarefaOpen && !!user?.id && !isAdmin,
+  });
+  const { data: coordenacoesTarefa = [] } = useQuery({
+    queryKey: ["coordenacoes-processo-adicionar", isAdmin, membrosCoordenacoes],
+    queryFn: async () => {
+      let query = supabase.from("coordenacoes").select("id, nome, area").order("nome");
+      if (!isAdmin && membrosCoordenacoes.length > 0) {
+        query = query.in("id", membrosCoordenacoes);
+      } else if (!isAdmin && membrosCoordenacoes.length === 0) {
+        return [] as any[];
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: novaTarefaOpen && (isAdmin || membrosCoordenacoes.length > 0),
+  });
   // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Contador ao vivo (segundos decorridos) durante a busca Judit — mesma
