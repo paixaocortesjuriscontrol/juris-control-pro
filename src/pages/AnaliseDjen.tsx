@@ -272,6 +272,7 @@ const AnaliseDjen = () => {
     isFetching: isFetchingPublicacoes,
     loadingStats,
     marcarComoLida,
+    descartarManualmente,
     totalHoje,
     naoLidasHoje,
     totalDescartadasHoje,
