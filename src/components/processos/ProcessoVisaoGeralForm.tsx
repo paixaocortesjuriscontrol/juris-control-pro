@@ -1009,4 +1009,4 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       )}
     </div>
   );
-}
+});
