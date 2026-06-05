@@ -232,12 +232,16 @@ const AnaliseDjen = () => {
     const numero = pub.processo_numero?.trim();
     if (!numero) return;
     const numeroDigits = numero.replace(/\D/g, "");
+    const numeroMasked = formatProcessoNumero(numero);
     try {
-      let query = supabase.from("processos").select("id, numero").limit(1);
-      query = numeroDigits.length >= 15
-        ? query.ilike("numero", `%${numeroDigits}%`)
-        : query.ilike("numero", `%${numero}%`);
-      const { data } = await query.maybeSingle();
+      const candidatos = Array.from(new Set([numeroMasked, numero, numeroDigits].filter(Boolean)));
+      const orExpr = candidatos.map((c) => `numero.ilike.%${c}%`).join(",");
+      const { data } = await supabase
+        .from("processos")
+        .select("id, numero")
+        .or(orExpr)
+        .limit(1)
+        .maybeSingle();
       if (data?.id) {
         setAdicionarProcessoId(data.id);
         setAdicionarProcessoNumero(data.numero ?? numero);
