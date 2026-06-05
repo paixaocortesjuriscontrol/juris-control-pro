@@ -1917,6 +1917,45 @@ export type Database = {
           },
         ]
       }
+      dados_benner_arquivados: {
+        Row: {
+          aba_origem: string | null
+          arquivado_em: string
+          arquivado_por: string | null
+          coordenacao_id: string | null
+          dados_benner_id: string
+          dossie: string | null
+          id: string
+          motivo: string | null
+          processo: string | null
+          snapshot: Json
+        }
+        Insert: {
+          aba_origem?: string | null
+          arquivado_em?: string
+          arquivado_por?: string | null
+          coordenacao_id?: string | null
+          dados_benner_id: string
+          dossie?: string | null
+          id?: string
+          motivo?: string | null
+          processo?: string | null
+          snapshot: Json
+        }
+        Update: {
+          aba_origem?: string | null
+          arquivado_em?: string
+          arquivado_por?: string | null
+          coordenacao_id?: string | null
+          dados_benner_id?: string
+          dossie?: string | null
+          id?: string
+          motivo?: string | null
+          processo?: string | null
+          snapshot?: Json
+        }
+        Relationships: []
+      }
       dados_benner_judit_temp: {
         Row: {
           aba_origem: string | null
@@ -7232,6 +7271,10 @@ export type Database = {
       }
       analyze_publicacoes_djen: { Args: never; Returns: undefined }
       apply_data_planilha_fix: { Args: { items: Json }; Returns: number }
+      arquivar_dados_benner: {
+        Args: { _id: string; _motivo?: string }
+        Returns: string
+      }
       atualizar_cor_processo_tag: {
         Args: { _cor: string; _tag_id: string }
         Returns: {
@@ -7773,6 +7816,10 @@ export type Database = {
       mark_djenp_duplicadas_global: { Args: never; Returns: number }
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
       rebuild_publicacoes_djen_unica_flags: { Args: never; Returns: undefined }
+      restaurar_dados_benner_arquivado: {
+        Args: { _id: string }
+        Returns: string
+      }
       search_users_basic: {
         Args: { _limit?: number; _query?: string }
         Returns: {
