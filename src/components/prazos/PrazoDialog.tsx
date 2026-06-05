@@ -693,28 +693,30 @@ export function PrazoDialog({
                   Atribuição
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Responsável *</Label>
-                    <Select value={responsavelId} onValueChange={setResponsavelId}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder="Selecione o responsável" /></SelectTrigger>
-                      <SelectContent>
-                        {advogados?.map((advogado) => (
-                          <SelectItem key={advogado.id} value={advogado.id}>{advogado.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <MultiUserSelect
+                  label="Responsáveis *"
+                  helperText="Quem irá executar a tarefa/prazo"
+                  selectedIds={responsaveisIds}
+                  onChange={setResponsaveisIds}
+                  height={160}
+                />
 
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Grupos de trabalho</Label>
-                    <Input
-                      value={gruposTrabalho}
-                      onChange={(e) => setGruposTrabalho(e.target.value)}
-                      placeholder="Ex: Trabalhista, Cível..."
-                      className="h-9"
-                    />
-                  </div>
+                <MultiUserSelect
+                  label="Envolvidos (acompanham)"
+                  helperText="Recebem apenas para acompanhamento"
+                  selectedIds={envolvidosIds}
+                  onChange={setEnvolvidosIds}
+                  height={160}
+                />
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Grupos de trabalho</Label>
+                  <Input
+                    value={gruposTrabalho}
+                    onChange={(e) => setGruposTrabalho(e.target.value)}
+                    placeholder="Ex: Trabalhista, Cível..."
+                    className="h-9"
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
