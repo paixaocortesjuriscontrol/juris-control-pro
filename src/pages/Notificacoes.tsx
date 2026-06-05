@@ -55,7 +55,8 @@ import { AlertasNaoCadastradosNotificacoes } from "@/components/notificacoes/Ale
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 
-export default function Notificacoes() {
+interface NotificacoesProps { embedded?: boolean }
+export default function Notificacoes({ embedded = false }: NotificacoesProps = {}) {
   // Central de Notificações
   // Mantém a UI responsiva: carregamento incremental (evita payloads gigantes)
   const PAGE_SIZE = 200;
