@@ -1466,6 +1466,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     isFetching,
     loadingStats: isLoadingStats,
     marcarComoLida,
+    descartarManualmente,
     // Totais GLOBAIS (independem da paginação) — vêm das count queries do servidor.
     // Fallback para a contagem da página atual enquanto a query não carrega.
     totalHoje: statsIndependentes?.total ?? publicacoes.length,
