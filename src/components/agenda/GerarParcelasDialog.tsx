@@ -70,9 +70,10 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
     hora_alerta: "09:00",
   });
   
-  // Estados para busca de processo
+  // Estados para busca de processo (suporta múltiplos vínculos)
   const [coordenacaoProcessoFiltro, setCoordenacaoProcessoFiltro] = useState<string>("todas");
   const [processoSearch, setProcessoSearch] = useState("");
+  const [processoIds, setProcessoIds] = useState<string[]>([]);
   
   // Estados para participantes
   const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
@@ -115,20 +116,19 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
     },
   });
 
-  // Buscar processo selecionado para exibir
-  const { data: processoSelecionado } = useQuery({
-    queryKey: ["processo-selecionado-parcelas", formData.processo_id],
+  // Buscar processos selecionados (múltiplos) para exibir como chips
+  const { data: processosSelecionados = [] } = useQuery({
+    queryKey: ["processos-selecionados-parcelas", processoIds.slice().sort().join(",")],
     queryFn: async () => {
-      if (!formData.processo_id) return null;
+      if (processoIds.length === 0) return [];
       const { data, error } = await supabase
         .from("processos")
         .select("id, numero, polo_ativo, polo_passivo")
-        .eq("id", formData.processo_id)
-        .single();
-      if (error) return null;
-      return data;
+        .in("id", processoIds);
+      if (error) return [];
+      return data || [];
     },
-    enabled: !!formData.processo_id,
+    enabled: processoIds.length > 0,
   });
 
   // Query para buscar usuários (participantes)
