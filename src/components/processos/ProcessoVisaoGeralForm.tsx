@@ -556,6 +556,40 @@ export function ProcessoVisaoGeralForm({
 
   return (
     <div className="space-y-4">
+      {!compact && (
+        <Card>
+          <CardContent className="p-4 md:p-5">
+            <div className="flex flex-col gap-1">
+              <h1 className="text-lg md:text-xl font-semibold text-foreground leading-tight">
+                {(form.polo_ativo || form.reclamante || "—")} <span className="text-muted-foreground font-normal">X</span> {(form.polo_passivo || form.reclamados || "—")}
+              </h1>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-muted-foreground">
+                {processo?.numero && (
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium text-foreground/70">Processo:</span>
+                    <span className="font-mono underline-offset-2 underline text-foreground">{processo.numero}</span>
+                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copy(processo.numero)}>
+                      <Copy className="w-3 h-3" />
+                    </Button>
+                  </div>
+                )}
+                {(processo?.cliente?.nome || processo?.nome_cliente_envolvido) && (
+                  <div><span className="font-medium text-foreground/70">Cliente:</span> <span className="text-foreground">{processo.cliente?.nome || processo.nome_cliente_envolvido}</span></div>
+                )}
+                {form.status && (
+                  <div><span className="font-medium text-foreground/70">Status:</span> <span className="text-foreground capitalize">{String(form.status).replace(/_/g, " ")}</span></div>
+                )}
+                {processo?.advogado_responsavel?.nome && (
+                  <div><span className="font-medium text-foreground/70">Responsável:</span> <span className="text-foreground">{processo.advogado_responsavel.nome}</span></div>
+                )}
+                {processo?.created_by_user?.nome && (
+                  <div><span className="font-medium text-foreground/70">Criado por:</span> <span className="text-foreground">{processo.created_by_user.nome}</span></div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       <Card>
         <CardContent className="p-4 md:p-6 space-y-6">
           {/* Cabeçalho do form */}
