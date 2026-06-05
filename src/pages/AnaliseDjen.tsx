@@ -4886,6 +4886,7 @@ const AnaliseDjen = () => {
           onOpenChange={setNovoPrazoOpen}
           prazo={null}
           defaultProcessoId={adicionarProcessoId}
+          publicacao={novoPrazoOpen ? selectedPublicacao : null}
         />
 
         {/* Nova Audiência */}
