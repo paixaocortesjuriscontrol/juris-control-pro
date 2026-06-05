@@ -219,6 +219,9 @@ const AnaliseDjen = () => {
   );
   const [viewDialogOpen, setViewDialogOpen] = useState(false); // kept for potential future use
   const [criarTarefaDialogOpen, setCriarTarefaDialogOpen] = useState(false);
+  const [novoEventoOpen, setNovoEventoOpen] = useState(false);
+  const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
+  const [novaAudienciaOpen, setNovaAudienciaOpen] = useState(false);
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
