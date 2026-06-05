@@ -5,13 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Loader2, Plus } from "lucide-react";
+import { Calendar, Loader2, Plus, Search } from "lucide-react";
 import { useAudienciasDetectadas, NovaAudiencia } from "@/hooks/useAudienciasDetectadas";
 import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
 export function CadastroAudienciaForm() {
   const { criarAudiencia } = useAudienciasDetectadas();
   const [advogadosSelecionados, setAdvogadosSelecionados] = useState<string[]>([]);
+  const [buscandoProcesso, setBuscandoProcesso] = useState(false);
   const [formData, setFormData] = useState<Omit<NovaAudiencia, 'advogados_ids'>>({
     processo_numero: "",
     data_audiencia: "",
@@ -39,6 +42,44 @@ export function CadastroAudienciaForm() {
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleBuscarProcesso = async () => {
+    const numero = formData.processo_numero?.trim();
+    if (!numero) {
+      toast({ title: "Informe o número do processo", variant: "destructive" });
+      return;
+    }
+    setBuscandoProcesso(true);
+    try {
+      const numeroDigits = numero.replace(/\D/g, "");
+      let query = supabase
+        .from("processos")
+        .select("numero, polo_ativo, polo_passivo, vara, comarca, tribunal")
+        .limit(1);
+      query = numeroDigits.length >= 15
+        ? query.ilike("numero", `%${numeroDigits}%`)
+        : query.ilike("numero", `%${numero}%`);
+      const { data, error } = await query.maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        toast({ title: "Processo não encontrado", variant: "destructive" });
+        return;
+      }
+      setFormData(prev => ({
+        ...prev,
+        processo_numero: data.numero ?? prev.processo_numero,
+        polo_ativo: data.polo_ativo ?? prev.polo_ativo,
+        cliente: data.polo_passivo ?? prev.cliente,
+        vara_camara: data.vara ?? prev.vara_camara,
+        comarca: data.comarca ?? prev.comarca,
+      }));
+      toast({ title: "Dados do processo carregados" });
+    } catch (err: any) {
+      toast({ title: "Erro ao buscar processo", description: err.message, variant: "destructive" });
+    } finally {
+      setBuscandoProcesso(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -108,13 +149,28 @@ export function CadastroAudienciaForm() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="processo_numero">Número do Processo *</Label>
-              <Input
-                id="processo_numero"
-                placeholder="0000000-00.0000.0.00.0000"
-                value={formData.processo_numero}
-                onChange={(e) => handleChange("processo_numero", e.target.value)}
-                required
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="processo_numero"
+                  placeholder="0000000-00.0000.0.00.0000"
+                  value={formData.processo_numero}
+                  onChange={(e) => handleChange("processo_numero", e.target.value)}
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleBuscarProcesso}
+                  disabled={buscandoProcesso}
+                  title="Buscar dados do processo"
+                >
+                  {buscandoProcesso ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
 
