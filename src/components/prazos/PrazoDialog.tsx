@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
+import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 
 type Unidade = "uteis" | "corridos";
 
@@ -253,7 +254,32 @@ export function PrazoDialog({
           <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
             {prazo ? "Editar Prazo" : "Adicionar Prazo"}
           </h3>
-          <Tag className="h-4 w-4 text-muted-foreground" />
+          {hasPublicacao ? (
+            <BotaoPreencherIA
+              conteudo={publicacao?.conteudo}
+              tipoTarefa="PRAZO"
+              processoNumero={publicacao?.processo_numero}
+              dataPublicacao={publicacao?.data_publicacao}
+              size="sm"
+              onResultado={(resultado) => {
+                if (resultado.titulo) setTitulo(resultado.titulo);
+                if (resultado.observacoes) setObservacoes(resultado.observacoes);
+                const dias = (resultado as any).dias_prazo as number | undefined;
+                if (dias && dias > 0) {
+                  setPrazoDias(dias);
+                  setPrazoUnidade("uteis");
+                  setDataLimiteEditadaManualmente(false);
+                } else if (resultado.data_vencimento) {
+                  try {
+                    setDataLimite(parseISO(resultado.data_vencimento));
+                    setDataLimiteEditadaManualmente(true);
+                  } catch {}
+                }
+              }}
+            />
+          ) : (
+            <Tag className="h-4 w-4 text-muted-foreground" />
+          )}
         </div>
 
         <div className="space-y-1.5">

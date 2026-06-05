@@ -24,6 +24,9 @@ type Props = {
   onCancel?: () => void;
   hideTitleHeader?: boolean;
   showProcessoField?: boolean;
+  defaultTitulo?: string;
+  defaultObservacoes?: string;
+  defaultDataAudiencia?: string;
 };
 
 const empty = {
@@ -47,9 +50,17 @@ export function AudienciaFormSimplificado({
   onCancel,
   hideTitleHeader,
   showProcessoField = true,
+  defaultTitulo,
+  defaultObservacoes,
+  defaultDataAudiencia,
 }: Props) {
   const { criarAudiencia } = useAudienciasDetectadas();
-  const [form, setForm] = useState({ ...empty });
+  const [form, setForm] = useState({
+    ...empty,
+    titulo: defaultTitulo ?? "",
+    observacoes: defaultObservacoes ?? "",
+    data_audiencia: defaultDataAudiencia ?? "",
+  });
   const [processoNumero, setProcessoNumero] = useState(defaultProcessoNumero ?? "");
   const [processoId, setProcessoId] = useState<string | undefined>(defaultProcessoId);
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);

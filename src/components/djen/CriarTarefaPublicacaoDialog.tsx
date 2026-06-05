@@ -144,6 +144,7 @@ interface CriarTarefaPublicacaoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   publicacao: PublicacaoUnificada | null;
+  defaultProcessoId?: string;
 }
 
 const tiposTarefa = [
@@ -173,6 +174,7 @@ export function CriarTarefaPublicacaoDialog({
   open,
   onOpenChange,
   publicacao,
+  defaultProcessoId,
 }: CriarTarefaPublicacaoDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -373,7 +375,7 @@ export function CriarTarefaPublicacaoDialog({
       const { data: tarefa, error } = await supabase
         .from("tarefas")
         .insert({
-          processo_id: publicacao.processo_id,
+          processo_id: defaultProcessoId || publicacao.processo_id,
           responsavel_id: responsavelPrincipal,
           titulo: values.titulo,
           descricao: values.descricao || null,
