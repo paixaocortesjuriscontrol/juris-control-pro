@@ -2058,6 +2058,12 @@ export default function Notificacoes({ embedded = false }: NotificacoesProps = {
         periodoFim={periodoFim}
         statusFilter={statusFilter}
       />
+    </>
+  );
+
+  return embedded ? body : (
+    <MainLayout title="Central de Notificações" subtitle={`${stats.total} alertas encontrados`}>
+      {body}
     </MainLayout>
   );
 }
