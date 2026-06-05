@@ -69,6 +69,8 @@ const FIELDS = [
   "pasta_fisica", "pasta_cliente",
   // Descrição
   "descricao",
+  // Encerramento
+  "motivo_encerramento",
 ] as const;
 
 const NUMERIC_FIELDS = new Set(["valor_causa", "valor_condenacao", "valor_provisionado"]);
@@ -154,6 +156,10 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
 
   const handleSave = async () => {
     if (!processo?.id) return;
+    if (form.status === "encerrado" && !String(form.motivo_encerramento || "").trim()) {
+      toast.error("Informe o motivo do encerramento antes de salvar.");
+      return;
+    }
     setSaving(true);
     try {
       const payload: Record<string, any> = {};
@@ -787,6 +793,21 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       </SelectContent>
                     </Select>
                   </FormField>
+                  {form.status === "encerrado" && (
+                    <FormField label="Motivo do Encerramento *" className="md:col-span-2">
+                      <Textarea
+                        rows={2}
+                        required
+                        placeholder="Descreva o motivo do encerramento (obrigatório)"
+                        className={cn(
+                          "text-sm min-h-[60px]",
+                          !String(form.motivo_encerramento || "").trim() && "border-destructive focus-visible:ring-destructive"
+                        )}
+                        value={form.motivo_encerramento || ""}
+                        onChange={(e) => update("motivo_encerramento", e.target.value)}
+                      />
+                    </FormField>
+                  )}
                   <FormField label="Classe CNJ">
                     <Input className={cn(inputCls, jcls("classe"))} value={form.classe || ""} onChange={(e) => update("classe", e.target.value)} />
                   </FormField>
