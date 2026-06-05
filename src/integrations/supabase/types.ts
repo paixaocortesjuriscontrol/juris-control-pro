@@ -422,6 +422,8 @@ export type Database = {
         Row: {
           advogado: string | null
           alerta_enviado: boolean | null
+          alerta_unidade: string | null
+          alerta_valor: number | null
           cliente: string | null
           comarca: string | null
           conteudo_publicacao: string | null
@@ -432,9 +434,11 @@ export type Database = {
           data_audiencia: string | null
           dossie: string | null
           equipe: string | null
+          forum: string | null
           funcao: string | null
           hora: string | null
           hora_brasilia: string | null
+          hora_fim: string | null
           hora_local: string | null
           id: string
           local_audiencia: string | null
@@ -451,11 +455,13 @@ export type Database = {
           providencias_tomadas: string | null
           publicacao_id: string | null
           resumo_objeto: string | null
+          sala_forum: string | null
           status: string
           tarefa_id: string | null
           terceirizado: string | null
           testemunhas: string | null
           tipo_audiencia: string | null
+          titulo: string | null
           tratado_em: string | null
           tratado_por: string | null
           updated_at: string
@@ -464,6 +470,8 @@ export type Database = {
         Insert: {
           advogado?: string | null
           alerta_enviado?: boolean | null
+          alerta_unidade?: string | null
+          alerta_valor?: number | null
           cliente?: string | null
           comarca?: string | null
           conteudo_publicacao?: string | null
@@ -474,9 +482,11 @@ export type Database = {
           data_audiencia?: string | null
           dossie?: string | null
           equipe?: string | null
+          forum?: string | null
           funcao?: string | null
           hora?: string | null
           hora_brasilia?: string | null
+          hora_fim?: string | null
           hora_local?: string | null
           id?: string
           local_audiencia?: string | null
@@ -493,11 +503,13 @@ export type Database = {
           providencias_tomadas?: string | null
           publicacao_id?: string | null
           resumo_objeto?: string | null
+          sala_forum?: string | null
           status?: string
           tarefa_id?: string | null
           terceirizado?: string | null
           testemunhas?: string | null
           tipo_audiencia?: string | null
+          titulo?: string | null
           tratado_em?: string | null
           tratado_por?: string | null
           updated_at?: string
@@ -506,6 +518,8 @@ export type Database = {
         Update: {
           advogado?: string | null
           alerta_enviado?: boolean | null
+          alerta_unidade?: string | null
+          alerta_valor?: number | null
           cliente?: string | null
           comarca?: string | null
           conteudo_publicacao?: string | null
@@ -516,9 +530,11 @@ export type Database = {
           data_audiencia?: string | null
           dossie?: string | null
           equipe?: string | null
+          forum?: string | null
           funcao?: string | null
           hora?: string | null
           hora_brasilia?: string | null
+          hora_fim?: string | null
           hora_local?: string | null
           id?: string
           local_audiencia?: string | null
@@ -535,11 +551,13 @@ export type Database = {
           providencias_tomadas?: string | null
           publicacao_id?: string | null
           resumo_objeto?: string | null
+          sala_forum?: string | null
           status?: string
           tarefa_id?: string | null
           terceirizado?: string | null
           testemunhas?: string | null
           tipo_audiencia?: string | null
+          titulo?: string | null
           tratado_em?: string | null
           tratado_por?: string | null
           updated_at?: string
