@@ -87,6 +87,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
+import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
@@ -229,25 +230,17 @@ const AnaliseDjen = () => {
   const resolverProcessoDaPublicacao = async (pub: PublicacaoUnificada) => {
     setAdicionarProcessoId(undefined);
     setAdicionarProcessoNumero(pub.processo_numero ?? undefined);
-    const numero = pub.processo_numero?.trim();
-    if (!numero) return;
-    const numeroDigits = numero.replace(/\D/g, "");
-    const numeroMasked = formatProcessoNumero(numero);
+    if (!user?.id) return;
     try {
-      const candidatos = Array.from(new Set([numeroMasked, numero, numeroDigits].filter(Boolean)));
-      const orExpr = candidatos.map((c) => `numero.ilike.%${c}%`).join(",");
-      const { data } = await supabase
-        .from("processos")
-        .select("id, numero")
-        .or(orExpr)
-        .limit(1)
-        .maybeSingle();
-      if (data?.id) {
-        setAdicionarProcessoId(data.id);
-        setAdicionarProcessoNumero(data.numero ?? numero);
+      const resolved = await ensureProcessoFromPublicacao(pub, user.id, userCoordenacao);
+      if (resolved) {
+        setAdicionarProcessoId(resolved.id);
+        setAdicionarProcessoNumero(resolved.numero);
+        queryClient.invalidateQueries({ queryKey: ["processos"] });
+        queryClient.invalidateQueries({ queryKey: ["pastas"] });
       }
-    } catch {
-      // silencioso — formulários abrem mesmo sem encontrar o processo
+    } catch (err) {
+      console.warn("Falha ao resolver/criar processo a partir da publicação", err);
     }
   };
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
