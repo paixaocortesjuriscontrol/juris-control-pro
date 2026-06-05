@@ -14,8 +14,14 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Check, ChevronsUpDown, UserPlus, X, Users } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface UserOpt {
   id: string;
@@ -151,34 +157,20 @@ export function PeoplePicker({
           >
             <Command>
               <CommandInput placeholder="Buscar pessoa..." className="h-9" />
-              <div className="flex items-center gap-1 px-2 py-1.5 border-b overflow-x-auto">
-                <button
-                  type="button"
-                  onClick={() => setCoordFiltro("todas")}
-                  className={cn(
-                    "text-[11px] px-2 py-0.5 rounded-full shrink-0 border",
-                    coordFiltro === "todas"
-                      ? "bg-primary text-primary-foreground border-primary"
-                      : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
-                  )}
-                >
-                  Todas
-                </button>
-                {coordenacoes.map((c) => (
-                  <button
-                    type="button"
-                    key={c.id}
-                    onClick={() => setCoordFiltro(c.id)}
-                    className={cn(
-                      "text-[11px] px-2 py-0.5 rounded-full shrink-0 border whitespace-nowrap",
-                      coordFiltro === c.id
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-muted text-muted-foreground border-transparent hover:bg-muted/80"
-                    )}
-                  >
-                    {c.nome}
-                  </button>
-                ))}
+              <div className="px-2 py-1.5 border-b">
+                <Select value={coordFiltro} onValueChange={setCoordFiltro}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Filtrar por coordenação" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[60]">
+                    <SelectItem value="todas">Todas as coordenações</SelectItem>
+                    {coordenacoes.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <CommandList className="max-h-[260px]">
                 <CommandEmpty>Nenhuma pessoa encontrada.</CommandEmpty>
