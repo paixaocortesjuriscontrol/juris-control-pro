@@ -737,8 +737,7 @@ export default function PainelControle() {
         {/* Header */}
         <div className="px-4 md:px-6 py-3 md:py-4 bg-card border-b border-border flex-shrink-0 space-y-2">
           <div className="flex items-center gap-3">
-            <h1 className="text-base md:text-xl font-bold text-foreground">Painel de Controle</h1>
-            <div className="flex gap-1 ml-2">
+            <div className="flex gap-1">
               <Button
                 size="sm"
                 variant={tabMode === "pessoal" ? "default" : "outline"}
@@ -776,18 +775,19 @@ export default function PainelControle() {
               <div className="hidden md:flex gap-1 mr-1">
                 <Button
                   size="sm"
-                  variant="default"
+                  variant={viewMode === "agenda" ? "default" : "outline"}
                   className="h-7 px-3 text-xs"
-                  title="Visão em agenda (atual)"
+                  onClick={() => setViewMode("agenda")}
+                  title="Visão em agenda"
                 >
                   Em Agenda
                 </Button>
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant={viewMode === "lista" ? "default" : "outline"}
                   className="h-7 px-3 text-xs"
-                  onClick={() => navigate("/lista-atividades")}
-                  title="Abrir Lista de Atividades"
+                  onClick={() => setViewMode("lista")}
+                  title="Visão em lista"
                 >
                   Em Lista
                 </Button>
