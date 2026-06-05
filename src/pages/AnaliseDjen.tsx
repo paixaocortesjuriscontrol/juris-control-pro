@@ -852,9 +852,11 @@ const AnaliseDjen = () => {
     toggleExpandPublicacao(pub.id);
   };
 
-  const handleCriarTarefa = (pub: PublicacaoUnificada) => {
+  const handleCriarTarefa = async (pub: PublicacaoUnificada) => {
     setSelectedPublicacao(pub);
     setCriarTarefaDialogOpen(true);
+    // Resolve/cria processo em paralelo para o vínculo da tarefa
+    await resolverProcessoDaPublicacao(pub);
   };
 
 
