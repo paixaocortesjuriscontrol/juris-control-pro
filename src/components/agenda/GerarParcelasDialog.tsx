@@ -62,7 +62,6 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
     dataVencimento: format(new Date(), "yyyy-MM-dd"),
     valorPadrao: "",
     intervalo: "mensal",
-    processo_id: "",
     participantes_ids: [] as string[],
     enviar_whatsapp: false,
     alerta_minutos: [30] as number[],
