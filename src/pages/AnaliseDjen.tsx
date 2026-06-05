@@ -4490,19 +4490,33 @@ const AnaliseDjen = () => {
                                          </Button>
                                        ) : null}
                                        
-                                       <Button
-                                         variant="outline"
-                                         size="sm"
-                                         onClick={(e) => {
-                                           e.stopPropagation();
-                                           handleCriarTarefa(pub);
-                                         }}
-                                         title="Criar tarefa a partir desta publicação"
-                                         className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
-                                       >
-                                         <ListChecks className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
-                                         <span className="text-xs">Criar Tarefa</span>
-                                       </Button>
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              title="Adicionar item a partir desta publicação"
+                                              className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
+                                            >
+                                              <Plus className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
+                                              <span className="text-xs">Adicionar</span>
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
+                                            <DropdownMenuItem onClick={() => handleCriarTarefa(pub)}>
+                                              <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => setNovoEventoOpen(true)}>
+                                              <CalendarPlus className="w-4 h-4 mr-2" /> Evento
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => setNovoPrazoOpen(true)}>
+                                              <Clock className="w-4 h-4 mr-2" /> Prazo
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => setNovaAudienciaOpen(true)}>
+                                              <Gavel className="w-4 h-4 mr-2" /> Audiência
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
                                        
                                        {/* Botão Marcar como Lida individual */}
                                        {!pub.lida && (
