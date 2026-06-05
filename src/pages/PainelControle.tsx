@@ -58,11 +58,14 @@ import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { toZonedTime } from "date-fns-tz";
 import { useNavigate } from "react-router-dom";
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
+import TstPrazos from "@/pages/TstPrazos";
+import PainelAudiencias from "@/pages/PainelAudiencias";
+import Notificacoes from "@/pages/Notificacoes";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
 type TabMode = "pessoal" | "escritorio";
-type ViewMode = "agenda" | "lista";
+type ViewMode = "agenda" | "lista" | "prazos" | "audiencias" | "notificacoes";
 
 // Cores dos tipos
 const TIPO_CORES: Record<string, string> = {
@@ -791,6 +794,33 @@ export default function PainelControle() {
                 >
                   Em Lista
                 </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "prazos" ? "default" : "outline"}
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setViewMode("prazos")}
+                  title="Prazos Fatais"
+                >
+                  Prazos Fatais
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "audiencias" ? "default" : "outline"}
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setViewMode("audiencias")}
+                  title="Painel de Audiências"
+                >
+                  Audiências
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "notificacoes" ? "default" : "outline"}
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setViewMode("notificacoes")}
+                  title="Notificações"
+                >
+                  Notificações
+                </Button>
               </div>
               <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
               <DropdownMenu>
@@ -921,6 +951,18 @@ export default function PainelControle() {
         {viewMode === "lista" ? (
           <div className="flex-1 min-h-0 overflow-auto">
             <ListaAtividadesView embedded onRequestNovo={() => setNovaTarefaOpen(true)} />
+          </div>
+        ) : viewMode === "prazos" ? (
+          <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
+            <TstPrazos embedded />
+          </div>
+        ) : viewMode === "audiencias" ? (
+          <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
+            <PainelAudiencias embedded />
+          </div>
+        ) : viewMode === "notificacoes" ? (
+          <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
+            <Notificacoes embedded />
           </div>
         ) : (
         <div className="flex flex-1 min-h-0 overflow-hidden relative">
