@@ -1,4 +1,7 @@
 import { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +21,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CriarAudienciaProcessoDialog } from "@/components/audiencias/CriarAudienciaProcessoDialog";
+import { EventoDialog } from "@/components/agenda/EventoDialog";
+import { PrazoDialog } from "@/components/prazos/PrazoDialog";
+import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { MonitoramentoToggle } from "./MonitoramentoToggle";
 import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
@@ -125,6 +131,39 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [syncingAnexos, setSyncingAnexos] = useState(false);
   const [syncingInterno, setSyncingInterno] = useState(false);
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
+  const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
+  const [novoEventoOpen, setNovoEventoOpen] = useState(false);
+  const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
+  const { user } = useAuth();
+  const { isAdmin: isUserAdmin } = useUserRole();
+  const { data: membrosCoordenacoes = [] } = useQuery({
+    queryKey: ["membros-coordenacoes-processo-adicionar", user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [] as string[];
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id")
+        .eq("usuario_id", user.id);
+      if (error) throw error;
+      return (data || []).map((m: any) => m.coordenacao_id as string);
+    },
+    enabled: novaTarefaOpen && !!user?.id && !isUserAdmin,
+  });
+  const { data: coordenacoesTarefa = [] } = useQuery({
+    queryKey: ["coordenacoes-processo-adicionar", isUserAdmin, membrosCoordenacoes],
+    queryFn: async () => {
+      let query = supabase.from("coordenacoes").select("id, nome, area").order("nome");
+      if (!isUserAdmin && membrosCoordenacoes.length > 0) {
+        query = query.in("id", membrosCoordenacoes);
+      } else if (!isUserAdmin && membrosCoordenacoes.length === 0) {
+        return [] as any[];
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: novaTarefaOpen && (isUserAdmin || membrosCoordenacoes.length > 0),
+  });
   // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Contador ao vivo (segundos decorridos) durante a busca Judit — mesma
@@ -698,13 +737,13 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => onNavigate?.("tarefas")}>
+                    <DropdownMenuItem onSelect={() => setNovaTarefaOpen(true)}>
                       <ListTodo className="w-4 h-4 mr-2" /> Tarefa
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onNavigate?.("prazo")}>
+                    <DropdownMenuItem onSelect={() => setNovoPrazoOpen(true)}>
                       <Clock className="w-4 h-4 mr-2" /> Prazo
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onNavigate?.("agenda")}>
+                    <DropdownMenuItem onSelect={() => setNovoEventoOpen(true)}>
                       <CalendarDays className="w-4 h-4 mr-2" /> Evento
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setCriarAudienciaOpen(true)}>
@@ -1112,6 +1151,28 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           processoId={processo.id}
           processoNumero={processo.numero}
         />
+      )}
+      {processo?.id && (
+        <>
+          <EventoDialog
+            open={novoEventoOpen}
+            onOpenChange={setNovoEventoOpen}
+            evento={null}
+            defaultProcessoId={processo.id}
+          />
+          <PrazoDialog
+            open={novoPrazoOpen}
+            onOpenChange={setNovoPrazoOpen}
+            prazo={null}
+            defaultProcessoId={processo.id}
+          />
+          <NovaTarefaDialog
+            open={novaTarefaOpen}
+            onOpenChange={setNovaTarefaOpen}
+            coordenacoes={coordenacoesTarefa as any}
+            processoPreSelecionado={{ id: processo.id, numero: processo.numero }}
+          />
+        </>
       )}
     </div>
   );
