@@ -8,7 +8,7 @@ import { AnaliseJuditTab } from "@/components/distribuicao-tst/AnaliseJuditTab";
 import { PrazoSectionEditable } from "./PrazoSectionEditable";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { BaixarAutosButton } from "./BaixarAutosButton";
-import { ProcessoVisaoGeralForm } from "./ProcessoVisaoGeralForm";
+import { ProcessoVisaoGeralForm, type ProcessoVisaoGeralFormHandle } from "./ProcessoVisaoGeralForm";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
