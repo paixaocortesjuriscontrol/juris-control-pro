@@ -6920,6 +6920,8 @@ export type Database = {
       }
       tarefas: {
         Row: {
+          alerta_dias: number | null
+          alerta_unidade: string | null
           concluido_por_nome: string | null
           created_at: string
           criado_por: string | null
@@ -6955,6 +6957,8 @@ export type Database = {
           outras_partes: string | null
           partes_ativas: string | null
           partes_passivas: string | null
+          prazo_dias: number | null
+          prazo_unidade: string | null
           prioridade: Database["public"]["Enums"]["prioridade_tarefa"]
           processo_id: string | null
           quadro_kanban: string | null
@@ -6967,6 +6971,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          alerta_dias?: number | null
+          alerta_unidade?: string | null
           concluido_por_nome?: string | null
           created_at?: string
           criado_por?: string | null
@@ -7002,6 +7008,8 @@ export type Database = {
           outras_partes?: string | null
           partes_ativas?: string | null
           partes_passivas?: string | null
+          prazo_dias?: number | null
+          prazo_unidade?: string | null
           prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
           processo_id?: string | null
           quadro_kanban?: string | null
@@ -7014,6 +7022,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          alerta_dias?: number | null
+          alerta_unidade?: string | null
           concluido_por_nome?: string | null
           created_at?: string
           criado_por?: string | null
@@ -7049,6 +7059,8 @@ export type Database = {
           outras_partes?: string | null
           partes_ativas?: string | null
           partes_passivas?: string | null
+          prazo_dias?: number | null
+          prazo_unidade?: string | null
           prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
           processo_id?: string | null
           quadro_kanban?: string | null

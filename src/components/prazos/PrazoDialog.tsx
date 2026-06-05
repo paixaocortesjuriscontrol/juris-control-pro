@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,40 +22,47 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { CalendarIcon, Loader2, Search, Upload, FileText, Trash2, Plus, Link2, Users, Briefcase, ClipboardList } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { CalendarIcon, Loader2, FileText, Tag, AlertTriangle } from "lucide-react";
+import { format, parseISO, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { cn, sanitizeFileName } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useCreatePrazo, useUpdatePrazo, type Prazo } from "@/hooks/usePrazos";
 import { supabase } from "@/integrations/supabase/client";
-import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
-import { Separator } from "@/components/ui/separator";
 import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
+import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
+import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 
-const CUSTOM_TIPOS_KEY = "tarefas_tipos_customizados_v1";
+type Unidade = "uteis" | "corridos";
 
-function loadCustomTipos(): string[] {
-  try {
-    const raw = localStorage.getItem(CUSTOM_TIPOS_KEY);
-    if (!raw) return [];
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr.filter((x) => typeof x === "string") : [];
-  } catch {
-    return [];
+function addBusinessDays(start: Date, days: number): Date {
+  let remaining = days;
+  const d = new Date(start);
+  while (remaining > 0) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) remaining--;
   }
+  return d;
 }
 
-function saveCustomTipo(tipo: string) {
-  const list = loadCustomTipos();
-  if (!list.includes(tipo)) {
-    list.push(tipo);
-    localStorage.setItem(CUSTOM_TIPOS_KEY, JSON.stringify(list));
+function subBusinessDays(start: Date, days: number): Date {
+  let remaining = days;
+  const d = new Date(start);
+  while (remaining > 0) {
+    d.setDate(d.getDate() - 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) remaining--;
   }
+  return d;
+}
+
+function computeDataLimite(base: Date | undefined, dias: number, unidade: Unidade): Date | undefined {
+  if (!base || !dias || dias <= 0) return undefined;
+  return unidade === "uteis" ? addBusinessDays(base, dias) : addDays(base, dias);
 }
 
 type PrazoDialogProps = {
@@ -64,6 +71,7 @@ type PrazoDialogProps = {
   prazo?: Prazo | null;
   defaultProcessoId?: string;
   defaultTarefaRelacionadaId?: string;
+  publicacao?: PublicacaoUnificada | null;
 };
 
 export function PrazoDialog({
@@ -72,191 +80,47 @@ export function PrazoDialog({
   prazo,
   defaultProcessoId,
   defaultTarefaRelacionadaId,
+  publicacao,
 }: PrazoDialogProps) {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [titulo, setTitulo] = useState("");
-  const [descricao, setDescricao] = useState("");
-  const [dataVencimento, setDataVencimento] = useState<Date | undefined>();
-  const [prioridade, setPrioridade] = useState<string>("media");
-  const [processoId, setProcessoId] = useState("");
-  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
-  const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
-  const [observacoes, setObservacoes] = useState("");
-
-  // Projuris-style fields
-  const [tipoTarefa, setTipoTarefa] = useState<string>("");
-  const [dataBase, setDataBase] = useState<Date | undefined>();
-  const [dataFatal, setDataFatal] = useState<Date | undefined>();
-  const [localLink, setLocalLink] = useState("");
-  const [gruposTrabalho, setGruposTrabalho] = useState("");
-  const [customTipos, setCustomTipos] = useState<string[]>(() => loadCustomTipos());
-  const [showAddTipo, setShowAddTipo] = useState(false);
-  const [novoTipo, setNovoTipo] = useState("");
-  
-  // Anexos
-  const [anexos, setAnexos] = useState<File[]>([]);
-  const [uploadingAnexos, setUploadingAnexos] = useState(false);
-  
-  // Filtros para processos
-  const [coordenacaoId, setCoordenacaoId] = useState<string>("");
-  const [clienteId, setClienteId] = useState<string>("");
-  const [searchProcesso, setSearchProcesso] = useState("");
-
   const createPrazo = useCreatePrazo();
   const updatePrazo = useUpdatePrazo();
 
-  // Buscar coordenações
-  const { data: coordenacoes } = useQuery({
-    queryKey: ["coordenacoes-prazo"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("coordenacoes")
-        .select("id, nome")
-        .order("nome");
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: open,
-  });
+  const [titulo, setTitulo] = useState("");
+  const [prazoDias, setPrazoDias] = useState<number>(0);
+  const [prazoUnidade, setPrazoUnidade] = useState<Unidade>("uteis");
+  const [dataLimite, setDataLimite] = useState<Date | undefined>(undefined);
+  const [dataLimiteEditadaManualmente, setDataLimiteEditadaManualmente] = useState(false);
+  const [alertaDias, setAlertaDias] = useState<number>(0);
+  const [alertaUnidade, setAlertaUnidade] = useState<Unidade>("corridos");
+  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
+  const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
+  const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
+  const [observacoes, setObservacoes] = useState("");
 
-  // Buscar clientes (filtrados por coordenação se selecionada)
-  const { data: clientes, isLoading: loadingClientes } = useQuery({
-    queryKey: ["clientes-prazo", coordenacaoId],
-    queryFn: async () => {
-      let query = supabase
-        .from("clientes")
-        .select("id, nome")
-        .order("nome");
-      
-      // Se tiver coordenação, buscar apenas clientes com processos nessa coordenação
-      if (coordenacaoId) {
-        const { data: processosIds } = await supabase
-          .from("processos")
-          .select("cliente_id")
-          .eq("coordenacao_id", coordenacaoId)
-          .not("cliente_id", "is", null);
-        
-        const clienteIds = [...new Set(processosIds?.map(p => p.cliente_id).filter(Boolean) || [])];
-        if (clienteIds.length > 0) {
-          query = query.in("id", clienteIds);
-        } else {
-          return [];
-        }
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: open,
-  });
-
-  // Buscar dados do processo atual quando editando
-  const { data: processoAtual } = useQuery({
-    queryKey: ["processo-atual-prazo", prazo?.processo_id],
-    queryFn: async () => {
-      if (!prazo?.processo_id) return null;
-      const { data, error } = await supabase
-        .from("processos")
-        .select("id, numero, assunto, polo_ativo, polo_passivo, coordenacao_id, cliente_id")
-        .eq("id", prazo.processo_id)
-        .maybeSingle();
-      if (error) throw error;
-      return data || null;
-    },
-    enabled: open && !!prazo?.processo_id,
-  });
-
-  // Buscar processo padrão quando fornecido
-  const { data: processoDefault, isLoading: loadingProcessoDefault } = useQuery({
-    queryKey: ["processo-default", defaultProcessoId],
-    queryFn: async () => {
-      if (!defaultProcessoId) return null;
-      const { data, error } = await supabase
-        .from("processos")
-        .select("id, numero, assunto, polo_ativo, polo_passivo")
-        .eq("id", defaultProcessoId)
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    enabled: open && !!defaultProcessoId && !prazo,
-  });
-
-  // Buscar processos filtrados (só carrega quando tiver pelo menos um filtro)
-  const { data: processosFiltrados, isLoading: loadingProcessos } = useQuery({
-    queryKey: ["processos-prazo", coordenacaoId, clienteId, searchProcesso],
-    queryFn: async () => {
-      let query = supabase
-        .from("processos")
-        .select("id, numero, assunto, polo_ativo, polo_passivo")
-        .order("numero")
-        .limit(50);
-      
-      if (coordenacaoId) {
-        query = query.eq("coordenacao_id", coordenacaoId);
-      }
-      if (clienteId) {
-        query = query.eq("cliente_id", clienteId);
-      }
-      if (searchProcesso.length >= 3) {
-        query = query.or(`numero.ilike.%${searchProcesso}%,polo_ativo.ilike.%${searchProcesso}%,polo_passivo.ilike.%${searchProcesso}%`);
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: open && (!!coordenacaoId || !!clienteId || searchProcesso.length >= 3),
-  });
-
-  // Combinar processo atual/padrão com processos filtrados
-  const processoBase = processoAtual || processoDefault;
-  const processos = processoBase 
-    ? [processoBase, ...(processosFiltrados?.filter(p => p.id !== processoBase.id) || [])]
-    : processosFiltrados;
-
-  const { data: advogados } = useQuery({
-    queryKey: ["advogados"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, nome")
-        .eq("ativo", true)
-        .order("nome");
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: open,
-  });
-
-  // Resetar cliente quando trocar coordenação
-  useEffect(() => {
-    setClienteId("");
-    setProcessoId("");
-  }, [coordenacaoId]);
-
-  // Ao editar, pré-preencher filtros com base no processo vinculado (se houver)
-  useEffect(() => {
-    if (!open || !prazo || !processoAtual) return;
-
-    if (!coordenacaoId && processoAtual.coordenacao_id) {
-      setCoordenacaoId(processoAtual.coordenacao_id);
+  // data base = data da publicação (se houver) ou hoje
+  const dataBase = useMemo<Date>(() => {
+    if (publicacao?.data_disponibilizacao) {
+      try { return parseISO(publicacao.data_disponibilizacao); } catch {}
     }
-    if (!clienteId && processoAtual.cliente_id) {
-      setClienteId(processoAtual.cliente_id);
+    if (publicacao?.data_publicacao) {
+      try { return parseISO(publicacao.data_publicacao); } catch {}
     }
-  }, [open, prazo, processoAtual, coordenacaoId, clienteId]);
+    return new Date();
+  }, [publicacao?.data_disponibilizacao, publicacao?.data_publicacao]);
 
+  // Reset / preload state on open
   useEffect(() => {
+    if (!open) return;
     if (prazo) {
-      setTitulo(prazo.titulo);
-      setDescricao(prazo.descricao || "");
-      setDataVencimento(prazo.data_vencimento ? parseISO(prazo.data_vencimento) : undefined);
-      setPrioridade(prazo.prioridade);
-      setProcessoId(prazo.processo_id || "");
-      // Carregar responsáveis e envolvidos da tabela N:N (fallback no responsavel_id legado)
+      setTitulo(prazo.titulo || "");
+      setPrazoDias((prazo as any).prazo_dias ?? 0);
+      setPrazoUnidade(((prazo as any).prazo_unidade as Unidade) || "uteis");
+      setDataLimite(prazo.data_vencimento ? parseISO(prazo.data_vencimento) : undefined);
+      setDataLimiteEditadaManualmente(true);
+      setAlertaDias((prazo as any).alerta_dias ?? 0);
+      setAlertaUnidade(((prazo as any).alerta_unidade as Unidade) || "corridos");
+      setObservacoes(prazo.observacoes || "");
       (async () => {
         const [{ data: resps }, { data: envs }] = await Promise.all([
           supabase.from("tarefa_responsaveis").select("usuario_id").eq("tarefa_id", prazo.id),
@@ -264,555 +128,353 @@ export function PrazoDialog({
         ]);
         const respIds = (resps || []).map((r: any) => r.usuario_id);
         setResponsaveisIds(respIds.length > 0 ? respIds : (prazo.responsavel_id ? [prazo.responsavel_id] : []));
-        setEnvolvidosIds((envs || []).map((e: any) => e.usuario_id));
+        const envIds = (envs || []).map((e: any) => e.usuario_id);
+        setEnvolvidosIds(envIds);
+        setMostrarEnvolvidos(envIds.length > 0);
       })();
-      setObservacoes(prazo.observacoes || "");
-      setAnexos([]);
-      setTipoTarefa(prazo.tipo_tarefa || "");
-      setDataBase(prazo.data_base ? parseISO(prazo.data_base) : undefined);
-      setDataFatal(prazo.data_fatal ? parseISO(prazo.data_fatal) : undefined);
-      setGruposTrabalho(prazo.grupos_trabalho || "");
-      setLocalLink("");
     } else {
       setTitulo("");
-      setDescricao("");
-      setDataVencimento(undefined);
-      setPrioridade("media");
-      setProcessoId(defaultProcessoId || "");
+      setPrazoDias(0);
+      setPrazoUnidade("uteis");
+      setDataLimite(undefined);
+      setDataLimiteEditadaManualmente(false);
+      setAlertaDias(0);
+      setAlertaUnidade("corridos");
       setResponsaveisIds([]);
       setEnvolvidosIds([]);
+      setMostrarEnvolvidos(false);
       setObservacoes("");
-      setCoordenacaoId("");
-      setClienteId("");
-      setSearchProcesso("");
-      setAnexos([]);
-      setTipoTarefa("");
-      setDataBase(undefined);
-      setDataFatal(undefined);
-      setGruposTrabalho("");
-      setLocalLink("");
     }
-    setShowAddTipo(false);
-    setNovoTipo("");
-  }, [prazo, open, defaultProcessoId]);
+  }, [open, prazo?.id]);
 
-  const showProcessoSelect = !!coordenacaoId || !!clienteId || searchProcesso.length >= 3 || !!processoDefault || !!processoAtual || !!defaultProcessoId;
-
-  const handleSelectCliente = (value: string) => {
-    if (value.startsWith("__")) return;
-    setClienteId(value);
-  };
-
-  const handleAddAnexo = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files) {
-      setAnexos(prev => [...prev, ...Array.from(files)]);
-    }
-    e.target.value = '';
-  };
-
-  const handleRemoveAnexo = (index: number) => {
-    setAnexos(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
+  // Auto-calcular data limite quando Prazo (dias) muda
+  useEffect(() => {
+    if (dataLimiteEditadaManualmente) return;
+    const calc = computeDataLimite(dataBase, prazoDias, prazoUnidade);
+    setDataLimite(calc);
+  }, [prazoDias, prazoUnidade, dataBase, dataLimiteEditadaManualmente]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const tituloFinal = titulo.trim() || tipoTarefa.trim();
+    const tituloFinal = titulo.trim();
     if (!tituloFinal) {
-      toast.error("Informe o tipo de tarefa ou um título");
+      toast.error("Informe o título do prazo");
       return;
     }
-    if (!dataVencimento) {
-      toast.error("Informe a data prevista");
+    if (!dataLimite) {
+      toast.error("Informe a data limite");
+      return;
+    }
+    if (responsaveisIds.length === 0) {
+      toast.error("Selecione ao menos um responsável");
       return;
     }
 
-    const prazoData = {
+    const payload = {
       titulo: tituloFinal,
-      descricao: descricao || undefined,
-      data_vencimento: format(dataVencimento, "yyyy-MM-dd"),
-      prioridade: prioridade as "baixa" | "media" | "alta" | "urgente",
-      processo_id: (processoId === "__none__" || !processoId) ? null : processoId,
-      responsavel_id: responsaveisIds[0] || undefined,
-      observacoes: [
-        observacoes?.trim(),
-        localLink?.trim() ? `Local/Link: ${localLink.trim()}` : "",
-      ].filter(Boolean).join("\n\n") || undefined,
-      tipo_tarefa: tipoTarefa || null,
-      data_base: dataBase ? format(dataBase, "yyyy-MM-dd") : null,
-      data_fatal: dataFatal ? format(dataFatal, "yyyy-MM-dd") : null,
-      grupos_trabalho: gruposTrabalho || null,
+      data_vencimento: format(dataLimite, "yyyy-MM-dd"),
+      prioridade: "media" as const,
+      processo_id: defaultProcessoId || prazo?.processo_id || null,
+      responsavel_id: responsaveisIds[0],
+      observacoes: observacoes.trim() || undefined,
+      tipo_tarefa: "PRAZO",
+      data_base: format(dataBase, "yyyy-MM-dd"),
+      prazo_dias: prazoDias > 0 ? prazoDias : null,
+      prazo_unidade: prazoDias > 0 ? prazoUnidade : null,
+      alerta_dias: alertaDias > 0 ? alertaDias : null,
+      alerta_unidade: alertaDias > 0 ? alertaUnidade : null,
     };
 
     try {
-      let novaTarefaId: string | null = null;
-      
+      let tarefaId: string | null = null;
       if (prazo) {
-        await updatePrazo.mutateAsync({ id: prazo.id, ...prazoData });
-        novaTarefaId = prazo.id;
+        await updatePrazo.mutateAsync({ id: prazo.id, ...payload });
+        tarefaId = prazo.id;
       } else {
-        const result = await createPrazo.mutateAsync({
-          ...prazoData,
-          criado_por: user?.id,
-        });
-        novaTarefaId = result?.id || null;
+        const result = await createPrazo.mutateAsync({ ...payload, criado_por: user?.id });
+        tarefaId = result?.id || null;
       }
 
-      // Persistir vínculos N:N de responsáveis e envolvidos
-      if (novaTarefaId) {
-        await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", novaTarefaId);
+      if (tarefaId) {
+        await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefaId);
         if (responsaveisIds.length > 0) {
           await supabase.from("tarefa_responsaveis").insert(
-            responsaveisIds.map((uid) => ({ tarefa_id: novaTarefaId!, usuario_id: uid }))
+            responsaveisIds.map((uid) => ({ tarefa_id: tarefaId!, usuario_id: uid }))
           );
         }
-        await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", novaTarefaId);
+        await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefaId);
         if (envolvidosIds.length > 0) {
           await supabase.from("tarefa_envolvidos").insert(
-            envolvidosIds.map((uid) => ({ tarefa_id: novaTarefaId!, usuario_id: uid }))
+            envolvidosIds.map((uid) => ({ tarefa_id: tarefaId!, usuario_id: uid }))
           );
         }
-      }
 
-      // Se foi criada como tarefa relacionada, criar o vínculo
-      if (novaTarefaId && defaultTarefaRelacionadaId && user?.id) {
-        await supabase.from("tarefas_relacionadas").insert({
-          tarefa_origem_id: defaultTarefaRelacionadaId,
-          tarefa_relacionada_id: novaTarefaId,
-          criado_por: user.id,
-        });
-      }
-
-      // Upload de anexos se houver
-      if (anexos.length > 0 && processoId) {
-        setUploadingAnexos(true);
-        for (const file of anexos) {
-          const sanitizedName = sanitizeFileName(file.name);
-          const fileName = `${processoId}/${Date.now()}_${sanitizedName}`;
-          
-          const { error: uploadError } = await supabase.storage
-            .from('documentos_processos')
-            .upload(fileName, file);
-
-          if (uploadError) {
-            console.error("Erro ao fazer upload:", uploadError);
-            toast.error(`Erro ao enviar ${file.name}`);
-            continue;
-          }
-
-          const signedUrl = await getSignedUrlOrEmpty("documentos_processos", fileName);
-
-          await supabase.from('documentos').insert({
-            nome: file.name,
-            tipo: file.type,
-            url: signedUrl,
-            tamanho_bytes: file.size,
-            processo_id: processoId,
-            uploaded_by: user?.id,
+        if (defaultTarefaRelacionadaId && user?.id && !prazo) {
+          await supabase.from("tarefas_relacionadas").insert({
+            tarefa_origem_id: defaultTarefaRelacionadaId,
+            tarefa_relacionada_id: tarefaId,
+            criado_por: user.id,
           });
         }
-        setUploadingAnexos(false);
-        queryClient.invalidateQueries({ queryKey: ["documentos-tarefa", processoId] });
-        toast.success(`${anexos.length} documento(s) anexado(s)`);
+
+        // Vincular à publicação (se aplicável)
+        if (publicacao?.id && !prazo) {
+          try {
+            if (publicacao.tipo_origem === "termo") {
+              await supabase.from("tarefas_publicacoes").insert({
+                tarefa_id: tarefaId,
+                publicacao_id: publicacao.id,
+              });
+            } else if (publicacao.tipo_origem === "processo") {
+              await supabase.from("tarefas_publicacoes_processos").insert({
+                tarefa_id: tarefaId,
+                publicacao_processo_id: publicacao.id,
+              });
+            }
+          } catch (err) {
+            console.warn("Falha ao vincular prazo à publicação", err);
+          }
+        }
       }
 
       onOpenChange(false);
     } catch (error: any) {
-      toast.error("Erro ao salvar: " + error.message);
+      toast.error("Erro ao salvar prazo: " + error.message);
     }
   };
 
-  const isLoading = createPrazo.isPending || updatePrazo.isPending || uploadingAnexos;
+  const isLoading = createPrazo.isPending || updatePrazo.isPending;
+  const hasPublicacao = !!publicacao;
 
-  const allTipos = Array.from(new Set([...TIPOS_TAREFA, ...customTipos])).sort();
+  const FormContent = (
+    <form onSubmit={handleSubmit} className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
+            {prazo ? "Editar Prazo" : "Adicionar Prazo"}
+          </h3>
+          <Tag className="h-4 w-4 text-muted-foreground" />
+        </div>
 
-  const handleAddTipo = () => {
-    const v = novoTipo.trim().toUpperCase();
-    if (!v) {
-      toast.error("Informe o nome do tipo");
-      return;
-    }
-    saveCustomTipo(v);
-    setCustomTipos(loadCustomTipos());
-    setTipoTarefa(v);
-    setNovoTipo("");
-    setShowAddTipo(false);
-    toast.success("Tipo adicionado");
-  };
+        <div className="space-y-1.5">
+          <Label className="text-sm">
+            Título do prazo<span className="text-destructive">*</span>
+          </Label>
+          <Input
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            placeholder="Digite o título do prazo"
+            className="h-10"
+            autoFocus
+          />
+        </div>
 
-  const DatePickerField = ({
-    value,
-    onChange,
-    placeholder = "Selecionar data",
-  }: {
-    value: Date | undefined;
-    onChange: (d: Date | undefined) => void;
-    placeholder?: string;
-  }) => (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className={cn(
-            "w-full justify-start text-left font-normal h-9",
-            !value && "text-muted-foreground"
-          )}
-        >
-          <CalendarIcon className="mr-2 h-4 w-4" />
-          {value ? format(value, "dd/MM/yyyy", { locale: ptBR }) : placeholder}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-sm">Prazo</Label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min={0}
+                value={prazoDias}
+                onChange={(e) => {
+                  setPrazoDias(parseInt(e.target.value || "0", 10));
+                  setDataLimiteEditadaManualmente(false);
+                }}
+                className="h-10 w-20"
+              />
+              <Select
+                value={prazoUnidade}
+                onValueChange={(v) => {
+                  setPrazoUnidade(v as Unidade);
+                  setDataLimiteEditadaManualmente(false);
+                }}
+              >
+                <SelectTrigger className="h-10 flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="uteis">Dias úteis</SelectItem>
+                  <SelectItem value="corridos">Dias corridos</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm">
+              Data limite<span className="text-destructive">*</span>
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    "h-10 w-full justify-start text-left font-normal",
+                    !dataLimite && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dataLimite ? format(dataLimite, "dd/MM/yyyy", { locale: ptBR }) : "__/__/____"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dataLimite}
+                  onSelect={(d) => {
+                    setDataLimite(d);
+                    setDataLimiteEditadaManualmente(true);
+                  }}
+                  locale={ptBR}
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-sm">Alerta</Label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min={0}
+                value={alertaDias}
+                onChange={(e) => setAlertaDias(parseInt(e.target.value || "0", 10))}
+                className="h-10 w-20"
+              />
+              <Select value={alertaUnidade} onValueChange={(v) => setAlertaUnidade(v as Unidade)}>
+                <SelectTrigger className="h-10 flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="corridos">Dia(s) antes</SelectItem>
+                  <SelectItem value="uteis">Dia(s) úteis antes</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm">
+              Responsável<span className="text-destructive">*</span>
+            </Label>
+            <MultiUserSelect
+              label=""
+              selectedIds={responsaveisIds}
+              onChange={setResponsaveisIds}
+              height={120}
+            />
+            <button
+              type="button"
+              onClick={() => setMostrarEnvolvidos((v) => !v)}
+              className="text-xs text-primary hover:underline"
+            >
+              {mostrarEnvolvidos ? "Ocultar envolvidos" : "Envolver mais pessoas"}
+            </button>
+          </div>
+        </div>
+
+        {mostrarEnvolvidos && (
+          <div className="space-y-1.5">
+            <Label className="text-sm">Envolvidos (acompanham)</Label>
+            <MultiUserSelect
+              label=""
+              helperText="Recebem o prazo apenas para acompanhamento"
+              selectedIds={envolvidosIds}
+              onChange={setEnvolvidosIds}
+              height={140}
+            />
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          <Label className="text-sm">Observações</Label>
+          <Textarea
+            value={observacoes}
+            onChange={(e) => setObservacoes(e.target.value)}
+            placeholder="Digite observações sobre o prazo"
+            rows={3}
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 px-5 py-3 border-t bg-muted/30">
+        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+          Cancelar
         </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar mode="single" selected={value} onSelect={onChange} locale={ptBR} className="pointer-events-auto" />
-      </PopoverContent>
-    </Popover>
+        <Button type="submit" disabled={isLoading}>
+          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Salvar
+        </Button>
+      </div>
+    </form>
   );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[760px] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
-        <DialogHeader className="px-6 py-4 border-b bg-muted/30">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-md bg-primary/10 text-primary">
-              <ClipboardList className="h-5 w-5" />
-            </div>
-            <div>
-              <DialogTitle className="text-base font-semibold">
-                {prazo ? "Alterar Tarefa" : "Nova Tarefa"}
-              </DialogTitle>
-              {prazo?.identificador_projuris && (
-                <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                  {prazo.identificador_projuris}
-                </p>
-              )}
-            </div>
-          </div>
+      <DialogContent
+        className={cn(
+          "p-0 gap-0 overflow-hidden flex flex-col",
+          hasPublicacao ? "max-w-5xl w-[95vw] h-[88vh]" : "sm:max-w-[640px] max-h-[92vh]"
+        )}
+      >
+        <DialogHeader className="sr-only">
+          <DialogTitle>{prazo ? "Editar Prazo" : "Adicionar Prazo"}</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5">
-            <div className="space-y-6">
-              {/* SECTION: Vínculo */}
-              <section className="space-y-3">
-                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  <Link2 className="h-3.5 w-3.5" />
-                  Vínculo
+        {hasPublicacao ? (
+          <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
+            {/* Left card: publicação */}
+            <div className="hidden lg:flex flex-1 border-r flex-col min-h-0">
+              <div className="p-4 border-b bg-muted/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Publicação
+                  </span>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Coordenação</Label>
-                    <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder="Filtrar por coordenação" /></SelectTrigger>
-                      <SelectContent>
-                        {coordenacoes?.map((coord) => (
-                          <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                <div className="space-y-1 text-sm">
+                  {publicacao?.processo_numero && (
+                    <div className="font-mono text-xs">{publicacao.processo_numero}</div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {publicacao?.data_publicacao && (
+                      <span>
+                        Publicado em{" "}
+                        {format(parseISO(publicacao.data_publicacao), "dd/MM/yyyy", { locale: ptBR })}
+                      </span>
+                    )}
+                    {publicacao?.tribunal && <Badge variant="outline">{publicacao.tribunal}</Badge>}
+                    {publicacao?.tipo_comunicacao && (
+                      <Badge variant="outline">{publicacao.tipo_comunicacao}</Badge>
+                    )}
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Cliente</Label>
-                    <Select value={clienteId} onValueChange={handleSelectCliente}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder="Filtrar por cliente" /></SelectTrigger>
-                      <SelectContent>
-                        {loadingClientes ? (
-                          <SelectItem value="__loading">Carregando clientes...</SelectItem>
-                        ) : clientes?.length ? (
-                          clientes.map((cliente) => (
-                            <SelectItem key={cliente.id} value={cliente.id}>{cliente.nome}</SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="__empty">Nenhum cliente encontrado</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Buscar processo</Label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      value={searchProcesso}
-                      onChange={(e) => setSearchProcesso(e.target.value)}
-                      placeholder="Digite 3+ caracteres para buscar..."
-                      className="pl-9 h-9"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Processo vinculado</Label>
-                  {!showProcessoSelect ? (
-                    <p className="text-xs text-muted-foreground p-2.5 border rounded-md bg-muted/40">
-                      Selecione uma coordenação, cliente ou digite 3+ caracteres para buscar processos
-                    </p>
-                  ) : loadingProcessos || (defaultProcessoId && loadingProcessoDefault) ? (
-                    <div className="flex items-center gap-2 p-2.5 border rounded-md">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-xs text-muted-foreground">Carregando processos...</span>
+                  {(publicacao?.polo_ativo || publicacao?.polo_passivo) && (
+                    <div className="text-xs text-muted-foreground pt-1">
+                      {publicacao?.polo_ativo} {publicacao?.polo_passivo ? `× ${publicacao.polo_passivo}` : ""}
                     </div>
-                  ) : processos?.length === 0 ? (
-                    <p className="text-xs text-muted-foreground p-2.5 border rounded-md bg-muted/40">
-                      Nenhum processo encontrado com os filtros selecionados
-                    </p>
-                  ) : (
-                    <Select value={processoId} onValueChange={setProcessoId}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder="Sem vínculo com processo" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Sem vínculo com processo</SelectItem>
-                        <ScrollArea className="h-[200px]">
-                          {processos?.map((processo) => (
-                            <SelectItem key={processo.id} value={processo.id}>
-                              {processo.numero} - {processo.polo_ativo || processo.assunto || "Sem assunto"}
-                            </SelectItem>
-                          ))}
-                        </ScrollArea>
-                      </SelectContent>
-                    </Select>
                   )}
                 </div>
-              </section>
-
-              <Separator />
-
-              {/* SECTION: Detalhes */}
-              <section className="space-y-3">
-                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  <Briefcase className="h-3.5 w-3.5" />
-                  Detalhes da tarefa
+              </div>
+              <ScrollArea className="flex-1 p-4">
+                <div className={cn("text-sm", conteudoDisplayClasses)}>
+                  {formatConteudoParaExibicao(publicacao?.conteudo || "")}
                 </div>
+              </ScrollArea>
+            </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs">Tipo de tarefa *</Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs"
-                        onClick={() => setShowAddTipo((v) => !v)}
-                      >
-                        <Plus className="h-3 w-3 mr-1" /> Novo tipo
-                      </Button>
-                    </div>
-                    <Select value={tipoTarefa} onValueChange={setTipoTarefa}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
-                      <SelectContent>
-                        <ScrollArea className="h-[260px]">
-                          {allTipos.map((t) => (
-                            <SelectItem key={t} value={t}>{t}</SelectItem>
-                          ))}
-                        </ScrollArea>
-                      </SelectContent>
-                    </Select>
-                    {showAddTipo && (
-                      <div className="flex gap-2 pt-1">
-                        <Input
-                          value={novoTipo}
-                          onChange={(e) => setNovoTipo(e.target.value)}
-                          placeholder="Nome do novo tipo"
-                          className="h-8 text-sm"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              handleAddTipo();
-                            }
-                          }}
-                        />
-                        <Button type="button" size="sm" className="h-8" onClick={handleAddTipo}>
-                          Adicionar
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Título</Label>
-                    <Input
-                      value={titulo}
-                      onChange={(e) => setTitulo(e.target.value)}
-                      placeholder="Título opcional (usa o tipo se vazio)"
-                      className="h-9"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Data base</Label>
-                    <DatePickerField value={dataBase} onChange={setDataBase} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Data prevista *</Label>
-                    <DatePickerField value={dataVencimento} onChange={setDataVencimento} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Data fatal</Label>
-                    <DatePickerField value={dataFatal} onChange={setDataFatal} />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Local / Link</Label>
-                  <Input
-                    value={localLink}
-                    onChange={(e) => setLocalLink(e.target.value)}
-                    placeholder="Endereço, sala, link da videoconferência..."
-                    className="h-9"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Descrição</Label>
-                  <Textarea
-                    value={descricao}
-                    onChange={(e) => setDescricao(e.target.value)}
-                    placeholder="Descreva os detalhes da tarefa..."
-                    rows={3}
-                  />
-                </div>
-              </section>
-
-              <Separator />
-
-              {/* SECTION: Atribuição */}
-              <section className="space-y-3">
-                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  <Users className="h-3.5 w-3.5" />
-                  Atribuição
-                </div>
-
-                <MultiUserSelect
-                  label="Responsáveis *"
-                  helperText="Quem irá executar a tarefa/prazo"
-                  selectedIds={responsaveisIds}
-                  onChange={setResponsaveisIds}
-                  height={160}
-                />
-
-                <MultiUserSelect
-                  label="Envolvidos (acompanham)"
-                  helperText="Recebem apenas para acompanhamento"
-                  selectedIds={envolvidosIds}
-                  onChange={setEnvolvidosIds}
-                  height={160}
-                />
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Grupos de trabalho</Label>
-                  <Input
-                    value={gruposTrabalho}
-                    onChange={(e) => setGruposTrabalho(e.target.value)}
-                    placeholder="Ex: Trabalhista, Cível..."
-                    className="h-9"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Prioridade *</Label>
-                    <Select value={prioridade} onValueChange={setPrioridade}>
-                      <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="baixa">Baixa</SelectItem>
-                        <SelectItem value="media">Média</SelectItem>
-                        <SelectItem value="alta">Alta</SelectItem>
-                        <SelectItem value="urgente">Urgente</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Observações</Label>
-                  <Textarea
-                    value={observacoes}
-                    onChange={(e) => setObservacoes(e.target.value)}
-                    placeholder="Observações adicionais..."
-                    rows={2}
-                  />
-                </div>
-              </section>
-
-              {/* SECTION: Anexos */}
-              {processoId && (
-                <>
-                  <Separator />
-                  <section className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                        <FileText className="h-3.5 w-3.5" />
-                        Documentos em anexo
-                      </div>
-                      <div className="relative">
-                        <input
-                          type="file"
-                          id="anexos-prazo-upload"
-                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          onChange={handleAddAnexo}
-                          multiple
-                          accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
-                        />
-                        <Button type="button" variant="outline" size="sm" className="pointer-events-none h-8">
-                          <Upload className="w-3 h-3 mr-1" /> Adicionar
-                        </Button>
-                      </div>
-                    </div>
-                    {anexos.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-3 border rounded-md bg-muted/30">
-                        Nenhum documento anexado
-                      </p>
-                    ) : (
-                      <div className="space-y-2">
-                        {anexos.map((file, index) => (
-                          <div key={index} className="flex items-center justify-between p-2 border rounded-md text-sm bg-background">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <FileText className="w-4 h-4 text-primary shrink-0" />
-                              <span className="truncate">{file.name}</span>
-                              <span className="text-xs text-muted-foreground shrink-0">
-                                ({formatFileSize(file.size)})
-                              </span>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 shrink-0"
-                              onClick={() => handleRemoveAnexo(index)}
-                            >
-                              <Trash2 className="w-3 h-3 text-destructive" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                </>
-              )}
+            {/* Right: form */}
+            <div className="w-full lg:w-[480px] flex flex-col bg-background min-h-0">
+              {FormContent}
             </div>
           </div>
-
-          <div className="flex justify-end gap-2 px-6 py-4 border-t bg-muted/30">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {uploadingAnexos ? "Enviando anexos..." : prazo ? "Salvar" : "Criar Tarefa"}
-            </Button>
-          </div>
-        </form>
+        ) : (
+          FormContent
+        )}
       </DialogContent>
     </Dialog>
   );

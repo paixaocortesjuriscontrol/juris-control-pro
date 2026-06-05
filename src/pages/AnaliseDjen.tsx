@@ -4537,7 +4537,7 @@ const AnaliseDjen = () => {
                                             <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
                                               <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovoPrazoOpen(true); }, 0)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setSelectedPublicacao(pub); setNovoPrazoOpen(true); }, 0)}>
                                               <Clock className="w-4 h-4 mr-2" /> Prazo
                                             </DropdownMenuItem>
                                             <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
@@ -4628,7 +4628,7 @@ const AnaliseDjen = () => {
                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
                                              <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovoPrazoOpen(true); }, 0)}>
+                                          <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setSelectedPublicacao(pub); setNovoPrazoOpen(true); }, 0)}>
                                              <Clock className="w-4 h-4 mr-2" /> Prazo
                                            </DropdownMenuItem>
                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
@@ -4886,6 +4886,7 @@ const AnaliseDjen = () => {
           onOpenChange={setNovoPrazoOpen}
           prazo={null}
           defaultProcessoId={adicionarProcessoId}
+          publicacao={novoPrazoOpen ? selectedPublicacao : null}
         />
 
         {/* Nova Audiência */}
