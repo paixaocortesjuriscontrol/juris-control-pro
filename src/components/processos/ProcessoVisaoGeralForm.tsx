@@ -890,24 +890,6 @@ export function ProcessoVisaoGeralForm({
 
             {/* COLUNA LATERAL — cards de status / pendências */}
             <div className="space-y-4">
-              <section>
-                <SectionHeader icon={Bell} title="Monitoramento" />
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-2 rounded-md bg-muted/40">
-                    <span className="text-xs font-medium">Andamentos</span>
-                    <MonitoramentoToggle processoId={processo.id} campo="monitorar_andamentos" valorInicial={!!processo.monitorar_andamentos} />
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-md bg-muted/40">
-                    <span className="text-xs font-medium">DJEN</span>
-                    <MonitoramentoToggle processoId={processo.id} campo="monitorar_djen" valorInicial={!!processo.monitorar_djen} />
-                  </div>
-                  <div className="flex items-center justify-between p-2 rounded-md bg-muted/40">
-                    <span className="text-xs font-medium">Prioridade DJEN</span>
-                    <MonitoramentoToggle processoId={processo.id} campo="prioridade_djen" valorInicial={!!(processo as any).prioridade_djen} />
-                  </div>
-                </div>
-              </section>
-
               <PendenciasProcessoCard
                 audiencias={audiencias}
                 intimacoes={intimacoes}
