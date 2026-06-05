@@ -1459,6 +1459,29 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     },
   });
 
+  // Descartar manualmente: move uma publicação ativa para descartadas
+  // com motivo "descartado_manualmente" (chama RPC SECURITY DEFINER).
+  const descartarManualmente = useMutation({
+    mutationFn: async ({ id, tipo_origem }: { id: string; tipo_origem: 'termo' | 'processo' }) => {
+      const { data, error } = await (supabase as any).rpc('descartar_publicacao_manualmente', {
+        p_id: id,
+        p_tipo_origem: tipo_origem,
+        p_motivo: 'descartado_manualmente',
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
+      await queryClient.invalidateQueries({ queryKey: ['descartadas-count'] });
+      await queryClient.invalidateQueries({ queryKey: ['descartadas-dedup'] });
+      toast.success('Publicação descartada');
+    },
+    onError: (error: any) => {
+      toast.error(`Erro ao descartar: ${error?.message || error}`);
+    },
+  });
+
   return {
     publicacoes,
     estatisticas,
