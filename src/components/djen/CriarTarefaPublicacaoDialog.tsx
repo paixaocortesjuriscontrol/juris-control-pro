@@ -847,31 +847,6 @@ export function CriarTarefaPublicacaoDialog({
 
                   <FormField
                     control={form.control}
-                    name="tipo_tarefa"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo de Tarefa</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione o tipo" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {tiposTarefa.map((tipo) => (
-                              <SelectItem key={tipo} value={tipo}>
-                                {tipo}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
                     name="titulo"
                     render={({ field }) => (
                       <FormItem>
@@ -902,53 +877,20 @@ export function CriarTarefaPublicacaoDialog({
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="responsavel_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Responsável</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione o responsável" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {/* Responsáveis do processo primeiro */}
-                            {responsaveisProcesso && responsaveisProcesso.length > 0 && (
-                              <>
-                                <SelectItem value="__header_resp__" disabled className="font-semibold text-xs text-muted-foreground">
-                                  Responsáveis do Processo
-                                </SelectItem>
-                                {responsaveisProcesso.map((r: any) => (
-                                  <SelectItem key={r.advogado?.id} value={r.advogado?.id}>
-                                    <div className="flex items-center gap-2">
-                                      <User className="w-3 h-3 text-primary" />
-                                      {r.advogado?.nome}
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                                <Separator className="my-1" />
-                              </>
-                            )}
-                            {/* Outros membros da coordenação */}
-                            {membros?.map((m: any) => {
-                              // Não mostrar se já está nos responsáveis do processo
-                              if (responsaveisProcesso?.some((r: any) => r.advogado?.id === m.usuario?.id)) {
-                                return null;
-                              }
-                              return (
-                                <SelectItem key={m.usuario?.id} value={m.usuario?.id}>
-                                  {m.usuario?.nome}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                  <MultiUserSelect
+                    label="Responsáveis"
+                    helperText="Quem irá executar a tarefa"
+                    selectedIds={responsaveisIds}
+                    onChange={setResponsaveisIds}
+                    height={160}
+                  />
+
+                  <MultiUserSelect
+                    label="Envolvidos (acompanham)"
+                    helperText="Recebem a tarefa apenas para acompanhamento"
+                    selectedIds={envolvidosIds}
+                    onChange={setEnvolvidosIds}
+                    height={160}
                   />
 
                   <div className="grid grid-cols-2 gap-3">
