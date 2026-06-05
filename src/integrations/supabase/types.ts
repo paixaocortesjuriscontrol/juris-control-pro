@@ -5199,6 +5199,7 @@ export type Database = {
           honra_tst: string | null
           id: string
           identificador_projuris: string | null
+          impactante: boolean
           instancia: string | null
           judit_campos: Json
           judit_ia_observacoes: string | null
@@ -5391,6 +5392,7 @@ export type Database = {
           honra_tst?: string | null
           id?: string
           identificador_projuris?: string | null
+          impactante?: boolean
           instancia?: string | null
           judit_campos?: Json
           judit_ia_observacoes?: string | null
@@ -5583,6 +5585,7 @@ export type Database = {
           honra_tst?: string | null
           id?: string
           identificador_projuris?: string | null
+          impactante?: boolean
           instancia?: string | null
           judit_campos?: Json
           judit_ia_observacoes?: string | null
