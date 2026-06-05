@@ -660,20 +660,10 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       )}
       <Card>
         <CardContent className="p-4 md:p-6 space-y-6">
-          {/* Cabeçalho do form */}
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div className="min-w-0">
-              <h2 className="text-base font-semibold text-foreground">Visão Geral do Processo</h2>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-xs font-mono text-muted-foreground">{processo?.numero}</span>
-                {processo?.numero && (
-                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copy(processo.numero)}>
-                    <Copy className="w-3 h-3" />
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
+          {/* Cabeçalho do form — apenas botões de ação */}
+          <div className="flex items-center justify-end gap-2 flex-wrap">
+            {!hideJuditButtons && (
+              <>
               <Button
                 size="sm"
                 variant="outline"
@@ -733,11 +723,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   </Button>
                 </>
               )}
-              <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos}>
+              </>
+            )}
+            <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos}>
                 {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
                 Salvar alterações
               </Button>
-            </div>
           </div>
 
           {juditBusy && (
