@@ -757,6 +757,25 @@ export default function PainelControle() {
               </div>
             )}
             <div className="ml-auto flex items-center gap-1.5">
+              <div className="hidden md:flex gap-1 mr-1">
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7 px-3 text-xs"
+                  title="Visão em agenda (atual)"
+                >
+                  Em Agenda
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-3 text-xs"
+                  onClick={() => navigate("/lista-atividades")}
+                  title="Abrir Lista de Atividades"
+                >
+                  Em Lista
+                </Button>
+              </div>
               <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
               <Button
                 size="sm"
