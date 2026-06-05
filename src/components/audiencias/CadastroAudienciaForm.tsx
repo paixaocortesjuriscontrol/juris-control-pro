@@ -392,6 +392,15 @@ export function CadastroAudienciaForm({ defaultProcessoNumero }: CadastroAudienc
             onSelectionChange={setAdvogadosSelecionados}
           />
 
+          {/* Envolvidos (apenas acompanham) */}
+          <MultiUserSelect
+            label="Envolvidos (acompanham)"
+            helperText="Recebem a audiência apenas para acompanhamento"
+            selectedIds={envolvidosIds}
+            onChange={setEnvolvidosIds}
+            height={180}
+          />
+
           {/* Status e Observações */}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
