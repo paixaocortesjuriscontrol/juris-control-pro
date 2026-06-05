@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar, Loader2, Plus, Search } from "lucide-react";
 import { useAudienciasDetectadas, NovaAudiencia } from "@/hooks/useAudienciasDetectadas";
 import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
+import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { formatProcessoNumero } from "@/lib/utils";
@@ -19,6 +20,7 @@ interface CadastroAudienciaFormProps {
 export function CadastroAudienciaForm({ defaultProcessoNumero }: CadastroAudienciaFormProps = {}) {
   const { criarAudiencia } = useAudienciasDetectadas();
   const [advogadosSelecionados, setAdvogadosSelecionados] = useState<string[]>([]);
+  const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [buscandoProcesso, setBuscandoProcesso] = useState(false);
   const [formData, setFormData] = useState<Omit<NovaAudiencia, 'advogados_ids'>>({
     processo_numero: defaultProcessoNumero ?? "",
@@ -112,6 +114,7 @@ export function CadastroAudienciaForm({ defaultProcessoNumero }: CadastroAudienc
     await criarAudiencia.mutateAsync({
       ...formData,
       advogados_ids: advogadosSelecionados,
+      envolvidos_ids: envolvidosIds,
     });
     
     // Limpar formulário
@@ -140,6 +143,7 @@ export function CadastroAudienciaForm({ defaultProcessoNumero }: CadastroAudienc
       dossie: "",
     });
     setAdvogadosSelecionados([]);
+    setEnvolvidosIds([]);
   };
 
   return (
@@ -386,6 +390,15 @@ export function CadastroAudienciaForm({ defaultProcessoNumero }: CadastroAudienc
           <SelecionarAdvogadosAudiencia
             selectedAdvogados={advogadosSelecionados}
             onSelectionChange={setAdvogadosSelecionados}
+          />
+
+          {/* Envolvidos (apenas acompanham) */}
+          <MultiUserSelect
+            label="Envolvidos (acompanham)"
+            helperText="Recebem a audiência apenas para acompanhamento"
+            selectedIds={envolvidosIds}
+            onChange={setEnvolvidosIds}
+            height={180}
           />
 
           {/* Status e Observações */}

@@ -53,6 +53,7 @@ import { Link } from "react-router-dom";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useAuth } from "@/contexts/AuthContext";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
+import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
 
 type TarefaSimples = { id: string; titulo: string; tipo_tarefa: string | null; status: string; responsavel_nome?: string; data_vencimento?: string | null; data_fatal?: string | null };
 
@@ -128,10 +129,10 @@ async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string |
 }
 
 const formSchema = z.object({
-  tipo_tarefa: z.string().min(1, "Tipo é obrigatório"),
+  tipo_tarefa: z.string().optional(),
   titulo: z.string().min(1, "Título é obrigatório").max(200),
   descricao: z.string().optional(),
-  responsavel_id: z.string().min(1, "Responsável é obrigatório"),
+  responsavel_id: z.string().optional(),
   data_vencimento: z.string().min(1, "Data prevista é obrigatória"),
   data_fatal: z.string().optional(),
   prioridade: z.enum(["baixa", "media", "alta", "urgente"]),
@@ -180,6 +181,8 @@ export function CriarTarefaPublicacaoDialog({
   const [mostrarDicaIA, setMostrarDicaIA] = useState(true);
   const [tarefaEditandoId, setTarefaEditandoId] = useState<string | null>(null);
   const openedAtRef = useRef<number>(0);
+  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
+  const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
 
   const hoje = format(new Date(), "yyyy-MM-dd");
 
@@ -203,7 +206,7 @@ export function CriarTarefaPublicacaoDialog({
       openedAtRef.current = Date.now();
 
       form.reset({
-        tipo_tarefa: "",
+        tipo_tarefa: "TAREFA EQUIPE",
         titulo: "",
         descricao: "",
         responsavel_id: "",
@@ -214,12 +217,14 @@ export function CriarTarefaPublicacaoDialog({
       setObservacoesIA(null);
       setMostrarDicaIA(true);
       setTarefaEditandoId(null);
+      setResponsaveisIds([]);
+      setEnvolvidosIds([]);
     }
   }, [open, publicacao?.id, form]);
 
   const resetParaNovaTarefa = () => {
     form.reset({
-      tipo_tarefa: "",
+      tipo_tarefa: "TAREFA EQUIPE",
       titulo: "",
       descricao: "",
       responsavel_id: "",
@@ -230,6 +235,8 @@ export function CriarTarefaPublicacaoDialog({
     setObservacoesIA(null);
     setMostrarDicaIA(true);
     setTarefaEditandoId(null);
+    setResponsaveisIds([]);
+    setEnvolvidosIds([]);
   };
 
   // Fetch membros de TODAS as coordenações (permite delegar para qualquer membro)
@@ -300,6 +307,9 @@ export function CriarTarefaPublicacaoDialog({
   async function onSubmit(values: FormValues) {
     if (!publicacao || !user) return;
 
+    const responsavelPrincipal = responsaveisIds[0] || null;
+    const tipoFinal = values.tipo_tarefa || "TAREFA EQUIPE";
+
     setLoading(true);
     try {
       // Se estamos editando uma tarefa existente
@@ -307,10 +317,10 @@ export function CriarTarefaPublicacaoDialog({
         const { error } = await supabase
           .from("tarefas")
           .update({
-            responsavel_id: values.responsavel_id,
+            responsavel_id: responsavelPrincipal,
             titulo: values.titulo,
             descricao: values.descricao || null,
-            tipo_tarefa: values.tipo_tarefa,
+            tipo_tarefa: tipoFinal,
             data_vencimento: values.data_vencimento,
             data_fatal: values.data_fatal || null,
             prioridade: values.prioridade,
@@ -318,6 +328,20 @@ export function CriarTarefaPublicacaoDialog({
           .eq("id", tarefaEditandoId);
 
         if (error) throw error;
+
+        // Atualizar vínculos N:N (responsáveis e envolvidos)
+        await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefaEditandoId);
+        if (responsaveisIds.length > 0) {
+          await supabase.from("tarefa_responsaveis").insert(
+            responsaveisIds.map((uid) => ({ tarefa_id: tarefaEditandoId, usuario_id: uid }))
+          );
+        }
+        await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefaEditandoId);
+        if (envolvidosIds.length > 0) {
+          await supabase.from("tarefa_envolvidos").insert(
+            envolvidosIds.map((uid) => ({ tarefa_id: tarefaEditandoId, usuario_id: uid }))
+          );
+        }
 
         toast.success("Tarefa atualizada com sucesso!");
         queryClient.invalidateQueries({ queryKey: ["tarefas"] });
@@ -331,14 +355,16 @@ export function CriarTarefaPublicacaoDialog({
         
         // Resetar form para nova tarefa
         form.reset({
-          tipo_tarefa: "",
+          tipo_tarefa: "TAREFA EQUIPE",
           titulo: "",
           descricao: "",
-          responsavel_id: (responsaveisProcesso as any)?.[0]?.advogado?.id || "",
+          responsavel_id: "",
           data_vencimento: format(new Date(new Date().setDate(new Date().getDate() + 5)), "yyyy-MM-dd"),
           data_fatal: "",
           prioridade: "media",
         });
+        setResponsaveisIds([]);
+        setEnvolvidosIds([]);
         setObservacoesIA(null);
         return;
       }
@@ -348,10 +374,10 @@ export function CriarTarefaPublicacaoDialog({
         .from("tarefas")
         .insert({
           processo_id: publicacao.processo_id,
-          responsavel_id: values.responsavel_id,
+          responsavel_id: responsavelPrincipal,
           titulo: values.titulo,
           descricao: values.descricao || null,
-          tipo_tarefa: values.tipo_tarefa,
+          tipo_tarefa: tipoFinal,
           data_vencimento: values.data_vencimento,
           data_fatal: values.data_fatal || null,
           prioridade: values.prioridade,
@@ -364,19 +390,33 @@ export function CriarTarefaPublicacaoDialog({
 
       if (error) throw error;
 
-      // Disparar notificação para o responsável (fire and forget)
-      if (tarefa?.id && values.responsavel_id) {
-        supabase.functions.invoke("notificar-tarefa-criada", {
-          body: {
-            tarefa_id: tarefa.id,
-            titulo: values.titulo,
-            descricao: values.descricao,
-            data_vencimento: values.data_vencimento,
-            prioridade: values.prioridade,
-            processo_id: publicacao.processo_id,
-            responsavel_id: values.responsavel_id,
-          },
-        }).catch((err) => console.log("Erro ao notificar tarefa (ignorado):", err));
+      // Inserir vínculos N:N de responsáveis e envolvidos
+      if (tarefa?.id) {
+        if (responsaveisIds.length > 0) {
+          await supabase.from("tarefa_responsaveis").insert(
+            responsaveisIds.map((uid) => ({ tarefa_id: tarefa.id, usuario_id: uid }))
+          );
+        }
+        if (envolvidosIds.length > 0) {
+          await supabase.from("tarefa_envolvidos").insert(
+            envolvidosIds.map((uid) => ({ tarefa_id: tarefa.id, usuario_id: uid }))
+          );
+        }
+
+        // Disparar notificação para cada responsável (fire and forget)
+        for (const uid of responsaveisIds) {
+          supabase.functions.invoke("notificar-tarefa-criada", {
+            body: {
+              tarefa_id: tarefa.id,
+              titulo: values.titulo,
+              descricao: values.descricao,
+              data_vencimento: values.data_vencimento,
+              prioridade: values.prioridade,
+              processo_id: publicacao.processo_id,
+              responsavel_id: uid,
+            },
+          }).catch((err) => console.log("Erro ao notificar tarefa (ignorado):", err));
+        }
       }
 
       // Vincular tarefa à publicação na tabela N:N correspondente
@@ -429,13 +469,15 @@ export function CriarTarefaPublicacaoDialog({
       
       form.reset();
       // Resetar formulário mas manter dialog aberto para criar mais tarefas
-      form.setValue("tipo_tarefa", "");
+      form.setValue("tipo_tarefa", "TAREFA EQUIPE");
       form.setValue("titulo", "");
       form.setValue("descricao", "");
-      form.setValue("responsavel_id", (responsaveisProcesso as any)?.[0]?.advogado?.id || "");
+      form.setValue("responsavel_id", "");
       form.setValue("data_vencimento", format(new Date(new Date().setDate(new Date().getDate() + 5)), "yyyy-MM-dd"));
       form.setValue("data_fatal", "");
       form.setValue("prioridade", "media");
+      setResponsaveisIds([]);
+      setEnvolvidosIds([]);
     } catch (error) {
       console.error("Erro ao criar tarefa:", error);
       toast.error("Erro ao criar tarefa");
@@ -514,6 +556,14 @@ export function CriarTarefaPublicacaoDialog({
                               });
                               setTarefaEditandoId(tarefa.id);
                               setObservacoesIA(null);
+                              // Carregar responsáveis e envolvidos existentes
+                              const [{ data: resps }, { data: envs }] = await Promise.all([
+                                supabase.from("tarefa_responsaveis").select("usuario_id").eq("tarefa_id", tarefa.id),
+                                supabase.from("tarefa_envolvidos").select("usuario_id").eq("tarefa_id", tarefa.id),
+                              ]);
+                              const respIds = (resps || []).map((r: any) => r.usuario_id);
+                              setResponsaveisIds(respIds.length > 0 ? respIds : (data.responsavel_id ? [data.responsavel_id] : []));
+                              setEnvolvidosIds((envs || []).map((e: any) => e.usuario_id));
                             }
                           }}
                           className={`text-xs w-full text-left rounded px-2 py-1.5 border transition-colors ${
@@ -744,6 +794,13 @@ export function CriarTarefaPublicacaoDialog({
                               });
                               setTarefaEditandoId(tarefa.id);
                               setObservacoesIA(null);
+                              const [{ data: resps }, { data: envs }] = await Promise.all([
+                                supabase.from("tarefa_responsaveis").select("usuario_id").eq("tarefa_id", tarefa.id),
+                                supabase.from("tarefa_envolvidos").select("usuario_id").eq("tarefa_id", tarefa.id),
+                              ]);
+                              const respIds = (resps || []).map((r: any) => r.usuario_id);
+                              setResponsaveisIds(respIds.length > 0 ? respIds : (data.responsavel_id ? [data.responsavel_id] : []));
+                              setEnvolvidosIds((envs || []).map((e: any) => e.usuario_id));
                             }
                           }}
                           className={`text-xs w-full text-left rounded px-2 py-1.5 border transition-colors ${
@@ -805,31 +862,6 @@ export function CriarTarefaPublicacaoDialog({
 
                   <FormField
                     control={form.control}
-                    name="tipo_tarefa"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo de Tarefa</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione o tipo" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {tiposTarefa.map((tipo) => (
-                              <SelectItem key={tipo} value={tipo}>
-                                {tipo}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
                     name="titulo"
                     render={({ field }) => (
                       <FormItem>
@@ -860,53 +892,20 @@ export function CriarTarefaPublicacaoDialog({
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name="responsavel_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Responsável</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione o responsável" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {/* Responsáveis do processo primeiro */}
-                            {responsaveisProcesso && responsaveisProcesso.length > 0 && (
-                              <>
-                                <SelectItem value="__header_resp__" disabled className="font-semibold text-xs text-muted-foreground">
-                                  Responsáveis do Processo
-                                </SelectItem>
-                                {responsaveisProcesso.map((r: any) => (
-                                  <SelectItem key={r.advogado?.id} value={r.advogado?.id}>
-                                    <div className="flex items-center gap-2">
-                                      <User className="w-3 h-3 text-primary" />
-                                      {r.advogado?.nome}
-                                    </div>
-                                  </SelectItem>
-                                ))}
-                                <Separator className="my-1" />
-                              </>
-                            )}
-                            {/* Outros membros da coordenação */}
-                            {membros?.map((m: any) => {
-                              // Não mostrar se já está nos responsáveis do processo
-                              if (responsaveisProcesso?.some((r: any) => r.advogado?.id === m.usuario?.id)) {
-                                return null;
-                              }
-                              return (
-                                <SelectItem key={m.usuario?.id} value={m.usuario?.id}>
-                                  {m.usuario?.nome}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                  <MultiUserSelect
+                    label="Responsáveis"
+                    helperText="Quem irá executar a tarefa"
+                    selectedIds={responsaveisIds}
+                    onChange={setResponsaveisIds}
+                    height={160}
+                  />
+
+                  <MultiUserSelect
+                    label="Envolvidos (acompanham)"
+                    helperText="Recebem a tarefa apenas para acompanhamento"
+                    selectedIds={envolvidosIds}
+                    onChange={setEnvolvidosIds}
+                    height={160}
                   />
 
                   <div className="grid grid-cols-2 gap-3">

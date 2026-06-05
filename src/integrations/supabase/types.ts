@@ -346,6 +346,35 @@ export type Database = {
         }
         Relationships: []
       }
+      audiencia_envolvidos: {
+        Row: {
+          audiencia_id: string
+          created_at: string
+          id: string
+          usuario_id: string
+        }
+        Insert: {
+          audiencia_id: string
+          created_at?: string
+          id?: string
+          usuario_id: string
+        }
+        Update: {
+          audiencia_id?: string
+          created_at?: string
+          id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audiencia_envolvidos_audiencia_id_fkey"
+            columns: ["audiencia_id"]
+            isOneToOne: false
+            referencedRelation: "audiencias_detectadas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audiencias_advogados: {
         Row: {
           advogado_id: string
@@ -3253,6 +3282,64 @@ export type Database = {
             columns: ["processo_id"]
             isOneToOne: false
             referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evento_envolvidos: {
+        Row: {
+          created_at: string
+          evento_id: string
+          id: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          evento_id: string
+          id?: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          evento_id?: string
+          id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evento_envolvidos_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos_agenda"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      evento_responsaveis: {
+        Row: {
+          created_at: string
+          evento_id: string
+          id: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          evento_id: string
+          id?: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          evento_id?: string
+          id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "evento_responsaveis_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos_agenda"
             referencedColumns: ["id"]
           },
         ]
@@ -6769,6 +6856,64 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      tarefa_envolvidos: {
+        Row: {
+          created_at: string
+          id: string
+          tarefa_id: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          tarefa_id: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          tarefa_id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefa_envolvidos_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tarefa_responsaveis: {
+        Row: {
+          created_at: string
+          id: string
+          tarefa_id: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          tarefa_id: string
+          usuario_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          tarefa_id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tarefa_responsaveis_tarefa_id_fkey"
+            columns: ["tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tarefas: {
         Row: {
