@@ -223,6 +223,22 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
       const primeiraData =
         parcelasExistentes?.[0]?.data_vencimento || format(dataInicioSP, "yyyy-MM-dd");
 
+      // Carregar processos vinculados (múltiplos) com fallback ao processo_id legado
+      (async () => {
+        const { data: links } = await supabase
+          .from("evento_processos")
+          .select("processo_id")
+          .eq("evento_id", evento.id);
+        const ids = (links || []).map((l: any) => l.processo_id);
+        if (ids.length > 0) {
+          setProcessoIds(ids);
+        } else if (evento.processo_id) {
+          setProcessoIds([evento.processo_id]);
+        } else {
+          setProcessoIds([]);
+        }
+      })();
+
       setFormData((prev) => ({
         ...prev,
         titulo: evento.titulo,
@@ -231,7 +247,6 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         dataVencimento: primeiraData,
         valorPadrao: "",
         intervalo: "mensal", // Detectar intervalo se possível
-        processo_id: evento.processo_id || "",
         participantes_ids: evento.participantes?.map((p) => p.usuario_id) || [],
         enviar_whatsapp: evento.enviar_whatsapp || false,
         // quando a query de alertas carregar, usa o valor real (evita voltar para 30)
@@ -258,12 +273,12 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         dataVencimento: format(new Date(), "yyyy-MM-dd"),
         valorPadrao: "",
         intervalo: "mensal",
-        processo_id: defaultProcessoId || "",
         participantes_ids: [],
         enviar_whatsapp: false,
         alerta_minutos: [30],
         hora_alerta: "09:00",
       });
+      setProcessoIds(defaultProcessoId ? [defaultProcessoId] : []);
       setValoresIndividuais([]);
       setDatasIndividuais([]);
     }
