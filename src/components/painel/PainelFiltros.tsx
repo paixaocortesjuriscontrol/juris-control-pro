@@ -9,13 +9,15 @@ export interface PainelFiltrosState {
   // Prazo
   dataPrevista: boolean;
   dataFatal: boolean;
-  // Situação
+  // Situação detalhada (avançado)
   situacoes: string[];
-  // Classificação
+  // Exibir (classificação)
   classificacoes: string[];
   // Envolvimento
   souResponsavel: boolean;
   estouEnvolvido: boolean;
+  // Status simplificado (radio do anexo)
+  statusGroup: "todas" | "a_concluir" | "concluidas" | "canceladas";
 }
 
 export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
@@ -25,6 +27,7 @@ export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
   classificacoes: [],
   souResponsavel: false,
   estouEnvolvido: false,
+  statusGroup: "todas",
 };
 
 const SITUACOES = [
@@ -39,8 +42,16 @@ const SITUACOES = [
 
 const CLASSIFICACOES = [
   { value: "tarefa", label: "Tarefas" },
+  { value: "evento", label: "Eventos" },
+  { value: "prazo", label: "Prazos" },
   { value: "audiencia", label: "Audiências" },
-  { value: "evento", label: "Compromissos" },
+];
+
+const STATUS_GROUPS: { value: PainelFiltrosState["statusGroup"]; label: string }[] = [
+  { value: "a_concluir", label: "A concluir" },
+  { value: "concluidas", label: "Concluídas" },
+  { value: "canceladas", label: "Canceladas" },
+  { value: "todas", label: "Todas" },
 ];
 
 interface PainelFiltrosProps {
@@ -56,6 +67,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
     filtros.dataFatal,
     filtros.situacoes.length > 0,
     filtros.classificacoes.length > 0,
+    filtros.statusGroup !== "todas",
   ].filter(Boolean).length;
 
   const toggleSituacao = (val: string) => {
@@ -148,10 +160,31 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
             </div>
           </div>
 
-          {/* Situação */}
+          {/* Status (grupo simplificado) */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Situação
+              Status
+            </p>
+            <div className="space-y-1.5">
+              {STATUS_GROUPS.map((s) => (
+                <label key={s.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="painel-status-group"
+                    checked={filtros.statusGroup === s.value}
+                    onChange={() => onChange({ ...filtros, statusGroup: s.value })}
+                    className="accent-primary"
+                  />
+                  {s.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Situação detalhada (avançado) */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Situação (avançado)
             </p>
             <div className="space-y-1.5">
               {SITUACOES.map((s) => (
