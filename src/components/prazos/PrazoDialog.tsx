@@ -35,6 +35,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
 import { Separator } from "@/components/ui/separator";
+import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
 
 const CUSTOM_TIPOS_KEY = "tarefas_tipos_customizados_v1";
 
@@ -79,7 +80,8 @@ export function PrazoDialog({
   const [dataVencimento, setDataVencimento] = useState<Date | undefined>();
   const [prioridade, setPrioridade] = useState<string>("media");
   const [processoId, setProcessoId] = useState("");
-  const [responsavelId, setResponsavelId] = useState("");
+  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
+  const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [observacoes, setObservacoes] = useState("");
 
   // Projuris-style fields
@@ -254,7 +256,16 @@ export function PrazoDialog({
       setDataVencimento(prazo.data_vencimento ? parseISO(prazo.data_vencimento) : undefined);
       setPrioridade(prazo.prioridade);
       setProcessoId(prazo.processo_id || "");
-      setResponsavelId(prazo.responsavel_id || "");
+      // Carregar responsáveis e envolvidos da tabela N:N (fallback no responsavel_id legado)
+      (async () => {
+        const [{ data: resps }, { data: envs }] = await Promise.all([
+          supabase.from("tarefa_responsaveis").select("usuario_id").eq("tarefa_id", prazo.id),
+          supabase.from("tarefa_envolvidos").select("usuario_id").eq("tarefa_id", prazo.id),
+        ]);
+        const respIds = (resps || []).map((r: any) => r.usuario_id);
+        setResponsaveisIds(respIds.length > 0 ? respIds : (prazo.responsavel_id ? [prazo.responsavel_id] : []));
+        setEnvolvidosIds((envs || []).map((e: any) => e.usuario_id));
+      })();
       setObservacoes(prazo.observacoes || "");
       setAnexos([]);
       setTipoTarefa(prazo.tipo_tarefa || "");
@@ -268,7 +279,8 @@ export function PrazoDialog({
       setDataVencimento(undefined);
       setPrioridade("media");
       setProcessoId(defaultProcessoId || "");
-      setResponsavelId("");
+      setResponsaveisIds([]);
+      setEnvolvidosIds([]);
       setObservacoes("");
       setCoordenacaoId("");
       setClienteId("");
@@ -328,7 +340,7 @@ export function PrazoDialog({
       data_vencimento: format(dataVencimento, "yyyy-MM-dd"),
       prioridade: prioridade as "baixa" | "media" | "alta" | "urgente",
       processo_id: (processoId === "__none__" || !processoId) ? null : processoId,
-      responsavel_id: responsavelId || undefined,
+      responsavel_id: responsaveisIds[0] || undefined,
       observacoes: [
         observacoes?.trim(),
         localLink?.trim() ? `Local/Link: ${localLink.trim()}` : "",
@@ -344,12 +356,29 @@ export function PrazoDialog({
       
       if (prazo) {
         await updatePrazo.mutateAsync({ id: prazo.id, ...prazoData });
+        novaTarefaId = prazo.id;
       } else {
         const result = await createPrazo.mutateAsync({
           ...prazoData,
           criado_por: user?.id,
         });
         novaTarefaId = result?.id || null;
+      }
+
+      // Persistir vínculos N:N de responsáveis e envolvidos
+      if (novaTarefaId) {
+        await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", novaTarefaId);
+        if (responsaveisIds.length > 0) {
+          await supabase.from("tarefa_responsaveis").insert(
+            responsaveisIds.map((uid) => ({ tarefa_id: novaTarefaId!, usuario_id: uid }))
+          );
+        }
+        await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", novaTarefaId);
+        if (envolvidosIds.length > 0) {
+          await supabase.from("tarefa_envolvidos").insert(
+            envolvidosIds.map((uid) => ({ tarefa_id: novaTarefaId!, usuario_id: uid }))
+          );
+        }
       }
 
       // Se foi criada como tarefa relacionada, criar o vínculo
