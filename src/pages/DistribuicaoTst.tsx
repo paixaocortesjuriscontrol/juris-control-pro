@@ -2102,8 +2102,8 @@ export default function DistribuicaoTst() {
                         >
                           <Layers className={`w-4 h-4 ${isSubidaMassa ? "text-purple-600" : "text-muted-foreground/60"}`} />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)}>
-                          <Trash2 className="w-4 h-4 text-destructive" />
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)} title="Arquivar (não exclui)">
+                          <Trash2 className="w-4 h-4 text-amber-600" />
                         </Button>
                       </div>
                     </TableCell>
