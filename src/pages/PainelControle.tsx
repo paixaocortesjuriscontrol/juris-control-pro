@@ -790,15 +790,28 @@ export default function PainelControle() {
                 </Button>
               </div>
               <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
-              <Button
-                size="sm"
-                className="h-7 px-3 text-xs gap-1"
-                onClick={() => setNovaTarefaOpen(true)}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Nova Tarefa</span>
-                <span className="sm:hidden">Tarefa</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="h-7 px-3 text-xs gap-1">
+                    <Plus className="w-3.5 h-3.5" />
+                    Adicionar
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onClick={() => setNovaTarefaOpen(true)}>
+                    <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setNovoEventoOpen(true)}>
+                    <CalendarPlus className="w-4 h-4 mr-2" /> Evento
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setNovoPrazoOpen(true)}>
+                    <Clock className="w-4 h-4 mr-2" /> Prazo
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setNovaAudienciaOpen(true)}>
+                    <Gavel className="w-4 h-4 mr-2" /> Audiência
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
           {/* Filtro de coordenação para admin no modo escritório - mobile linha separada */}
