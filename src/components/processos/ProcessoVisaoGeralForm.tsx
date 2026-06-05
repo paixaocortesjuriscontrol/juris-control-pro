@@ -654,7 +654,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     </Badge>
                   )}
                 </div>
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-muted-foreground">
+                <div className="flex flex-col gap-1 text-sm text-muted-foreground">
                 {processo?.numero && (
                   <div className="flex items-center gap-1">
                     <span className="font-medium text-foreground/70">Processo:</span>
