@@ -211,7 +211,7 @@ export function NovaTarefaDialog({
         prioridade: "media",
         local: "",
       });
-      setSearchProcesso("");
+      setSearchProcesso(processoPreSelecionado?.numero || "");
       setAnexos([]);
     }
   }, [open, processoPreSelecionado, form, coordenacoes]);
