@@ -375,7 +375,7 @@ export function CriarTarefaPublicacaoDialog({
       const { data: tarefa, error } = await supabase
         .from("tarefas")
         .insert({
-          processo_id: publicacao.processo_id,
+          processo_id: defaultProcessoId || publicacao.processo_id,
           responsavel_id: responsavelPrincipal,
           titulo: values.titulo,
           descricao: values.descricao || null,
