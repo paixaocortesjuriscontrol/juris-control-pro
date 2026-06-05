@@ -638,7 +638,10 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: 
 
             {/* Participantes */}
             <div className="border rounded-lg p-4 space-y-3">
-              <Label className="font-medium">Participantes</Label>
+              <Label className="font-medium">Responsáveis</Label>
+              <p className="text-xs text-muted-foreground -mt-2">
+                Selecione um ou mais responsáveis pelo evento
+              </p>
               
               {/* Selected participants as chips */}
               {formData.participantes_ids.length > 0 && (
@@ -703,6 +706,17 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId }: 
                   </p>
                 )}
               </div>
+            </div>
+
+            {/* Envolvidos (acompanham) */}
+            <div className="border rounded-lg p-4 space-y-3">
+              <MultiUserSelect
+                label="Envolvidos (acompanham)"
+                helperText="Recebem o evento apenas para acompanhamento"
+                selectedIds={envolvidosIds}
+                onChange={setEnvolvidosIds}
+                height={180}
+              />
             </div>
 
             {/* Notificação WhatsApp */}
