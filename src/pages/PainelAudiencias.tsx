@@ -193,6 +193,7 @@ export default function PainelAudiencias({ embedded = false }: PainelAudienciasP
   };
 
   const body = (
+    <>
     <Tabs defaultValue="lista" className="space-y-6">
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="lista" className="gap-2">
@@ -621,6 +622,15 @@ export default function PainelAudiencias({ embedded = false }: PainelAudienciasP
         onOpenChange={(open) => !open && setCriarTarefaAudiencia(null)}
         audiencia={criarTarefaAudiencia}
       />
+    </>
+  );
+
+  return embedded ? body : (
+    <MainLayout
+      title="Painel de Audiências"
+      subtitle="Controle de audiências detectadas e cadastradas manualmente"
+    >
+      {body}
     </MainLayout>
   );
 }
