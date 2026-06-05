@@ -1152,6 +1152,28 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           processoNumero={processo.numero}
         />
       )}
+      {processo?.id && (
+        <>
+          <EventoDialog
+            open={novoEventoOpen}
+            onOpenChange={setNovoEventoOpen}
+            evento={null}
+            defaultProcessoId={processo.id}
+          />
+          <PrazoDialog
+            open={novoPrazoOpen}
+            onOpenChange={setNovoPrazoOpen}
+            prazo={null}
+            defaultProcessoId={processo.id}
+          />
+          <NovaTarefaDialog
+            open={novaTarefaOpen}
+            onOpenChange={setNovaTarefaOpen}
+            coordenacoes={coordenacoesTarefa as any}
+            processoPreSelecionado={{ id: processo.id, numero: processo.numero }}
+          />
+        </>
+      )}
     </div>
   );
 });
