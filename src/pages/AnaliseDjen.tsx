@@ -4865,6 +4865,7 @@ const AnaliseDjen = () => {
           open={criarTarefaDialogOpen}
           onOpenChange={setCriarTarefaDialogOpen}
           publicacao={selectedPublicacao}
+          defaultProcessoId={adicionarProcessoId}
         />
 
         {/* Novo Evento */}
@@ -4873,6 +4874,7 @@ const AnaliseDjen = () => {
           onOpenChange={setNovoEventoOpen}
           evento={null}
           defaultProcessoId={adicionarProcessoId}
+          publicacao={novoEventoOpen ? selectedPublicacao : null}
         />
 
         {/* Novo Prazo */}
@@ -4885,17 +4887,13 @@ const AnaliseDjen = () => {
         />
 
         {/* Nova Audiência */}
-        <Dialog open={novaAudienciaOpen} onOpenChange={setNovaAudienciaOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Nova Audiência</DialogTitle>
-            </DialogHeader>
-            <CadastroAudienciaForm
-              key={`${adicionarProcessoNumero ?? "novo"}-${novaAudienciaOpen ? "open" : "closed"}`}
-              defaultProcessoNumero={adicionarProcessoNumero}
-            />
-          </DialogContent>
-        </Dialog>
+        <NovaAudienciaPublicacaoDialog
+          open={novaAudienciaOpen}
+          onOpenChange={setNovaAudienciaOpen}
+          publicacao={selectedPublicacao}
+          defaultProcessoNumero={adicionarProcessoNumero}
+          defaultProcessoId={adicionarProcessoId}
+        />
       </div>
     </MainLayout>
   );
