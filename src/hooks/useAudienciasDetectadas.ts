@@ -83,6 +83,7 @@ export interface NovaAudiencia {
   nucleo_origem?: string;
   dossie?: string;
   advogados_ids?: string[];
+  envolvidos_ids?: string[];
 }
 
 interface AudienciasFiltros {
