@@ -1,23 +1,32 @@
-import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Loader2, Plus, Search } from "lucide-react";
-import { useAudienciasDetectadas, NovaAudiencia } from "@/hooks/useAudienciasDetectadas";
-import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
-import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
-import { formatProcessoNumero } from "@/lib/utils";
+import { Calendar } from "lucide-react";
+import { AudienciaFormSimplificado } from "./AudienciaFormSimplificado";
 
 interface CadastroAudienciaFormProps {
   defaultProcessoNumero?: string;
 }
 
 export function CadastroAudienciaForm({ defaultProcessoNumero }: CadastroAudienciaFormProps = {}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Calendar className="h-5 w-5" />
+          Cadastrar Nova Audiência
+        </CardTitle>
+        <CardDescription>
+          Preencha os dados essenciais da audiência
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <AudienciaFormSimplificado
+          defaultProcessoNumero={defaultProcessoNumero}
+          hideTitleHeader
+        />
+      </CardContent>
+    </Card>
+  );
+}
   const { criarAudiencia } = useAudienciasDetectadas();
   const [advogadosSelecionados, setAdvogadosSelecionados] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
