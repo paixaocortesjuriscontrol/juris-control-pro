@@ -144,6 +144,7 @@ interface CriarTarefaPublicacaoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   publicacao: PublicacaoUnificada | null;
+  defaultProcessoId?: string;
 }
 
 const tiposTarefa = [
@@ -173,6 +174,7 @@ export function CriarTarefaPublicacaoDialog({
   open,
   onOpenChange,
   publicacao,
+  defaultProcessoId,
 }: CriarTarefaPublicacaoDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
