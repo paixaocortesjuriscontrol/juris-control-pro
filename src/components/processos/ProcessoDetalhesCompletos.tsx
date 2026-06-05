@@ -953,14 +953,7 @@ export function ProcessoDetalhesCompletos({
             No desktop mantemos scroll interno via overflow-y-auto + altura fixa.
           */}
           <div className="p-3 sm:p-4 sm:h-[calc(100vh-120px)] sm:overflow-y-auto">
-              {/* Toolbar global de ações Judit — sempre visível no topo, próximo ao login */}
-              <div className="mb-3 flex justify-end">
-                <ProcessoVisaoGeralForm
-                  processo={processo}
-                  onNavigate={handleSectionChange}
-                  actionsOnly
-                />
-              </div>
+              {/* Toolbar global de ações Judit — ocultada temporariamente */}
               {/* Resumo Section - Visão geral rápida */}
               {/* Visão Geral — formulário único editável (Resumo + Detalhes + Envolvidos) */}
               {activeSection === "resumo" && (
