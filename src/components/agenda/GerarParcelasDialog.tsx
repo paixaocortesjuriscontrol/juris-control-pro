@@ -484,6 +484,13 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           );
         }
 
+        // Vincular múltiplos processos
+        if (processoIds.length > 0) {
+          await (supabase as any).from("evento_processos").insert(
+            processoIds.map((pid) => ({ evento_id: novoEvento.id, processo_id: pid }))
+          );
+        }
+
         // Criar as parcelas filhas
         const parcelasParaInserir = parcelasPreview.map((parcela) => ({
           evento_id: novoEvento.id,
