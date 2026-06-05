@@ -1,0 +1,2 @@
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS impactante boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS idx_processos_impactante ON public.processos(impactante) WHERE impactante = true;

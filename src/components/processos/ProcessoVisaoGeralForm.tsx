@@ -10,7 +10,14 @@ import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Save, Loader2, Sparkles, Copy, Bell, Users, Scale, FileText, Building2, DollarSign, Activity, Paperclip } from "lucide-react";
+import { Save, Loader2, Sparkles, Copy, Bell, Users, Scale, FileText, Building2, DollarSign, Activity, Paperclip, Plus, Flame, ListTodo, Clock, CalendarDays, Gavel } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { CriarAudienciaProcessoDialog } from "@/components/audiencias/CriarAudienciaProcessoDialog";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { MonitoramentoToggle } from "./MonitoramentoToggle";
 import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
@@ -71,6 +78,7 @@ const FIELDS = [
   "descricao",
   // Encerramento
   "motivo_encerramento",
+  "impactante",
 ] as const;
 
 const NUMERIC_FIELDS = new Set(["valor_causa", "valor_condenacao", "valor_provisionado"]);
@@ -116,6 +124,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [syncing, setSyncing] = useState(false);
   const [syncingAnexos, setSyncingAnexos] = useState(false);
   const [syncingInterno, setSyncingInterno] = useState(false);
+  const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
   // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Contador ao vivo (segundos decorridos) durante a busca Judit — mesma
@@ -635,9 +644,16 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           <CardContent className="p-4 md:p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="flex flex-col gap-1 min-w-0">
-                <h1 className="text-lg md:text-xl font-semibold text-foreground leading-tight">
-                  {(form.polo_ativo || form.reclamante || "—")} <span className="text-muted-foreground font-normal">X</span> {(form.polo_passivo || form.reclamados || "—")}
-                </h1>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-lg md:text-xl font-semibold text-foreground leading-tight">
+                    {(form.polo_ativo || form.reclamante || "—")} <span className="text-muted-foreground font-normal">X</span> {(form.polo_passivo || form.reclamados || "—")}
+                  </h1>
+                  {form.impactante && (
+                    <Badge className="bg-red-600 hover:bg-red-700 text-white gap-1 border-0">
+                      <Flame className="w-3 h-3" /> Impactante
+                    </Badge>
+                  )}
+                </div>
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm text-muted-foreground">
                 {processo?.numero && (
                   <div className="flex items-center gap-1">
@@ -657,15 +673,50 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 {processo?.advogado_responsavel?.nome && (
                   <div><span className="font-medium text-foreground/70">Responsável:</span> <span className="text-foreground">{processo.advogado_responsavel.nome}</span></div>
                 )}
-                {processo?.created_by_user?.nome && (
-                  <div><span className="font-medium text-foreground/70">Criado por:</span> <span className="text-foreground">{processo.created_by_user.nome}</span></div>
-                )}
                 </div>
               </div>
-              <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos} className="flex-shrink-0">
-                {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
-                Salvar alterações
-              </Button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <Button
+                  size="sm"
+                  variant={form.impactante ? "default" : "outline"}
+                  onClick={() => update("impactante", !form.impactante)}
+                  className={cn(
+                    "gap-1",
+                    form.impactante
+                      ? "bg-red-600 hover:bg-red-700 text-white border-red-600"
+                      : "text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                  )}
+                  title={form.impactante ? "Remover marcação Impactante" : "Marcar como Impactante"}
+                >
+                  <Flame className="w-4 h-4" />
+                  {form.impactante ? "Impactante" : "Impactante"}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline" className="gap-1">
+                      <Plus className="w-4 h-4" /> Adicionar
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => onNavigate?.("tarefas")}>
+                      <ListTodo className="w-4 h-4 mr-2" /> Tarefa
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => onNavigate?.("prazo")}>
+                      <Clock className="w-4 h-4 mr-2" /> Prazo
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => onNavigate?.("agenda")}>
+                      <CalendarDays className="w-4 h-4 mr-2" /> Evento
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setCriarAudienciaOpen(true)}>
+                      <Gavel className="w-4 h-4 mr-2" /> Audiência
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos}>
+                  {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                  Salvar
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1053,6 +1104,14 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
             <MonitoramentoToggle processoId={processo.id} campo="prioridade_djen" valorInicial={!!(processo as any).prioridade_djen} />
           </div>
         </div>
+      )}
+      {processo?.id && processo?.numero && (
+        <CriarAudienciaProcessoDialog
+          open={criarAudienciaOpen}
+          onOpenChange={setCriarAudienciaOpen}
+          processoId={processo.id}
+          processoNumero={processo.numero}
+        />
       )}
     </div>
   );
