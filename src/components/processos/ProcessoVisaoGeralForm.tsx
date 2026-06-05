@@ -85,7 +85,7 @@ function FormField({
       {children}
     </div>
   );
-}
+});
 
 function SectionHeader({ icon: Icon, title }: { icon: any; title: string }) {
   return (
