@@ -879,7 +879,7 @@ export function ProcessoDetalhesCompletos({
                   {group.items.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => setActiveSection(item.id)}
+                      onClick={() => handleSectionChange(item.id)}
                       className={cn(
                         "flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-md whitespace-nowrap transition-colors",
                         activeSection === item.id
@@ -918,7 +918,7 @@ export function ProcessoDetalhesCompletos({
                   {group.items.map((item) => (
                     <button
                       key={item.id}
-                      onClick={() => setActiveSection(item.id)}
+                      onClick={() => handleSectionChange(item.id)}
                       className={cn(
                         "w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-left transition-colors",
                         activeSection === item.id
