@@ -917,7 +917,12 @@ export default function PainelControle() {
           )}
         </div>
 
-        {/* Corpo principal: calendário + painel detalhe */}
+        {/* Corpo principal: calendário + painel detalhe OU lista de atividades */}
+        {viewMode === "lista" ? (
+          <div className="flex-1 min-h-0 overflow-auto">
+            <ListaAtividadesView embedded onRequestNovo={() => setNovaTarefaOpen(true)} />
+          </div>
+        ) : (
         <div className="flex flex-1 min-h-0 overflow-hidden relative">
 
           {/* Calendário Mensal — escondido no mobile quando item selecionado */}
