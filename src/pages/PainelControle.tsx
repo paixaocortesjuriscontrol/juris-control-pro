@@ -98,6 +98,9 @@ export default function PainelControle() {
   const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
   const [selectedParcelamento, setSelectedParcelamento] = useState<EventoAgenda | null>(null);
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
+  const [novoEventoOpen, setNovoEventoOpen] = useState(false);
+  const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
+  const [novaAudienciaOpen, setNovaAudienciaOpen] = useState(false);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
