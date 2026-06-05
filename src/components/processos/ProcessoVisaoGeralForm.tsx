@@ -156,6 +156,10 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
 
   const handleSave = async () => {
     if (!processo?.id) return;
+    if (form.status === "encerrado" && !String(form.motivo_encerramento || "").trim()) {
+      toast.error("Informe o motivo do encerramento antes de salvar.");
+      return;
+    }
     setSaving(true);
     try {
       const payload: Record<string, any> = {};
