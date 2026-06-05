@@ -4530,13 +4530,13 @@ const AnaliseDjen = () => {
                                             <DropdownMenuItem onSelect={() => setTimeout(() => handleCriarTarefa(pub), 0)}>
                                               <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setTimeout(() => setNovoEventoOpen(true), 0)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
                                               <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setTimeout(() => setNovoPrazoOpen(true), 0)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovoPrazoOpen(true); }, 0)}>
                                               <Clock className="w-4 h-4 mr-2" /> Prazo
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setTimeout(() => setNovaAudienciaOpen(true), 0)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
                                               <Gavel className="w-4 h-4 mr-2" /> Audiência
                                             </DropdownMenuItem>
                                           </DropdownMenuContent>
@@ -4621,13 +4621,13 @@ const AnaliseDjen = () => {
                                            <DropdownMenuItem onSelect={() => setTimeout(() => handleCriarTarefa(pub), 0)}>
                                              <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onSelect={() => setTimeout(() => setNovoEventoOpen(true), 0)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
                                              <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onSelect={() => setTimeout(() => setNovoPrazoOpen(true), 0)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovoPrazoOpen(true); }, 0)}>
                                              <Clock className="w-4 h-4 mr-2" /> Prazo
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onSelect={() => setTimeout(() => setNovaAudienciaOpen(true), 0)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
                                              <Gavel className="w-4 h-4 mr-2" /> Audiência
                                            </DropdownMenuItem>
                                          </DropdownMenuContent>
