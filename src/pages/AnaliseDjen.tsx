@@ -4873,6 +4873,7 @@ const AnaliseDjen = () => {
           open={novoEventoOpen}
           onOpenChange={setNovoEventoOpen}
           evento={null}
+          defaultProcessoId={adicionarProcessoId}
         />
 
         {/* Novo Prazo */}
@@ -4880,6 +4881,7 @@ const AnaliseDjen = () => {
           open={novoPrazoOpen}
           onOpenChange={setNovoPrazoOpen}
           prazo={null}
+          defaultProcessoId={adicionarProcessoId}
         />
 
         {/* Nova Audiência */}
@@ -4888,7 +4890,10 @@ const AnaliseDjen = () => {
             <DialogHeader>
               <DialogTitle>Nova Audiência</DialogTitle>
             </DialogHeader>
-            <CadastroAudienciaForm />
+            <CadastroAudienciaForm
+              key={`${adicionarProcessoNumero ?? "novo"}-${novaAudienciaOpen ? "open" : "closed"}`}
+              defaultProcessoNumero={adicionarProcessoNumero}
+            />
           </DialogContent>
         </Dialog>
       </div>
