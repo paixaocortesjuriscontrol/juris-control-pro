@@ -124,6 +124,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [syncing, setSyncing] = useState(false);
   const [syncingAnexos, setSyncingAnexos] = useState(false);
   const [syncingInterno, setSyncingInterno] = useState(false);
+  const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
   // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Contador ao vivo (segundos decorridos) durante a busca Judit — mesma
