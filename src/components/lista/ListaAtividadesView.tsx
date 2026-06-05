@@ -349,16 +349,21 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
     !!filters.search;
 
   return (
-    <MainLayout
-      title="Lista de atividades"
-      subtitle={`${total.toLocaleString("pt-BR")} atividade(s) encontrada(s)`}
-      headerActions={
-        <Button onClick={() => setDialogOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" /> Novo
-        </Button>
-      }
-    >
-      <div className="flex flex-col gap-4 p-4 lg:p-6 bg-muted/30 min-h-[calc(100vh-4rem)]">
+    <>
+      {!embedded && (
+        <div className="flex items-center justify-between px-4 lg:px-6 py-3 border-b bg-card">
+          <div>
+            <h2 className="text-base font-bold">Lista de atividades</h2>
+            <p className="text-xs text-muted-foreground">
+              {total.toLocaleString("pt-BR")} atividade(s) encontrada(s)
+            </p>
+          </div>
+          <Button onClick={() => (onRequestNovo ? onRequestNovo() : setDialogOpen(true))} className="gap-2">
+            <Plus className="h-4 w-4" /> Novo
+          </Button>
+        </div>
+      )}
+      <div className={cn("flex flex-col gap-4 bg-muted/30", embedded ? "p-3 md:p-4" : "p-4 lg:p-6 min-h-[calc(100vh-4rem)]")}>
 
         <div
           className={cn(
