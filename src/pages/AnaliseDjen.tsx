@@ -88,6 +88,7 @@ import {
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
+import { NovaAudienciaPublicacaoDialog } from "@/components/djen/NovaAudienciaPublicacaoDialog";
 import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
