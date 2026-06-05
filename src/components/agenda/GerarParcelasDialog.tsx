@@ -548,34 +548,43 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
               />
             </div>
 
-            {/* Vincular Processo */}
+            {/* Vincular Processos (múltiplos) */}
             <div className="border rounded-lg p-4 space-y-3">
               <Label className="font-medium flex items-center gap-2">
                 <FileText className="w-4 h-4" />
-                Vincular Processo (opcional)
+                Vincular Processos (opcional)
               </Label>
-              
-              {/* Processo selecionado */}
-              {processoSelecionado && (
-                <div className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
-                  <div className="text-sm">
-                    <span className="font-medium">{processoSelecionado.numero}</span>
-                    <span className="text-muted-foreground ml-2">
-                      {processoSelecionado.polo_ativo} x {processoSelecionado.polo_passivo}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className="p-1 hover:bg-muted rounded"
-                    onClick={() => setFormData({ ...formData, processo_id: "" })}
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+
+              {/* Processos selecionados como chips */}
+              {processosSelecionados.length > 0 && (
+                <div className="space-y-1">
+                  {processosSelecionados.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between gap-2 p-2 bg-muted/50 rounded-md"
+                    >
+                      <div className="text-sm min-w-0 flex-1">
+                        <span className="font-medium">{p.numero}</span>
+                        <span className="text-muted-foreground ml-2 truncate">
+                          {p.polo_ativo} x {p.polo_passivo}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="p-1 hover:bg-destructive/10 rounded shrink-0"
+                        onClick={() =>
+                          setProcessoIds((prev) => prev.filter((id) => id !== p.id))
+                        }
+                        title="Remover vínculo"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
-              
-              {!formData.processo_id && (
-                <>
+
+              <>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Select value={coordenacaoProcessoFiltro} onValueChange={setCoordenacaoProcessoFiltro}>
                       <SelectTrigger className="w-full sm:w-72">
@@ -603,11 +612,14 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                   </div>
                   
                   <div className="max-h-32 overflow-y-auto space-y-1">
-                    {processos?.map((processo) => (
+                    {processos?.filter((pp) => !processoIds.includes(pp.id)).map((processo) => (
                       <div
                         key={processo.id}
                         className="flex items-center gap-2 p-2 rounded-md hover:bg-muted cursor-pointer text-sm"
-                        onClick={() => setFormData({ ...formData, processo_id: processo.id })}
+                        onClick={() => {
+                          setProcessoIds((prev) => prev.includes(processo.id) ? prev : [...prev, processo.id]);
+                          setProcessoSearch("");
+                        }}
                       >
                         <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                         <span className="font-medium">{processo.numero}</span>
@@ -622,8 +634,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                       </p>
                     )}
                   </div>
-                </>
-              )}
+              </>
             </div>
 
             {/* Responsáveis/Participantes */}
