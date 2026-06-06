@@ -1723,7 +1723,7 @@ export function ProcessoDetalhesCompletos({
                     />
                   </TabsContent>
                   <TabsContent value="anexos" className="mt-3">
-                    <ProcessoAnexosJuditTab processoNumero={processo.numero} />
+                    <ProcessoAnexosJuditTab processoNumero={processo.numero} processoId={processo.id} />
                   </TabsContent>
                 </Tabs>
               )}
