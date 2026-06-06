@@ -211,7 +211,7 @@ export function gerarManualDistribuicaoTst() {
   table(
     [["Botão", "Função"]],
     [
-      ["Manual", "Gera este PDF explicativo (você está lendo agora)."],
+      ["M. Instruções", "Gera este PDF explicativo (Manual de Instruções - você está lendo agora)."],
       ["Relatório PDF Partes", "Gera PDF com polo ativo e passivo dos processos filtrados (ou selecionados)."],
       ["Certidão TST (PDF)", "Importa certidão oficial em PDF e cria/atualiza registros."],
       ["Importar (Excel)", "Importa a planilha mestre de distribuição TST."],
