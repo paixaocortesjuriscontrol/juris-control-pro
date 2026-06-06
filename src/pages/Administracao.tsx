@@ -19,7 +19,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server } from "lucide-react";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server, BarChart3, Radar, Settings, Upload } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -662,6 +663,41 @@ const Administracao = () => {
             </DialogContent>
           </Dialog>
         </div>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Painel de ferramentas administrativas</CardTitle>
+            <CardDescription>Atalhos para os módulos de gestão do sistema.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { label: "Relatórios", path: "/relatorios", icon: BarChart3, description: "Indicadores e relatórios analíticos." },
+                { label: "Monitoração", path: "/monitoracao", icon: Radar, description: "Status dos monitoramentos e execuções." },
+                { label: "Configurações", path: "/configuracoes", icon: Settings, description: "Parâmetros e ajustes do sistema." },
+                { label: "Importar Dados", path: "/importar", icon: Upload, description: "Cargas e importações de planilhas." },
+              ].map((tool) => (
+                <Link key={tool.path} to={tool.path} className="group">
+                  <Card className="h-full transition-all border-border hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5">
+                    <CardContent className="p-4 flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
+                        <tool.icon className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                          {tool.label}
+                        </h3>
+                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                          {tool.description}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-3 max-w-lg">
