@@ -1102,6 +1102,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 intimacoes={intimacoes}
                 tarefas={tarefas}
                 movimentacoes={movimentacoes}
+                eventosAgenda={eventosAgenda}
+                processoId={processo?.id}
+                processoNumero={processo?.numero}
               />
               <DepositosRecursaisCard processoId={processo.id} />
               <CustasProcessuaisCard processoId={processo.id} />
