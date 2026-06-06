@@ -66,20 +66,16 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400" },
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
-  { icon: Newspaper, label: "Buscar DJEN", path: "/buscar-djen" },
   { icon: FolderOpen, label: "Pastas", path: "/pastas" },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
   { icon: Brain, label: "Assistente IA", path: "/assistente-juridico" },
-  { icon: BarChart3, label: "Relatórios", path: "/relatorios" },
 ];
 
 // Itens visíveis apenas para administradores (na seção inferior)
 const menuItemsAdmin: MenuItem[] = [
   { icon: KeyRound, label: "Cofre de Senhas", path: "/cofre-senhas" },
   { icon: ShieldCheck, label: "Administração", path: "/admin" },
-  { icon: Radar, label: "Monitoração", path: "/monitoracao" },
-  { icon: Settings, label: "Configurações", path: "/configuracoes" },
 ];
 
 const menuItems = [...menuItemsPublicos, ...menuItemsAdmin];
@@ -143,19 +139,6 @@ export function Sidebar() {
           </NavLink>
         ))}
 
-        {/* Menu Importar Dados - restrito a admin/coordenador */}
-        {isAdminOrCoordinator && !isAdvogadoTemporario && (
-          <NavLink
-            to="/importar"
-            onClick={() => setMobileOpen(false)}
-            className={({ isActive }) =>
-              cn("nav-item", isActive && "nav-item-active")
-            }
-          >
-            <Upload className="w-5 h-5 flex-shrink-0" />
-            {!collapsed && <span className="text-sm font-medium">Importar Dados</span>}
-          </NavLink>
-        )}
       </nav>
 
       {/* Settings & Collapse */}
