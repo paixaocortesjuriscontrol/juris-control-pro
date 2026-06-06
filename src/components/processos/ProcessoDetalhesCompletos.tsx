@@ -76,6 +76,8 @@ import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
 import { CriarAudienciaProcessoDialog } from "@/components/audiencias/CriarAudienciaProcessoDialog";
 import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
 import { AudienciaObservacaoInline } from "@/components/audiencias/AudienciaObservacaoInline";
+import { CriarTarefaProcessoDialog } from "./CriarTarefaProcessoDialog";
+import { EventoDialog } from "@/components/agenda/EventoDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -224,6 +226,8 @@ export function ProcessoDetalhesCompletos({
   const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
   const [analyzingDocId, setAnalyzingDocId] = useState<string | null>(null);
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
+  const [criarTarefaOpen, setCriarTarefaOpen] = useState(false);
+  const [novoEventoOpen, setNovoEventoOpen] = useState(false);
 
   // Inline editable resumo
   const [resumoForm, setResumoForm] = useState<Record<string, any>>({});
@@ -1286,7 +1290,7 @@ export function ProcessoDetalhesCompletos({
                         <Button 
                           size="sm" 
                           className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7"
-                          onClick={() => navigate(`/nova-tarefa?processo_id=${processo.id}`)}
+                          onClick={() => setCriarTarefaOpen(true)}
                         >
                           Nova Tarefa
                         </Button>
@@ -1648,7 +1652,11 @@ export function ProcessoDetalhesCompletos({
                       <CalendarDays className="w-4 h-4" />
                       Agenda
                     </h3>
-                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7">
+                    <Button
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7"
+                      onClick={() => setNovoEventoOpen(true)}
+                    >
                       Novo Evento
                     </Button>
                   </div>
@@ -1754,6 +1762,17 @@ export function ProcessoDetalhesCompletos({
           setAnaliseDialogOpen(false);
           sonnerToast.success("Documento enviado com sucesso!");
         }}
+      />
+      <CriarTarefaProcessoDialog
+        open={criarTarefaOpen}
+        onOpenChange={setCriarTarefaOpen}
+        processoId={processo.id}
+        processoNumero={processo.numero}
+      />
+      <EventoDialog
+        open={novoEventoOpen}
+        onOpenChange={setNovoEventoOpen}
+        defaultProcessoId={processo.id}
       />
     </div>
   );
