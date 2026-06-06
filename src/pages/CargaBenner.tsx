@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { VoltarAdminTstButton } from "@/components/admin-tst/VoltarAdminTstButton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -914,7 +915,7 @@ export default function CargaBenner() {
   };
 
   return (
-    <MainLayout title="Carga Benner - Módulo TST">
+    <MainLayout title="Carga Benner - Módulo TST" headerActions={<VoltarAdminTstButton />}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">

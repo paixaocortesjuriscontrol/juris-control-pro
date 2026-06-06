@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { VoltarAdminTstButton } from "@/components/admin-tst/VoltarAdminTstButton";
 import { ChevronLeft, ChevronRight, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -571,7 +572,7 @@ export default function DadosBenner() {
 
   if (editando) {
     return (
-      <MainLayout title="Dados Benner">
+      <MainLayout title="Dados Benner" headerActions={<VoltarAdminTstButton />}>
         <div className="max-w-5xl mx-auto">
           <DadosBennerDetail
             dado={editando}

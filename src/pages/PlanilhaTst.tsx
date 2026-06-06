@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { VoltarAdminTstButton } from "@/components/admin-tst/VoltarAdminTstButton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -2975,7 +2976,7 @@ export default function PlanilhaTst() {
   };
 
   return (
-    <MainLayout title="Planilha TST — Cruzamento de Dados" subtitle="Carregue 4 planilhas para cruzar e complementar automaticamente os dados de distribuições do TST">
+    <MainLayout title="Planilha TST — Cruzamento de Dados" subtitle="Carregue 4 planilhas para cruzar e complementar automaticamente os dados de distribuições do TST" headerActions={<VoltarAdminTstButton />}>
       <div className="space-y-6">
 
         {/* File Upload Cards */}
