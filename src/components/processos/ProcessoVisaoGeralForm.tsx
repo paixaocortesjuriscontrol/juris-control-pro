@@ -119,6 +119,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   intimacoes = [],
   tarefas = [],
   movimentacoes = [],
+  eventosAgenda = [],
   onNavigate,
   compact = false,
   actionsOnly = false,
