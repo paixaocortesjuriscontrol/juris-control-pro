@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { VoltarAdminTstButton } from "@/components/admin-tst/VoltarAdminTstButton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -305,7 +306,7 @@ export default function AnalisarPrazos() {
   const uniqueDocCount = new Set(results.map(r => r.sourceFileIndex)).size;
 
   return (
-    <MainLayout title="Analisar Prazos" subtitle="Análise automática de documentos com IA">
+    <MainLayout title="Analisar Prazos" subtitle="Análise automática de documentos com IA" headerActions={<VoltarAdminTstButton />}>
       <div className="space-y-6">
         <Card>
           <CardHeader>
