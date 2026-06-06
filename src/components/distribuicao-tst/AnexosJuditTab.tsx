@@ -45,6 +45,7 @@ interface Attachment {
 
 interface Props {
   processoNumero: string;
+  processoId?: string;
   attachments: Attachment[];
   /** Dados estruturados da Judit a serem usados como camada 1 (hidratação determinística).
    *  Esses campos NÃO serão extraídos do PDF — são copiados literalmente no backend. */
@@ -74,7 +75,7 @@ interface Props {
   contexto?: "tst" | "processo";
 }
 
-export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPreenchido, contexto = "tst" }: Props) {
+export function AnexosJuditTab({ processoNumero, processoId, attachments, dadosJudit, onIaPreenchido, contexto = "tst" }: Props) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [processing, setProcessing] = useState(false);
@@ -216,12 +217,16 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
       }
       if (jaIndexados.length > 0 && pendentesAnexos.length === 0) {
         // Nenhum anexo novo para baixar — resolve processo_id direto pelo número.
-        const { data: proc } = await supabase
-          .from("processos")
-          .select("id")
-          .eq("numero", processoNumero)
-          .maybeSingle();
-        processoIdAcc = proc?.id || null;
+        if (processoId) {
+          processoIdAcc = processoId;
+        } else {
+          const { data: proc } = await supabase
+            .from("processos")
+            .select("id")
+            .eq("numero", processoNumero)
+            .maybeSingle();
+          processoIdAcc = proc?.id || null;
+        }
       }
       if (jaIndexados.length > 0) {
         toast.info(`${jaIndexados.length} anexo(s) já indexado(s) reaproveitado(s).`);
@@ -231,11 +236,10 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
       let reaproveitadosStorage = 0;
       // Resolve/cria processo_id uma única vez para permitir paralelismo real
       if (!processoIdAcc) {
-        const { data: proc } = await supabase
-          .from("processos")
-          .select("id")
-          .eq("numero", processoNumero)
-          .maybeSingle();
+        const query = supabase.from("processos").select("id");
+        const { data: proc } = processoId
+          ? await query.eq("id", processoId).maybeSingle()
+          : await query.eq("numero", processoNumero).maybeSingle();
         if (proc?.id) {
           processoIdAcc = proc.id;
         } else {
@@ -388,6 +392,7 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
           "preencher-form-ia-anexos-processo",
           {
             body: {
+              processo_id: processoIdAcc,
               processo_numero: processoNumero,
               documento_ids: documentoIdsExtracao,
             },
