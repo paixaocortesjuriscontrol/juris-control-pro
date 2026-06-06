@@ -453,6 +453,106 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   };
 
   /**
+   * Consulta Judit apenas para alimentar a aba "Análise Judit" (e opcionalmente
+   * a aba "Anexos"). NÃO altera o formulário nem grava em `processos` /
+   * `processos_partes`. O preenchimento do formulário só acontece quando o
+   * usuário clicar em "Preencher formulário" dentro da Análise Judit.
+   */
+  const handleFetchJuditOnly = async (comAnexos: boolean = false) => {
+    if (!processo?.numero) {
+      toast.warning("Processo sem número CNJ cadastrado.");
+      return;
+    }
+    const cnjMatch = String(processo.numero).match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
+    const numeroLimpo = cnjMatch ? cnjMatch[0] : String(processo.numero).trim();
+    if (comAnexos) setSyncingAnexos(true); else setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("buscar-judit", {
+        body: {
+          numero_processo: numeroLimpo,
+          tribunal: "TST",
+          com_anexos: comAnexos,
+          force_refresh: true,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) { toast.error(data.error); return; }
+
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData?.user?.id || null;
+
+      // Logs (alimenta a aba Análise Judit)
+      await supabase.from("consultas_judit").insert({
+        processo_id: processo.id,
+        requisitada_em: new Date().toISOString(),
+        status_http: 200,
+        payload_resposta: data,
+        erro: null,
+      });
+      try {
+        await supabase.from("judit_logs" as any).insert({
+          processo_numero: numeroLimpo,
+          tribunal: "TST",
+          request_payload: { numero_processo: numeroLimpo, tribunal: "TST", com_anexos: comAnexos, force_refresh: true },
+          raw_response: data,
+          status: "sucesso",
+          error_message: null,
+          created_by: uid,
+        });
+      } catch (_) { /* noop */ }
+
+      // Persiste anexos quando solicitado
+      if (comAnexos) {
+        const atts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : [];
+        if (atts.length > 0) {
+          try {
+            const rowsRaw = atts.map((a: any) => ({
+              processo_numero: numeroLimpo,
+              cnj: a?.cnj || numeroLimpo,
+              instance: a?.instance != null ? String(a.instance) : null,
+              attachment_id: String(a?.step_id || a?.attachment_id || ""),
+              step_id: a?.step_id ? String(a.step_id) : null,
+              attachment_name: a?.attachment_name || null,
+              attachment_date: a?.attachment_date || null,
+              extension: a?.extension || null,
+              status: a?.status || "done",
+              corrupted: a?.corrupted ?? false,
+              raw_attachment: a,
+              created_by: uid,
+            })).filter((r: any) => r.attachment_id);
+            const seen = new Set<string>();
+            const rows = rowsRaw.filter((r: any) => {
+              const key = getJuditAttachmentDedupKey(r);
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+            if (rows.length > 0) {
+              await supabase.from("judit_anexos" as any).delete().eq("processo_numero", numeroLimpo);
+              await supabase.from("judit_anexos" as any).insert(rows);
+              await queryClient.invalidateQueries({ queryKey: ["judit_anexos", processo.numero] });
+              await queryClient.invalidateQueries({ queryKey: ["judit_anexos", numeroLimpo] });
+            }
+            toast.success(`Judit retornou ${atts.length} anexo(s).`);
+          } catch (e) {
+            console.warn("Falha ao persistir judit_anexos:", e);
+          }
+        } else {
+          toast.warning("Judit não retornou anexos nesta consulta.");
+        }
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["consultas_judit", processo.id] });
+      await queryClient.invalidateQueries({ queryKey: ["judit_logs", numeroLimpo] });
+      toast.success("Consulta Judit concluída. Veja a aba Análise Judit.");
+    } catch (e: any) {
+      toast.error("Erro Judit: " + (e?.message || "desconhecido"));
+    } finally {
+      if (comAnexos) setSyncingAnexos(false); else setSyncing(false);
+    }
+  };
+
+  /**
    * Sincronização INDEPENDENTE para Processo Interno — chama a edge function
    * `judit-processo-interno` (separada da buscar-judit usada pela Dados Benner).
    * Preenche o máximo de atributos do formulário (todos os FIELDS quando a
@@ -750,12 +850,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <Button
                   size="sm"
                   onClick={async () => {
-                    await handleSyncJudit(comAnexosJudit);
+                    await handleFetchJuditOnly(comAnexosJudit);
                     onNavigate?.("analise-judit");
                   }}
                   disabled={juditBusy || saving}
                   className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  title="Consultar Judit e preencher campos"
+                  title="Consultar Judit (sem alterar o formulário)"
                 >
                   {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                   {syncing || syncingAnexos
