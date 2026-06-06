@@ -1712,17 +1712,23 @@ export function ProcessoDetalhesCompletos({
 
               {/* Análise Judit (mesmo painel da Distribuição TST) */}
               {activeSection === "analise-judit" && processo?.numero && (
-                <AnaliseJuditTab
-                  processoNumero={processo.numero}
-                  onPreencherFormulario={async () => {
-                    await visaoGeralRef.current?.preencherFormularioJudit(false);
-                  }}
-                />
-              )}
-
-              {/* Anexos Judit (mesmo painel da Distribuição TST) */}
-              {activeSection === "anexos-judit" && processo?.numero && (
-                <ProcessoAnexosJuditTab processoNumero={processo.numero} />
+                <Tabs defaultValue="analise" className="w-full">
+                  <TabsList>
+                    <TabsTrigger value="analise">Análise</TabsTrigger>
+                    <TabsTrigger value="anexos">Anexos</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="analise" className="mt-3">
+                    <AnaliseJuditTab
+                      processoNumero={processo.numero}
+                      onPreencherFormulario={async () => {
+                        await visaoGeralRef.current?.preencherFormularioJudit(false);
+                      }}
+                    />
+                  </TabsContent>
+                  <TabsContent value="anexos" className="mt-3">
+                    <ProcessoAnexosJuditTab processoNumero={processo.numero} />
+                  </TabsContent>
+                </Tabs>
               )}
 
               {/* Comentários Section */}
