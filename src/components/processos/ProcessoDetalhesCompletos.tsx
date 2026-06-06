@@ -1290,7 +1290,7 @@ export function ProcessoDetalhesCompletos({
                         <Button 
                           size="sm" 
                           className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7"
-                          onClick={() => navigate(`/nova-tarefa?processo_id=${processo.id}`)}
+                          onClick={() => setCriarTarefaOpen(true)}
                         >
                           Nova Tarefa
                         </Button>
