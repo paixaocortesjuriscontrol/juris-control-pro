@@ -817,7 +817,6 @@ export function ProcessoDetalhesCompletos({
       items: [
         { id: "monitoramento360", label: "360º", icon: Radar, count: alertas360Unicos.length },
         { id: "portal", label: "Portal", icon: Globe },
-        { id: "judit", label: "Detalhe Judit", icon: Sparkles },
         { id: "analise-judit", label: "Análise Judit", icon: Sparkles },
       ],
     },
