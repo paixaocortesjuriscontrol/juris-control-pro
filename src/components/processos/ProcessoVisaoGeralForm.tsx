@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -62,6 +63,7 @@ interface Props {
 
 export type ProcessoVisaoGeralFormHandle = {
   save: () => Promise<void>;
+  preencherFormularioJudit: (comAnexos?: boolean) => Promise<void>;
 };
 
 // Lista de campos editáveis (whitelist) - todos da tabela processos
@@ -132,6 +134,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [syncing, setSyncing] = useState(false);
   const [syncingAnexos, setSyncingAnexos] = useState(false);
   const [syncingInterno, setSyncingInterno] = useState(false);
+  const [comAnexosJudit, setComAnexosJudit] = useState(false);
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
@@ -626,7 +629,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       : "";
   const isAdmin = useMemo(() => processo?.tipo_processo === "administrativo", [processo?.tipo_processo]);
 
-  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave, form, responsaveis, processo?.id]);
+  useImperativeHandle(ref, () => ({
+    save: handleSave,
+    preencherFormularioJudit: async (comAnexos = false) => {
+      await handleSyncJuditInterno(comAnexos);
+    },
+  }), [handleSave, handleSyncJuditInterno, form, responsaveis, processo?.id]);
 
   // Modo "actionsOnly": renderiza apenas a barra de botões Judit (sem Save)
   if (actionsOnly) {
@@ -634,45 +642,31 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       <div className="flex items-center gap-2 flex-wrap">
         <Button
           size="sm"
-          variant="outline"
-          onClick={() => handleSyncJudit(false)}
+          onClick={async () => {
+            await handleSyncJudit(comAnexosJudit);
+            onNavigate?.("analise-judit");
+          }}
           disabled={juditBusy || saving}
-          className="gap-1"
+          className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
         >
-          {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-emerald-600" />}
-          {syncing ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando… ${juditElapsed}s`) : "Sincronizar Judit"}
+          {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {syncing || syncingAnexos
+            ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando… ${juditElapsed}s`)
+            : "Preencher com Judit"}
         </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => handleSyncJuditInterno(true)}
-          disabled={juditBusy || saving}
-          className="gap-1 border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
-        >
-          {syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          {syncingAnexos ? `Anexos… ${juditElapsed}s` : "Judit c/ anexos"}
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => handleSyncJuditInterno(false)}
-          disabled={juditBusy || saving}
-          className="gap-1 border-indigo-500 text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
-        >
-          {syncingInterno ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          {syncingInterno ? `Interno… ${juditElapsed}s` : "Judit (Interno)"}
-        </Button>
+        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none px-1" title="Inclui a lista de anexos do processo (consulta Judit mais cara).">
+          <Checkbox
+            checked={comAnexosJudit}
+            onCheckedChange={(v) => setComAnexosJudit(v === true)}
+            disabled={juditBusy || saving}
+          />
+          Com anexos
+        </label>
         {onNavigate && (
-          <>
-            <Button size="sm" variant="outline" onClick={() => onNavigate("analise-judit")} className="gap-1">
-              <Sparkles className="w-4 h-4 text-emerald-600" />
-              Análise Judit
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => onNavigate("anexos-judit")} className="gap-1">
-              <Paperclip className="w-4 h-4 text-emerald-600" />
-              Anexos Judit
-            </Button>
-          </>
+          <Button size="sm" variant="outline" onClick={() => onNavigate("anexos-judit")} className="gap-1">
+            <Paperclip className="w-4 h-4 text-emerald-600" />
+            Anexos Judit
+          </Button>
         )}
       </div>
     );
@@ -769,62 +763,36 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           <div className="flex items-center justify-end gap-2 flex-wrap">
               <Button
                 size="sm"
-                variant="outline"
-                onClick={() => handleSyncJudit(false)}
-                disabled={syncing || syncingAnexos || saving}
-                className="gap-1"
-              >
-                {syncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4 text-emerald-600" />}
-                {syncing
-                  ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando crawler… ${juditElapsed}s`)
-                  : "Sincronizar Judit"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleSyncJuditInterno(true)}
-                disabled={syncing || syncingAnexos || saving}
-                className="gap-1 border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
-              >
-                {syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {syncingAnexos
-                  ? (juditElapsed < 3 ? "Buscando anexos…" : `Aguardando crawler… ${juditElapsed}s`)
-                  : "Judit c/ anexos"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleSyncJuditInterno(false)}
+                onClick={async () => {
+                  await handleSyncJudit(comAnexosJudit);
+                  onNavigate?.("analise-judit");
+                }}
                 disabled={juditBusy || saving}
-                className="gap-1 border-indigo-500 text-indigo-700 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
-                title="Preenche o máximo de campos do formulário usando uma chamada Judit independente"
+                className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                {syncingInterno ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {syncingInterno
-                  ? (juditElapsed < 3 ? "Consultando…" : `Aguardando… ${juditElapsed}s`)
-                  : "Judit (Interno)"}
+                {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {syncing || syncingAnexos
+                  ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando crawler… ${juditElapsed}s`)
+                  : "Preencher com Judit"}
               </Button>
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none px-1" title="Inclui a lista de anexos do processo (consulta Judit mais cara).">
+                <Checkbox
+                  checked={comAnexosJudit}
+                  onCheckedChange={(v) => setComAnexosJudit(v === true)}
+                  disabled={juditBusy || saving}
+                />
+                Com anexos
+              </label>
               {onNavigate && (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onNavigate("analise-judit")}
-                    className="gap-1"
-                  >
-                    <Sparkles className="w-4 h-4 text-emerald-600" />
-                    Análise Judit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onNavigate("anexos-judit")}
-                    className="gap-1"
-                  >
-                    <Paperclip className="w-4 h-4 text-emerald-600" />
-                    Anexos Judit
-                  </Button>
-                </>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onNavigate("anexos-judit")}
+                  className="gap-1"
+                >
+                  <Paperclip className="w-4 h-4 text-emerald-600" />
+                  Anexos Judit
+                </Button>
               )}
           </div>
           )}

@@ -817,7 +817,6 @@ export function ProcessoDetalhesCompletos({
       items: [
         { id: "monitoramento360", label: "360º", icon: Radar, count: alertas360Unicos.length },
         { id: "portal", label: "Portal", icon: Globe },
-        { id: "judit", label: "Detalhe Judit", icon: Sparkles },
         { id: "analise-judit", label: "Análise Judit", icon: Sparkles },
       ],
     },
@@ -1711,14 +1710,14 @@ export function ProcessoDetalhesCompletos({
                 <CobrancaSection processo={processo} formatDate={formatDate} />
               )}
 
-              {/* Detalhe Judit */}
-              {activeSection === "judit" && processo?.id && (
-                <ProcessoJuditTab processoId={processo.id} processoNumero={processo?.numero} />
-              )}
-
               {/* Análise Judit (mesmo painel da Distribuição TST) */}
               {activeSection === "analise-judit" && processo?.numero && (
-                <AnaliseJuditTab processoNumero={processo.numero} />
+                <AnaliseJuditTab
+                  processoNumero={processo.numero}
+                  onPreencherFormulario={async () => {
+                    await visaoGeralRef.current?.preencherFormularioJudit(false);
+                  }}
+                />
               )}
 
               {/* Anexos Judit (mesmo painel da Distribuição TST) */}
