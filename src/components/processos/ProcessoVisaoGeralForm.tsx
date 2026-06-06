@@ -712,7 +712,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         <Button
           size="sm"
           onClick={async () => {
-            await handleSyncJudit(comAnexosJudit);
+            await handleFetchJuditOnly(comAnexosJudit);
             onNavigate?.("analise-judit");
           }}
           disabled={juditBusy || saving}
@@ -721,7 +721,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
           {syncing || syncingAnexos
             ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando… ${juditElapsed}s`)
-            : "Preencher com Judit"}
+            : "Judit"}
         </Button>
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none px-1" title="Inclui a lista de anexos do processo (consulta Judit mais cara).">
           <Checkbox
@@ -856,7 +856,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               <Button
                 size="sm"
                 onClick={async () => {
-                  await handleSyncJudit(comAnexosJudit);
+                  await handleFetchJuditOnly(comAnexosJudit);
                   onNavigate?.("analise-judit");
                 }}
                 disabled={juditBusy || saving}
@@ -865,7 +865,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                 {syncing || syncingAnexos
                   ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando crawler… ${juditElapsed}s`)
-                  : "Preencher com Judit"}
+                  : "Judit"}
               </Button>
               <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none px-1" title="Inclui a lista de anexos do processo (consulta Judit mais cara).">
                 <Checkbox
