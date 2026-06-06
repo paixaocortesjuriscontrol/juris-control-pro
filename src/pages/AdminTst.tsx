@@ -27,14 +27,11 @@ const tools = [
 
 export default function AdminTst() {
   return (
-    <MainLayout>
+    <MainLayout title="Admin. TST">
       <div className="p-4 lg:p-6 space-y-6">
-        <div>
-          <h1 className="text-2xl lg:text-3xl font-serif font-bold text-foreground">Admin. TST</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Ferramentas administrativas do TST agrupadas em um só lugar.
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Ferramentas administrativas do TST agrupadas em um só lugar.
+        </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {tools.map((tool) => (
