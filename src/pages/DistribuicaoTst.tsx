@@ -1256,7 +1256,7 @@ export default function DistribuicaoTst() {
             className="bg-blue-600 hover:bg-blue-700 text-white"
             title="Baixa o manual completo em PDF: cards, filtros, botões, importações, Judit, Kanban e dicas."
           >
-            <FileText className="w-4 h-4 mr-2" /> Manual
+            <FileText className="w-4 h-4 mr-2" /> M. Instruções
           </Button>
           <Button
             variant="outline"
