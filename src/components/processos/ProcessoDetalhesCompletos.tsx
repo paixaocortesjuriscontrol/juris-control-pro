@@ -1758,6 +1758,18 @@ export function ProcessoDetalhesCompletos({
         analise={analiseResult}
         processo={processo}
         onConfirm={handleAnaliseConfirm}
+      />
+      <CriarTarefaProcessoDialog
+        open={criarTarefaOpen}
+        onOpenChange={setCriarTarefaOpen}
+        processoId={processo.id}
+        processoNumero={processo.numero}
+      />
+      <EventoDialog
+        open={novoEventoOpen}
+        onOpenChange={setNovoEventoOpen}
+        defaultProcessoId={processo.id}
+      />
         onSkip={() => {
           setAnaliseDialogOpen(false);
           sonnerToast.success("Documento enviado com sucesso!");
