@@ -76,6 +76,8 @@ import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
 import { CriarAudienciaProcessoDialog } from "@/components/audiencias/CriarAudienciaProcessoDialog";
 import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
 import { AudienciaObservacaoInline } from "@/components/audiencias/AudienciaObservacaoInline";
+import { CriarTarefaProcessoDialog } from "./CriarTarefaProcessoDialog";
+import { EventoDialog } from "@/components/agenda/EventoDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
