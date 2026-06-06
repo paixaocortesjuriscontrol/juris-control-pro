@@ -815,15 +815,12 @@ export function ProcessoDetalhesCompletos({
     {
       label: "Monitoramento",
       items: [
-        { id: "monitoramento360", label: "360º", icon: Radar, count: alertas360Unicos.length },
-        { id: "portal", label: "Portal", icon: Globe },
         { id: "analise-judit", label: "Análise Judit", icon: Sparkles },
       ],
     },
     {
-      label: "TST",
+      label: "Distribuições",
       items: [
-        { id: "tst", label: "TST", icon: Gavel },
         { id: "distribuicoes-tst", label: "Distribuições", icon: Scale },
       ],
     },
