@@ -440,7 +440,6 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
         situacao_processo: (bennerAtual as any)?.situacao_processo || dadosJudit?.situacao_processo || null,
         processo_baixado: (bennerAtual as any)?.processo_baixado || dadosJudit?.processo_baixado || null,
       };
-      const documentoIdsExtracao = okResults.map((r: any) => r.documento_id).filter(Boolean);
       // Roda em paralelo: extração principal + análise específica do quarteirizado.
       const [iaResp, quartResp] = await Promise.all([
         supabase.functions.invoke("preencher-form-ia-anexos", {
