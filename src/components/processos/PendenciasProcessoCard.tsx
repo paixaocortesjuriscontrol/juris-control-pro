@@ -139,6 +139,7 @@ export function PendenciasProcessoCard({
     audienciasPendentes.length + intimacoesPendentes.length + tarefasPendentes.length + eventosPendentes.length;
 
   return (
+    <>
     <Card className="border border-border/60 shadow-md">
       <CardHeader className="py-3 px-4 bg-amber-500/10 border-b border-border/50">
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
