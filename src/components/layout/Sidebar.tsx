@@ -47,6 +47,7 @@ type MenuItem = {
   highlight?: boolean;
   color?: string;
   adminOnly?: boolean;
+  adminOrCoordOnly?: boolean;
 };
 
 // Itens visíveis para todos os usuários autenticados
@@ -61,7 +62,7 @@ const menuItemsPublicos: MenuItem[] = [
   // Demais itens
   { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400" },
   { icon: BookOpen, label: "Matérias Benner", path: "/materias-benner", color: "text-sky-400" },
-  { icon: ShieldCheck, label: "Admin. TST", path: "/admin-tst", color: "text-sky-400" },
+  { icon: ShieldCheck, label: "Admin. TST", path: "/admin-tst", color: "text-sky-400", adminOrCoordOnly: true },
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400" },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
@@ -89,6 +90,7 @@ export function Sidebar() {
     : menuItemsPublicos.filter(
         (item) =>
           (!item.adminOnly || isAdmin) &&
+            (!item.adminOrCoordOnly || isAdminOrCoordinator) &&
           (item.highlight || item.color || isAdminOrCoordinator)
       );
 
