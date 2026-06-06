@@ -627,7 +627,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       : "";
   const isAdmin = useMemo(() => processo?.tipo_processo === "administrativo", [processo?.tipo_processo]);
 
-  useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave, form, responsaveis, processo?.id]);
+  useImperativeHandle(ref, () => ({
+    save: handleSave,
+    preencherFormularioJudit: async (comAnexos = false) => {
+      await handleSyncJuditInterno(comAnexos);
+    },
+  }), [handleSave, handleSyncJuditInterno, form, responsaveis, processo?.id]);
 
   // Modo "actionsOnly": renderiza apenas a barra de botões Judit (sem Save)
   if (actionsOnly) {
