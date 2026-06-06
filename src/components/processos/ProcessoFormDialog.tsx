@@ -2172,7 +2172,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
               <TabsContent value="anexos-judit" className="space-y-4 mt-4">
                 {form.watch("numero") ? (
-                  <ProcessoAnexosJuditTab processoNumero={form.watch("numero") as string} />
+                  <ProcessoAnexosJuditTab processoNumero={form.watch("numero") as string} processoId={processo?.id} />
                 ) : (
                   <p className="text-sm text-muted-foreground">Informe o número CNJ do processo para visualizar os anexos Judit.</p>
                 )}

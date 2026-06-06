@@ -7,9 +7,10 @@ import { toast } from "sonner";
 
 interface Props {
   processoNumero: string;
+  processoId?: string;
 }
 
-export function ProcessoAnexosJuditTab({ processoNumero }: Props) {
+export function ProcessoAnexosJuditTab({ processoNumero, processoId }: Props) {
   const queryClient = useQueryClient();
   const { data: anexos = [], isLoading } = useQuery({
     queryKey: ["judit_anexos", processoNumero],
@@ -53,6 +54,7 @@ export function ProcessoAnexosJuditTab({ processoNumero }: Props) {
   return (
     <AnexosJuditTab
       processoNumero={processoNumero}
+      processoId={processoId}
       attachments={attachments}
       dadosJudit={null}
       contexto="processo"
@@ -60,35 +62,53 @@ export function ProcessoAnexosJuditTab({ processoNumero }: Props) {
         if (!resumo && !campos) return;
         try {
           const variantes = obterVariantesCnjBusca(processoNumero);
-          const { data: procs } = await supabase
+          const query = supabase
             .from("processos")
-            .select("id, judit_ia_observacoes")
-            .in("numero", variantes)
+            .select("id, judit_ia_observacoes, judit_campos")
             .limit(1);
+          const { data: procs } = processoId
+            ? await query.eq("id", processoId)
+            : await query.in("numero", variantes);
           const proc = (procs as any[])?.[0];
           if (!proc?.id) return;
 
           // Whitelist defensiva — apenas colunas conhecidas da tabela `processos`.
           const ALLOWED = new Set([
             "assunto","classe","materia","natureza","pedidos",
+            "tipo_processo","area","sistema",
             "polo_ativo","polo_passivo","terceiro_envolvido","reclamante","reclamados",
             "tribunal","justica","esfera","instancia","orgao_julgador","vara","comarca","uf",
             "data_distribuicao","data_citacao","data_recebimento",
-            "valor_causa","valor_condenacao",
+            "valor_causa","valor_condenacao","valor_provisionado",
             "fase","status","descricao","observacoes_processo","andamento_atual",
-            "funcao","periodo_laborado","cpf_cnpj_parte_contraria",
+            "ativo_passivo","responsabilidade_tipo","risco_atual","probabilidade","risco",
+            "funcao","advogado_externo","periodo_laborado","cpf_cnpj_parte_contraria",
           ]);
+          const NUMERIC = new Set(["valor_causa", "valor_condenacao", "valor_provisionado"]);
           const update: Record<string, any> = {};
+          const filled = new Set<string>(Array.isArray(proc.judit_campos) ? proc.judit_campos : []);
           for (const [k, v] of Object.entries(campos || {})) {
             if (!ALLOWED.has(k)) continue;
             if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) continue;
-            update[k] = v;
+            if (NUMERIC.has(k)) {
+              const n = Number(v);
+              if (!Number.isFinite(n)) continue;
+              update[k] = n;
+            } else {
+              update[k] = v;
+            }
+            filled.add(k);
+          }
+          if ((update.tribunal || update.orgao_julgador || update.vara) && !update.tipo_processo) {
+            update.tipo_processo = "judicial";
+            filled.add("tipo_processo");
           }
           if (resumo) {
             update.judit_ia_observacoes = proc.judit_ia_observacoes
               ? `${proc.judit_ia_observacoes}\n\n${resumo}`
               : resumo;
           }
+          if (filled.size > 0) update.judit_campos = Array.from(filled);
           if (Object.keys(update).length === 0) return;
           const { error } = await supabase
             .from("processos")

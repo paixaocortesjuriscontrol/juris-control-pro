@@ -1,5 +1,4 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,10 +20,14 @@ REGRA DE OURO
 • NUNCA invente. Se a informação não está EXPLÍCITA no documento, OMITA o campo do retorno.
 • Não tente preencher campos da Distribuição TST nem de Dados Benner — esta extração é
   exclusivamente para o cadastro/visão geral do PROCESSO.
+• A saída deve conter SOMENTE colunas do cadastro do processo, dentro da chave "processo".
 
 CAMPOS PERMITIDOS (sempre OMITA quando não houver evidência clara):
+  • tipo_processo: "judicial" quando houver tribunal/órgão/vara judicial explícitos; "administrativo" só se o documento disser processo administrativo.
   • assunto: assunto principal do processo (string curta).
   • classe: classe processual literal (ex: "Reclamação Trabalhista", "Ação Civil Pública").
+  • area: área jurídica literal/derivada do tribunal (ex: "Trabalhista", "Cível").
+  • sistema: sistema processual quando explícito (PJe, eSAJ, eProc, Projudi etc.).
   • materia: matéria/área temática (string curta).
   • natureza: natureza da ação (string curta).
   • pedidos: lista textual de pedidos, separada por ";" — extrair da petição inicial / razões de recurso.
@@ -39,12 +42,15 @@ CAMPOS PERMITIDOS (sempre OMITA quando não houver evidência clara):
   • data_distribuicao / data_citacao / data_recebimento: formato AAAA-MM-DD.
   • valor_causa: número decimal (sem R$).
   • valor_condenacao: número decimal, só se houver condenação líquida no documento.
+  • valor_provisionado: número decimal, só se o documento trouxer provisão/contingência literal.
+  • ativo_passivo / responsabilidade_tipo / risco_atual / probabilidade / risco: só se estiverem expressos literalmente.
   • fase: descrição curta da fase atual (≤120 chars).
   • status: "ativo" | "suspenso" | "arquivado_definitivamente" | "encerrado".
   • descricao: resumo do processo em até 3 frases factuais (sem juízo de valor).
   • observacoes_processo: observação factual adicional (até 400 chars).
   • andamento_atual: último andamento relevante (até 200 chars).
   • funcao: função/cargo do reclamante quando explícita.
+  • advogado_externo: nome do advogado externo quando explícito.
   • periodo_laborado: período laborado quando explícito (ex: "01/2018 a 06/2022").
   • cpf_cnpj_parte_contraria: documento literal.
 
@@ -58,8 +64,67 @@ ALERTAS
 Em "_alertas" reporte conflitos entre documentos ou OCR ruim.
 
 SAÍDA
-Devolva EXCLUSIVAMENTE via tool call "preencher_processo". Sem markdown, sem texto extra.
+Devolva JSON puro no formato:
+{"processo": {...}, "_evidencias": {...}, "_confianca": {...}, "_alertas": []}
 Campos sem evidência: OMITA do JSON.`;
+
+async function openAIJson(body: any): Promise<Response> {
+  const key = Deno.env.get("OPENAI_API_KEY");
+  if (!key) {
+    return new Response(JSON.stringify({ error: { message: "OPENAI_API_KEY não configurada" } }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  try {
+    return await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e: any) {
+    return new Response(JSON.stringify({ error: { message: `Falha de rede OpenAI: ${e?.message || e}` } }), {
+      status: 502,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
+const ALLOWED_PROCESSO_FIELDS = new Set([
+  "assunto", "tipo_processo", "classe", "natureza", "area", "fase", "status",
+  "tribunal", "justica", "instancia", "esfera", "sistema", "orgao_julgador", "vara", "comarca", "uf", "materia",
+  "polo_ativo", "polo_passivo", "terceiro_envolvido", "reclamante", "reclamados", "pedidos",
+  "data_distribuicao", "data_recebimento", "data_citacao",
+  "valor_causa", "valor_condenacao", "valor_provisionado",
+  "ativo_passivo", "responsabilidade_tipo", "risco_atual", "probabilidade", "risco",
+  "funcao", "advogado_externo", "descricao", "observacoes_processo", "andamento_atual",
+  "periodo_laborado", "cpf_cnpj_parte_contraria",
+]);
+
+function normalizarInstancia(value: any) {
+  const s = String(value || "").trim();
+  if (!s) return s;
+  if (/^1\b|primeira|1ª/i.test(s)) return "1ª Instância";
+  if (/^2\b|segunda|2ª/i.test(s)) return "2ª Instância";
+  if (/tribunal[_\s-]*superior|superior/i.test(s)) return "TST";
+  return s;
+}
+
+function normalizarProcessoOut(input: Record<string, any>) {
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(input || {})) {
+    if (!ALLOWED_PROCESSO_FIELDS.has(k)) continue;
+    if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) continue;
+    out[k] = k === "instancia" ? normalizarInstancia(v) : v;
+  }
+  if ((out.tribunal || out.orgao_julgador || out.vara) && !out.tipo_processo) {
+    out.tipo_processo = "judicial";
+  }
+  return out;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -74,7 +139,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!user) return json({ error: "Token inválido" }, 401);
 
-    if (!Deno.env.get("GEMINI_API_KEY")) return json({ error: "GEMINI_API_KEY não configurada" }, 500);
+    if (!Deno.env.get("OPENAI_API_KEY")) return json({ error: "OPENAI_API_KEY não configurada" }, 500);
 
     const body = await req.json();
     const processoId: string | null = body?.processo_id || null;
@@ -137,76 +202,10 @@ Deno.serve(async (req) => {
     }
     const fullText = parts.join("\n\n");
 
-    const tool = {
-      type: "function",
-      function: {
-        name: "preencher_processo",
-        description: "Preenche campos do cadastro do PROCESSO com base nas peças.",
-        parameters: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            processo: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                assunto: { type: "string" },
-                classe: { type: "string" },
-                materia: { type: "string" },
-                natureza: { type: "string" },
-                pedidos: { type: "string" },
-                polo_ativo: { type: "string" },
-                polo_passivo: { type: "string" },
-                terceiro_envolvido: { type: "string" },
-                reclamante: { type: "string" },
-                reclamados: { type: "string" },
-                tribunal: { type: "string" },
-                justica: { type: "string" },
-                esfera: { type: "string" },
-                instancia: { type: "string" },
-                orgao_julgador: { type: "string" },
-                vara: { type: "string" },
-                comarca: { type: "string" },
-                uf: { type: "string" },
-                data_distribuicao: { type: "string", description: "AAAA-MM-DD" },
-                data_citacao: { type: "string", description: "AAAA-MM-DD" },
-                data_recebimento: { type: "string", description: "AAAA-MM-DD" },
-                valor_causa: { type: "number" },
-                valor_condenacao: { type: "number" },
-                fase: { type: "string" },
-                status: { type: "string" },
-                descricao: { type: "string" },
-                observacoes_processo: { type: "string" },
-                andamento_atual: { type: "string" },
-                funcao: { type: "string" },
-                periodo_laborado: { type: "string" },
-                cpf_cnpj_parte_contraria: { type: "string" },
-              },
-            },
-            _evidencias: {
-              type: "object",
-              additionalProperties: {
-                type: "object",
-                properties: {
-                  trecho: { type: "string" },
-                  documento_id: { type: "string" },
-                },
-              },
-            },
-            _confianca: {
-              type: "object",
-              additionalProperties: { type: "string", enum: ["alta", "media", "baixa"] },
-            },
-            _alertas: { type: "array", items: { type: "string" } },
-          },
-          required: ["processo"],
-        },
-      },
-    };
-
-    const aiRes = await geminiChatCompletionsFetch({
-      model: "gemini-2.5-pro",
+    const aiRes = await openAIJson({
+      model: "gpt-4o-mini",
       temperature: 0,
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -214,39 +213,28 @@ Deno.serve(async (req) => {
           content: [
             `Processo: ${processoNumero}`,
             `\nTrechos das peças (ordenados por documento):\n\n${fullText}`,
-            `\nUse a função preencher_processo para devolver SOMENTE campos com evidência citável em "_evidencias".`,
+            `\nDevolva SOMENTE JSON válido com campos do cadastro do processo que tenham evidência citável em "_evidencias".`,
           ].join("\n"),
         },
       ],
-      tools: [tool],
-      tool_choice: { type: "function", function: { name: "preencher_processo" } },
     });
 
     if (!aiRes.ok) {
       const t = await aiRes.text();
-      return json({ error: `Gemini ${aiRes.status}: ${t.substring(0, 300)}` }, 500);
+      return json({ error: `OpenAI ${aiRes.status}: ${t.substring(0, 300)}` }, 500);
     }
 
     const aiJson = await aiRes.json();
-    const toolCall = aiJson?.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) {
-      return json({ error: "IA não retornou tool call" }, 500);
-    }
+    const content = aiJson?.choices?.[0]?.message?.content;
+    if (!content) return json({ error: "IA não retornou JSON" }, 500);
     let parsed: any;
     try {
-      parsed = JSON.parse(toolCall.function.arguments);
+      parsed = typeof content === "string" ? JSON.parse(content) : content;
     } catch {
       return json({ error: "Falha ao parsear resposta da IA" }, 500);
     }
 
-    const processoOut: Record<string, any> = parsed?.processo || {};
-    // Limpeza básica: remove strings vazias.
-    for (const k of Object.keys(processoOut)) {
-      const v = processoOut[k];
-      if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) {
-        delete processoOut[k];
-      }
-    }
+    const processoOut = normalizarProcessoOut(parsed?.processo || {});
 
     return json({
       processo_id: pid,
