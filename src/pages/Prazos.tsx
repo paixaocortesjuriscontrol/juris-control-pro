@@ -245,7 +245,7 @@ const Prazos = () => {
       return (
         <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
           <CheckCircle2 className="w-3 h-3 mr-1" />
-          Cumprido
+          Concluída
         </Badge>
       );
     }
@@ -432,7 +432,7 @@ const Prazos = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{statsLoading ? "-" : stats?.cumpridos || 0}</p>
-                <p className="text-xs text-muted-foreground">Cumpridos</p>
+                <p className="text-xs text-muted-foreground">Concluídas</p>
               </div>
             </div>
           </CardContent>

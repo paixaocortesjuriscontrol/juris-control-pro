@@ -143,7 +143,7 @@ export default function PainelEquipe() {
       return (
         <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs">
           <CheckCircle2 className="w-3 h-3 mr-1" />
-          Cumprido
+          Concluída
         </Badge>
       );
     }
@@ -278,7 +278,7 @@ export default function PainelEquipe() {
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Cumpridas</p>
+                <p className="text-sm text-muted-foreground">Concluídas</p>
                 <p className="text-2xl font-bold text-emerald-600">{totals.cumpridas}</p>
               </div>
               <CheckCircle2 className="w-8 h-8 text-emerald-500 opacity-80" />
