@@ -56,7 +56,7 @@ import { TarefaAgendaPanel } from "@/components/agenda/TarefaAgendaPanel";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { toZonedTime } from "date-fns-tz";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
 import TstPrazos from "@/pages/TstPrazos";
 import PainelAudiencias from "@/pages/PainelAudiencias";
@@ -735,7 +735,19 @@ export default function PainelControle() {
   );
 
   return (
-    <MainLayout title="Painel de Controle">
+    <MainLayout
+      title="Painel de Controle"
+      headerActions={
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link to="/painel-intimacoes">Painel Intimações</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/painel-equipe">Painel da Equipe</Link>
+          </Button>
+        </div>
+      }
+    >
       <div className="flex flex-col -m-4 md:-m-6" style={{ height: "calc(100vh - 64px)" }}>
         {/* Header */}
         <div className="px-4 md:px-6 py-3 md:py-4 bg-card border-b border-border flex-shrink-0 space-y-2">
