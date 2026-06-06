@@ -1652,7 +1652,11 @@ export function ProcessoDetalhesCompletos({
                       <CalendarDays className="w-4 h-4" />
                       Agenda
                     </h3>
-                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7">
+                    <Button
+                      size="sm"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7"
+                      onClick={() => setNovoEventoOpen(true)}
+                    >
                       Novo Evento
                     </Button>
                   </div>
