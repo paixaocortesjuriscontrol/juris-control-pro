@@ -968,6 +968,7 @@ export function ProcessoDetalhesCompletos({
                   intimacoes={intimacoes}
                   tarefas={tarefas}
                   movimentacoes={movimentacoes}
+                  eventosAgenda={eventosAgenda}
                   onNavigate={handleSectionChange}
                   hideJuditButtons
                 />
