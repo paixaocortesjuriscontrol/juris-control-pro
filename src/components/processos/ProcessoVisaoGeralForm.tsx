@@ -827,9 +827,20 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   <FormField label="Assunto" className="md:col-span-2">
                     <Textarea
                       rows={3}
-                      className={cn("text-sm min-h-[72px]", jcls("assunto"))}
+                      className={cn("text-sm min-h-[72px] resize-y overflow-hidden", jcls("assunto"))}
                       value={form.assunto || ""}
                       onChange={(e) => update("assunto", e.target.value)}
+                      ref={(el) => {
+                        if (el) {
+                          el.style.height = "auto";
+                          el.style.height = el.scrollHeight + "px";
+                        }
+                      }}
+                      onInput={(e) => {
+                        const el = e.currentTarget;
+                        el.style.height = "auto";
+                        el.style.height = el.scrollHeight + "px";
+                      }}
                     />
                   </FormField>
                   <FormField label="Tipo de Processo">
