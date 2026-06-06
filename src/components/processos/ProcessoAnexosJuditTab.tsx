@@ -54,6 +54,7 @@ export function ProcessoAnexosJuditTab({ processoNumero, processoId }: Props) {
   return (
     <AnexosJuditTab
       processoNumero={processoNumero}
+      processoId={processoId}
       attachments={attachments}
       dadosJudit={null}
       contexto="processo"
