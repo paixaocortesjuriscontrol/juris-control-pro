@@ -75,6 +75,7 @@ import CorrigirPlanilha from "./pages/CorrigirPlanilha";
 import MateriasBenner from "./pages/MateriasBenner";
 import ClassificacaoTst from "./pages/ClassificacaoTst";
 import IaResponde from "./pages/IaResponde";
+import AdminTst from "./pages/AdminTst";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 
 const queryClient = new QueryClient({
@@ -174,6 +175,7 @@ function App() {
               <Route path="/errata-djen" element={<ProtectedRoute><ErrataDjen /></ProtectedRoute>} />
               <Route path="/corrigir-planilha" element={<ProtectedRoute><CorrigirPlanilha /></ProtectedRoute>} />
               <Route path="/ia-responde" element={<AdminRoute><IaResponde /></AdminRoute>} />
+              <Route path="/admin-tst" element={<ProtectedRoute><AdminTst /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>
