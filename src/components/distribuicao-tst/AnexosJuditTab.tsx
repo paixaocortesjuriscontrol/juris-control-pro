@@ -66,7 +66,7 @@ interface Props {
     dados_benner: Record<string, any>;
     processo?: Record<string, any>;
     resumo?: string;
-  }) => void;
+  }) => Promise<void> | void;
   /**
    * Define qual fluxo de IA usar:
    *  - "tst" (default): preenche Distribuição TST + Dados Benner (uso atual em Distribuição TST).
@@ -410,7 +410,7 @@ export function AnexosJuditTab({ processoNumero, processoId, attachments, dadosJ
           alertasP.length ? `Alertas: ${alertasP.join(" | ")}` : "",
         ].filter(Boolean);
         const resumoIaP = `[IA ${new Date().toLocaleString("pt-BR")}]\n${resumoLinhasP.join("\n")}`;
-        onIaPreenchido?.({
+        await onIaPreenchido?.({
           distribuicao_tst: {},
           dados_benner: {},
           processo: proc,
@@ -506,7 +506,7 @@ export function AnexosJuditTab({ processoNumero, processoId, attachments, dadosJ
         alertas.length ? `Alertas: ${alertas.join(" | ")}` : "",
       ].filter(Boolean);
       const resumoIa = `[IA ${new Date().toLocaleString("pt-BR")}]\n${resumoLinhas.join("\n")}`;
-      onIaPreenchido?.({
+      await onIaPreenchido?.({
         distribuicao_tst: iaData?.distribuicao_tst || {},
         dados_benner: iaData?.dados_benner || {},
         resumo: resumoIa,
