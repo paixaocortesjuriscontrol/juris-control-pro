@@ -802,7 +802,6 @@ export function ProcessoDetalhesCompletos({
       label: "Documentos",
       items: [
         { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
-        { id: "anexos-judit", label: "Anexos Judit", icon: Paperclip },
       ],
     },
     {
