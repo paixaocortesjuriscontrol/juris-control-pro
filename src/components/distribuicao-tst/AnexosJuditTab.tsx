@@ -380,6 +380,47 @@ export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPr
       toast.success(`${okResults.length} anexo(s) indexado(s) no repositório de IA.`);
 
       setStage("Analisando peças com IA…");
+      const documentoIdsExtracao = okResults.map((r: any) => r.documento_id).filter(Boolean);
+
+      // === Contexto PROCESSO — preenche colunas da tabela `processos`
+      if (contexto === "processo") {
+        const { data: procResp, error: procErr } = await supabase.functions.invoke(
+          "preencher-form-ia-anexos-processo",
+          {
+            body: {
+              processo_numero: processoNumero,
+              documento_ids: documentoIdsExtracao,
+            },
+          },
+        );
+        if (procErr || (procResp as any)?.error) {
+          throw new Error(procErr?.message || (procResp as any)?.error || "Falha na análise IA do processo");
+        }
+        const proc = ((procResp as any)?.processo || {}) as Record<string, any>;
+        const alertasP: string[] = Array.isArray((procResp as any)?.alertas) ? (procResp as any).alertas : [];
+        const keys = Object.keys(proc);
+        const resumoLinhasP: string[] = [
+          `IA preencheu ${keys.length} campo(s) do processo a partir de ${okResults.length} anexo(s).`,
+          keys.length ? `Campos: ${keys.join(", ")}` : "",
+          alertasP.length ? `Alertas: ${alertasP.join(" | ")}` : "",
+        ].filter(Boolean);
+        const resumoIaP = `[IA ${new Date().toLocaleString("pt-BR")}]\n${resumoLinhasP.join("\n")}`;
+        onIaPreenchido?.({
+          distribuicao_tst: {},
+          dados_benner: {},
+          processo: proc,
+          resumo: resumoIaP,
+        });
+        toast.success(`IA preencheu ${keys.length} campo(s) do processo.`, {
+          description: keys.length ? `Campos: ${keys.join(", ")}` : undefined,
+        });
+        if (alertasP.length) {
+          for (const a of alertasP.slice(0, 3)) toast.warning(a);
+        }
+        setSelected(new Set());
+        return;
+      }
+
       const { data: bennerAtual } = await supabase
         .from("dados_benner" as any)
         .select("dossie, tribunal, tipo_recurso, data_distribuicao, turma, relator, recorrente, situacao_processo, processo_baixado")
