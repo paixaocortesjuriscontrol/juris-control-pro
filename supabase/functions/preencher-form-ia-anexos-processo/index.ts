@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!user) return json({ error: "Token inválido" }, 401);
 
-    if (!Deno.env.get("GEMINI_API_KEY")) return json({ error: "GEMINI_API_KEY não configurada" }, 500);
+    if (!Deno.env.get("OPENAI_API_KEY")) return json({ error: "OPENAI_API_KEY não configurada" }, 500);
 
     const body = await req.json();
     const processoId: string | null = body?.processo_id || null;
@@ -202,76 +202,10 @@ Deno.serve(async (req) => {
     }
     const fullText = parts.join("\n\n");
 
-    const tool = {
-      type: "function",
-      function: {
-        name: "preencher_processo",
-        description: "Preenche campos do cadastro do PROCESSO com base nas peças.",
-        parameters: {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            processo: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                assunto: { type: "string" },
-                classe: { type: "string" },
-                materia: { type: "string" },
-                natureza: { type: "string" },
-                pedidos: { type: "string" },
-                polo_ativo: { type: "string" },
-                polo_passivo: { type: "string" },
-                terceiro_envolvido: { type: "string" },
-                reclamante: { type: "string" },
-                reclamados: { type: "string" },
-                tribunal: { type: "string" },
-                justica: { type: "string" },
-                esfera: { type: "string" },
-                instancia: { type: "string" },
-                orgao_julgador: { type: "string" },
-                vara: { type: "string" },
-                comarca: { type: "string" },
-                uf: { type: "string" },
-                data_distribuicao: { type: "string", description: "AAAA-MM-DD" },
-                data_citacao: { type: "string", description: "AAAA-MM-DD" },
-                data_recebimento: { type: "string", description: "AAAA-MM-DD" },
-                valor_causa: { type: "number" },
-                valor_condenacao: { type: "number" },
-                fase: { type: "string" },
-                status: { type: "string" },
-                descricao: { type: "string" },
-                observacoes_processo: { type: "string" },
-                andamento_atual: { type: "string" },
-                funcao: { type: "string" },
-                periodo_laborado: { type: "string" },
-                cpf_cnpj_parte_contraria: { type: "string" },
-              },
-            },
-            _evidencias: {
-              type: "object",
-              additionalProperties: {
-                type: "object",
-                properties: {
-                  trecho: { type: "string" },
-                  documento_id: { type: "string" },
-                },
-              },
-            },
-            _confianca: {
-              type: "object",
-              additionalProperties: { type: "string", enum: ["alta", "media", "baixa"] },
-            },
-            _alertas: { type: "array", items: { type: "string" } },
-          },
-          required: ["processo"],
-        },
-      },
-    };
-
-    const aiRes = await geminiChatCompletionsFetch({
-      model: "gemini-2.5-pro",
+    const aiRes = await openAIJson({
+      model: "gpt-4o-mini",
       temperature: 0,
+      response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         {
@@ -279,39 +213,28 @@ Deno.serve(async (req) => {
           content: [
             `Processo: ${processoNumero}`,
             `\nTrechos das peças (ordenados por documento):\n\n${fullText}`,
-            `\nUse a função preencher_processo para devolver SOMENTE campos com evidência citável em "_evidencias".`,
+            `\nDevolva SOMENTE JSON válido com campos do cadastro do processo que tenham evidência citável em "_evidencias".`,
           ].join("\n"),
         },
       ],
-      tools: [tool],
-      tool_choice: { type: "function", function: { name: "preencher_processo" } },
     });
 
     if (!aiRes.ok) {
       const t = await aiRes.text();
-      return json({ error: `Gemini ${aiRes.status}: ${t.substring(0, 300)}` }, 500);
+      return json({ error: `OpenAI ${aiRes.status}: ${t.substring(0, 300)}` }, 500);
     }
 
     const aiJson = await aiRes.json();
-    const toolCall = aiJson?.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) {
-      return json({ error: "IA não retornou tool call" }, 500);
-    }
+    const content = aiJson?.choices?.[0]?.message?.content;
+    if (!content) return json({ error: "IA não retornou JSON" }, 500);
     let parsed: any;
     try {
-      parsed = JSON.parse(toolCall.function.arguments);
+      parsed = typeof content === "string" ? JSON.parse(content) : content;
     } catch {
       return json({ error: "Falha ao parsear resposta da IA" }, 500);
     }
 
-    const processoOut: Record<string, any> = parsed?.processo || {};
-    // Limpeza básica: remove strings vazias.
-    for (const k of Object.keys(processoOut)) {
-      const v = processoOut[k];
-      if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) {
-        delete processoOut[k];
-      }
-    }
+    const processoOut = normalizarProcessoOut(parsed?.processo || {});
 
     return json({
       processo_id: pid,
