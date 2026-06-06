@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server, BarChart3, Radar, Settings, Upload } from "lucide-react";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server, BarChart3, Radar, Settings, Upload, KeyRound } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
@@ -676,6 +676,7 @@ const Administracao = () => {
                 { label: "Monitoração", path: "/monitoracao", icon: Radar, description: "Status dos monitoramentos e execuções." },
                 { label: "Configurações", path: "/configuracoes", icon: Settings, description: "Parâmetros e ajustes do sistema." },
                 { label: "Importar Dados", path: "/importar", icon: Upload, description: "Cargas e importações de planilhas." },
+                { label: "Cofre de Senhas", path: "/cofre-senhas", icon: KeyRound, description: "Credenciais e certificados protegidos." },
               ].map((tool) => (
                 <Link key={tool.path} to={tool.path} className="group">
                   <Card className="h-full transition-all border-border hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5">
