@@ -635,40 +635,6 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         }
       }
 
-      // === Dados TST ===========================================================
-      // Espelha o que a tela "Distribuição TST" faz: chama `buscar-judit` (que
-      // já extrai relator/turma/dossie/recorrente/tipo_recurso_*/situação) e
-      // persiste nos campos TST da tabela `processos` (dossie_tst, relator_tst,
-      // turma_tst, parte_recorrente_tst, tipo_recurso_reclamante,
-      // tipo_recurso_banco, status_tst). Falhas aqui não derrubam o fluxo.
-      let tstFieldsCount = 0;
-      try {
-        const { data: tstData } = await supabase.functions.invoke("buscar-judit", {
-          body: { numero_processo: numeroLimpo, tribunal: "TST", com_anexos: false, force_refresh: false },
-        });
-        if (tstData && !tstData.error) {
-          const tstUpdate: Record<string, any> = {};
-          const setTst = (col: string, val: any) => {
-            if (val !== null && val !== undefined && String(val).trim() !== "") {
-              tstUpdate[col] = val;
-              tstFieldsCount++;
-            }
-          };
-          setTst("dossie_tst", tstData.dossie);
-          setTst("relator_tst", tstData.relator);
-          setTst("turma_tst", tstData.turma);
-          setTst("parte_recorrente_tst", tstData.recorrente);
-          setTst("tipo_recurso_reclamante", tstData.tipo_recurso_reclamante);
-          setTst("tipo_recurso_banco", tstData.tipo_recurso_banco);
-          setTst("status_tst", tstData.situacao_processo);
-          if (Object.keys(tstUpdate).length > 0) {
-            await supabase.from("processos").update(tstUpdate as any).eq("id", processo.id);
-          }
-        }
-      } catch (e) {
-        console.warn("[judit-interno] falha ao enriquecer Dados TST:", e);
-      }
-
       // Persiste anexos quando solicitado (mesma lógica do "Judit c/ anexos" anterior)
       if (comAnexos) {
         const atts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : [];
@@ -714,8 +680,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       await queryClient.invalidateQueries({ queryKey: ["processos_partes", processo.id] });
       await queryClient.invalidateQueries({ queryKey: ["processo", processo.id] });
       const preenchidos = filled.size;
-      const extras = tstFieldsCount > 0 ? ` + ${tstFieldsCount} TST` : "";
-      toast.success(`${comAnexos ? "Judit c/ anexos" : "Judit (Interno)"} sincronizada — ${preenchidos} campo(s) preenchido(s)${extras}.`);
+      toast.success(`${comAnexos ? "Judit c/ anexos" : "Judit"} sincronizada — ${preenchidos} campo(s) do processo preenchido(s).`);
     } catch (e: any) {
       toast.error(`Erro Judit ${comAnexos ? "c/ anexos" : "Interno"}: ` + (e?.message || "desconhecido"));
     } finally {
