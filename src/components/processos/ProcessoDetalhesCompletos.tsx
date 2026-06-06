@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useToast } from "@/hooks/use-toast";
@@ -802,7 +803,6 @@ export function ProcessoDetalhesCompletos({
       label: "Documentos",
       items: [
         { id: "documentos", label: "Pasta", icon: FileBox, count: documentos.length },
-        { id: "anexos-judit", label: "Anexos Judit", icon: Paperclip },
       ],
     },
     {
@@ -969,7 +969,7 @@ export function ProcessoDetalhesCompletos({
                   movimentacoes={movimentacoes}
                   eventosAgenda={eventosAgenda}
                   onNavigate={handleSectionChange}
-
+                  hideJuditButtons
                 />
               )}
 
@@ -1712,17 +1712,23 @@ export function ProcessoDetalhesCompletos({
 
               {/* Análise Judit (mesmo painel da Distribuição TST) */}
               {activeSection === "analise-judit" && processo?.numero && (
-                <AnaliseJuditTab
-                  processoNumero={processo.numero}
-                  onPreencherFormulario={async () => {
-                    await visaoGeralRef.current?.preencherFormularioJudit(false);
-                  }}
-                />
-              )}
-
-              {/* Anexos Judit (mesmo painel da Distribuição TST) */}
-              {activeSection === "anexos-judit" && processo?.numero && (
-                <ProcessoAnexosJuditTab processoNumero={processo.numero} />
+                <Tabs defaultValue="analise" className="w-full">
+                  <TabsList>
+                    <TabsTrigger value="analise">Análise</TabsTrigger>
+                    <TabsTrigger value="anexos">Anexos</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="analise" className="mt-3">
+                    <AnaliseJuditTab
+                      processoNumero={processo.numero}
+                      onPreencherFormulario={async () => {
+                        await visaoGeralRef.current?.preencherFormularioJudit(false);
+                      }}
+                    />
+                  </TabsContent>
+                  <TabsContent value="anexos" className="mt-3">
+                    <ProcessoAnexosJuditTab processoNumero={processo.numero} />
+                  </TabsContent>
+                </Tabs>
               )}
 
               {/* Comentários Section */}
