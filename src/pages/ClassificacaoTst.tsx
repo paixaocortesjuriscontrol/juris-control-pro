@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { VoltarAdminTstButton } from "@/components/admin-tst/VoltarAdminTstButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -256,7 +257,7 @@ export default function ClassificacaoTst() {
   }, [relatores]);
 
   return (
-    <MainLayout title="Classificação TST">
+    <MainLayout title="Classificação TST" headerActions={<VoltarAdminTstButton />}>
       <div className="space-y-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-sky-100 flex items-center justify-center">
