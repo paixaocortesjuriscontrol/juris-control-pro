@@ -850,12 +850,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <Button
                   size="sm"
                   onClick={async () => {
-                    await handleSyncJudit(comAnexosJudit);
+                    await handleFetchJuditOnly(comAnexosJudit);
                     onNavigate?.("analise-judit");
                   }}
                   disabled={juditBusy || saving}
                   className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  title="Consultar Judit e preencher campos"
+                  title="Consultar Judit (sem alterar o formulário)"
                 >
                   {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                   {syncing || syncingAnexos
