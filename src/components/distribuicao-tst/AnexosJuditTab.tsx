@@ -63,11 +63,18 @@ interface Props {
   onIaPreenchido?: (payload: {
     distribuicao_tst: Record<string, any>;
     dados_benner: Record<string, any>;
+    processo?: Record<string, any>;
     resumo?: string;
   }) => void;
+  /**
+   * Define qual fluxo de IA usar:
+   *  - "tst" (default): preenche Distribuição TST + Dados Benner (uso atual em Distribuição TST).
+   *  - "processo": preenche colunas da tabela `processos` (uso na tela Processos e Casos).
+   */
+  contexto?: "tst" | "processo";
 }
 
-export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPreenchido }: Props) {
+export function AnexosJuditTab({ processoNumero, attachments, dadosJudit, onIaPreenchido, contexto = "tst" }: Props) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [processing, setProcessing] = useState(false);
