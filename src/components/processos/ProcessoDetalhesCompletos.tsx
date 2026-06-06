@@ -969,7 +969,7 @@ export function ProcessoDetalhesCompletos({
                   movimentacoes={movimentacoes}
                   eventosAgenda={eventosAgenda}
                   onNavigate={handleSectionChange}
-
+                  hideJuditButtons
                 />
               )}
 
