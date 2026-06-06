@@ -740,6 +740,9 @@ export default function PainelControle() {
       headerActions={
         <div className="flex items-center gap-2">
           <Button asChild variant="outline" size="sm">
+            <Link to="/dashboard">Dashboard</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
             <Link to="/painel-intimacoes">Painel Intimações</Link>
           </Button>
           <Button asChild variant="outline" size="sm">
