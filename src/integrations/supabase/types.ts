@@ -8081,7 +8081,7 @@ export type Database = {
         | "arquivado_parcialmente"
         | "arquivado_definitivamente"
         | "suspenso"
-      status_tarefa: "pendente" | "cumprido" | "atrasado"
+      status_tarefa: "pendente" | "cumprido" | "atrasado" | "cancelado"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -8233,7 +8233,7 @@ export const Constants = {
         "arquivado_definitivamente",
         "suspenso",
       ],
-      status_tarefa: ["pendente", "cumprido", "atrasado"],
+      status_tarefa: ["pendente", "cumprido", "atrasado", "cancelado"],
     },
   },
 } as const
