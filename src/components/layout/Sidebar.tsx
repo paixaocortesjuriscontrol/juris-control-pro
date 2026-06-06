@@ -64,7 +64,6 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: BookOpen, label: "Matérias Benner", path: "/materias-benner", color: "text-sky-400" },
   { icon: ShieldCheck, label: "Admin. TST", path: "/admin-tst", color: "text-sky-400" },
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400" },
-  { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
   { icon: Calendar, label: "Agenda", path: "/minha-agenda" },
   { icon: FolderOpen, label: "Pastas", path: "/pastas" },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
