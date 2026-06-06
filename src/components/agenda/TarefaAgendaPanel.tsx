@@ -526,9 +526,16 @@ export function TarefaAgendaPanel({
   const dias = differenceInDays(dataVencimento, today);
 
   const getStatusInfo = () => {
+    if (statusAtual === "cancelado") {
+      return {
+        label: "Cancelada",
+        icon: X,
+        className: "bg-zinc-500 text-white",
+      };
+    }
     if (statusAtual === "concluido" || statusAtual === "cumprido") {
       return {
-        label: "Concluído",
+        label: "Concluída",
         icon: CheckCircle2,
         className: "bg-emerald-500 text-white",
       };
