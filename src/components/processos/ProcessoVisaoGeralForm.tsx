@@ -39,6 +39,7 @@ interface Props {
   intimacoes?: any[];
   tarefas?: any[];
   movimentacoes?: any[];
+  eventosAgenda?: any[];
   onNavigate?: (section: string) => void;
   /**
    * Quando true, renderiza apenas o cabeçalho com a barra de ações Judit
