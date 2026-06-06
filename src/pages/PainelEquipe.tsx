@@ -411,7 +411,7 @@ export default function PainelEquipe() {
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="pendente">Pendente</SelectItem>
                 <SelectItem value="atrasado">Atrasado</SelectItem>
-                <SelectItem value="cumprido">Cumprido</SelectItem>
+                <SelectItem value="cumprido">Concluída</SelectItem>
               </SelectContent>
             </Select>
             <Select value={prioridadeFilter} onValueChange={setPrioridadeFilter}>
