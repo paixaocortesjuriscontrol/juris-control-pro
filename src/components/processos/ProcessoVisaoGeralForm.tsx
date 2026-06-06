@@ -747,6 +747,29 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    await handleSyncJudit(comAnexosJudit);
+                    onNavigate?.("analise-judit");
+                  }}
+                  disabled={juditBusy || saving}
+                  className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  title="Consultar Judit e preencher campos"
+                >
+                  {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {syncing || syncingAnexos
+                    ? (juditElapsed < 3 ? "Judit…" : `${juditElapsed}s`)
+                    : "Judit"}
+                </Button>
+                <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none" title="Inclui a lista de anexos do processo (consulta Judit mais cara).">
+                  <Checkbox
+                    checked={comAnexosJudit}
+                    onCheckedChange={(v) => setComAnexosJudit(v === true)}
+                    disabled={juditBusy || saving}
+                  />
+                  Com anexos
+                </label>
                 <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos}>
                   {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
                   Salvar
