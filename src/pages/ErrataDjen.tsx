@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { VoltarAdminTstButton } from "@/components/admin-tst/VoltarAdminTstButton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -307,7 +308,7 @@ export default function ErrataDjen() {
   };
 
   return (
-    <MainLayout title="Errata DJEN">
+    <MainLayout title="Errata DJEN" headerActions={<VoltarAdminTstButton />}>
       <div className="container mx-auto p-4 space-y-4">
         <div className="flex items-center gap-3">
           <ArrowRightLeft className="w-6 h-6 text-primary" />
