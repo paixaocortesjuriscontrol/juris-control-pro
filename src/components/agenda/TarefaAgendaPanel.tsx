@@ -526,9 +526,16 @@ export function TarefaAgendaPanel({
   const dias = differenceInDays(dataVencimento, today);
 
   const getStatusInfo = () => {
+    if (statusAtual === "cancelado") {
+      return {
+        label: "Cancelada",
+        icon: X,
+        className: "bg-zinc-500 text-white",
+      };
+    }
     if (statusAtual === "concluido" || statusAtual === "cumprido") {
       return {
-        label: "Concluído",
+        label: "Concluída",
         icon: CheckCircle2,
         className: "bg-emerald-500 text-white",
       };
@@ -663,6 +670,33 @@ export function TarefaAgendaPanel({
   };
 
   const handleEnviarComentario = async () => {
+    return _handleEnviarComentario();
+  };
+
+  const handleCancelar = async () => {
+    setUpdatingStatus(true);
+    try {
+      const updatedAt = new Date().toISOString();
+      const table = tarefa.origem === "tarefa" ? "tarefas" : "eventos_agenda";
+      const { error } = await supabase
+        .from(table)
+        .update({ status: "cancelado", updated_at: updatedAt } as any)
+        .eq("id", tarefa.id);
+      if (error) throw error;
+      setStatusOverride("cancelado");
+      patchAgendaCacheStatus("cancelado", null);
+      toast({ title: "Cancelada!" });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      onUpdate();
+    } catch (error: any) {
+      toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" });
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
+  const _handleEnviarComentario = async () => {
     if (!comentario.trim() || !user) return;
 
     setSendingComment(true);
@@ -898,6 +932,19 @@ export function TarefaAgendaPanel({
             >
               {updatingStatus ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Clock className="w-3 h-3 mr-1" />}
               Reabrir
+            </Button>
+          )}
+
+          {statusAtual !== "cancelado" && !isConcluido && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCancelar}
+              disabled={updatingStatus}
+              className="text-destructive border-destructive/40 hover:bg-red-50 hover:text-red-700"
+            >
+              <X className="w-3 h-3 mr-1" />
+              Cancelar
             </Button>
           )}
 

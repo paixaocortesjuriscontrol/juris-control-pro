@@ -85,7 +85,7 @@ const prioridadeLabels: Record<string, string> = {
 
 const statusLabels: Record<string, string> = {
   pendente: "Pendente",
-  cumprido: "Cumprido",
+  cumprido: "Concluída",
   atrasado: "Atrasado",
 };
 
@@ -245,7 +245,7 @@ const Prazos = () => {
       return (
         <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
           <CheckCircle2 className="w-3 h-3 mr-1" />
-          Cumprido
+          Concluída
         </Badge>
       );
     }
@@ -432,7 +432,7 @@ const Prazos = () => {
               </div>
               <div>
                 <p className="text-2xl font-bold">{statsLoading ? "-" : stats?.cumpridos || 0}</p>
-                <p className="text-xs text-muted-foreground">Cumpridos</p>
+                <p className="text-xs text-muted-foreground">Concluídas</p>
               </div>
             </div>
           </CardContent>
@@ -506,7 +506,7 @@ const Prazos = () => {
                     <SelectItem value="all">Todos os Status</SelectItem>
                     <SelectItem value="pendente">Pendente</SelectItem>
                     <SelectItem value="atrasado">Atrasado</SelectItem>
-                    <SelectItem value="cumprido">Cumprido</SelectItem>
+                    <SelectItem value="cumprido">Concluída</SelectItem>
                   </SelectContent>
                 </Select>
 
@@ -660,7 +660,7 @@ const Prazos = () => {
                                     handleMarkAsCumprido(prazo);
                                   }}>
                                     <CheckCircle2 className="w-4 h-4 mr-2" />
-                                    Marcar como Cumprido
+                                    Marcar como Concluída
                                   </DropdownMenuItem>
                                 )}
                                 <DropdownMenuItem onClick={(e) => {

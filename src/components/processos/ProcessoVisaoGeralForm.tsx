@@ -39,6 +39,7 @@ interface Props {
   intimacoes?: any[];
   tarefas?: any[];
   movimentacoes?: any[];
+  eventosAgenda?: any[];
   onNavigate?: (section: string) => void;
   /**
    * Quando true, renderiza apenas o cabeçalho com a barra de ações Judit
@@ -118,6 +119,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   intimacoes = [],
   tarefas = [],
   movimentacoes = [],
+  eventosAgenda = [],
   onNavigate,
   compact = false,
   actionsOnly = false,
@@ -1100,6 +1102,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 intimacoes={intimacoes}
                 tarefas={tarefas}
                 movimentacoes={movimentacoes}
+                eventosAgenda={eventosAgenda}
+                processoId={processo?.id}
+                processoNumero={processo?.numero}
               />
               <DepositosRecursaisCard processoId={processo.id} />
               <CustasProcessuaisCard processoId={processo.id} />

@@ -449,7 +449,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="pendente">Pendente</SelectItem>
                   <SelectItem value="atrasado">Atrasado</SelectItem>
-                  <SelectItem value="cumprido">Cumprido</SelectItem>
+                  <SelectItem value="cumprido">Concluída</SelectItem>
                 </SelectContent>
               </Select>
             </div>
