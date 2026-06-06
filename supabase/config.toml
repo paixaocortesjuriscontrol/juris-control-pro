@@ -184,6 +184,9 @@ verify_jwt = true
 [functions.preencher-form-ia-anexos]
 verify_jwt = true
 
+[functions.preencher-form-ia-anexos-processo]
+verify_jwt = true
+
 [functions.fix-data-planilha]
 verify_jwt = false
 

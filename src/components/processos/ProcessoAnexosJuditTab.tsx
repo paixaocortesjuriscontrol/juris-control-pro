@@ -55,8 +55,9 @@ export function ProcessoAnexosJuditTab({ processoNumero }: Props) {
       processoNumero={processoNumero}
       attachments={attachments}
       dadosJudit={null}
-      onIaPreenchido={async ({ resumo }) => {
-        if (!resumo) return;
+      contexto="processo"
+      onIaPreenchido={async ({ resumo, processo: campos }) => {
+        if (!resumo && !campos) return;
         try {
           const variantes = obterVariantesCnjBusca(processoNumero);
           const { data: procs } = await supabase
@@ -66,16 +67,41 @@ export function ProcessoAnexosJuditTab({ processoNumero }: Props) {
             .limit(1);
           const proc = (procs as any[])?.[0];
           if (!proc?.id) return;
-          const acumulado = proc.judit_ia_observacoes
-            ? `${proc.judit_ia_observacoes}\n\n${resumo}`
-            : resumo;
+
+          // Whitelist defensiva — apenas colunas conhecidas da tabela `processos`.
+          const ALLOWED = new Set([
+            "assunto","classe","materia","natureza","pedidos",
+            "polo_ativo","polo_passivo","terceiro_envolvido","reclamante","reclamados",
+            "tribunal","justica","esfera","instancia","orgao_julgador","vara","comarca","uf",
+            "data_distribuicao","data_citacao","data_recebimento",
+            "valor_causa","valor_condenacao",
+            "fase","status","descricao","observacoes_processo","andamento_atual",
+            "funcao","periodo_laborado","cpf_cnpj_parte_contraria",
+          ]);
+          const update: Record<string, any> = {};
+          for (const [k, v] of Object.entries(campos || {})) {
+            if (!ALLOWED.has(k)) continue;
+            if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) continue;
+            update[k] = v;
+          }
+          if (resumo) {
+            update.judit_ia_observacoes = proc.judit_ia_observacoes
+              ? `${proc.judit_ia_observacoes}\n\n${resumo}`
+              : resumo;
+          }
+          if (Object.keys(update).length === 0) return;
           const { error } = await supabase
             .from("processos")
-            .update({ judit_ia_observacoes: acumulado } as any)
+            .update(update as any)
             .eq("id", proc.id);
           if (error) throw error;
           await queryClient.invalidateQueries({ queryKey: ["processo"] });
-          toast.success("Observações da IA gravadas no processo.");
+          const camposCount = Object.keys(update).filter((k) => k !== "judit_ia_observacoes").length;
+          toast.success(
+            camposCount > 0
+              ? `IA gravou ${camposCount} campo(s) no processo.`
+              : "Observações da IA gravadas no processo.",
+          );
         } catch (e: any) {
           toast.error("Falha ao gravar observações da IA: " + (e?.message || ""));
         }

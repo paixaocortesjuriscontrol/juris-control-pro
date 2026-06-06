@@ -582,6 +582,10 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         }
       };
       for (const f of FIELDS) apply(f, (data as any)[f]);
+      // Quando a Judit retornou tribunal, marcamos o processo como Judicial.
+      if (data?.tribunal || data?.tribunal_acronimo) {
+        apply("tipo_processo", "judicial");
+      }
       setForm(next);
       setJuditSessionFields(filled);
 
