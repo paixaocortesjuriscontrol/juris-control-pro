@@ -935,6 +935,19 @@ export function TarefaAgendaPanel({
             </Button>
           )}
 
+          {statusAtual !== "cancelado" && !isConcluido && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCancelar}
+              disabled={updatingStatus}
+              className="text-destructive border-destructive/40 hover:bg-red-50 hover:text-red-700"
+            >
+              <X className="w-3 h-3 mr-1" />
+              Cancelar
+            </Button>
+          )}
+
           {tarefa.processo?.id && (
             <Button size="sm" variant="outline" asChild>
               <a href={`/processos/${tarefa.processo.id}`}>
