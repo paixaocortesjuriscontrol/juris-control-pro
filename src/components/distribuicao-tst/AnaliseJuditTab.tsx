@@ -4,11 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, RefreshCw, AlertCircle, CheckCircle2, Database, Cloud, Building2, ChevronRight, History } from "lucide-react";
+import { Loader2, RefreshCw, AlertCircle, CheckCircle2, Database, Cloud, Building2, ChevronRight, History, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 
-interface Props { processoNumero: string; }
+interface Props {
+  processoNumero: string;
+  onPreencherFormulario?: () => Promise<void> | void;
+}
 
 interface JuditLog {
   id: string;
@@ -364,9 +367,10 @@ function SourceCard({ name, value }: { name: string; value: any }) {
 
 /* ───────────── Componente principal ───────────── */
 
-export function AnaliseJuditTab({ processoNumero }: Props) {
+export function AnaliseJuditTab({ processoNumero, onPreencherFormulario }: Props) {
   const [logs, setLogs] = useState<JuditLog[]>([]);
   const [loading, setLoading] = useState(false);
+  const [preenchendo, setPreenchendo] = useState(false);
   const [openPrev, setOpenPrev] = useState<Record<string, boolean>>({});
 
   const fetchLogs = useCallback(async () => {
@@ -424,6 +428,21 @@ export function AnaliseJuditTab({ processoNumero }: Props) {
             </Badge>
           )}
           {log && <span className="text-xs text-muted-foreground">{fmtDate(log.created_at)}</span>}
+          {onPreencherFormulario && (
+            <Button
+              size="sm"
+              onClick={async () => {
+                setPreenchendo(true);
+                try { await onPreencherFormulario(); await fetchLogs(); }
+                finally { setPreenchendo(false); }
+              }}
+              disabled={preenchendo || loading}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1"
+            >
+              {preenchendo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              Preencher formulário
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => void fetchLogs()} disabled={loading}>
             {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <RefreshCw className="w-3.5 h-3.5 mr-1" />}
             Atualizar
