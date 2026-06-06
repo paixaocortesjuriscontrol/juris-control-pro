@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { VoltarAdminTstButton } from "@/components/admin-tst/VoltarAdminTstButton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -545,7 +546,7 @@ export default function CorrigirPlanilha() {
   };
 
   return (
-    <MainLayout title="Corrigir Planilha" subtitle="Remove duplicados por dossiê + contrato e depois cruza o restante com AA = SIM da distribuição">
+    <MainLayout title="Corrigir Planilha" subtitle="Remove duplicados por dossiê + contrato e depois cruza o restante com AA = SIM da distribuição" headerActions={<VoltarAdminTstButton />}>
       <div className="space-y-6 max-w-4xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card>
