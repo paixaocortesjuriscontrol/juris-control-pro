@@ -95,6 +95,7 @@ async function juditPollar(apiKey: string, requestId: string): Promise<any | nul
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   let ultima: any = null;
   let attempts429 = 0;
+  let backoff = POLL_INTERVAL_MS;
   while (Date.now() < deadline) {
     try {
       const url = new URL(RESPONSES_URL);
