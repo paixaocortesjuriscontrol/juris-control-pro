@@ -90,7 +90,13 @@ export function ProcessoAnexosJuditTab({ processoNumero, processoId }: Props) {
           for (const [k, v] of Object.entries(campos || {})) {
             if (!ALLOWED.has(k)) continue;
             if (v === null || v === undefined || (typeof v === "string" && v.trim() === "")) continue;
-            update[k] = NUMERIC.has(k) ? Number(v) : v;
+            if (NUMERIC.has(k)) {
+              const n = Number(v);
+              if (!Number.isFinite(n)) continue;
+              update[k] = n;
+            } else {
+              update[k] = v;
+            }
             filled.add(k);
           }
           if ((update.tribunal || update.orgao_julgador || update.vara) && !update.tipo_processo) {
