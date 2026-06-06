@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { VoltarAdminTstButton } from "@/components/admin-tst/VoltarAdminTstButton";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +28,7 @@ export default function PautasTstPage() {
 
   if (showForm || editando) {
     return (
-      <MainLayout title="Pautas TST">
+      <MainLayout title="Pautas TST" headerActions={<VoltarAdminTstButton />}>
         <div className="max-w-4xl mx-auto">
           <PautasTstForm
             dado={editando}
