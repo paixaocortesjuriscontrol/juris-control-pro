@@ -133,6 +133,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [syncing, setSyncing] = useState(false);
   const [syncingAnexos, setSyncingAnexos] = useState(false);
   const [syncingInterno, setSyncingInterno] = useState(false);
+  const [comAnexosJudit, setComAnexosJudit] = useState(false);
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
