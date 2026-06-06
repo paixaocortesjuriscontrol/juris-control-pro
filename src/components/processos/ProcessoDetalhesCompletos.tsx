@@ -226,6 +226,8 @@ export function ProcessoDetalhesCompletos({
   const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
   const [analyzingDocId, setAnalyzingDocId] = useState<string | null>(null);
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
+  const [criarTarefaOpen, setCriarTarefaOpen] = useState(false);
+  const [novoEventoOpen, setNovoEventoOpen] = useState(false);
 
   // Inline editable resumo
   const [resumoForm, setResumoForm] = useState<Record<string, any>>({});
