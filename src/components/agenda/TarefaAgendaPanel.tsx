@@ -287,7 +287,7 @@ export function TarefaAgendaPanel({
         // Carregar participantes do evento
         (async () => {
           const { data: parts } = await supabase
-            .from("evento_participantes")
+            .from("participantes_evento")
             .select("usuario_id")
             .eq("evento_id", tarefa.id);
           setEditEnvolvidosIds((parts || []).map((p: any) => p.usuario_id));
