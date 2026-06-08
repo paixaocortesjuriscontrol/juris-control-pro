@@ -147,6 +147,7 @@ interface TarefaAgendaPanelProps {
   };
   onClose: () => void;
   onUpdate: () => void;
+  autoEdit?: boolean;
 }
 
 const PRIORIDADE_LABELS: Record<string, string> = {
@@ -177,6 +178,7 @@ export function TarefaAgendaPanel({
   tarefa,
   onClose,
   onUpdate,
+  autoEdit,
 }: TarefaAgendaPanelProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -199,7 +201,7 @@ export function TarefaAgendaPanel({
   const [statusOverride, setStatusOverride] = useState<string | null>(null);
   
   // Modo de edição inline
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(!!autoEdit);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editForm, setEditForm] = useState({
     titulo: "",
