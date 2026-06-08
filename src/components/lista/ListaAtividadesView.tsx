@@ -613,7 +613,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                 <colgroup>
                   <col className="w-9" />
                   <col />
-                  {detalhesPrazo ? (
+                  {false ? (
                     <col className="w-[72px]" />
                   ) : (
                     <>
@@ -640,12 +640,12 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                       />
                     </TableHead>
                     <TableHead
-                      colSpan={detalhesPrazo ? 1 : 3}
+                      colSpan={3}
                       className="h-9 font-semibold w-full text-left"
                     >
                       Atividade
                     </TableHead>
-                    {!detalhesPrazo && (
+                    {true && (
                       <TableHead className="h-9 font-semibold whitespace-nowrap w-px text-left">
                         Status
                       </TableHead>
@@ -659,7 +659,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                   {isLoading ? (
                     Array.from({ length: 10 }).map((_, i) => (
                       <TableRow key={i}>
-                        <TableCell colSpan={detalhesPrazo ? 3 : 6}>
+                        <TableCell colSpan={6}>
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
                       </TableRow>
@@ -667,7 +667,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                   ) : rows.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={detalhesPrazo ? 3 : 6}
+                        colSpan={6}
                         className="h-32 text-center text-muted-foreground"
                       >
                         Nenhuma atividade encontrada.
@@ -693,7 +693,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                               onCheckedChange={() => toggleOne(r.id)}
                             />
                           </TableCell>
-                          <TableCell colSpan={detalhesPrazo ? 1 : 3} className="py-3 align-top">
+                          <TableCell colSpan={3} className="py-3 align-top">
                             <div className="flex min-w-0 flex-col gap-2">
                             <div className="flex flex-col gap-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -728,7 +728,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                                 </div>
                               )}
                             </div>
-                            {!detalhesPrazo && (
+                            {true && (
                               <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-muted-foreground">
                                 <div className="flex items-center gap-1.5">
                                   {r.responsavel?.nome ? (
@@ -756,7 +756,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                             )}
                             </div>
                           </TableCell>
-                          {!detalhesPrazo && (
+                          {true && (
                           <TableCell className="py-3 align-top">
                             <div className="flex items-center gap-1.5">
                               <span
