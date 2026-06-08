@@ -803,6 +803,8 @@ const AnaliseDjen = () => {
         advogados_json: Array.isArray(r.advogados_json) ? r.advogados_json : null,
         partes_json: Array.isArray(r.partes_json) ? r.partes_json : null,
         motivo_descarte: r.motivo_descarte,
+        descartado_por: r.descartado_por ?? null,
+        descartado_por_nome: r.descartado_por_nome ?? null,
         lido_por: Array.isArray(r.lido_por)
           ? r.lido_por.map((x: any) => ({ nome: String(x?.nome ?? 'Desconhecido'), lida_em: String(x?.lida_em ?? '') }))
           : [],
@@ -4587,6 +4589,12 @@ const AnaliseDjen = () => {
                                     <span className="break-words">
                                       {pub.motivo_descarte || 'Não informado'}
                                     </span>
+                                    <div className="mt-1">
+                                      <span className="font-semibold">Descartado por: </span>
+                                      <span className="break-words">
+                                        {pub.descartado_por_nome || (pub.descartado_por ? 'Usuário' : 'Sistema')}
+                                      </span>
+                                    </div>
                                   </div>
                                 )}
 
