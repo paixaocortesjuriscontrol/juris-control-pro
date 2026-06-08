@@ -83,6 +83,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
+import { PeoplePicker } from "@/components/shared/PeoplePicker";
 
 interface TarefaAgendaPanelProps {
   tarefa: {
@@ -214,6 +215,10 @@ export function TarefaAgendaPanel({
     data_inicio: "",
     data_fim: "",
   });
+  // Multi-select de pessoas (responsáveis + envolvidos) — aplica a tarefas
+  const [editResponsaveisIds, setEditResponsaveisIds] = useState<string[]>([]);
+  const [editEnvolvidosIds, setEditEnvolvidosIds] = useState<string[]>([]);
+  const [editMostrarEnvolvidos, setEditMostrarEnvolvidos] = useState(false);
 
   // Usar statusOverride se disponível, senão usar status original
   const statusAtual = statusOverride ?? tarefa.status;
@@ -251,6 +256,20 @@ export function TarefaAgendaPanel({
           data_inicio: "",
           data_fim: "",
         });
+        // Carregar responsáveis/envolvidos existentes
+        (async () => {
+          const [{ data: resps }, { data: envs }] = await Promise.all([
+            supabase.from("tarefa_responsaveis").select("usuario_id").eq("tarefa_id", tarefa.id),
+            supabase.from("tarefa_envolvidos").select("usuario_id").eq("tarefa_id", tarefa.id),
+          ]);
+          const respIds = (resps || []).map((r: any) => r.usuario_id);
+          const envIds = (envs || []).map((e: any) => e.usuario_id);
+          setEditResponsaveisIds(
+            respIds.length > 0 ? respIds : tarefa.responsavel_id ? [tarefa.responsavel_id] : [],
+          );
+          setEditEnvolvidosIds(envIds);
+          setEditMostrarEnvolvidos(envIds.length > 0);
+        })();
       } else {
         setEditForm({
           titulo: tarefa.titulo || "",
@@ -265,6 +284,16 @@ export function TarefaAgendaPanel({
           data_inicio: tarefa.data_inicio?.substring(0, 16) || "",
           data_fim: tarefa.data_fim?.substring(0, 16) || "",
         });
+        // Carregar participantes do evento
+        (async () => {
+          const { data: parts } = await supabase
+            .from("evento_participantes")
+            .select("usuario_id")
+            .eq("evento_id", tarefa.id);
+          setEditEnvolvidosIds((parts || []).map((p: any) => p.usuario_id));
+          setEditMostrarEnvolvidos(true);
+          setEditResponsaveisIds([]);
+        })();
       }
     }
   }, [isEditing]);
