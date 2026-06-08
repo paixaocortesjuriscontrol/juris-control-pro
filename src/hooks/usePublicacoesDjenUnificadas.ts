@@ -318,12 +318,13 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         const termoDigitsCount = (filtros.termoBusca || '').replace(/\D/g, '');
         const buscaPorProcessoCount = termoDigitsCount.length >= 11;
 
+        // Conta todas as descartadas (inclui as de origem "processo" cujo
+        // monitoramento_id é NULL). Filtra coordenação pela própria coluna
+        // da tabela descartadas — não usa inner join com monitoramentos,
+        // que excluiria registros sem monitoramento_id.
         let q = (supabase
           .from('publicacoes_djen_descartadas') as any)
-          .select(
-            'id, monitoramento:monitoramentos_djen!inner(coordenacao_id)',
-            { count: 'exact', head: true },
-          );
+          .select('id', { count: 'exact', head: true });
 
         // Não contar descartes por "termo não encontrado" — apenas critérios
         // de exclusão (excluido: ...) e condição concomitante interessam.
@@ -340,9 +341,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         // Per-user tracking: lida filter handled client-side
         if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
 
-        // Respeita o filtro de coordenação
+        // Respeita o filtro de coordenação usando a coluna direta.
         if (filtros.coordenacaoId) {
-          q = q.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
+          q = q.eq('coordenacao_id', filtros.coordenacaoId);
         }
 
         const { count, error } = await q.abortSignal(signal);

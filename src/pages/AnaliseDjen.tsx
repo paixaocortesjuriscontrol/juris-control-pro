@@ -437,11 +437,11 @@ const AnaliseDjen = () => {
     // 'todos' e 'normal' passam undefined para buscar termos e processos
     // datajud é tratado separadamente. 'kurier' filtra no client pela fonte.
     tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud' || tipoOrigem === 'kurier') ? undefined : tipoOrigem as any,
-    // Quando estamos na aba "Descartadas", a listagem vem da RPC dedicada
-    // (paginação + deduplicação no banco). O hook unificado é desligado
-    // nesse caso para evitar consultas duplicadas e pesadas.
-    incluirDescartadas: (termoBuscaDebounced || '').replace(/\D/g, '').length >= 11
-      && tipoOrigem !== 'descartada',
+    // Descartadas SÓ aparecem quando o filtro "Tipo de origem" está em
+    // "descartada" (aba dedicada com RPC própria). Em qualquer outra aba,
+    // mesmo buscando por número de processo, não misturamos descartadas
+    // com a listagem principal.
+    incluirDescartadas: false,
     page: 1,
     // PERFORMANCE: nunca pedir 100k linhas — o banco já filtra/dedupa/conta.
     // A página atual usa paginação progressiva via `listLimit`, que cresce
