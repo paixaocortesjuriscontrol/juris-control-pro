@@ -950,7 +950,7 @@ export function TarefaAgendaPanel({
 
   return (
     <Card className="h-full flex flex-col">
-      <CardHeader className="pb-3 space-y-3">
+      <CardHeader className="pb-3 space-y-3 shrink-0 sticky top-0 z-10 bg-card border-b">
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-1 flex-1 min-w-0">
@@ -1280,7 +1280,7 @@ export function TarefaAgendaPanel({
               )}
 
               {/* Botões de ação */}
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-2 sticky bottom-0 bg-card border-t -mx-6 px-6 pb-2 z-10">
                 <Button
                   className="flex-1"
                   onClick={handleSaveEdit}
