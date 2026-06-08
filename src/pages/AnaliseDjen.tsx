@@ -174,6 +174,7 @@ const AnaliseDjen = () => {
   const [descartandoDuplicadas, setDescartandoDuplicadas] = useState(false);
   const [desfazendoLote, setDesfazendoLote] = useState<string | null>(null);
 
+
   const desfazerDescarteLote = async (loteId: string) => {
     if (!loteId) return;
     try {
