@@ -634,26 +634,57 @@ export default function PainelControle() {
   };
 
   const handleItemClick = (item: ItemAgendaUnificado) => {
-    if (item.tipo === "parcelamento") {
-      setSelectedParcelamento(item as unknown as EventoAgenda);
-      setParcelasDialogOpen(true);
-    } else if (item.origem === "evento") {
-      setSelectedItem(item);
-    } else {
-      setSelectedItem(item);
-    }
+    handleEditItem(item);
   };
 
   const handleEditItem = (item: ItemAgendaUnificado) => {
-    if (item.tipo === "parcelamento") {
-      setSelectedParcelamento(item as unknown as EventoAgenda);
-      setParcelasDialogOpen(true);
-    } else if (item.origem === "evento") {
-      setSelectedEvento(item as unknown as EventoAgenda);
-      setDialogOpen(true);
-    } else {
-      setSelectedItem(item);
-    }
+    (async () => {
+      if (item.tipo === "parcelamento") {
+        // Carrega evento completo
+        const { data } = await supabase
+          .from("eventos_agenda")
+          .select("*")
+          .eq("id", item.id)
+          .maybeSingle();
+        setSelectedParcelamento((data as unknown as EventoAgenda) ?? (item as unknown as EventoAgenda));
+        setParcelasDialogOpen(true);
+        return;
+      }
+      if (item.origem === "evento") {
+        if (item.tipo === "prazo" || item.tipo === "prazo_parcela") {
+          // Carrega prazo
+          const { data } = await supabase
+            .from("prazos")
+            .select("*")
+            .eq("id", item.id)
+            .maybeSingle();
+          if (data) {
+            setPrazoEditando(data);
+            setNovoPrazoOpen(true);
+            return;
+          }
+        }
+        // Evento comum
+        const { data } = await supabase
+          .from("eventos_agenda")
+          .select("*")
+          .eq("id", item.id)
+          .maybeSingle();
+        setSelectedEvento((data as unknown as EventoAgenda) ?? (item as unknown as EventoAgenda));
+        setDialogOpen(true);
+        return;
+      }
+      // origem === "tarefa"
+      const { data } = await supabase
+        .from("tarefas")
+        .select("*")
+        .eq("id", item.id)
+        .maybeSingle();
+      if (data) {
+        setTarefaEditando(data);
+        setNovaTarefaOpen(true);
+      }
+    })();
   };
 
   const handleConcluirItem = async (item: ItemAgendaUnificado) => {
