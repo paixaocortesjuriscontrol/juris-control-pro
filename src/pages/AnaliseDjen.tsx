@@ -4076,7 +4076,7 @@ const AnaliseDjen = () => {
                         ? 'Selecione uma coordenação específica para habilitar o descarte.'
                         : (!isAdmin && !userCoordenacaoIds.includes(coordenacaoFiltroEfetivo))
                           ? 'Você não pertence a esta coordenação. Apenas administradores podem descartar de qualquer coordenação.'
-                          : 'Descarta em lote todas as publicações duplicadas (mesmo processo + dia + conteúdo) da coordenação selecionada. Mantém a mais antiga de cada grupo. Pode ser desfeito.'
+                          : 'Descarta em lote as publicações duplicadas (mesmo processo + dia + conteúdo) da coordenação dentro do intervalo informado (ou apenas HOJE se vazio). Mantém a mais antiga de cada grupo. Pode ser desfeito.'
                     }
                   >
                     {descartandoDuplicadas ? (
@@ -4086,6 +4086,34 @@ const AnaliseDjen = () => {
                     )}
                     Descartar duplicadas da coordenação
                   </Button>
+                  <div className="flex items-center gap-1 rounded-md border border-input bg-background px-2 py-1 text-xs">
+                    <span className="text-muted-foreground whitespace-nowrap">Intervalo descarte:</span>
+                    <input
+                      type="date"
+                      value={descarteDataInicio}
+                      onChange={(e) => setDescarteDataInicio(e.target.value)}
+                      className="h-7 rounded border border-input bg-background px-1 text-xs"
+                      title="Data inicial (disponibilização). Se vazio, usa só HOJE."
+                    />
+                    <span className="text-muted-foreground">a</span>
+                    <input
+                      type="date"
+                      value={descarteDataFim}
+                      onChange={(e) => setDescarteDataFim(e.target.value)}
+                      className="h-7 rounded border border-input bg-background px-1 text-xs"
+                      title="Data final (disponibilização). Se vazio, usa só HOJE."
+                    />
+                    {(descarteDataInicio || descarteDataFim) && (
+                      <button
+                        type="button"
+                        onClick={() => { setDescarteDataInicio(""); setDescarteDataFim(""); }}
+                        className="ml-1 text-muted-foreground hover:text-foreground"
+                        title="Limpar intervalo (volta a descartar só HOJE)"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
                   {lotesRecentes.length > 0 && (
                     <Button
                       type="button"
