@@ -232,7 +232,18 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
         );
       }
       if (filters.tipo !== "all") {
-        q = q.eq("tipo_tarefa", filters.tipo);
+        if (filters.tipo === "evento") q = q.eq("tipo_tarefa", "EVENTO");
+        else if (filters.tipo === "prazo") q = q.eq("tipo_tarefa", "PRAZO");
+        else if (filters.tipo === "audiencia")
+          q = q.in("tipo_tarefa", ["AUDIÊNCIA", "AUDIENCIA"]);
+        else if (filters.tipo === "parcelamento")
+          q = q.in("tipo_tarefa", ["PARCELAMENTO", "PARCELAMENTO_RECORRENTE"]);
+        else if (filters.tipo === "tarefa")
+          q = q.not(
+            "tipo_tarefa",
+            "in",
+            "(EVENTO,PRAZO,AUDIÊNCIA,AUDIENCIA,PARCELAMENTO,PARCELAMENTO_RECORRENTE)"
+          );
       }
       if (filters.responsavelId !== "all") {
         q = q.eq("responsavel_id", filters.responsavelId);
