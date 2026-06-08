@@ -764,8 +764,8 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                                 className="h-7 w-7"
                                 title="Editar"
                                 onClick={() => {
-                                  setEditingPrazo(r);
-                                  setDialogOpen(true);
+                                  setDetalhesPrazo(r);
+                                  setDetalhesEditOnOpen(true);
                                 }}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
