@@ -422,6 +422,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
             </div>
 
             <div className="space-y-2">
+              {!embedded && <>
               <label className="text-xs font-medium text-muted-foreground">
                 Coordenação
               </label>
@@ -443,6 +444,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                   ))}
                 </SelectContent>
               </Select>
+              </>}
             </div>
 
             <div className="space-y-2">
