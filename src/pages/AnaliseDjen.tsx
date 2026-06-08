@@ -170,6 +170,73 @@ const AnaliseDjen = () => {
     const stored = window.localStorage.getItem('analise-djen:ocultar-duplicadas-v2');
     return stored === null ? false : stored === '1';
   });
+  // Estado do descarte em lote de duplicadas (botão vermelho)
+  const [descartandoDuplicadas, setDescartandoDuplicadas] = useState(false);
+  const [desfazendoLote, setDesfazendoLote] = useState<string | null>(null);
+
+  const desfazerDescarteLote = async (loteId: string) => {
+    if (!loteId) return;
+    try {
+      setDesfazendoLote(loteId);
+      const { data, error } = await (supabase as any).rpc('desfazer_descarte_lote', {
+        p_lote_id: loteId,
+      });
+      if (error) throw error;
+      const total = (data?.total ?? 0) as number;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] }),
+        queryClient.invalidateQueries({ queryKey: ['descartadas-dedup'] }),
+        queryClient.invalidateQueries({ queryKey: ['descartadas-count'] }),
+      ]);
+      toast.success(`Descarte desfeito: ${total} publicação(ões) restaurada(s)`);
+    } catch (e: any) {
+      toast.error(`Erro ao desfazer: ${e?.message || e}`);
+    } finally {
+      setDesfazendoLote(null);
+    }
+  };
+
+  const descartarDuplicadasCoordenacao = async () => {
+    const coordId = coordenacaoFiltroEfetivo;
+    if (!coordId) {
+      toast.error('Selecione uma coordenação primeiro.');
+      return;
+    }
+    const confirma = window.confirm(
+      'Descartar TODAS as publicações duplicadas (mesmo processo + dia + conteúdo) desta coordenação?\n\n' +
+      'A publicação mais antiga de cada grupo é mantida. Você poderá DESFAZER pelo toast/Descartadas.'
+    );
+    if (!confirma) return;
+    try {
+      setDescartandoDuplicadas(true);
+      const { data, error } = await (supabase as any).rpc('descartar_duplicadas_coordenacao', {
+        p_coordenacao_id: coordId,
+      });
+      if (error) throw error;
+      const total = (data?.total ?? 0) as number;
+      const loteId = data?.lote_id as string | undefined;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] }),
+        queryClient.invalidateQueries({ queryKey: ['descartadas-dedup'] }),
+        queryClient.invalidateQueries({ queryKey: ['descartadas-count'] }),
+      ]);
+      if (total === 0) {
+        toast.info('Nenhuma duplicada encontrada nesta coordenação.');
+      } else {
+        toast.success(`${total} duplicada(s) descartada(s) por ${data?.descartado_por_nome || 'você'}`, {
+          duration: 15000,
+          action: loteId
+            ? { label: 'Desfazer', onClick: () => desfazerDescarteLote(loteId) }
+            : undefined,
+        });
+      }
+    } catch (e: any) {
+      toast.error(`Erro ao descartar duplicadas: ${e?.message || e}`);
+    } finally {
+      setDescartandoDuplicadas(false);
+    }
+  };
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem('analise-djen:ocultar-duplicadas-v2', ocultarDuplicadas ? '1' : '0');
