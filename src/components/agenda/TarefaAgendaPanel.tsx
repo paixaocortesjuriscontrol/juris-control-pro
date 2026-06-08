@@ -1280,7 +1280,7 @@ export function TarefaAgendaPanel({
               )}
 
               {/* Botões de ação */}
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-2 sticky bottom-0 bg-card border-t -mx-6 px-6 pb-2 z-10">
                 <Button
                   className="flex-1"
                   onClick={handleSaveEdit}
