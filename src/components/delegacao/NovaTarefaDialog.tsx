@@ -702,25 +702,18 @@ export function NovaTarefaDialog({
                 name="responsavel_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Responsável *</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      value={field.value}
-                      disabled={!coordenacaoId}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={coordenacaoId ? "Selecione o responsável" : "Selecione uma coordenação primeiro"} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {advogadosDisponiveis.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>
-                            {a.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Responsáveis *</FormLabel>
+                    <FormControl>
+                      <PeoplePicker
+                        selectedIds={responsaveisIds}
+                        onChange={(ids) => {
+                          setResponsaveisIds(ids);
+                          field.onChange(ids[0] || "");
+                        }}
+                        placeholder="Adicionar responsável"
+                        emptyLabel="Nenhum responsável selecionado"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
