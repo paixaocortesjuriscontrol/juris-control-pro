@@ -52,7 +52,6 @@ import {
   AGENDA_INFINITE_QUERY_KEY,
 } from "@/hooks/useAgendaUnificada";
 import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
-import { TarefaAgendaPanel } from "@/components/agenda/TarefaAgendaPanel";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { toZonedTime } from "date-fns-tz";
