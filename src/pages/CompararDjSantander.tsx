@@ -918,7 +918,18 @@ function exportarPdf(
     doc.text(`Juris Control – Comparar DJEN – Página ${i}/${total}`, pageWidth / 2, pageHeight - 6, { align: "center" });
   }
 
-  doc.save(`comparacao_djen_${new Date().toISOString().slice(0, 10)}.pdf`);
+  const sanitize = (s: string) =>
+    (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const fmt = (d?: Date | null) => (d ? `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}` : "");
+  const hoje = new Date();
+  const partes = [
+    "comparacao_djen",
+    sanitize(opts.coordenacaoNome || ""),
+    opts.dataInicioDisp ? `disp_${fmt(opts.dataInicioDisp)}` : "",
+    opts.dataFimDisp ? `a_${fmt(opts.dataFimDisp)}` : "",
+    `gerado_${fmt(hoje)}`,
+  ].filter(Boolean);
+  doc.save(`${partes.join("_")}.pdf`);
 }
 
 type CompareMode = "pdf" | "djen" | "pdf-diario" | "excel-projuris" | "excel-astrea";
