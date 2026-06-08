@@ -84,6 +84,11 @@ interface TarefaAstreaImport {
   juizo: string | null;
   observacao: string | null;
   etiquetas: string | null;
+  envolvidos: string | null;
+  statusOrigem: string | null;
+  prioridadeOrigem: string | null;
+  dataConclusao: string | null;
+  dataCriacao: string | null;
   status: "pendente" | "valido" | "invalido" | "sucesso" | "erro";
   erros: string[];
   erroImport?: string;
@@ -1176,6 +1181,11 @@ export default function ImportarTarefas() {
         const juizo = String(row["Juízo"] || row["Juizo"] || "").trim();
         const observacao = String(row["Observação da atividade"] || row["Observacao da atividade"] || "").trim();
         const etiquetas = String(row["Etiquetas"] || "").trim();
+        const envolvidos = String(row["Envolvidos"] || "").trim();
+        const statusOrigem = String(row["Status"] || "").trim();
+        const prioridadeOrigem = String(row["Prioridade"] || "").trim();
+        const dataCriacao = String(row["Data de criação"] || row["Data de criacao"] || "").trim();
+        const dataConclusao = String(row["Data de conclusão"] || row["Data de conclusao"] || "").trim();
 
         // Generate unique identifier based on data+hora+titulo+processo
         const identificador = `astrea-${data}-${hora}-${titulo}-${numeroProcesso}`.replace(/[^a-zA-Z0-9-]/g, "_").substring(0, 100);
@@ -1192,6 +1202,11 @@ export default function ImportarTarefas() {
           juizo: juizo || null,
           observacao: observacao || null,
           etiquetas: etiquetas || null,
+          envolvidos: envolvidos || null,
+          statusOrigem: statusOrigem || null,
+          prioridadeOrigem: prioridadeOrigem || null,
+          dataConclusao: dataConclusao || null,
+          dataCriacao: dataCriacao || null,
           status: "pendente",
           erros: [],
           linhaOriginal: index + 2,
@@ -1247,98 +1262,214 @@ export default function ImportarTarefas() {
     setAstreaUsuariosCriados([]);
     setAstreaProcessosCriados([]);
 
-    // Check for existing tasks
+    const mapStatus = (s: string | null): "pendente" | "cumprido" | "atrasado" | "cancelado" => {
+      if (!s) return "pendente";
+      const l = s.toLowerCase();
+      if (l.includes("conclu") || l.includes("finaliz") || l.includes("encerrad") || l.includes("realiz")) return "cumprido";
+      if (l.includes("cancel")) return "cancelado";
+      if (l.includes("atras") || l.includes("vencid")) return "atrasado";
+      return "pendente";
+    };
+    const mapPrio = (p: string | null): "baixa" | "media" | "alta" | "urgente" => {
+      if (!p) return "media";
+      const l = p.toLowerCase();
+      if (l.includes("urgent")) return "urgente";
+      if (l.includes("alta") || l.includes("prior")) return "alta";
+      if (l.includes("baixa")) return "baixa";
+      return "media";
+    };
+    const parseDateTimeBR = (s: string | null): string | null => {
+      if (!s) return null;
+      // "DD/MM/YYYY - HH:mm" or "DD/MM/YYYY HH:mm"
+      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s*[-\s]\s*(\d{1,2}):(\d{2}))?/);
+      if (!m) return null;
+      const [, d, mo, y, hh, mm] = m;
+      const iso = `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")}T${(hh || "00").padStart(2, "0")}:${mm || "00"}:00`;
+      return iso;
+    };
+
+    // Skip duplicates already in DB
     const allIds = toImport.map(t => t.identificador);
-    const { data: existingTarefas } = await supabase
-      .from("tarefas")
-      .select("identificador_projuris")
-      .in("identificador_projuris", allIds);
-    
-    const existingSet = new Set((existingTarefas || []).map((t: any) => t.identificador_projuris));
+    const existingSet = new Set<string>();
+    const LOOKUP = 500;
+    for (let i = 0; i < allIds.length; i += LOOKUP) {
+      const { data } = await supabase
+        .from("tarefas")
+        .select("identificador_projuris")
+        .in("identificador_projuris", allIds.slice(i, i + LOOKUP));
+      (data || []).forEach((r: any) => existingSet.add(r.identificador_projuris));
+    }
+
+    // ===== Phase 1: pre-resolve processo / responsavel / envolvidos IDs =====
+    type Prepared = {
+      t: TarefaAstreaImport;
+      processoId: string | null;
+      responsavelId: string | null;
+      envolvidosIds: string[];
+    };
+    const prepared: Prepared[] = [];
+    const skipped: TarefaAstreaImport[] = [];
 
     for (let i = 0; i < toImport.length; i++) {
-      if (astreaCancelledRef.current) {
-        toast({ title: "Importação cancelada" });
-        break;
-      }
-
+      if (astreaCancelledRef.current) break;
       const t = toImport[i];
-      const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
-
       if (existingSet.has(t.identificador)) {
-        if (idx >= 0) {
-          updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Já existe no sistema" };
-        }
-        errorCount++;
-        setAstreaImportProgress(((i + 1) / toImport.length) * 100);
-        setTarefasAstrea([...updatedTarefas]);
+        skipped.push(t);
         continue;
       }
-
-      try {
-        const dataVencimento = parseDate(t.data);
-        
-        const processoId = await findOrCreateProcessoId(
-          t.numeroProcesso,
-          astreaCoordenacao,
-          astreaCadastrarNovosProcessos,
-          { assunto: t.tituloProcesso || undefined, vara: t.juizo || undefined },
-          (num) => setAstreaProcessosCriados(prev => [...prev, num])
-        );
-        
-        const responsavelId = await findResponsavelId(
-          t.responsavel,
-          astreaVincularResponsaveis,
-          astreaCadastrarNovosUsuarios,
-          astreaCoordenacao,
-          (nome) => setAstreaUsuariosCriados(prev => [...prev, nome])
-        );
-
-        // Build observacoes with etiquetas
-        let observacoes = t.observacao || "";
-        if (t.etiquetas) {
-          observacoes = observacoes ? `${observacoes}\n\nEtiquetas: ${t.etiquetas}` : `Etiquetas: ${t.etiquetas}`;
+      const processoId = await findOrCreateProcessoId(
+        t.numeroProcesso,
+        astreaCoordenacao,
+        astreaCadastrarNovosProcessos,
+        { assunto: t.tituloProcesso || undefined, vara: t.juizo || undefined },
+        (num) => setAstreaProcessosCriados(prev => [...prev, num])
+      );
+      const responsavelId = await findResponsavelId(
+        t.responsavel,
+        astreaVincularResponsaveis,
+        astreaCadastrarNovosUsuarios,
+        astreaCoordenacao,
+        (nome) => setAstreaUsuariosCriados(prev => [...prev, nome])
+      );
+      const envolvidosIds: string[] = [];
+      if (t.envolvidos && astreaVincularResponsaveis) {
+        const names = t.envolvidos.split(/[,;]/).map(n => n.trim()).filter(Boolean);
+        for (const n of names) {
+          const id = await findResponsavelId(
+            n,
+            true,
+            astreaCadastrarNovosUsuarios,
+            astreaCoordenacao,
+            (nome) => setAstreaUsuariosCriados(prev => [...prev, nome])
+          );
+          if (id && id !== responsavelId && !envolvidosIds.includes(id)) envolvidosIds.push(id);
         }
+      }
+      prepared.push({ t, processoId, responsavelId, envolvidosIds });
+      if (i % 25 === 0) setAstreaImportProgress(Math.round((i / toImport.length) * 30));
+    }
 
-        const { error } = await supabase.from("tarefas").insert({
+    // Mark skipped (duplicates) on UI
+    skipped.forEach(s => {
+      const idx = updatedTarefas.findIndex(ut => ut.identificador === s.identificador);
+      if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Já existe no sistema" };
+      errorCount++;
+    });
+    setTarefasAstrea([...updatedTarefas]);
+
+    // ===== Phase 2: bulk insert tarefas in batches of 200 =====
+    const BATCH = 200;
+    for (let i = 0; i < prepared.length; i += BATCH) {
+      if (astreaCancelledRef.current) { toast({ title: "Importação cancelada" }); break; }
+      const slice = prepared.slice(i, i + BATCH);
+      const rows = slice.map(({ t, processoId, responsavelId }) => {
+        const dataVencimento = parseDate(t.data);
+        const statusFinal = mapStatus(t.statusOrigem);
+        const prio = mapPrio(t.prioridadeOrigem);
+        const dataConclusao = parseDateTimeBR(t.dataConclusao);
+        const dataCriacao = parseDateTimeBR(t.dataCriacao);
+        let observacoes = t.observacao || "";
+        if (t.etiquetas) observacoes = observacoes ? `${observacoes}\n\nEtiquetas: ${t.etiquetas}` : `Etiquetas: ${t.etiquetas}`;
+        if (t.envolvidos) observacoes = observacoes ? `${observacoes}\nEnvolvidos: ${t.envolvidos}` : `Envolvidos: ${t.envolvidos}`;
+        return {
           identificador_projuris: t.identificador,
           tipo_tarefa: mapAstreaTipoToTarefa(t.tipo),
           titulo: t.titulo,
           descricao: t.tituloProcesso || null,
           data_vencimento: dataVencimento,
-          status: "pendente",
-          prioridade: "media",
+          hora_prevista: t.hora && t.hora !== "-" ? t.hora : null,
+          status: statusFinal,
+          prioridade: prio,
           responsavel_id: responsavelId,
           processo_id: processoId,
           observacoes: observacoes || null,
           criado_por: user?.id || null,
           origem: "astrea",
           marcadores: t.etiquetas || null,
-        } as any);
+          data_cumprimento: statusFinal === "cumprido" ? dataConclusao : null,
+          data_criacao_projuris: dataCriacao ? dataCriacao.slice(0, 10) : null,
+        };
+      });
 
-        if (error) {
-          if (idx >= 0) {
-            updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: error.message };
-          }
+      const { data: inserted, error } = await supabase
+        .from("tarefas")
+        .insert(rows as any)
+        .select("id, identificador_projuris");
+
+      if (error || !inserted) {
+        // Mark whole batch as erro
+        slice.forEach(({ t }) => {
+          const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
+          if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: error?.message || "Erro no lote" };
           errorCount++;
-        } else {
-          if (idx >= 0) {
-            updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso" };
+        });
+      } else {
+        const idByIdent = new Map<string, string>();
+        inserted.forEach((r: any) => idByIdent.set(r.identificador_projuris, r.id));
+
+        // Build relation rows
+        const respRows: { tarefa_id: string; usuario_id: string }[] = [];
+        const envRows: { tarefa_id: string; usuario_id: string }[] = [];
+        const procRespPairs: { processoId: string; usuarioId: string }[] = [];
+
+        slice.forEach(({ t, processoId, responsavelId, envolvidosIds }) => {
+          const tarefaId = idByIdent.get(t.identificador);
+          if (!tarefaId) {
+            const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
+            if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Inserido mas id não retornado" };
+            errorCount++;
+            return;
           }
+          const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
+          if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso" };
           successCount++;
-          
-          if (processoId && responsavelId) {
-            await vincularResponsavelAoProcesso(processoId, responsavelId, astreaCoordenacao);
+
+          if (responsavelId) {
+            respRows.push({ tarefa_id: tarefaId, usuario_id: responsavelId });
+            if (processoId) procRespPairs.push({ processoId, usuarioId: responsavelId });
+          }
+          envolvidosIds.forEach(uid => {
+            envRows.push({ tarefa_id: tarefaId, usuario_id: uid });
+            if (processoId) procRespPairs.push({ processoId, usuarioId: uid });
+          });
+        });
+
+        // Batch insert tarefa_responsaveis
+        for (let j = 0; j < respRows.length; j += 500) {
+          const chunk = respRows.slice(j, j + 500);
+          if (chunk.length) await supabase.from("tarefa_responsaveis").insert(chunk as any);
+        }
+        for (let j = 0; j < envRows.length; j += 500) {
+          const chunk = envRows.slice(j, j + 500);
+          if (chunk.length) await supabase.from("tarefa_envolvidos").insert(chunk as any);
+        }
+
+        // Vincular processos_responsaveis (deduped per pair)
+        const seenPair = new Set<string>();
+        const procRespRows = procRespPairs
+          .filter(p => {
+            const k = `${p.processoId}::${p.usuarioId}`;
+            if (seenPair.has(k)) return false;
+            seenPair.add(k);
+            return true;
+          })
+          .map(p => ({
+            processo_id: p.processoId,
+            usuario_id: p.usuarioId,
+            coordenacao_id: astreaCoordenacao || null,
+            papel: "Responsável",
+            ativo: true,
+          }));
+        for (let j = 0; j < procRespRows.length; j += 500) {
+          const chunk = procRespRows.slice(j, j + 500);
+          if (chunk.length) {
+            await (supabase.from("processos_responsaveis") as any)
+              .upsert(chunk, { onConflict: "processo_id,usuario_id", ignoreDuplicates: true });
           }
         }
-      } catch (err: any) {
-        if (idx >= 0) {
-          updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: err.message };
-        }
-        errorCount++;
       }
 
-      setAstreaImportProgress(((i + 1) / toImport.length) * 100);
+      setAstreaImportProgress(30 + Math.round(((i + slice.length) / prepared.length) * 70));
       setTarefasAstrea([...updatedTarefas]);
     }
 
