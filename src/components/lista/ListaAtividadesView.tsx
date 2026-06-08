@@ -41,8 +41,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { PrazoDialog } from "@/components/prazos/PrazoDialog";
-import { TarefaDetalhesPanel } from "@/components/prazos/TarefaDetalhesPanel";
+import { TarefaAgendaPanel } from "@/components/agenda/TarefaAgendaPanel";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
 import { cn } from "@/lib/utils";
@@ -122,9 +121,8 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingPrazo, setEditingPrazo] = useState<Prazo | null>(null);
   const [detalhesPrazo, setDetalhesPrazo] = useState<Prazo | null>(null);
+  const [detalhesEditOnOpen, setDetalhesEditOnOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const { setCollapsed } = useSidebarCollapsed();
 
