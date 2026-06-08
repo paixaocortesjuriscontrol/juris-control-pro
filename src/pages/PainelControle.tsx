@@ -52,7 +52,6 @@ import {
   AGENDA_INFINITE_QUERY_KEY,
 } from "@/hooks/useAgendaUnificada";
 import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
-import { TarefaAgendaPanel } from "@/components/agenda/TarefaAgendaPanel";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { toZonedTime } from "date-fns-tz";
@@ -107,6 +106,8 @@ export default function PainelControle() {
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
   const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
   const [novaAudienciaOpen, setNovaAudienciaOpen] = useState(false);
+  const [tarefaEditando, setTarefaEditando] = useState<any | null>(null);
+  const [prazoEditando, setPrazoEditando] = useState<any | null>(null);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
@@ -633,26 +634,42 @@ export default function PainelControle() {
   };
 
   const handleItemClick = (item: ItemAgendaUnificado) => {
-    if (item.tipo === "parcelamento") {
-      setSelectedParcelamento(item as unknown as EventoAgenda);
-      setParcelasDialogOpen(true);
-    } else if (item.origem === "evento") {
-      setSelectedItem(item);
-    } else {
-      setSelectedItem(item);
-    }
+    handleEditItem(item);
   };
 
   const handleEditItem = (item: ItemAgendaUnificado) => {
-    if (item.tipo === "parcelamento") {
-      setSelectedParcelamento(item as unknown as EventoAgenda);
-      setParcelasDialogOpen(true);
-    } else if (item.origem === "evento") {
-      setSelectedEvento(item as unknown as EventoAgenda);
-      setDialogOpen(true);
-    } else {
-      setSelectedItem(item);
-    }
+    (async () => {
+      if (item.tipo === "parcelamento") {
+        const { data } = await supabase
+          .from("eventos_agenda")
+          .select("*")
+          .eq("id", item.id)
+          .maybeSingle();
+        setSelectedParcelamento(((data as any) ?? item) as EventoAgenda);
+        setParcelasDialogOpen(true);
+        return;
+      }
+      if (item.origem === "evento") {
+        const { data } = await supabase
+          .from("eventos_agenda")
+          .select("*")
+          .eq("id", item.id)
+          .maybeSingle();
+        setSelectedEvento(((data as any) ?? item) as EventoAgenda);
+        setDialogOpen(true);
+        return;
+      }
+      // origem === "tarefa" (inclui prazo/audiência como tipo_tarefa)
+      const { data } = await supabase
+        .from("tarefas")
+        .select("*")
+        .eq("id", item.id)
+        .maybeSingle();
+      if (data) {
+        setTarefaEditando(data);
+        setNovaTarefaOpen(true);
+      }
+    })();
   };
 
   const handleConcluirItem = async (item: ItemAgendaUnificado) => {
@@ -982,17 +999,8 @@ export default function PainelControle() {
         ) : (
         <div className="flex flex-1 min-h-0 overflow-hidden relative">
 
-          {/* Calendário Mensal — escondido no mobile quando item selecionado */}
-          <div
-            className={cn(
-              "flex flex-col border-r border-border bg-card transition-all duration-300",
-              // Desktop: lado a lado
-              "md:flex md:flex-col",
-              selectedItem ? "md:w-[50%]" : "md:flex-1",
-              // Mobile: tela cheia ou escondido quando item selecionado
-              selectedItem ? "hidden md:flex" : "flex flex-1"
-            )}
-          >
+          {/* Calendário Mensal */}
+          <div className="flex flex-col border-r border-border bg-card flex-1">
             {/* Cabeçalho calendário */}
             <div className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-3 border-b border-border flex-shrink-0">
               <h2 className="text-sm md:text-base font-bold text-foreground flex-1">Agenda</h2>
@@ -1056,7 +1064,7 @@ export default function PainelControle() {
                         const itens = itensPorDia.get(key) || [];
                         const ehHoje = isToday(dia);
                         const ehMesAtual = isSameMonth(dia, mesAtual);
-                        const MAX_VISIBLE = selectedItem ? 2 : 3;
+                        const MAX_VISIBLE = 3;
                         const visiveis = itens.slice(0, MAX_VISIBLE);
                         const extras = itens.length - MAX_VISIBLE;
 
@@ -1192,24 +1200,6 @@ export default function PainelControle() {
             </div>
           </div>
 
-          {/* Painel de detalhes — tela cheia no mobile, lado a lado no desktop */}
-          {selectedItem && (
-            <div className={cn(
-              "flex flex-col bg-card overflow-hidden",
-              // Mobile: tela cheia absoluta sobre o calendário
-              "absolute inset-0 md:relative md:inset-auto",
-              // Desktop: ~60% ao lado
-              "md:w-[60%] md:border-l md:border-border"
-            )}>
-              <TarefaAgendaPanel
-                tarefa={selectedItem}
-                onClose={() => setSelectedItem(null)}
-                onUpdate={() => {
-                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                }}
-              />
-            </div>
-          )}
         </div>
         )}
       </div>
@@ -1237,7 +1227,11 @@ export default function PainelControle() {
       {/* Nova Tarefa */}
       <NovaTarefaDialogWrapper
         open={novaTarefaOpen}
-        onOpenChange={setNovaTarefaOpen}
+        onOpenChange={(o) => {
+          setNovaTarefaOpen(o);
+          if (!o) setTarefaEditando(null);
+        }}
+        tarefaParaEditar={tarefaEditando}
       />
 
       {/* Novo Evento */}
@@ -1250,8 +1244,11 @@ export default function PainelControle() {
       {/* Novo Prazo */}
       <PrazoDialog
         open={novoPrazoOpen}
-        onOpenChange={setNovoPrazoOpen}
-        prazo={null}
+        onOpenChange={(o) => {
+          setNovoPrazoOpen(o);
+          if (!o) setPrazoEditando(null);
+        }}
+        prazo={prazoEditando}
       />
 
       {/* Nova Audiência */}
@@ -1270,9 +1267,11 @@ export default function PainelControle() {
 function NovaTarefaDialogWrapper({
   open,
   onOpenChange,
+  tarefaParaEditar,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  tarefaParaEditar?: any | null;
 }) {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
@@ -1319,6 +1318,7 @@ function NovaTarefaDialogWrapper({
       open={open}
       onOpenChange={onOpenChange}
       coordenacoes={coordenacoes}
+      tarefaParaEditar={tarefaParaEditar}
     />
   );
 }

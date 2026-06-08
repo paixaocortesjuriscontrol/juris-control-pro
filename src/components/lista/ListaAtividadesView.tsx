@@ -41,9 +41,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { TarefaAgendaPanel } from "@/components/agenda/TarefaAgendaPanel";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
-import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
+import { TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
+import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Prazo } from "@/hooks/usePrazos";
@@ -128,10 +128,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
 
   const debouncedSearch = useDebouncedValue(filters.search, 300);
 
-  // Collapse main app sidebar while a tarefa is selected (split-screen mode)
-  useEffect(() => {
-    if (detalhesPrazo) setCollapsed(true);
-  }, [detalhesPrazo, setCollapsed]);
+  // (Sem split-screen — clique abre um dialog modal)
 
   const { data: coordenacoes, isLoading: coordenacoesLoading } = useCoordenacoesFull();
 
@@ -234,7 +231,18 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
         );
       }
       if (filters.tipo !== "all") {
-        q = q.eq("tipo_tarefa", filters.tipo);
+        if (filters.tipo === "evento") q = q.eq("tipo_tarefa", "EVENTO");
+        else if (filters.tipo === "prazo") q = q.eq("tipo_tarefa", "PRAZO");
+        else if (filters.tipo === "audiencia")
+          q = q.in("tipo_tarefa", ["AUDIÊNCIA", "AUDIENCIA"]);
+        else if (filters.tipo === "parcelamento")
+          q = q.in("tipo_tarefa", ["PARCELAMENTO", "PARCELAMENTO_RECORRENTE"]);
+        else if (filters.tipo === "tarefa")
+          q = q.not(
+            "tipo_tarefa",
+            "in",
+            "(EVENTO,PRAZO,AUDIÊNCIA,AUDIENCIA,PARCELAMENTO,PARCELAMENTO_RECORRENTE)"
+          );
       }
       if (filters.responsavelId !== "all") {
         q = q.eq("responsavel_id", filters.responsavelId);
@@ -369,14 +377,11 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
         <div
           className={cn(
             "grid grid-cols-1 gap-4",
-            detalhesPrazo
-              ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
-              : "lg:grid-cols-[280px_1fr]",
+            "lg:grid-cols-[280px_1fr]",
             embedded && "flex-1 min-h-0 lg:overflow-hidden"
           )}
         >
-          {/* Filtros laterais — ocultos no modo dividido */}
-          {!detalhesPrazo && (
+          {/* Filtros laterais */}
           <Card className="p-4 h-fit lg:sticky lg:top-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-semibold">
@@ -413,6 +418,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
             </div>
 
             <div className="space-y-2">
+              {!embedded && <>
               <label className="text-xs font-medium text-muted-foreground">
                 Coordenação
               </label>
@@ -434,6 +440,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                   ))}
                 </SelectContent>
               </Select>
+              </>}
             </div>
 
             <div className="space-y-2">
@@ -490,11 +497,11 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
                   <SelectItem value="all">Todos</SelectItem>
-                  {TIPOS_TAREFA.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {TIPOS_TAREFA_LABELS[t] || t}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="tarefa">Tarefa</SelectItem>
+                  <SelectItem value="evento">Evento</SelectItem>
+                  <SelectItem value="prazo">Prazo</SelectItem>
+                  <SelectItem value="audiencia">Audiência</SelectItem>
+                  <SelectItem value="parcelamento">Parcelamento recorrente</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -550,7 +557,6 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
               />
             </div>
           </Card>
-          )}
 
           {/* Tabela */}
           <Card className={cn(
@@ -607,7 +613,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                 <colgroup>
                   <col className="w-9" />
                   <col />
-                  {detalhesPrazo ? (
+                  {false ? (
                     <col className="w-[72px]" />
                   ) : (
                     <>
@@ -634,12 +640,12 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                       />
                     </TableHead>
                     <TableHead
-                      colSpan={detalhesPrazo ? 1 : 3}
+                      colSpan={3}
                       className="h-9 font-semibold w-full text-left"
                     >
                       Atividade
                     </TableHead>
-                    {!detalhesPrazo && (
+                    {true && (
                       <TableHead className="h-9 font-semibold whitespace-nowrap w-px text-left">
                         Status
                       </TableHead>
@@ -653,7 +659,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                   {isLoading ? (
                     Array.from({ length: 10 }).map((_, i) => (
                       <TableRow key={i}>
-                        <TableCell colSpan={detalhesPrazo ? 3 : 6}>
+                        <TableCell colSpan={6}>
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
                       </TableRow>
@@ -661,7 +667,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                   ) : rows.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={detalhesPrazo ? 3 : 6}
+                        colSpan={6}
                         className="h-32 text-center text-muted-foreground"
                       >
                         Nenhuma atividade encontrada.
@@ -687,7 +693,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                               onCheckedChange={() => toggleOne(r.id)}
                             />
                           </TableCell>
-                          <TableCell colSpan={detalhesPrazo ? 1 : 3} className="py-3 align-top">
+                          <TableCell colSpan={3} className="py-3 align-top">
                             <div className="flex min-w-0 flex-col gap-2">
                             <div className="flex flex-col gap-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
@@ -722,7 +728,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                                 </div>
                               )}
                             </div>
-                            {!detalhesPrazo && (
+                            {true && (
                               <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-muted-foreground">
                                 <div className="flex items-center gap-1.5">
                                   {r.responsavel?.nome ? (
@@ -750,7 +756,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                             )}
                             </div>
                           </TableCell>
-                          {!detalhesPrazo && (
+                          {true && (
                           <TableCell className="py-3 align-top">
                             <div className="flex items-center gap-1.5">
                               <span
@@ -845,49 +851,25 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
             </div>
           </Card>
 
-          {/* Painel de detalhes (split-screen) */}
-          {detalhesPrazo && (
-            <div className={cn(
-              embedded
-                ? "lg:h-full lg:min-h-0 lg:overflow-hidden h-[calc(100vh-12rem)]"
-                : "lg:sticky lg:top-4 h-[calc(100vh-6rem)]"
-            )}>
-              <TarefaAgendaPanel
-                key={detalhesPrazo.id + (detalhesEditOnOpen ? ":edit" : "")}
-                autoEdit={detalhesEditOnOpen}
-                tarefa={{
-                  id: detalhesPrazo.id,
-                  titulo: detalhesPrazo.titulo,
-                  descricao: detalhesPrazo.descricao,
-                  data_inicio: detalhesPrazo.data_vencimento || detalhesPrazo.created_at,
-                  data_fim: null,
-                  status: detalhesPrazo.status,
-                  prioridade: detalhesPrazo.prioridade,
-                  processo_id: detalhesPrazo.processo_id,
-                  responsavel_id: detalhesPrazo.responsavel_id,
-                  criado_por: detalhesPrazo.criado_por,
-                  concluido_em: detalhesPrazo.data_cumprimento,
-                  created_at: detalhesPrazo.created_at,
-                  origem: "tarefa",
-                  tipo: "tarefa",
-                  processo: detalhesPrazo.processo
-                    ? { id: detalhesPrazo.processo.id, numero: detalhesPrazo.processo.numero }
-                    : null,
-                  responsavel: detalhesPrazo.responsavel,
-                  tipo_tarefa: detalhesPrazo.tipo_tarefa,
-                  data_vencimento: detalhesPrazo.data_vencimento,
-                  data_fatal: detalhesPrazo.data_fatal,
-                }}
-                onClose={() => {
-                  setDetalhesPrazo(null);
-                  setDetalhesEditOnOpen(false);
-                }}
-                onUpdate={() => {
-                  queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
-                }}
-              />
-            </div>
-          )}
+          {/* Edição via popup (mesmo formulário do "Adicionar") */}
+          <NovaTarefaDialog
+            open={!!detalhesPrazo}
+            onOpenChange={(o) => {
+              if (!o) {
+                setDetalhesPrazo(null);
+                setDetalhesEditOnOpen(false);
+              }
+            }}
+            coordenacoes={(coordenacoes ?? []).map((c: any) => ({
+              id: c.id,
+              nome: c.nome,
+              area: c.area ?? "",
+            }))}
+            tarefaParaEditar={detalhesPrazo}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+            }}
+          />
         </div>
       </div>
     </>
