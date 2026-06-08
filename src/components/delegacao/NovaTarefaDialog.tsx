@@ -74,6 +74,7 @@ interface NovaTarefaDialogProps {
   coordenacoes: Array<{ id: string; nome: string; area: string }>;
   onSuccess?: () => void;
   processoPreSelecionado?: { id: string; numero: string } | null;
+  tarefaParaEditar?: any | null;
 }
 
 const tiposTarefa = [
@@ -99,6 +100,7 @@ export function NovaTarefaDialog({
   coordenacoes,
   onSuccess,
   processoPreSelecionado,
+  tarefaParaEditar,
 }: NovaTarefaDialogProps) {
   const [loading, setLoading] = useState(false);
   const [searchProcesso, setSearchProcesso] = useState("");
@@ -191,9 +193,43 @@ export function NovaTarefaDialog({
     enabled: tipoVinculo === "processo" && (!!coordenacaoId || searchProcesso.length >= 3),
   });
 
-  // Reset form when dialog opens — auto-select coordenação se houver apenas uma
+  // Reset form when dialog opens — preenche para edição ou para nova
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    (async () => {
+      if (tarefaParaEditar) {
+        // Buscar coordenação a partir do processo (se houver)
+        let coordenacaoId = "";
+        let processoNumero = "";
+        if (tarefaParaEditar.processo_id) {
+          const { data: proc } = await supabase
+            .from("processos")
+            .select("coordenacao_id, numero")
+            .eq("id", tarefaParaEditar.processo_id)
+            .maybeSingle();
+          coordenacaoId = proc?.coordenacao_id || "";
+          processoNumero = proc?.numero || "";
+        }
+        form.reset({
+          tipo_vinculo: tarefaParaEditar.processo_id ? "processo" : "sem_vinculo",
+          coordenacao_id: coordenacaoId,
+          processo_id: tarefaParaEditar.processo_id || "",
+          tipo_tarefa: tarefaParaEditar.tipo_tarefa || "",
+          titulo: tarefaParaEditar.titulo || "",
+          descricao: tarefaParaEditar.descricao || "",
+          responsavel_id: tarefaParaEditar.responsavel_id || "",
+          data_base: tarefaParaEditar.data_base || "",
+          data_vencimento: tarefaParaEditar.data_vencimento || "",
+          hora_prevista: tarefaParaEditar.hora_prevista || "",
+          data_fatal: tarefaParaEditar.data_fatal || "",
+          hora_fatal: tarefaParaEditar.hora_fatal || "",
+          prioridade: tarefaParaEditar.prioridade || "media",
+          local: tarefaParaEditar.local || "",
+        });
+        setSearchProcesso(processoNumero);
+        setAnexos([]);
+        return;
+      }
       const coordenacaoInicial = coordenacoes.length === 1 ? coordenacoes[0].id : "";
       form.reset({
         tipo_vinculo: "processo",
@@ -213,8 +249,8 @@ export function NovaTarefaDialog({
       });
       setSearchProcesso(processoPreSelecionado?.numero || "");
       setAnexos([]);
-    }
-  }, [open, processoPreSelecionado, form, coordenacoes]);
+    })();
+  }, [open, processoPreSelecionado, form, coordenacoes, tarefaParaEditar]);
 
   const analisarDocumentoComIA = async (file: File): Promise<AnexoComAnalise['analise']> => {
     try {
@@ -302,6 +338,34 @@ export function NovaTarefaDialog({
   async function onSubmit(values: FormValues) {
     setLoading(true);
     try {
+      // Edição
+      if (tarefaParaEditar?.id) {
+        const { error: upErr } = await supabase
+          .from("tarefas")
+          .update({
+            processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
+            responsavel_id: values.responsavel_id,
+            titulo: values.titulo,
+            descricao: values.descricao || null,
+            tipo_tarefa: values.tipo_tarefa,
+            data_base: values.data_base || null,
+            data_vencimento: values.data_vencimento,
+            data_fatal: values.data_fatal || null,
+            prioridade: values.prioridade,
+          })
+          .eq("id", tarefaParaEditar.id);
+        if (upErr) throw upErr;
+        toast({
+          title: "Tarefa atualizada",
+          description: "As alterações foram salvas.",
+        });
+        await queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+        await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+        await queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinita"] });
+        onOpenChange(false);
+        onSuccess?.();
+        return;
+      }
       // Criar a tarefa primeiro
       const { data: novaTarefa, error } = await supabase.from("tarefas").insert({
         processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
@@ -455,10 +519,12 @@ export function NovaTarefaDialog({
       <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
           <DialogTitle className="flex items-center gap-2">
-            Nova Tarefa
+            {tarefaParaEditar ? "Editar Tarefa" : "Nova Tarefa"}
           </DialogTitle>
           <DialogDescription>
-            Preencha os campos para criar uma nova tarefa
+            {tarefaParaEditar
+              ? "Atualize os campos e salve as alterações"
+              : "Preencha os campos para criar uma nova tarefa"}
           </DialogDescription>
         </DialogHeader>
 
