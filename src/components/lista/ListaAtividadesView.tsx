@@ -227,6 +227,37 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
       const to = from + PAGE_SIZE - 1;
       const today = new Date().toISOString().split("T")[0];
 
+      if (["evento", "parcelamento"].includes(filters.tipo)) {
+        let q = supabase
+          .from("eventos_agenda")
+          .select("*, processo:processos(id, numero, assunto, coordenacao_id)", { count: "estimated" })
+          .eq("tipo", filters.tipo)
+          .order("data_inicio", { ascending: false })
+          .range(from, to);
+
+        if (filters.status !== "all") {
+          q = q.eq("status", filters.status === "cumprido" ? "concluido" : filters.status);
+        }
+        if (filters.coordenacaoId) q = q.eq("processo.coordenacao_id", filters.coordenacaoId);
+        if (filters.dataDe) q = q.gte("data_inicio", `${filters.dataDe}T00:00:00`);
+        if (filters.dataAte) q = q.lte("data_inicio", `${filters.dataAte}T23:59:59`);
+        if (debouncedSearch) q = q.ilike("titulo", `%${debouncedSearch.trim()}%`);
+
+        const { data, error, count } = await q;
+        if (error) throw error;
+        return {
+          rows: (data || []).map((e: any) => ({
+            ...e,
+            origem: "evento",
+            data_vencimento: e.data_inicio?.slice(0, 10) || null,
+            data_cumprimento: e.concluido_em,
+            prioridade: "media",
+            responsavel: null,
+          })) as any[],
+          count: count || 0,
+        };
+      }
+
       const selectFields = filters.coordenacaoId
         ? `
           id, titulo, descricao, data_vencimento, status, prioridade,
