@@ -361,14 +361,12 @@ function updateTrack(tribunal: string, tipo: WorkerTipo, partial: Partial<TrackP
   const tempoDecorrido = state.progress.status === 'executando'
     ? Math.max(state.progress.tempoDecorrido || 0, tempoComputado)
     : tempoComputado;
-  // Progresso baseado em unidades concluídas (mais estável que current/total
-  // de tracks, que oscila enquanto tracks de bandas futuras esperam com
-  // current=0). Cai pro modo antigo se unitTotal não estiver inicializado.
-  const percentageComputado = state.unitTotal > 0
-    ? Math.min(100, Math.max(0, Math.round((state.unitDone / state.unitTotal) * 100)))
-    : (totalGlobal > 0
-      ? Math.min(100, Math.max(0, Math.round((totalCurrent / totalGlobal) * 100)))
-      : 0);
+  // Progresso baseado em tracks (tribunais×tipo) concluídos, que é a mesma
+  // métrica exibida no header "X/Y tribunais". Evita saltos bruscos quando
+  // várias unidades pequenas (mons individuais) terminam de uma só vez.
+  const percentageComputado = tracks.length > 0
+    ? Math.min(100, Math.max(0, Math.round((concluidos / tracks.length) * 100)))
+    : 0;
   const percentage = state.progress.status === 'executando'
     ? Math.max(state.progress.percentage || 0, percentageComputado)
     : percentageComputado;
@@ -2199,12 +2197,9 @@ async function executarLoop(
                 descartadas: state.progress.descartadas,
                 tempoInicio,
               });
-              const pct = state.unitTotal > 0
-                ? Math.min(100, Math.round((state.unitDone / state.unitTotal) * 100))
-                : 0;
+              // Não força percentage aqui — deixa updateTrack recalcular com base
+              // em tracks concluídos (alinhado ao header "X/Y tribunais").
               updateProgress({
-                percentage: pct,
-                tribunaisConcluidos: unidadesConcluidasLista.length,
                 mensagem: `Banda ${unit.band} (${BAND_LABEL[unit.band]}) — ${state.unitDone}/${state.unitTotal} unidades`,
               });
               syncExecutionProgress({}, true);
