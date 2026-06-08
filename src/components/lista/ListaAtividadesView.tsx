@@ -553,9 +553,12 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
           )}
 
           {/* Tabela */}
-          <Card className="overflow-hidden">
+          <Card className={cn(
+            "overflow-hidden",
+            embedded && "lg:h-full lg:min-h-0 lg:flex lg:flex-col"
+          )}>
             {/* Toolbar de bulk */}
-            <div className="flex items-center justify-between border-b px-3 py-2 bg-muted/40">
+            <div className="flex items-center justify-between border-b px-3 py-2 bg-muted/40 flex-shrink-0">
               <div className="text-xs text-muted-foreground">
                 {selected.size > 0
                   ? `${selected.size} selecionada(s)`
@@ -599,7 +602,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
               </div>
             </div>
 
-            <div className="overflow-auto">
+            <div className={cn("overflow-auto", embedded && "lg:flex-1 lg:min-h-0")}>
               <Table className="text-xs w-full table-fixed">
                 <colgroup>
                   <col className="w-9" />
