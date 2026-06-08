@@ -535,6 +535,31 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
     }
   };
 
+  const handleAlterarStatus = async (status: "pendente" | "concluido" | "cancelado") => {
+    if (!evento?.id) return;
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase
+        .from("eventos_agenda")
+        .update({
+          status,
+          concluido_em: status === "concluido" ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", evento.id);
+      if (error) throw error;
+      await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+      await queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
+      await queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite-v1"] });
+      toast.success(status === "concluido" ? "Parcelamento concluído" : status === "cancelado" ? "Parcelamento cancelado" : "Parcelamento reaberto");
+      onOpenChange(false);
+    } catch (error: any) {
+      toast.error("Erro ao atualizar parcelamento: " + (error?.message || ""));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const headerInline = (
     <div className="px-4 pt-4 sm:px-6 sm:pt-5 pb-3 shrink-0 border-b">
       <h3 className="text-base font-semibold flex items-center gap-2">
@@ -1012,6 +1037,21 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancelar
           </Button>
+          {isEditing && evento?.status !== "cancelado" && (
+            <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={isSubmitting}>
+              Cancelar parcelamento
+            </Button>
+          )}
+          {isEditing && evento?.status !== "pendente" && (
+            <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={isSubmitting}>
+              Reabrir
+            </Button>
+          )}
+          {isEditing && evento?.status !== "concluido" && (
+            <Button type="button" variant="outline" onClick={() => handleAlterarStatus("concluido")} disabled={isSubmitting}>
+              Concluir
+            </Button>
+          )}
           <Button onClick={handleSubmit} disabled={isSubmitting || !formData.titulo.trim()}>
             {isSubmitting ? (
               <>

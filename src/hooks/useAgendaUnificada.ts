@@ -134,8 +134,13 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       const resultItems: ItemAgendaUnificado[] = [];
       const seenIds = new Set<string>(); // Dedup: track seen IDs
       const today = startOfDay(new Date());
+      const tipoFilters = filters.tipos ?? [];
+      const eventTypeFilters = ["evento", "prazo", "audiencia", "parcelamento", "prazo_parcela"];
+      const taskTypeFilters = ["tarefa", "tarefa_delegada", "evento", "prazo", "audiencia", "parcelamento"];
       const incluirEventos = !filters.origens || filters.origens.includes("evento");
       const incluirTarefas = !filters.origens || filters.origens.includes("tarefa");
+      const incluirEventosPorTipo = tipoFilters.length === 0 || tipoFilters.some((t) => eventTypeFilters.includes(t));
+      const incluirTarefasPorTipo = tipoFilters.length === 0 || tipoFilters.some((t) => taskTypeFilters.includes(t));
 
       // Calculate pagination ranges for each source separately
       // When fetchAll (admin escritório), use larger page size to reduce round trips
@@ -166,7 +171,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       };
 
       // ========= BUSCAR EVENTOS =========
-      if (incluirEventos) {
+      if (incluirEventos && incluirEventosPorTipo) {
         let queryEventos = buildEventosQuery(true);
 
         if (!filters.fetchAll) {
@@ -196,9 +201,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         }
 
         if (filters.tipos && filters.tipos.length > 0) {
-          const tiposEvento = filters.tipos.filter((t) =>
-            ["evento", "prazo", "audiencia", "parcelamento", "prazo_parcela"].includes(t)
-          );
+          const tiposEvento = filters.tipos.filter((t) => eventTypeFilters.includes(t));
           if (tiposEvento.length > 0) {
             queryEventos = queryEventos.in("tipo", tiposEvento);
           }
@@ -247,9 +250,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             }
           }
           if (filters.tipos && filters.tipos.length > 0) {
-            const tiposEvento = filters.tipos.filter((t) =>
-              ["evento", "prazo", "audiencia", "parcelamento", "prazo_parcela"].includes(t)
-            );
+            const tiposEvento = filters.tipos.filter((t) => eventTypeFilters.includes(t));
             if (tiposEvento.length > 0) {
               queryEventosFallback = queryEventosFallback.in("tipo", tiposEvento);
             }
@@ -362,7 +363,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       }
 
       // ========= BUSCAR TAREFAS =========
-      if (incluirTarefas) {
+      if (incluirTarefas && incluirTarefasPorTipo) {
         let queryTarefas = buildTarefasQuery(true);
 
         const coordScopeIds = filters.coordenacaoIds?.length
@@ -481,10 +482,27 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         }
 
         if (!tarefasError && tarefas) {
-          const incluirTipoTarefa = !filters.tipos || filters.tipos.length === 0 || filters.tipos.includes("tarefa") || filters.tipos.includes("tarefa_delegada") || filters.tipos.includes("audiencia");
+          const incluirTipoTarefa = !filters.tipos || filters.tipos.length === 0 || filters.tipos.some((t) => taskTypeFilters.includes(t));
 
           if (incluirTipoTarefa) {
             let tarefasFiltradas = tarefas;
+            if (filters.tipos && filters.tipos.length > 0) {
+              tarefasFiltradas = tarefasFiltradas.filter((t: any) => {
+                const tipoUpper = (t.tipo_tarefa ?? "").toUpperCase().trim();
+                const isAudiencia = tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA";
+                const isPrazo = tipoUpper === "PRAZO";
+                const isEventoLegacy = tipoUpper === "EVENTO";
+                const isParcelamentoLegacy = tipoUpper === "PARCELAMENTO" || tipoUpper === "PARCELAMENTO_RECORRENTE";
+                const isTarefa = !isAudiencia && !isPrazo && !isEventoLegacy && !isParcelamentoLegacy;
+                return (
+                  (filters.tipos!.includes("audiencia") && isAudiencia) ||
+                  (filters.tipos!.includes("prazo") && isPrazo) ||
+                  (filters.tipos!.includes("evento") && isEventoLegacy) ||
+                  (filters.tipos!.includes("parcelamento") && isParcelamentoLegacy) ||
+                  ((filters.tipos!.includes("tarefa") || filters.tipos!.includes("tarefa_delegada")) && isTarefa)
+                );
+              });
+            }
             if (filters.clienteId) {
               tarefasFiltradas = tarefasFiltradas.filter(
                 (t: any) => t.processo && (t.processo as { cliente_id?: string }).cliente_id === filters.clienteId

@@ -82,7 +82,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
-import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 
 interface TarefaAgendaPanelProps {
@@ -860,7 +859,6 @@ export function TarefaAgendaPanel({
         const updateData: Record<string, any> = {
           titulo: editForm.titulo.trim(),
           descricao: editForm.descricao || null,
-          tipo_tarefa: editForm.tipo_tarefa || null,
           data_vencimento: editForm.data_vencimento || null,
           data_fatal: editForm.data_fatal || null,
           prioridade: editForm.prioridade || "media",
@@ -1103,24 +1101,7 @@ export function TarefaAgendaPanel({
               {/* Campos específicos de TAREFA */}
               {tarefa.origem === "tarefa" && (
                 <>
-                  {/* Linha 1: Tipo + Prioridade */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label className="text-xs text-muted-foreground">Tipo de Tarefa</Label>
-                      <Select
-                        value={editForm.tipo_tarefa}
-                        onValueChange={(v) => setEditForm(f => ({ ...f, tipo_tarefa: v }))}
-                      >
-                        <SelectTrigger className="h-9">
-                          <SelectValue placeholder="Selecionar..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TIPOS_TAREFA.map((t) => (
-                            <SelectItem key={t} value={t}>{t}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="grid grid-cols-1 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Prioridade</Label>
                       <Select

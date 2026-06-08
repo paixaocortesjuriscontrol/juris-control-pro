@@ -246,6 +246,16 @@ export function PrazoDialog({
     }
   };
 
+  const handleAlterarStatus = async (status: "pendente" | "cumprido" | "cancelado") => {
+    if (!prazo?.id) return;
+    await updatePrazo.mutateAsync({
+      id: prazo.id,
+      status: status as any,
+      data_cumprimento: status === "cumprido" ? new Date().toISOString() : null,
+    });
+    onOpenChange(false);
+  };
+
   const isLoading = createPrazo.isPending || updatePrazo.isPending;
   const hasPublicacao = !!publicacao;
 
@@ -446,6 +456,21 @@ export function PrazoDialog({
         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
           Cancelar
         </Button>
+        {prazo?.id && (prazo.status as string) !== "cancelado" && (
+          <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={isLoading}>
+            Cancelar prazo
+          </Button>
+        )}
+        {prazo?.id && prazo.status !== "pendente" && (
+          <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={isLoading}>
+            Reabrir
+          </Button>
+        )}
+        {prazo?.id && prazo.status !== "cumprido" && (
+          <Button type="button" variant="outline" onClick={() => handleAlterarStatus("cumprido")} disabled={isLoading}>
+            Concluir
+          </Button>
+        )}
         <Button type="submit" disabled={isLoading}>
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Salvar
