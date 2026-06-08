@@ -536,7 +536,7 @@ export function MonitoramentoTermosParalelaCard() {
 
         {/* Tracks por tribunal */}
         {progress.tracks.length > 0 && (
-          <div className="max-h-[600px] overflow-y-auto pr-1">
+          <div className="max-h-[1800px] overflow-y-auto pr-1">
             <h4 className="text-sm font-semibold sticky top-0 bg-card py-1 z-10">
               Tribunais ({progress.tracks.length})
             </h4>
