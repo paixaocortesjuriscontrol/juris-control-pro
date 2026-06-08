@@ -155,6 +155,25 @@ const mapAstreaTipoToTarefa = (tipo: string | null): string => {
   return tipo;
 };
 
+const normalizeColumnName = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+
+const getRowValue = (row: Record<string, any>, possibleNames: string[]): string => {
+  const normalizedMap = new Map(
+    Object.keys(row).map((key) => [normalizeColumnName(key), row[key]]),
+  );
+  for (const name of possibleNames) {
+    const val = normalizedMap.get(normalizeColumnName(name));
+    if (val !== undefined && val !== null) return String(val).trim();
+  }
+  return "";
+};
+
 // ==================== MAIN COMPONENT ====================
 
 export default function ImportarTarefas() {
