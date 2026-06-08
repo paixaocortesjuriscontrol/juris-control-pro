@@ -9,6 +9,82 @@ import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
+import { AlertTriangle, Calendar as CalendarIcon, ExternalLink, User as UserIcon } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
+import { format, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+function PrazoFatalReadOnlyPanel({ processo, diasRestantes }: { processo: any; diasRestantes?: number }) {
+  if (!processo) return null;
+  const dataFatal = processo.data_fatal ? format(parseISO(processo.data_fatal), "dd/MM/yyyy", { locale: ptBR }) : "—";
+  const atrasado = typeof diasRestantes === "number" && diasRestantes < 0;
+  return (
+    <div className="h-full overflow-y-auto p-6 space-y-5">
+      <div className="flex items-start gap-3">
+        <div className="rounded-full bg-destructive/10 p-2">
+          <AlertTriangle className="h-5 w-5 text-destructive" />
+        </div>
+        <div className="flex-1">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Prazo Fatal</div>
+          <h2 className="text-lg font-semibold leading-tight">{processo.numero}</h2>
+        </div>
+      </div>
+
+      <div className="rounded-lg border p-4 space-y-3 bg-card">
+        <div className="flex items-center gap-2 text-sm">
+          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium">Data Fatal:</span>
+          <span>{dataFatal}</span>
+          {typeof diasRestantes === "number" && (
+            <Badge variant={atrasado ? "destructive" : "secondary"} className="ml-auto">
+              {atrasado ? `${Math.abs(diasRestantes)} dia(s) em atraso` : `${diasRestantes} dia(s) restantes`}
+            </Badge>
+          )}
+        </div>
+        {processo.responsavel_tst && (
+          <div className="flex items-center gap-2 text-sm">
+            <UserIcon className="h-4 w-4 text-muted-foreground" />
+            <span className="font-medium">Responsável:</span>
+            <span>{processo.responsavel_tst}</span>
+          </div>
+        )}
+        {processo.equipe_tst && (
+          <div className="text-sm"><span className="font-medium">Equipe:</span> {processo.equipe_tst}</div>
+        )}
+        {processo.status && (
+          <div className="text-sm"><span className="font-medium">Status:</span> {processo.status}</div>
+        )}
+      </div>
+
+      {(processo.polo_ativo || processo.polo_passivo) && (
+        <div className="rounded-lg border p-4 space-y-2 bg-card text-sm">
+          {processo.polo_ativo && (<div><span className="font-medium">Polo ativo:</span> {processo.polo_ativo}</div>)}
+          {processo.polo_passivo && (<div><span className="font-medium">Polo passivo:</span> {processo.polo_passivo}</div>)}
+        </div>
+      )}
+
+      {processo.decisao_tst && (
+        <div className="rounded-lg border p-4 bg-card">
+          <div className="text-sm font-medium mb-1">Decisão / Observações</div>
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap">{processo.decisao_tst}</p>
+        </div>
+      )}
+
+      <Link
+        to={`/processos/${processo.id}`}
+        className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+      >
+        <ExternalLink className="h-4 w-4" />
+        Abrir processo
+      </Link>
+
+      <p className="text-xs text-muted-foreground">
+        Este item é gerado automaticamente a partir do campo <strong>Data Fatal</strong> do processo e não pode ser editado pelo painel da agenda. Para alterar, edite o processo.
+      </p>
+    </div>
+  );
+}
 
 interface EdicaoItemPanelProps {
   item: ItemAgendaUnificado;
@@ -23,7 +99,8 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
   const [evento, setEvento] = useState<any | null>(null);
 
   const isParcelamento = item.tipo === "parcelamento";
-  const isEvento = item.origem === "evento" || isParcelamento;
+  const isPrazoFatalTst = typeof item.id === "string" && item.id.startsWith("prazo-tst-");
+  const isEvento = (item.origem === "evento" || isParcelamento) && !isPrazoFatalTst;
 
   const { data: coordenacoes = [] } = useQuery({
     queryKey: ["coordenacoes-edicao-painel-lateral", isAdmin, user?.id],
@@ -49,7 +126,16 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (isEvento) {
+      if (isPrazoFatalTst) {
+        // PRAZO FATAL TST não é tarefa nem evento — dados vêm direto de `processos`
+        const processoId = item.processo_id || item.id.replace(/^prazo-tst-/, "");
+        const { data } = await supabase
+          .from("processos")
+          .select("id, numero, polo_ativo, polo_passivo, data_fatal, decisao_tst, responsavel_tst, equipe_tst, status, cliente_id")
+          .eq("id", processoId)
+          .maybeSingle();
+        if (!cancelled) setEvento(data);
+      } else if (isEvento) {
         const { data } = await supabase
           .from("eventos_agenda")
           .select("*")
@@ -68,7 +154,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
     return () => {
       cancelled = true;
     };
-  }, [item.id, isEvento]);
+  }, [item.id, isEvento, isPrazoFatalTst, item.processo_id]);
 
   const closeAfter = () => {
     onUpdate?.();
@@ -83,7 +169,9 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
         </Button>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {isParcelamento ? (
+        {isPrazoFatalTst ? (
+          evento && <PrazoFatalReadOnlyPanel processo={evento} diasRestantes={item.dias_restantes} />
+        ) : isParcelamento ? (
           evento && (
             <GerarParcelasDialog
               inline
