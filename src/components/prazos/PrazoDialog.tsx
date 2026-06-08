@@ -454,10 +454,11 @@ export function PrazoDialog({
     </form>
   );
 
+  if (inline) {
+    return <div className="h-full flex flex-col bg-background overflow-hidden">{FormContent}</div>;
+  }
+
   return (
-    inline ? (
-      <div className="h-full flex flex-col bg-background overflow-hidden">{FormContent}</div>
-    ) :
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
