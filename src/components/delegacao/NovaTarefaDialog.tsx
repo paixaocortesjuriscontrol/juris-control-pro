@@ -964,6 +964,21 @@ export function NovaTarefaDialog({
             {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
           </Button>
         </div>
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div className="h-full flex flex-col bg-background overflow-hidden">
+        {Body}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        {Body}
       </DialogContent>
     </Dialog>
   );
