@@ -1209,24 +1209,6 @@ export default function PainelControle() {
             </div>
           </div>
 
-          {/* Painel de detalhes — tela cheia no mobile, lado a lado no desktop */}
-          {selectedItem && (
-            <div className={cn(
-              "flex flex-col bg-card overflow-hidden",
-              // Mobile: tela cheia absoluta sobre o calendário
-              "absolute inset-0 md:relative md:inset-auto",
-              // Desktop: ~60% ao lado
-              "md:w-[60%] md:border-l md:border-border"
-            )}>
-              <TarefaAgendaPanel
-                tarefa={selectedItem}
-                onClose={() => setSelectedItem(null)}
-                onUpdate={() => {
-                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                }}
-              />
-            </div>
-          )}
         </div>
         )}
       </div>
