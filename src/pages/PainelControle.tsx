@@ -1198,8 +1198,8 @@ export default function PainelControle() {
               "flex flex-col bg-card overflow-hidden",
               // Mobile: tela cheia absoluta sobre o calendário
               "absolute inset-0 md:relative md:inset-auto",
-              // Desktop: 45% ao lado
-              "md:w-[45%] md:border-l md:border-border"
+              // Desktop: ~60% ao lado
+              "md:w-[60%] md:border-l md:border-border"
             )}>
               <TarefaAgendaPanel
                 tarefa={selectedItem}
