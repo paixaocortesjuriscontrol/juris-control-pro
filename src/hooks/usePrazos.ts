@@ -374,7 +374,7 @@ export function useUpdateTarefa() {
       prioridade?: "baixa" | "media" | "alta" | "urgente";
       responsavel_id?: string;
       observacoes?: string;
-      data_cumprimento?: string;
+      data_cumprimento?: string | null;
       tipo_tarefa?: string | null;
       data_base?: string | null;
       data_fatal?: string | null;
