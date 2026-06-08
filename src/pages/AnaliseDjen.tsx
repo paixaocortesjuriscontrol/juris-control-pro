@@ -197,6 +197,47 @@ const AnaliseDjen = () => {
     }
   };
 
+  // Lotes recentes de descarte em massa (para botão Desfazer persistente)
+  const { data: lotesRecentes = [], refetch: refetchLotesRecentes } = useQuery({
+    queryKey: ['descartadas-lotes-recentes', coordenacaoFiltroEfetivo],
+    queryFn: async () => {
+      if (!coordenacaoFiltroEfetivo) return [] as Array<{ lote_id: string; total: number; nome: string; created_at: string }>;
+      const { data, error } = await (supabase as any)
+        .from('publicacoes_djen_descartadas')
+        .select('lote_descarte_id, descartado_por_nome, created_at')
+        .eq('coordenacao_id', coordenacaoFiltroEfetivo)
+        .eq('motivo_descarte', 'duplicada_lote')
+        .not('lote_descarte_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) {
+        console.warn('Erro lotes recentes:', error);
+        return [];
+      }
+      const map = new Map<string, { lote_id: string; total: number; nome: string; created_at: string }>();
+      for (const r of (data || [])) {
+        const id = r.lote_descarte_id as string;
+        const prev = map.get(id);
+        if (prev) {
+          prev.total += 1;
+        } else {
+          map.set(id, {
+            lote_id: id,
+            total: 1,
+            nome: r.descartado_por_nome || 'Usuário',
+            created_at: r.created_at,
+          });
+        }
+      }
+      return Array.from(map.values())
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .slice(0, 5);
+    },
+    enabled: !!coordenacaoFiltroEfetivo,
+    staleTime: 15_000,
+  });
+
+
   const descartarDuplicadasCoordenacao = async () => {
     const coordId = coordenacaoFiltroEfetivo;
     if (!coordId) {
