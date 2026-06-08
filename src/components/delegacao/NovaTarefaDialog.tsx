@@ -727,6 +727,42 @@ export function NovaTarefaDialog({
                 )}
               />
 
+              {/* Envolvidos (colaboradores) */}
+              <div className="space-y-1.5">
+                {!mostrarEnvolvidos ? (
+                  <button
+                    type="button"
+                    onClick={() => setMostrarEnvolvidos(true)}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    + Envolver mais pessoas
+                  </button>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Envolvidos (acompanham)</Label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMostrarEnvolvidos(false);
+                          setEnvolvidosIds([]);
+                        }}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Ocultar
+                      </button>
+                    </div>
+                    <PeoplePicker
+                      selectedIds={envolvidosIds}
+                      onChange={setEnvolvidosIds}
+                      placeholder="Adicionar colaborador"
+                      emptyLabel="Apenas para acompanhamento"
+                      icon="users"
+                    />
+                  </>
+                )}
+              </div>
+
               {/* Data base */}
               <FormField
                 control={form.control}
