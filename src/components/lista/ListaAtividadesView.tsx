@@ -377,14 +377,11 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
         <div
           className={cn(
             "grid grid-cols-1 gap-4",
-            detalhesPrazo
-              ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
-              : "lg:grid-cols-[280px_1fr]",
+            "lg:grid-cols-[280px_1fr]",
             embedded && "flex-1 min-h-0 lg:overflow-hidden"
           )}
         >
-          {/* Filtros laterais — ocultos no modo dividido */}
-          {!detalhesPrazo && (
+          {/* Filtros laterais */}
           <Card className="p-4 h-fit lg:sticky lg:top-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-semibold">
