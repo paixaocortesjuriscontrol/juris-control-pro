@@ -6245,18 +6245,24 @@ export type Database = {
           dedup_data_ref: string | null
           dedup_head_norm: string | null
           dedup_processo_digits: string | null
+          descartado_por: string | null
+          descartado_por_nome: string | null
           fonte: string | null
           hash_conteudo: string
           id: string
           id_djen: string | null
+          id_origem: string | null
           lida: boolean
+          lote_descarte_id: string | null
           meio: string | null
-          monitoramento_id: string
+          monitoramento_id: string | null
           motivo_descarte: string
           orgao: string | null
           partes_json: Json | null
+          payload_origem: Json | null
           processo_numero: string | null
           tipo_comunicacao: string | null
+          tipo_origem_origem: string | null
           tribunal: string | null
         }
         Insert: {
@@ -6269,18 +6275,24 @@ export type Database = {
           dedup_data_ref?: string | null
           dedup_head_norm?: string | null
           dedup_processo_digits?: string | null
+          descartado_por?: string | null
+          descartado_por_nome?: string | null
           fonte?: string | null
           hash_conteudo: string
           id?: string
           id_djen?: string | null
+          id_origem?: string | null
           lida?: boolean
+          lote_descarte_id?: string | null
           meio?: string | null
-          monitoramento_id: string
+          monitoramento_id?: string | null
           motivo_descarte: string
           orgao?: string | null
           partes_json?: Json | null
+          payload_origem?: Json | null
           processo_numero?: string | null
           tipo_comunicacao?: string | null
+          tipo_origem_origem?: string | null
           tribunal?: string | null
         }
         Update: {
@@ -6293,18 +6305,24 @@ export type Database = {
           dedup_data_ref?: string | null
           dedup_head_norm?: string | null
           dedup_processo_digits?: string | null
+          descartado_por?: string | null
+          descartado_por_nome?: string | null
           fonte?: string | null
           hash_conteudo?: string
           id?: string
           id_djen?: string | null
+          id_origem?: string | null
           lida?: boolean
+          lote_descarte_id?: string | null
           meio?: string | null
-          monitoramento_id?: string
+          monitoramento_id?: string | null
           motivo_descarte?: string
           orgao?: string | null
           partes_json?: Json | null
+          payload_origem?: Json | null
           processo_numero?: string | null
           tipo_comunicacao?: string | null
+          tipo_origem_origem?: string | null
           tribunal?: string | null
         }
         Relationships: [
@@ -7594,10 +7612,15 @@ export type Database = {
         Args: { p_coordenacao_id: string }
         Returns: number
       }
+      descartar_duplicadas_coordenacao: {
+        Args: { p_coordenacao_id: string }
+        Returns: Json
+      }
       descartar_publicacao_manualmente: {
         Args: { p_id: string; p_motivo?: string; p_tipo_origem: string }
         Returns: Json
       }
+      desfazer_descarte_lote: { Args: { p_lote_id: string }; Returns: Json }
       djen_normalize_conteudo_sem_destinatarios: {
         Args: { p_text: string }
         Returns: string
