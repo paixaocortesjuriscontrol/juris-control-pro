@@ -502,6 +502,9 @@ function exportarPdf(
     sourceLabel?: string;
     tiposEsq?: TipoCounts | null;
     tiposDir?: TipoCounts | null;
+    coordenacaoNome?: string;
+    dataInicioDisp?: Date | null;
+    dataFimDisp?: Date | null;
   } = {},
 ) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
