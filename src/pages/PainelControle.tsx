@@ -999,17 +999,8 @@ export default function PainelControle() {
         ) : (
         <div className="flex flex-1 min-h-0 overflow-hidden relative">
 
-          {/* Calendário Mensal — escondido no mobile quando item selecionado */}
-          <div
-            className={cn(
-              "flex flex-col border-r border-border bg-card transition-all duration-300",
-              // Desktop: lado a lado
-              "md:flex md:flex-col",
-              selectedItem ? "md:w-[50%]" : "md:flex-1",
-              // Mobile: tela cheia ou escondido quando item selecionado
-              selectedItem ? "hidden md:flex" : "flex flex-1"
-            )}
-          >
+          {/* Calendário Mensal */}
+          <div className="flex flex-col border-r border-border bg-card flex-1">
             {/* Cabeçalho calendário */}
             <div className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-3 border-b border-border flex-shrink-0">
               <h2 className="text-sm md:text-base font-bold text-foreground flex-1">Agenda</h2>
