@@ -1181,6 +1181,11 @@ export default function ImportarTarefas() {
         const juizo = String(row["Juízo"] || row["Juizo"] || "").trim();
         const observacao = String(row["Observação da atividade"] || row["Observacao da atividade"] || "").trim();
         const etiquetas = String(row["Etiquetas"] || "").trim();
+        const envolvidos = String(row["Envolvidos"] || "").trim();
+        const statusOrigem = String(row["Status"] || "").trim();
+        const prioridadeOrigem = String(row["Prioridade"] || "").trim();
+        const dataCriacao = String(row["Data de criação"] || row["Data de criacao"] || "").trim();
+        const dataConclusao = String(row["Data de conclusão"] || row["Data de conclusao"] || "").trim();
 
         // Generate unique identifier based on data+hora+titulo+processo
         const identificador = `astrea-${data}-${hora}-${titulo}-${numeroProcesso}`.replace(/[^a-zA-Z0-9-]/g, "_").substring(0, 100);
@@ -1197,6 +1202,11 @@ export default function ImportarTarefas() {
           juizo: juizo || null,
           observacao: observacao || null,
           etiquetas: etiquetas || null,
+          envolvidos: envolvidos || null,
+          statusOrigem: statusOrigem || null,
+          prioridadeOrigem: prioridadeOrigem || null,
+          dataConclusao: dataConclusao || null,
+          dataCriacao: dataCriacao || null,
           status: "pendente",
           erros: [],
           linhaOriginal: index + 2,
