@@ -383,6 +383,13 @@ export function NovaTarefaDialog({
 
       if (error) throw error;
 
+      // Inserir envolvidos
+      if (novaTarefa?.id && envolvidosIds.length > 0) {
+        await supabase.from("tarefa_envolvidos").insert(
+          envolvidosIds.map((uid) => ({ tarefa_id: novaTarefa.id, usuario_id: uid }))
+        );
+      }
+
       // Disparar notificação para o responsável (fire and forget)
       if (novaTarefa?.id && values.responsavel_id) {
         supabase.functions.invoke("notificar-tarefa-criada", {
