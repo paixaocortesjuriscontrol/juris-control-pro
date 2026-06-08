@@ -964,7 +964,7 @@ export default function PainelControle() {
 
         {/* Corpo principal: calendário + painel detalhe OU lista de atividades */}
         {viewMode === "lista" ? (
-          <div className="flex-1 min-h-0 overflow-auto">
+          <div className="flex-1 min-h-0 overflow-hidden">
             <ListaAtividadesView embedded onRequestNovo={() => setNovaTarefaOpen(true)} />
           </div>
         ) : viewMode === "prazos" ? (

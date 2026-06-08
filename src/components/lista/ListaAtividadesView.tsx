@@ -361,14 +361,18 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
           </Button>
         </div>
       )}
-      <div className={cn("flex flex-col gap-4 bg-muted/30", embedded ? "p-3 md:p-4" : "p-4 lg:p-6 min-h-[calc(100vh-4rem)]")}>
+      <div className={cn(
+        "flex flex-col gap-4 bg-muted/30",
+        embedded ? "p-3 md:p-4 h-full min-h-0 overflow-hidden" : "p-4 lg:p-6 min-h-[calc(100vh-4rem)]"
+      )}>
 
         <div
           className={cn(
             "grid grid-cols-1 gap-4",
             detalhesPrazo
-              ? "lg:grid-cols-[minmax(0,1fr)_minmax(560px,1.3fr)]"
+              ? "lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]"
               : "lg:grid-cols-[280px_1fr]",
+            embedded && "flex-1 min-h-0 lg:overflow-hidden"
           )}
         >
           {/* Filtros laterais — ocultos no modo dividido */}
@@ -549,9 +553,12 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
           )}
 
           {/* Tabela */}
-          <Card className="overflow-hidden">
+          <Card className={cn(
+            "overflow-hidden",
+            embedded && "lg:h-full lg:min-h-0 lg:flex lg:flex-col"
+          )}>
             {/* Toolbar de bulk */}
-            <div className="flex items-center justify-between border-b px-3 py-2 bg-muted/40">
+            <div className="flex items-center justify-between border-b px-3 py-2 bg-muted/40 flex-shrink-0">
               <div className="text-xs text-muted-foreground">
                 {selected.size > 0
                   ? `${selected.size} selecionada(s)`
@@ -595,7 +602,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
               </div>
             </div>
 
-            <div className="overflow-auto">
+            <div className={cn("overflow-auto", embedded && "lg:flex-1 lg:min-h-0")}>
               <Table className="text-xs w-full table-fixed">
                 <colgroup>
                   <col className="w-9" />
@@ -807,7 +814,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
             </div>
 
             {/* Paginação inferior */}
-            <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground flex-shrink-0">
               <div className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
                 {total.toLocaleString("pt-BR")} resultado(s)
@@ -840,7 +847,11 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
 
           {/* Painel de detalhes (split-screen) */}
           {detalhesPrazo && (
-            <div className="lg:sticky lg:top-4 h-[calc(100vh-6rem)]">
+            <div className={cn(
+              embedded
+                ? "lg:h-full lg:min-h-0 lg:overflow-hidden h-[calc(100vh-12rem)]"
+                : "lg:sticky lg:top-4 h-[calc(100vh-6rem)]"
+            )}>
               <TarefaAgendaPanel
                 key={detalhesPrazo.id + (detalhesEditOnOpen ? ":edit" : "")}
                 autoEdit={detalhesEditOnOpen}

@@ -949,7 +949,7 @@ export function TarefaAgendaPanel({
   const isConcluido = tarefa.status === "concluido" || tarefa.status === "cumprido";
 
   return (
-    <Card className="h-full flex flex-col border-l-4 border-l-primary">
+    <Card className="h-full flex flex-col">
       <CardHeader className="pb-3 space-y-3">
         {/* Header */}
         <div className="flex items-start justify-between gap-2">
