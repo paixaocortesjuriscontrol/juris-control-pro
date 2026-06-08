@@ -4056,6 +4056,23 @@ const AnaliseDjen = () => {
                     )}
                     Descartar duplicadas da coordenação
                   </Button>
+                  {lotesRecentes.length > 0 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => desfazerDescarteLote(lotesRecentes[0].lote_id)}
+                      disabled={!!desfazendoLote}
+                      title={`Desfazer descarte de ${lotesRecentes[0].total} publicação(ões) por ${lotesRecentes[0].nome} em ${format(parseISO(lotesRecentes[0].created_at), "dd/MM HH:mm", { locale: ptBR })}`}
+                    >
+                      {desfazendoLote ? (
+                        <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+                      ) : (
+                        <Undo2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+                      )}
+                      Desfazer último ({lotesRecentes[0].total}) — {lotesRecentes[0].nome}
+                    </Button>
+                  )}
                 </div>
               </div>
 
