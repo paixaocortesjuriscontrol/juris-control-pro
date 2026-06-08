@@ -1132,21 +1132,49 @@ export function TarefaAgendaPanel({
 
                   {/* Linha 3: Responsável */}
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Responsável</Label>
-                    <Select
-                      value={editForm.responsavel_id}
-                      onValueChange={(v) => setEditForm(f => ({ ...f, responsavel_id: v }))}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Selecionar..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {membrosEdicao.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-xs text-muted-foreground">
+                      Responsáveis<span className="text-destructive">*</span>
+                    </Label>
+                    <PeoplePicker
+                      selectedIds={editResponsaveisIds}
+                      onChange={setEditResponsaveisIds}
+                      placeholder="Adicionar responsável"
+                      emptyLabel="Nenhum responsável selecionado"
+                    />
+                    {!editMostrarEnvolvidos && (
+                      <button
+                        type="button"
+                        onClick={() => setEditMostrarEnvolvidos(true)}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        + Envolver mais pessoas
+                      </button>
+                    )}
                   </div>
+                  {editMostrarEnvolvidos && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Envolvidos (acompanham)</Label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditMostrarEnvolvidos(false);
+                            setEditEnvolvidosIds([]);
+                          }}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Ocultar
+                        </button>
+                      </div>
+                      <PeoplePicker
+                        selectedIds={editEnvolvidosIds}
+                        onChange={setEditEnvolvidosIds}
+                        placeholder="Adicionar envolvido"
+                        emptyLabel="Apenas para acompanhamento"
+                        icon="users"
+                      />
+                    </div>
+                  )}
                 </>
               )}
 
@@ -1203,6 +1231,18 @@ export function TarefaAgendaPanel({
                         className="h-9"
                       />
                     </div>
+                  </div>
+
+                  {/* Envolvidos / Participantes do evento */}
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Envolvidos / Participantes</Label>
+                    <PeoplePicker
+                      selectedIds={editEnvolvidosIds}
+                      onChange={setEditEnvolvidosIds}
+                      placeholder="Adicionar participante"
+                      emptyLabel="Nenhum participante"
+                      icon="users"
+                    />
                   </div>
                 </>
               )}
