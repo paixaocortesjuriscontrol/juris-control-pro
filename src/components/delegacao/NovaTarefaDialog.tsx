@@ -75,6 +75,7 @@ interface NovaTarefaDialogProps {
   onSuccess?: () => void;
   processoPreSelecionado?: { id: string; numero: string } | null;
   tarefaParaEditar?: any | null;
+  inline?: boolean;
 }
 
 const tiposTarefa = [
@@ -101,6 +102,7 @@ export function NovaTarefaDialog({
   onSuccess,
   processoPreSelecionado,
   tarefaParaEditar,
+  inline = false,
 }: NovaTarefaDialogProps) {
   const [loading, setLoading] = useState(false);
   const [searchProcesso, setSearchProcesso] = useState("");
