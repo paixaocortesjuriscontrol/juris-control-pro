@@ -39,6 +39,7 @@ interface EventoDialogProps {
   evento?: EventoAgenda | null;
   defaultProcessoId?: string;
   publicacao?: PublicacaoUnificada | null;
+  inline?: boolean;
 }
 
 type AlertaUnidade = "minutos" | "horas" | "dias" | "semanas";
@@ -64,7 +65,7 @@ function minutosParaUnidade(min: number): { valor: number; unidade: AlertaUnidad
   return { valor: min, unidade: "minutos" };
 }
 
-export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao }: EventoDialogProps) {
+export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
   const isEditing = !!evento;
@@ -255,6 +256,23 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
 
   const isPending = createEvento.isPending || updateEvento.isPending;
   const hasPublicacao = !!publicacao;
+
+  if (inline) {
+    return (
+      <div className="h-full flex flex-col bg-background overflow-hidden">
+        <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0 border-b">
+          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
+            {isEditing ? "Editar Evento" : "Novo Evento"}
+          </h3>
+        </div>
+        <ScrollArea className="flex-1 px-6">
+          <form onSubmit={handleSubmit} className="space-y-5 py-4" id="evento-form-content-inline">
+            {renderFormFields()}
+          </form>
+        </ScrollArea>
+      </div>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
