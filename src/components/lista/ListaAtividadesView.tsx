@@ -851,25 +851,46 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
             </div>
           </Card>
 
-          {/* Edição via popup (mesmo formulário do "Adicionar") */}
-          <NovaTarefaDialog
-            open={!!detalhesPrazo}
-            onOpenChange={(o) => {
-              if (!o) {
-                setDetalhesPrazo(null);
-                setDetalhesEditOnOpen(false);
-              }
-            }}
-            coordenacoes={(coordenacoes ?? []).map((c: any) => ({
-              id: c.id,
-              nome: c.nome,
-              area: c.area ?? "",
-            }))}
-            tarefaParaEditar={detalhesPrazo}
-            onSuccess={() => {
-              queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
-            }}
-          />
+          {/* Edição via painel lateral (mesmo formulário do "Adicionar") */}
+          {detalhesPrazo && (
+            <aside className="hidden lg:flex flex-col border rounded-md bg-background min-h-0 overflow-hidden">
+              <div className="flex items-center justify-end px-2 py-1.5 border-b bg-card flex-shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => {
+                    setDetalhesPrazo(null);
+                    setDetalhesEditOnOpen(false);
+                  }}
+                  title="Fechar"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <NovaTarefaDialog
+                  inline
+                  open
+                  onOpenChange={(o) => {
+                    if (!o) {
+                      setDetalhesPrazo(null);
+                      setDetalhesEditOnOpen(false);
+                    }
+                  }}
+                  coordenacoes={(coordenacoes ?? []).map((c: any) => ({
+                    id: c.id,
+                    nome: c.nome,
+                    area: c.area ?? "",
+                  }))}
+                  tarefaParaEditar={detalhesPrazo}
+                  onSuccess={() => {
+                    queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+                  }}
+                />
+              </div>
+            </aside>
+          )}
         </div>
       </div>
     </>
