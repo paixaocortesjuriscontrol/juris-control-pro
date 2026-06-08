@@ -130,25 +130,6 @@ export function NovaTarefaDialog({
   const tipoVinculo = form.watch("tipo_vinculo");
   const coordenacaoId = form.watch("coordenacao_id");
 
-  // Fetch membros based on coordination
-  const { data: membros } = useQuery({
-    queryKey: ["membros-nova-tarefa", coordenacaoId],
-    queryFn: async () => {
-      if (!coordenacaoId) return [];
-      const { data, error } = await supabase
-        .from("membros_coordenacao")
-        .select(`
-          id,
-          usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
-        `)
-        .eq("coordenacao_id", coordenacaoId);
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!coordenacaoId,
-  });
-
   // Fetch processos based on coordination and search
   const { data: processos, isLoading: loadingProcessos } = useQuery({
     queryKey: ["processos-nova-tarefa", coordenacaoId, searchProcesso],
@@ -565,10 +546,6 @@ export function NovaTarefaDialog({
       setLoading(false);
     }
   };
-
-  const advogadosDisponiveis = membros
-    ?.filter((m) => m.usuario?.id)
-    .map((m) => ({ id: m.usuario!.id, nome: m.usuario!.nome })) || [];
 
   const Header = (
     inline ? (
