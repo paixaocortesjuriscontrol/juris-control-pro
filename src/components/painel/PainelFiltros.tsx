@@ -45,6 +45,7 @@ const CLASSIFICACOES = [
   { value: "evento", label: "Eventos" },
   { value: "prazo", label: "Prazos" },
   { value: "audiencia", label: "Audiências" },
+  { value: "parcelamento", label: "Parcelamento recorrente" },
 ];
 
 const STATUS_GROUPS: { value: PainelFiltrosState["statusGroup"]; label: string }[] = [
