@@ -43,7 +43,8 @@ import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { TarefaAgendaPanel } from "@/components/agenda/TarefaAgendaPanel";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
-import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
+import { TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
+import { ItemAgendaEditDispatcher } from "@/components/agenda/ItemAgendaEditDispatcher";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Prazo } from "@/hooks/usePrazos";
@@ -128,10 +129,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
 
   const debouncedSearch = useDebouncedValue(filters.search, 300);
 
-  // Collapse main app sidebar while a tarefa is selected (split-screen mode)
-  useEffect(() => {
-    if (detalhesPrazo) setCollapsed(true);
-  }, [detalhesPrazo, setCollapsed]);
+  // (Sem split-screen — clique abre um dialog modal)
 
   const { data: coordenacoes, isLoading: coordenacoesLoading } = useCoordenacoesFull();
 
