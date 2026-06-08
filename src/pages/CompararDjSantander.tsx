@@ -502,6 +502,9 @@ function exportarPdf(
     sourceLabel?: string;
     tiposEsq?: TipoCounts | null;
     tiposDir?: TipoCounts | null;
+    coordenacaoNome?: string;
+    dataInicioDisp?: Date | null;
+    dataFimDisp?: Date | null;
   } = {},
 ) {
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
@@ -915,7 +918,18 @@ function exportarPdf(
     doc.text(`Juris Control – Comparar DJEN – Página ${i}/${total}`, pageWidth / 2, pageHeight - 6, { align: "center" });
   }
 
-  doc.save(`comparacao_djen_${new Date().toISOString().slice(0, 10)}.pdf`);
+  const sanitize = (s: string) =>
+    (s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const fmt = (d?: Date | null) => (d ? `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}` : "");
+  const hoje = new Date();
+  const partes = [
+    "comparacao_djen",
+    sanitize(opts.coordenacaoNome || ""),
+    opts.dataInicioDisp ? `disp_${fmt(opts.dataInicioDisp)}` : "",
+    opts.dataFimDisp ? `a_${fmt(opts.dataFimDisp)}` : "",
+    `gerado_${fmt(hoje)}`,
+  ].filter(Boolean);
+  doc.save(`${partes.join("_")}.pdf`);
 }
 
 type CompareMode = "pdf" | "djen" | "pdf-diario" | "excel-projuris" | "excel-astrea";
@@ -2168,7 +2182,15 @@ export default function CompararDjSantander() {
           <Button
             size="lg"
             variant="outline"
-          onClick={() => exportarPdf(result, leftFileName, sourceFileName, analise, { leftLabel, sourceLabel, tiposEsq, tiposDir })}
+          onClick={() => exportarPdf(result, leftFileName, sourceFileName, analise, {
+            leftLabel,
+            sourceLabel,
+            tiposEsq,
+            tiposDir,
+            coordenacaoNome: coordenacoes.find(c => c.id === selectedCoordenacao)?.nome || "",
+            dataInicioDisp: selectedDate ?? null,
+            dataFimDisp: selectedDateFim ?? selectedDate ?? null,
+          })}
             className="gap-2"
           >
             <Download className="w-5 h-5" />
