@@ -214,6 +214,14 @@ export function NovaTarefaDialog({
         });
         setSearchProcesso(processoNumero);
         setAnexos([]);
+        // Carregar envolvidos existentes
+        const { data: envs } = await supabase
+          .from("tarefa_envolvidos")
+          .select("usuario_id")
+          .eq("tarefa_id", tarefaParaEditar.id);
+        const envIds = (envs || []).map((e: any) => e.usuario_id);
+        setEnvolvidosIds(envIds);
+        setMostrarEnvolvidos(envIds.length > 0);
         return;
       }
       const coordenacaoInicial = coordenacoes.length === 1 ? coordenacoes[0].id : "";
@@ -234,6 +242,8 @@ export function NovaTarefaDialog({
       });
       setSearchProcesso(processoPreSelecionado?.numero || "");
       setAnexos([]);
+      setEnvolvidosIds([]);
+      setMostrarEnvolvidos(false);
     })();
   }, [open, processoPreSelecionado, form, coordenacoes, tarefaParaEditar]);
 
