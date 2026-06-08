@@ -361,14 +361,18 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
           </Button>
         </div>
       )}
-      <div className={cn("flex flex-col gap-4 bg-muted/30", embedded ? "p-3 md:p-4" : "p-4 lg:p-6 min-h-[calc(100vh-4rem)]")}>
+      <div className={cn(
+        "flex flex-col gap-4 bg-muted/30",
+        embedded ? "p-3 md:p-4 h-full min-h-0 overflow-hidden" : "p-4 lg:p-6 min-h-[calc(100vh-4rem)]"
+      )}>
 
         <div
           className={cn(
             "grid grid-cols-1 gap-4",
             detalhesPrazo
-              ? "lg:grid-cols-[minmax(0,1fr)_minmax(560px,1.3fr)]"
+              ? "lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]"
               : "lg:grid-cols-[280px_1fr]",
+            embedded && "flex-1 min-h-0 lg:overflow-hidden"
           )}
         >
           {/* Filtros laterais — ocultos no modo dividido */}
