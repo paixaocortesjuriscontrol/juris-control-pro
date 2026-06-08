@@ -75,6 +75,7 @@ interface NovaTarefaDialogProps {
   onSuccess?: () => void;
   processoPreSelecionado?: { id: string; numero: string } | null;
   tarefaParaEditar?: any | null;
+  inline?: boolean;
 }
 
 const tiposTarefa = [
@@ -101,6 +102,7 @@ export function NovaTarefaDialog({
   onSuccess,
   processoPreSelecionado,
   tarefaParaEditar,
+  inline = false,
 }: NovaTarefaDialogProps) {
   const [loading, setLoading] = useState(false);
   const [searchProcesso, setSearchProcesso] = useState("");
@@ -514,19 +516,35 @@ export function NovaTarefaDialog({
     ?.filter((m) => m.usuario?.id)
     .map((m) => ({ id: m.usuario!.id, nome: m.usuario!.nome })) || [];
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
-        <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            {tarefaParaEditar ? "Editar Tarefa" : "Nova Tarefa"}
-          </DialogTitle>
-          <DialogDescription>
-            {tarefaParaEditar
-              ? "Atualize os campos e salve as alterações"
-              : "Preencha os campos para criar uma nova tarefa"}
-          </DialogDescription>
-        </DialogHeader>
+  const Header = (
+    inline ? (
+      <div className="px-6 pt-5 pb-3 shrink-0 border-b">
+        <h3 className="text-base font-semibold flex items-center gap-2">
+          {tarefaParaEditar ? "Editar Tarefa" : "Nova Tarefa"}
+        </h3>
+        <p className="text-xs text-muted-foreground">
+          {tarefaParaEditar
+            ? "Atualize os campos e salve as alterações"
+            : "Preencha os campos para criar uma nova tarefa"}
+        </p>
+      </div>
+    ) : (
+      <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
+        <DialogTitle className="flex items-center gap-2">
+          {tarefaParaEditar ? "Editar Tarefa" : "Nova Tarefa"}
+        </DialogTitle>
+        <DialogDescription>
+          {tarefaParaEditar
+            ? "Atualize os campos e salve as alterações"
+            : "Preencha os campos para criar uma nova tarefa"}
+        </DialogDescription>
+      </DialogHeader>
+    )
+  );
+
+  const Body = (
+    <>
+      {Header}
 
         <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
           <Form {...form}>
@@ -946,6 +964,21 @@ export function NovaTarefaDialog({
             {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
           </Button>
         </div>
+    </>
+  );
+
+  if (inline) {
+    return (
+      <div className="h-full flex flex-col bg-background overflow-hidden">
+        {Body}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        {Body}
       </DialogContent>
     </Dialog>
   );
