@@ -356,7 +356,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
               {total.toLocaleString("pt-BR")} atividade(s) encontrada(s)
             </p>
           </div>
-          <Button onClick={() => (onRequestNovo ? onRequestNovo() : setDialogOpen(true))} className="gap-2">
+          <Button onClick={() => onRequestNovo?.()} className="gap-2">
             <Plus className="h-4 w-4" /> Novo
           </Button>
         </div>
@@ -367,7 +367,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
           className={cn(
             "grid grid-cols-1 gap-4",
             detalhesPrazo
-              ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(380px,1fr)]"
+              ? "lg:grid-cols-[minmax(0,1fr)_minmax(560px,1.3fr)]"
               : "lg:grid-cols-[280px_1fr]",
           )}
         >
