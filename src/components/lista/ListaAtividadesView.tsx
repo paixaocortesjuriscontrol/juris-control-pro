@@ -557,7 +557,6 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
               />
             </div>
           </Card>
-          )}
 
           {/* Tabela */}
           <Card className={cn(
