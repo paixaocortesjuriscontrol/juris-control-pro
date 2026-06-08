@@ -34,6 +34,8 @@ import {
   ClipboardList,
   CalendarPlus,
   Clock,
+  Trash,
+  Undo2,
 } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
