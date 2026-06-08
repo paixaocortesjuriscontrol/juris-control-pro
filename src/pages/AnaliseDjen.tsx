@@ -352,7 +352,14 @@ const AnaliseDjen = () => {
 
   const descartarDuplicadasCoordenacao = async () => {
     const coordId = coordenacaoFiltroEfetivo;
-    if (!coordId) { toast.error('Selecione uma coordenação primeiro.'); return; }
+    if (!coordId) {
+      toast.error('Selecione uma coordenação específica antes de descartar duplicadas.');
+      return;
+    }
+    if (!isAdmin && !userCoordenacaoIds.includes(coordId)) {
+      toast.error('Você só pode descartar duplicadas das coordenações às quais pertence.');
+      return;
+    }
     const confirma = window.confirm(
       'Descartar TODAS as publicações duplicadas (mesmo processo + dia + conteúdo) desta coordenação?\n\n' +
       'A publicação mais antiga de cada grupo é mantida. Você poderá DESFAZER pelo botão "Desfazer último descarte".'
