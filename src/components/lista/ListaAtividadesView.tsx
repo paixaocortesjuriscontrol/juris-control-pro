@@ -814,7 +814,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
             </div>
 
             {/* Paginação inferior */}
-            <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground">
+            <div className="flex items-center justify-between border-t px-3 py-2 text-xs text-muted-foreground flex-shrink-0">
               <div className="flex items-center gap-1">
                 <Clock className="h-3 w-3" />
                 {total.toLocaleString("pt-BR")} resultado(s)
@@ -847,7 +847,11 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
 
           {/* Painel de detalhes (split-screen) */}
           {detalhesPrazo && (
-            <div className="lg:sticky lg:top-4 h-[calc(100vh-6rem)]">
+            <div className={cn(
+              embedded
+                ? "lg:h-full lg:min-h-0 lg:overflow-hidden h-[calc(100vh-12rem)]"
+                : "lg:sticky lg:top-4 h-[calc(100vh-6rem)]"
+            )}>
               <TarefaAgendaPanel
                 key={detalhesPrazo.id + (detalhesEditOnOpen ? ":edit" : "")}
                 autoEdit={detalhesEditOnOpen}
