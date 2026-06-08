@@ -1227,7 +1227,11 @@ export default function PainelControle() {
       {/* Nova Tarefa */}
       <NovaTarefaDialogWrapper
         open={novaTarefaOpen}
-        onOpenChange={setNovaTarefaOpen}
+        onOpenChange={(o) => {
+          setNovaTarefaOpen(o);
+          if (!o) setTarefaEditando(null);
+        }}
+        tarefaParaEditar={tarefaEditando}
       />
 
       {/* Novo Evento */}
@@ -1240,8 +1244,11 @@ export default function PainelControle() {
       {/* Novo Prazo */}
       <PrazoDialog
         open={novoPrazoOpen}
-        onOpenChange={setNovoPrazoOpen}
-        prazo={null}
+        onOpenChange={(o) => {
+          setNovoPrazoOpen(o);
+          if (!o) setPrazoEditando(null);
+        }}
+        prazo={prazoEditando}
       />
 
       {/* Nova Audiência */}
@@ -1260,9 +1267,11 @@ export default function PainelControle() {
 function NovaTarefaDialogWrapper({
   open,
   onOpenChange,
+  tarefaParaEditar,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  tarefaParaEditar?: any | null;
 }) {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
@@ -1309,6 +1318,7 @@ function NovaTarefaDialogWrapper({
       open={open}
       onOpenChange={onOpenChange}
       coordenacoes={coordenacoes}
+      tarefaParaEditar={tarefaParaEditar}
     />
   );
 }
