@@ -557,12 +557,14 @@ export default function PainelControle() {
         const tipo = (item.tipo ?? "").toLowerCase();
         const isAudiencia = tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA" || tipo === "audiencia";
         const isPrazo = tipo === "prazo" || tipo === "prazo_parcela";
-        const isEvento = item.origem === "evento" || tipoUpper === "EVENTO" || tipo === "evento" || tipo === "parcelamento";
+        const isParcelamento = tipo === "parcelamento";
+        const isEvento = !isParcelamento && (item.origem === "evento" || tipoUpper === "EVENTO" || tipo === "evento");
         const isTarefa = !isAudiencia && !isPrazo && !isEvento;
 
         const match =
           (painelFiltros.classificacoes.includes("audiencia") && isAudiencia) ||
           (painelFiltros.classificacoes.includes("prazo") && isPrazo) ||
+          (painelFiltros.classificacoes.includes("parcelamento") && isParcelamento) ||
           (painelFiltros.classificacoes.includes("evento") && isEvento) ||
           (painelFiltros.classificacoes.includes("tarefa") && isTarefa);
         if (!match) return false;
