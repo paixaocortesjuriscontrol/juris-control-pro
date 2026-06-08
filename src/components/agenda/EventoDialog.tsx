@@ -254,6 +254,16 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
     }
   };
 
+  const handleAlterarStatus = async (status: "pendente" | "concluido" | "cancelado") => {
+    if (!evento?.id) return;
+    await updateEvento.mutateAsync({
+      id: evento.id,
+      status,
+      concluido_em: status === "concluido" ? new Date().toISOString() : null,
+    } as any);
+    onOpenChange(false);
+  };
+
   const isPending = createEvento.isPending || updateEvento.isPending;
   const hasPublicacao = !!publicacao;
 
@@ -585,6 +595,21 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               >
                 Cancelar
               </Button>
+              {isEditing && evento?.status !== "cancelado" && (
+                <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={isPending} className="w-full sm:w-auto">
+                  Cancelar evento
+                </Button>
+              )}
+              {isEditing && evento?.status !== "pendente" && (
+                <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={isPending} className="w-full sm:w-auto">
+                  Reabrir
+                </Button>
+              )}
+              {isEditing && evento?.status !== "concluido" && (
+                <Button type="button" variant="outline" onClick={() => handleAlterarStatus("concluido")} disabled={isPending} className="w-full sm:w-auto">
+                  Concluir
+                </Button>
+              )}
               <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
                 {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {isEditing ? "Salvar" : "Criar evento"}

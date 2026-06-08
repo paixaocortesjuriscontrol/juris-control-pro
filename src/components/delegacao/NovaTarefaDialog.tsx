@@ -53,7 +53,6 @@ const formSchema = z.object({
   tipo_vinculo: z.enum(["processo", "sem_vinculo"]),
   coordenacao_id: z.string().optional(),
   processo_id: z.string().optional(),
-  tipo_tarefa: z.string().min(1, "Tipo de tarefa é obrigatório"),
   titulo: z.string().min(1, "Título é obrigatório").max(200),
   descricao: z.string().optional(),
   responsavel_id: z.string().min(1, "Responsável é obrigatório"),
@@ -77,23 +76,6 @@ interface NovaTarefaDialogProps {
   tarefaParaEditar?: any | null;
   inline?: boolean;
 }
-
-const tiposTarefa = [
-  "PRAZO",
-  "TAREFA EQUIPE",
-  "VERIFICAÇÃO",
-  "DEFESA",
-  "RECURSO",
-  "CONTRARRAZÕES",
-  "PETIÇÃO",
-  "DILIGÊNCIA",
-  "AUDIÊNCIA",
-  "PROTOCOLO",
-  "ANÁLISE",
-  "ELABORAÇÃO",
-  "SOLICITAÇÃO DE DOCS",
-  "OUTROS"
-];
 
 export function NovaTarefaDialog({
   open,
@@ -127,7 +109,6 @@ export function NovaTarefaDialog({
       tipo_vinculo: "processo",
       coordenacao_id: "",
       processo_id: processoPreSelecionado?.id || "",
-      tipo_tarefa: "",
       titulo: "",
       descricao: "",
       responsavel_id: "",
@@ -216,7 +197,6 @@ export function NovaTarefaDialog({
           tipo_vinculo: tarefaParaEditar.processo_id ? "processo" : "sem_vinculo",
           coordenacao_id: coordenacaoId,
           processo_id: tarefaParaEditar.processo_id || "",
-          tipo_tarefa: tarefaParaEditar.tipo_tarefa || "",
           titulo: tarefaParaEditar.titulo || "",
           descricao: tarefaParaEditar.descricao || "",
           responsavel_id: tarefaParaEditar.responsavel_id || "",
@@ -237,7 +217,6 @@ export function NovaTarefaDialog({
         tipo_vinculo: "processo",
         coordenacao_id: coordenacaoInicial,
         processo_id: processoPreSelecionado?.id || "",
-        tipo_tarefa: "",
         titulo: "",
         descricao: "",
         responsavel_id: "",
@@ -349,7 +328,6 @@ export function NovaTarefaDialog({
             responsavel_id: values.responsavel_id,
             titulo: values.titulo,
             descricao: values.descricao || null,
-            tipo_tarefa: values.tipo_tarefa,
             data_base: values.data_base || null,
             data_vencimento: values.data_vencimento,
             data_fatal: values.data_fatal || null,
@@ -374,7 +352,6 @@ export function NovaTarefaDialog({
         responsavel_id: values.responsavel_id,
         titulo: values.titulo,
         descricao: values.descricao || null,
-        tipo_tarefa: values.tipo_tarefa,
         data_base: values.data_base || null,
         data_vencimento: values.data_vencimento,
         data_fatal: values.data_fatal || null,
@@ -458,7 +435,6 @@ export function NovaTarefaDialog({
         mensagem += `Olá ${responsavel.nome?.split(" ")[0] || ""}!\n`;
         mensagem += `Você recebeu uma nova tarefa:\n\n`;
         mensagem += `📌 *${values.titulo}*\n`;
-        mensagem += `📁 Tipo: ${values.tipo_tarefa}\n`;
         mensagem += `📆 Prazo: ${dataFormatada}\n`;
         mensagem += `⚡ Prioridade: ${prioridadeLabel}\n`;
         if (values.descricao) {
@@ -512,6 +488,34 @@ export function NovaTarefaDialog({
     }
   }
 
+  const handleAlterarStatus = async (status: "pendente" | "cumprido" | "cancelado") => {
+    if (!tarefaParaEditar?.id) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from("tarefas")
+        .update({
+          status: status as any,
+          data_cumprimento: status === "cumprido" ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", tarefaParaEditar.id);
+      if (error) throw error;
+      await queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+      await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+      await queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite-v1"] });
+      toast({
+        title: status === "cumprido" ? "Tarefa concluída" : status === "cancelado" ? "Tarefa cancelada" : "Tarefa reaberta",
+      });
+      onSuccess?.();
+      onOpenChange(false);
+    } catch (error: any) {
+      toast({ title: "Erro ao atualizar status", description: error.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const advogadosDisponiveis = membros
     ?.filter((m) => m.usuario?.id)
     .map((m) => ({ id: m.usuario!.id, nome: m.usuario!.nome })) || [];
@@ -549,6 +553,20 @@ export function NovaTarefaDialog({
         <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
           <Form {...form}>
             <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="titulo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Título</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Título da tarefa" {...field} autoFocus />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               {/* Tipo de Vínculo */}
               <FormField
                 control={form.control}
@@ -650,48 +668,6 @@ export function NovaTarefaDialog({
                   )}
                 />
               )}
-
-              {/* Tipo de Tarefa e Título */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="tipo_tarefa"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipo de tarefa *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {tiposTarefa.map((tipo) => (
-                            <SelectItem key={tipo} value={tipo}>
-                              {tipo}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="titulo"
-                  render={({ field }) => (
-                    <FormItem>
-                        <FormLabel>Título</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Título da tarefa" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
 
               {/* Responsável */}
               <FormField
@@ -954,6 +930,21 @@ export function NovaTarefaDialog({
           >
             Cancelar
           </Button>
+          {tarefaParaEditar?.id && tarefaParaEditar.status !== "cancelado" && (
+            <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={loading} className="w-full sm:w-auto">
+              Cancelar tarefa
+            </Button>
+          )}
+          {tarefaParaEditar?.id && tarefaParaEditar.status !== "pendente" && (
+            <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={loading} className="w-full sm:w-auto">
+              Reabrir
+            </Button>
+          )}
+          {tarefaParaEditar?.id && tarefaParaEditar.status !== "cumprido" && (
+            <Button type="button" variant="outline" onClick={() => handleAlterarStatus("cumprido")} disabled={loading} className="w-full sm:w-auto">
+              Concluir
+            </Button>
+          )}
           <Button 
             type="submit"
             form="nova-tarefa-form"

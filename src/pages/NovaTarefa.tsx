@@ -57,7 +57,6 @@ const formSchema = z.object({
   tipo_vinculo: z.enum(["processo", "sem_vinculo"]),
   coordenacao_id: z.string().min(1, "Coordenação é obrigatória"),
   processo_id: z.string().optional(),
-  tipo_tarefa: z.string().min(1, "Tipo de tarefa é obrigatório"),
   titulo: z.string().min(1, "Título é obrigatório").max(200),
   descricao: z.string().optional(),
   responsavel_id: z.string().min(1, "Responsável é obrigatório"),
@@ -72,10 +71,6 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
-
-const tiposTarefa = [...TIPOS_TAREFA];
-
 export default function NovaTarefa() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -84,7 +79,6 @@ export default function NovaTarefa() {
   const relacionadaId = searchParams.get("relacionada");
   
   // Parâmetros para pré-preenchimento (ex: vindo do Painel de Intimações)
-  const tipoTarefaParam = searchParams.get("tipo_tarefa");
   const tituloParam = searchParams.get("titulo");
   const coordenacaoIdParam = searchParams.get("coordenacao");
   const descricaoParam = searchParams.get("descricao");
@@ -241,14 +235,13 @@ export default function NovaTarefa() {
       tipo_vinculo: processoIdParam ? "processo" : "processo",
       coordenacao_id: coordenacaoIdParam || "",
       processo_id: processoIdParam || "",
-      tipo_tarefa: tipoTarefaParam || "",
       titulo: tituloParam || "",
       descricao: descricaoParam || "",
       responsavel_id: "",
       data_base: hoje,
-      data_vencimento: processoIdParam && tipoTarefaParam ? hoje : "",
+      data_vencimento: processoIdParam ? hoje : "",
       hora_prevista: "",
-      data_fatal: processoIdParam && tipoTarefaParam ? hoje : "",
+      data_fatal: processoIdParam ? hoje : "",
       hora_fatal: "",
       prioridade: "media",
       local: "",
@@ -272,7 +265,6 @@ export default function NovaTarefa() {
         tipo_vinculo: tarefaParaEditar.processo_id ? "processo" : "sem_vinculo",
         coordenacao_id: tarefaParaEditar.processo?.coordenacao_id || "",
         processo_id: tarefaParaEditar.processo_id || "",
-        tipo_tarefa: tarefaParaEditar.tipo_tarefa || "",
         titulo: tarefaParaEditar.titulo || "",
         descricao: tarefaParaEditar.descricao || "",
         responsavel_id: tarefaParaEditar.responsavel_id || "",
@@ -533,7 +525,6 @@ export default function NovaTarefa() {
           responsavel_id: values.responsavel_id,
           titulo: values.titulo,
           descricao: values.descricao || null,
-          tipo_tarefa: values.tipo_tarefa,
           data_base: values.data_base || null,
           data_vencimento: values.data_vencimento,
           data_fatal: values.data_fatal || null,
@@ -560,7 +551,6 @@ export default function NovaTarefa() {
           responsavel_id: values.responsavel_id,
           titulo: values.titulo,
           descricao: values.descricao || null,
-          tipo_tarefa: values.tipo_tarefa,
           data_base: values.data_base || null,
           data_vencimento: values.data_vencimento,
           data_fatal: values.data_fatal || null,
@@ -748,6 +738,20 @@ export default function NovaTarefa() {
           <CardContent>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <FormField
+                  control={form.control}
+                  name="titulo"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Título *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Título da tarefa" {...field} autoFocus />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
                 {/* Tipo de Vínculo e Coordenação */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField
@@ -936,48 +940,6 @@ export default function NovaTarefa() {
                     )}
                   </div>
                 )}
-
-                {/* Tipo de Tarefa e Título */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="tipo_tarefa"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo de tarefa *</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {tiposTarefa.map((tipo) => (
-                              <SelectItem key={tipo} value={tipo}>
-                                {tipo}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="titulo"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Título *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Título da tarefa" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
 
                 {/* Responsável */}
                 <FormField

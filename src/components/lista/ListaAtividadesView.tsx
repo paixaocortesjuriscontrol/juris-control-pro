@@ -42,8 +42,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
-import { TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
-import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
+import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
+import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Prazo } from "@/hooks/usePrazos";
@@ -64,7 +64,10 @@ type Filters = {
 const STATUS_DOT: Record<string, string> = {
   pendente: "bg-amber-500",
   cumprido: "bg-emerald-500",
+  concluido: "bg-emerald-500",
+  tratado: "bg-emerald-500",
   atrasado: "bg-red-500",
+  cancelado: "bg-slate-500",
 };
 
 const PRIO_BADGE: Record<string, string> = {
@@ -79,6 +82,15 @@ const PRIO_LABEL: Record<string, string> = {
   alta: "Alta",
   media: "Média",
   baixa: "Baixa",
+};
+
+const TIPO_LABELS: Record<string, string> = {
+  tarefa: "Tarefa",
+  evento: "Evento",
+  prazo: "Prazo",
+  audiencia: "Audiência",
+  parcelamento: "Parcelamento recorrente",
+  prazo_parcela: "Parcela",
 };
 
 function fmtDate(s?: string | null) {
@@ -97,6 +109,33 @@ function initials(name?: string | null) {
     .slice(0, 2)
     .map((s) => s[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+function tarefaToAgendaItem(tarefa: Prazo): ItemAgendaUnificado {
+  if ((tarefa as any).origem && (tarefa as any).tipo) return tarefa as any as ItemAgendaUnificado;
+  const tipoUpper = (tarefa.tipo_tarefa ?? "").toUpperCase().trim();
+  const tipo = tipoUpper === "PRAZO"
+    ? "prazo"
+    : tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA"
+      ? "audiencia"
+      : tipoUpper === "EVENTO"
+        ? "evento"
+        : tipoUpper === "PARCELAMENTO" || tipoUpper === "PARCELAMENTO_RECORRENTE"
+          ? "parcelamento"
+          : "tarefa";
+  return {
+    ...tarefa,
+    tipo,
+    origem: "tarefa",
+    data_inicio: tarefa.data_vencimento ? `${tarefa.data_vencimento}T00:00:00` : tarefa.created_at,
+    data_fim: null,
+    dia_inteiro: true,
+    local: null,
+    recorrente: false,
+    recorrencia_tipo: null,
+    concluido_em: tarefa.data_cumprimento,
+    updated_at: tarefa.created_at,
+  } as ItemAgendaUnificado;
 }
 
 const defaultFilters: Filters = {
@@ -121,7 +160,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [detalhesPrazo, setDetalhesPrazo] = useState<Prazo | null>(null);
+  const [detalhesPrazo, setDetalhesPrazo] = useState<ItemAgendaUnificado | null>(null);
   const [detalhesEditOnOpen, setDetalhesEditOnOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const { setCollapsed } = useSidebarCollapsed();
@@ -187,6 +226,37 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
       const today = new Date().toISOString().split("T")[0];
+
+      if (["evento", "parcelamento"].includes(filters.tipo)) {
+        let q = supabase
+          .from("eventos_agenda")
+          .select("*, processo:processos(id, numero, assunto, coordenacao_id)", { count: "estimated" })
+          .eq("tipo", filters.tipo)
+          .order("data_inicio", { ascending: false })
+          .range(from, to);
+
+        if (filters.status !== "all") {
+          q = q.eq("status", filters.status === "cumprido" ? "concluido" : filters.status);
+        }
+        if (filters.coordenacaoId) q = q.eq("processo.coordenacao_id", filters.coordenacaoId);
+        if (filters.dataDe) q = q.gte("data_inicio", `${filters.dataDe}T00:00:00`);
+        if (filters.dataAte) q = q.lte("data_inicio", `${filters.dataAte}T23:59:59`);
+        if (debouncedSearch) q = q.ilike("titulo", `%${debouncedSearch.trim()}%`);
+
+        const { data, error, count } = await q;
+        if (error) throw error;
+        return {
+          rows: (data || []).map((e: any) => ({
+            ...e,
+            origem: "evento",
+            data_vencimento: e.data_inicio?.slice(0, 10) || null,
+            data_cumprimento: e.concluido_em,
+            prioridade: "media",
+            responsavel: null,
+          })) as any[],
+          count: count || 0,
+        };
+      }
 
       const selectFields = filters.coordenacaoId
         ? `
@@ -684,7 +754,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                           onClick={(e) => {
                             const tgt = e.target as HTMLElement;
                             if (tgt.closest("[data-stop]")) return;
-                            setDetalhesPrazo(r);
+                            setDetalhesPrazo(tarefaToAgendaItem(r));
                           }}
                         >
                           <TableCell className="px-2 py-3 align-top" data-stop>
@@ -700,14 +770,9 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                                 <span className="font-mono text-[11px] text-primary font-semibold">
                                   {r.identificador_projuris || "—"}
                                 </span>
-                                {r.tipo_tarefa && (
-                                  <Badge
-                                    variant="outline"
-                                    className="font-normal text-[10px] px-1.5 py-0"
-                                  >
-                                    {TIPOS_TAREFA_LABELS[r.tipo_tarefa] || r.tipo_tarefa}
-                                  </Badge>
-                                )}
+                                <Badge variant="outline" className="font-normal text-[10px] px-1.5 py-0">
+                                  {TIPO_LABELS[tarefaToAgendaItem(r).tipo]}
+                                </Badge>
                                 <Badge
                                   variant="outline"
                                   className={cn(
@@ -777,7 +842,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                                 className="h-7 w-7"
                                 title="Editar"
                                 onClick={() => {
-                                  setDetalhesPrazo(r);
+                                  setDetalhesPrazo(tarefaToAgendaItem(r));
                                   setDetalhesEditOnOpen(true);
                                 }}
                               >
@@ -869,22 +934,13 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                 </Button>
               </div>
               <div className="flex-1 min-h-0 overflow-hidden">
-                <NovaTarefaDialog
-                  inline
-                  open
-                  onOpenChange={(o) => {
-                    if (!o) {
-                      setDetalhesPrazo(null);
-                      setDetalhesEditOnOpen(false);
-                    }
+                <EdicaoItemPanel
+                  item={detalhesPrazo}
+                  onClose={() => {
+                    setDetalhesPrazo(null);
+                    setDetalhesEditOnOpen(false);
                   }}
-                  coordenacoes={(coordenacoes ?? []).map((c: any) => ({
-                    id: c.id,
-                    nome: c.nome,
-                    area: c.area ?? "",
-                  }))}
-                  tarefaParaEditar={detalhesPrazo}
-                  onSuccess={() => {
+                  onUpdate={() => {
                     queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
                   }}
                 />

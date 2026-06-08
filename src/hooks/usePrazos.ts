@@ -8,7 +8,7 @@ export type Tarefa = {
   titulo: string;
   descricao: string | null;
   data_vencimento: string | null;
-  status: "pendente" | "cumprido" | "atrasado";
+  status: "pendente" | "cumprido" | "atrasado" | "cancelado";
   prioridade: "baixa" | "media" | "alta" | "urgente";
   processo_id: string | null;
   responsavel_id: string | null;
@@ -370,11 +370,11 @@ export function useUpdateTarefa() {
       titulo?: string;
       descricao?: string;
       data_vencimento?: string;
-      status?: "pendente" | "cumprido" | "atrasado";
+      status?: "pendente" | "cumprido" | "atrasado" | "cancelado";
       prioridade?: "baixa" | "media" | "alta" | "urgente";
       responsavel_id?: string;
       observacoes?: string;
-      data_cumprimento?: string;
+      data_cumprimento?: string | null;
       tipo_tarefa?: string | null;
       data_base?: string | null;
       data_fatal?: string | null;
