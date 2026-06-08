@@ -196,11 +196,23 @@ export function useEnviarRemessaEmail() {
       cc?: string[];
       assunto: string;
       corpo: string;
+      de?: string;
     }) => {
       const { data, error } = await supabase.functions.invoke("enviar-remessa-benner", {
         body: input,
       });
-      if (error) throw error;
+      if (error) {
+        // Try to surface server-side error message
+        const ctx: any = (error as any).context;
+        let detail = "";
+        try {
+          const txt = await ctx?.text?.();
+          if (txt) {
+            try { detail = JSON.parse(txt).error || txt; } catch { detail = txt; }
+          }
+        } catch {}
+        throw new Error(detail || error.message);
+      }
       return data;
     },
     onSuccess: async () => {
