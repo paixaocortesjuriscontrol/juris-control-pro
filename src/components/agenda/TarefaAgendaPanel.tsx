@@ -847,6 +847,14 @@ export function TarefaAgendaPanel({
     setSavingEdit(true);
     try {
       if (tarefa.origem === "tarefa") {
+        if (editResponsaveisIds.length === 0) {
+          toast({
+            title: "Selecione ao menos um responsável",
+            variant: "destructive",
+          });
+          setSavingEdit(false);
+          return;
+        }
         const updateData: Record<string, any> = {
           titulo: editForm.titulo.trim(),
           descricao: editForm.descricao || null,
@@ -855,15 +863,26 @@ export function TarefaAgendaPanel({
           data_fatal: editForm.data_fatal || null,
           prioridade: editForm.prioridade || "media",
           updated_at: new Date().toISOString(),
+          responsavel_id: editResponsaveisIds[0],
         };
-        if (editForm.responsavel_id) {
-          updateData.responsavel_id = editForm.responsavel_id;
-        }
         const { error } = await supabase
           .from("tarefas")
           .update(updateData)
           .eq("id", tarefa.id);
         if (error) throw error;
+        // Sincronizar responsáveis e envolvidos
+        await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefa.id);
+        if (editResponsaveisIds.length > 0) {
+          await supabase.from("tarefa_responsaveis").insert(
+            editResponsaveisIds.map((uid) => ({ tarefa_id: tarefa.id, usuario_id: uid })),
+          );
+        }
+        await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefa.id);
+        if (editEnvolvidosIds.length > 0) {
+          await supabase.from("tarefa_envolvidos").insert(
+            editEnvolvidosIds.map((uid) => ({ tarefa_id: tarefa.id, usuario_id: uid })),
+          );
+        }
       } else {
         const updateData: Record<string, any> = {
           titulo: editForm.titulo.trim(),
@@ -883,9 +902,20 @@ export function TarefaAgendaPanel({
           .update(updateData)
           .eq("id", tarefa.id);
         if (error) throw error;
+        // Sincronizar participantes
+        await supabase.from("participantes_evento").delete().eq("evento_id", tarefa.id);
+        if (editEnvolvidosIds.length > 0) {
+          await supabase.from("participantes_evento").insert(
+            editEnvolvidosIds.map((uid) => ({ evento_id: tarefa.id, usuario_id: uid })),
+          );
+        }
       }
       toast({ title: "Salvo com sucesso!" });
-      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+      await queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+      await queryClient.invalidateQueries({ queryKey: ["tarefas-paginated"] });
+      await queryClient.invalidateQueries({ queryKey: ["tarefas-stats"] });
       onUpdate();
       setIsEditing(false);
     } catch (error: any) {
