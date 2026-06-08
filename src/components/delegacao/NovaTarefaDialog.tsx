@@ -35,6 +35,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, X, Upload, FileText, Trash2, Sparkles, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import { Label } from "@/components/ui/label";
 
 type AnexoComAnalise = {
   file: File;
@@ -90,6 +92,8 @@ export function NovaTarefaDialog({
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
+  const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
+  const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -210,6 +214,14 @@ export function NovaTarefaDialog({
         });
         setSearchProcesso(processoNumero);
         setAnexos([]);
+        // Carregar envolvidos existentes
+        const { data: envs } = await supabase
+          .from("tarefa_envolvidos")
+          .select("usuario_id")
+          .eq("tarefa_id", tarefaParaEditar.id);
+        const envIds = (envs || []).map((e: any) => e.usuario_id);
+        setEnvolvidosIds(envIds);
+        setMostrarEnvolvidos(envIds.length > 0);
         return;
       }
       const coordenacaoInicial = coordenacoes.length === 1 ? coordenacoes[0].id : "";
@@ -230,6 +242,8 @@ export function NovaTarefaDialog({
       });
       setSearchProcesso(processoPreSelecionado?.numero || "");
       setAnexos([]);
+      setEnvolvidosIds([]);
+      setMostrarEnvolvidos(false);
     })();
   }, [open, processoPreSelecionado, form, coordenacoes, tarefaParaEditar]);
 
@@ -335,6 +349,13 @@ export function NovaTarefaDialog({
           })
           .eq("id", tarefaParaEditar.id);
         if (upErr) throw upErr;
+        // Sincronizar envolvidos
+        await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefaParaEditar.id);
+        if (envolvidosIds.length > 0) {
+          await supabase.from("tarefa_envolvidos").insert(
+            envolvidosIds.map((uid) => ({ tarefa_id: tarefaParaEditar.id, usuario_id: uid }))
+          );
+        }
         toast({
           title: "Tarefa atualizada",
           description: "As alterações foram salvas.",
@@ -361,6 +382,13 @@ export function NovaTarefaDialog({
       }).select("id").single();
 
       if (error) throw error;
+
+      // Inserir envolvidos
+      if (novaTarefa?.id && envolvidosIds.length > 0) {
+        await supabase.from("tarefa_envolvidos").insert(
+          envolvidosIds.map((uid) => ({ tarefa_id: novaTarefa.id, usuario_id: uid }))
+        );
+      }
 
       // Disparar notificação para o responsável (fire and forget)
       if (novaTarefa?.id && values.responsavel_id) {
@@ -698,6 +726,42 @@ export function NovaTarefaDialog({
                   </FormItem>
                 )}
               />
+
+              {/* Envolvidos (colaboradores) */}
+              <div className="space-y-1.5">
+                {!mostrarEnvolvidos ? (
+                  <button
+                    type="button"
+                    onClick={() => setMostrarEnvolvidos(true)}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    + Envolver mais pessoas
+                  </button>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Envolvidos (acompanham)</Label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMostrarEnvolvidos(false);
+                          setEnvolvidosIds([]);
+                        }}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Ocultar
+                      </button>
+                    </div>
+                    <PeoplePicker
+                      selectedIds={envolvidosIds}
+                      onChange={setEnvolvidosIds}
+                      placeholder="Adicionar colaborador"
+                      emptyLabel="Apenas para acompanhamento"
+                      icon="users"
+                    />
+                  </>
+                )}
+              </div>
 
               {/* Data base */}
               <FormField
