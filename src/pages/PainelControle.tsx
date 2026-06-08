@@ -640,41 +640,26 @@ export default function PainelControle() {
   const handleEditItem = (item: ItemAgendaUnificado) => {
     (async () => {
       if (item.tipo === "parcelamento") {
-        // Carrega evento completo
         const { data } = await supabase
           .from("eventos_agenda")
           .select("*")
           .eq("id", item.id)
           .maybeSingle();
-        setSelectedParcelamento((data as unknown as EventoAgenda) ?? (item as unknown as EventoAgenda));
+        setSelectedParcelamento(((data as any) ?? item) as EventoAgenda);
         setParcelasDialogOpen(true);
         return;
       }
       if (item.origem === "evento") {
-        if (item.tipo === "prazo" || item.tipo === "prazo_parcela") {
-          // Carrega prazo
-          const { data } = await supabase
-            .from("prazos")
-            .select("*")
-            .eq("id", item.id)
-            .maybeSingle();
-          if (data) {
-            setPrazoEditando(data);
-            setNovoPrazoOpen(true);
-            return;
-          }
-        }
-        // Evento comum
         const { data } = await supabase
           .from("eventos_agenda")
           .select("*")
           .eq("id", item.id)
           .maybeSingle();
-        setSelectedEvento((data as unknown as EventoAgenda) ?? (item as unknown as EventoAgenda));
+        setSelectedEvento(((data as any) ?? item) as EventoAgenda);
         setDialogOpen(true);
         return;
       }
-      // origem === "tarefa"
+      // origem === "tarefa" (inclui prazo/audiência como tipo_tarefa)
       const { data } = await supabase
         .from("tarefas")
         .select("*")
