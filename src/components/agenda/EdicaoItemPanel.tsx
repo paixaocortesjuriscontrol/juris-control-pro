@@ -194,7 +194,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
         const processoId = item.processo_id || item.id.replace(/^prazo-tst-/, "");
         const { data } = await supabase
           .from("processos")
-          .select("id, numero, polo_ativo, polo_passivo, data_fatal, decisao_tst, responsavel_tst, equipe_tst, status, cliente_id")
+          .select("id, numero, polo_ativo, polo_passivo, data_fatal, decisao_tst, responsavel_tst, equipe_tst, status, cliente_id, prazo_fatal_conferido, prazo_fatal_conferido_em, prazo_fatal_conferido_por")
           .eq("id", processoId)
           .maybeSingle();
         if (!cancelled) setEvento(data);
@@ -233,7 +233,13 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
         {isPrazoFatalTst ? (
-          evento && <PrazoFatalReadOnlyPanel processo={evento} diasRestantes={item.dias_restantes} />
+          evento && (
+            <PrazoFatalReadOnlyPanel
+              processo={evento}
+              diasRestantes={item.dias_restantes}
+              onConferido={closeAfter}
+            />
+          )
         ) : isParcelamento ? (
           evento && (
             <GerarParcelasDialog
