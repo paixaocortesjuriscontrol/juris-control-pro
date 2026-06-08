@@ -2036,33 +2036,29 @@ async function executarLoop(
       }
     }
 
-    // Helper para bandas 1 e 2: agrupa todos os tipos principais do tribunal
-    // como steps de uma única unidade serial.
-    const buildStepsSerialPorTrib = (trib: string): UnitStep[] => {
-      const steps: UnitStep[] = [];
+    // Helper para bandas 1 e 2: cria UMA unidade independente por (tribunal, tipo).
+    // Assim, diferentes tipos do mesmo tribunal podem rodar em paralelo em workers
+    // distintos quando há slot livre, em vez de serem serializados num único worker.
+    // A ordem de empilhamento preserva a prioridade parte → advogado → palavra-chave.
+    const pushUnitsPorTipo = (fila: WorkUnit[], band: 1 | 2, trib: string) => {
       for (const tipo of ORDEM_TIPOS_PRINCIPAIS) {
         const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
         if (!tribsDoTipo.includes(trib)) continue;
         if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
-        steps.push({ tipo, monIds: [null] }); // 1 chamada agregada (processa todos os mons daquele tipo no trib serialmente)
+        fila.push({ band, tribunal: trib, steps: [{ tipo, monIds: [null] }] });
       }
-      return steps;
     };
 
-    // Banda 1: STF e STJ
+    // Banda 1: STF e STJ — uma unidade por (tribunal, tipo)
     for (const trib of TRIBUNAIS_BAND1) {
       if (!tribunaisGlobalSet.has(trib)) continue;
-      const steps = buildStepsSerialPorTrib(trib);
-      if (steps.length === 0) continue;
-      filaBand1.push({ band: 1, tribunal: trib, steps });
+      pushUnitsPorTipo(filaBand1, 1, trib);
     }
 
-    // Banda 2: demais tribunais (excluindo TST, STF, STJ)
+    // Banda 2: demais tribunais (excluindo TST, STF, STJ) — uma unidade por (tribunal, tipo)
     for (const trib of tribunais) {
       if (trib === 'TST' || TRIBUNAIS_BAND1.includes(trib)) continue;
-      const steps = buildStepsSerialPorTrib(trib);
-      if (steps.length === 0) continue;
-      filaBand2.push({ band: 2, tribunal: trib, steps });
+      pushUnitsPorTipo(filaBand2, 2, trib);
     }
 
     // Banda 3: tipo 'processo' em todos os tribunais (sempre por último)
