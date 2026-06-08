@@ -1064,7 +1064,7 @@ export default function PainelControle() {
                         const itens = itensPorDia.get(key) || [];
                         const ehHoje = isToday(dia);
                         const ehMesAtual = isSameMonth(dia, mesAtual);
-                        const MAX_VISIBLE = selectedItem ? 2 : 3;
+                        const MAX_VISIBLE = 3;
                         const visiveis = itens.slice(0, MAX_VISIBLE);
                         const extras = itens.length - MAX_VISIBLE;
 
