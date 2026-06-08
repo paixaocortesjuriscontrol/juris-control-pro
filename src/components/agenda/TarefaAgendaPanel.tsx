@@ -1198,620 +1198,141 @@ export function TarefaAgendaPanel({
       ) : (
         <ScrollArea className="flex-1">
           <CardContent className="space-y-4">
-
-          {temPublicacao && publicacao && (
-            <>
-              <Collapsible open={publicacaoOpen} onOpenChange={setPublicacaoOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
-                    <span className="flex items-center gap-2 text-sm font-medium">
-                      <Gavel className="w-4 h-4 text-primary" />
-                      Publicação Vinculada
-                    </span>
-                    {publicacaoOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-3 space-y-3">
-                  {/* Info do Diário */}
-                  <div className="border rounded-lg p-3 bg-primary/5 space-y-2">
-                    <p className="font-semibold text-primary text-sm">
-                      {publicacao.fonte || "Diário de Justiça Eletrônico"} - DJN
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Publicado em: <strong>{publicacao.data_publicacao ? format(parseISO(publicacao.data_publicacao), "dd/MM/yyyy", { locale: ptBR }) : "-"}</strong>
-                    </p>
-                    <p className="text-xs">
-                      Processo: <span className="font-mono font-medium">{publicacao.processo_numero || processoCompleto?.numero}</span>
-                    </p>
-                    {tipoPublicacao === 'termo' && publicacaoTermo?.monitoramento && (
-                      <p className="text-xs">
-                        Termo encontrado: <strong className="text-primary">
-                          {publicacaoTermo.monitoramento.tipo === 'advogado'
-                            ? `OAB ${publicacaoTermo.monitoramento.oab} ${publicacaoTermo.monitoramento.uf}`
-                            : publicacaoTermo.monitoramento.termo_busca
-                          }
-                        </strong>
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Conteúdo da Publicação */}
-                  <div className="border rounded-lg p-3 bg-muted/30 max-h-[300px] overflow-y-auto">
-                    <div className={`text-xs ${conteudoDisplayClasses}`}>
-                      {formatConteudoParaExibicao(publicacao.conteudo)}
-                    </div>
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-              <Separator />
-            </>
-          )}
-
-          {/* Detalhes do Processo Section */}
-          {processoCompleto && (
-            <>
-              <Collapsible open={processoOpen} onOpenChange={setProcessoOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
-                    <span className="flex items-center gap-2 text-sm font-medium">
-                      <Scale className="w-4 h-4" />
-                      Detalhes do Processo
-                    </span>
-                    {processoOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-3 space-y-3">
-                  <div className="border rounded-lg p-3 bg-muted/30 space-y-3">
-                    {/* Número do Processo */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Briefcase className="w-4 h-4 text-muted-foreground" />
-                        <span className="font-mono text-sm font-medium text-primary">
-                          {processoCompleto.numero}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={copyProcessNumber}
-                        >
-                          <Copy className="w-3 h-3" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" asChild>
-                          <a href={`/processos/${processoCompleto.id}`}>
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Cliente */}
-                    {clienteInfo && (
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">{clienteInfo.nome}</span>
-                      </div>
-                    )}
-
-                    {/* Partes */}
-                    {processoCompleto.polo_ativo && (
-                      <div className="text-xs space-y-1">
-                        <p><span className="text-muted-foreground">Autor:</span> {processoCompleto.polo_ativo}</p>
-                        {processoCompleto.polo_passivo && (
-                          <p><span className="text-muted-foreground">Réu:</span> {processoCompleto.polo_passivo}</p>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Grid de informações */}
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      {processoCompleto.status && (
-                        <div>
-                          <span className="text-muted-foreground">Status:</span>{" "}
-                          <Badge variant="secondary" className="text-[10px] h-5">{processoCompleto.status}</Badge>
-                        </div>
-                      )}
-                      {processoCompleto.instancia && (
-                        <div>
-                          <span className="text-muted-foreground">Instância:</span> {processoCompleto.instancia}
-                        </div>
-                      )}
-                      {processoCompleto.area && (
-                        <div>
-                          <span className="text-muted-foreground">Área:</span> {processoCompleto.area}
-                        </div>
-                      )}
-                      {processoCompleto.classe && (
-                        <div className="col-span-2">
-                          <span className="text-muted-foreground">Classe:</span> {processoCompleto.classe}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Localização */}
-                    {(processoCompleto.vara || processoCompleto.comarca) && (
-                      <div className="flex items-start gap-2 text-xs">
-                        <MapPin className="w-3 h-3 mt-0.5 text-muted-foreground" />
-                        <div>
-                          {processoCompleto.vara && <p>{processoCompleto.vara}</p>}
-                          {processoCompleto.comarca && (
-                            <p className="text-muted-foreground">
-                              {processoCompleto.comarca}{processoCompleto.uf ? ` - ${processoCompleto.uf}` : ""}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Advogado Responsável */}
-                    {processoCompleto.advogado_responsavel && (
-                      <div className="flex items-center gap-2 text-xs">
-                        <User className="w-3 h-3 text-muted-foreground" />
-                        <span className="text-muted-foreground">Responsável:</span>
-                        <span>{processoCompleto.advogado_responsavel.nome}</span>
-                      </div>
-                    )}
-
-                    {/* Assunto */}
-                    {processoCompleto.assunto && (
-                      <div className="text-xs">
-                        <span className="text-muted-foreground">Assunto:</span>
-                        <p className="mt-1">{processoCompleto.assunto}</p>
-                      </div>
-                    )}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-              <Separator />
-            </>
-          )}
-
-          {/* Seção de Parcelamento */}
-          {isParcelamento && tarefa.origem === "evento" && (
-            <>
-              <Collapsible open={parcelamentoOpen} onOpenChange={setParcelamentoOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
-                    <span className="flex items-center gap-2 text-sm font-medium">
-                      <Coins className="w-4 h-4 text-emerald-600" />
-                      Detalhes do Parcelamento
-                    </span>
-                    {parcelamentoOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-3 space-y-3">
-                  <div className="border rounded-lg p-3 bg-emerald-50/50 dark:bg-emerald-950/20 space-y-3">
-                    {/* Resumo do Parcelamento */}
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <Hash className="w-3 h-3" />
-                          <span className="text-xs">Total de Parcelas</span>
-                        </div>
-                        <p className="font-bold text-lg text-emerald-700 dark:text-emerald-400">
-                          {tarefa.total_parcelas || parcelas?.length || "-"}
-                        </p>
-                      </div>
-                      
-                      {eventoCompleto && (eventoCompleto as any).valor_parcela && (
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <DollarSign className="w-3 h-3" />
-                            <span className="text-xs">Valor Base</span>
-                          </div>
-                          <p className="font-bold text-lg text-emerald-700 dark:text-emerald-400">
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format((eventoCompleto as any).valor_parcela)}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Cliente do Parcelamento */}
-                    {clienteInfo && (
-                      <div className="flex items-center gap-2 text-sm border-t pt-2">
-                        <Building2 className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-muted-foreground">Cliente:</span>
-                        <span className="font-medium">{clienteInfo.nome}</span>
-                      </div>
-                    )}
-
-                    {/* Tabela de Parcelas */}
-                    {loadingParcelas ? (
-                      <div className="flex justify-center py-4">
-                        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                      </div>
-                    ) : parcelas && parcelas.length > 0 ? (
-                      <div className="border rounded-lg overflow-hidden">
-                        <Table>
-                          <TableHeader>
-                            <TableRow className="bg-muted/50">
-                              <TableHead className="text-xs py-2">#</TableHead>
-                              <TableHead className="text-xs py-2">Vencimento</TableHead>
-                              <TableHead className="text-xs py-2">Valor</TableHead>
-                              <TableHead className="text-xs py-2">Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {parcelas.map((parcela: any) => {
-                              const vencido = parcela.data_vencimento && isAfter(startOfDay(new Date()), startOfDay(parseISO(parcela.data_vencimento)));
-                              const isPago = parcela.status === 'pago' || parcela.status === 'concluido';
-                              return (
-                                <TableRow key={parcela.id} className={cn(isPago && "bg-emerald-50/50 dark:bg-emerald-950/20")}>
-                                  <TableCell className="text-xs py-1.5 font-medium">{parcela.numero}</TableCell>
-                                  <TableCell className="text-xs py-1.5">
-                                    {parcela.data_vencimento 
-                                      ? format(parseISO(parcela.data_vencimento), "dd/MM/yyyy", { locale: ptBR })
-                                      : "-"}
-                                  </TableCell>
-                                  <TableCell className="text-xs py-1.5 font-mono">
-                                    {parcela.valor 
-                                      ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(parcela.valor)
-                                      : "-"}
-                                  </TableCell>
-                                  <TableCell className="text-xs py-1.5">
-                                    {isPago ? (
-                                      <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px]">
-                                        <CheckCircle2 className="w-2.5 h-2.5 mr-0.5" />
-                                        Pago
-                                      </Badge>
-                                    ) : vencido ? (
-                                      <Badge variant="destructive" className="text-[10px]">
-                                        <AlertTriangle className="w-2.5 h-2.5 mr-0.5" />
-                                        Vencido
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="secondary" className="text-[10px]">
-                                        <Clock className="w-2.5 h-2.5 mr-0.5" />
-                                        Pendente
-                                      </Badge>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              );
-                            })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-muted-foreground text-center py-2">
-                        Nenhuma parcela individual cadastrada
-                      </p>
-                    )}
-
-                    {/* Estatísticas */}
-                    {parcelas && parcelas.length > 0 && (
-                      <div className="grid grid-cols-3 gap-2 pt-2 border-t text-center">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Pagas</p>
-                          <p className="font-bold text-emerald-600">
-                            {parcelas.filter((p: any) => p.status === 'pago' || p.status === 'concluido').length}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Pendentes</p>
-                          <p className="font-bold text-amber-600">
-                            {parcelas.filter((p: any) => p.status !== 'pago' && p.status !== 'concluido' && !(p.data_vencimento && isAfter(startOfDay(new Date()), startOfDay(parseISO(p.data_vencimento))))).length}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Vencidas</p>
-                          <p className="font-bold text-destructive">
-                            {parcelas.filter((p: any) => p.status !== 'pago' && p.status !== 'concluido' && p.data_vencimento && isAfter(startOfDay(new Date()), startOfDay(parseISO(p.data_vencimento)))).length}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-              <Separator />
-            </>
-          )}
-
-          {/* Seção de Participantes (para eventos) */}
-          {tarefa.origem === "evento" && tarefa.participantes && tarefa.participantes.length > 0 && (
-            <>
-              <Collapsible open={participantesOpen} onOpenChange={setParticipantesOpen}>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
-                    <span className="flex items-center gap-2 text-sm font-medium">
-                      <Users className="w-4 h-4" />
-                      Participantes ({tarefa.participantes.length})
-                    </span>
-                    {participantesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="pt-3">
-                  <div className="border rounded-lg p-3 bg-muted/30 space-y-2">
-                    {tarefa.participantes.map((p) => (
-                      <div key={p.usuario_id} className="flex items-center gap-2">
-                        <Avatar className="w-6 h-6">
-                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                            {p.usuario?.nome ? getInitials(p.usuario.nome) : "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm">{p.usuario?.nome || "Usuário"}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-              <Separator />
-            </>
-          )}
-
-          {/* Detalhes Section */}
-          <Collapsible open={detalhesOpen} onOpenChange={setDetalhesOpen}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
-                <span className="flex items-center gap-2 text-sm font-medium">
-                  <FileText className="w-4 h-4" />
-                  Detalhes da Tarefa
+            {/* Info grid (estilo Em Lista) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="text-muted-foreground">Vencimento:</span>
+                <span className="font-medium">
+                  {format(dataVencimento, "dd/MM/yyyy", { locale: ptBR })}
                 </span>
-                {detalhesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-3 space-y-3">
-              {/* Grid de informações */}
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <Calendar className="w-3 h-3" />
-                    <span className="text-xs">Data</span>
-                  </div>
-                  <p className="font-medium">
-                    {format(parseISO(tarefa.data_inicio), "dd/MM/yyyy", { locale: ptBR })}
-                  </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span
+                  className={cn(
+                    "font-medium",
+                    isAtrasado && "text-destructive",
+                    !isAtrasado && !isConcluido && dias <= 3 && dias >= 0 && "text-amber-600",
+                  )}
+                >
+                  {isConcluido && tarefa.concluido_em
+                    ? `Concluído em ${format(parseISO(tarefa.concluido_em), "dd/MM/yyyy", { locale: ptBR })}`
+                    : isAtrasado
+                      ? `${Math.abs(dias)} dia${Math.abs(dias) !== 1 ? "s" : ""} de atraso`
+                      : dias === 0
+                        ? "Vence hoje"
+                        : `${dias} dia${dias !== 1 ? "s" : ""} restantes`}
+                </span>
+              </div>
+              {tarefa.responsavel && (
+                <div className="flex items-center gap-2">
+                  <User className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="text-muted-foreground">Responsável:</span>
+                  <span className="font-medium truncate">{tarefa.responsavel.nome}</span>
                 </div>
-
-                {tarefa.responsavel && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <User className="w-3 h-3" />
-                      <span className="text-xs">Responsável</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Avatar className="w-5 h-5">
-                        <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                          {getInitials(tarefa.responsavel.nome)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm">{tarefa.responsavel.nome.split(' ')[0]}</span>
-                    </div>
-                  </div>
-                )}
-
-                {tarefa.prioridade && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <AlertTriangle className="w-3 h-3" />
-                      <span className="text-xs">Prioridade</span>
-                    </div>
-                    <Badge variant="outline" className={cn("text-xs", PRIORIDADE_COLORS[tarefa.prioridade])}>
-                      {PRIORIDADE_LABELS[tarefa.prioridade] || tarefa.prioridade}
-                    </Badge>
-                  </div>
-                )}
-
-                {tarefa.tipo_tarefa && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <Tag className="w-3 h-3" />
-                      <span className="text-xs">Tipo</span>
-                    </div>
-                    <p className="text-sm">{tarefa.tipo_tarefa}</p>
-                  </div>
-                )}
-
-                {tarefa.data_fatal && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1 text-destructive">
-                      <AlertTriangle className="w-3 h-3" />
-                      <span className="text-xs">Data Fatal</span>
-                    </div>
-                    <p className="text-sm font-medium text-destructive">
-                      {format(parseISO(tarefa.data_fatal), "dd/MM/yyyy", { locale: ptBR })}
-                    </p>
-                  </div>
-                )}
-
-                {tarefa.concluido_em && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1 text-emerald-600">
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span className="text-xs">Concluído em</span>
-                    </div>
-                    <p className="text-sm font-medium text-emerald-600">
-                      {format(parseISO(tarefa.concluido_em), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                    </p>
-                  </div>
-                )}
-
-                {/* Origem/Tipo do Item */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <Info className="w-3 h-3" />
-                    <span className="text-xs">Origem</span>
-                  </div>
-                  <Badge variant="outline" className="text-xs">
-                    {TIPO_LABELS[tarefa.tipo] || tarefa.tipo}
-                  </Badge>
+              )}
+              {(tarefa.processo?.numero || processoCompleto?.numero) && (
+                <div className="flex items-center gap-2 min-w-0">
+                  <Briefcase className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span className="text-muted-foreground">Processo:</span>
+                  <span className="font-mono text-xs truncate">
+                    {tarefa.processo?.numero || processoCompleto?.numero}
+                  </span>
+                  {processoCompleto?.id && (
+                    <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" asChild>
+                      <a href={`/processos/${processoCompleto.id}`} title="Abrir processo">
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </Button>
+                  )}
                 </div>
+              )}
+            </div>
 
-                {/* Criado por */}
-                {(tarefaCompleta?.criador || eventoCompleto?.criador) && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <User className="w-3 h-3" />
-                      <span className="text-xs">Criado por</span>
-                    </div>
-                    <span className="text-sm">
-                      {(tarefaCompleta?.criador as any)?.nome || (eventoCompleto?.criador as any)?.nome}
-                    </span>
-                  </div>
-                )}
+            {tarefa.descricao && (
+              <div>
+                <h4 className="text-sm font-medium mb-1">Descrição</h4>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                  {tarefa.descricao}
+                </p>
+              </div>
+            )}
 
-                {/* Delegado por */}
-                {tarefaCompleta?.delegador && (
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1 text-muted-foreground">
-                      <Users className="w-3 h-3" />
-                      <span className="text-xs">Delegado por</span>
-                    </div>
-                    <span className="text-sm">{(tarefaCompleta.delegador as any)?.nome}</span>
-                  </div>
-                )}
+            {tarefa.local && (
+              <div>
+                <h4 className="text-sm font-medium mb-1">Local</h4>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{tarefa.local}</p>
+              </div>
+            )}
 
-                {/* Data de Criação */}
-                <div className="space-y-1">
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <CalendarCheck className="w-3 h-3" />
-                    <span className="text-xs">Criado em</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    {format(parseISO(tarefa.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                  </p>
+            <Separator />
+
+            {/* Comentários inline (sem collapsible) */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <MessageSquare className="w-4 h-4" />
+                Comentários e Conversas ({comentarios?.length || 0})
+              </h4>
+
+              <div className="space-y-2">
+                <MentionInput
+                  placeholder="Digite seu comentário..."
+                  value={comentario}
+                  onChange={setComentario}
+                  rows={2}
+                  maxLength={2000}
+                />
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">
+                    {2000 - comentario.length} caracteres
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={handleEnviarComentario}
+                    disabled={!comentario.trim() || sendingComment}
+                  >
+                    {sendingComment ? (
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                    ) : (
+                      <Send className="w-3 h-3 mr-1" />
+                    )}
+                    Enviar
+                  </Button>
                 </div>
               </div>
 
-              {/* Descrição */}
-              {tarefa.descricao && (
-                <div className="space-y-1">
-                  <span className="text-xs text-muted-foreground">Descrição</span>
-                  <p className="text-sm whitespace-pre-wrap bg-muted/30 p-2 rounded">
-                    {tarefa.descricao}
-                  </p>
+              {loadingComentarios ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
                 </div>
-              )}
-
-              {/* Local */}
-              {tarefa.local && (
-                <div className="space-y-1">
-                  <span className="text-xs text-muted-foreground">Local</span>
-                  <p className="text-sm">{tarefa.local}</p>
-                </div>
-              )}
-
-              {/* Informações Projuris */}
-              {tarefa.origem === "tarefa" && tarefa.identificador_projuris && (
-                <div className="space-y-2 pt-2 border-t">
-                  <span className="text-xs font-medium text-muted-foreground">Dados Projuris</span>
-                  <div className="grid grid-cols-2 gap-2 text-xs bg-muted/30 rounded-lg p-2">
-                    {tarefa.identificador_projuris && (
-                      <div>
-                        <span className="text-muted-foreground">ID:</span>{" "}
-                        <span className="font-mono">{tarefa.identificador_projuris}</span>
-                      </div>
-                    )}
-                    {tarefa.hora_fatal && (
-                      <div>
-                        <span className="text-muted-foreground">Hora Fatal:</span>{" "}
-                        <span className="text-destructive font-medium">{tarefa.hora_fatal}</span>
-                      </div>
-                    )}
-                    {tarefa.orgao && (
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground">Órgão:</span>{" "}
-                        <span>{tarefa.orgao}</span>
-                      </div>
-                    )}
-                    {tarefa.partes_ativas && (
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground">Partes Ativas:</span>{" "}
-                        <span className="break-words">{tarefa.partes_ativas.substring(0, 100)}...</span>
-                      </div>
-                    )}
-                    {tarefa.partes_passivas && (
-                      <div className="col-span-2">
-                        <span className="text-muted-foreground">Partes Passivas:</span>{" "}
-                        <span className="break-words">{tarefa.partes_passivas.substring(0, 100)}...</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </CollapsibleContent>
-          </Collapsible>
-
-          <Separator />
-
-          {/* Comentários Section - Para tarefas e eventos */}
-          <Collapsible open={comentariosOpen} onOpenChange={setComentariosOpen}>
-            <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-between p-0 h-auto hover:bg-transparent">
-                  <span className="flex items-center gap-2 text-sm font-medium">
-                    <MessageSquare className="w-4 h-4" />
-                    Comentários ({comentarios?.length || 0})
-                  </span>
-                  {comentariosOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-3 space-y-3">
-                {/* Input de comentário */}
-                <div className="space-y-2">
-                  <div className="relative">
-                    <MentionInput
-                      placeholder="Escreva um comentário..."
-                      value={comentario}
-                      onChange={setComentario}
-                      rows={2}
-                      maxLength={2000}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">
-                      {2000 - comentario.length} caracteres
-                    </span>
-                    <Button
-                      size="sm"
-                      onClick={handleEnviarComentario}
-                      disabled={!comentario.trim() || sendingComment}
-                    >
-                      {sendingComment ? (
-                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                      ) : (
-                        <Send className="w-3 h-3 mr-1" />
-                      )}
-                      Enviar
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Lista de comentários */}
-                {loadingComentarios ? (
-                  <div className="flex justify-center py-4">
-                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                  </div>
-                ) : comentarios?.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    Nenhum comentário ainda
-                  </p>
-                ) : (
-                  <div className="space-y-3 max-h-[300px] overflow-y-auto">
-                    {comentarios?.map((c) => (
-                      <div key={c.id} className="p-2 rounded-lg bg-muted/30 space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Avatar className="w-6 h-6">
-                            <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                              {c.autor?.nome ? getInitials(c.autor.nome) : "?"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate">{c.autor?.nome}</p>
-                            <p className="text-[10px] text-muted-foreground">
-                              {formatTimeAgo(c.created_at)}
-                            </p>
-                          </div>
+              ) : comentarios?.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum comentário ainda. Inicie a conversa!
+                </p>
+              ) : (
+                <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                  {comentarios?.map((c) => (
+                    <div key={c.id} className="p-2 rounded-lg bg-muted/30 space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="w-6 h-6">
+                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                            {c.autor?.nome ? getInitials(c.autor.nome) : "?"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">{c.autor?.nome}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {formatTimeAgo(c.created_at)}
+                          </p>
                         </div>
-                        <p className="text-sm pl-8">{c.conteudo}</p>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </CollapsibleContent>
-            </Collapsible>
+                      <p className="text-sm pl-8 whitespace-pre-wrap">{c.conteudo}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </CardContent>
         </ScrollArea>
       )}
