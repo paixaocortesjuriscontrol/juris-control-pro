@@ -73,6 +73,7 @@ type PrazoDialogProps = {
   defaultProcessoId?: string;
   defaultTarefaRelacionadaId?: string;
   publicacao?: PublicacaoUnificada | null;
+  inline?: boolean;
 };
 
 export function PrazoDialog({
@@ -82,6 +83,7 @@ export function PrazoDialog({
   defaultProcessoId,
   defaultTarefaRelacionadaId,
   publicacao,
+  inline = false,
 }: PrazoDialogProps) {
   const { user } = useAuth();
   const createPrazo = useCreatePrazo();
@@ -246,6 +248,10 @@ export function PrazoDialog({
 
   const isLoading = createPrazo.isPending || updatePrazo.isPending;
   const hasPublicacao = !!publicacao;
+
+  if (inline) {
+    return <div className="h-full flex flex-col bg-background overflow-hidden">{FormContent}</div>;
+  }
 
   const FormContent = (
     <form onSubmit={handleSubmit} className="flex flex-col h-full">
