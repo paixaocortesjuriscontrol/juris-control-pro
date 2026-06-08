@@ -535,20 +535,36 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-2xl max-h-[90vh] flex flex-col p-0">
-        <DialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6 pb-2 shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-primary" />
-            {isEditing ? "Editar Parcelamento" : "Novo Parcelamento"}
-          </DialogTitle>
-          <DialogDescription>
-            {isEditing 
-              ? "Edite os dados do parcelamento e suas parcelas."
-              : "Crie um parcelamento com múltiplas parcelas. Os lembretes serão enviados no vencimento de cada parcela."}
-          </DialogDescription>
-        </DialogHeader>
+  const headerInline = (
+    <div className="px-4 pt-4 sm:px-6 sm:pt-5 pb-3 shrink-0 border-b">
+      <h3 className="text-base font-semibold flex items-center gap-2">
+        <Calendar className="w-5 h-5 text-primary" />
+        {isEditing ? "Editar Parcelamento" : "Novo Parcelamento"}
+      </h3>
+      <p className="text-xs text-muted-foreground">
+        {isEditing 
+          ? "Edite os dados do parcelamento e suas parcelas."
+          : "Crie um parcelamento com múltiplas parcelas."}
+      </p>
+    </div>
+  );
+  const headerDialog = (
+    <DialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6 pb-2 shrink-0">
+      <DialogTitle className="flex items-center gap-2">
+        <Calendar className="w-5 h-5 text-primary" />
+        {isEditing ? "Editar Parcelamento" : "Novo Parcelamento"}
+      </DialogTitle>
+      <DialogDescription>
+        {isEditing 
+          ? "Edite os dados do parcelamento e suas parcelas."
+          : "Crie um parcelamento com múltiplas parcelas. Os lembretes serão enviados no vencimento de cada parcela."}
+      </DialogDescription>
+    </DialogHeader>
+  );
+
+  const Body = (
+    <>
+      {inline ? headerInline : headerDialog}
 
         <div className="flex-1 overflow-y-auto px-4 sm:px-6">
           <form onSubmit={handleSubmit} className="space-y-4 pb-4">
