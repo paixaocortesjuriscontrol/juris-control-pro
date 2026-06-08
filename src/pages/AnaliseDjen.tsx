@@ -298,6 +298,10 @@ const AnaliseDjen = () => {
   // Estado do descarte em lote de duplicadas (botão vermelho)
   const [descartandoDuplicadas, setDescartandoDuplicadas] = useState(false);
   const [desfazendoLote, setDesfazendoLote] = useState<string | null>(null);
+  // Intervalo (data_disponibilizacao) opcional para o botão "Descartar duplicadas".
+  // Se vazio, o descarte considera apenas o dia de hoje.
+  const [descarteDataInicio, setDescarteDataInicio] = useState<string>("");
+  const [descarteDataFim, setDescarteDataFim] = useState<string>("");
 
   const desfazerDescarteLote = async (loteId: string) => {
     if (!loteId) return;
@@ -360,8 +364,15 @@ const AnaliseDjen = () => {
       toast.error('Você só pode descartar duplicadas das coordenações às quais pertence.');
       return;
     }
+    // Define o intervalo efetivo: se nada foi preenchido, usa apenas HOJE.
+    const hojeISO = format(new Date(), 'yyyy-MM-dd');
+    const inicioEfetivo = descarteDataInicio || descarteDataFim || hojeISO;
+    const fimEfetivo = descarteDataFim || descarteDataInicio || hojeISO;
+    const labelIntervalo = inicioEfetivo === fimEfetivo
+      ? format(parseISO(inicioEfetivo), 'dd/MM/yyyy')
+      : `${format(parseISO(inicioEfetivo), 'dd/MM/yyyy')} a ${format(parseISO(fimEfetivo), 'dd/MM/yyyy')}`;
     const confirma = window.confirm(
-      'Descartar TODAS as publicações duplicadas (mesmo processo + dia + conteúdo) desta coordenação?\n\n' +
+      `Descartar publicações duplicadas (mesmo processo + dia + conteúdo) desta coordenação no intervalo ${labelIntervalo}?\n\n` +
       'A publicação mais antiga de cada grupo é mantida. Você poderá DESFAZER pelo botão "Desfazer último descarte".'
     );
     if (!confirma) return;
@@ -369,6 +380,8 @@ const AnaliseDjen = () => {
       setDescartandoDuplicadas(true);
       const { data, error } = await (supabase as any).rpc('descartar_duplicadas_coordenacao', {
         p_coordenacao_id: coordId,
+        p_data_disp_inicio: inicioEfetivo,
+        p_data_disp_fim: fimEfetivo,
       });
       if (error) throw error;
       const total = (data?.total ?? 0) as number;
