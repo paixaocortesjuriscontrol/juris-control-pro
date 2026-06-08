@@ -35,6 +35,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, X, Upload, FileText, Trash2, Sparkles, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import { Label } from "@/components/ui/label";
 
 type AnexoComAnalise = {
   file: File;
@@ -90,6 +92,8 @@ export function NovaTarefaDialog({
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
+  const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
+  const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
