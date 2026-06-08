@@ -23,7 +23,8 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
   const [evento, setEvento] = useState<any | null>(null);
 
   const isParcelamento = item.tipo === "parcelamento";
-  const isEvento = item.origem === "evento" || isParcelamento;
+  const isPrazoFatalTst = typeof item.id === "string" && item.id.startsWith("prazo-tst-");
+  const isEvento = (item.origem === "evento" || isParcelamento) && !isPrazoFatalTst;
 
   const { data: coordenacoes = [] } = useQuery({
     queryKey: ["coordenacoes-edicao-painel-lateral", isAdmin, user?.id],
@@ -49,7 +50,16 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (isEvento) {
+      if (isPrazoFatalTst) {
+        // PRAZO FATAL TST não é tarefa nem evento — dados vêm direto de `processos`
+        const processoId = item.processo_id || item.id.replace(/^prazo-tst-/, "");
+        const { data } = await supabase
+          .from("processos")
+          .select("id, numero, polo_ativo, polo_passivo, data_fatal, decisao_tst, responsavel_tst, equipe_tst, status, cliente_id")
+          .eq("id", processoId)
+          .maybeSingle();
+        if (!cancelled) setEvento(data);
+      } else if (isEvento) {
         const { data } = await supabase
           .from("eventos_agenda")
           .select("*")
@@ -68,7 +78,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
     return () => {
       cancelled = true;
     };
-  }, [item.id, isEvento]);
+  }, [item.id, isEvento, isPrazoFatalTst, item.processo_id]);
 
   const closeAfter = () => {
     onUpdate?.();
@@ -83,7 +93,9 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
         </Button>
       </div>
       <div className="flex-1 min-h-0 overflow-hidden">
-        {isParcelamento ? (
+        {isPrazoFatalTst ? (
+          evento && <PrazoFatalReadOnlyPanel processo={evento} diasRestantes={item.dias_restantes} />
+        ) : isParcelamento ? (
           evento && (
             <GerarParcelasDialog
               inline
