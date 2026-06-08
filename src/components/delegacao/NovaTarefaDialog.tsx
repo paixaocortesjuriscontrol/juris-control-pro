@@ -92,6 +92,7 @@ export function NovaTarefaDialog({
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
+  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const { toast } = useToast();
@@ -197,13 +198,19 @@ export function NovaTarefaDialog({
           coordenacaoId = proc?.coordenacao_id || "";
           processoNumero = proc?.numero || "";
         }
+        const { data: resps } = await supabase
+          .from("tarefa_responsaveis")
+          .select("usuario_id")
+          .eq("tarefa_id", tarefaParaEditar.id);
+        const respIds = (resps || []).map((r: any) => r.usuario_id).filter(Boolean);
+        const responsavelPrincipal = respIds[0] || tarefaParaEditar.responsavel_id || "";
         form.reset({
           tipo_vinculo: tarefaParaEditar.processo_id ? "processo" : "sem_vinculo",
           coordenacao_id: coordenacaoId,
           processo_id: tarefaParaEditar.processo_id || "",
           titulo: tarefaParaEditar.titulo || "",
           descricao: tarefaParaEditar.descricao || "",
-          responsavel_id: tarefaParaEditar.responsavel_id || "",
+          responsavel_id: responsavelPrincipal,
           data_base: tarefaParaEditar.data_base || "",
           data_vencimento: tarefaParaEditar.data_vencimento || "",
           hora_prevista: tarefaParaEditar.hora_prevista || "",
@@ -214,6 +221,7 @@ export function NovaTarefaDialog({
         });
         setSearchProcesso(processoNumero);
         setAnexos([]);
+        setResponsaveisIds(respIds.length > 0 ? respIds : responsavelPrincipal ? [responsavelPrincipal] : []);
         // Carregar envolvidos existentes
         const { data: envs } = await supabase
           .from("tarefa_envolvidos")
@@ -242,6 +250,7 @@ export function NovaTarefaDialog({
       });
       setSearchProcesso(processoPreSelecionado?.numero || "");
       setAnexos([]);
+      setResponsaveisIds([]);
       setEnvolvidosIds([]);
       setMostrarEnvolvidos(false);
     })();
