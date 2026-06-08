@@ -13,6 +13,7 @@ interface Body {
   cc?: string[];
   assunto: string;
   corpo: string;
+  de?: string;
 }
 
 Deno.serve(async (req) => {
@@ -91,7 +92,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    const fromAddr = Deno.env.get("REMESSA_BENNER_FROM") || "Carga Benner <onboarding@resend.dev>";
+    const fromAddr =
+      (body.de && body.de.trim()) ||
+      Deno.env.get("REMESSA_BENNER_FROM") ||
+      "Carga Benner <onboarding@resend.dev>";
 
     const html = `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#222">
       <p>${(body.corpo || "").replace(/\n/g, "<br/>")}</p>

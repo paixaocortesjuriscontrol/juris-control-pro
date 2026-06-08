@@ -331,6 +331,9 @@ function EnviarEmailDialog({ remessa, onClose }: { remessa: RemessaBenner; onClo
   const enviar = useEnviarRemessaEmail();
   const { data: cfg } = useConfiguracaoCargaBenner();
   const vars = { numero: remessa.numero_sequencial, quantidade: remessa.quantidade_itens };
+  const [de, setDe] = useState<string>(
+    (cfg as any)?.email_remetente_padrao || ""
+  );
   const [para, setPara] = useState(
     (remessa.email_destinatarios && remessa.email_destinatarios.length > 0
       ? remessa.email_destinatarios
@@ -363,13 +366,14 @@ function EnviarEmailDialog({ remessa, onClose }: { remessa: RemessaBenner; onClo
     if (!cfg) return;
     if (!para && cfg.email_padrao_para?.length) setPara(cfg.email_padrao_para.join(", "));
     if (!cc && cfg.email_padrao_cc?.length) setCc(cfg.email_padrao_cc.join(", "));
+    if (!de && (cfg as any).email_remetente_padrao) setDe((cfg as any).email_remetente_padrao);
   }, [cfg]);
 
   const onSubmit = async () => {
     const paraArr = para.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
     const ccArr = cc.split(/[,;]/).map((s) => s.trim()).filter(Boolean);
     if (paraArr.length === 0) return toast.error("Informe ao menos um destinatário");
-    await enviar.mutateAsync({ remessaId: remessa.id, para: paraArr, cc: ccArr, assunto, corpo });
+    await enviar.mutateAsync({ remessaId: remessa.id, para: paraArr, cc: ccArr, assunto, corpo, de: de.trim() || undefined });
     onClose();
   };
 
@@ -380,6 +384,17 @@ function EnviarEmailDialog({ remessa, onClose }: { remessa: RemessaBenner; onClo
           <DialogTitle>Enviar remessa {remessa.numero_sequencial}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          <div>
+            <label className="text-sm font-medium">De (remetente)</label>
+            <Input
+              value={de}
+              onChange={(e) => setDe(e.target.value)}
+              placeholder='Ex.: "Carga Benner <noreply@seudominio.com>" ou onboarding@resend.dev'
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Use um e-mail de um domínio verificado no Resend. Sem domínio verificado, use <code>onboarding@resend.dev</code> e envie apenas para o e-mail cadastrado na conta Resend.
+            </p>
+          </div>
           <div>
             <label className="text-sm font-medium">Para</label>
             <Input value={para} onChange={(e) => setPara(e.target.value)} placeholder="separar por vírgula" />
