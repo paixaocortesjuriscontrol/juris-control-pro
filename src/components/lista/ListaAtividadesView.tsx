@@ -126,7 +126,7 @@ function tarefaToAgendaItem(tarefa: Prazo): ItemAgendaUnificado {
   return {
     ...tarefa,
     tipo,
-    origem: tipo === "evento" || tipo === "parcelamento" ? "evento" : "tarefa",
+    origem: "tarefa",
     data_inicio: tarefa.data_vencimento ? `${tarefa.data_vencimento}T00:00:00` : tarefa.created_at,
     data_fim: null,
     dia_inteiro: true,
