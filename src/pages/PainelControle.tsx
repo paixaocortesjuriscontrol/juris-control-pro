@@ -1170,6 +1170,19 @@ export default function PainelControle() {
             </div>
           </div>
 
+          {selectedItem && (
+            <aside className="hidden lg:flex w-[480px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0">
+              <EdicaoItemPanel
+                key={selectedItem.id}
+                item={selectedItem}
+                onClose={() => setSelectedItem(null)}
+                onUpdate={() => {
+                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+                }}
+              />
+            </aside>
+          )}
+
         </div>
         )}
       </div>
