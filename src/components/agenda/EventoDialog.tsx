@@ -594,6 +594,30 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
         </ScrollArea>
           </div>
         </div>
+  );
+
+  if (inline) {
+    return (
+      <div className="h-full flex flex-col bg-background overflow-hidden">
+        {dialogBody}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className={cn(
+          "p-0 gap-0 overflow-hidden flex flex-col",
+          hasPublicacao ? "w-[95vw] max-w-5xl h-[90vh]" : "w-[95vw] max-w-2xl h-[90vh] max-h-[90vh]"
+        )}
+        aria-describedby="evento-dialog-description"
+      >
+        <DialogHeader className="sr-only">
+          <DialogTitle>{isEditing ? "Editar Evento" : "Novo Evento"}</DialogTitle>
+          <p id="evento-dialog-description">Formulário para criar ou editar um evento na agenda</p>
+        </DialogHeader>
+        {dialogBody}
       </DialogContent>
     </Dialog>
   );
