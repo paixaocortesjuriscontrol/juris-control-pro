@@ -2182,7 +2182,15 @@ export default function CompararDjSantander() {
           <Button
             size="lg"
             variant="outline"
-          onClick={() => exportarPdf(result, leftFileName, sourceFileName, analise, { leftLabel, sourceLabel, tiposEsq, tiposDir })}
+          onClick={() => exportarPdf(result, leftFileName, sourceFileName, analise, {
+            leftLabel,
+            sourceLabel,
+            tiposEsq,
+            tiposDir,
+            coordenacaoNome: coordenacoes.find(c => c.id === selectedCoordenacao)?.nome || "",
+            dataInicioDisp: selectedDate ?? null,
+            dataFimDisp: selectedDateFim ?? selectedDate ?? null,
+          })}
             className="gap-2"
           >
             <Download className="w-5 h-5" />
