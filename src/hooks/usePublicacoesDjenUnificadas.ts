@@ -177,6 +177,8 @@ export interface PublicacaoUnificada {
   partes_json?: string[] | null;
   // Dados de descarte (para tipo descartada)
   motivo_descarte?: string | null;
+  descartado_por?: string | null;
+  descartado_por_nome?: string | null;
   // Per-user read tracking
   lido_por?: LeituraUsuario[];
 }

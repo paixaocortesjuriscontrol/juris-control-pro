@@ -7752,6 +7752,8 @@ export type Database = {
           created_at: string
           data_disponibilizacao: string
           data_publicacao: string
+          descartado_por: string
+          descartado_por_nome: string
           fonte: string
           id: string
           lida: boolean
