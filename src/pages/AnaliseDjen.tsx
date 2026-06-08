@@ -352,7 +352,14 @@ const AnaliseDjen = () => {
 
   const descartarDuplicadasCoordenacao = async () => {
     const coordId = coordenacaoFiltroEfetivo;
-    if (!coordId) { toast.error('Selecione uma coordenação primeiro.'); return; }
+    if (!coordId) {
+      toast.error('Selecione uma coordenação específica antes de descartar duplicadas.');
+      return;
+    }
+    if (!isAdmin && !userCoordenacaoIds.includes(coordId)) {
+      toast.error('Você só pode descartar duplicadas das coordenações às quais pertence.');
+      return;
+    }
     const confirma = window.confirm(
       'Descartar TODAS as publicações duplicadas (mesmo processo + dia + conteúdo) desta coordenação?\n\n' +
       'A publicação mais antiga de cada grupo é mantida. Você poderá DESFAZER pelo botão "Desfazer último descarte".'
@@ -4046,8 +4053,18 @@ const AnaliseDjen = () => {
                     size="sm"
                     variant="destructive"
                     onClick={descartarDuplicadasCoordenacao}
-                    disabled={descartandoDuplicadas || !coordenacaoFiltroEfetivo}
-                    title="Descarta em lote todas as publicações duplicadas (mesmo processo + dia + conteúdo) da coordenação selecionada. Mantém a mais antiga de cada grupo. Pode ser desfeito."
+                    disabled={
+                      descartandoDuplicadas ||
+                      !coordenacaoFiltroEfetivo ||
+                      (!isAdmin && !userCoordenacaoIds.includes(coordenacaoFiltroEfetivo))
+                    }
+                    title={
+                      !coordenacaoFiltroEfetivo
+                        ? 'Selecione uma coordenação específica para habilitar o descarte.'
+                        : (!isAdmin && !userCoordenacaoIds.includes(coordenacaoFiltroEfetivo))
+                          ? 'Você não pertence a esta coordenação. Apenas administradores podem descartar de qualquer coordenação.'
+                          : 'Descarta em lote todas as publicações duplicadas (mesmo processo + dia + conteúdo) da coordenação selecionada. Mantém a mais antiga de cada grupo. Pode ser desfeito.'
+                    }
                   >
                     {descartandoDuplicadas ? (
                       <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
