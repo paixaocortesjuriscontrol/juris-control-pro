@@ -92,6 +92,7 @@ export function NovaTarefaDialog({
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
+  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const { toast } = useToast();
@@ -128,25 +129,6 @@ export function NovaTarefaDialog({
 
   const tipoVinculo = form.watch("tipo_vinculo");
   const coordenacaoId = form.watch("coordenacao_id");
-
-  // Fetch membros based on coordination
-  const { data: membros } = useQuery({
-    queryKey: ["membros-nova-tarefa", coordenacaoId],
-    queryFn: async () => {
-      if (!coordenacaoId) return [];
-      const { data, error } = await supabase
-        .from("membros_coordenacao")
-        .select(`
-          id,
-          usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
-        `)
-        .eq("coordenacao_id", coordenacaoId);
-
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!coordenacaoId,
-  });
 
   // Fetch processos based on coordination and search
   const { data: processos, isLoading: loadingProcessos } = useQuery({
@@ -197,13 +179,19 @@ export function NovaTarefaDialog({
           coordenacaoId = proc?.coordenacao_id || "";
           processoNumero = proc?.numero || "";
         }
+        const { data: resps } = await supabase
+          .from("tarefa_responsaveis")
+          .select("usuario_id")
+          .eq("tarefa_id", tarefaParaEditar.id);
+        const respIds = (resps || []).map((r: any) => r.usuario_id).filter(Boolean);
+        const responsavelPrincipal = respIds[0] || tarefaParaEditar.responsavel_id || "";
         form.reset({
           tipo_vinculo: tarefaParaEditar.processo_id ? "processo" : "sem_vinculo",
           coordenacao_id: coordenacaoId,
           processo_id: tarefaParaEditar.processo_id || "",
           titulo: tarefaParaEditar.titulo || "",
           descricao: tarefaParaEditar.descricao || "",
-          responsavel_id: tarefaParaEditar.responsavel_id || "",
+          responsavel_id: responsavelPrincipal,
           data_base: tarefaParaEditar.data_base || "",
           data_vencimento: tarefaParaEditar.data_vencimento || "",
           hora_prevista: tarefaParaEditar.hora_prevista || "",
@@ -214,6 +202,7 @@ export function NovaTarefaDialog({
         });
         setSearchProcesso(processoNumero);
         setAnexos([]);
+        setResponsaveisIds(respIds.length > 0 ? respIds : responsavelPrincipal ? [responsavelPrincipal] : []);
         // Carregar envolvidos existentes
         const { data: envs } = await supabase
           .from("tarefa_envolvidos")
@@ -242,6 +231,7 @@ export function NovaTarefaDialog({
       });
       setSearchProcesso(processoPreSelecionado?.numero || "");
       setAnexos([]);
+      setResponsaveisIds([]);
       setEnvolvidosIds([]);
       setMostrarEnvolvidos(false);
     })();
@@ -333,13 +323,14 @@ export function NovaTarefaDialog({
   async function onSubmit(values: FormValues) {
     setLoading(true);
     try {
+      const responsaveisParaSalvar = responsaveisIds.length > 0 ? responsaveisIds : [values.responsavel_id].filter(Boolean);
       // Edição
       if (tarefaParaEditar?.id) {
         const { error: upErr } = await supabase
           .from("tarefas")
           .update({
             processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
-            responsavel_id: values.responsavel_id,
+            responsavel_id: responsaveisParaSalvar[0] || values.responsavel_id,
             titulo: values.titulo,
             descricao: values.descricao || null,
             data_base: values.data_base || null,
@@ -349,6 +340,12 @@ export function NovaTarefaDialog({
           })
           .eq("id", tarefaParaEditar.id);
         if (upErr) throw upErr;
+        await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefaParaEditar.id);
+        if (responsaveisParaSalvar.length > 0) {
+          await supabase.from("tarefa_responsaveis").insert(
+            responsaveisParaSalvar.map((uid) => ({ tarefa_id: tarefaParaEditar.id, usuario_id: uid }))
+          );
+        }
         // Sincronizar envolvidos
         await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefaParaEditar.id);
         if (envolvidosIds.length > 0) {
@@ -362,7 +359,7 @@ export function NovaTarefaDialog({
         });
         await queryClient.invalidateQueries({ queryKey: ["tarefas"] });
         await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
-        await queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinita"] });
+        await queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite-v1"] });
         onOpenChange(false);
         onSuccess?.();
         return;
@@ -370,7 +367,7 @@ export function NovaTarefaDialog({
       // Criar a tarefa primeiro
       const { data: novaTarefa, error } = await supabase.from("tarefas").insert({
         processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
-        responsavel_id: values.responsavel_id,
+        responsavel_id: responsaveisParaSalvar[0] || values.responsavel_id,
         titulo: values.titulo,
         descricao: values.descricao || null,
         data_base: values.data_base || null,
@@ -382,6 +379,12 @@ export function NovaTarefaDialog({
       }).select("id").single();
 
       if (error) throw error;
+
+      if (novaTarefa?.id && responsaveisParaSalvar.length > 0) {
+        await supabase.from("tarefa_responsaveis").insert(
+          responsaveisParaSalvar.map((uid) => ({ tarefa_id: novaTarefa.id, usuario_id: uid }))
+        );
+      }
 
       // Inserir envolvidos
       if (novaTarefa?.id && envolvidosIds.length > 0) {
@@ -544,10 +547,6 @@ export function NovaTarefaDialog({
     }
   };
 
-  const advogadosDisponiveis = membros
-    ?.filter((m) => m.usuario?.id)
-    .map((m) => ({ id: m.usuario!.id, nome: m.usuario!.nome })) || [];
-
   const Header = (
     inline ? (
       <div className="px-6 pt-5 pb-3 shrink-0 border-b">
@@ -703,25 +702,18 @@ export function NovaTarefaDialog({
                 name="responsavel_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Responsável *</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      value={field.value}
-                      disabled={!coordenacaoId}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={coordenacaoId ? "Selecione o responsável" : "Selecione uma coordenação primeiro"} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {advogadosDisponiveis.map((a) => (
-                          <SelectItem key={a.id} value={a.id}>
-                            {a.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Responsáveis *</FormLabel>
+                    <FormControl>
+                      <PeoplePicker
+                        selectedIds={responsaveisIds}
+                        onChange={(ids) => {
+                          setResponsaveisIds(ids);
+                          field.onChange(ids[0] || "");
+                        }}
+                        placeholder="Adicionar responsável"
+                        emptyLabel="Nenhum responsável selecionado"
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
