@@ -559,7 +559,7 @@ export default function PainelControle() {
         const isPrazo = tipo === "prazo" || tipo === "prazo_parcela";
         const isParcelamento = tipo === "parcelamento";
         const isEvento = !isParcelamento && (item.origem === "evento" || tipoUpper === "EVENTO" || tipo === "evento");
-        const isTarefa = !isAudiencia && !isPrazo && !isEvento;
+        const isTarefa = !isAudiencia && !isPrazo && !isEvento && !isParcelamento;
 
         const match =
           (painelFiltros.classificacoes.includes("audiencia") && isAudiencia) ||
