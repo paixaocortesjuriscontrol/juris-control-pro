@@ -83,6 +83,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
+import { PeoplePicker } from "@/components/shared/PeoplePicker";
 
 interface TarefaAgendaPanelProps {
   tarefa: {
@@ -146,6 +147,7 @@ interface TarefaAgendaPanelProps {
   };
   onClose: () => void;
   onUpdate: () => void;
+  autoEdit?: boolean;
 }
 
 const PRIORIDADE_LABELS: Record<string, string> = {
@@ -176,6 +178,7 @@ export function TarefaAgendaPanel({
   tarefa,
   onClose,
   onUpdate,
+  autoEdit,
 }: TarefaAgendaPanelProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -198,7 +201,7 @@ export function TarefaAgendaPanel({
   const [statusOverride, setStatusOverride] = useState<string | null>(null);
   
   // Modo de edição inline
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(!!autoEdit);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editForm, setEditForm] = useState({
     titulo: "",
@@ -214,6 +217,10 @@ export function TarefaAgendaPanel({
     data_inicio: "",
     data_fim: "",
   });
+  // Multi-select de pessoas (responsáveis + envolvidos) — aplica a tarefas
+  const [editResponsaveisIds, setEditResponsaveisIds] = useState<string[]>([]);
+  const [editEnvolvidosIds, setEditEnvolvidosIds] = useState<string[]>([]);
+  const [editMostrarEnvolvidos, setEditMostrarEnvolvidos] = useState(false);
 
   // Usar statusOverride se disponível, senão usar status original
   const statusAtual = statusOverride ?? tarefa.status;
@@ -251,6 +258,20 @@ export function TarefaAgendaPanel({
           data_inicio: "",
           data_fim: "",
         });
+        // Carregar responsáveis/envolvidos existentes
+        (async () => {
+          const [{ data: resps }, { data: envs }] = await Promise.all([
+            supabase.from("tarefa_responsaveis").select("usuario_id").eq("tarefa_id", tarefa.id),
+            supabase.from("tarefa_envolvidos").select("usuario_id").eq("tarefa_id", tarefa.id),
+          ]);
+          const respIds = (resps || []).map((r: any) => r.usuario_id);
+          const envIds = (envs || []).map((e: any) => e.usuario_id);
+          setEditResponsaveisIds(
+            respIds.length > 0 ? respIds : tarefa.responsavel_id ? [tarefa.responsavel_id] : [],
+          );
+          setEditEnvolvidosIds(envIds);
+          setEditMostrarEnvolvidos(envIds.length > 0);
+        })();
       } else {
         setEditForm({
           titulo: tarefa.titulo || "",
@@ -265,6 +286,16 @@ export function TarefaAgendaPanel({
           data_inicio: tarefa.data_inicio?.substring(0, 16) || "",
           data_fim: tarefa.data_fim?.substring(0, 16) || "",
         });
+        // Carregar participantes do evento
+        (async () => {
+          const { data: parts } = await supabase
+            .from("participantes_evento")
+            .select("usuario_id")
+            .eq("evento_id", tarefa.id);
+          setEditEnvolvidosIds((parts || []).map((p: any) => p.usuario_id));
+          setEditMostrarEnvolvidos(true);
+          setEditResponsaveisIds([]);
+        })();
       }
     }
   }, [isEditing]);
@@ -818,6 +849,14 @@ export function TarefaAgendaPanel({
     setSavingEdit(true);
     try {
       if (tarefa.origem === "tarefa") {
+        if (editResponsaveisIds.length === 0) {
+          toast({
+            title: "Selecione ao menos um responsável",
+            variant: "destructive",
+          });
+          setSavingEdit(false);
+          return;
+        }
         const updateData: Record<string, any> = {
           titulo: editForm.titulo.trim(),
           descricao: editForm.descricao || null,
@@ -826,15 +865,26 @@ export function TarefaAgendaPanel({
           data_fatal: editForm.data_fatal || null,
           prioridade: editForm.prioridade || "media",
           updated_at: new Date().toISOString(),
+          responsavel_id: editResponsaveisIds[0],
         };
-        if (editForm.responsavel_id) {
-          updateData.responsavel_id = editForm.responsavel_id;
-        }
         const { error } = await supabase
           .from("tarefas")
           .update(updateData)
           .eq("id", tarefa.id);
         if (error) throw error;
+        // Sincronizar responsáveis e envolvidos
+        await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefa.id);
+        if (editResponsaveisIds.length > 0) {
+          await supabase.from("tarefa_responsaveis").insert(
+            editResponsaveisIds.map((uid) => ({ tarefa_id: tarefa.id, usuario_id: uid })),
+          );
+        }
+        await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefa.id);
+        if (editEnvolvidosIds.length > 0) {
+          await supabase.from("tarefa_envolvidos").insert(
+            editEnvolvidosIds.map((uid) => ({ tarefa_id: tarefa.id, usuario_id: uid })),
+          );
+        }
       } else {
         const updateData: Record<string, any> = {
           titulo: editForm.titulo.trim(),
@@ -854,9 +904,20 @@ export function TarefaAgendaPanel({
           .update(updateData)
           .eq("id", tarefa.id);
         if (error) throw error;
+        // Sincronizar participantes
+        await supabase.from("participantes_evento").delete().eq("evento_id", tarefa.id);
+        if (editEnvolvidosIds.length > 0) {
+          await supabase.from("participantes_evento").insert(
+            editEnvolvidosIds.map((uid) => ({ evento_id: tarefa.id, usuario_id: uid })),
+          );
+        }
       }
       toast({ title: "Salvo com sucesso!" });
-      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+      await queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+      await queryClient.invalidateQueries({ queryKey: ["tarefas-paginated"] });
+      await queryClient.invalidateQueries({ queryKey: ["tarefas-stats"] });
       onUpdate();
       setIsEditing(false);
     } catch (error: any) {
@@ -1103,21 +1164,49 @@ export function TarefaAgendaPanel({
 
                   {/* Linha 3: Responsável */}
                   <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Responsável</Label>
-                    <Select
-                      value={editForm.responsavel_id}
-                      onValueChange={(v) => setEditForm(f => ({ ...f, responsavel_id: v }))}
-                    >
-                      <SelectTrigger className="h-9">
-                        <SelectValue placeholder="Selecionar..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {membrosEdicao.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label className="text-xs text-muted-foreground">
+                      Responsáveis<span className="text-destructive">*</span>
+                    </Label>
+                    <PeoplePicker
+                      selectedIds={editResponsaveisIds}
+                      onChange={setEditResponsaveisIds}
+                      placeholder="Adicionar responsável"
+                      emptyLabel="Nenhum responsável selecionado"
+                    />
+                    {!editMostrarEnvolvidos && (
+                      <button
+                        type="button"
+                        onClick={() => setEditMostrarEnvolvidos(true)}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        + Envolver mais pessoas
+                      </button>
+                    )}
                   </div>
+                  {editMostrarEnvolvidos && (
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs text-muted-foreground">Envolvidos (acompanham)</Label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditMostrarEnvolvidos(false);
+                            setEditEnvolvidosIds([]);
+                          }}
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Ocultar
+                        </button>
+                      </div>
+                      <PeoplePicker
+                        selectedIds={editEnvolvidosIds}
+                        onChange={setEditEnvolvidosIds}
+                        placeholder="Adicionar envolvido"
+                        emptyLabel="Apenas para acompanhamento"
+                        icon="users"
+                      />
+                    </div>
+                  )}
                 </>
               )}
 
@@ -1174,6 +1263,18 @@ export function TarefaAgendaPanel({
                         className="h-9"
                       />
                     </div>
+                  </div>
+
+                  {/* Envolvidos / Participantes do evento */}
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Envolvidos / Participantes</Label>
+                    <PeoplePicker
+                      selectedIds={editEnvolvidosIds}
+                      onChange={setEditEnvolvidosIds}
+                      placeholder="Adicionar participante"
+                      emptyLabel="Nenhum participante"
+                      icon="users"
+                    />
                   </div>
                 </>
               )}

@@ -41,8 +41,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { PrazoDialog } from "@/components/prazos/PrazoDialog";
-import { TarefaDetalhesPanel } from "@/components/prazos/TarefaDetalhesPanel";
+import { TarefaAgendaPanel } from "@/components/agenda/TarefaAgendaPanel";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
 import { cn } from "@/lib/utils";
@@ -122,9 +121,8 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingPrazo, setEditingPrazo] = useState<Prazo | null>(null);
   const [detalhesPrazo, setDetalhesPrazo] = useState<Prazo | null>(null);
+  const [detalhesEditOnOpen, setDetalhesEditOnOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const { setCollapsed } = useSidebarCollapsed();
 
@@ -358,7 +356,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
               {total.toLocaleString("pt-BR")} atividade(s) encontrada(s)
             </p>
           </div>
-          <Button onClick={() => (onRequestNovo ? onRequestNovo() : setDialogOpen(true))} className="gap-2">
+          <Button onClick={() => onRequestNovo?.()} className="gap-2">
             <Plus className="h-4 w-4" /> Novo
           </Button>
         </div>
@@ -369,7 +367,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
           className={cn(
             "grid grid-cols-1 gap-4",
             detalhesPrazo
-              ? "lg:grid-cols-[minmax(0,1.6fr)_minmax(380px,1fr)]"
+              ? "lg:grid-cols-[minmax(0,1fr)_minmax(560px,1.3fr)]"
               : "lg:grid-cols-[280px_1fr]",
           )}
         >
@@ -766,8 +764,8 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                                 className="h-7 w-7"
                                 title="Editar"
                                 onClick={() => {
-                                  setEditingPrazo(r);
-                                  setDialogOpen(true);
+                                  setDetalhesPrazo(r);
+                                  setDetalhesEditOnOpen(true);
                                 }}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
@@ -843,43 +841,44 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
           {/* Painel de detalhes (split-screen) */}
           {detalhesPrazo && (
             <div className="lg:sticky lg:top-4 h-[calc(100vh-6rem)]">
-              <TarefaDetalhesPanel
-                prazo={detalhesPrazo}
-                onClose={() => setDetalhesPrazo(null)}
-                onEdit={(p) => {
-                  setEditingPrazo(p);
-                  setDialogOpen(true);
+              <TarefaAgendaPanel
+                key={detalhesPrazo.id + (detalhesEditOnOpen ? ":edit" : "")}
+                autoEdit={detalhesEditOnOpen}
+                tarefa={{
+                  id: detalhesPrazo.id,
+                  titulo: detalhesPrazo.titulo,
+                  descricao: detalhesPrazo.descricao,
+                  data_inicio: detalhesPrazo.data_vencimento || detalhesPrazo.created_at,
+                  data_fim: null,
+                  status: detalhesPrazo.status,
+                  prioridade: detalhesPrazo.prioridade,
+                  processo_id: detalhesPrazo.processo_id,
+                  responsavel_id: detalhesPrazo.responsavel_id,
+                  criado_por: detalhesPrazo.criado_por,
+                  concluido_em: detalhesPrazo.data_cumprimento,
+                  created_at: detalhesPrazo.created_at,
+                  origem: "tarefa",
+                  tipo: "tarefa",
+                  processo: detalhesPrazo.processo
+                    ? { id: detalhesPrazo.processo.id, numero: detalhesPrazo.processo.numero }
+                    : null,
+                  responsavel: detalhesPrazo.responsavel,
+                  tipo_tarefa: detalhesPrazo.tipo_tarefa,
+                  data_vencimento: detalhesPrazo.data_vencimento,
+                  data_fatal: detalhesPrazo.data_fatal,
                 }}
-                onMarkAsCumprido={async (p) => {
-                  const { error } = await supabase
-                    .from("tarefas")
-                    .update({
-                      status: "cumprido",
-                      data_cumprimento: new Date().toISOString(),
-                    })
-                    .eq("id", p.id);
-                  if (error) {
-                    toast.error(error.message);
-                    return;
-                  }
-                  await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
-                  toast.success("Tarefa concluída");
-                  setDetalhesPrazo({ ...p, status: "cumprido" });
+                onClose={() => {
+                  setDetalhesPrazo(null);
+                  setDetalhesEditOnOpen(false);
+                }}
+                onUpdate={() => {
+                  queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
                 }}
               />
             </div>
           )}
         </div>
       </div>
-
-      <PrazoDialog
-        open={dialogOpen}
-        onOpenChange={(o) => {
-          setDialogOpen(o);
-          if (!o) setEditingPrazo(null);
-        }}
-        prazo={editingPrazo}
-      />
     </>
   );
 }
