@@ -349,6 +349,13 @@ export function NovaTarefaDialog({
           })
           .eq("id", tarefaParaEditar.id);
         if (upErr) throw upErr;
+        // Sincronizar envolvidos
+        await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefaParaEditar.id);
+        if (envolvidosIds.length > 0) {
+          await supabase.from("tarefa_envolvidos").insert(
+            envolvidosIds.map((uid) => ({ tarefa_id: tarefaParaEditar.id, usuario_id: uid }))
+          );
+        }
         toast({
           title: "Tarefa atualizada",
           description: "As alterações foram salvas.",
