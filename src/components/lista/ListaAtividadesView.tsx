@@ -499,11 +499,11 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
                   <SelectItem value="all">Todos</SelectItem>
-                  {TIPOS_TAREFA.map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {TIPOS_TAREFA_LABELS[t] || t}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="tarefa">Tarefa</SelectItem>
+                  <SelectItem value="evento">Evento</SelectItem>
+                  <SelectItem value="prazo">Prazo</SelectItem>
+                  <SelectItem value="audiencia">Audiência</SelectItem>
+                  <SelectItem value="parcelamento">Parcelamento recorrente</SelectItem>
                 </SelectContent>
               </Select>
             </div>
