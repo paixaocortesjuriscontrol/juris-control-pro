@@ -5320,6 +5320,9 @@ export type Database = {
           periodo_laborado: string | null
           polo_ativo: string | null
           polo_passivo: string | null
+          prazo_fatal_conferido: boolean
+          prazo_fatal_conferido_em: string | null
+          prazo_fatal_conferido_por: string | null
           preparo_tst: string | null
           prioridade_djen: boolean
           probabilidade: string | null
@@ -5513,6 +5516,9 @@ export type Database = {
           periodo_laborado?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
+          prazo_fatal_conferido?: boolean
+          prazo_fatal_conferido_em?: string | null
+          prazo_fatal_conferido_por?: string | null
           preparo_tst?: string | null
           prioridade_djen?: boolean
           probabilidade?: string | null
@@ -5706,6 +5712,9 @@ export type Database = {
           periodo_laborado?: string | null
           polo_ativo?: string | null
           polo_passivo?: string | null
+          prazo_fatal_conferido?: boolean
+          prazo_fatal_conferido_em?: string | null
+          prazo_fatal_conferido_por?: string | null
           preparo_tst?: string | null
           prioridade_djen?: boolean
           probabilidade?: string | null

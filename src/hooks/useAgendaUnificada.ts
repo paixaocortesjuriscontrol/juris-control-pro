@@ -605,7 +605,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       {
         let queryPrazos = supabase
           .from("processos")
-          .select("id, numero, polo_ativo, polo_passivo, data_fatal, coordenacao_id, criado_por_tst, responsavel_tst_id, responsavel_tst, equipe_tst, decisao_tst, status")
+          .select("id, numero, polo_ativo, polo_passivo, data_fatal, coordenacao_id, criado_por_tst, responsavel_tst_id, responsavel_tst, equipe_tst, decisao_tst, status, prazo_fatal_conferido")
           .not("data_fatal", "is", null);
 
         if (!filters.fetchAll) {
@@ -652,6 +652,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             const dataBase = parseISO(prazo.data_fatal!);
             const diasRestantes = differenceInDays(startOfDay(dataBase), today);
             const isAtrasado = diasRestantes < 0;
+            const isConferido = !!(prazo as any).prazo_fatal_conferido;
 
             resultItems.push({
               id: prazoId,
@@ -665,7 +666,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
               local: null,
               recorrente: false,
               recorrencia_tipo: null,
-              status: isAtrasado ? "atrasado" : "pendente",
+              status: isConferido ? "cumprido" : (isAtrasado ? "atrasado" : "pendente"),
               concluido_em: null,
               created_at: prazo.data_fatal! + "T00:00:00",
               updated_at: prazo.data_fatal! + "T00:00:00",
