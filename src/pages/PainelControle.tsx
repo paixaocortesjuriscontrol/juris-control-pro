@@ -54,6 +54,7 @@ import {
 import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
+import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { toZonedTime } from "date-fns-tz";
 import { Link, useNavigate } from "react-router-dom";
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
@@ -638,38 +639,7 @@ export default function PainelControle() {
   };
 
   const handleEditItem = (item: ItemAgendaUnificado) => {
-    (async () => {
-      if (item.tipo === "parcelamento") {
-        const { data } = await supabase
-          .from("eventos_agenda")
-          .select("*")
-          .eq("id", item.id)
-          .maybeSingle();
-        setSelectedParcelamento(((data as any) ?? item) as EventoAgenda);
-        setParcelasDialogOpen(true);
-        return;
-      }
-      if (item.origem === "evento") {
-        const { data } = await supabase
-          .from("eventos_agenda")
-          .select("*")
-          .eq("id", item.id)
-          .maybeSingle();
-        setSelectedEvento(((data as any) ?? item) as EventoAgenda);
-        setDialogOpen(true);
-        return;
-      }
-      // origem === "tarefa" (inclui prazo/audiência como tipo_tarefa)
-      const { data } = await supabase
-        .from("tarefas")
-        .select("*")
-        .eq("id", item.id)
-        .maybeSingle();
-      if (data) {
-        setTarefaEditando(data);
-        setNovaTarefaOpen(true);
-      }
-    })();
+    setSelectedItem(item);
   };
 
   const handleConcluirItem = async (item: ItemAgendaUnificado) => {
