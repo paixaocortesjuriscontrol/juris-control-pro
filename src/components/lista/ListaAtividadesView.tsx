@@ -851,49 +851,25 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
             </div>
           </Card>
 
-          {/* Painel de detalhes (split-screen) */}
-          {detalhesPrazo && (
-            <div className={cn(
-              embedded
-                ? "lg:h-full lg:min-h-0 lg:overflow-hidden h-[calc(100vh-12rem)]"
-                : "lg:sticky lg:top-4 h-[calc(100vh-6rem)]"
-            )}>
-              <TarefaAgendaPanel
-                key={detalhesPrazo.id + (detalhesEditOnOpen ? ":edit" : "")}
-                autoEdit={detalhesEditOnOpen}
-                tarefa={{
-                  id: detalhesPrazo.id,
-                  titulo: detalhesPrazo.titulo,
-                  descricao: detalhesPrazo.descricao,
-                  data_inicio: detalhesPrazo.data_vencimento || detalhesPrazo.created_at,
-                  data_fim: null,
-                  status: detalhesPrazo.status,
-                  prioridade: detalhesPrazo.prioridade,
-                  processo_id: detalhesPrazo.processo_id,
-                  responsavel_id: detalhesPrazo.responsavel_id,
-                  criado_por: detalhesPrazo.criado_por,
-                  concluido_em: detalhesPrazo.data_cumprimento,
-                  created_at: detalhesPrazo.created_at,
-                  origem: "tarefa",
-                  tipo: "tarefa",
-                  processo: detalhesPrazo.processo
-                    ? { id: detalhesPrazo.processo.id, numero: detalhesPrazo.processo.numero }
-                    : null,
-                  responsavel: detalhesPrazo.responsavel,
-                  tipo_tarefa: detalhesPrazo.tipo_tarefa,
-                  data_vencimento: detalhesPrazo.data_vencimento,
-                  data_fatal: detalhesPrazo.data_fatal,
-                }}
-                onClose={() => {
-                  setDetalhesPrazo(null);
-                  setDetalhesEditOnOpen(false);
-                }}
-                onUpdate={() => {
-                  queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
-                }}
-              />
-            </div>
-          )}
+          {/* Edição via popup (mesmo formulário do "Adicionar") */}
+          <NovaTarefaDialog
+            open={!!detalhesPrazo}
+            onOpenChange={(o) => {
+              if (!o) {
+                setDetalhesPrazo(null);
+                setDetalhesEditOnOpen(false);
+              }
+            }}
+            coordenacoes={(coordenacoes ?? []).map((c: any) => ({
+              id: c.id,
+              nome: c.nome,
+              area: c.area ?? "",
+            }))}
+            tarefaParaEditar={detalhesPrazo}
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+            }}
+          />
         </div>
       </div>
     </>
