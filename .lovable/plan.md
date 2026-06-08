@@ -1,22 +1,49 @@
-O motivo é a fila atual estar agrupando o TRT10 como uma única unidade serial: primeiro `parte`, depois `advogado`, depois `palavra-chave`. Enquanto a unidade `TRT10/parte` está executando, `TRT10/advogado` e `TRT10/palavra-chave` aparecem como “Aguardando slot”, mas tecnicamente não estão disponíveis para outro worker pegar. Além disso, quando a fila da banda fica vazia e ainda há uma unidade em processamento, os outros workers ficam só aguardando a drenagem da banda.
+# Unificar painel "Em Agenda" com o visual simples da "Em Lista"
 
-Plano para corrigir:
+## Objetivo
+No Painel de Controle, fazer a aba **Em Agenda** mostrar o mesmo card lateral simples que já existe na aba **Em Lista** (TarefaDetalhesPanel) — mas mantendo o comportamento atual da Em Agenda: **edição inline (sem popup)** e os **mesmos botões de ações** (Concluir/Reabrir, Cancelar, Processo, Editar, Descartar, Excluir).
 
-1. Alterar o agendamento das bandas 1 e 2 para criar unidades por `tribunal + tipo`, em vez de uma única unidade por tribunal com steps seriais.
-   - Exemplo atual: `TRT10 = [parte, advogado, palavra-chave]` em série.
-   - Novo comportamento: `TRT10/parte`, `TRT10/advogado`, `TRT10/palavra-chave` como unidades independentes.
+## Arquivo a alterar
+- `src/components/agenda/TarefaAgendaPanel.tsx`
 
-2. Manter a prioridade de tipos dentro de cada tribunal quando possível, mas sem bloquear slots livres.
-   - `parte` continua entrando antes de `advogado`, e `advogado` antes de `palavra-chave` na fila.
-   - Se houver worker livre, ele poderá executar outro tipo do mesmo tribunal em paralelo.
+## O que muda no modo visualização (não-edição)
+Substituir os Collapsibles atuais (Publicação Vinculada, Detalhes do Processo, Parcelamento, Participantes, Detalhes da Tarefa, Comentários separados) pelo layout enxuto da Em Lista:
 
-3. Ajustar o cálculo de total/progresso para contar essas unidades independentes corretamente.
-   - A tela deixará de mostrar tipos pendentes “presos” quando houver worker disponível.
+```text
+┌─ Header ───────────────────────────────────────────┐
+│ [TÍTULO (clicável p/ editar inline)]      [X]      │
+│ [Badge prioridade] [Badge status]                  │
+│ [Concluir] [Cancelar] [Processo] [Editar]          │
+│ [Descartar] [Excluir]                              │
+├────────────────────────────────────────────────────┤
+│ 📅 Vencimento: dd/mm/aaaa   ⏱ status/atraso       │
+│ 👤 Responsável: nome        💼 Processo: número    │
+│                                                    │
+│ Descrição                                          │
+│ ...                                                │
+│                                                    │
+│ Observações                                        │
+│ ...                                                │
+│                                                    │
+│ Comentários e Conversas                            │
+│ [input + lista de comentários já existente]        │
+└────────────────────────────────────────────────────┘
+```
 
-4. Preservar regras já críticas da DJEN Paralela:
-   - `parte` continua usando somente `nomeParte`.
-   - `continueUntilEmpty: true` permanece intacto.
-   - Sem mexer no retry, deduplicação, Kurier, checkpoint ou gravação no banco.
+Removidos da visualização: blocos Publicação Vinculada, Detalhes do Processo (grid completo), Parcelamento, Participantes, Dados Projuris extensos, grid grande de "Detalhes da Tarefa". (A informação principal — vencimento/responsável/processo — fica visível em linha única, igual à Em Lista.)
 
-Resultado esperado:
-- No caso da imagem, enquanto `TRT10/parte` roda, `TRT10/advogado` e/ou `TRT10/palavra-chave` poderão ser pegos por outros workers se houver slot livre, em vez de aguardarem a finalização da busca por parte.
+## O que NÃO muda
+- Modo de edição inline atual (`isEditing`) continua igual — clicar em **Editar** abre o formulário inline no mesmo painel, sem popup.
+- Botões de ação do header (Concluir, Reabrir, Cancelar, Processo, Editar, Descartar, Excluir) e seus handlers permanecem idênticos.
+- AlertDialogs de Descartar / Excluir permanecem.
+- Hooks de dados (comentários, processo completo, etc.) permanecem; apenas o que aparece na tela é simplificado.
+- Em Lista (`ListaAtividadesView` + `TarefaDetalhesPanel` + `PrazoDialog`) não é alterado.
+
+## Detalhes técnicos
+- Reaproveitar o cálculo de `isAtrasado` / `dias restantes` no padrão `TarefaDetalhesPanel`.
+- Reutilizar a seção de comentários atual da Em Agenda (MentionInput + lista) mas inline (sem Collapsible), abaixo das observações.
+- Manter título clicável para edição inline rápida (igual `TarefaDetalhesPanel`), gravando via update já existente.
+
+## Fora de escopo
+- Migrar Em Agenda para usar o componente `TarefaDetalhesPanel` diretamente (tipos `Prazo` x `ItemAgendaUnificado` são diferentes — replicar o layout é mais seguro).
+- Mudanças no Em Lista.
