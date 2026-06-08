@@ -257,38 +257,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const isPending = createEvento.isPending || updateEvento.isPending;
   const hasPublicacao = !!publicacao;
 
-  if (inline) {
-    return (
-      <div className="h-full flex flex-col bg-background overflow-hidden">
-        <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0 border-b">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
-            {isEditing ? "Editar Evento" : "Novo Evento"}
-          </h3>
-        </div>
-        <ScrollArea className="flex-1 px-6">
-          <form onSubmit={handleSubmit} className="space-y-5 py-4" id="evento-form-content-inline">
-            {renderFormFields()}
-          </form>
-        </ScrollArea>
-      </div>
-    );
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className={cn(
-          "p-0 gap-0 overflow-hidden flex flex-col",
-          hasPublicacao ? "w-[95vw] max-w-5xl h-[90vh]" : "w-[95vw] max-w-2xl h-[90vh] max-h-[90vh]"
-        )}
-        aria-describedby="evento-dialog-description"
-      >
-        <DialogHeader className="sr-only">
-          <DialogTitle>{isEditing ? "Editar Evento" : "Novo Evento"}</DialogTitle>
-          <p id="evento-dialog-description">Formulário para criar ou editar um evento na agenda</p>
-        </DialogHeader>
-
-        <div className={cn("flex flex-1 min-h-0 overflow-hidden", hasPublicacao ? "flex-col lg:flex-row" : "flex-col")}>
+  const dialogBody = (
+    <div className={cn("flex flex-1 min-h-0 overflow-hidden", hasPublicacao ? "flex-col lg:flex-row" : "flex-col")}>
           {hasPublicacao && (
             <div className="hidden lg:flex flex-1 border-r flex-col min-h-0">
               <div className="p-4 border-b bg-muted/30">
