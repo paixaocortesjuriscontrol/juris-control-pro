@@ -332,7 +332,7 @@ function EnviarEmailDialog({ remessa, onClose }: { remessa: RemessaBenner; onClo
   const { data: cfg } = useConfiguracaoCargaBenner();
   const vars = { numero: remessa.numero_sequencial, quantidade: remessa.quantidade_itens };
   const [de, setDe] = useState<string>(
-    (cfg as any)?.email_remetente_padrao || ""
+    (cfg as any)?.email_remetente_padrao || "Carga Benner <remessa_benner@juriscontrol.adv.br>"
   );
   const [para, setPara] = useState(
     (remessa.email_destinatarios && remessa.email_destinatarios.length > 0
