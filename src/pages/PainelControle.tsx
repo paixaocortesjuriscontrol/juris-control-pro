@@ -988,7 +988,7 @@ export default function PainelControle() {
               "flex flex-col border-r border-border bg-card transition-all duration-300",
               // Desktop: lado a lado
               "md:flex md:flex-col",
-              selectedItem ? "md:w-[55%]" : "md:flex-1",
+              selectedItem ? "md:w-[70%]" : "md:flex-1",
               // Mobile: tela cheia ou escondido quando item selecionado
               selectedItem ? "hidden md:flex" : "flex flex-1"
             )}

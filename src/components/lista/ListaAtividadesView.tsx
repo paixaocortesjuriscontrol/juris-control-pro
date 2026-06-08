@@ -370,7 +370,7 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
           className={cn(
             "grid grid-cols-1 gap-4",
             detalhesPrazo
-              ? "lg:grid-cols-[minmax(0,440px)_minmax(0,1fr)]"
+              ? "lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)]"
               : "lg:grid-cols-[280px_1fr]",
             embedded && "flex-1 min-h-0 lg:overflow-hidden"
           )}
