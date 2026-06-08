@@ -2197,12 +2197,9 @@ async function executarLoop(
                 descartadas: state.progress.descartadas,
                 tempoInicio,
               });
-              const pct = state.unitTotal > 0
-                ? Math.min(100, Math.round((state.unitDone / state.unitTotal) * 100))
-                : 0;
+              // Não força percentage aqui — deixa updateTrack recalcular com base
+              // em tracks concluídos (alinhado ao header "X/Y tribunais").
               updateProgress({
-                percentage: pct,
-                tribunaisConcluidos: unidadesConcluidasLista.length,
                 mensagem: `Banda ${unit.band} (${BAND_LABEL[unit.band]}) — ${state.unitDone}/${state.unitTotal} unidades`,
               });
               syncExecutionProgress({}, true);
