@@ -249,10 +249,6 @@ export function PrazoDialog({
   const isLoading = createPrazo.isPending || updatePrazo.isPending;
   const hasPublicacao = !!publicacao;
 
-  if (inline) {
-    return <div className="h-full flex flex-col bg-background overflow-hidden">{FormContent}</div>;
-  }
-
   const FormContent = (
     <form onSubmit={handleSubmit} className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
@@ -459,6 +455,9 @@ export function PrazoDialog({
   );
 
   return (
+    inline ? (
+      <div className="h-full flex flex-col bg-background overflow-hidden">{FormContent}</div>
+    ) :
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
