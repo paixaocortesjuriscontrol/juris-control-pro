@@ -294,6 +294,98 @@ const AnaliseDjen = () => {
     : coordenacaoId === "" 
       ? undefined
       : coordenacaoId;
+
+  // Estado do descarte em lote de duplicadas (botão vermelho)
+  const [descartandoDuplicadas, setDescartandoDuplicadas] = useState(false);
+  const [desfazendoLote, setDesfazendoLote] = useState<string | null>(null);
+
+  const desfazerDescarteLote = async (loteId: string) => {
+    if (!loteId) return;
+    try {
+      setDesfazendoLote(loteId);
+      const { data, error } = await (supabase as any).rpc('desfazer_descarte_lote', {
+        p_lote_id: loteId,
+      });
+      if (error) throw error;
+      const total = (data?.total ?? 0) as number;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] }),
+        queryClient.invalidateQueries({ queryKey: ['descartadas-dedup'] }),
+        queryClient.invalidateQueries({ queryKey: ['descartadas-count'] }),
+        queryClient.invalidateQueries({ queryKey: ['descartadas-lotes-recentes'] }),
+      ]);
+      toast.success(`Descarte desfeito: ${total} publicação(ões) restaurada(s)`);
+    } catch (e: any) {
+      toast.error(`Erro ao desfazer: ${e?.message || e}`);
+    } finally {
+      setDesfazendoLote(null);
+    }
+  };
+
+  const { data: lotesRecentes = [] } = useQuery({
+    queryKey: ['descartadas-lotes-recentes', coordenacaoFiltroEfetivo],
+    queryFn: async () => {
+      if (!coordenacaoFiltroEfetivo) return [] as Array<{ lote_id: string; total: number; nome: string; created_at: string }>;
+      const { data, error } = await (supabase as any)
+        .from('publicacoes_djen_descartadas')
+        .select('lote_descarte_id, descartado_por_nome, created_at')
+        .eq('coordenacao_id', coordenacaoFiltroEfetivo)
+        .eq('motivo_descarte', 'duplicada_lote')
+        .not('lote_descarte_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (error) { console.warn('Erro lotes recentes:', error); return []; }
+      const map = new Map<string, { lote_id: string; total: number; nome: string; created_at: string }>();
+      for (const r of (data || [])) {
+        const id = r.lote_descarte_id as string;
+        const prev = map.get(id);
+        if (prev) { prev.total += 1; }
+        else map.set(id, { lote_id: id, total: 1, nome: r.descartado_por_nome || 'Usuário', created_at: r.created_at });
+      }
+      return Array.from(map.values())
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .slice(0, 5);
+    },
+    enabled: !!coordenacaoFiltroEfetivo,
+    staleTime: 15_000,
+  });
+
+  const descartarDuplicadasCoordenacao = async () => {
+    const coordId = coordenacaoFiltroEfetivo;
+    if (!coordId) { toast.error('Selecione uma coordenação primeiro.'); return; }
+    const confirma = window.confirm(
+      'Descartar TODAS as publicações duplicadas (mesmo processo + dia + conteúdo) desta coordenação?\n\n' +
+      'A publicação mais antiga de cada grupo é mantida. Você poderá DESFAZER pelo botão "Desfazer último descarte".'
+    );
+    if (!confirma) return;
+    try {
+      setDescartandoDuplicadas(true);
+      const { data, error } = await (supabase as any).rpc('descartar_duplicadas_coordenacao', {
+        p_coordenacao_id: coordId,
+      });
+      if (error) throw error;
+      const total = (data?.total ?? 0) as number;
+      const loteId = data?.lote_id as string | undefined;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] }),
+        queryClient.invalidateQueries({ queryKey: ['descartadas-dedup'] }),
+        queryClient.invalidateQueries({ queryKey: ['descartadas-count'] }),
+        queryClient.invalidateQueries({ queryKey: ['descartadas-lotes-recentes'] }),
+      ]);
+      if (total === 0) {
+        toast.info('Nenhuma duplicada encontrada nesta coordenação.');
+      } else {
+        toast.success(`${total} duplicada(s) descartada(s) por ${data?.descartado_por_nome || 'você'}`, {
+          duration: 15000,
+          action: loteId ? { label: 'Desfazer', onClick: () => desfazerDescarteLote(loteId) } : undefined,
+        });
+      }
+    } catch (e: any) {
+      toast.error(`Erro ao descartar duplicadas: ${e?.message || e}`);
+    } finally {
+      setDescartandoDuplicadas(false);
+    }
+  };
   
   const { data: coordenacoes } = useCoordenacoes();
 
