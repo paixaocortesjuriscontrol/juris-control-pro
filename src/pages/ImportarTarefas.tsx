@@ -1190,21 +1190,21 @@ export default function ImportarTarefas() {
       setAstreaParseProgress(60);
 
       const parsed: TarefaAstreaImport[] = rows.map((row: any, index): TarefaAstreaImport => {
-        const data = String(row["Data"] || "").trim();
-        const hora = String(row["Hora"] || "").trim();
-        const tipo = String(row["Tipo"] || "").trim();
-        const responsavel = String(row["Responsável"] || row["Responsavel"] || "").trim();
-        const titulo = String(row["Título"] || row["Titulo"] || "").trim();
-        const tituloProcesso = String(row["Título do processo/caso/atendimento"] || row["Titulo do processo/caso/atendimento"] || "").trim();
-        const numeroProcesso = String(row["Número do processo"] || row["Numero do processo"] || "").trim();
-        const juizo = String(row["Juízo"] || row["Juizo"] || "").trim();
-        const observacao = String(row["Observação da atividade"] || row["Observacao da atividade"] || "").trim();
-        const etiquetas = String(row["Etiquetas"] || "").trim();
-        const envolvidos = String(row["Envolvidos"] || "").trim();
-        const statusOrigem = String(row["Status"] || "").trim();
-        const prioridadeOrigem = String(row["Prioridade"] || "").trim();
-        const dataCriacao = String(row["Data de criação"] || row["Data de criacao"] || "").trim();
-        const dataConclusao = String(row["Data de conclusão"] || row["Data de conclusao"] || "").trim();
+        const data = getRowValue(row, ["Data"]);
+        const hora = getRowValue(row, ["Hora"]);
+        const tipo = getRowValue(row, ["Tipo"]);
+        const responsavel = getRowValue(row, ["Responsável", "Responsavel"]);
+        const titulo = getRowValue(row, ["Título", "Titulo"]);
+        const tituloProcesso = getRowValue(row, ["Título do processo/caso/atendimento", "Titulo do processo/caso/atendimento"]);
+        const numeroProcesso = getRowValue(row, ["Número do processo", "Numero do processo"]);
+        const juizo = getRowValue(row, ["Juízo", "Juizo"]);
+        const observacao = getRowValue(row, ["Observação da atividade", "Observacao da atividade"]);
+        const etiquetas = getRowValue(row, ["Etiquetas"]);
+        const envolvidos = getRowValue(row, ["Envolvidos"]);
+        const statusOrigem = getRowValue(row, ["Status"]);
+        const prioridadeOrigem = getRowValue(row, ["Prioridade"]);
+        const dataCriacao = getRowValue(row, ["Data de criação", "Data de criacao"]);
+        const dataConclusao = getRowValue(row, ["Data de conclusão", "Data de conclusao"]);
 
         // Generate unique identifier based on data+hora+titulo+processo
         const identificador = `astrea-${data}-${hora}-${titulo}-${numeroProcesso}`.replace(/[^a-zA-Z0-9-]/g, "_").substring(0, 100);
