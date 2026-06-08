@@ -6237,6 +6237,7 @@ export type Database = {
       publicacoes_djen_descartadas: {
         Row: {
           advogados_json: Json | null
+          chave_descarte: string | null
           conteudo: string | null
           coordenacao_id: string | null
           created_at: string
@@ -6267,6 +6268,7 @@ export type Database = {
         }
         Insert: {
           advogados_json?: Json | null
+          chave_descarte?: string | null
           conteudo?: string | null
           coordenacao_id?: string | null
           created_at?: string
@@ -6297,6 +6299,7 @@ export type Database = {
         }
         Update: {
           advogados_json?: Json | null
+          chave_descarte?: string | null
           conteudo?: string | null
           coordenacao_id?: string | null
           created_at?: string
