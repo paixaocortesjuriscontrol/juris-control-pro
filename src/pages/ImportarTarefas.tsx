@@ -84,6 +84,11 @@ interface TarefaAstreaImport {
   juizo: string | null;
   observacao: string | null;
   etiquetas: string | null;
+  envolvidos: string | null;
+  statusOrigem: string | null;
+  prioridadeOrigem: string | null;
+  dataConclusao: string | null;
+  dataCriacao: string | null;
   status: "pendente" | "valido" | "invalido" | "sucesso" | "erro";
   erros: string[];
   erroImport?: string;
