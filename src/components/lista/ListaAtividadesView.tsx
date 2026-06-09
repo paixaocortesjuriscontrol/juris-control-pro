@@ -805,6 +805,7 @@ export default function ListaAtividadesView({
                     </TableRow>
                   ) : (
                     rows.map((r) => {
+                      const item = tarefaToAgendaItem(r);
                       const isSel = selected.has(r.id);
                       return (
                         <TableRow
@@ -814,13 +815,13 @@ export default function ListaAtividadesView({
                           onClick={(e) => {
                             const tgt = e.target as HTMLElement;
                             if (tgt.closest("[data-stop]")) return;
-                            setDetalhesPrazo(tarefaToAgendaItem(r));
+                            setDetalhesPrazo(item);
                           }}
                         >
                           <TableCell className="px-2 py-3 align-top" data-stop>
                             <Checkbox
                               checked={isSel}
-                              disabled={r.origem !== "tarefa" || String(r.id).startsWith("prazo-tst-")}
+                              disabled={item.origem !== "tarefa" || String(r.id).startsWith("prazo-tst-")}
                               onCheckedChange={() => toggleOne(r.id)}
                             />
                           </TableCell>
@@ -832,7 +833,7 @@ export default function ListaAtividadesView({
                                   {r.identificador_projuris || r.processo?.numero || "—"}
                                 </span>
                                 <Badge variant="outline" className="font-normal text-[10px] px-1.5 py-0">
-                                  {TIPO_LABELS[tarefaToAgendaItem(r).tipo]}
+                                  {TIPO_LABELS[item.tipo]}
                                 </Badge>
                                 <Badge
                                   variant="outline"
@@ -874,9 +875,9 @@ export default function ListaAtividadesView({
                                   <div className="flex items-center gap-1 font-medium text-foreground">
                                     <CalendarIcon className="h-3 w-3 text-destructive" />
                                     <span className="text-muted-foreground">Fatal:</span>
-                                    <span>{fmtDate(r.data_fatal || r.data_vencimento || r.data_inicio)}</span>
+                                    <span>{fmtDate(item.data_fatal || item.data_vencimento || item.data_inicio)}</span>
                                   </div>
-                                  <div className="pl-4">Base: {fmtDate(r.data_base)}</div>
+                                  <div className="pl-4">Base: {fmtDate((r as Prazo).data_base)}</div>
                                 </div>
                               </div>
                             )}
@@ -903,7 +904,7 @@ export default function ListaAtividadesView({
                                 className="h-7 w-7"
                                 title="Editar"
                                 onClick={() => {
-                                  setDetalhesPrazo(tarefaToAgendaItem(r));
+                                  setDetalhesPrazo(item);
                                   setDetalhesEditOnOpen(true);
                                 }}
                               >
@@ -914,7 +915,7 @@ export default function ListaAtividadesView({
                               size="icon"
                               className="h-7 w-7"
                               title="Concluir"
-                              disabled={r.status === "cumprido" || r.status === "concluido" || r.origem !== "tarefa" || String(r.id).startsWith("prazo-tst-")}
+                              disabled={r.status === "cumprido" || r.status === "concluido" || item.origem !== "tarefa" || String(r.id).startsWith("prazo-tst-")}
                               onClick={async () => {
                                 const { error } = await supabase
                                   .from("tarefas")
