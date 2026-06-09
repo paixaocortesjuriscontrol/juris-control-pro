@@ -604,7 +604,7 @@ export default function PainelControle() {
   const itensPorDia = useMemo(() => {
     const map = new Map<string, ItemAgendaUnificado[]>();
 
-    let filtered = itensPainelFiltrados;
+    const filtered = itensPainelFiltrados;
 
     filtered.forEach((item) => {
       // Choose date key based on prazo filter
@@ -961,6 +961,7 @@ export default function PainelControle() {
               embedded
               onRequestNovo={() => setNovaTarefaOpen(true)}
               externalItems={itensPainelFiltrados}
+              externalLoading={isLoading}
               forcedCoordenacaoId={
                 tabMode === "pessoal"
                   ? "all"
