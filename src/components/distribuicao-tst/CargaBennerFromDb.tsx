@@ -393,11 +393,19 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         outRow[LAYOUT_COLS[24]] = d.perdemos ? "X" : "";
         outRow[LAYOUT_COLS[25]] = d.processo_baixado ? toSN(String(d.processo_baixado)) : "";
         {
-          // Coluna AA = exclusivamente a seleção da combo "Parte Recorrente" da aba Distribuição TST.
-          // Aceita apenas os valores fechados da combo; qualquer outra string (nome livre vindo de Judit/IA) é descartada.
-          const VALIDOS = new Set(["Reclamante", "Reclamada", "Reclamante e Reclamada", "Terceiro"]);
-          const v = String(d.recorrente ?? "").trim();
-          outRow[LAYOUT_COLS[26]] = VALIDOS.has(v) ? v : "";
+          const splitRec = (v: any) => String(v ?? "")
+            .split(/\s*[+,;]\s*/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+          const temRecl = splitRec((d as any).tipo_recurso_reclamante).length > 0;
+          const temBanco = splitRec((d as any).tipo_recurso_banco).length > 0;
+          outRow[LAYOUT_COLS[26]] = temRecl && temBanco
+            ? "Reclamante e Reclamada"
+            : temRecl
+              ? "Reclamante"
+              : temBanco
+                ? "Reclamada"
+                : "";
         }
         outRow[LAYOUT_COLS[27]] = d.posicao_turma_favoravel ? "X" : "";
         outRow[LAYOUT_COLS[28]] = d.posicao_turma_desfavoravel ? "X" : "";
@@ -664,10 +672,11 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
 
         function shiftRow(rowXml: string, rowNum: number, insertCell?: string): string {
           const cells: Array<{col: number; xml: string}> = [];
-          const cellRegex = /<c\s[^>]*r="([A-Z]+)\d+"[^>]*>[\s\S]*?<\/c>|<c\s[^>]*r="([A-Z]+)\d+"[^\/]*\/>/g;
+          const cellRegex = /<c\b(?=[^>]*\br="[A-Z]+\d+")[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g;
           let cm: RegExpExecArray | null;
           while ((cm = cellRegex.exec(rowXml)) !== null) {
-            const colLetter = cm[1] || cm[2];
+            const colLetter = cm[0].match(/\br="([A-Z]+)\d+"/)?.[1];
+            if (!colLetter) continue;
             const colIdx = colLetterToIndex(colLetter);
             const newColIdx = colIdx >= 1 ? colIdx + 1 : colIdx;
             const newRef = colToLetter(newColIdx) + rowNum;
@@ -675,7 +684,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
           }
           if (insertCell) cells.push({ col: 1, xml: insertCell });
           cells.sort((a, b) => a.col - b.col);
-          const rowTag = rowXml.match(/<row [^>]*>/)?.[0] || `<row r="${rowNum}">`;
+          const rowTag = (rowXml.match(/<row [^>]*>/)?.[0] || `<row r="${rowNum}">`)
+            .replace(/spans="[^"]*"/, `spans="1:${totalCols}"`);
           return rowTag + cells.map(c => c.xml).join("") + "</row>";
         }
 
