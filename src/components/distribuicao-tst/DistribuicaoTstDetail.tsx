@@ -487,6 +487,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           className="mt-4 data-[state=inactive]:hidden"
         >
           <DistribuicaoTstForm
+            key={`dist-${currentDado?.id || "novo"}-${currentDado?.updated_at || "draft"}`}
             ref={formRef}
             dado={currentDado || null}
             onSave={handleSaveDistribuicaoLocal}
@@ -516,6 +517,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             </div>
           ) : bennerDado ? (
             <DadosBennerForm
+              key={`benner-${(bennerDado as any)?.id || "novo"}-${(bennerDado as any)?.updated_at || "draft"}`}
               ref={bennerFormRef}
               dado={bennerDado}
               markExistingJuditFields={!!(bennerDado as any)?.judit_preenchido}
@@ -529,6 +531,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             />
           ) : (
             <DadosBennerForm
+              key={`benner-novo-${processoNumero}`}
               ref={bennerFormRef}
               initialData={{
                 processo: processoNumero,
