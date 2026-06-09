@@ -65,6 +65,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const formRef = useRef<DistribuicaoTstFormHandle>(null);
   const bennerFormRef = useRef<DadosBennerFormHandle>(null);
   const [savingTop, setSavingTop] = useState(false);
+  const [saveVersion, setSaveVersion] = useState(0);
   const [prontoEnviar, setProntoEnviar] = useState(false);
   const [problemaJudit, setProblemaJudit] = useState(false);
   const [transitoJulgado, setTransitoJulgado] = useState(false);
@@ -185,6 +186,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     setCurrentDado(bennerToDistribuicao(row));
     setBennerDado(row as DadoBenner);
     setBennerLoaded(true);
+    setSaveVersion((v) => v + 1);
   }, [currentDado?.id, (bennerDado as any)?.id]);
 
   const fetchBennerByProcesso = useCallback(async () => {
@@ -487,7 +489,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           className="mt-4 data-[state=inactive]:hidden"
         >
           <DistribuicaoTstForm
-            key={`dist-${currentDado?.id || "novo"}-${currentDado?.updated_at || "draft"}`}
+            key={`dist-${currentDado?.id || "novo"}-${saveVersion}`}
             ref={formRef}
             dado={currentDado || null}
             onSave={handleSaveDistribuicaoLocal}
@@ -517,7 +519,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             </div>
           ) : bennerDado ? (
             <DadosBennerForm
-              key={`benner-${(bennerDado as any)?.id || "novo"}-${(bennerDado as any)?.updated_at || "draft"}`}
+              key={`benner-${(bennerDado as any)?.id || "novo"}-${saveVersion}`}
               ref={bennerFormRef}
               dado={bennerDado}
               markExistingJuditFields={!!(bennerDado as any)?.judit_preenchido}
