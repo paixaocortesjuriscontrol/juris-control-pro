@@ -711,6 +711,34 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
       sheetXml = sheetXml.replace(/<dimension ref="[^"]*"\/>/, `<dimension ref="A1:${colToLetter(totalCols - 1)}${lastRow}"/>`);
       sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows}${dataRowsXml}</sheetData>`);
       sheetXml = setWorksheetColumnWidth(sheetXml, 28, 60);
+
+      // Shift mergeCells ranges to account for the inserted "Processo" column at B.
+      // Cells originally at col >= B (index >= 1) are shifted +1, and A1 stays at A1.
+      // A merge starting at A and extending across the shifted region must expand by 1
+      // on the right side so it still covers the original cells in their new positions.
+      function shiftColLetter(letters: string): string {
+        let idx = 0;
+        for (let i = 0; i < letters.length; i++) idx = idx * 26 + (letters.charCodeAt(i) - 64);
+        idx -= 1;
+        const shifted = idx >= 1 ? idx + 1 : idx;
+        return colToLetter(shifted);
+      }
+      sheetXml = sheetXml.replace(/<mergeCell ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\/>/g,
+        (_m, c1, r1, c2, r2) => {
+          const newC1 = shiftColLetter(c1);
+          // If the original left col was A and right col was >= B, extend right by 1
+          // so the merge still covers the shifted cells. Otherwise shift right normally.
+          let newC2: string;
+          if (c1 === "A" && c2 !== "A") {
+            // expand: right col gets shifted +1 as well (since orig col >= B)
+            newC2 = shiftColLetter(c2);
+          } else {
+            newC2 = shiftColLetter(c2);
+          }
+          return `<mergeCell ref="${newC1}${r1}:${newC2}${r2}"/>`;
+        }
+      );
+
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
       zip.file("xl/sharedStrings.xml",
