@@ -658,57 +658,27 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     let rowId = id;
     if (!payload.aba_origem) payload.aba_origem = "Manual";
 
-    if (!rowId) {
-      const processo = String(payload.processo || "").trim();
-      const dossie = String(payload.dossie || "").trim();
-      if (processo) {
-        let query: any = supabase.from("dados_benner" as any).select("id").eq("processo", processo);
-        query = dossie ? query.eq("dossie", dossie) : query.or("dossie.is.null,dossie.eq.");
-        const { data: existing, error: lookupError } = await query
-          .order("benner_atualizado", { ascending: false, nullsFirst: false })
-          .order("updated_at", { ascending: false, nullsFirst: false })
-          .limit(1);
-        if (!lookupError && (existing as any[])?.[0]?.id) rowId = (existing as any[])[0].id;
+    // Estratégia: salvar SEMPRE pelo par (processo, dossie), que existe apenas
+    // em `dados_benner` (a tabela de arquivados é separada). Isso garante que o
+    // UPDATE atinge a linha ATIVA, mesmo que o `id` em mãos esteja obsoleto.
+    const processo = String(payload.processo || "").trim();
+    const dossie = String(payload.dossie || "").trim();
+
+    if (processo) {
+      let upd: any = supabase.from("dados_benner" as any).update(payload as any).eq("processo", processo);
+      upd = dossie ? upd.eq("dossie", dossie) : upd.or("dossie.is.null,dossie.eq.");
+      const { data: updated, error } = await upd.select("id");
+      if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
+      const rows = (updated as any[]) || [];
+      if (rows.length > 0) {
+        // Se houver mais de uma linha ativa para o mesmo par (legado), todas
+        // são atualizadas. Usamos a primeira para vínculos de responsáveis.
+        rowId = rows[0].id;
       }
     }
 
-    if (rowId) {
-      const { data: updated, error } = await supabase
-        .from("dados_benner" as any)
-        .update(payload as any)
-        .eq("id", rowId)
-        .select("id");
-      if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
-      if (!updated || (updated as any[]).length === 0) {
-        // O id em mãos não existe mais (linha arquivada/removida). Buscar a linha
-        // ativa equivalente por processo+dossie e redirecionar o update para ela,
-        // para que a edição da advogada não se perca silenciosamente.
-        const processo = String(payload.processo || "").trim();
-        const dossie = String(payload.dossie || "").trim();
-        let activeId: string | null = null;
-        if (processo) {
-          let q: any = supabase.from("dados_benner" as any).select("id").eq("processo", processo);
-          q = dossie ? q.eq("dossie", dossie) : q.or("dossie.is.null,dossie.eq.");
-          const { data: alt } = await q
-            .order("updated_at", { ascending: false, nullsFirst: false })
-            .limit(1);
-          activeId = (alt as any[])?.[0]?.id || null;
-        }
-        if (!activeId) {
-          toast.error(
-            "Não foi possível salvar: o registro foi arquivado e não há versão ativa equivalente. Recarregue a tela.",
-          );
-          return false;
-        }
-        const { error: err2 } = await supabase
-          .from("dados_benner" as any)
-          .update(payload as any)
-          .eq("id", activeId);
-        if (err2) { toast.error("Erro ao atualizar registro ativo: " + err2.message); return false; }
-        toast.info("A linha aberta foi arquivada; alterações aplicadas ao registro ativo.");
-        rowId = activeId;
-      }
-    } else {
+    if (!rowId) {
+      // Não havia linha ativa: insere uma nova.
       payload.status = "rascunho";
       const { data: ins, error } = await supabase.from("dados_benner" as any).insert(payload as any).select("id").single();
       if (error) { toast.error("Erro ao salvar: " + error.message); return false; }

@@ -81,36 +81,15 @@ export function DadosBennerDistribuicaoTab({ processoNumero }: Props) {
   const handleSave = async (dado: any, id?: string) => {
     if (id) {
       const payload = distribuicaoToBenner(dado);
-      const { data: updated, error } = await supabase
-        .from("dados_benner" as any)
-        .update(payload as any)
-        .eq("id", id)
-        .select("id");
-      if (error) return false;
-      if (!updated || (updated as any[]).length === 0) {
-        const { toast } = await import("sonner");
-        // Linha arquivada/removida: busca a equivalente ativa pelo processo+dossie
-        const processo = String((payload as any).processo || "").trim();
-        const dossie = String((payload as any).dossie || "").trim();
-        let activeId: string | null = null;
-        if (processo) {
-          let q: any = supabase.from("dados_benner" as any).select("id").eq("processo", processo);
-          q = dossie ? q.eq("dossie", dossie) : q.or("dossie.is.null,dossie.eq.");
-          const { data: alt } = await q
-            .order("updated_at", { ascending: false, nullsFirst: false })
-            .limit(1);
-          activeId = (alt as any[])?.[0]?.id || null;
-        }
-        if (!activeId) {
-          toast.error("Registro foi arquivado e não há versão ativa equivalente. Recarregue a tela.");
-          return false;
-        }
-        const { error: err2 } = await supabase
-          .from("dados_benner" as any)
-          .update(payload as any)
-          .eq("id", activeId);
-        if (err2) { toast.error("Erro ao atualizar registro ativo: " + err2.message); return false; }
-        toast.info("A linha aberta foi arquivada; alterações aplicadas ao registro ativo.");
+      const processo = String((payload as any).processo || "").trim();
+      const dossie = String((payload as any).dossie || "").trim();
+      if (processo) {
+        // UPDATE pelo par (processo, dossie) — só atinge linhas ativas em
+        // dados_benner (arquivados ficam em tabela separada).
+        let upd: any = supabase.from("dados_benner" as any).update(payload as any).eq("processo", processo);
+        upd = dossie ? upd.eq("dossie", dossie) : upd.or("dossie.is.null,dossie.eq.");
+        const { error } = await upd;
+        if (error) return false;
       }
     }
     const { data } = await supabase

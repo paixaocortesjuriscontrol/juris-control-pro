@@ -172,67 +172,31 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const saveDado = async (dado: DadoBennerInsert, id?: string): Promise<boolean | string> => {
-    let rowId = id;
-    if (!rowId) {
-      const processo = String((dado as any).processo || "").trim();
-      const dossie = String((dado as any).dossie || "").trim();
-      if (processo) {
-        let query: any = supabase.from("dados_benner" as any).select("id").eq("processo", processo);
-        query = dossie ? query.eq("dossie", dossie) : query.or("dossie.is.null,dossie.eq.");
-        const { data: existing } = await query
-          .order("benner_atualizado", { ascending: false, nullsFirst: false })
-          .order("updated_at", { ascending: false, nullsFirst: false })
-          .limit(1);
-        rowId = (existing as any[])?.[0]?.id;
+    // Sempre salvar pelo par (processo, dossie). A tabela de arquivados é
+    // separada, então o UPDATE só atinge linhas ATIVAS, mesmo se o `id` em
+    // mãos estiver obsoleto.
+    const processo = String((dado as any).processo || "").trim();
+    const dossie = String((dado as any).dossie || "").trim();
+
+    if (processo) {
+      let upd: any = supabase.from("dados_benner" as any).update(dado as any).eq("processo", processo);
+      upd = dossie ? upd.eq("dossie", dossie) : upd.or("dossie.is.null,dossie.eq.");
+      const { data: updated, error } = await upd.select("id");
+      if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
+      const rows = (updated as any[]) || [];
+      if (rows.length > 0) {
+        toast.success("Registro atualizado!");
+        fetchDados();
+        return rows[0].id;
       }
     }
 
-    if (rowId) {
-      const { data: updated, error } = await supabase
-        .from("dados_benner" as any)
-        .update(dado as any)
-        .eq("id", rowId)
-        .select("id");
-      if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
-      if (!updated || (updated as any[]).length === 0) {
-        // Linha arquivada/removida. Redireciona o update para a linha ativa
-        // equivalente (mesmo processo + dossie) para não perder a edição.
-        const processo = String((dado as any).processo || "").trim();
-        const dossie = String((dado as any).dossie || "").trim();
-        let activeId: string | null = null;
-        if (processo) {
-          let q: any = supabase.from("dados_benner" as any).select("id").eq("processo", processo);
-          q = dossie ? q.eq("dossie", dossie) : q.or("dossie.is.null,dossie.eq.");
-          const { data: alt } = await q
-            .order("updated_at", { ascending: false, nullsFirst: false })
-            .limit(1);
-          activeId = (alt as any[])?.[0]?.id || null;
-        }
-        if (!activeId) {
-          toast.error(
-            "Não foi possível salvar: o registro foi arquivado e não há versão ativa equivalente. Recarregue a tela.",
-          );
-          return false;
-        }
-        const { error: err2 } = await supabase
-          .from("dados_benner" as any)
-          .update(dado as any)
-          .eq("id", activeId);
-        if (err2) { toast.error("Erro ao atualizar registro ativo: " + err2.message); return false; }
-        toast.info("A linha aberta foi arquivada; alterações aplicadas ao registro ativo.");
-        fetchDados();
-        return activeId;
-      }
-      toast.success("Registro atualizado!");
-      fetchDados();
-      return rowId;
-    } else {
-      const { data: inserted, error } = await supabase.from("dados_benner" as any).insert(dado as any).select("id").single();
-      if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
-      toast.success("Registro salvo!");
-      fetchDados();
-      return (inserted as any)?.id || true;
-    }
+    // Não havia linha ativa para esse processo/dossie: insere.
+    const { data: inserted, error } = await supabase.from("dados_benner" as any).insert(dado as any).select("id").single();
+    if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
+    toast.success("Registro salvo!");
+    fetchDados();
+    return (inserted as any)?.id || true;
   };
 
   const deleteDado = async (id: string) => {
