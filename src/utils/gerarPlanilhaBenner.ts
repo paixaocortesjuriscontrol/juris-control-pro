@@ -379,7 +379,7 @@ export async function gerarPlanilhaBenner(
 }
 
 /**
- * For conferência mode: shift header columns right by 1 and insert "Processo" at B
+ * For conferência mode: keep A and shift B:AH right by 1 to insert "Processo" at B
  */
 function shiftAndInsertHeader(
   row1Xml: string,
@@ -396,7 +396,7 @@ function shiftAndInsertHeader(
     while ((cm = cellRegex.exec(rowXml)) !== null) {
       const letter = cm[1];
       const colIdx = letterToCol(letter);
-      const newColIdx = colIdx === 0 ? 0 : colIdx + 2;
+      const newColIdx = colIdx === 0 ? 0 : colIdx + 1;
       const newLetter = colToLetter(newColIdx);
       const newXml = cm[0].replace(/r="[A-Z]+\d+"/, `r="${newLetter}${rowNum}"`);
       cells.push({ col: newColIdx, xml: newXml });
@@ -410,13 +410,10 @@ function shiftAndInsertHeader(
 
   const h1 = shiftRow(row1Xml, 1);
   const procIdx = getStrIdx("Processo");
-  const sitIdx = getStrIdx("Situação");
   const sAttr = centeredStyleId > 0 ? ` s="${centeredStyleId}"` : "";
   const procCell = `<c r="B2" t="s"${sAttr}><v>${procIdx}</v></c>`;
-  const sitCell = `<c r="C2" t="s"${sAttr}><v>${sitIdx}</v></c>`;
   const h2 = shiftRow(row2Xml, 2, [
     { col: 1, xml: procCell },
-    { col: 2, xml: sitCell },
   ]);
 
   return h1 + h2;
