@@ -760,6 +760,9 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
   };
 
   const handleSave = async () => {
+    if (!form.processo?.trim() && !dado?.id) {
+      return;
+    }
     setSaving(true);
     const statusFinal = prontoEnviar ? "pronto_envio" : "rascunho";
     const situacaoProcesso = prontoEnviar && (!form.situacao_processo || String(form.situacao_processo).trim() === "")
