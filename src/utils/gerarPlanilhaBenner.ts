@@ -130,7 +130,7 @@ function getValuesFromDado(d: DadoBenner): string[] {
     formatDateForSpreadsheet(d.data_distribuicao),
     d.turma || "",
     d.relator || "",
-    cleanDadoBennerValue(d.analise_quarteirizado),
+    cleanDadoBennerValue((d as any).decisao_quarteirizado),
     midiaSN,
     riscoDesc,
     d.provas_digitais ? toSN(d.provas_digitais) : "",
