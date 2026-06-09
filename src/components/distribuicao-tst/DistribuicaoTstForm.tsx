@@ -217,7 +217,7 @@ interface Props {
 export interface DistribuicaoTstFormHandle {
   runJudit: (comAnexos: boolean, forceRefresh?: boolean) => Promise<void>;
   isBuscando: () => boolean;
-  save: (options?: { silent?: boolean }) => Promise<boolean>;
+  save: (options?: { silent?: boolean }) => Promise<boolean | string>;
 }
 
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
@@ -748,7 +748,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     save: (options?: { silent?: boolean }) => handleSave(options),
   }), [buscandoJudit, form, dado, juditSessionFields, turmasTst, relatoresTst]);
 
-  const handleSave = async (options?: { silent?: boolean }): Promise<boolean> => {
+  const handleSave = async (options?: { silent?: boolean }): Promise<boolean | string> => {
     if (!form.processo_numero?.trim()) {
       toast.warning("Informe o número do processo");
       return false;
@@ -822,7 +822,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     if (ok && !options?.silent) {
       toast.success("Salvo com sucesso!", { id: "save-success" });
     }
-    return !!ok;
+    return ok;
   };
 
   const SectionHeader = ({ title, color }: { title: string; color: string }) => (

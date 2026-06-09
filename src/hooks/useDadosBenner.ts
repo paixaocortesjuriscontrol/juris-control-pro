@@ -193,6 +193,8 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
         await fetchDados();
         return savedRowId;
       }
+      toast.error("Nenhum registro ativo encontrado para este id. A alteração não foi salva.");
+      return false;
     }
 
     if (processo) {

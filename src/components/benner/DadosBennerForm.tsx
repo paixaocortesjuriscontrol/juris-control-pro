@@ -46,7 +46,7 @@ interface Props {
 }
 
 export interface DadosBennerFormHandle {
-  save: (options?: { silent?: boolean }) => Promise<boolean>;
+  save: (options?: { silent?: boolean }) => Promise<boolean | string>;
   isSaving: () => boolean;
 }
 
@@ -759,7 +759,7 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     }
   };
 
-  const handleSave = async (options?: { silent?: boolean }): Promise<boolean> => {
+  const handleSave = async (options?: { silent?: boolean }): Promise<boolean | string> => {
     if (!form.processo?.trim() && !dado?.id) {
       return false;
     }
@@ -772,10 +772,7 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
         : (currentStatus === "pronto_envio" || currentStatus === "rascunho" || !currentStatus)
           ? "rascunho"
           : currentStatus;
-    const situacaoProcesso = prontoEnviar && (!form.situacao_processo || String(form.situacao_processo).trim() === "")
-      ? "ativo"
-      : form.situacao_processo;
-    const toSave = { ...form, situacao_processo: situacaoProcesso, status: statusFinal };
+    const toSave = { ...form, status: statusFinal };
     const result = await onSave(toSave, dado?.id);
     
     // Persist parties if we have them and got a valid ID back
@@ -807,7 +804,7 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     if (result && !options?.silent) {
       toast.success("Salvo com sucesso!", { id: "save-success" });
     }
-    return !!result;
+    return result;
   };
 
   useImperativeHandle(ref, () => ({

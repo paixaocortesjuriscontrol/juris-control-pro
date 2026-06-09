@@ -13,7 +13,7 @@ import { LogJuditTab } from "./LogJuditTab";
 import { AnaliseJuditTab } from "./AnaliseJuditTab";
 import { AnexosJuditTab } from "./AnexosJuditTab";
 import { CentralizadoresTab } from "./CentralizadoresTab";
-import { DistribuicaoTst, DistribuicaoTstInsert } from "@/hooks/useDistribuicoesTst";
+import { DistribuicaoTst, DistribuicaoTstInsert, bennerToDistribuicao } from "@/hooks/useDistribuicoesTst";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -34,6 +34,11 @@ interface Props {
   onAfterJuditSync?: (newId?: string) => void | Promise<void>;
 }
 
+const normalizeDado = (value?: DistribuicaoTst | null): DistribuicaoTst | null => {
+  if (!value) return null;
+  return (value as any).processo_numero !== undefined ? value : bennerToDistribuicao(value as any);
+};
+
 /**
  * Detalhe unificado para a tela "Distribuição TST" — exibe duas abas para o
  * mesmo processo (mesma linha de dados_benner):
@@ -43,7 +48,8 @@ interface Props {
  * Evita que o usuário precise voltar à lista para alternar entre as visões.
  */
 export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose, onAfterJuditSync }: Props) {
-  const processoNumero = dado?.processo_numero || "";
+  const [currentDado, setCurrentDado] = useState<DistribuicaoTst | null>(() => normalizeDado(dado));
+  const processoNumero = currentDado?.processo_numero || "";
   const { user } = useAuth();
   const podeVerLogJudit = user?.email?.toLowerCase() === "paixaocortesjuriscontrol@gmail.com";
   const { isAdminOrCoordinator } = useUserRole();
@@ -64,11 +70,16 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const formRef = useRef<DistribuicaoTstFormHandle>(null);
   const bennerFormRef = useRef<DadosBennerFormHandle>(null);
   const [savingTop, setSavingTop] = useState(false);
+  const [saveVersion, setSaveVersion] = useState(0);
   const [prontoEnviar, setProntoEnviar] = useState(false);
   const [problemaJudit, setProblemaJudit] = useState(false);
   const [transitoJulgado, setTransitoJulgado] = useState(false);
   const [outroEscritorio, setOutroEscritorio] = useState(false);
   const [segredoJustica, setSegredoJustica] = useState(false);
+
+  useEffect(() => {
+    setCurrentDado(normalizeDado(dado));
+  }, [dado?.id]);
 
   const runJudit = async (comAnexos: boolean, forceRefresh: boolean = false) => {
     // Se o usuário está em outra aba (ex.: Anexos, Análise, Log), o form
@@ -98,7 +109,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     document.querySelector<HTMLElement>("[data-page-scroll-container]")?.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [dado?.id, initialTab]);
+  }, [currentDado?.id, initialTab]);
 
   const reloadAnexos = useCallback(async () => {
     if (!processoNumero) return;
@@ -167,8 +178,24 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [iaBenner, setIaBenner] = useState<Record<string, any> | null>(null);
   const [iaResumo, setIaResumo] = useState<string | null>(null);
 
+  const reloadSavedRow = useCallback(async (savedId?: string | boolean | null) => {
+    const id = typeof savedId === "string" ? savedId : (currentDado?.id || (bennerDado as any)?.id || null);
+    if (!id) return;
+    const { data, error } = await supabase
+      .from("dados_benner" as any)
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error || !data) return;
+    const row = data as any;
+    setCurrentDado(bennerToDistribuicao(row));
+    setBennerDado(row as DadoBenner);
+    setBennerLoaded(true);
+    setSaveVersion((v) => v + 1);
+  }, [currentDado?.id, (bennerDado as any)?.id]);
+
   const fetchBennerByProcesso = useCallback(async () => {
-    if (!processoNumero && !dado?.id) {
+    if (!processoNumero && !currentDado?.id) {
       setBennerDado(null);
       setBennerLoaded(true);
       return;
@@ -181,8 +208,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     // diferentes). Só caímos para busca por processo quando ainda não há id
     // (registro novo sendo criado).
     const query = supabase.from("dados_benner" as any).select("*");
-    const { data, error } = dado?.id
-      ? await query.eq("id", dado.id).limit(1)
+    const { data, error } = currentDado?.id
+      ? await query.eq("id", currentDado.id).limit(1)
       : await query.eq("processo", processoNumero).limit(1);
     if (error) {
       toast.error("Erro ao carregar Dados Benner: " + error.message);
@@ -191,7 +218,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     setBennerDado(row as DadoBenner | null);
     setBennerLoaded(true);
     setBennerLoading(false);
-  }, [processoNumero, dado?.id]);
+  }, [processoNumero, currentDado?.id]);
 
   // Carrega o registro Benner quando a aba Benner é aberta pela primeira vez.
   useEffect(() => {
@@ -202,15 +229,13 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
 
   const handleSaveDistribuicaoLocal = async (d: DistribuicaoTstInsert, id?: string) => {
     const ok = await onSaveDistribuicao(d, id);
-    // Após salvar Distribuição, invalida o cache do Benner para refletir mudanças
-    // (mesma linha de dados_benner é compartilhada).
-    if (ok) setBennerLoaded(false);
+    if (ok) await reloadSavedRow(ok);
     return ok;
   };
 
   const handleSaveBennerLocal = async (d: DadoBennerInsert, id?: string) => {
     const result = await onSaveBenner(d, id);
-    if (result) setBennerLoaded(false);
+    if (result) await reloadSavedRow(result);
     return result;
   };
 
@@ -264,10 +289,12 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       // a aba oculta reenvia estado antigo e pode sobrescrever o que acabou de
       // ser digitado na Distribuição TST.
       if (tab === "distribuicao" && formRef.current) {
-        saved = (await formRef.current.save({ silent: true })) || saved;
+        const result = await formRef.current.save({ silent: true });
+        saved = !!result || saved;
       }
       if (tab === "benner" && bennerFormRef.current) {
-        saved = (await bennerFormRef.current.save({ silent: true })) || saved;
+        const result = await bennerFormRef.current.save({ silent: true });
+        saved = !!result || saved;
       }
       // Persiste o switch "Pronto para Enviar" diretamente em dados_benner se alterado
       // (independente da aba ativa), para que o estado fique consistente em qualquer aba.
@@ -300,7 +327,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         // Sempre atualizar pelo ID exato do registro Benner. NUNCA cair para
         // .eq("processo") porque isso atualiza todas as duplicatas do mesmo
         // processo (dossiês diferentes).
-        const targetId = (bennerDado as any)?.id || dado?.id;
+        const targetId = (bennerDado as any)?.id || currentDado?.id;
         if (!targetId) {
           toast.error("Não foi possível identificar o registro para salvar Problema Judit.");
         } else {
@@ -322,7 +349,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       const currentOutro = !!(bennerDado as any)?.processo_outro_escritorio;
       const currentSegredo = !!(bennerDado as any)?.segredo_justica;
       if (currentTransito !== transitoJulgado || currentOutro !== outroEscritorio || currentSegredo !== segredoJustica) {
-        const targetId = (bennerDado as any)?.id || dado?.id;
+        const targetId = (bennerDado as any)?.id || currentDado?.id;
         if (targetId) {
           const payload: any = {};
           if (currentTransito !== transitoJulgado) {
@@ -346,6 +373,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             saved = true;
           }
         }
+      }
+      if (saved) {
+        await reloadSavedRow();
       }
       if (saved && !options?.silent) {
         toast.success("Salvo com sucesso!", { id: "save-success" });
@@ -464,8 +494,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           className="mt-4 data-[state=inactive]:hidden"
         >
           <DistribuicaoTstForm
+            key={`dist-${currentDado?.id || "novo"}-${saveVersion}`}
             ref={formRef}
-            dado={dado || null}
+            dado={currentDado || null}
             onSave={handleSaveDistribuicaoLocal}
             onCancel={onClose}
             onJuditSync={handleJuditSync}
@@ -487,12 +518,13 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           forceMount
           className="mt-4 data-[state=inactive]:hidden"
         >
-          {bennerLoading || (dado?.id && !bennerLoaded) ? (
+          {bennerLoading || (currentDado?.id && !bennerLoaded) ? (
             <div className="flex justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : bennerDado ? (
             <DadosBennerForm
+              key={`benner-${(bennerDado as any)?.id || "novo"}-${saveVersion}`}
               ref={bennerFormRef}
               dado={bennerDado}
               markExistingJuditFields={!!(bennerDado as any)?.judit_preenchido}
@@ -506,15 +538,16 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             />
           ) : (
             <DadosBennerForm
+              key={`benner-novo-${processoNumero}`}
               ref={bennerFormRef}
               initialData={{
                 processo: processoNumero,
-                dossie: dado?.dossie || "",
-                turma: dado?.turma || "",
-                relator: dado?.relator || "",
-                tribunal: "TST",
-                data_distribuicao: dado?.data_distribuicao_real || dado?.data_distribuicao_planilha || null,
-                recorrente: dado?.parte_recorrente || "",
+                dossie: currentDado?.dossie || "",
+                turma: currentDado?.turma || "",
+                relator: currentDado?.relator || "",
+                tribunal: (currentDado as any)?.tribunal || "",
+                data_distribuicao: currentDado?.data_distribuicao_real || currentDado?.data_distribuicao_planilha || null,
+                recorrente: currentDado?.parte_recorrente || "",
                 status: "rascunho",
               } as Partial<DadoBennerInsert>}
               onSave={handleSaveBennerLocal}
@@ -541,7 +574,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         {isAdminOrCoordinator && (
           <TabsContent value="centralizadores" className="mt-4">
             <CentralizadoresTab
-              dadoId={(bennerDado as any)?.id || (dado as any)?.id || null}
+              dadoId={(bennerDado as any)?.id || (currentDado as any)?.id || null}
               processoNumero={processoNumero}
             />
           </TabsContent>
@@ -551,17 +584,17 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <AnexosJuditTab
             processoNumero={processoNumero}
             attachments={anexos || []}
-            dadosJudit={dado ? {
-              dossie: dado.dossie,
-              tribunal: "TST",
-              tipo_recurso: dado.tipo_recurso || dado.tipo_recurso_reclamante || dado.tipo_recurso_banco || null,
-              data_distribuicao: dado.data_distribuicao_real || dado.data_distribuicao_planilha || null,
-              turma: dado.turma,
-              relator: dado.relator,
-              recorrentes: dado.parte_recorrente
-                ? dado.parte_recorrente.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
+            dadosJudit={currentDado ? {
+              dossie: currentDado.dossie,
+              tribunal: (bennerDado as any)?.tribunal || null,
+              tipo_recurso: currentDado.tipo_recurso || currentDado.tipo_recurso_reclamante || currentDado.tipo_recurso_banco || null,
+              data_distribuicao: currentDado.data_distribuicao_real || currentDado.data_distribuicao_planilha || null,
+              turma: currentDado.turma,
+              relator: currentDado.relator,
+              recorrentes: currentDado.parte_recorrente
+                ? currentDado.parte_recorrente.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
                 : null,
-              situacao_processo: (bennerDado as any)?.situacao_processo || dado.situacao_processo || null,
+              situacao_processo: (bennerDado as any)?.situacao_processo || currentDado.situacao_processo || null,
               processo_baixado: (bennerDado as any)?.processo_baixado || null,
             } : null}
             onIaPreenchido={({ distribuicao_tst, dados_benner, resumo }) => {
