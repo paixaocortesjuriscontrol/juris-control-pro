@@ -626,11 +626,26 @@ export default function DistribuicaoTst() {
 
   // Save handler for Dados Benner form used from this page
   const handleSaveBenner = async (dado: DadoBennerInsert, id?: string) => {
-    if (id) {
+    let rowId = id;
+    if (!rowId) {
+      const processo = String((dado as any).processo || "").trim();
+      const dossie = String((dado as any).dossie || "").trim();
+      if (processo) {
+        let query: any = supabase.from("dados_benner" as any).select("id").eq("processo", processo);
+        query = dossie ? query.eq("dossie", dossie) : query.or("dossie.is.null,dossie.eq.");
+        const { data: existing } = await query
+          .order("benner_atualizado", { ascending: false, nullsFirst: false })
+          .order("updated_at", { ascending: false, nullsFirst: false })
+          .limit(1);
+        rowId = (existing as any[])?.[0]?.id;
+      }
+    }
+
+    if (rowId) {
       const { data: updated, error } = await supabase
         .from("dados_benner" as any)
         .update(dado as any)
-        .eq("id", id)
+        .eq("id", rowId)
         .select("id");
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
       if (!updated || (updated as any[]).length === 0) {
@@ -653,9 +668,9 @@ export default function DistribuicaoTst() {
         return (inserted as any).id as string;
       }
     }
-    toast.success(id ? "Registro atualizado!" : "Registro salvo!");
+    toast.success(rowId ? "Registro atualizado!" : "Registro salvo!");
     handleRefresh();
-    return true;
+    return rowId || true;
   };
 
   // Gerar relatório PDF de partes (respeita filtros e seleção)
