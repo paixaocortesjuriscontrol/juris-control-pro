@@ -43,7 +43,7 @@ import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
-import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
+import { AGENDA_INFINITE_QUERY_KEY, type ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Prazo } from "@/hooks/usePrazos";
@@ -995,6 +995,7 @@ export default function ListaAtividadesView({
                   }}
                   onUpdate={() => {
                     queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+                    queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
                   }}
                 />
               </div>
