@@ -172,12 +172,27 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
   const saveDado = async (dado: DadoBennerInsert, id?: string): Promise<boolean | string> => {
-    if (id) {
-      const { error } = await supabase.from("dados_benner" as any).update(dado as any).eq("id", id);
+    let rowId = id;
+    if (!rowId) {
+      const processo = String((dado as any).processo || "").trim();
+      const dossie = String((dado as any).dossie || "").trim();
+      if (processo) {
+        let query: any = supabase.from("dados_benner" as any).select("id").eq("processo", processo);
+        query = dossie ? query.eq("dossie", dossie) : query.or("dossie.is.null,dossie.eq.");
+        const { data: existing } = await query
+          .order("benner_atualizado", { ascending: false, nullsFirst: false })
+          .order("updated_at", { ascending: false, nullsFirst: false })
+          .limit(1);
+        rowId = (existing as any[])?.[0]?.id;
+      }
+    }
+
+    if (rowId) {
+      const { error } = await supabase.from("dados_benner" as any).update(dado as any).eq("id", rowId);
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
       toast.success("Registro atualizado!");
       fetchDados();
-      return id;
+      return rowId;
     } else {
       const { data: inserted, error } = await supabase.from("dados_benner" as any).insert(dado as any).select("id").single();
       if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
