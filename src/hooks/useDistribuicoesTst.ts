@@ -665,6 +665,10 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
         savedRowId = rowsById[0].id;
         rowId = savedRowId;
       }
+      if (!savedRowId) {
+        toast.error("Nenhum registro ativo encontrado para este id. A alteração não foi salva.");
+        return false;
+      }
     }
 
     if (!savedRowId && processo) {
