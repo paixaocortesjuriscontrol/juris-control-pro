@@ -34,6 +34,11 @@ interface Props {
   onAfterJuditSync?: (newId?: string) => void | Promise<void>;
 }
 
+const normalizeDado = (value?: DistribuicaoTst | null): DistribuicaoTst | null => {
+  if (!value) return null;
+  return (value as any).processo_numero !== undefined ? value : bennerToDistribuicao(value as any);
+};
+
 /**
  * Detalhe unificado para a tela "Distribuição TST" — exibe duas abas para o
  * mesmo processo (mesma linha de dados_benner):
@@ -43,7 +48,7 @@ interface Props {
  * Evita que o usuário precise voltar à lista para alternar entre as visões.
  */
 export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose, onAfterJuditSync }: Props) {
-  const [currentDado, setCurrentDado] = useState<DistribuicaoTst | null>(dado || null);
+  const [currentDado, setCurrentDado] = useState<DistribuicaoTst | null>(() => normalizeDado(dado));
   const processoNumero = currentDado?.processo_numero || "";
   const { user } = useAuth();
   const podeVerLogJudit = user?.email?.toLowerCase() === "paixaocortesjuriscontrol@gmail.com";
@@ -73,7 +78,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [segredoJustica, setSegredoJustica] = useState(false);
 
   useEffect(() => {
-    setCurrentDado(dado || null);
+    setCurrentDado(normalizeDado(dado));
   }, [dado?.id]);
 
   const runJudit = async (comAnexos: boolean, forceRefresh: boolean = false) => {
