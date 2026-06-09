@@ -1,0 +1,1 @@
+UPDATE public.dados_benner SET status = 'rascunho' WHERE transito_julgado = true AND status = 'pronto_envio';

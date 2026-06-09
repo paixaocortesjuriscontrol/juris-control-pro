@@ -304,7 +304,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       const currentStatus = (bennerDado as any)?.status;
       const switchControlado = currentStatus === "rascunho" || currentStatus === "pronto_envio";
       if (switchControlado) {
-        const desiredStatus = prontoEnviar ? "pronto_envio" : "rascunho";
+        // Trânsito em Julgado nunca pode ficar como "Pronto para Enviar".
+        const desiredStatus = prontoEnviar && !transitoJulgado ? "pronto_envio" : "rascunho";
         if (currentStatus !== desiredStatus && (bennerDado as any)?.id) {
           await supabase
             .from("dados_benner" as any)
@@ -404,7 +405,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <Switch
             checked={prontoEnviar}
             onCheckedChange={setProntoEnviar}
-            disabled={(bennerDado as any)?.status === "planilhado" || (bennerDado as any)?.status === "enviado"}
+            disabled={(bennerDado as any)?.status === "planilhado" || (bennerDado as any)?.status === "enviado" || transitoJulgado}
           />
           <Label className="text-sm font-medium">Pronto para Enviar</Label>
         </div>
@@ -413,7 +414,14 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <Label className="text-sm font-medium text-amber-700 dark:text-amber-400">Problema Judit</Label>
         </div>
         <div className="flex items-center gap-2">
-          <Switch checked={transitoJulgado} onCheckedChange={setTransitoJulgado} />
+          <Switch
+            checked={transitoJulgado}
+            onCheckedChange={(v) => {
+              setTransitoJulgado(v);
+              // Trânsito em Julgado é incompatível com "Pronto para Enviar".
+              if (v) setProntoEnviar(false);
+            }}
+          />
           <Label className="text-sm font-medium text-orange-700 dark:text-orange-400">Trânsito em Julgado</Label>
         </div>
         <div className="flex items-center gap-2">
