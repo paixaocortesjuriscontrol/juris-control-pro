@@ -46,7 +46,7 @@ interface Props {
 }
 
 export interface DadosBennerFormHandle {
-  save: () => Promise<void>;
+  save: (options?: { silent?: boolean }) => Promise<void>;
   isSaving: () => boolean;
 }
 
@@ -759,7 +759,7 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (options?: { silent?: boolean }) => {
     if (!form.processo?.trim() && !dado?.id) {
       return;
     }
@@ -797,13 +797,13 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     }
     
     setSaving(false);
-    if (result) {
+    if (result && !options?.silent) {
       toast.success("Salvo com sucesso!");
     }
   };
 
   useImperativeHandle(ref, () => ({
-    save: () => handleSave(),
+    save: (options?: { silent?: boolean }) => handleSave(options),
     isSaving: () => saving,
   }), [saving, form, prontoEnviar, partesJudit, dado]);
 
@@ -1366,7 +1366,7 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
         </div>
         <div className="flex gap-3">
           <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={() => handleSave()} disabled={saving}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
             Salvar
           </Button>

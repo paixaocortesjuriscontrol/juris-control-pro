@@ -217,7 +217,7 @@ interface Props {
 export interface DistribuicaoTstFormHandle {
   runJudit: (comAnexos: boolean, forceRefresh?: boolean) => Promise<void>;
   isBuscando: () => boolean;
-  save: () => Promise<void>;
+  save: (options?: { silent?: boolean }) => Promise<void>;
 }
 
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
@@ -745,10 +745,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   useImperativeHandle(ref, () => ({
     runJudit: (comAnexos: boolean, forceRefresh: boolean = false) => handleBuscarJudit(comAnexos, forceRefresh),
     isBuscando: () => buscandoJudit,
-    save: () => handleSave(),
+    save: (options?: { silent?: boolean }) => handleSave(options),
   }), [buscandoJudit, form, dado, juditSessionFields, turmasTst, relatoresTst]);
 
-  const handleSave = async () => {
+  const handleSave = async (options?: { silent?: boolean }) => {
     if (!form.processo_numero?.trim()) {
       toast.warning("Informe o número do processo");
       return;
@@ -819,7 +819,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       : payloadBase;
     const ok = await onSave(payload, dado?.id);
     setSaving(false);
-    if (ok) {
+    if (ok && !options?.silent) {
       toast.success("Salvo com sucesso!");
     }
   };
