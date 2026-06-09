@@ -398,6 +398,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
 
       <Tabs
         value={tab}
+        activationMode="manual"
         onValueChange={async (v) => {
           if (v === tab) return;
           try { await handleSaveTop(); } catch { /* erros já são toastados em handleSaveTop */ }
