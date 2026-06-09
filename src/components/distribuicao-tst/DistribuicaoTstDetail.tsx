@@ -13,7 +13,7 @@ import { LogJuditTab } from "./LogJuditTab";
 import { AnaliseJuditTab } from "./AnaliseJuditTab";
 import { AnexosJuditTab } from "./AnexosJuditTab";
 import { CentralizadoresTab } from "./CentralizadoresTab";
-import { DistribuicaoTst, DistribuicaoTstInsert } from "@/hooks/useDistribuicoesTst";
+import { DistribuicaoTst, DistribuicaoTstInsert, bennerToDistribuicao } from "@/hooks/useDistribuicoesTst";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -43,7 +43,8 @@ interface Props {
  * Evita que o usuário precise voltar à lista para alternar entre as visões.
  */
 export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose, onAfterJuditSync }: Props) {
-  const processoNumero = dado?.processo_numero || "";
+  const [currentDado, setCurrentDado] = useState<DistribuicaoTst | null>(dado || null);
+  const processoNumero = currentDado?.processo_numero || "";
   const { user } = useAuth();
   const podeVerLogJudit = user?.email?.toLowerCase() === "paixaocortesjuriscontrol@gmail.com";
   const { isAdminOrCoordinator } = useUserRole();
@@ -69,6 +70,10 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [transitoJulgado, setTransitoJulgado] = useState(false);
   const [outroEscritorio, setOutroEscritorio] = useState(false);
   const [segredoJustica, setSegredoJustica] = useState(false);
+
+  useEffect(() => {
+    setCurrentDado(dado || null);
+  }, [dado?.id]);
 
   const runJudit = async (comAnexos: boolean, forceRefresh: boolean = false) => {
     // Se o usuário está em outra aba (ex.: Anexos, Análise, Log), o form
