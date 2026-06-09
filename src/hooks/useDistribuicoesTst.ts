@@ -107,7 +107,7 @@ export interface DistribuicaoTstFilters {
   idsAllowed?: string[] | null;
 }
 
-function bennerToDistribuicao(b: any): DistribuicaoTst {
+export function bennerToDistribuicao(b: any): DistribuicaoTst {
   const relatorFav = b.posicao_relator_favoravel ? "POSITIVO" : b.posicao_relator_desfavoravel ? "NEGATIVO" : null;
   const turmaFav = b.posicao_turma_favoravel ? "POSITIVA" : b.posicao_turma_desfavoravel ? "NEGATIVA" : null;
   return {
