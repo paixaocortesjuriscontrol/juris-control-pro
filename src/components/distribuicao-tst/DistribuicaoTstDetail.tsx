@@ -320,7 +320,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         // Sempre atualizar pelo ID exato do registro Benner. NUNCA cair para
         // .eq("processo") porque isso atualiza todas as duplicatas do mesmo
         // processo (dossiês diferentes).
-        const targetId = (bennerDado as any)?.id || dado?.id;
+        const targetId = (bennerDado as any)?.id || currentDado?.id;
         if (!targetId) {
           toast.error("Não foi possível identificar o registro para salvar Problema Judit.");
         } else {
@@ -342,7 +342,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       const currentOutro = !!(bennerDado as any)?.processo_outro_escritorio;
       const currentSegredo = !!(bennerDado as any)?.segredo_justica;
       if (currentTransito !== transitoJulgado || currentOutro !== outroEscritorio || currentSegredo !== segredoJustica) {
-        const targetId = (bennerDado as any)?.id || dado?.id;
+        const targetId = (bennerDado as any)?.id || currentDado?.id;
         if (targetId) {
           const payload: any = {};
           if (currentTransito !== transitoJulgado) {
@@ -485,7 +485,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         >
           <DistribuicaoTstForm
             ref={formRef}
-            dado={dado || null}
+            dado={currentDado || null}
             onSave={handleSaveDistribuicaoLocal}
             onCancel={onClose}
             onJuditSync={handleJuditSync}
@@ -507,7 +507,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           forceMount
           className="mt-4 data-[state=inactive]:hidden"
         >
-          {bennerLoading || (dado?.id && !bennerLoaded) ? (
+          {bennerLoading || (currentDado?.id && !bennerLoaded) ? (
             <div className="flex justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
@@ -529,12 +529,12 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               ref={bennerFormRef}
               initialData={{
                 processo: processoNumero,
-                dossie: dado?.dossie || "",
-                turma: dado?.turma || "",
-                relator: dado?.relator || "",
+                dossie: currentDado?.dossie || "",
+                turma: currentDado?.turma || "",
+                relator: currentDado?.relator || "",
                 tribunal: "TST",
-                data_distribuicao: dado?.data_distribuicao_real || dado?.data_distribuicao_planilha || null,
-                recorrente: dado?.parte_recorrente || "",
+                data_distribuicao: currentDado?.data_distribuicao_real || currentDado?.data_distribuicao_planilha || null,
+                recorrente: currentDado?.parte_recorrente || "",
                 status: "rascunho",
               } as Partial<DadoBennerInsert>}
               onSave={handleSaveBennerLocal}
