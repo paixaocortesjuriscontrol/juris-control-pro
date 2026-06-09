@@ -653,22 +653,36 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
 
   const saveDado = async (dado: DistribuicaoTstInsert, id?: string): Promise<boolean | string> => {
     const payload = distribuicaoToBenner(dado);
-    const responsaveisIds = dado.responsaveis_ids || [];
+    const shouldPersistResponsaveis = Array.isArray(dado.responsaveis_ids);
+    const responsaveisIds = shouldPersistResponsaveis ? (dado.responsaveis_ids || []) : [];
     let rowId = id;
-    if (id) {
-      const { error } = await supabase.from("dados_benner" as any).update(payload as any).eq("id", id);
+    if (!payload.aba_origem) payload.aba_origem = "Manual";
+
+    if (!rowId) {
+      const processo = String(payload.processo || "").trim();
+      const dossie = String(payload.dossie || "").trim();
+      if (processo) {
+        let query: any = supabase.from("dados_benner" as any).select("id").eq("processo", processo);
+        query = dossie ? query.eq("dossie", dossie) : query.or("dossie.is.null,dossie.eq.");
+        const { data: existing, error: lookupError } = await query
+          .order("benner_atualizado", { ascending: false, nullsFirst: false })
+          .order("updated_at", { ascending: false, nullsFirst: false })
+          .limit(1);
+        if (!lookupError && (existing as any[])?.[0]?.id) rowId = (existing as any[])[0].id;
+      }
+    }
+
+    if (rowId) {
+      const { error } = await supabase.from("dados_benner" as any).update(payload as any).eq("id", rowId);
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
     } else {
       payload.status = "rascunho";
-      // Garante que registros criados manualmente apareçam na listagem da
-      // página DistribuicaoTst (que filtra por aba_origem != null).
-      if (!payload.aba_origem) payload.aba_origem = "Manual";
       const { data: ins, error } = await supabase.from("dados_benner" as any).insert(payload as any).select("id").single();
       if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
       rowId = (ins as any)?.id;
     }
-    // Persist responsáveis
-    if (rowId) {
+    // Persist responsáveis apenas quando o formulário já terminou de carregá-los.
+    if (rowId && shouldPersistResponsaveis) {
       await supabase.from("dados_benner_responsaveis" as any).delete().eq("dados_benner_id", rowId);
       if (responsaveisIds.length > 0) {
         await supabase.from("dados_benner_responsaveis" as any).insert(

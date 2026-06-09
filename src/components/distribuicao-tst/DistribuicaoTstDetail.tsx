@@ -479,7 +479,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           forceMount
           className="mt-4 data-[state=inactive]:hidden"
         >
-          {bennerLoading ? (
+          {bennerLoading || (dado?.id && !bennerLoaded) ? (
             <div className="flex justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
