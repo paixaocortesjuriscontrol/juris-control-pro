@@ -210,7 +210,9 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
   // Passthrough de campos opcionais preenchidos pelo Judit que não fazem parte
   // direta da interface DistribuicaoTst, mas existem em `dados_benner`.
   const anyD = d as any;
-  if (anyD.tribunal !== undefined) payload.tribunal = anyD.tribunal;
+  // `tribunal` é editado na aba Dados Benner. A aba Distribuição não tem esse
+  // campo visível e pode carregar um valor antigo escondido no objeto; se
+  // persistir daqui, sobrescreve STJ/STF manualmente escolhidos de volta para TST.
   if (anyD.tipo_recurso !== undefined) payload.tipo_recurso = anyD.tipo_recurso;
   if (anyD.situacao_envio_carga_id !== undefined) payload.situacao_envio_carga_id = anyD.situacao_envio_carga_id;
   if (anyD.situacao_processo !== undefined) payload.situacao_processo = anyD.situacao_processo;
