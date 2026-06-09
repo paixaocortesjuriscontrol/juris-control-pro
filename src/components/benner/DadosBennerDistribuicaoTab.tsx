@@ -83,7 +83,13 @@ export function DadosBennerDistribuicaoTab({ processoNumero }: Props) {
       const payload = distribuicaoToBenner(dado);
       const processo = String((payload as any).processo || "").trim();
       const dossie = String((payload as any).dossie || "").trim();
-      if (processo) {
+      const { data: updatedById, error: idError } = await supabase
+        .from("dados_benner" as any)
+        .update(payload as any)
+        .eq("id", id)
+        .select("id");
+      if (idError) return false;
+      if ((!updatedById || (updatedById as any[]).length === 0) && processo) {
         // UPDATE pelo par (processo, dossie) — só atinge linhas ativas em
         // dados_benner (arquivados ficam em tabela separada).
         let upd: any = supabase.from("dados_benner" as any).update(payload as any).eq("processo", processo);
