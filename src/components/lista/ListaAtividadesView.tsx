@@ -61,6 +61,8 @@ type Filters = {
   dataAte: string;
 };
 
+type ListaRow = Prazo | ItemAgendaUnificado;
+
 const STATUS_DOT: Record<string, string> = {
   pendente: "bg-amber-500",
   cumprido: "bg-emerald-500",
@@ -410,15 +412,15 @@ export default function ListaAtividadesView({
     if (!usingExternalItems) return [];
     const from = (page - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE;
-    return (externalItems || []).slice(from, to) as any[];
+    return (externalItems || []).slice(from, to) as ListaRow[];
   }, [externalItems, page, usingExternalItems]);
 
-  const rows = usingExternalItems ? externalRows : (result?.rows || []);
+  const rows: ListaRow[] = usingExternalItems ? externalRows : (result?.rows || []);
   const total = usingExternalItems ? (externalItems?.length || 0) : (result?.count || 0);
   const isLoading = usingExternalItems ? externalLoading : queryLoading;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const selectableRows = rows.filter((r: any) => r.origem === "tarefa" && !String(r.id).startsWith("prazo-tst-"));
+  const selectableRows = rows.filter((r) => (r as ItemAgendaUnificado).origem === "tarefa" && !String(r.id).startsWith("prazo-tst-"));
   const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selected.has(r.id));
   const someSelected = selected.size > 0 && !allSelected;
 
