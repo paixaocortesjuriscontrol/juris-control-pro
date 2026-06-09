@@ -207,23 +207,9 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
     coordenacao_id: d.coordenacao_id,
   };
   if (d.observacao_advogado !== undefined) payload.observacao_advogado = d.observacao_advogado;
-  // Passthrough de campos opcionais preenchidos pelo Judit que não fazem parte
-  // direta da interface DistribuicaoTst, mas existem em `dados_benner`.
-  const anyD = d as any;
-  // `tribunal` é editado na aba Dados Benner. A aba Distribuição não tem esse
-  // campo visível e pode carregar um valor antigo escondido no objeto; se
-  // persistir daqui, sobrescreve STJ/STF manualmente escolhidos de volta para TST.
-  if (anyD.tipo_recurso !== undefined) payload.tipo_recurso = anyD.tipo_recurso;
-  if (anyD.situacao_envio_carga_id !== undefined) payload.situacao_envio_carga_id = anyD.situacao_envio_carga_id;
-  if (anyD.situacao_processo !== undefined) payload.situacao_processo = anyD.situacao_processo;
-  if (anyD.processo_baixado !== undefined) payload.processo_baixado = anyD.processo_baixado;
-  if (anyD.data_transito_julgado !== undefined) payload.data_transito_julgado = anyD.data_transito_julgado;
-  // Campos de pauta de julgamento preenchidos pela Judit (existem em dados_benner
-  // mas não fazem parte da interface DistribuicaoTst).
-  if (anyD.tem_data_julgamento !== undefined) payload.tem_data_julgamento = anyD.tem_data_julgamento;
-  if (anyD.data_julgamento !== undefined) payload.data_julgamento = anyD.data_julgamento;
-  if (anyD.horario_julgamento !== undefined) payload.horario_julgamento = anyD.horario_julgamento;
-  if (anyD.tipo_julgamento !== undefined) payload.tipo_julgamento = anyD.tipo_julgamento;
+  // Regra simples: a aba Distribuição só salva os campos que ela mostra.
+  // Campos do Dados Benner (tribunal, situação, processo_baixado, pauta etc.)
+  // não entram aqui, para uma aba oculta/antiga nunca sobrescrever o formulário ativo.
 
   if (d.relator_favorabilidade !== undefined) {
     const v = (d.relator_favorabilidade || "").toLowerCase();
