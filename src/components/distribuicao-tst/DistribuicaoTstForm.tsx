@@ -217,7 +217,7 @@ interface Props {
 export interface DistribuicaoTstFormHandle {
   runJudit: (comAnexos: boolean, forceRefresh?: boolean) => Promise<void>;
   isBuscando: () => boolean;
-  save: (options?: { silent?: boolean }) => Promise<void>;
+  save: (options?: { silent?: boolean }) => Promise<boolean>;
 }
 
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
@@ -748,10 +748,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     save: (options?: { silent?: boolean }) => handleSave(options),
   }), [buscandoJudit, form, dado, juditSessionFields, turmasTst, relatoresTst]);
 
-  const handleSave = async (options?: { silent?: boolean }) => {
+  const handleSave = async (options?: { silent?: boolean }): Promise<boolean> => {
     if (!form.processo_numero?.trim()) {
       toast.warning("Informe o número do processo");
-      return;
+      return false;
     }
     setSaving(true);
 
@@ -760,7 +760,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     if (!sessionData?.session?.user?.id) {
       toast.error("Sua sessão expirou. Faça login novamente para salvar.");
       setSaving(false);
-      return;
+      return false;
     }
 
     if (!form.processo_id) {
@@ -801,7 +801,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             : error.message;
           toast.error("Erro ao criar processo: " + msg);
           setSaving(false);
-          return;
+          return false;
         }
         form.processo_id = newProc.id;
         }
@@ -820,8 +820,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     const ok = await onSave(payload, dado?.id);
     setSaving(false);
     if (ok && !options?.silent) {
-      toast.success("Salvo com sucesso!");
+      toast.success("Salvo com sucesso!", { id: "save-success" });
     }
+    return !!ok;
   };
 
   const SectionHeader = ({ title, color }: { title: string; color: string }) => (
