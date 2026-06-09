@@ -256,17 +256,17 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     }
   }, [bennerLoaded, processoNumero, fetchBennerByProcesso]);
 
-  const handleSaveTop = async () => {
+  const handleSaveTop = async (options?: { silent?: boolean }) => {
     setSavingTop(true);
     try {
       // Salva apenas a aba ativa. As abas ficam montadas em segundo plano; salvar
       // a aba oculta reenvia estado antigo e pode sobrescrever o que acabou de
       // ser digitado na Distribuição TST.
       if (tab === "distribuicao" && formRef.current) {
-        await formRef.current.save();
+        await formRef.current.save(options);
       }
       if (tab === "benner" && bennerFormRef.current) {
-        await bennerFormRef.current.save();
+        await bennerFormRef.current.save(options);
       }
       // Persiste o switch "Pronto para Enviar" diretamente em dados_benner se alterado
       // (independente da aba ativa), para que o estado fique consistente em qualquer aba.
@@ -392,7 +392,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         value={tab}
         onValueChange={async (v) => {
           if (v === tab) return;
-          try { await handleSaveTop(); } catch { /* erros já são toastados em handleSaveTop */ }
+          try { await handleSaveTop({ silent: true }); } catch { /* erros já são toastados em handleSaveTop */ }
           setTab(v as any);
         }}
         className="w-full"
