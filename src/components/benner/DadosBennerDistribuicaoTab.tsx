@@ -81,8 +81,19 @@ export function DadosBennerDistribuicaoTab({ processoNumero }: Props) {
   const handleSave = async (dado: any, id?: string) => {
     if (id) {
       const payload = distribuicaoToBenner(dado);
-      const { error } = await supabase.from("dados_benner" as any).update(payload as any).eq("id", id);
+      const { data: updated, error } = await supabase
+        .from("dados_benner" as any)
+        .update(payload as any)
+        .eq("id", id)
+        .select("id");
       if (error) return false;
+      if (!updated || (updated as any[]).length === 0) {
+        const { toast } = await import("sonner");
+        toast.error(
+          "Não foi possível salvar: este registro foi arquivado ou removido. Recarregue a tela e abra a versão ativa.",
+        );
+        return false;
+      }
     }
     const { data } = await supabase
       .from("dados_benner" as any)

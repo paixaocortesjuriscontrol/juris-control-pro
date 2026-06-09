@@ -188,8 +188,18 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
     }
 
     if (rowId) {
-      const { error } = await supabase.from("dados_benner" as any).update(dado as any).eq("id", rowId);
+      const { data: updated, error } = await supabase
+        .from("dados_benner" as any)
+        .update(dado as any)
+        .eq("id", rowId)
+        .select("id");
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
+      if (!updated || (updated as any[]).length === 0) {
+        toast.error(
+          "Não foi possível salvar: este registro foi arquivado ou removido. Recarregue a tela e abra a versão ativa do processo.",
+        );
+        return false;
+      }
       toast.success("Registro atualizado!");
       fetchDados();
       return rowId;
