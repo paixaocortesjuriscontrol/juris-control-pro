@@ -1365,8 +1365,11 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
       {!hideFooter && (
       <div className="flex items-center justify-between border-t border-border pt-4">
         <div className="flex items-center gap-3">
-          <Switch checked={prontoEnviar} onCheckedChange={setProntoEnviar}
-            disabled={dado?.status === "planilhado" || dado?.status === "enviado"} />
+          <Switch
+            checked={prontoEnviar && !(form as any)?.transito_julgado}
+            onCheckedChange={(v) => { if ((form as any)?.transito_julgado) return; setProntoEnviar(v); }}
+            disabled={dado?.status === "planilhado" || dado?.status === "enviado" || !!(form as any)?.transito_julgado}
+          />
           <Label className="text-sm font-medium">Pronto para Enviar</Label>
         </div>
         <div className="flex gap-3">
