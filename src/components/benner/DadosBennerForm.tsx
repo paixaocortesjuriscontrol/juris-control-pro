@@ -1366,7 +1366,7 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
         </div>
         <div className="flex gap-3">
           <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={() => handleSave()} disabled={saving}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
             Salvar
           </Button>
