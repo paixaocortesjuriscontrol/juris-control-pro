@@ -424,7 +424,7 @@ export default function ListaAtividadesView({
   const isLoading = usingExternalItems ? externalLoading : queryLoading;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const selectableRows = rows.filter((r) => (r as ItemAgendaUnificado).origem === "tarefa" && !String(r.id).startsWith("prazo-tst-"));
+  const selectableRows = rows.filter((r) => tarefaToAgendaItem(r).origem === "tarefa" && !String(r.id).startsWith("prazo-tst-"));
   const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selected.has(r.id));
   const someSelected = selected.size > 0 && !allSelected;
 
@@ -930,6 +930,9 @@ export default function ListaAtividadesView({
                                 }
                                 await queryClient.invalidateQueries({
                                   queryKey: ["lista-atividades"],
+                                });
+                                await queryClient.invalidateQueries({
+                                  queryKey: [AGENDA_INFINITE_QUERY_KEY],
                                 });
                                 toast.success("Tarefa concluída");
                               }}
