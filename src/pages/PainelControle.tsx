@@ -960,6 +960,7 @@ export default function PainelControle() {
             <ListaAtividadesView
               embedded
               onRequestNovo={() => setNovaTarefaOpen(true)}
+              externalItems={itensPainelFiltrados}
               forcedCoordenacaoId={
                 tabMode === "pessoal"
                   ? "all"
