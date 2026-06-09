@@ -658,14 +658,28 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     let rowId = id;
     if (!payload.aba_origem) payload.aba_origem = "Manual";
 
-    // Estratégia: salvar SEMPRE pelo par (processo, dossie), que existe apenas
-    // em `dados_benner` (a tabela de arquivados é separada). Isso garante que o
-    // UPDATE atinge a linha ATIVA, mesmo que o `id` em mãos esteja obsoleto.
+    // Estratégia: quando há id, salva primeiro a linha ativa exata. Isso permite
+    // alterar também os campos da própria chave (processo/dossiê). Se o id ficou
+    // obsoleto, cai para o par processo+dossiê na tabela ativa.
     const processo = String(payload.processo || "").trim();
     const dossie = String(payload.dossie || "").trim();
     let savedRowId: string | null = null;
 
-    if (processo) {
+    if (id) {
+      const { data: updatedById, error } = await supabase
+        .from("dados_benner" as any)
+        .update(payload as any)
+        .eq("id", id)
+        .select("id");
+      if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
+      const rowsById = (updatedById as any[]) || [];
+      if (rowsById.length > 0) {
+        savedRowId = rowsById[0].id;
+        rowId = savedRowId;
+      }
+    }
+
+    if (!savedRowId && processo) {
       let upd: any = supabase.from("dados_benner" as any).update(payload as any).eq("processo", processo);
       upd = dossie ? upd.eq("dossie", dossie) : upd.or("dossie.is.null,dossie.eq.");
       const { data: updated, error } = await upd.select("id");
