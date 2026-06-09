@@ -545,7 +545,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                 dossie: currentDado?.dossie || "",
                 turma: currentDado?.turma || "",
                 relator: currentDado?.relator || "",
-                tribunal: "TST",
+                tribunal: (currentDado as any)?.tribunal || "",
                 data_distribuicao: currentDado?.data_distribuicao_real || currentDado?.data_distribuicao_planilha || null,
                 recorrente: currentDado?.parte_recorrente || "",
                 status: "rascunho",
