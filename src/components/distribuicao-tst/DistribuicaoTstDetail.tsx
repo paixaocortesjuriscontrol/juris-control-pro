@@ -561,7 +561,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         {isAdminOrCoordinator && (
           <TabsContent value="centralizadores" className="mt-4">
             <CentralizadoresTab
-              dadoId={(bennerDado as any)?.id || (dado as any)?.id || null}
+              dadoId={(bennerDado as any)?.id || (currentDado as any)?.id || null}
               processoNumero={processoNumero}
             />
           </TabsContent>
@@ -571,17 +571,17 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <AnexosJuditTab
             processoNumero={processoNumero}
             attachments={anexos || []}
-            dadosJudit={dado ? {
-              dossie: dado.dossie,
-              tribunal: "TST",
-              tipo_recurso: dado.tipo_recurso || dado.tipo_recurso_reclamante || dado.tipo_recurso_banco || null,
-              data_distribuicao: dado.data_distribuicao_real || dado.data_distribuicao_planilha || null,
-              turma: dado.turma,
-              relator: dado.relator,
-              recorrentes: dado.parte_recorrente
-                ? dado.parte_recorrente.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
+            dadosJudit={currentDado ? {
+              dossie: currentDado.dossie,
+              tribunal: (bennerDado as any)?.tribunal || null,
+              tipo_recurso: currentDado.tipo_recurso || currentDado.tipo_recurso_reclamante || currentDado.tipo_recurso_banco || null,
+              data_distribuicao: currentDado.data_distribuicao_real || currentDado.data_distribuicao_planilha || null,
+              turma: currentDado.turma,
+              relator: currentDado.relator,
+              recorrentes: currentDado.parte_recorrente
+                ? currentDado.parte_recorrente.split(/[,;]/).map((s) => s.trim()).filter(Boolean)
                 : null,
-              situacao_processo: (bennerDado as any)?.situacao_processo || dado.situacao_processo || null,
+              situacao_processo: (bennerDado as any)?.situacao_processo || currentDado.situacao_processo || null,
               processo_baixado: (bennerDado as any)?.processo_baixado || null,
             } : null}
             onIaPreenchido={({ distribuicao_tst, dados_benner, resumo }) => {
