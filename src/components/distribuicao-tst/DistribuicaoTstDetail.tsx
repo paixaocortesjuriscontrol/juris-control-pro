@@ -264,10 +264,12 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       // a aba oculta reenvia estado antigo e pode sobrescrever o que acabou de
       // ser digitado na Distribuição TST.
       if (tab === "distribuicao" && formRef.current) {
-        saved = (await formRef.current.save({ silent: true })) || saved;
+        const result = await formRef.current.save({ silent: true });
+        saved = !!result || saved;
       }
       if (tab === "benner" && bennerFormRef.current) {
-        saved = (await bennerFormRef.current.save({ silent: true })) || saved;
+        const result = await bennerFormRef.current.save({ silent: true });
+        saved = !!result || saved;
       }
       // Persiste o switch "Pronto para Enviar" diretamente em dados_benner se alterado
       // (independente da aba ativa), para que o estado fique consistente em qualquer aba.
