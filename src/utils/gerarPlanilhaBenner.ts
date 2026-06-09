@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import { format } from "date-fns";
 import { DadoBenner } from "@/hooks/useDadosBenner";
 import * as XLSX from "xlsx";
+import { deriveRecorrenteFromRecursos, splitRecursoValues } from "@/utils/recorrenteFromRecursos";
 
 const DOSSIE_INVALIDO_PATTERNS = [
   /n[aã]o\s*(encontrad|localizad)/i,
@@ -111,12 +112,8 @@ function cleanDadoBennerValue(val: unknown): string {
 function getValuesFromDado(d: DadoBenner): string[] {
   // IMPORTANTE: Todos os valores devem vir EXCLUSIVAMENTE do formulário
   // da aba "Dados Benner" / "Distribuição TST". Nunca usar fallback.
-  const splitRec = (v: any) => String(v ?? "")
-    .split(/\s*[+,;]\s*/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const reclList = splitRec((d as any).tipo_recurso_reclamante);
-  const bancoList = splitRec((d as any).tipo_recurso_banco);
+  const reclList = splitRecursoValues((d as any).tipo_recurso_reclamante);
+  const bancoList = splitRecursoValues((d as any).tipo_recurso_banco);
   const tipoRecurso = [...reclList, ...bancoList].join(", ");
   const midiaSN = d.risco_midia ? toSN(d.risco_midia) : "";
   const riscoDesc = cleanDadoBennerValue(d.risco_descricao);
@@ -150,15 +147,7 @@ function getValuesFromDado(d: DadoBenner): string[] {
     d.ganhamos ? "X" : "",
     d.perdemos ? "X" : "",
     d.processo_baixado ? toSN(d.processo_baixado) : "",
-    (() => {
-      // Coluna AA = derivada diretamente dos tipos de recurso preenchidos por parte.
-      const temRecl = reclList.length > 0;
-      const temBanco = bancoList.length > 0;
-      if (temRecl && temBanco) return "Reclamante e Reclamada";
-      if (temRecl) return "Reclamante";
-      if (temBanco) return "Reclamada";
-      return "";
-    })(),
+    deriveRecorrenteFromRecursos((d as any).tipo_recurso_reclamante, (d as any).tipo_recurso_banco),
     d.posicao_turma_favoravel ? "X" : "",
     d.posicao_turma_desfavoravel ? "X" : "",
     d.posicao_relator_favoravel ? "X" : "",

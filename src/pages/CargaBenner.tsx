@@ -15,6 +15,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { deriveRecorrenteFromRecursos } from "@/utils/recorrenteFromRecursos";
 
 // --- Types ---
 interface ParsedSheet {
@@ -378,7 +379,6 @@ export default function CargaBenner() {
       const colRelatorClass = h1.find(h => { const n = normalizeText(h); return n.includes("relator") && (n.includes("+") || n.includes("-") || n.includes("classif")); }) || null;
       const colTurma = h1.find(h => { const n = normalizeText(h); return n.includes("turma") && !n.includes("+") && !n.includes("-") && !n.includes("classif"); }) || null;
       const colTurmaClass = h1.find(h => { const n = normalizeText(h); return n.includes("turma") && (n.includes("+") || n.includes("-") || n.includes("classif")); }) || null;
-      const colParteRecorrente = findCol(h1, "parte recorrente", "recorrente");
       const colTipoRecursoBanco = findCol(h1, "tipo de recurso do banco", "recurso do banco");
       const colTipoRecursoReclamante = findCol(h1, "tipo de recurso do reclamante", "recurso do reclamante");
       const colAparelhamento = h1.filter(h => normalizeText(h).includes("aparelhamento"));
@@ -555,7 +555,7 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[24]] = ""; // Perdemos
         const colZDistVal = normalizeText(String(row["__col25"] ?? "").trim());
         outRow[LAYOUT_COLS[25]] = colZDistVal.includes("sim") ? "S" : colZDistVal.includes("nao") || colZDistVal.includes("não") ? "N" : ""; // Processo baixado
-        outRow[LAYOUT_COLS[26]] = colParteRecorrente ? String(row[colParteRecorrente] ?? "") : ""; // Recorrente
+        outRow[LAYOUT_COLS[26]] = deriveRecorrenteFromRecursos(colLVal, colPVal); // Recorrente
         // Turma favorável/desfavorável → split into two columns
         const turmaFav = deriveFavoravel(turmaClassRaw);
         outRow[LAYOUT_COLS[27]] = turmaFav === "Favorável" ? "X" : ""; // AB - Favorável (turma)
