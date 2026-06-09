@@ -367,6 +367,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           }
         }
       }
+      if (saved) {
+        await reloadSavedRow();
+      }
       if (saved && !options?.silent) {
         toast.success("Salvo com sucesso!", { id: "save-success" });
       }
