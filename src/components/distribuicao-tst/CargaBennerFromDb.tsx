@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useCriarRemessa } from "@/hooks/useRemessasBenner";
 import { useNavigate } from "react-router-dom";
+import { deriveRecorrenteFromRecursos, splitRecursoValues } from "@/utils/recorrenteFromRecursos";
 
 // --- Types ---
 interface Stats {
@@ -365,15 +366,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         const outRow: Record<string, any> = {};
         outRow[LAYOUT_COLS[0]] = dossie;
         outRow[LAYOUT_COLS[1]] = String(d.tribunal ?? "").trim();
-        {
-          const splitRec = (v: any) => String(v ?? "")
-            .split(/\s*[+,;]\s*/)
-            .map((s) => s.trim())
-            .filter(Boolean);
-          const recl = splitRec((d as any).tipo_recurso_reclamante);
-          const banco = splitRec((d as any).tipo_recurso_banco);
-          outRow[LAYOUT_COLS[2]] = [...recl, ...banco].join(", ");
-        }
+        outRow[LAYOUT_COLS[2]] = [
+          ...splitRecursoValues((d as any).tipo_recurso_reclamante),
+          ...splitRecursoValues((d as any).tipo_recurso_banco),
+        ].join(", ");
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(d.data_distribuicao);
         outRow[LAYOUT_COLS[4]] = turmaRaw;
         outRow[LAYOUT_COLS[5]] = String(d.relator ?? "").trim();
@@ -397,21 +393,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         outRow[LAYOUT_COLS[23]] = d.ganhamos ? "X" : "";
         outRow[LAYOUT_COLS[24]] = d.perdemos ? "X" : "";
         outRow[LAYOUT_COLS[25]] = d.processo_baixado ? toSN(String(d.processo_baixado)) : "";
-        {
-          const splitRec = (v: any) => String(v ?? "")
-            .split(/\s*[+,;]\s*/)
-            .map((s) => s.trim())
-            .filter(Boolean);
-          const temRecl = splitRec((d as any).tipo_recurso_reclamante).length > 0;
-          const temBanco = splitRec((d as any).tipo_recurso_banco).length > 0;
-          outRow[LAYOUT_COLS[26]] = temRecl && temBanco
-            ? "Reclamante e Reclamada"
-            : temRecl
-              ? "Reclamante"
-              : temBanco
-                ? "Reclamada"
-                : "";
-        }
+        outRow[LAYOUT_COLS[26]] = deriveRecorrenteFromRecursos(
+          (d as any).tipo_recurso_reclamante,
+          (d as any).tipo_recurso_banco
+        );
         outRow[LAYOUT_COLS[27]] = d.posicao_turma_favoravel ? "X" : "";
         outRow[LAYOUT_COLS[28]] = d.posicao_turma_desfavoravel ? "X" : "";
         outRow[LAYOUT_COLS[29]] = d.posicao_relator_favoravel ? "X" : "";
