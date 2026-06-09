@@ -355,7 +355,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <ArrowLeft className="w-4 h-4 mr-1" /> Voltar à lista
         </Button>
         <h2 className="text-lg font-semibold text-foreground">{titulo}</h2>
-        <Button className="ml-auto" onClick={handleSaveTop} disabled={savingTop}>
+        <Button className="ml-auto" onClick={() => handleSaveTop()} disabled={savingTop}>
           {savingTop ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
           Salvar
         </Button>
