@@ -652,6 +652,7 @@ export default function DistribuicaoTst() {
         toast.error("Atualização bloqueada por permissão (RLS). Verifique se você é o dono do registro ou tem perfil de admin/coordenador.");
         return false;
       }
+      rowId = (updated as any[])[0].id;
     } else {
       // Garante user_id no insert para satisfazer RLS (user_id = auth.uid())
       const { data: authData } = await supabase.auth.getUser();
