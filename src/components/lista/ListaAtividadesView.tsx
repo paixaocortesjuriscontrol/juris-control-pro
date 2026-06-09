@@ -63,6 +63,10 @@ type Filters = {
 
 type ListaRow = Prazo | ItemAgendaUnificado;
 
+function isAgendaItem(row: ListaRow): row is ItemAgendaUnificado {
+  return "origem" in row && "tipo" in row;
+}
+
 const STATUS_DOT: Record<string, string> = {
   pendente: "bg-amber-500",
   cumprido: "bg-emerald-500",
@@ -113,8 +117,8 @@ function initials(name?: string | null) {
     .join("");
 }
 
-function tarefaToAgendaItem(tarefa: Prazo): ItemAgendaUnificado {
-  if ((tarefa as any).origem && (tarefa as any).tipo) return tarefa as any as ItemAgendaUnificado;
+function tarefaToAgendaItem(tarefa: ListaRow): ItemAgendaUnificado {
+  if (isAgendaItem(tarefa)) return tarefa;
   const tipoUpper = (tarefa.tipo_tarefa ?? "").toUpperCase().trim();
   const tipo = tipoUpper === "PRAZO"
     ? "prazo"
