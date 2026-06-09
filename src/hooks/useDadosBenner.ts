@@ -178,6 +178,8 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
     const processo = String((dado as any).processo || "").trim();
     const dossie = String((dado as any).dossie || "").trim();
 
+    let savedRowId: string | null = null;
+
     if (processo) {
       let upd: any = supabase.from("dados_benner" as any).update(dado as any).eq("processo", processo);
       upd = dossie ? upd.eq("dossie", dossie) : upd.or("dossie.is.null,dossie.eq.");
@@ -185,17 +187,20 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
       const rows = (updated as any[]) || [];
       if (rows.length > 0) {
-        toast.success("Registro atualizado!");
-        fetchDados();
-        return rows[0].id;
+        savedRowId = rows[0].id;
+        await fetchDados();
+        return savedRowId;
+      }
+      if (id) {
+        toast.error("Nenhum registro ativo encontrado para este processo/dossiê. A alteração não foi salva.");
+        return false;
       }
     }
 
     // Não havia linha ativa para esse processo/dossie: insere.
     const { data: inserted, error } = await supabase.from("dados_benner" as any).insert(dado as any).select("id").single();
     if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
-    toast.success("Registro salvo!");
-    fetchDados();
+    await fetchDados();
     return (inserted as any)?.id || true;
   };
 

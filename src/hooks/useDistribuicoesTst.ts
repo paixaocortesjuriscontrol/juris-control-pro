@@ -663,6 +663,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     // UPDATE atinge a linha ATIVA, mesmo que o `id` em mãos esteja obsoleto.
     const processo = String(payload.processo || "").trim();
     const dossie = String(payload.dossie || "").trim();
+    let savedRowId: string | null = null;
 
     if (processo) {
       let upd: any = supabase.from("dados_benner" as any).update(payload as any).eq("processo", processo);
@@ -673,11 +674,15 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       if (rows.length > 0) {
         // Se houver mais de uma linha ativa para o mesmo par (legado), todas
         // são atualizadas. Usamos a primeira para vínculos de responsáveis.
-        rowId = rows[0].id;
+        savedRowId = rows[0].id;
+        rowId = savedRowId;
+      } else if (id) {
+        toast.error("Nenhum registro ativo encontrado para este processo/dossiê. A alteração não foi salva.");
+        return false;
       }
     }
 
-    if (!rowId) {
+    if (!savedRowId && !id) {
       // Não havia linha ativa: insere uma nova.
       payload.status = "rascunho";
       const { data: ins, error } = await supabase.from("dados_benner" as any).insert(payload as any).select("id").single();
@@ -693,8 +698,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
         );
       }
     }
-    toast.success(id ? "Registro atualizado!" : "Registro salvo!");
-    fetchDados();
+    await fetchDados();
     // Retorna o id (novo ou existente) para que callers possam abrir abas dependentes
     // imediatamente após o auto-save (ex.: botão Judit em "Novo registro").
     return rowId || true;
