@@ -195,10 +195,33 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
         .select("id");
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
       if (!updated || (updated as any[]).length === 0) {
-        toast.error(
-          "Não foi possível salvar: este registro foi arquivado ou removido. Recarregue a tela e abra a versão ativa do processo.",
-        );
-        return false;
+        // Linha arquivada/removida. Redireciona o update para a linha ativa
+        // equivalente (mesmo processo + dossie) para não perder a edição.
+        const processo = String((dado as any).processo || "").trim();
+        const dossie = String((dado as any).dossie || "").trim();
+        let activeId: string | null = null;
+        if (processo) {
+          let q: any = supabase.from("dados_benner" as any).select("id").eq("processo", processo);
+          q = dossie ? q.eq("dossie", dossie) : q.or("dossie.is.null,dossie.eq.");
+          const { data: alt } = await q
+            .order("updated_at", { ascending: false, nullsFirst: false })
+            .limit(1);
+          activeId = (alt as any[])?.[0]?.id || null;
+        }
+        if (!activeId) {
+          toast.error(
+            "Não foi possível salvar: o registro foi arquivado e não há versão ativa equivalente. Recarregue a tela.",
+          );
+          return false;
+        }
+        const { error: err2 } = await supabase
+          .from("dados_benner" as any)
+          .update(dado as any)
+          .eq("id", activeId);
+        if (err2) { toast.error("Erro ao atualizar registro ativo: " + err2.message); return false; }
+        toast.info("A linha aberta foi arquivada; alterações aplicadas ao registro ativo.");
+        fetchDados();
+        return activeId;
       }
       toast.success("Registro atualizado!");
       fetchDados();
