@@ -304,7 +304,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       const currentStatus = (bennerDado as any)?.status;
       const switchControlado = currentStatus === "rascunho" || currentStatus === "pronto_envio";
       if (switchControlado) {
-        const desiredStatus = prontoEnviar ? "pronto_envio" : "rascunho";
+        // Trânsito em Julgado nunca pode ficar como "Pronto para Enviar".
+        const desiredStatus = prontoEnviar && !transitoJulgado ? "pronto_envio" : "rascunho";
         if (currentStatus !== desiredStatus && (bennerDado as any)?.id) {
           await supabase
             .from("dados_benner" as any)
