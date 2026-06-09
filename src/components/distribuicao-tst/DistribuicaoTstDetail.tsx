@@ -103,7 +103,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     document.querySelector<HTMLElement>("[data-page-scroll-container]")?.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [dado?.id, initialTab]);
+  }, [currentDado?.id, initialTab]);
 
   const reloadAnexos = useCallback(async () => {
     if (!processoNumero) return;
@@ -173,7 +173,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [iaResumo, setIaResumo] = useState<string | null>(null);
 
   const fetchBennerByProcesso = useCallback(async () => {
-    if (!processoNumero && !dado?.id) {
+    if (!processoNumero && !currentDado?.id) {
       setBennerDado(null);
       setBennerLoaded(true);
       return;
@@ -186,8 +186,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     // diferentes). Só caímos para busca por processo quando ainda não há id
     // (registro novo sendo criado).
     const query = supabase.from("dados_benner" as any).select("*");
-    const { data, error } = dado?.id
-      ? await query.eq("id", dado.id).limit(1)
+    const { data, error } = currentDado?.id
+      ? await query.eq("id", currentDado.id).limit(1)
       : await query.eq("processo", processoNumero).limit(1);
     if (error) {
       toast.error("Erro ao carregar Dados Benner: " + error.message);
@@ -196,7 +196,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     setBennerDado(row as DadoBenner | null);
     setBennerLoaded(true);
     setBennerLoading(false);
-  }, [processoNumero, dado?.id]);
+  }, [processoNumero, currentDado?.id]);
 
   // Carrega o registro Benner quando a aba Benner é aberta pela primeira vez.
   useEffect(() => {
