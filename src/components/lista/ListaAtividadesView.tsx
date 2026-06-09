@@ -502,7 +502,7 @@ export default function ListaAtividadesView({
           )}
         >
           {/* Filtros laterais */}
-          <Card className="p-4 h-fit lg:sticky lg:top-4 space-y-4">
+          {showLocalFilters && <Card className="p-4 h-fit lg:sticky lg:top-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Filter className="h-4 w-4" /> Filtros
@@ -676,7 +676,7 @@ export default function ListaAtividadesView({
                 className="h-8 text-sm"
               />
             </div>
-          </Card>
+          </Card>}
 
           {/* Tabela */}
           <Card className={cn(
@@ -810,6 +810,7 @@ export default function ListaAtividadesView({
                           <TableCell className="px-2 py-3 align-top" data-stop>
                             <Checkbox
                               checked={isSel}
+                              disabled={r.origem !== "tarefa" || String(r.id).startsWith("prazo-tst-")}
                               onCheckedChange={() => toggleOne(r.id)}
                             />
                           </TableCell>
@@ -818,7 +819,7 @@ export default function ListaAtividadesView({
                             <div className="flex flex-col gap-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-mono text-[11px] text-primary font-semibold">
-                                  {r.identificador_projuris || "—"}
+                                  {r.identificador_projuris || r.processo?.numero || "—"}
                                 </span>
                                 <Badge variant="outline" className="font-normal text-[10px] px-1.5 py-0">
                                   {TIPO_LABELS[tarefaToAgendaItem(r).tipo]}
@@ -863,7 +864,7 @@ export default function ListaAtividadesView({
                                   <div className="flex items-center gap-1 font-medium text-foreground">
                                     <CalendarIcon className="h-3 w-3 text-destructive" />
                                     <span className="text-muted-foreground">Fatal:</span>
-                                    <span>{fmtDate(r.data_fatal || r.data_vencimento)}</span>
+                                    <span>{fmtDate(r.data_fatal || r.data_vencimento || r.data_inicio)}</span>
                                   </div>
                                   <div className="pl-4">Base: {fmtDate(r.data_base)}</div>
                                 </div>
@@ -903,7 +904,7 @@ export default function ListaAtividadesView({
                               size="icon"
                               className="h-7 w-7"
                               title="Concluir"
-                              disabled={r.status === "cumprido"}
+                              disabled={r.status === "cumprido" || r.status === "concluido" || r.origem !== "tarefa" || String(r.id).startsWith("prazo-tst-")}
                               onClick={async () => {
                                 const { error } = await supabase
                                   .from("tarefas")
