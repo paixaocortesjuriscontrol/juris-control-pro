@@ -156,6 +156,7 @@ interface ListaAtividadesViewProps {
    * Quando informado, a lista usa exatamente os itens já carregados/filtrados pela Agenda.
    */
   externalItems?: ItemAgendaUnificado[];
+  externalLoading?: boolean;
   /**
    * Quando definido, sobrescreve o filtro de coordenação interno.
    * Use "" (string vazia) ou "all" para não filtrar por coordenação (admin vendo tudo).
@@ -171,6 +172,7 @@ export default function ListaAtividadesView({
   embedded = false,
   onRequestNovo,
   externalItems,
+  externalLoading = false,
   forcedCoordenacaoId,
   forcedResponsavelId,
 }: ListaAtividadesViewProps = {}) {
@@ -413,7 +415,7 @@ export default function ListaAtividadesView({
 
   const rows = usingExternalItems ? externalRows : (result?.rows || []);
   const total = usingExternalItems ? (externalItems?.length || 0) : (result?.count || 0);
-  const isLoading = usingExternalItems ? false : queryLoading;
+  const isLoading = usingExternalItems ? externalLoading : queryLoading;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const selectableRows = rows.filter((r: any) => r.origem === "tarefa" && !String(r.id).startsWith("prazo-tst-"));
