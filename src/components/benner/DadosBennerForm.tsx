@@ -764,11 +764,18 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
       return;
     }
     setSaving(true);
-    const statusFinal = prontoEnviar ? "pronto_envio" : "rascunho";
+    const currentStatus = dado?.status || form.status;
+    const statusFinal = dado?.status === "planilhado" || dado?.status === "enviado"
+      ? dado.status
+      : prontoEnviar
+        ? "pronto_envio"
+        : (currentStatus === "pronto_envio" || currentStatus === "rascunho" || !currentStatus)
+          ? "rascunho"
+          : currentStatus;
     const situacaoProcesso = prontoEnviar && (!form.situacao_processo || String(form.situacao_processo).trim() === "")
       ? "ativo"
       : form.situacao_processo;
-    const toSave = { ...form, situacao_processo: situacaoProcesso, status: dado?.status === "planilhado" || dado?.status === "enviado" ? dado.status : statusFinal };
+    const toSave = { ...form, situacao_processo: situacaoProcesso, status: statusFinal };
     const result = await onSave(toSave, dado?.id);
     
     // Persist parties if we have them and got a valid ID back

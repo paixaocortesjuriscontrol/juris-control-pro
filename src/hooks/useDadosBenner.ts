@@ -180,6 +180,21 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
 
     let savedRowId: string | null = null;
 
+    if (id) {
+      const { data: updatedById, error } = await supabase
+        .from("dados_benner" as any)
+        .update(dado as any)
+        .eq("id", id)
+        .select("id");
+      if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
+      const rowsById = (updatedById as any[]) || [];
+      if (rowsById.length > 0) {
+        savedRowId = rowsById[0].id;
+        await fetchDados();
+        return savedRowId;
+      }
+    }
+
     if (processo) {
       let upd: any = supabase.from("dados_benner" as any).update(dado as any).eq("processo", processo);
       upd = dossie ? upd.eq("dossie", dossie) : upd.or("dossie.is.null,dossie.eq.");
