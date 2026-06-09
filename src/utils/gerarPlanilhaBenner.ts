@@ -263,7 +263,7 @@ export async function gerarPlanilhaBenner(
 
   const isConferencia = mode === "conferencia";
   const maxCol = mode === "full" || isConferencia ? 34 : mode === "ag" ? 7 : 17;
-  const totalCols = isConferencia ? maxCol + 2 : maxCol; // +2 for inserted Processo + Situação columns
+  const totalCols = isConferencia ? maxCol + 1 : maxCol; // +1 for inserted Processo column
 
   let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
   const sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
@@ -294,24 +294,19 @@ export async function gerarPlanilhaBenner(
       if (dossieVal) {
         cellsXml += `<c r="A${rowNum}" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${getStrIdx(dossieVal)}</v></c>`;
       }
-      // Col B = Nº Processo
+      // Col B = Processo
       const procVal = d.processo || "";
       if (procVal) {
         cellsXml += `<c r="B${rowNum}" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${getStrIdx(procVal)}</v></c>`;
       }
-      // Col C = Situação
-      const sitVal = d.situacao_processo || "";
-      if (sitVal) {
-        cellsXml += `<c r="C${rowNum}" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${getStrIdx(sitVal)}</v></c>`;
-      }
-      // Cols D onwards = original cols 1..end (shifted +2)
+      // Cols C onwards = original cols B..AH (shifted +1)
       for (let c = 1; c < maxCol; c++) {
         const val = values[c];
         if (!val) continue;
-        const ref = colToLetter(c + 2) + rowNum;
-        // c==2 is tipo_recurso (original index 2, shifted to col E)
+        const ref = colToLetter(c + 1) + rowNum;
+        // c==2 is tipo_recurso (original index 2, shifted to col D)
         const isYellow = c === 2 && d.tipo_recurso_auto && yellowStyleId > 0;
-        const styleId = isYellow ? yellowStyleId : (c + 2 <= 7 && centeredStyleId > 0 ? centeredStyleId : 0);
+        const styleId = isYellow ? yellowStyleId : (c + 1 <= 6 && centeredStyleId > 0 ? centeredStyleId : 0);
         if (styleId > 0) {
           cellsXml += `<c r="${ref}" t="s" s="${styleId}"><v>${getStrIdx(val)}</v></c>`;
         } else {
@@ -343,14 +338,14 @@ export async function gerarPlanilhaBenner(
   sheetXml = sheetXml.replace(/<dimension ref="[^"]*"/, `<dimension ref="A1:${lastColLetter}${lastRow}"`);
   sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows}${dataRowsXml}</sheetData>`);
 
-  // For conferência mode, insert columns after A: keep A refs, shift B+ refs by 2
+  // For conferência mode, insert one column after A: keep A refs, shift B+ refs by 1
   if (isConferencia) {
     sheetXml = sheetXml.replace(/<mergeCells[\s\S]*?<\/mergeCells>/, (mergeCellsBlock) => {
       return mergeCellsBlock.replace(/ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"/g, (_m, startCol, startRow, endCol, endRow) => {
         const startIdx = letterToCol(startCol);
         const endIdx = letterToCol(endCol);
-        const newStart = colToLetter(startIdx === 0 ? startIdx : startIdx + 2);
-        const newEnd = colToLetter(endIdx === 0 ? endIdx : endIdx + 2);
+        const newStart = colToLetter(startIdx === 0 ? startIdx : startIdx + 1);
+        const newEnd = colToLetter(endIdx === 0 ? endIdx : endIdx + 1);
         return `ref="${newStart}${startRow}:${newEnd}${endRow}"`;
       });
     });
@@ -384,7 +379,7 @@ export async function gerarPlanilhaBenner(
 }
 
 /**
- * For conferência mode: shift header columns right by 1 and insert "Processo" at B
+ * For conferência mode: keep A and shift B:AH right by 1 to insert "Processo" at B
  */
 function shiftAndInsertHeader(
   row1Xml: string,
@@ -401,7 +396,7 @@ function shiftAndInsertHeader(
     while ((cm = cellRegex.exec(rowXml)) !== null) {
       const letter = cm[1];
       const colIdx = letterToCol(letter);
-      const newColIdx = colIdx === 0 ? 0 : colIdx + 2;
+      const newColIdx = colIdx === 0 ? 0 : colIdx + 1;
       const newLetter = colToLetter(newColIdx);
       const newXml = cm[0].replace(/r="[A-Z]+\d+"/, `r="${newLetter}${rowNum}"`);
       cells.push({ col: newColIdx, xml: newXml });
@@ -415,13 +410,10 @@ function shiftAndInsertHeader(
 
   const h1 = shiftRow(row1Xml, 1);
   const procIdx = getStrIdx("Processo");
-  const sitIdx = getStrIdx("Situação");
   const sAttr = centeredStyleId > 0 ? ` s="${centeredStyleId}"` : "";
   const procCell = `<c r="B2" t="s"${sAttr}><v>${procIdx}</v></c>`;
-  const sitCell = `<c r="C2" t="s"${sAttr}><v>${sitIdx}</v></c>`;
   const h2 = shiftRow(row2Xml, 2, [
     { col: 1, xml: procCell },
-    { col: 2, xml: sitCell },
   ]);
 
   return h1 + h2;
