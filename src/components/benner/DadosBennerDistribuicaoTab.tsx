@@ -88,8 +88,9 @@ export function DadosBennerDistribuicaoTab({ processoNumero }: Props) {
         // dados_benner (arquivados ficam em tabela separada).
         let upd: any = supabase.from("dados_benner" as any).update(payload as any).eq("processo", processo);
         upd = dossie ? upd.eq("dossie", dossie) : upd.or("dossie.is.null,dossie.eq.");
-        const { error } = await upd;
+        const { data: updated, error } = await upd.select("id");
         if (error) return false;
+        if (!updated || (updated as any[]).length === 0) return false;
       }
     }
     const { data } = await supabase
