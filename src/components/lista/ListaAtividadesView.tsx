@@ -43,7 +43,7 @@ import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
-import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
+import { AGENDA_INFINITE_QUERY_KEY, type ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Prazo } from "@/hooks/usePrazos";
@@ -60,6 +60,12 @@ type Filters = {
   dataDe: string;
   dataAte: string;
 };
+
+type ListaRow = Prazo | ItemAgendaUnificado;
+
+function isAgendaItem(row: ListaRow): row is ItemAgendaUnificado {
+  return "origem" in row && "tipo" in row;
+}
 
 const STATUS_DOT: Record<string, string> = {
   pendente: "bg-amber-500",
@@ -111,8 +117,8 @@ function initials(name?: string | null) {
     .join("");
 }
 
-function tarefaToAgendaItem(tarefa: Prazo): ItemAgendaUnificado {
-  if ((tarefa as any).origem && (tarefa as any).tipo) return tarefa as any as ItemAgendaUnificado;
+function tarefaToAgendaItem(tarefa: ListaRow): ItemAgendaUnificado {
+  if (isAgendaItem(tarefa)) return tarefa;
   const tipoUpper = (tarefa.tipo_tarefa ?? "").toUpperCase().trim();
   const tipo = tipoUpper === "PRAZO"
     ? "prazo"
@@ -153,6 +159,11 @@ interface ListaAtividadesViewProps {
   embedded?: boolean;
   onRequestNovo?: () => void;
   /**
+   * Quando informado, a lista usa exatamente os itens já carregados/filtrados pela Agenda.
+   */
+  externalItems?: ItemAgendaUnificado[];
+  externalLoading?: boolean;
+  /**
    * Quando definido, sobrescreve o filtro de coordenação interno.
    * Use "" (string vazia) ou "all" para não filtrar por coordenação (admin vendo tudo).
    */
@@ -166,6 +177,8 @@ interface ListaAtividadesViewProps {
 export default function ListaAtividadesView({
   embedded = false,
   onRequestNovo,
+  externalItems,
+  externalLoading = false,
   forcedCoordenacaoId,
   forcedResponsavelId,
 }: ListaAtividadesViewProps = {}) {
@@ -180,6 +193,8 @@ export default function ListaAtividadesView({
   const { setCollapsed } = useSidebarCollapsed();
 
   const debouncedSearch = useDebouncedValue(filters.search, 300);
+  const usingExternalItems = externalItems !== undefined;
+  const showLocalFilters = !usingExternalItems;
 
   // (Sem split-screen — clique abre um dialog modal)
 
@@ -249,9 +264,13 @@ export default function ListaAtividadesView({
     [filters, debouncedSearch, page],
   );
 
-  const { data: result, isLoading } = useQuery({
+  const { data: result, isLoading: queryLoading } = useQuery({
     queryKey,
-    enabled: !coordenacoesLoading && (filters.coordenacaoId !== "" || (coordenacoes?.length ?? 0) === 0),
+    enabled: !usingExternalItems && !coordenacoesLoading && (
+      forcedCoordenacaoId !== undefined ||
+      filters.coordenacaoId !== "" ||
+      (coordenacoes?.length ?? 0) === 0
+    ),
     queryFn: async () => {
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
@@ -393,21 +412,30 @@ export default function ListaAtividadesView({
     },
   });
 
-  const rows = result?.rows || [];
-  const total = result?.count || 0;
+  const externalRows = useMemo(() => {
+    if (!usingExternalItems) return [];
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE;
+    return (externalItems || []).slice(from, to) as ListaRow[];
+  }, [externalItems, page, usingExternalItems]);
+
+  const rows: ListaRow[] = usingExternalItems ? externalRows : (result?.rows || []);
+  const total = usingExternalItems ? (externalItems?.length || 0) : (result?.count || 0);
+  const isLoading = usingExternalItems ? externalLoading : queryLoading;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
+  const selectableRows = rows.filter((r) => tarefaToAgendaItem(r).origem === "tarefa" && !String(r.id).startsWith("prazo-tst-"));
+  const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selected.has(r.id));
   const someSelected = selected.size > 0 && !allSelected;
 
   function toggleAll() {
     if (allSelected) {
       const next = new Set(selected);
-      rows.forEach((r) => next.delete(r.id));
+      selectableRows.forEach((r) => next.delete(r.id));
       setSelected(next);
     } else {
       const next = new Set(selected);
-      rows.forEach((r) => next.add(r.id));
+      selectableRows.forEach((r) => next.add(r.id));
       setSelected(next);
     }
   }
@@ -477,12 +505,14 @@ export default function ListaAtividadesView({
         <div
           className={cn(
             "grid grid-cols-1 gap-4",
-            detalhesPrazo ? "lg:grid-cols-[280px_1fr_480px]" : "lg:grid-cols-[280px_1fr]",
+            showLocalFilters
+              ? (detalhesPrazo ? "lg:grid-cols-[280px_1fr_480px]" : "lg:grid-cols-[280px_1fr]")
+              : (detalhesPrazo ? "lg:grid-cols-[1fr_480px]" : "lg:grid-cols-1"),
             embedded && "flex-1 min-h-0 lg:overflow-hidden"
           )}
         >
           {/* Filtros laterais */}
-          <Card className="p-4 h-fit lg:sticky lg:top-4 space-y-4">
+          {showLocalFilters && <Card className="p-4 h-fit lg:sticky lg:top-4 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Filter className="h-4 w-4" /> Filtros
@@ -656,7 +686,7 @@ export default function ListaAtividadesView({
                 className="h-8 text-sm"
               />
             </div>
-          </Card>
+          </Card>}
 
           {/* Tabela */}
           <Card className={cn(
@@ -775,6 +805,7 @@ export default function ListaAtividadesView({
                     </TableRow>
                   ) : (
                     rows.map((r) => {
+                      const item = tarefaToAgendaItem(r);
                       const isSel = selected.has(r.id);
                       return (
                         <TableRow
@@ -784,12 +815,13 @@ export default function ListaAtividadesView({
                           onClick={(e) => {
                             const tgt = e.target as HTMLElement;
                             if (tgt.closest("[data-stop]")) return;
-                            setDetalhesPrazo(tarefaToAgendaItem(r));
+                            setDetalhesPrazo(item);
                           }}
                         >
                           <TableCell className="px-2 py-3 align-top" data-stop>
                             <Checkbox
                               checked={isSel}
+                              disabled={item.origem !== "tarefa" || String(r.id).startsWith("prazo-tst-")}
                               onCheckedChange={() => toggleOne(r.id)}
                             />
                           </TableCell>
@@ -798,10 +830,10 @@ export default function ListaAtividadesView({
                             <div className="flex flex-col gap-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-mono text-[11px] text-primary font-semibold">
-                                  {r.identificador_projuris || "—"}
+                                  {r.identificador_projuris || r.processo?.numero || "—"}
                                 </span>
                                 <Badge variant="outline" className="font-normal text-[10px] px-1.5 py-0">
-                                  {TIPO_LABELS[tarefaToAgendaItem(r).tipo]}
+                                  {TIPO_LABELS[item.tipo]}
                                 </Badge>
                                 <Badge
                                   variant="outline"
@@ -843,9 +875,9 @@ export default function ListaAtividadesView({
                                   <div className="flex items-center gap-1 font-medium text-foreground">
                                     <CalendarIcon className="h-3 w-3 text-destructive" />
                                     <span className="text-muted-foreground">Fatal:</span>
-                                    <span>{fmtDate(r.data_fatal || r.data_vencimento)}</span>
+                                    <span>{fmtDate(item.data_fatal || item.data_vencimento || item.data_inicio)}</span>
                                   </div>
-                                  <div className="pl-4">Base: {fmtDate(r.data_base)}</div>
+                                  <div className="pl-4">Base: {fmtDate((r as Prazo).data_base)}</div>
                                 </div>
                               </div>
                             )}
@@ -872,7 +904,7 @@ export default function ListaAtividadesView({
                                 className="h-7 w-7"
                                 title="Editar"
                                 onClick={() => {
-                                  setDetalhesPrazo(tarefaToAgendaItem(r));
+                                  setDetalhesPrazo(item);
                                   setDetalhesEditOnOpen(true);
                                 }}
                               >
@@ -883,7 +915,7 @@ export default function ListaAtividadesView({
                               size="icon"
                               className="h-7 w-7"
                               title="Concluir"
-                              disabled={r.status === "cumprido"}
+                              disabled={r.status === "cumprido" || r.status === "concluido" || item.origem !== "tarefa" || String(r.id).startsWith("prazo-tst-")}
                               onClick={async () => {
                                 const { error } = await supabase
                                   .from("tarefas")
@@ -898,6 +930,9 @@ export default function ListaAtividadesView({
                                 }
                                 await queryClient.invalidateQueries({
                                   queryKey: ["lista-atividades"],
+                                });
+                                await queryClient.invalidateQueries({
+                                  queryKey: [AGENDA_INFINITE_QUERY_KEY],
                                 });
                                 toast.success("Tarefa concluída");
                               }}
@@ -972,6 +1007,7 @@ export default function ListaAtividadesView({
                   }}
                   onUpdate={() => {
                     queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+                    queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
                   }}
                 />
               </div>

@@ -544,13 +544,8 @@ export default function PainelControle() {
     return dias;
   }, [mesAtual]);
 
-  // Mapa de itens por dia (chave: "YYYY-MM-DD")
-  // Concluídas aparecem no final de cada dia, pendentes primeiro
-  const itensPorDia = useMemo(() => {
-    const map = new Map<string, ItemAgendaUnificado[]>();
-
-    // Apply filters
-    let filtered = itensAgenda.filter((item) => {
+  const itensPainelFiltrados = useMemo(() => {
+    return itensAgenda.filter((item) => {
       // Classificação filter
       if (painelFiltros.classificacoes.length > 0) {
         const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
@@ -602,6 +597,14 @@ export default function PainelControle() {
 
       return true;
     });
+  }, [itensAgenda, painelFiltros, user?.id]);
+
+  // Mapa de itens por dia (chave: "YYYY-MM-DD")
+  // Concluídas aparecem no final de cada dia, pendentes primeiro
+  const itensPorDia = useMemo(() => {
+    const map = new Map<string, ItemAgendaUnificado[]>();
+
+    const filtered = itensPainelFiltrados;
 
     filtered.forEach((item) => {
       // Choose date key based on prazo filter
@@ -630,7 +633,7 @@ export default function PainelControle() {
       ]);
     });
     return map;
-  }, [itensAgenda, painelFiltros, user?.id]);
+  }, [itensPainelFiltrados, painelFiltros]);
 
   const handleDayClick = (_dia: Date) => {
     // Apenas para visualização
@@ -957,6 +960,8 @@ export default function PainelControle() {
             <ListaAtividadesView
               embedded
               onRequestNovo={() => setNovaTarefaOpen(true)}
+              externalItems={itensPainelFiltrados}
+              externalLoading={isLoading}
               forcedCoordenacaoId={
                 tabMode === "pessoal"
                   ? "all"
