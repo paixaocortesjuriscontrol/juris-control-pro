@@ -152,9 +152,23 @@ const defaultFilters: Filters = {
 interface ListaAtividadesViewProps {
   embedded?: boolean;
   onRequestNovo?: () => void;
+  /**
+   * Quando definido, sobrescreve o filtro de coordenação interno.
+   * Use "" (string vazia) ou "all" para não filtrar por coordenação (admin vendo tudo).
+   */
+  forcedCoordenacaoId?: string;
+  /**
+   * Quando definido, fixa o responsável da lista (ex.: modo Pessoal mostra apenas tarefas do usuário).
+   */
+  forcedResponsavelId?: string;
 }
 
-export default function ListaAtividadesView({ embedded = false, onRequestNovo }: ListaAtividadesViewProps = {}) {
+export default function ListaAtividadesView({
+  embedded = false,
+  onRequestNovo,
+  forcedCoordenacaoId,
+  forcedResponsavelId,
+}: ListaAtividadesViewProps = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [filters, setFilters] = useState<Filters>(defaultFilters);
@@ -185,12 +199,28 @@ export default function ListaAtividadesView({ embedded = false, onRequestNovo }:
     },
   });
 
-  // Auto-selecionar coordenação do usuário
+  // Sincroniza com o escopo forçado (vindo do Painel de Controle, por ex.)
   useEffect(() => {
+    if (forcedCoordenacaoId !== undefined) {
+      const next = forcedCoordenacaoId === "all" ? "" : forcedCoordenacaoId;
+      setFilters((f) => (f.coordenacaoId === next ? f : { ...f, coordenacaoId: next }));
+    }
+  }, [forcedCoordenacaoId]);
+
+  useEffect(() => {
+    if (forcedResponsavelId !== undefined) {
+      const next = forcedResponsavelId || "all";
+      setFilters((f) => (f.responsavelId === next ? f : { ...f, responsavelId: next }));
+    }
+  }, [forcedResponsavelId]);
+
+  // Auto-selecionar coordenação do usuário (somente quando não há escopo forçado)
+  useEffect(() => {
+    if (forcedCoordenacaoId !== undefined) return;
     if (filters.coordenacaoId === "" && coordenacoes && coordenacoes.length > 0) {
       setFilters((f) => ({ ...f, coordenacaoId: coordenacoes[0].id }));
     }
-  }, [coordenacoes, filters.coordenacaoId]);
+  }, [coordenacoes, filters.coordenacaoId, forcedCoordenacaoId]);
 
   // Reset página quando filtros mudam
   useEffect(() => {
