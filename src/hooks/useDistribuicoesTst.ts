@@ -205,12 +205,12 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
     judit_preenchido_em: d.judit_preenchido_em,
     judit_preenchido_por: d.judit_preenchido_por,
     coordenacao_id: d.coordenacao_id,
-    tribunal: "TST",
   };
   if (d.observacao_advogado !== undefined) payload.observacao_advogado = d.observacao_advogado;
   // Passthrough de campos opcionais preenchidos pelo Judit que não fazem parte
   // direta da interface DistribuicaoTst, mas existem em `dados_benner`.
   const anyD = d as any;
+  if (anyD.tribunal !== undefined) payload.tribunal = anyD.tribunal;
   if (anyD.tipo_recurso !== undefined) payload.tipo_recurso = anyD.tipo_recurso;
   if (anyD.situacao_envio_carga_id !== undefined) payload.situacao_envio_carga_id = anyD.situacao_envio_carga_id;
   if (anyD.situacao_processo !== undefined) payload.situacao_processo = anyD.situacao_processo;
