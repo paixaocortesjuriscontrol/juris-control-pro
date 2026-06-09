@@ -372,7 +372,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(d.data_distribuicao);
         outRow[LAYOUT_COLS[4]] = turmaRaw;
         outRow[LAYOUT_COLS[5]] = String(d.relator ?? "").trim();
-        outRow[LAYOUT_COLS[6]] = String(d.analise_quarteirizado ?? "").trim();
+        // "Análise do quarteirizado" deve refletir a DECISÃO - Análise do Quarteirizado
+        // preenchida na aba Distribuição TST (campo decisao_quarteirizado).
+        // Mantém analise_quarteirizado como fallback para registros antigos.
+        outRow[LAYOUT_COLS[6]] = String(d.decisao_quarteirizado ?? d.analise_quarteirizado ?? "").trim();
         outRow[LAYOUT_COLS[7]] = d.risco_midia ? toSN(String(d.risco_midia)) : "";
         outRow[LAYOUT_COLS[8]] = String(d.risco_descricao ?? "").trim();
         outRow[LAYOUT_COLS[9]] = d.provas_digitais ? toSN(String(d.provas_digitais)) : "";
