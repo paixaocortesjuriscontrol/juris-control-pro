@@ -256,17 +256,18 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     }
   }, [bennerLoaded, processoNumero, fetchBennerByProcesso]);
 
-  const handleSaveTop = async (options?: { silent?: boolean }) => {
+  const handleSaveTop = async (options?: { silent?: boolean }): Promise<boolean> => {
     setSavingTop(true);
+    let saved = false;
     try {
       // Salva apenas a aba ativa. As abas ficam montadas em segundo plano; salvar
       // a aba oculta reenvia estado antigo e pode sobrescrever o que acabou de
       // ser digitado na Distribuição TST.
       if (tab === "distribuicao" && formRef.current) {
-        await formRef.current.save(options);
+        saved = (await formRef.current.save({ silent: true })) || saved;
       }
       if (tab === "benner" && bennerFormRef.current) {
-        await bennerFormRef.current.save(options);
+        saved = (await bennerFormRef.current.save({ silent: true })) || saved;
       }
       // Persiste o switch "Pronto para Enviar" diretamente em dados_benner se alterado
       // (independente da aba ativa), para que o estado fique consistente em qualquer aba.
@@ -283,6 +284,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             .update({ status: desiredStatus } as any)
             .eq("id", (bennerDado as any).id);
           setBennerLoaded(false);
+          saved = true;
         }
       }
       // Persiste o flag "Problema Judit" se alterado em relação ao banco.
@@ -310,6 +312,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             toast.error("Erro ao salvar Problema Judit: " + updErr.message);
           } else {
             setBennerLoaded(false);
+            saved = true;
           }
         }
       }
@@ -340,9 +343,14 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             toast.error("Erro ao salvar flags: " + updErr.message);
           } else {
             setBennerLoaded(false);
+            saved = true;
           }
         }
       }
+      if (saved && !options?.silent) {
+        toast.success("Salvo com sucesso!", { id: "save-success" });
+      }
+      return saved;
     } finally {
       setSavingTop(false);
     }
@@ -392,7 +400,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         value={tab}
         onValueChange={async (v) => {
           if (v === tab) return;
-          try { await handleSaveTop({ silent: true }); } catch { /* erros já são toastados em handleSaveTop */ }
+          try { await handleSaveTop(); } catch { /* erros já são toastados em handleSaveTop */ }
           setTab(v as any);
         }}
         className="w-full"
