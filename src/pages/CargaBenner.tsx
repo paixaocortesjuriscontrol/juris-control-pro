@@ -379,7 +379,6 @@ export default function CargaBenner() {
       const colRelatorClass = h1.find(h => { const n = normalizeText(h); return n.includes("relator") && (n.includes("+") || n.includes("-") || n.includes("classif")); }) || null;
       const colTurma = h1.find(h => { const n = normalizeText(h); return n.includes("turma") && !n.includes("+") && !n.includes("-") && !n.includes("classif"); }) || null;
       const colTurmaClass = h1.find(h => { const n = normalizeText(h); return n.includes("turma") && (n.includes("+") || n.includes("-") || n.includes("classif")); }) || null;
-      const colParteRecorrente = findCol(h1, "parte recorrente", "recorrente");
       const colTipoRecursoBanco = findCol(h1, "tipo de recurso do banco", "recurso do banco");
       const colTipoRecursoReclamante = findCol(h1, "tipo de recurso do reclamante", "recurso do reclamante");
       const colAparelhamento = h1.filter(h => normalizeText(h).includes("aparelhamento"));
