@@ -304,8 +304,10 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       const currentStatus = (bennerDado as any)?.status;
       const switchControlado = currentStatus === "rascunho" || currentStatus === "pronto_envio";
       if (switchControlado) {
-        // Trânsito em Julgado nunca pode ficar como "Pronto para Enviar".
-        const desiredStatus = prontoEnviar && !transitoJulgado ? "pronto_envio" : "rascunho";
+        // Trânsito em Julgado, Segredo de Justiça e Processo de outro escritório
+        // são incompatíveis com "Pronto para Enviar".
+        const bloqueado = transitoJulgado || segredoJustica || outroEscritorio;
+        const desiredStatus = prontoEnviar && !bloqueado ? "pronto_envio" : "rascunho";
         if (currentStatus !== desiredStatus && (bennerDado as any)?.id) {
           await supabase
             .from("dados_benner" as any)
@@ -404,8 +406,18 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         <div className="flex items-center gap-2">
           <Switch
             checked={prontoEnviar}
-            onCheckedChange={setProntoEnviar}
-            disabled={(bennerDado as any)?.status === "planilhado" || (bennerDado as any)?.status === "enviado" || transitoJulgado}
+            onCheckedChange={(v) => {
+              if (v && (transitoJulgado || segredoJustica || outroEscritorio)) {
+                const motivos: string[] = [];
+                if (transitoJulgado) motivos.push("Trânsito em Julgado");
+                if (segredoJustica) motivos.push("Segredo de Justiça");
+                if (outroEscritorio) motivos.push("Processo de outro escritório");
+                toast.error(`Não é possível marcar como "Pronto para Enviar": ${motivos.join(", ")}.`);
+                return;
+              }
+              setProntoEnviar(v);
+            }}
+            disabled={(bennerDado as any)?.status === "planilhado" || (bennerDado as any)?.status === "enviado" || transitoJulgado || segredoJustica || outroEscritorio}
           />
           <Label className="text-sm font-medium">Pronto para Enviar</Label>
         </div>
@@ -418,18 +430,29 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             checked={transitoJulgado}
             onCheckedChange={(v) => {
               setTransitoJulgado(v);
-              // Trânsito em Julgado é incompatível com "Pronto para Enviar".
-              if (v) setProntoEnviar(false);
+              if (v && prontoEnviar) { setProntoEnviar(false); toast.info('"Pronto para Enviar" foi desmarcado: processo em Trânsito em Julgado.'); }
             }}
           />
           <Label className="text-sm font-medium text-orange-700 dark:text-orange-400">Trânsito em Julgado</Label>
         </div>
         <div className="flex items-center gap-2">
-          <Switch checked={outroEscritorio} onCheckedChange={setOutroEscritorio} />
+          <Switch
+            checked={outroEscritorio}
+            onCheckedChange={(v) => {
+              setOutroEscritorio(v);
+              if (v && prontoEnviar) { setProntoEnviar(false); toast.info('"Pronto para Enviar" foi desmarcado: processo de outro escritório.'); }
+            }}
+          />
           <Label className="text-sm font-medium text-purple-700 dark:text-purple-400">Processo outro escritório</Label>
         </div>
         <div className="flex items-center gap-2">
-          <Switch checked={segredoJustica} onCheckedChange={setSegredoJustica} />
+          <Switch
+            checked={segredoJustica}
+            onCheckedChange={(v) => {
+              setSegredoJustica(v);
+              if (v && prontoEnviar) { setProntoEnviar(false); toast.info('"Pronto para Enviar" foi desmarcado: processo em Segredo de Justiça.'); }
+            }}
+          />
           <Label className="text-sm font-medium text-rose-700 dark:text-rose-400">Segredo de Justiça</Label>
         </div>
       </div>
