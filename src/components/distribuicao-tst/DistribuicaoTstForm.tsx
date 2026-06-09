@@ -384,6 +384,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         .eq("dados_benner_id", id);
       const ids = ((data as any[]) || []).map(r => r.usuario_id);
       setForm(f => ({ ...f, responsaveis_ids: ids }));
+      setResponsaveisLoaded(true);
     };
 
     if (dado) {
