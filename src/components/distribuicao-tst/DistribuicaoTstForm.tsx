@@ -292,6 +292,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
+  const [responsaveisLoaded, setResponsaveisLoaded] = useState(false);
   const { data: turmasTst = [] } = useTurmasTst();
   const { data: relatoresTst = [] } = useRelatoresTst();
   // Marca dinamicamente, durante a sessão, os campos preenchidos por esta busca Judit.
@@ -386,8 +387,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     };
 
     if (dado) {
+      setResponsaveisLoaded(false);
       const { id, created_at, updated_at, ...rest } = dado;
-      const base: any = { ...emptyForm, ...rest, responsaveis_ids: [] };
+      const base: any = { ...emptyForm, ...rest, responsaveis_ids: undefined };
       // Reaplica sugestões da IA (somente em campos vazios e não-Judit) para
       // que a montagem da aba não apague as sugestões pendentes.
       if (iaSugestao && Object.keys(iaSugestao).length > 0) {
@@ -419,6 +421,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       setForm(base as DistribuicaoTstInsert);
       loadResponsaveis(dado.id);
     } else {
+      setResponsaveisLoaded(true);
       const base: any = { ...emptyForm };
       if (iaSugestao && Object.keys(iaSugestao).length > 0) {
         const iaSituacao = String((iaSugestao as any)?.situacao_processo || "");
@@ -805,13 +808,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     }
 
     // Se a sessão Judit preencheu campos, marca o registro como preenchido pela Judit.
+    const payloadBase = responsaveisLoaded ? form : ({ ...form, responsaveis_ids: undefined } as DistribuicaoTstInsert);
     const payload: DistribuicaoTstInsert = juditSessionFields.size > 0
       ? {
-          ...form,
+          ...payloadBase,
           judit_preenchido: true,
           judit_preenchido_em: new Date().toISOString(),
         }
-      : form;
+      : payloadBase;
     const ok = await onSave(payload, dado?.id);
     setSaving(false);
     if (ok) {
