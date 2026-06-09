@@ -450,7 +450,11 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           </div>
         </div>
 
-        <TabsContent value="distribuicao" className="mt-4">
+        <TabsContent
+          value="distribuicao"
+          forceMount
+          className="mt-4 data-[state=inactive]:hidden"
+        >
           <DistribuicaoTstForm
             ref={formRef}
             dado={dado || null}
@@ -470,7 +474,11 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           />
         </TabsContent>
 
-        <TabsContent value="benner" className="mt-4">
+        <TabsContent
+          value="benner"
+          forceMount
+          className="mt-4 data-[state=inactive]:hidden"
+        >
           {bennerLoading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
