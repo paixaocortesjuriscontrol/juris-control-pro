@@ -765,9 +765,11 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     }
     setSaving(true);
     const currentStatus = dado?.status || form.status;
+    // Trânsito em Julgado nunca pode ficar como "Pronto para Enviar".
+    const isTransito = !!(form as any)?.transito_julgado;
     const statusFinal = dado?.status === "planilhado" || dado?.status === "enviado"
       ? dado.status
-      : prontoEnviar
+      : prontoEnviar && !isTransito
         ? "pronto_envio"
         : (currentStatus === "pronto_envio" || currentStatus === "rascunho" || !currentStatus)
           ? "rascunho"
