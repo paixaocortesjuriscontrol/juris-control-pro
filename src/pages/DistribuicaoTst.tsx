@@ -663,12 +663,10 @@ export default function DistribuicaoTst() {
         .single() as any);
       if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
       if ((inserted as any)?.id) {
-        toast.success("Registro salvo!");
         handleRefresh();
         return (inserted as any).id as string;
       }
     }
-    toast.success(rowId ? "Registro atualizado!" : "Registro salvo!");
     handleRefresh();
     return rowId || true;
   };
