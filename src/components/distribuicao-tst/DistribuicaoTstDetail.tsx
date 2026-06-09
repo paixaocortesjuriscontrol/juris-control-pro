@@ -75,6 +75,20 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     setCurrentDado(dado || null);
   }, [dado?.id]);
 
+  const reloadSavedRow = useCallback(async (savedId?: string | boolean | null) => {
+    const id = typeof savedId === "string" ? savedId : (currentDado?.id || (bennerDado as any)?.id || null);
+    if (!id) return;
+    const { data, error } = await supabase
+      .from("dados_benner" as any)
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error || !data) return;
+    setCurrentDado(bennerToDistribuicao(data as any));
+    setBennerDado(data as DadoBenner);
+    setBennerLoaded(true);
+  }, [currentDado?.id, (bennerDado as any)?.id]);
+
   const runJudit = async (comAnexos: boolean, forceRefresh: boolean = false) => {
     // Se o usuário está em outra aba (ex.: Anexos, Análise, Log), o form
     // de Distribuição está desmontado e formRef.current é null. Voltamos
