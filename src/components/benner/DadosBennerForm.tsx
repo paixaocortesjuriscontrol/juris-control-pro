@@ -46,7 +46,7 @@ interface Props {
 }
 
 export interface DadosBennerFormHandle {
-  save: (options?: { silent?: boolean }) => Promise<void>;
+  save: (options?: { silent?: boolean }) => Promise<boolean>;
   isSaving: () => boolean;
 }
 
@@ -759,9 +759,9 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     }
   };
 
-  const handleSave = async (options?: { silent?: boolean }) => {
+  const handleSave = async (options?: { silent?: boolean }): Promise<boolean> => {
     if (!form.processo?.trim() && !dado?.id) {
-      return;
+      return false;
     }
     setSaving(true);
     const currentStatus = dado?.status || form.status;
@@ -805,8 +805,9 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     
     setSaving(false);
     if (result && !options?.silent) {
-      toast.success("Salvo com sucesso!");
+      toast.success("Salvo com sucesso!", { id: "save-success" });
     }
+    return !!result;
   };
 
   useImperativeHandle(ref, () => ({
