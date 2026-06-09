@@ -151,11 +151,7 @@ function getValuesFromDado(d: DadoBenner): string[] {
     d.perdemos ? "X" : "",
     d.processo_baixado ? toSN(d.processo_baixado) : "",
     (() => {
-      // Coluna AA = exclusivamente a seleção da combo "Parte Recorrente" (Distribuição TST).
-      const VALIDOS = new Set(["Reclamante", "Reclamada", "Reclamante e Reclamada", "Terceiro"]);
-      const v = String(d.recorrente ?? "").trim();
-      if (VALIDOS.has(v)) return v;
-      // Fallback: deriva pelos tipos de recurso preenchidos por parte.
+      // Coluna AA = derivada diretamente dos tipos de recurso preenchidos por parte.
       const temRecl = reclList.length > 0;
       const temBanco = bancoList.length > 0;
       if (temRecl && temBanco) return "Reclamante e Reclamada";
