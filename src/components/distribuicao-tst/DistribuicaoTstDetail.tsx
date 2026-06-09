@@ -172,6 +172,21 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [iaBenner, setIaBenner] = useState<Record<string, any> | null>(null);
   const [iaResumo, setIaResumo] = useState<string | null>(null);
 
+  const reloadSavedRow = useCallback(async (savedId?: string | boolean | null) => {
+    const id = typeof savedId === "string" ? savedId : (currentDado?.id || (bennerDado as any)?.id || null);
+    if (!id) return;
+    const { data, error } = await supabase
+      .from("dados_benner" as any)
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error || !data) return;
+    const row = data as any;
+    setCurrentDado(bennerToDistribuicao(row));
+    setBennerDado(row as DadoBenner);
+    setBennerLoaded(true);
+  }, [currentDado?.id, (bennerDado as any)?.id]);
+
   const fetchBennerByProcesso = useCallback(async () => {
     if (!processoNumero && !currentDado?.id) {
       setBennerDado(null);
@@ -207,15 +222,13 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
 
   const handleSaveDistribuicaoLocal = async (d: DistribuicaoTstInsert, id?: string) => {
     const ok = await onSaveDistribuicao(d, id);
-    // Após salvar Distribuição, invalida o cache do Benner para refletir mudanças
-    // (mesma linha de dados_benner é compartilhada).
-    if (ok) setBennerLoaded(false);
+    if (ok) await reloadSavedRow(ok);
     return ok;
   };
 
   const handleSaveBennerLocal = async (d: DadoBennerInsert, id?: string) => {
     const result = await onSaveBenner(d, id);
-    if (result) setBennerLoaded(false);
+    if (result) await reloadSavedRow(result);
     return result;
   };
 
