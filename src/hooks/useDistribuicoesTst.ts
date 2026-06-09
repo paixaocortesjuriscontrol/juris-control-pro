@@ -673,8 +673,18 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     }
 
     if (rowId) {
-      const { error } = await supabase.from("dados_benner" as any).update(payload as any).eq("id", rowId);
+      const { data: updated, error } = await supabase
+        .from("dados_benner" as any)
+        .update(payload as any)
+        .eq("id", rowId)
+        .select("id");
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
+      if (!updated || (updated as any[]).length === 0) {
+        toast.error(
+          "Não foi possível salvar: este registro foi arquivado ou removido. Recarregue a tela e abra a versão ativa do processo antes de editar novamente.",
+        );
+        return false;
+      }
     } else {
       payload.status = "rascunho";
       const { data: ins, error } = await supabase.from("dados_benner" as any).insert(payload as any).select("id").single();
