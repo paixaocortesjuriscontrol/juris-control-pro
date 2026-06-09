@@ -128,6 +128,11 @@ function colToLetter(c: number): string {
 
 function setWorksheetColumnWidth(sheetXml: string, colIndex1Based: number, width: number): string {
   const colXml = `<col min="${colIndex1Based}" max="${colIndex1Based}" width="${width}" customWidth="1"/>`;
+  const existingExactCol = new RegExp(`<col min="${colIndex1Based}" max="${colIndex1Based}"[^>]*/>`);
+
+  if (existingExactCol.test(sheetXml)) {
+    return sheetXml.replace(existingExactCol, colXml);
+  }
 
   if (sheetXml.includes("<cols>")) {
     return sheetXml.replace("</cols>", `${colXml}</cols>`);
