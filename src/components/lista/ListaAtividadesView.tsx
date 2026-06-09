@@ -153,6 +153,10 @@ interface ListaAtividadesViewProps {
   embedded?: boolean;
   onRequestNovo?: () => void;
   /**
+   * Quando informado, a lista usa exatamente os itens já carregados/filtrados pela Agenda.
+   */
+  externalItems?: ItemAgendaUnificado[];
+  /**
    * Quando definido, sobrescreve o filtro de coordenação interno.
    * Use "" (string vazia) ou "all" para não filtrar por coordenação (admin vendo tudo).
    */
@@ -166,6 +170,7 @@ interface ListaAtividadesViewProps {
 export default function ListaAtividadesView({
   embedded = false,
   onRequestNovo,
+  externalItems,
   forcedCoordenacaoId,
   forcedResponsavelId,
 }: ListaAtividadesViewProps = {}) {
@@ -180,6 +185,8 @@ export default function ListaAtividadesView({
   const { setCollapsed } = useSidebarCollapsed();
 
   const debouncedSearch = useDebouncedValue(filters.search, 300);
+  const usingExternalItems = externalItems !== undefined;
+  const showLocalFilters = !usingExternalItems;
 
   // (Sem split-screen — clique abre um dialog modal)
 
@@ -249,9 +256,13 @@ export default function ListaAtividadesView({
     [filters, debouncedSearch, page],
   );
 
-  const { data: result, isLoading } = useQuery({
+  const { data: result, isLoading: queryLoading } = useQuery({
     queryKey,
-    enabled: !coordenacoesLoading && (filters.coordenacaoId !== "" || (coordenacoes?.length ?? 0) === 0),
+    enabled: !usingExternalItems && !coordenacoesLoading && (
+      forcedCoordenacaoId !== undefined ||
+      filters.coordenacaoId !== "" ||
+      (coordenacoes?.length ?? 0) === 0
+    ),
     queryFn: async () => {
       const from = (page - 1) * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
@@ -393,21 +404,30 @@ export default function ListaAtividadesView({
     },
   });
 
-  const rows = result?.rows || [];
-  const total = result?.count || 0;
+  const externalRows = useMemo(() => {
+    if (!usingExternalItems) return [];
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE;
+    return (externalItems || []).slice(from, to) as any[];
+  }, [externalItems, page, usingExternalItems]);
+
+  const rows = usingExternalItems ? externalRows : (result?.rows || []);
+  const total = usingExternalItems ? (externalItems?.length || 0) : (result?.count || 0);
+  const isLoading = usingExternalItems ? false : queryLoading;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
+  const selectableRows = rows.filter((r: any) => r.origem === "tarefa" && !String(r.id).startsWith("prazo-tst-"));
+  const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selected.has(r.id));
   const someSelected = selected.size > 0 && !allSelected;
 
   function toggleAll() {
     if (allSelected) {
       const next = new Set(selected);
-      rows.forEach((r) => next.delete(r.id));
+      selectableRows.forEach((r) => next.delete(r.id));
       setSelected(next);
     } else {
       const next = new Set(selected);
-      rows.forEach((r) => next.add(r.id));
+      selectableRows.forEach((r) => next.add(r.id));
       setSelected(next);
     }
   }
