@@ -765,11 +765,12 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
     }
     setSaving(true);
     const currentStatus = dado?.status || form.status;
-    // Trânsito em Julgado nunca pode ficar como "Pronto para Enviar".
-    const isTransito = !!(form as any)?.transito_julgado;
+    // Trânsito em Julgado, Segredo de Justiça e Processo de outro escritório
+    // são incompatíveis com "Pronto para Enviar".
+    const isBloqueado = !!(form as any)?.transito_julgado || !!(form as any)?.segredo_justica || !!(form as any)?.processo_outro_escritorio;
     const statusFinal = dado?.status === "planilhado" || dado?.status === "enviado"
       ? dado.status
-      : prontoEnviar && !isTransito
+      : prontoEnviar && !isBloqueado
         ? "pronto_envio"
         : (currentStatus === "pronto_envio" || currentStatus === "rascunho" || !currentStatus)
           ? "rascunho"
@@ -1368,9 +1369,22 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
       <div className="flex items-center justify-between border-t border-border pt-4">
         <div className="flex items-center gap-3">
           <Switch
-            checked={prontoEnviar && !(form as any)?.transito_julgado}
-            onCheckedChange={(v) => { if ((form as any)?.transito_julgado) return; setProntoEnviar(v); }}
-            disabled={dado?.status === "planilhado" || dado?.status === "enviado" || !!(form as any)?.transito_julgado}
+            checked={prontoEnviar && !((form as any)?.transito_julgado || (form as any)?.segredo_justica || (form as any)?.processo_outro_escritorio)}
+            onCheckedChange={(v) => {
+              const transito = !!(form as any)?.transito_julgado;
+              const segredo = !!(form as any)?.segredo_justica;
+              const outro = !!(form as any)?.processo_outro_escritorio;
+              if (v && (transito || segredo || outro)) {
+                const motivos: string[] = [];
+                if (transito) motivos.push("Trânsito em Julgado");
+                if (segredo) motivos.push("Segredo de Justiça");
+                if (outro) motivos.push("Processo de outro escritório");
+                toast.error(`Não é possível marcar como "Pronto para Enviar": ${motivos.join(", ")}.`);
+                return;
+              }
+              setProntoEnviar(v);
+            }}
+            disabled={dado?.status === "planilhado" || dado?.status === "enviado" || !!(form as any)?.transito_julgado || !!(form as any)?.segredo_justica || !!(form as any)?.processo_outro_escritorio}
           />
           <Label className="text-sm font-medium">Pronto para Enviar</Label>
         </div>
