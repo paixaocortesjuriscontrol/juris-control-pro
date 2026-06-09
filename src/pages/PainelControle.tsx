@@ -954,7 +954,18 @@ export default function PainelControle() {
         {/* Corpo principal: calendário + painel detalhe OU lista de atividades */}
         {viewMode === "lista" ? (
           <div className="flex-1 min-h-0 overflow-hidden">
-            <ListaAtividadesView embedded onRequestNovo={() => setNovaTarefaOpen(true)} />
+            <ListaAtividadesView
+              embedded
+              onRequestNovo={() => setNovaTarefaOpen(true)}
+              forcedCoordenacaoId={
+                tabMode === "pessoal"
+                  ? "all"
+                  : isAdmin
+                    ? (adminCoordFilter === "todas" ? "all" : adminCoordFilter)
+                    : (coordenacoesUsuario[0] ?? "all")
+              }
+              forcedResponsavelId={tabMode === "pessoal" ? (user?.id ?? undefined) : undefined}
+            />
           </div>
         ) : viewMode === "prazos" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
