@@ -375,6 +375,7 @@ export function NovaTarefaDialog({
       const novosAnexos: AnexoComAnalise[] = Array.from(files).map(file => ({
         file,
         analisando: true,
+        uploaded: false,
       }));
       
       setAnexos(prev => [...prev, ...novosAnexos]);
@@ -384,7 +385,17 @@ export function NovaTarefaDialog({
       for (let i = 0; i < novosAnexos.length; i++) {
         const anexo = novosAnexos[i];
         try {
-          const analise = await analisarDocumentoComIA(anexo.file);
+          const analiseRaw: any = await analisarDocumentoComIA(anexo.file!);
+          const analise = analiseRaw
+            ? {
+                categoria: analiseRaw.categoria || "outros",
+                tipo_documento: analiseRaw.tipo_documento ?? null,
+                descricao: analiseRaw.descricao || "",
+                tags: analiseRaw.tags || [],
+                confianca: analiseRaw.confianca || "media",
+                raw: analiseRaw,
+              }
+            : undefined;
           setAnexos(prev => prev.map(a => 
             a.file === anexo.file 
               ? { ...a, analise, analisando: false }
@@ -401,7 +412,16 @@ export function NovaTarefaDialog({
     }
   };
 
-  const handleRemoveAnexo = (index: number) => {
+  const handleRemoveAnexo = async (index: number) => {
+    const anexo = anexos[index];
+    if (anexo?.uploaded && anexo.id) {
+      // Remover documento já salvo
+      const { error } = await supabase.from("documentos").delete().eq("id", anexo.id);
+      if (error) {
+        toast({ title: "Erro ao remover documento", description: error.message, variant: "destructive" });
+        return;
+      }
+    }
     setAnexos(prev => prev.filter((_, i) => i !== index));
   };
 
