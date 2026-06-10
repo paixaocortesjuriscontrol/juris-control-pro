@@ -21,7 +21,7 @@ interface Props {
  * Renderiza nada quando não há vínculo.
  */
 export function TarefaPublicacaoVinculada({ tarefaId, className }: Props) {
-  const [aberto, setAberto] = useState(true);
+  const [aberto, setAberto] = useState(false);
 
   const { data: publicacao } = useQuery({
     queryKey: ["tarefa-publicacao-vinculada", tarefaId],
@@ -67,29 +67,29 @@ export function TarefaPublicacaoVinculada({ tarefaId, className }: Props) {
   if (!publicacao) return null;
 
   return (
-    <div className={cn("border rounded-lg overflow-hidden bg-muted/20", className)}>
+    <div className={cn("border border-emerald-300 rounded-lg overflow-hidden bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800", className)}>
       <Collapsible open={aberto} onOpenChange={setAberto}>
-        <CollapsibleTrigger className="w-full flex items-center justify-between p-3 hover:bg-muted/40 transition-colors">
+        <CollapsibleTrigger className="w-full flex items-center justify-between p-3 hover:bg-emerald-100/60 dark:hover:bg-emerald-900/40 transition-colors">
           <div className="flex items-center gap-2 min-w-0">
-            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <FileText className="h-4 w-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
               Publicação DJEN vinculada
             </span>
             {(publicacao as any).tribunal && (
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-[10px] border-emerald-400 text-emerald-800 dark:text-emerald-300">
                 {(publicacao as any).tribunal}
               </Badge>
             )}
             {(publicacao as any).data_publicacao && (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-emerald-700 dark:text-emerald-400">
                 Pub. {format(parseISO((publicacao as any).data_publicacao), "dd/MM/yyyy", { locale: ptBR })}
               </span>
             )}
           </div>
           {aberto ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+            <ChevronDown className="h-4 w-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
           ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            <ChevronRight className="h-4 w-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
           )}
         </CollapsibleTrigger>
         <CollapsibleContent>
