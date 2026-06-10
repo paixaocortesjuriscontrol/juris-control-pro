@@ -1969,7 +1969,7 @@ export default function DistribuicaoTst() {
                 <TableRow><TableCell colSpan={isAdminOrCoordinator ? 9 : 8} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
                 <TableRow><TableCell colSpan={isAdminOrCoordinator ? 9 : 8} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
-              ) : dados.map(d => {
+              ) : dadosOrdenados.map(d => {
                 const isPresidencia = (d.turma || "").toLowerCase().includes("presid");
                 const relatorClass = isPresidencia
                   ? ""
