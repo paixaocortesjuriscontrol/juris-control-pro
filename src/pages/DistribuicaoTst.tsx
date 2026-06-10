@@ -279,6 +279,33 @@ export default function DistribuicaoTst() {
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
 
+  const dadosOrdenados = useMemo(() => {
+    if (!sortBy) return dados;
+    const dir = sortDir === "asc" ? 1 : -1;
+    const getVal = (d: any): any => {
+      switch (sortBy) {
+        case "data_distribuicao_planilha": return d.data_distribuicao_planilha || "";
+        case "data_distribuicao_real": return d.data_distribuicao_real || "";
+        case "processo_numero": return (d.processo_numero || "").toLowerCase();
+        case "dossie": return (d.dossie || "").toLowerCase();
+        case "benner_atualizado": return d.benner_atualizado ? 1 : 0;
+        case "responsaveis": {
+          const list = responsaveisMap.get(d.id) || [];
+          return (list[0]?.nome || "").toLowerCase();
+        }
+        default: return "";
+      }
+    };
+    return [...dados].sort((a, b) => {
+      const av = getVal(a);
+      const bv = getVal(b);
+      if (av === bv) return 0;
+      if (av === "" || av === null || av === undefined) return 1;
+      if (bv === "" || bv === null || bv === undefined) return -1;
+      return av < bv ? -1 * dir : 1 * dir;
+    });
+  }, [dados, sortBy, sortDir, responsaveisMap]);
+
   // Mapa { dado_id => tagIds[] } para a página visível
   const visibleDadoIds = dados.map((d) => d.id);
   const { data: tagsMap } = useTagsForDados(visibleDadoIds);
