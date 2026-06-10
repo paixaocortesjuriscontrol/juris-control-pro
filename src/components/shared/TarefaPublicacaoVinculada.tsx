@@ -9,6 +9,11 @@ import { ptBR } from "date-fns/locale";
 import { useState } from "react";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import { cn } from "@/lib/utils";
+import { CopyButton } from "@/components/ui/copy-button";
+import { aplicarMascaraCnj } from "@/utils/cnjMask";
+import { ExternalLink } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 interface Props {
   tarefaId: string;
@@ -22,6 +27,7 @@ interface Props {
  */
 export function TarefaPublicacaoVinculada({ tarefaId, className }: Props) {
   const [aberto, setAberto] = useState(false);
+  const navigate = useNavigate();
 
   const { data: publicacao } = useQuery({
     queryKey: ["tarefa-publicacao-vinculada", tarefaId],
@@ -66,6 +72,28 @@ export function TarefaPublicacaoVinculada({ tarefaId, className }: Props) {
 
   if (!publicacao) return null;
 
+  const numeroProcesso = (publicacao as any).processo_numero as string | undefined;
+  const numeroMascarado = numeroProcesso ? aplicarMascaraCnj(numeroProcesso) : "";
+
+  const irParaProcesso = async () => {
+    if (!numeroProcesso) return;
+    const digits = numeroProcesso.replace(/\D/g, "");
+    const masked = numeroMascarado;
+    const candidatos = Array.from(new Set([masked, numeroProcesso, digits].filter(Boolean)));
+    const orExpr = candidatos.map((c) => `numero.ilike.%${c}%`).join(",");
+    const { data } = await supabase
+      .from("processos")
+      .select("id")
+      .or(orExpr)
+      .limit(1)
+      .maybeSingle();
+    if (data?.id) {
+      navigate(`/processos/${data.id}`);
+    } else {
+      toast.error("Processo não encontrado em Processos e Casos");
+    }
+  };
+
   return (
     <div className={cn("border border-emerald-300 rounded-lg overflow-hidden bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800", className)}>
       <Collapsible open={aberto} onOpenChange={setAberto}>
@@ -94,9 +122,6 @@ export function TarefaPublicacaoVinculada({ tarefaId, className }: Props) {
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="px-3 pb-3 space-y-2">
-            {(publicacao as any).processo_numero && (
-              <div className="font-mono text-xs">{(publicacao as any).processo_numero}</div>
-            )}
             {((publicacao as any).polo_ativo || (publicacao as any).polo_passivo) && (
               <div className="text-xs text-muted-foreground">
                 {(publicacao as any).polo_ativo}
@@ -106,6 +131,21 @@ export function TarefaPublicacaoVinculada({ tarefaId, className }: Props) {
             <div className={cn("text-sm", conteudoDisplayClasses)}>
               {formatConteudoParaExibicao((publicacao as any).conteudo || "")}
             </div>
+            {numeroProcesso && (
+              <div className="flex items-center gap-2 pt-1 border-t border-emerald-200 dark:border-emerald-800 mt-2">
+                <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Processo:</span>
+                <span className="font-mono text-xs">{numeroMascarado}</span>
+                <CopyButton value={numeroMascarado} label="número do processo" />
+                <button
+                  type="button"
+                  onClick={irParaProcesso}
+                  title="Abrir em Processos e Casos"
+                  className="inline-flex items-center justify-center rounded p-0.5 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 dark:text-emerald-400 dark:hover:bg-emerald-900/40 transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                </button>
+              </div>
+            )}
           </div>
         </CollapsibleContent>
       </Collapsible>
