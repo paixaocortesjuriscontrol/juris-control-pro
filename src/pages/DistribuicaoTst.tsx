@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
@@ -101,6 +101,17 @@ export default function DistribuicaoTst() {
   const [mostrarCards, setMostrarCards] = useState(true);
   const [mostrarFiltros, setMostrarFiltros] = useState(true);
   const [editando, setEditando] = useState<DistTst | null>(null);
+  type SortKey = "data_distribuicao_planilha" | "data_distribuicao_real" | "processo_numero" | "dossie" | "responsaveis" | "benner_atualizado";
+  const [sortBy, setSortBy] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const handleSort = (key: SortKey) => {
+    if (sortBy === key) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(key);
+      setSortDir("asc");
+    }
+  };
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -267,6 +278,33 @@ export default function DistribuicaoTst() {
 }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, filtroTagId, JSON.stringify(idsAllowedFromTag || [])]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
+
+  const dadosOrdenados = useMemo(() => {
+    if (!sortBy) return dados;
+    const dir = sortDir === "asc" ? 1 : -1;
+    const getVal = (d: any): any => {
+      switch (sortBy) {
+        case "data_distribuicao_planilha": return d.data_distribuicao_planilha || "";
+        case "data_distribuicao_real": return d.data_distribuicao_real || "";
+        case "processo_numero": return (d.processo_numero || "").toLowerCase();
+        case "dossie": return (d.dossie || "").toLowerCase();
+        case "benner_atualizado": return d.benner_atualizado ? 1 : 0;
+        case "responsaveis": {
+          const list = responsaveisMap.get(d.id) || [];
+          return (list[0]?.nome || "").toLowerCase();
+        }
+        default: return "";
+      }
+    };
+    return [...dados].sort((a, b) => {
+      const av = getVal(a);
+      const bv = getVal(b);
+      if (av === bv) return 0;
+      if (av === "" || av === null || av === undefined) return 1;
+      if (bv === "" || bv === null || bv === undefined) return -1;
+      return av < bv ? -1 * dir : 1 * dir;
+    });
+  }, [dados, sortBy, sortDir, responsaveisMap]);
 
   // Mapa { dado_id => tagIds[] } para a página visível
   const visibleDadoIds = dados.map((d) => d.id);
@@ -1900,12 +1938,29 @@ export default function DistribuicaoTst() {
                     }}
                   />
                 </TableHead>
-                <TableHead>Data Plan.</TableHead>
-                <TableHead>Data Real</TableHead>
-                <TableHead>Processo</TableHead>
-                <TableHead>Dossiê</TableHead>
-                <TableHead>Responsáveis</TableHead>
-                <TableHead>Benner</TableHead>
+                {([
+                  { key: "data_distribuicao_planilha" as const, label: "Data Plan." },
+                  { key: "data_distribuicao_real" as const, label: "Data Real" },
+                  { key: "processo_numero" as const, label: "Processo" },
+                  { key: "dossie" as const, label: "Dossiê" },
+                  { key: "responsaveis" as const, label: "Responsáveis" },
+                  { key: "benner_atualizado" as const, label: "Benner" },
+                ]).map((h) => (
+                  <TableHead key={h.key}>
+                    <button
+                      type="button"
+                      onClick={() => handleSort(h.key)}
+                      className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                    >
+                      {h.label}
+                      {sortBy === h.key ? (
+                        sortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-40" />
+                      )}
+                    </button>
+                  </TableHead>
+                ))}
                 {isAdminOrCoordinator && <TableHead className="w-28">Ações</TableHead>}
               </TableRow>
             </TableHeader>
@@ -1914,7 +1969,7 @@ export default function DistribuicaoTst() {
                 <TableRow><TableCell colSpan={isAdminOrCoordinator ? 9 : 8} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
                 <TableRow><TableCell colSpan={isAdminOrCoordinator ? 9 : 8} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
-              ) : dados.map(d => {
+              ) : dadosOrdenados.map(d => {
                 const isPresidencia = (d.turma || "").toLowerCase().includes("presid");
                 const relatorClass = isPresidencia
                   ? ""
