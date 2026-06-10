@@ -37,6 +37,7 @@ import { Loader2, X, Upload, FileText, Trash2, Sparkles, CheckCircle2 } from "lu
 import { Badge } from "@/components/ui/badge";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { Label } from "@/components/ui/label";
+import { TarefaPublicacaoVinculada } from "@/components/shared/TarefaPublicacaoVinculada";
 
 type AnexoComAnalise = {
   file: File;
@@ -578,6 +579,11 @@ export function NovaTarefaDialog({
       {Header}
 
         <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
+          {tarefaParaEditar?.id && (
+            <div className="pb-4">
+              <TarefaPublicacaoVinculada tarefaId={tarefaParaEditar.id} />
+            </div>
+          )}
           <Form {...form}>
             <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
