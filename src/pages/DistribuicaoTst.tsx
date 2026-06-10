@@ -101,6 +101,17 @@ export default function DistribuicaoTst() {
   const [mostrarCards, setMostrarCards] = useState(true);
   const [mostrarFiltros, setMostrarFiltros] = useState(true);
   const [editando, setEditando] = useState<DistTst | null>(null);
+  type SortKey = "data_distribuicao_planilha" | "data_distribuicao_real" | "processo_numero" | "dossie" | "responsaveis" | "benner_atualizado";
+  const [sortBy, setSortBy] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const handleSort = (key: SortKey) => {
+    if (sortBy === key) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(key);
+      setSortDir("asc");
+    }
+  };
   const location = useLocation();
   const navigate = useNavigate();
 
