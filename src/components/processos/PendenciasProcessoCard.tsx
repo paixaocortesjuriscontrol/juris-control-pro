@@ -114,7 +114,7 @@ export function PendenciasProcessoCard({
   const formatDate = (date: string | null) => {
     if (!date) return "-";
     try {
-      return format(new Date(date), "dd/MM/yyyy", { locale: ptBR });
+      return format(parseDateSafe(date), "dd/MM/yyyy", { locale: ptBR });
     } catch {
       return "-";
     }
@@ -123,8 +123,10 @@ export function PendenciasProcessoCard({
   const getDaysLabel = (date: string | null) => {
     if (!date) return null;
     try {
-      const d = new Date(date);
-      const diff = differenceInDays(d, new Date());
+      const d = parseDateSafe(date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diff = differenceInDays(d, today);
       if (diff < 0) return { label: `${Math.abs(diff)}d atrás`, urgent: true };
       if (diff === 0) return { label: "Hoje", urgent: true };
       if (diff === 1) return { label: "Amanhã", urgent: true };
