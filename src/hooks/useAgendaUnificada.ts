@@ -149,7 +149,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       const to = from + halfPage - 1;
 
       // Constants for queries
-      const EVENTOS_SELECT_WITH_JOINS = "*,processo:processos(id,numero,assunto,coordenacao_id)" as const;
+      const EVENTOS_SELECT_WITH_JOINS = "*,processo:processos!eventos_agenda_processo_id_fkey(id,numero,assunto,coordenacao_id)" as const;
       const EVENTOS_SELECT_BASE = "*" as const;
       const TAREFAS_SELECT_WITH_JOINS =
         "id,titulo,descricao,data_vencimento,data_fatal,tipo_tarefa,status,prioridade,observacoes,created_at,updated_at,processo_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,link_local,orgao,partes_ativas,partes_passivas,processo:processos!tarefas_processo_id_fkey(id,numero,assunto,cliente_id,coordenacao_id),responsavel:profiles!tarefas_responsavel_id_fkey(id,nome)" as const;
