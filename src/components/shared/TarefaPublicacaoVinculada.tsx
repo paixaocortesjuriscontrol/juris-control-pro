@@ -38,8 +38,8 @@ export function TarefaPublicacaoVinculada({ tarefaId, className }: Props) {
           .from("publicacoes_djen")
           .select("id, processo_numero, data_publicacao, data_disponibilizacao, tribunal, tipo_comunicacao, conteudo, polo_ativo, polo_passivo")
           .eq("id", vinculoTermo.publicacao_id)
-          .maybeSingle();
-        if (pub) return { ...pub, _tipo: "termo" as const };
+          .maybeSingle<any>();
+        if (pub) return { ...(pub as any), _tipo: "termo" as const };
       }
 
       // 2) Vínculo por publicação de processo
@@ -54,8 +54,8 @@ export function TarefaPublicacaoVinculada({ tarefaId, className }: Props) {
           .from("publicacoes_djen_processos")
           .select("id, processo_numero, data_publicacao, data_disponibilizacao, tribunal, tipo_comunicacao, conteudo, polo_ativo, polo_passivo")
           .eq("id", vinculoProc.publicacao_processo_id)
-          .maybeSingle();
-        if (pub) return { ...pub, _tipo: "processo" as const };
+          .maybeSingle<any>();
+        if (pub) return { ...(pub as any), _tipo: "processo" as const };
       }
 
       return null;
