@@ -129,7 +129,10 @@ export function TarefaPublicacaoVinculada({ tarefaId, className }: Props) {
               </div>
             )}
             <div className={cn("text-sm", conteudoDisplayClasses)}>
-              {formatConteudoParaExibicao((publicacao as any).conteudo || "")}
+              {formatConteudoParaExibicao((publicacao as any).conteudo || "").replace(
+                /\b\d{20}\b/g,
+                (m) => aplicarMascaraCnj(m),
+              )}
             </div>
             {numeroProcesso && (
               <div className="flex items-center gap-2 pt-1 border-t border-emerald-200 dark:border-emerald-800 mt-2">
