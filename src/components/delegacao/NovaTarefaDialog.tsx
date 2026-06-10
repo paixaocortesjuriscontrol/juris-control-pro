@@ -1097,12 +1097,36 @@ export function NovaTarefaDialog({
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0 flex-1">
                             <FileText className="w-4 h-4 text-primary shrink-0" />
-                            <span className="truncate font-medium max-w-[150px] sm:max-w-none">{anexo.file.name}</span>
+                            <span className="truncate font-medium max-w-[150px] sm:max-w-none">{anexo.file?.name || anexo.nome}</span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="text-xs text-muted-foreground hidden sm:inline">
-                              ({formatFileSize(anexo.file.size)})
+                              ({formatFileSize(anexo.file?.size ?? anexo.tamanho_bytes ?? 0)})
                             </span>
+                          {anexo.uploaded && anexo.url && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              title="Abrir documento"
+                              onClick={() => window.open(anexo.url, "_blank")}
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </Button>
+                          )}
+                          {anexo.analise && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              title="Ver análise da IA"
+                              onClick={() => setAnaliseVisualizando(anexo)}
+                            >
+                              <Eye className="w-3 h-3 text-amber-600" />
+                            </Button>
+                          )}
                           <Button
                             type="button"
                             variant="ghost"
