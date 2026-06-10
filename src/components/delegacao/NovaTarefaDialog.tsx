@@ -70,6 +70,17 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function normalizeUuid(value?: string | null) {
+  const trimmed = (value || "").trim();
+  return UUID_RE.test(trimmed) ? trimmed : null;
+}
+
+function normalizeUuidList(values: string[]) {
+  return Array.from(new Set(values.map((value) => normalizeUuid(value)).filter(Boolean))) as string[];
+}
+
 interface NovaTarefaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -199,7 +210,7 @@ export function NovaTarefaDialog({
           data_fatal: tarefaParaEditar.data_fatal || "",
           hora_fatal: tarefaParaEditar.hora_fatal || "",
           prioridade: tarefaParaEditar.prioridade || "media",
-          local: tarefaParaEditar.local || "",
+          local: tarefaParaEditar.link_local || tarefaParaEditar.local || "",
         });
         setSearchProcesso(processoNumero);
         setAnexos([]);
@@ -324,19 +335,32 @@ export function NovaTarefaDialog({
   async function onSubmit(values: FormValues) {
     setLoading(true);
     try {
-      const responsaveisParaSalvar = responsaveisIds.length > 0 ? responsaveisIds : [values.responsavel_id].filter(Boolean);
+      const processoId = values.tipo_vinculo === "processo" ? normalizeUuid(values.processo_id) : null;
+      const responsaveisParaSalvar = normalizeUuidList(
+        responsaveisIds.length > 0 ? responsaveisIds : [values.responsavel_id],
+      );
+      const envolvidosParaSalvar = normalizeUuidList(envolvidosIds);
+      const responsavelPrincipal = responsaveisParaSalvar[0];
+
+      if (!responsavelPrincipal) {
+        throw new Error("Selecione pelo menos um responsável.");
+      }
+
       // Edição
       if (tarefaParaEditar?.id) {
         const { error: upErr } = await supabase
           .from("tarefas")
           .update({
-            processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
-            responsavel_id: responsaveisParaSalvar[0] || values.responsavel_id,
+            processo_id: processoId,
+            responsavel_id: responsavelPrincipal,
             titulo: values.titulo,
             descricao: values.descricao || null,
             data_base: values.data_base || null,
             data_vencimento: values.data_vencimento,
             data_fatal: values.data_fatal || null,
+            hora_prevista: values.hora_prevista || null,
+            hora_fatal: values.hora_fatal || null,
+            link_local: values.local || null,
             prioridade: values.prioridade,
           })
           .eq("id", tarefaParaEditar.id);
@@ -349,9 +373,9 @@ export function NovaTarefaDialog({
         }
         // Sincronizar envolvidos
         await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefaParaEditar.id);
-        if (envolvidosIds.length > 0) {
+        if (envolvidosParaSalvar.length > 0) {
           await supabase.from("tarefa_envolvidos").insert(
-            envolvidosIds.map((uid) => ({ tarefa_id: tarefaParaEditar.id, usuario_id: uid }))
+            envolvidosParaSalvar.map((uid) => ({ tarefa_id: tarefaParaEditar.id, usuario_id: uid }))
           );
         }
         toast({
@@ -367,13 +391,16 @@ export function NovaTarefaDialog({
       }
       // Criar a tarefa primeiro
       const { data: novaTarefa, error } = await supabase.from("tarefas").insert({
-        processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
-        responsavel_id: responsaveisParaSalvar[0] || values.responsavel_id,
+        processo_id: processoId,
+        responsavel_id: responsavelPrincipal,
         titulo: values.titulo,
         descricao: values.descricao || null,
         data_base: values.data_base || null,
         data_vencimento: values.data_vencimento,
         data_fatal: values.data_fatal || null,
+        hora_prevista: values.hora_prevista || null,
+        hora_fatal: values.hora_fatal || null,
+        link_local: values.local || null,
         prioridade: values.prioridade,
         status: "pendente",
         criado_por: userData?.id || null,
@@ -388,14 +415,14 @@ export function NovaTarefaDialog({
       }
 
       // Inserir envolvidos
-      if (novaTarefa?.id && envolvidosIds.length > 0) {
+      if (novaTarefa?.id && envolvidosParaSalvar.length > 0) {
         await supabase.from("tarefa_envolvidos").insert(
-          envolvidosIds.map((uid) => ({ tarefa_id: novaTarefa.id, usuario_id: uid }))
+          envolvidosParaSalvar.map((uid) => ({ tarefa_id: novaTarefa.id, usuario_id: uid }))
         );
       }
 
       // Disparar notificação para o responsável (fire and forget)
-      if (novaTarefa?.id && values.responsavel_id) {
+      if (novaTarefa?.id && responsavelPrincipal) {
         supabase.functions.invoke("notificar-tarefa-criada", {
           body: {
             tarefa_id: novaTarefa.id,
@@ -403,8 +430,8 @@ export function NovaTarefaDialog({
             descricao: values.descricao,
             data_vencimento: values.data_vencimento,
             prioridade: values.prioridade,
-            processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
-            responsavel_id: values.responsavel_id,
+            processo_id: processoId,
+            responsavel_id: responsavelPrincipal,
           },
         }).catch((err) => console.log("Erro ao notificar tarefa (ignorado):", err));
       }
@@ -412,7 +439,7 @@ export function NovaTarefaDialog({
       // Upload de anexos (funciona com ou sem processo)
       if (anexos.length > 0 && novaTarefa?.id) {
         setUploadingAnexos(true);
-        const folder = values.processo_id || `tarefas/${novaTarefa.id}`;
+        const folder = processoId || `tarefas/${novaTarefa.id}`;
         
         for (const anexo of anexos) {
           // Sanitizar nome do arquivo para evitar erro "InvalidKey" no Supabase Storage
@@ -439,7 +466,7 @@ export function NovaTarefaDialog({
             tipo: anexo.analise?.categoria || anexo.file.type,
             url: signedUrl,
             tamanho_bytes: anexo.file.size,
-            processo_id: values.processo_id || null,
+            processo_id: processoId,
             tarefa_id: novaTarefa.id,
           });
         }
@@ -450,7 +477,7 @@ export function NovaTarefaDialog({
       const { data: responsavel } = await supabase
         .from("profiles")
         .select("nome, telefone")
-        .eq("id", values.responsavel_id)
+        .eq("id", responsavelPrincipal)
         .single();
 
       if (responsavel?.telefone) {
@@ -510,7 +537,7 @@ export function NovaTarefaDialog({
       onSuccess?.();
     } catch (error: any) {
       toast({
-        title: "Erro ao criar tarefa",
+        title: tarefaParaEditar?.id ? "Erro ao editar tarefa" : "Erro ao criar tarefa",
         description: error.message,
         variant: "destructive",
       });
