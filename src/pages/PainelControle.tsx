@@ -1189,7 +1189,7 @@ export default function PainelControle() {
           </div>
 
           {selectedItem && (
-            <aside className="hidden lg:flex w-[480px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0">
+            <aside className="hidden lg:flex w-[640px] xl:w-[720px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0">
               <EdicaoItemPanel
                 key={selectedItem.id}
                 item={selectedItem}

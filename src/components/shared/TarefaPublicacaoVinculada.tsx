@@ -21,7 +21,7 @@ interface Props {
  * Renderiza nada quando não há vínculo.
  */
 export function TarefaPublicacaoVinculada({ tarefaId, className }: Props) {
-  const [aberto, setAberto] = useState(false);
+  const [aberto, setAberto] = useState(true);
 
   const { data: publicacao } = useQuery({
     queryKey: ["tarefa-publicacao-vinculada", tarefaId],
@@ -103,11 +103,9 @@ export function TarefaPublicacaoVinculada({ tarefaId, className }: Props) {
                 {(publicacao as any).polo_passivo ? ` × ${(publicacao as any).polo_passivo}` : ""}
               </div>
             )}
-            <ScrollArea className="max-h-72">
-              <div className={cn("text-sm pr-3", conteudoDisplayClasses)}>
-                {formatConteudoParaExibicao((publicacao as any).conteudo || "")}
-              </div>
-            </ScrollArea>
+            <div className={cn("text-sm", conteudoDisplayClasses)}>
+              {formatConteudoParaExibicao((publicacao as any).conteudo || "")}
+            </div>
           </div>
         </CollapsibleContent>
       </Collapsible>
