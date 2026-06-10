@@ -215,25 +215,28 @@ export function PrazoDialog({
       setTitulo(prazo.titulo || "");
       setPrazoDias((prazo as any).prazo_dias ?? 0);
       setPrazoUnidade(((prazo as any).prazo_unidade as Unidade) || "uteis");
-      const venc = prazo.data_vencimento
-        ? parseISO(prazo.data_vencimento)
-        : ((prazo as any).data_fatal ? parseISO((prazo as any).data_fatal) : undefined);
-      setDataLimite(venc);
+      setDataLimite(prazo.data_vencimento ? parseISO(prazo.data_vencimento) : undefined);
       setDataLimiteEditadaManualmente(true);
       setAlertaDias((prazo as any).alerta_dias ?? 0);
       setAlertaUnidade(((prazo as any).alerta_unidade as Unidade) || "corridos");
       setObservacoes(prazo.observacoes || "");
       setDataFatal((prazo as any).data_fatal ? parseISO((prazo as any).data_fatal) : undefined);
+      setCoordenacaoId("");
       (async () => {
-        const [{ data: resps }, { data: envs }] = await Promise.all([
+        const processoId = defaultProcessoId || prazo.processo_id;
+        const [{ data: resps }, { data: envs }, { data: proc }] = await Promise.all([
           supabase.from("tarefa_responsaveis").select("usuario_id").eq("tarefa_id", prazo.id),
           supabase.from("tarefa_envolvidos").select("usuario_id").eq("tarefa_id", prazo.id),
+          processoId
+            ? supabase.from("processos").select("coordenacao_id").eq("id", processoId).maybeSingle()
+            : Promise.resolve({ data: null } as any),
         ]);
         const respIds = (resps || []).map((r: any) => r.usuario_id);
         setResponsaveisIds(respIds.length > 0 ? respIds : (prazo.responsavel_id ? [prazo.responsavel_id] : []));
         const envIds = (envs || []).map((e: any) => e.usuario_id);
         setEnvolvidosIds(envIds);
         setMostrarEnvolvidos(envIds.length > 0);
+        setCoordenacaoId((proc as any)?.coordenacao_id || "");
       })();
     } else {
       setTitulo("");
@@ -355,6 +358,7 @@ export function PrazoDialog({
       // Invalidar caches de processos para que processos recém-criados/atualizados
       // pelo botão "Adicionar" da Análise DJEN apareçam na tela Processos sem refresh.
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] }),
         queryClient.invalidateQueries({ queryKey: ["processos"] }),
         queryClient.invalidateQueries({ queryKey: ["processos-paginados"] }),
         queryClient.invalidateQueries({ queryKey: ["pastas"] }),
