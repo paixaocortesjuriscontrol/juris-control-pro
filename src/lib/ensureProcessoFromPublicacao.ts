@@ -25,6 +25,7 @@ export async function ensureProcessoFromPublicacao(
   pub: PublicacaoUnificada,
   userId: string,
   userCoordenacaoId?: string | null,
+  coordenacaoIdOverride?: string | null,
 ): Promise<{ id: string; numero: string } | null> {
   const numero = pub.processo_numero?.trim();
   if (!numero) return null;
@@ -32,6 +33,8 @@ export async function ensureProcessoFromPublicacao(
   const numeroDigits = numero.replace(/\D/g, "");
   const numeroMasked = formatProcessoNumero(numero);
   const candidatos = Array.from(new Set([numeroMasked, numero, numeroDigits].filter(Boolean)));
+
+  const coordFinal = coordenacaoIdOverride || pub.coordenacao_id || userCoordenacaoId || null;
 
   // 1. Tenta encontrar processo existente
   try {
@@ -43,6 +46,13 @@ export async function ensureProcessoFromPublicacao(
       .limit(1)
       .maybeSingle();
     if (existente?.id) {
+      // Atualizar coordenacao_id se um override válido foi fornecido
+      if (coordenacaoIdOverride) {
+        await supabase
+          .from("processos")
+          .update({ coordenacao_id: coordenacaoIdOverride })
+          .eq("id", existente.id);
+      }
       return { id: existente.id, numero: existente.numero ?? numero };
     }
   } catch {
@@ -88,7 +98,7 @@ export async function ensureProcessoFromPublicacao(
       polo_passivo: pub.polo_passivo || "A identificar",
       assunto: conteudoLimpo.substring(0, 500) || "Processo importado do DJEN",
       pasta_id: pastaId,
-      coordenacao_id: pub.coordenacao_id || userCoordenacaoId || null,
+      coordenacao_id: coordFinal,
       monitorar_andamentos: true,
     })
     .select("id, numero")

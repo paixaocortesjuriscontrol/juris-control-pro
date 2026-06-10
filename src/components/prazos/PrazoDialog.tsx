@@ -36,6 +36,7 @@ import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
+import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 
 type Unidade = "uteis" | "corridos";
 
@@ -100,6 +101,8 @@ export function PrazoDialog({
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const [observacoes, setObservacoes] = useState("");
+  const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
+  const [coordenacaoId, setCoordenacaoId] = useState<string>("");
 
   // data base = data da publicação (se houver) ou hoje
   const dataBase = useMemo<Date>(() => {
@@ -124,6 +127,7 @@ export function PrazoDialog({
       setAlertaDias((prazo as any).alerta_dias ?? 0);
       setAlertaUnidade(((prazo as any).alerta_unidade as Unidade) || "corridos");
       setObservacoes(prazo.observacoes || "");
+      setDataFatal((prazo as any).data_fatal ? parseISO((prazo as any).data_fatal) : undefined);
       (async () => {
         const [{ data: resps }, { data: envs }] = await Promise.all([
           supabase.from("tarefa_responsaveis").select("usuario_id").eq("tarefa_id", prazo.id),
@@ -147,6 +151,8 @@ export function PrazoDialog({
       setEnvolvidosIds([]);
       setMostrarEnvolvidos(false);
       setObservacoes("");
+      setDataFatal(undefined);
+      setCoordenacaoId("");
     }
   }, [open, prazo?.id]);
 
@@ -186,6 +192,7 @@ export function PrazoDialog({
       prazo_unidade: prazoDias > 0 ? prazoUnidade : null,
       alerta_dias: alertaDias > 0 ? alertaDias : null,
       alerta_unidade: alertaDias > 0 ? alertaUnidade : null,
+      data_fatal: dataFatal ? format(dataFatal, "yyyy-MM-dd") : null,
     };
 
     try {
@@ -199,6 +206,15 @@ export function PrazoDialog({
       }
 
       if (tarefaId) {
+        // Atualizar coordenação do processo, se alterada
+        const processoId = defaultProcessoId || prazo?.processo_id;
+        if (processoId && coordenacaoId) {
+          await supabase
+            .from("processos")
+            .update({ coordenacao_id: coordenacaoId })
+            .eq("id", processoId);
+        }
+
         await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefaId);
         if (responsaveisIds.length > 0) {
           await supabase.from("tarefa_responsaveis").insert(
@@ -393,6 +409,44 @@ export function PrazoDialog({
               </SelectContent>
             </Select>
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-sm flex items-center gap-1">
+              <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
+              Prazo Fatal
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    "h-10 w-full justify-start text-left font-normal",
+                    !dataFatal && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dataFatal ? format(dataFatal, "dd/MM/yyyy", { locale: ptBR }) : "__/__/____"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={dataFatal}
+                  onSelect={(d) => setDataFatal(d)}
+                  locale={ptBR}
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <CoordenacaoSelect
+            value={coordenacaoId}
+            onChange={setCoordenacaoId}
+            className="space-y-1.5"
+          />
         </div>
 
         <div className="space-y-1.5">

@@ -54,6 +54,7 @@ import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useAuth } from "@/contexts/AuthContext";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
+import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 
 type TarefaSimples = { id: string; titulo: string; tipo_tarefa: string | null; status: string; responsavel_nome?: string; data_vencimento?: string | null; data_fatal?: string | null };
 
@@ -185,6 +186,7 @@ export function CriarTarefaPublicacaoDialog({
   const openedAtRef = useRef<number>(0);
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
+  const [coordenacaoId, setCoordenacaoId] = useState<string>("");
 
   const hoje = format(new Date(), "yyyy-MM-dd");
 
@@ -221,6 +223,7 @@ export function CriarTarefaPublicacaoDialog({
       setTarefaEditandoId(null);
       setResponsaveisIds([]);
       setEnvolvidosIds([]);
+      setCoordenacaoId("");
     }
   }, [open, publicacao?.id, form]);
 
@@ -394,6 +397,15 @@ export function CriarTarefaPublicacaoDialog({
 
       // Inserir vínculos N:N de responsáveis e envolvidos
       if (tarefa?.id) {
+        // Atualizar coordenação do processo, se selecionada
+        const processoIdAlvo = defaultProcessoId || publicacao.processo_id;
+        if (processoIdAlvo && coordenacaoId) {
+          await supabase
+            .from("processos")
+            .update({ coordenacao_id: coordenacaoId })
+            .eq("id", processoIdAlvo);
+        }
+
         if (responsaveisIds.length > 0) {
           await supabase.from("tarefa_responsaveis").insert(
             responsaveisIds.map((uid) => ({ tarefa_id: tarefa.id, usuario_id: uid }))
@@ -898,6 +910,11 @@ export function CriarTarefaPublicacaoDialog({
                     selectedIds={envolvidosIds}
                     onChange={setEnvolvidosIds}
                     height={160}
+                  />
+
+                  <CoordenacaoSelect
+                    value={coordenacaoId}
+                    onChange={setCoordenacaoId}
                   />
 
                   <div className="grid grid-cols-2 gap-3">
