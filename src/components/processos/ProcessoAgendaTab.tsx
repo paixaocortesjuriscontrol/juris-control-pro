@@ -87,7 +87,7 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
         .from("eventos_agenda")
         .select(`
           *,
-          processo:processos(id, numero)
+          processo:processos!eventos_agenda_processo_id_fkey(id, numero)
         `)
         .eq("processo_id", processoId)
         .order("data_inicio", { ascending: true });

@@ -279,7 +279,7 @@ export default function ListaAtividadesView({
       if (["evento", "parcelamento"].includes(filters.tipo)) {
         let q = supabase
           .from("eventos_agenda")
-          .select("*, processo:processos(id, numero, assunto, coordenacao_id)", { count: "estimated" })
+          .select("*, processo:processos!eventos_agenda_processo_id_fkey(id, numero, assunto, coordenacao_id)", { count: "estimated" })
           .eq("tipo", filters.tipo)
           .order("data_inicio", { ascending: false })
           .range(from, to);
