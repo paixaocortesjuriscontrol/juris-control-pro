@@ -374,7 +374,7 @@ export function PrazoDialog({
   };
 
   const isLoading = createPrazo.isPending || updatePrazo.isPending;
-  const hasPublicacao = !!publicacao;
+  const hasPublicacao = !!publicacaoEfetiva;
 
   const FormContent = (
     <form onSubmit={handleSubmit} className="flex flex-col h-full">
@@ -385,10 +385,10 @@ export function PrazoDialog({
           </h3>
           {hasPublicacao ? (
             <BotaoPreencherIA
-              conteudo={publicacao?.conteudo}
+              conteudo={publicacaoEfetiva?.conteudo}
               tipoTarefa="PRAZO"
-              processoNumero={publicacao?.processo_numero}
-              dataPublicacao={publicacao?.data_publicacao}
+              processoNumero={publicacaoEfetiva?.processo_numero}
+              dataPublicacao={publicacaoEfetiva?.data_publicacao}
               size="sm"
               onResultado={(resultado) => {
                 if (resultado.titulo) setTitulo(resultado.titulo);
@@ -662,31 +662,31 @@ export function PrazoDialog({
                   </span>
                 </div>
                 <div className="space-y-1 text-sm">
-                  {publicacao?.processo_numero && (
-                    <div className="font-mono text-xs">{publicacao.processo_numero}</div>
+                  {publicacaoEfetiva?.processo_numero && (
+                    <div className="font-mono text-xs">{publicacaoEfetiva.processo_numero}</div>
                   )}
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    {publicacao?.data_publicacao && (
+                    {publicacaoEfetiva?.data_publicacao && (
                       <span>
                         Publicado em{" "}
-                        {format(parseISO(publicacao.data_publicacao), "dd/MM/yyyy", { locale: ptBR })}
+                        {format(parseISO(publicacaoEfetiva.data_publicacao), "dd/MM/yyyy", { locale: ptBR })}
                       </span>
                     )}
-                    {publicacao?.tribunal && <Badge variant="outline">{publicacao.tribunal}</Badge>}
-                    {publicacao?.tipo_comunicacao && (
-                      <Badge variant="outline">{publicacao.tipo_comunicacao}</Badge>
+                    {publicacaoEfetiva?.tribunal && <Badge variant="outline">{publicacaoEfetiva.tribunal}</Badge>}
+                    {publicacaoEfetiva?.tipo_comunicacao && (
+                      <Badge variant="outline">{publicacaoEfetiva.tipo_comunicacao}</Badge>
                     )}
                   </div>
-                  {(publicacao?.polo_ativo || publicacao?.polo_passivo) && (
+                  {(publicacaoEfetiva?.polo_ativo || publicacaoEfetiva?.polo_passivo) && (
                     <div className="text-xs text-muted-foreground pt-1">
-                      {publicacao?.polo_ativo} {publicacao?.polo_passivo ? `× ${publicacao.polo_passivo}` : ""}
+                      {publicacaoEfetiva?.polo_ativo} {publicacaoEfetiva?.polo_passivo ? `× ${publicacaoEfetiva.polo_passivo}` : ""}
                     </div>
                   )}
                 </div>
               </div>
               <ScrollArea className="flex-1 p-4">
                 <div className={cn("text-sm", conteudoDisplayClasses)}>
-                  {formatConteudoParaExibicao(publicacao?.conteudo || "")}
+                  {formatConteudoParaExibicao(publicacaoEfetiva?.conteudo || "")}
                 </div>
               </ScrollArea>
             </div>
