@@ -88,6 +88,7 @@ export function PrazoDialog({
   inline = false,
 }: PrazoDialogProps) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const createPrazo = useCreatePrazo();
   const updatePrazo = useUpdatePrazo();
 
