@@ -255,7 +255,9 @@ export function TarefaPublicacaoView({
         .from("tarefas_publicacoes")
         .select(`
           tarefa:tarefas(
-            id, titulo, status, prioridade, data_vencimento, tipo_tarefa, descricao,
+            id, titulo, status, prioridade, data_vencimento, data_fatal, data_base,
+            prazo_dias, prazo_unidade, alerta_dias, alerta_unidade,
+            processo_id, responsavel_id, observacoes, tipo_tarefa, descricao,
             responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
           )
         `)
@@ -276,7 +278,9 @@ export function TarefaPublicacaoView({
         .from("tarefas_publicacoes_processos")
         .select(`
           tarefa:tarefas(
-            id, titulo, status, prioridade, data_vencimento, tipo_tarefa, descricao,
+            id, titulo, status, prioridade, data_vencimento, data_fatal, data_base,
+            prazo_dias, prazo_unidade, alerta_dias, alerta_unidade,
+            processo_id, responsavel_id, observacoes, tipo_tarefa, descricao,
             responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
           )
         `)
