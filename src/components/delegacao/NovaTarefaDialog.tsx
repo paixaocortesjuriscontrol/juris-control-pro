@@ -33,20 +33,27 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, X, Upload, FileText, Trash2, Sparkles, CheckCircle2 } from "lucide-react";
+import { Loader2, X, Upload, FileText, Trash2, Sparkles, CheckCircle2, Eye, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { Label } from "@/components/ui/label";
 import { TarefaPublicacaoVinculada } from "@/components/shared/TarefaPublicacaoVinculada";
 
 type AnexoComAnalise = {
-  file: File;
+  file?: File;
+  // Para documentos já salvos (modo edição)
+  id?: string;
+  nome?: string;
+  tamanho_bytes?: number;
+  url?: string;
+  uploaded?: boolean;
   analise?: {
     categoria: string;
     tipo_documento: string | null;
     descricao: string;
     tags: string[];
     confianca: string;
+    raw?: any;
   };
   analisando?: boolean;
   erro?: string;
@@ -107,6 +114,7 @@ export function NovaTarefaDialog({
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
+  const [analiseVisualizando, setAnaliseVisualizando] = useState<AnexoComAnalise | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -267,7 +275,6 @@ export function NovaTarefaDialog({
           local: tarefaParaEditar.link_local || tarefaParaEditar.local || "",
         });
         setSearchProcesso(processoNumero);
-        setAnexos([]);
         setResponsaveisIds(respIds.length > 0 ? respIds : responsavelPrincipal ? [responsavelPrincipal] : []);
         // Carregar envolvidos existentes
         const { data: envs } = await supabase
@@ -277,6 +284,39 @@ export function NovaTarefaDialog({
         const envIds = (envs || []).map((e: any) => e.usuario_id);
         setEnvolvidosIds(envIds);
         setMostrarEnvolvidos(envIds.length > 0);
+        // Carregar documentos já anexados a esta tarefa
+        const { data: docs } = await supabase
+          .from("documentos")
+          .select("id, nome, tamanho_bytes, url, categoria, tipo_documento, descricao, tags, confianca_ia, conteudo_extraido, analisado_ia")
+          .eq("tarefa_id", tarefaParaEditar.id)
+          .order("created_at", { ascending: true });
+        if (docs && docs.length > 0) {
+          setAnexos(
+            docs.map((d: any) => {
+              let raw: any = null;
+              try { raw = d.conteudo_extraido ? JSON.parse(d.conteudo_extraido) : null; } catch { raw = null; }
+              return {
+                id: d.id,
+                nome: d.nome,
+                tamanho_bytes: d.tamanho_bytes,
+                url: d.url,
+                uploaded: true,
+                analise: d.analisado_ia
+                  ? {
+                      categoria: d.categoria || "outros",
+                      tipo_documento: d.tipo_documento || null,
+                      descricao: d.descricao || "",
+                      tags: d.tags || [],
+                      confianca: d.confianca_ia || "media",
+                      raw,
+                    }
+                  : undefined,
+              } as AnexoComAnalise;
+            })
+          );
+        } else {
+          setAnexos([]);
+        }
         return;
       }
       const coordenacaoInicial = coordenacoes.length === 1 ? coordenacoes[0].id : "";
@@ -336,6 +376,7 @@ export function NovaTarefaDialog({
       const novosAnexos: AnexoComAnalise[] = Array.from(files).map(file => ({
         file,
         analisando: true,
+        uploaded: false,
       }));
       
       setAnexos(prev => [...prev, ...novosAnexos]);
@@ -345,7 +386,17 @@ export function NovaTarefaDialog({
       for (let i = 0; i < novosAnexos.length; i++) {
         const anexo = novosAnexos[i];
         try {
-          const analise = await analisarDocumentoComIA(anexo.file);
+          const analiseRaw: any = await analisarDocumentoComIA(anexo.file!);
+          const analise = analiseRaw
+            ? {
+                categoria: analiseRaw.categoria || "outros",
+                tipo_documento: analiseRaw.tipo_documento ?? null,
+                descricao: analiseRaw.descricao || "",
+                tags: analiseRaw.tags || [],
+                confianca: analiseRaw.confianca || "media",
+                raw: analiseRaw,
+              }
+            : undefined;
           setAnexos(prev => prev.map(a => 
             a.file === anexo.file 
               ? { ...a, analise, analisando: false }
@@ -362,8 +413,61 @@ export function NovaTarefaDialog({
     }
   };
 
-  const handleRemoveAnexo = (index: number) => {
+  const handleRemoveAnexo = async (index: number) => {
+    const anexo = anexos[index];
+    if (anexo?.uploaded && anexo.id) {
+      // Remover documento já salvo
+      const { error } = await supabase.from("documentos").delete().eq("id", anexo.id);
+      if (error) {
+        toast({ title: "Erro ao remover documento", description: error.message, variant: "destructive" });
+        return;
+      }
+    }
     setAnexos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadNovosAnexos = async (tarefaId: string, processoId: string | null) => {
+    const pendentes = anexos.filter((a) => !a.uploaded && a.file);
+    if (pendentes.length === 0) return;
+    setUploadingAnexos(true);
+    try {
+      const folder = processoId || `tarefas/${tarefaId}`;
+      for (const anexo of pendentes) {
+        const file = anexo.file!;
+        const sanitizedName = file.name
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileName = `${folder}/${Date.now()}_${sanitizedName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('documentos_processos')
+          .upload(fileName, file);
+        if (uploadError) {
+          console.error("Erro ao fazer upload:", uploadError);
+          continue;
+        }
+        const signedUrl = await getSignedUrlOrEmpty("documentos_processos", fileName);
+        const raw = (anexo.analise as any)?.raw || anexo.analise || null;
+        await supabase.from('documentos').insert({
+          nome: file.name,
+          tipo: anexo.analise?.categoria || file.type,
+          url: signedUrl,
+          tamanho_bytes: file.size,
+          processo_id: processoId,
+          tarefa_id: tarefaId,
+          categoria: anexo.analise?.categoria || null,
+          tipo_documento: anexo.analise?.tipo_documento || null,
+          descricao: anexo.analise?.descricao || null,
+          tags: anexo.analise?.tags || null,
+          analisado_ia: !!anexo.analise,
+          confianca_ia: anexo.analise?.confianca || null,
+          conteudo_extraido: raw ? JSON.stringify(raw) : null,
+        });
+      }
+    } finally {
+      setUploadingAnexos(false);
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -442,6 +546,8 @@ export function NovaTarefaDialog({
             envolvidosParaSalvar.map((uid) => ({ tarefa_id: tarefaParaEditar.id, usuario_id: uid }))
           );
         }
+        // Upload de novos anexos adicionados durante a edição
+        await uploadNovosAnexos(tarefaParaEditar.id, processoId);
         toast({
           title: "Tarefa atualizada",
           description: "As alterações foram salvas.",
@@ -449,6 +555,7 @@ export function NovaTarefaDialog({
         await queryClient.invalidateQueries({ queryKey: ["tarefas"] });
         await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
         await queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite-v1"] });
+        await queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] });
         onOpenChange(false);
         onSuccess?.();
         return;
@@ -501,40 +608,8 @@ export function NovaTarefaDialog({
       }
 
       // Upload de anexos (funciona com ou sem processo)
-      if (anexos.length > 0 && novaTarefa?.id) {
-        setUploadingAnexos(true);
-        const folder = processoId || `tarefas/${novaTarefa.id}`;
-        
-        for (const anexo of anexos) {
-          // Sanitizar nome do arquivo para evitar erro "InvalidKey" no Supabase Storage
-          const sanitizedName = anexo.file.name
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-            .replace(/[^a-zA-Z0-9._-]/g, '_'); // Substitui caracteres especiais por _
-          const fileName = `${folder}/${Date.now()}_${sanitizedName}`;
-          
-          const { error: uploadError } = await supabase.storage
-            .from('documentos_processos')
-            .upload(fileName, anexo.file);
-
-          if (uploadError) {
-            console.error("Erro ao fazer upload:", uploadError);
-            continue;
-          }
-
-          const signedUrl = await getSignedUrlOrEmpty("documentos_processos", fileName);
-
-          // Inserir documento com categorização da IA
-          await supabase.from('documentos').insert({
-            nome: anexo.file.name,
-            tipo: anexo.analise?.categoria || anexo.file.type,
-            url: signedUrl,
-            tamanho_bytes: anexo.file.size,
-            processo_id: processoId,
-            tarefa_id: novaTarefa.id,
-          });
-        }
-        setUploadingAnexos(false);
+      if (novaTarefa?.id) {
+        await uploadNovosAnexos(novaTarefa.id, processoId);
       }
 
       // Buscar telefone do responsável para enviar WhatsApp
@@ -1022,12 +1097,36 @@ export function NovaTarefaDialog({
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0 flex-1">
                             <FileText className="w-4 h-4 text-primary shrink-0" />
-                            <span className="truncate font-medium max-w-[150px] sm:max-w-none">{anexo.file.name}</span>
+                            <span className="truncate font-medium max-w-[150px] sm:max-w-none">{anexo.file?.name || anexo.nome}</span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <span className="text-xs text-muted-foreground hidden sm:inline">
-                              ({formatFileSize(anexo.file.size)})
+                              ({formatFileSize(anexo.file?.size ?? anexo.tamanho_bytes ?? 0)})
                             </span>
+                          {anexo.uploaded && anexo.url && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              title="Abrir documento"
+                              onClick={() => window.open(anexo.url, "_blank")}
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </Button>
+                          )}
+                          {anexo.analise && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              title="Ver análise da IA"
+                              onClick={() => setAnaliseVisualizando(anexo)}
+                            >
+                              <Eye className="w-3 h-3 text-amber-600" />
+                            </Button>
+                          )}
                           <Button
                             type="button"
                             variant="ghost"
@@ -1108,6 +1207,54 @@ export function NovaTarefaDialog({
             {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
           </Button>
         </div>
+        <Dialog open={!!analiseVisualizando} onOpenChange={(o) => !o && setAnaliseVisualizando(null)}>
+          <DialogContent className="sm:max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-500" />
+                Análise da IA
+              </DialogTitle>
+              <DialogDescription>
+                {analiseVisualizando?.file?.name || analiseVisualizando?.nome}
+              </DialogDescription>
+            </DialogHeader>
+            {analiseVisualizando?.analise && (
+              <div className="overflow-y-auto space-y-3 text-sm pr-2">
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">{getCategoriaLabel(analiseVisualizando.analise.categoria)}</Badge>
+                  {analiseVisualizando.analise.tipo_documento && (
+                    <Badge variant="outline">{analiseVisualizando.analise.tipo_documento}</Badge>
+                  )}
+                  <Badge variant="outline">Confiança: {analiseVisualizando.analise.confianca}</Badge>
+                </div>
+                {analiseVisualizando.analise.descricao && (
+                  <div>
+                    <div className="font-medium mb-1">Descrição</div>
+                    <p className="text-muted-foreground">{analiseVisualizando.analise.descricao}</p>
+                  </div>
+                )}
+                {analiseVisualizando.analise.tags?.length > 0 && (
+                  <div>
+                    <div className="font-medium mb-1">Tags</div>
+                    <div className="flex flex-wrap gap-1">
+                      {analiseVisualizando.analise.tags.map((t, i) => (
+                        <Badge key={i} variant="outline" className="text-xs">{t}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(analiseVisualizando.analise as any)?.raw && (
+                  <details className="border rounded-md p-2">
+                    <summary className="cursor-pointer text-xs text-muted-foreground">Ver análise completa (JSON)</summary>
+                    <pre className="mt-2 text-[11px] whitespace-pre-wrap break-all bg-muted/40 p-2 rounded">
+{JSON.stringify((analiseVisualizando.analise as any).raw, null, 2)}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
     </>
   );
 
