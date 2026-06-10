@@ -13,6 +13,13 @@ import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDi
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 
+// Parse "YYYY-MM-DD" como data local para evitar deslocamento por timezone.
+function parseDateSafe(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return new Date(value);
+}
+
 interface PendenciasProcessoCardProps {
   audiencias: any[];
   intimacoes: any[];
