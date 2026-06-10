@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -87,6 +88,7 @@ export function PrazoDialog({
   inline = false,
 }: PrazoDialogProps) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const createPrazo = useCreatePrazo();
   const updatePrazo = useUpdatePrazo();
 
@@ -255,6 +257,14 @@ export function PrazoDialog({
           }
         }
       }
+
+      // Invalidar caches de processos para que processos recém-criados/atualizados
+      // pelo botão "Adicionar" da Análise DJEN apareçam na tela Processos sem refresh.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["processos"] }),
+        queryClient.invalidateQueries({ queryKey: ["processos-paginados"] }),
+        queryClient.invalidateQueries({ queryKey: ["pastas"] }),
+      ]);
 
       onOpenChange(false);
     } catch (error: any) {

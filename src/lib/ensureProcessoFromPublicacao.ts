@@ -31,7 +31,9 @@ export async function ensureProcessoFromPublicacao(
   if (!numero) return null;
 
   const numeroDigits = numero.replace(/\D/g, "");
-  const numeroMasked = formatProcessoNumero(numero);
+  // Sempre tentar formatar a partir dos dígitos puros (o número que vem do DJEN é geralmente 20 dígitos sem máscara).
+  // formatProcessoNumero retorna o input original quando não há exatamente 20 dígitos.
+  const numeroMasked = formatProcessoNumero(numeroDigits.length === 20 ? numeroDigits : numero);
   const candidatos = Array.from(new Set([numeroMasked, numero, numeroDigits].filter(Boolean)));
 
   const coordFinal = coordenacaoIdOverride || pub.coordenacao_id || userCoordenacaoId || null;
