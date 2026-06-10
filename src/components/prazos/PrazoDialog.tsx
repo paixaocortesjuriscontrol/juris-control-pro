@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -92,6 +92,97 @@ export function PrazoDialog({
   const createPrazo = useCreatePrazo();
   const updatePrazo = useUpdatePrazo();
 
+  // Quando editando um prazo existente, carregar publicação vinculada (se houver)
+  // para mostrar no card esquerdo do dialog.
+  const { data: publicacaoVinculada } = useQuery({
+    queryKey: ["prazo-publicacao-vinculada", prazo?.id],
+    enabled: !!prazo?.id && open && !publicacao,
+    queryFn: async (): Promise<PublicacaoUnificada | null> => {
+      if (!prazo?.id) return null;
+      // 1) vínculo com publicacoes_djen (termo)
+      const { data: vTermo } = await supabase
+        .from("tarefas_publicacoes")
+        .select("publicacao_id")
+        .eq("tarefa_id", prazo.id)
+        .maybeSingle();
+      if (vTermo?.publicacao_id) {
+        const { data: p } = await supabase
+          .from("publicacoes_djen")
+          .select("*")
+          .eq("id", vTermo.publicacao_id)
+          .maybeSingle();
+        if (p) {
+          return {
+            id: p.id,
+            tipo_origem: "termo",
+            processo_id: (p as any).processo_id ?? null,
+            processo_numero: (p as any).processo_numero ?? null,
+            conteudo: (p as any).conteudo ?? null,
+            data_publicacao: (p as any).data_publicacao ?? null,
+            data_disponibilizacao: (p as any).data_disponibilizacao ?? null,
+            fonte: (p as any).fonte ?? null,
+            lida: true,
+            created_at: (p as any).created_at ?? new Date().toISOString(),
+            monitoramento_id: (p as any).monitoramento_id ?? null,
+            monitoramento_termo: null,
+            monitoramento_descricao: null,
+            monitoramento_tipo: null,
+            monitoramento_oab: null,
+            monitoramento_uf: null,
+            coordenacao_id: null,
+            coordenacao_nome: null,
+            polo_ativo: (p as any).polo_ativo ?? null,
+            polo_passivo: (p as any).polo_passivo ?? null,
+            tribunal: (p as any).tribunal ?? null,
+            tipo_comunicacao: (p as any).tipo_comunicacao ?? null,
+          } as PublicacaoUnificada;
+        }
+      }
+      // 2) vínculo com publicacoes_djen_processos
+      const { data: vProc } = await supabase
+        .from("tarefas_publicacoes_processos")
+        .select("publicacao_processo_id")
+        .eq("tarefa_id", prazo.id)
+        .maybeSingle();
+      if (vProc?.publicacao_processo_id) {
+        const { data: p } = await supabase
+          .from("publicacoes_djen_processos")
+          .select("*")
+          .eq("id", vProc.publicacao_processo_id)
+          .maybeSingle();
+        if (p) {
+          return {
+            id: p.id,
+            tipo_origem: "processo",
+            processo_id: (p as any).processo_id ?? null,
+            processo_numero: (p as any).processo_numero ?? null,
+            conteudo: (p as any).conteudo ?? null,
+            data_publicacao: (p as any).data_publicacao ?? null,
+            data_disponibilizacao: (p as any).data_disponibilizacao ?? null,
+            fonte: (p as any).fonte ?? null,
+            lida: true,
+            created_at: (p as any).created_at ?? new Date().toISOString(),
+            monitoramento_id: null,
+            monitoramento_termo: null,
+            monitoramento_descricao: null,
+            monitoramento_tipo: null,
+            monitoramento_oab: null,
+            monitoramento_uf: null,
+            coordenacao_id: null,
+            coordenacao_nome: null,
+            polo_ativo: (p as any).polo_ativo ?? null,
+            polo_passivo: (p as any).polo_passivo ?? null,
+            tribunal: (p as any).tribunal ?? null,
+            tipo_comunicacao: (p as any).tipo_comunicacao ?? null,
+          } as PublicacaoUnificada;
+        }
+      }
+      return null;
+    },
+  });
+
+  const publicacaoEfetiva = publicacao || publicacaoVinculada || null;
+
   const [titulo, setTitulo] = useState("");
   const [prazoDias, setPrazoDias] = useState<number>(0);
   const [prazoUnidade, setPrazoUnidade] = useState<Unidade>("uteis");
@@ -108,14 +199,14 @@ export function PrazoDialog({
 
   // data base = data da publicação (se houver) ou hoje
   const dataBase = useMemo<Date>(() => {
-    if (publicacao?.data_disponibilizacao) {
-      try { return parseISO(publicacao.data_disponibilizacao); } catch {}
+    if (publicacaoEfetiva?.data_disponibilizacao) {
+      try { return parseISO(publicacaoEfetiva.data_disponibilizacao); } catch {}
     }
-    if (publicacao?.data_publicacao) {
-      try { return parseISO(publicacao.data_publicacao); } catch {}
+    if (publicacaoEfetiva?.data_publicacao) {
+      try { return parseISO(publicacaoEfetiva.data_publicacao); } catch {}
     }
     return new Date();
-  }, [publicacao?.data_disponibilizacao, publicacao?.data_publicacao]);
+  }, [publicacaoEfetiva?.data_disponibilizacao, publicacaoEfetiva?.data_publicacao]);
 
   // Reset / preload state on open
   useEffect(() => {
@@ -283,7 +374,7 @@ export function PrazoDialog({
   };
 
   const isLoading = createPrazo.isPending || updatePrazo.isPending;
-  const hasPublicacao = !!publicacao;
+  const hasPublicacao = !!publicacaoEfetiva;
 
   const FormContent = (
     <form onSubmit={handleSubmit} className="flex flex-col h-full">
@@ -294,10 +385,10 @@ export function PrazoDialog({
           </h3>
           {hasPublicacao ? (
             <BotaoPreencherIA
-              conteudo={publicacao?.conteudo}
+              conteudo={publicacaoEfetiva?.conteudo}
               tipoTarefa="PRAZO"
-              processoNumero={publicacao?.processo_numero}
-              dataPublicacao={publicacao?.data_publicacao}
+              processoNumero={publicacaoEfetiva?.processo_numero}
+              dataPublicacao={publicacaoEfetiva?.data_publicacao}
               size="sm"
               onResultado={(resultado) => {
                 if (resultado.titulo) setTitulo(resultado.titulo);
@@ -571,31 +662,31 @@ export function PrazoDialog({
                   </span>
                 </div>
                 <div className="space-y-1 text-sm">
-                  {publicacao?.processo_numero && (
-                    <div className="font-mono text-xs">{publicacao.processo_numero}</div>
+                  {publicacaoEfetiva?.processo_numero && (
+                    <div className="font-mono text-xs">{publicacaoEfetiva.processo_numero}</div>
                   )}
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    {publicacao?.data_publicacao && (
+                    {publicacaoEfetiva?.data_publicacao && (
                       <span>
                         Publicado em{" "}
-                        {format(parseISO(publicacao.data_publicacao), "dd/MM/yyyy", { locale: ptBR })}
+                        {format(parseISO(publicacaoEfetiva.data_publicacao), "dd/MM/yyyy", { locale: ptBR })}
                       </span>
                     )}
-                    {publicacao?.tribunal && <Badge variant="outline">{publicacao.tribunal}</Badge>}
-                    {publicacao?.tipo_comunicacao && (
-                      <Badge variant="outline">{publicacao.tipo_comunicacao}</Badge>
+                    {publicacaoEfetiva?.tribunal && <Badge variant="outline">{publicacaoEfetiva.tribunal}</Badge>}
+                    {publicacaoEfetiva?.tipo_comunicacao && (
+                      <Badge variant="outline">{publicacaoEfetiva.tipo_comunicacao}</Badge>
                     )}
                   </div>
-                  {(publicacao?.polo_ativo || publicacao?.polo_passivo) && (
+                  {(publicacaoEfetiva?.polo_ativo || publicacaoEfetiva?.polo_passivo) && (
                     <div className="text-xs text-muted-foreground pt-1">
-                      {publicacao?.polo_ativo} {publicacao?.polo_passivo ? `× ${publicacao.polo_passivo}` : ""}
+                      {publicacaoEfetiva?.polo_ativo} {publicacaoEfetiva?.polo_passivo ? `× ${publicacaoEfetiva.polo_passivo}` : ""}
                     </div>
                   )}
                 </div>
               </div>
               <ScrollArea className="flex-1 p-4">
                 <div className={cn("text-sm", conteudoDisplayClasses)}>
-                  {formatConteudoParaExibicao(publicacao?.conteudo || "")}
+                  {formatConteudoParaExibicao(publicacaoEfetiva?.conteudo || "")}
                 </div>
               </ScrollArea>
             </div>
