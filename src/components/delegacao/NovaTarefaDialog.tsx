@@ -477,7 +477,7 @@ export function NovaTarefaDialog({
       const { data: responsavel } = await supabase
         .from("profiles")
         .select("nome, telefone")
-        .eq("id", values.responsavel_id)
+        .eq("id", responsavelPrincipal)
         .single();
 
       if (responsavel?.telefone) {
