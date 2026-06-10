@@ -70,6 +70,17 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function normalizeUuid(value?: string | null) {
+  const trimmed = (value || "").trim();
+  return UUID_RE.test(trimmed) ? trimmed : null;
+}
+
+function normalizeUuidList(values: string[]) {
+  return Array.from(new Set(values.map((value) => normalizeUuid(value)).filter(Boolean))) as string[];
+}
+
 interface NovaTarefaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -324,19 +335,32 @@ export function NovaTarefaDialog({
   async function onSubmit(values: FormValues) {
     setLoading(true);
     try {
-      const responsaveisParaSalvar = responsaveisIds.length > 0 ? responsaveisIds : [values.responsavel_id].filter(Boolean);
+      const processoId = values.tipo_vinculo === "processo" ? normalizeUuid(values.processo_id) : null;
+      const responsaveisParaSalvar = normalizeUuidList(
+        responsaveisIds.length > 0 ? responsaveisIds : [values.responsavel_id],
+      );
+      const envolvidosParaSalvar = normalizeUuidList(envolvidosIds);
+      const responsavelPrincipal = responsaveisParaSalvar[0];
+
+      if (!responsavelPrincipal) {
+        throw new Error("Selecione pelo menos um responsável.");
+      }
+
       // Edição
       if (tarefaParaEditar?.id) {
         const { error: upErr } = await supabase
           .from("tarefas")
           .update({
-            processo_id: values.tipo_vinculo === "processo" ? values.processo_id : null,
-            responsavel_id: responsaveisParaSalvar[0] || values.responsavel_id,
+            processo_id: processoId,
+            responsavel_id: responsavelPrincipal,
             titulo: values.titulo,
             descricao: values.descricao || null,
             data_base: values.data_base || null,
             data_vencimento: values.data_vencimento,
             data_fatal: values.data_fatal || null,
+            hora_prevista: values.hora_prevista || null,
+            hora_fatal: values.hora_fatal || null,
+            link_local: values.local || null,
             prioridade: values.prioridade,
           })
           .eq("id", tarefaParaEditar.id);
@@ -349,9 +373,9 @@ export function NovaTarefaDialog({
         }
         // Sincronizar envolvidos
         await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefaParaEditar.id);
-        if (envolvidosIds.length > 0) {
+        if (envolvidosParaSalvar.length > 0) {
           await supabase.from("tarefa_envolvidos").insert(
-            envolvidosIds.map((uid) => ({ tarefa_id: tarefaParaEditar.id, usuario_id: uid }))
+            envolvidosParaSalvar.map((uid) => ({ tarefa_id: tarefaParaEditar.id, usuario_id: uid }))
           );
         }
         toast({
