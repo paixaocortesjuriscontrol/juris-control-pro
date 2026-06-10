@@ -62,6 +62,7 @@ import {
   ListChecks,
   CheckCircle,
   XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { ProcessoPedidosTab } from "./ProcessoPedidosTab";
 import { cn } from "@/lib/utils";
