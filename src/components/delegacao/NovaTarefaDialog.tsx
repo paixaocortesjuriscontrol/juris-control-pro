@@ -180,16 +180,70 @@ export function NovaTarefaDialog({
     (async () => {
       if (tarefaParaEditar) {
         // Buscar coordenação a partir do processo (se houver)
+        let processoId = normalizeUuid(tarefaParaEditar.processo_id);
         let coordenacaoId = "";
         let processoNumero = "";
-        if (tarefaParaEditar.processo_id) {
+        if (!processoId) {
+          const { data: vinculoProc } = await supabase
+            .from("tarefas_publicacoes_processos")
+            .select("publicacao_processo_id")
+            .eq("tarefa_id", tarefaParaEditar.id)
+            .maybeSingle();
+
+          if (vinculoProc?.publicacao_processo_id) {
+            const { data: pubProc } = await supabase
+              .from("publicacoes_djen_processos")
+              .select("processo_id, processo_numero, coordenacao_id")
+              .eq("id", vinculoProc.publicacao_processo_id)
+              .maybeSingle();
+            processoId = normalizeUuid((pubProc as any)?.processo_id);
+            processoNumero = (pubProc as any)?.processo_numero || "";
+            coordenacaoId = normalizeUuid((pubProc as any)?.coordenacao_id) || "";
+          }
+        }
+
+        if (!processoId) {
+          const { data: vinculoTermo } = await supabase
+            .from("tarefas_publicacoes")
+            .select("publicacao_id")
+            .eq("tarefa_id", tarefaParaEditar.id)
+            .maybeSingle();
+
+          if (vinculoTermo?.publicacao_id) {
+            const { data: pub } = await supabase
+              .from("publicacoes_djen")
+              .select("processo_numero, coordenacao_id")
+              .eq("id", vinculoTermo.publicacao_id)
+              .maybeSingle();
+            processoNumero = (pub as any)?.processo_numero || processoNumero;
+            coordenacaoId = normalizeUuid((pub as any)?.coordenacao_id) || coordenacaoId;
+          }
+        }
+
+        if (!processoId && processoNumero) {
+          const digits = processoNumero.replace(/\D/g, "");
+          const pattern = digits.length >= 6 ? `%${digits.split("").join("%")}%` : `%${processoNumero}%`;
+          let procQuery = supabase
+            .from("processos")
+            .select("id, coordenacao_id, numero")
+            .ilike("numero", pattern)
+            .limit(1);
+          if (coordenacaoId) procQuery = procQuery.eq("coordenacao_id", coordenacaoId);
+          const { data: procs } = await procQuery;
+          const proc = procs?.[0] as any;
+          processoId = normalizeUuid(proc?.id);
+          coordenacaoId = normalizeUuid(proc?.coordenacao_id) || coordenacaoId;
+          processoNumero = proc?.numero || processoNumero;
+        }
+
+        if (processoId) {
           const { data: proc } = await supabase
             .from("processos")
             .select("coordenacao_id, numero")
-            .eq("id", tarefaParaEditar.processo_id)
+            .eq("id", processoId)
             .maybeSingle();
-          coordenacaoId = proc?.coordenacao_id || "";
-          processoNumero = proc?.numero || "";
+          coordenacaoId = proc?.coordenacao_id || coordenacaoId;
+          processoNumero = proc?.numero || processoNumero;
         }
         const { data: resps } = await supabase
           .from("tarefa_responsaveis")
@@ -198,9 +252,9 @@ export function NovaTarefaDialog({
         const respIds = (resps || []).map((r: any) => r.usuario_id).filter(Boolean);
         const responsavelPrincipal = respIds[0] || tarefaParaEditar.responsavel_id || "";
         form.reset({
-          tipo_vinculo: tarefaParaEditar.processo_id ? "processo" : "sem_vinculo",
+          tipo_vinculo: processoId ? "processo" : "sem_vinculo",
           coordenacao_id: coordenacaoId,
-          processo_id: tarefaParaEditar.processo_id || "",
+          processo_id: processoId || "",
           titulo: tarefaParaEditar.titulo || "",
           descricao: tarefaParaEditar.descricao || "",
           responsavel_id: responsavelPrincipal,
@@ -335,7 +389,10 @@ export function NovaTarefaDialog({
   async function onSubmit(values: FormValues) {
     setLoading(true);
     try {
-      const processoId = values.tipo_vinculo === "processo" ? normalizeUuid(values.processo_id) : null;
+      let processoId = values.tipo_vinculo === "processo" ? normalizeUuid(values.processo_id) : null;
+      if (tarefaParaEditar?.id && !processoId && values.tipo_vinculo === "processo") {
+        processoId = normalizeUuid(tarefaParaEditar.processo_id);
+      }
       const responsaveisParaSalvar = normalizeUuidList(
         responsaveisIds.length > 0 ? responsaveisIds : [values.responsavel_id],
       );
@@ -348,21 +405,28 @@ export function NovaTarefaDialog({
 
       // Edição
       if (tarefaParaEditar?.id) {
+        const updatePayload: Record<string, any> = {
+          responsavel_id: responsavelPrincipal,
+          titulo: values.titulo,
+          descricao: values.descricao || null,
+          data_base: values.data_base || null,
+          data_vencimento: values.data_vencimento,
+          data_fatal: values.data_fatal || null,
+          hora_prevista: values.hora_prevista || null,
+          hora_fatal: values.hora_fatal || null,
+          link_local: values.local || null,
+          prioridade: values.prioridade,
+        };
+
+        if (values.tipo_vinculo === "sem_vinculo") {
+          updatePayload.processo_id = null;
+        } else if (processoId) {
+          updatePayload.processo_id = processoId;
+        }
+
         const { error: upErr } = await supabase
           .from("tarefas")
-          .update({
-            processo_id: processoId,
-            responsavel_id: responsavelPrincipal,
-            titulo: values.titulo,
-            descricao: values.descricao || null,
-            data_base: values.data_base || null,
-            data_vencimento: values.data_vencimento,
-            data_fatal: values.data_fatal || null,
-            hora_prevista: values.hora_prevista || null,
-            hora_fatal: values.hora_fatal || null,
-            link_local: values.local || null,
-            prioridade: values.prioridade,
-          })
+          .update(updatePayload)
           .eq("id", tarefaParaEditar.id);
         if (upErr) throw upErr;
         await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefaParaEditar.id);
