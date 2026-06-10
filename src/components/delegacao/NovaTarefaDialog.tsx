@@ -425,6 +425,50 @@ export function NovaTarefaDialog({
     setAnexos(prev => prev.filter((_, i) => i !== index));
   };
 
+  const uploadNovosAnexos = async (tarefaId: string, processoId: string | null) => {
+    const pendentes = anexos.filter((a) => !a.uploaded && a.file);
+    if (pendentes.length === 0) return;
+    setUploadingAnexos(true);
+    try {
+      const folder = processoId || `tarefas/${tarefaId}`;
+      for (const anexo of pendentes) {
+        const file = anexo.file!;
+        const sanitizedName = file.name
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-zA-Z0-9._-]/g, '_');
+        const fileName = `${folder}/${Date.now()}_${sanitizedName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('documentos_processos')
+          .upload(fileName, file);
+        if (uploadError) {
+          console.error("Erro ao fazer upload:", uploadError);
+          continue;
+        }
+        const signedUrl = await getSignedUrlOrEmpty("documentos_processos", fileName);
+        const raw = (anexo.analise as any)?.raw || anexo.analise || null;
+        await supabase.from('documentos').insert({
+          nome: file.name,
+          tipo: anexo.analise?.categoria || file.type,
+          url: signedUrl,
+          tamanho_bytes: file.size,
+          processo_id: processoId,
+          tarefa_id: tarefaId,
+          categoria: anexo.analise?.categoria || null,
+          tipo_documento: anexo.analise?.tipo_documento || null,
+          descricao: anexo.analise?.descricao || null,
+          tags: anexo.analise?.tags || null,
+          analisado_ia: !!anexo.analise,
+          confianca_ia: anexo.analise?.confianca || null,
+          conteudo_extraido: raw ? JSON.stringify(raw) : null,
+        });
+      }
+    } finally {
+      setUploadingAnexos(false);
+    }
+  };
+
   const formatFileSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
