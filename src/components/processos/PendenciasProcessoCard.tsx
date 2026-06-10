@@ -434,6 +434,7 @@ export function PendenciasProcessoCard({
         open={!!editTarefa}
         onOpenChange={(open) => { if (!open) { setEditTarefa(null); invalidateAll(); } }}
         prazo={editTarefa}
+        defaultProcessoId={processoId}
       />
     )}
     {editEvento && (
