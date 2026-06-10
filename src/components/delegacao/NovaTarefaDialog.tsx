@@ -560,40 +560,8 @@ export function NovaTarefaDialog({
       }
 
       // Upload de anexos (funciona com ou sem processo)
-      if (anexos.length > 0 && novaTarefa?.id) {
-        setUploadingAnexos(true);
-        const folder = processoId || `tarefas/${novaTarefa.id}`;
-        
-        for (const anexo of anexos) {
-          // Sanitizar nome do arquivo para evitar erro "InvalidKey" no Supabase Storage
-          const sanitizedName = anexo.file.name
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-            .replace(/[^a-zA-Z0-9._-]/g, '_'); // Substitui caracteres especiais por _
-          const fileName = `${folder}/${Date.now()}_${sanitizedName}`;
-          
-          const { error: uploadError } = await supabase.storage
-            .from('documentos_processos')
-            .upload(fileName, anexo.file);
-
-          if (uploadError) {
-            console.error("Erro ao fazer upload:", uploadError);
-            continue;
-          }
-
-          const signedUrl = await getSignedUrlOrEmpty("documentos_processos", fileName);
-
-          // Inserir documento com categorização da IA
-          await supabase.from('documentos').insert({
-            nome: anexo.file.name,
-            tipo: anexo.analise?.categoria || anexo.file.type,
-            url: signedUrl,
-            tamanho_bytes: anexo.file.size,
-            processo_id: processoId,
-            tarefa_id: novaTarefa.id,
-          });
-        }
-        setUploadingAnexos(false);
+      if (novaTarefa?.id) {
+        await uploadNovosAnexos(novaTarefa.id, processoId);
       }
 
       // Buscar telefone do responsável para enviar WhatsApp
