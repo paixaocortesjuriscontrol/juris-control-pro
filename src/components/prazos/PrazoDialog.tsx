@@ -215,7 +215,10 @@ export function PrazoDialog({
       setTitulo(prazo.titulo || "");
       setPrazoDias((prazo as any).prazo_dias ?? 0);
       setPrazoUnidade(((prazo as any).prazo_unidade as Unidade) || "uteis");
-      setDataLimite(prazo.data_vencimento ? parseISO(prazo.data_vencimento) : undefined);
+      const venc = prazo.data_vencimento
+        ? parseISO(prazo.data_vencimento)
+        : ((prazo as any).data_fatal ? parseISO((prazo as any).data_fatal) : undefined);
+      setDataLimite(venc);
       setDataLimiteEditadaManualmente(true);
       setAlertaDias((prazo as any).alerta_dias ?? 0);
       setAlertaUnidade(((prazo as any).alerta_unidade as Unidade) || "corridos");
