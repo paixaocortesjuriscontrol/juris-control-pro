@@ -1938,12 +1938,29 @@ export default function DistribuicaoTst() {
                     }}
                   />
                 </TableHead>
-                <TableHead>Data Plan.</TableHead>
-                <TableHead>Data Real</TableHead>
-                <TableHead>Processo</TableHead>
-                <TableHead>Dossiê</TableHead>
-                <TableHead>Responsáveis</TableHead>
-                <TableHead>Benner</TableHead>
+                {([
+                  { key: "data_distribuicao_planilha" as const, label: "Data Plan." },
+                  { key: "data_distribuicao_real" as const, label: "Data Real" },
+                  { key: "processo_numero" as const, label: "Processo" },
+                  { key: "dossie" as const, label: "Dossiê" },
+                  { key: "responsaveis" as const, label: "Responsáveis" },
+                  { key: "benner_atualizado" as const, label: "Benner" },
+                ]).map((h) => (
+                  <TableHead key={h.key}>
+                    <button
+                      type="button"
+                      onClick={() => handleSort(h.key)}
+                      className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                    >
+                      {h.label}
+                      {sortBy === h.key ? (
+                        sortDir === "asc" ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 opacity-40" />
+                      )}
+                    </button>
+                  </TableHead>
+                ))}
                 {isAdminOrCoordinator && <TableHead className="w-28">Ações</TableHead>}
               </TableRow>
             </TableHeader>
