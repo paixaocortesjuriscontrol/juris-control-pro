@@ -537,7 +537,7 @@ export function NovaTarefaDialog({
       onSuccess?.();
     } catch (error: any) {
       toast({
-        title: "Erro ao criar tarefa",
+        title: tarefaParaEditar?.id ? "Erro ao editar tarefa" : "Erro ao criar tarefa",
         description: error.message,
         variant: "destructive",
       });
