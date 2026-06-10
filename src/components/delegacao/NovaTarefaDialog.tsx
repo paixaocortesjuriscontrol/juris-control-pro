@@ -545,6 +545,8 @@ export function NovaTarefaDialog({
             envolvidosParaSalvar.map((uid) => ({ tarefa_id: tarefaParaEditar.id, usuario_id: uid }))
           );
         }
+        // Upload de novos anexos adicionados durante a edição
+        await uploadNovosAnexos(tarefaParaEditar.id, processoId);
         toast({
           title: "Tarefa atualizada",
           description: "As alterações foram salvas.",
@@ -552,6 +554,7 @@ export function NovaTarefaDialog({
         await queryClient.invalidateQueries({ queryKey: ["tarefas"] });
         await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
         await queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite-v1"] });
+        await queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] });
         onOpenChange(false);
         onSuccess?.();
         return;
