@@ -1,65 +1,64 @@
-# Plano — Botão "Adicionar" da tela Análise DJEN
+## Diagnóstico
 
-## Objetivos
-1. Garantir que o processo da publicação seja **importado/visível na tela Processos** quando criado pelo botão Adicionar.
-2. Adicionar um **seletor de Coordenação** em todos os formulários (Tarefa, Prazo, Evento, Audiência) abertos pelo botão Adicionar, **pré-preenchido com a coordenação do usuário logado**.
-3. **Restaurar o campo "Prazo Fatal" (data_fatal)** no `PrazoDialog` (usado em Análise DJEN e no Painel de Controle).
-4. Exibir a **publicação vinculada** na tela **Painel de Controle** e na tela **Processo (interno)** quando a tarefa tiver sido criada a partir da Análise DJEN.
+Confirmado no banco: o processo **0000682-05.2016.5.23.0009** foi criado (id `c4617a6f-…`, coordenação `9d4e11e2-…`, criado hoje 13:01). Ou seja, o `ensureProcessoFromPublicacao` rodou. O motivo de "não aparecer" na tela Processos são **três bugs combinados**:
 
-## Mudanças
+1. **Cache não é invalidado.** Nenhum dos dialogs do botão Adicionar (`PrazoDialog`, `CriarTarefaPublicacaoDialog`, `EventoDialog`, `NovaAudienciaPublicacaoDialog`) chama `queryClient.invalidateQueries(["processos-paginados"])` depois de criar o processo. A tela Processos usa cache de 5 min, então o processo recém-criado só aparece após refresh manual.
 
-### 1. Importação do processo aparecer em "Processos"
-Arquivo: `src/lib/ensureProcessoFromPublicacao.ts`
-- Já cria pasta + processo + responsável + movimentação. Ajustes:
-  - Receber `coordenacaoId` escolhido no formulário (parâmetro opcional, fallback para coordenação do usuário) e usá-lo no `coordenacao_id` do processo.
-  - Após criar, invalidar `["processos"]` e `["pastas"]` (já feito na chamada — manter).
-  - Garantir `data_distribuicao` / outros campos mínimos para o processo aparecer nos filtros padrão da tela Processos (revisar `useProcessos`/`useProcessosPaginados` se houver filtro que esconda esses processos).
+2. **Número salvo sem máscara CNJ.** No banco está `00006820520165230009` (20 dígitos puros). Quando o usuário busca por `0000682-05.2016.5.23.0009`, o `ILIKE '%…%'` do RPC não casa. O `formatProcessoNumero` deveria mascarar, mas o caminho atual está gravando os dígitos brutos vindos do DJEN.
 
-### 2. Seletor de Coordenação nos formulários do "Adicionar"
-Componente novo: `src/components/shared/CoordenacaoSelect.tsx`
-- Lista coordenações do usuário (admin = todas; demais = `membros_coordenacao` + coordenadas).
-- Default = coordenação do usuário logado (mesma lógica já usada em `TstPrazos`).
+3. **RPC de busca não normaliza dígitos.** `get_processos_paginados` faz só `p.numero ILIKE '%' || _search || '%'`. Mesmo se um processo estiver mascarado e o usuário buscar só dígitos (ou vice-versa), não acha.
 
-Integrar o `CoordenacaoSelect` em:
-- `src/components/djen/CriarTarefaPublicacaoDialog.tsx`
+## Correções
+
+### 1. `src/lib/ensureProcessoFromPublicacao.ts`
+- Garantir que `numero` salvo é **sempre** o formato CNJ mascarado quando houver 20 dígitos: usar `formatProcessoNumero(numeroDigits)` em vez de `formatProcessoNumero(numero) || numero`.
+- Preencher `data_distribuicao` com `pub.data_publicacao` (ou hoje) para que o processo apareça em filtros padrão por período.
+- Retornar também um flag `criado: boolean` para que os dialogs saibam quando invalidar caches.
+
+### 2. Invalidação de cache nos 4 dialogs do "Adicionar"
+Arquivos:
 - `src/components/prazos/PrazoDialog.tsx`
+- `src/components/djen/CriarTarefaPublicacaoDialog.tsx`
 - `src/components/agenda/EventoDialog.tsx`
 - `src/components/djen/NovaAudienciaPublicacaoDialog.tsx`
 
-A coordenação selecionada será:
-- Repassada para `ensureProcessoFromPublicacao` (criar/atualizar `coordenacao_id` do processo recém-criado).
-- Persistida em `processos.coordenacao_id` (a tabela `tarefas` não tem `coordenacao_id` — a coordenação fica via processo, mantendo o padrão atual).
+Depois do salvar bem-sucedido, executar em paralelo:
+```ts
+await Promise.all([
+  queryClient.invalidateQueries({ queryKey: ["processos-paginados"] }),
+  queryClient.invalidateQueries({ queryKey: ["processos"] }),
+  queryClient.invalidateQueries({ queryKey: ["pastas"] }),
+]);
+```
+(seguindo a regra de memória de aguardar `invalidateQueries` antes de fechar o diálogo).
 
-Em `AnaliseDjen.tsx`, ajustar `resolverProcessoDaPublicacao` para receber a coordenação escolhida no diálogo (ou já abrir o diálogo com o default e passar para o ensure quando o usuário salvar).
+### 3. Migração SQL — busca tolerante e backfill de números
+Nova migration:
 
-### 3. Restaurar "Prazo Fatal" no PrazoDialog
-Arquivo: `src/components/prazos/PrazoDialog.tsx`
-- Adicionar estado `dataFatal: Date | undefined` e campo de input (date picker) ao lado de "Data limite", rotulado **"Prazo Fatal"**.
-- Incluir no payload de create/update de prazo: `data_fatal: format(dataFatal, "yyyy-MM-dd") | null`.
-- Carregar `prazo.data_fatal` no modo edição.
-- Como o `PrazoDialog` é usado tanto na Análise DJEN quanto no Painel de Controle, a mesma alteração resolve ambos os cenários pedidos.
+a) **Backfill** dos números existentes salvos como 20 dígitos sem máscara:
+```sql
+UPDATE public.processos
+SET numero = format('%s-%s.%s.%s.%s.%s',
+  substring(numero,1,7), substring(numero,8,2), substring(numero,10,4),
+  substring(numero,14,1), substring(numero,15,2), substring(numero,17,4))
+WHERE numero ~ '^[0-9]{20}$';
+```
 
-### 4. Publicação vinculada no Painel de Controle e Processo Interno
-- **Processo interno** (`ProcessoDetalhes.tsx` / `ProcessoDetalhesCompletos.tsx`): já usa `TarefaPublicacaoView`. Confirmar que tarefas criadas via `tipo_origem === "processo"` aparecem (já há suporte) e, se necessário, ajustar o filtro para incluir vínculos via `tarefas_publicacoes` (termo) — atualmente parece focar em vínculo por processo.
+b) **Atualizar `get_processos_paginados`** para normalizar dígitos quando o `_search` contém só números (≥7 dígitos): comparar `regexp_replace(p.numero, '\D', '', 'g') ILIKE '%' || regexp_replace(_search, '\D','','g') || '%'` em adição à comparação atual. Mantém as buscas textuais (assunto/cliente/polos) inalteradas.
 
-- **Painel de Controle** (`src/pages/PainelControle.tsx` → `EdicaoItemPanel` → `NovaTarefaDialog`): hoje não exibe publicação vinculada. Adicionar bloco no `NovaTarefaDialog` (modo edição) que:
-  - Consulta `tarefas_publicacoes` e `tarefas_publicacoes_processos` por `tarefa_id`.
-  - Se houver vínculo, busca a publicação e renderiza o conteúdo (reaproveitando a apresentação usada em `TarefaAgendaPanel` — extrair em componente `TarefaPublicacaoVinculada` para reuso).
+### 4. Fallback de polos (cosmético, mas resolve "Réu/Autor não identificado")
+Em `ensureProcessoFromPublicacao`, se polo_ativo/polo_passivo da publicação estiverem vazios, tentar extrair do conteúdo (já existe util `pub.polo_ativo` — verificar se a publicação tem esses campos no banco e priorizar metadados estruturados antes do fallback genérico). Manter como melhoria opcional.
 
-## Detalhes técnicos
-- Não há coluna `coordenacao_id` em `tarefas`; a coordenação continua sendo atributo do **processo** (já validado via `information_schema`).
-- `tarefas.data_fatal` já existe (`date`) — apenas falta UI no PrazoDialog.
-- Vínculos publicação ↔ tarefa já são gravados pelos dialogs novos (`CriarTarefaPublicacaoDialog`, `PrazoDialog`, `EventoDialog`, `NovaAudienciaPublicacaoDialog`). Apenas a exibição precisa ser propagada para o Painel de Controle.
-- Nenhuma migração SQL é necessária.
+## Validação
+1. Recarregar a tela Análise DJEN, criar prazo a partir de outra publicação cujo processo não exista.
+2. Após salvar, abrir a aba Processos — o processo deve aparecer **sem F5** no topo da lista.
+3. Buscar tanto pelo CNJ mascarado quanto pelos 20 dígitos puros — ambos devem encontrar.
+4. Validar para o processo já existente `0000682-05.2016.5.23.0009`: após a migration ele aparece com máscara correta.
 
-## Arquivos a alterar
+## Arquivos
 - `src/lib/ensureProcessoFromPublicacao.ts`
-- `src/pages/AnaliseDjen.tsx`
-- `src/components/shared/CoordenacaoSelect.tsx` (novo)
-- `src/components/shared/TarefaPublicacaoVinculada.tsx` (novo, extraído do `TarefaAgendaPanel`)
-- `src/components/djen/CriarTarefaPublicacaoDialog.tsx`
 - `src/components/prazos/PrazoDialog.tsx`
+- `src/components/djen/CriarTarefaPublicacaoDialog.tsx`
 - `src/components/agenda/EventoDialog.tsx`
 - `src/components/djen/NovaAudienciaPublicacaoDialog.tsx`
-- `src/components/delegacao/NovaTarefaDialog.tsx` (mostrar publicação vinculada)
-- `src/pages/ProcessoDetalhes.tsx` / `ProcessoDetalhesCompletos.tsx` (revisar filtro de publicações vinculadas)
+- Nova migration SQL (backfill + atualização do RPC `get_processos_paginados`)
