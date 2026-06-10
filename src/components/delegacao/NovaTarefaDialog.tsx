@@ -40,13 +40,20 @@ import { Label } from "@/components/ui/label";
 import { TarefaPublicacaoVinculada } from "@/components/shared/TarefaPublicacaoVinculada";
 
 type AnexoComAnalise = {
-  file: File;
+  file?: File;
+  // Para documentos já salvos (modo edição)
+  id?: string;
+  nome?: string;
+  tamanho_bytes?: number;
+  url?: string;
+  uploaded?: boolean;
   analise?: {
     categoria: string;
     tipo_documento: string | null;
     descricao: string;
     tags: string[];
     confianca: string;
+    raw?: any;
   };
   analisando?: boolean;
   erro?: string;
