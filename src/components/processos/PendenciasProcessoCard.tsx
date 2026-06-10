@@ -13,6 +13,13 @@ import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDi
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 
+// Parse "YYYY-MM-DD" como data local para evitar deslocamento por timezone.
+function parseDateSafe(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return new Date(value);
+}
+
 interface PendenciasProcessoCardProps {
   audiencias: any[];
   intimacoes: any[];
@@ -114,7 +121,7 @@ export function PendenciasProcessoCard({
   const formatDate = (date: string | null) => {
     if (!date) return "-";
     try {
-      return format(new Date(date), "dd/MM/yyyy", { locale: ptBR });
+      return format(parseDateSafe(date), "dd/MM/yyyy", { locale: ptBR });
     } catch {
       return "-";
     }
@@ -123,8 +130,10 @@ export function PendenciasProcessoCard({
   const getDaysLabel = (date: string | null) => {
     if (!date) return null;
     try {
-      const d = new Date(date);
-      const diff = differenceInDays(d, new Date());
+      const d = parseDateSafe(date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diff = differenceInDays(d, today);
       if (diff < 0) return { label: `${Math.abs(diff)}d atrás`, urgent: true };
       if (diff === 0) return { label: "Hoje", urgent: true };
       if (diff === 1) return { label: "Amanhã", urgent: true };
