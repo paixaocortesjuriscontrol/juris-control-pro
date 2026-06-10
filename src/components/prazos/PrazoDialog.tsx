@@ -258,6 +258,14 @@ export function PrazoDialog({
         }
       }
 
+      // Invalidar caches de processos para que processos recém-criados/atualizados
+      // pelo botão "Adicionar" da Análise DJEN apareçam na tela Processos sem refresh.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["processos"] }),
+        queryClient.invalidateQueries({ queryKey: ["processos-paginados"] }),
+        queryClient.invalidateQueries({ queryKey: ["pastas"] }),
+      ]);
+
       onOpenChange(false);
     } catch (error: any) {
       toast.error("Erro ao salvar prazo: " + error.message);
