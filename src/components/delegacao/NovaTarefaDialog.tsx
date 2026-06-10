@@ -274,7 +274,6 @@ export function NovaTarefaDialog({
           local: tarefaParaEditar.link_local || tarefaParaEditar.local || "",
         });
         setSearchProcesso(processoNumero);
-        setAnexos([]);
         setResponsaveisIds(respIds.length > 0 ? respIds : responsavelPrincipal ? [responsavelPrincipal] : []);
         // Carregar envolvidos existentes
         const { data: envs } = await supabase
