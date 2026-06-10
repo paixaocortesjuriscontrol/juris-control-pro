@@ -239,8 +239,11 @@ const AnaliseDjen = () => {
       if (resolved) {
         setAdicionarProcessoId(resolved.id);
         setAdicionarProcessoNumero(resolved.numero);
-        queryClient.invalidateQueries({ queryKey: ["processos"] });
-        queryClient.invalidateQueries({ queryKey: ["pastas"] });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["processos"] }),
+          queryClient.invalidateQueries({ queryKey: ["processos-paginados"] }),
+          queryClient.invalidateQueries({ queryKey: ["pastas"] }),
+        ]);
       }
     } catch (err) {
       console.warn("Falha ao resolver/criar processo a partir da publicação", err);
