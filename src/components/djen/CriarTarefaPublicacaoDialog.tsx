@@ -912,6 +912,11 @@ export function CriarTarefaPublicacaoDialog({
                     height={160}
                   />
 
+                  <CoordenacaoSelect
+                    value={coordenacaoId}
+                    onChange={setCoordenacaoId}
+                  />
+
                   <div className="grid grid-cols-2 gap-3">
                     <FormField
                       control={form.control}
