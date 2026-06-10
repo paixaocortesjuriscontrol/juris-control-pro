@@ -114,6 +114,7 @@ export function NovaTarefaDialog({
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
+  const [analiseVisualizando, setAnaliseVisualizando] = useState<AnexoComAnalise | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
