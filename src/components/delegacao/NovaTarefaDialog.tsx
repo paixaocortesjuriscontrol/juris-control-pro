@@ -284,6 +284,39 @@ export function NovaTarefaDialog({
         const envIds = (envs || []).map((e: any) => e.usuario_id);
         setEnvolvidosIds(envIds);
         setMostrarEnvolvidos(envIds.length > 0);
+        // Carregar documentos já anexados a esta tarefa
+        const { data: docs } = await supabase
+          .from("documentos")
+          .select("id, nome, tamanho_bytes, url, categoria, tipo_documento, descricao, tags, confianca_ia, conteudo_extraido, analisado_ia")
+          .eq("tarefa_id", tarefaParaEditar.id)
+          .order("created_at", { ascending: true });
+        if (docs && docs.length > 0) {
+          setAnexos(
+            docs.map((d: any) => {
+              let raw: any = null;
+              try { raw = d.conteudo_extraido ? JSON.parse(d.conteudo_extraido) : null; } catch { raw = null; }
+              return {
+                id: d.id,
+                nome: d.nome,
+                tamanho_bytes: d.tamanho_bytes,
+                url: d.url,
+                uploaded: true,
+                analise: d.analisado_ia
+                  ? {
+                      categoria: d.categoria || "outros",
+                      tipo_documento: d.tipo_documento || null,
+                      descricao: d.descricao || "",
+                      tags: d.tags || [],
+                      confianca: d.confianca_ia || "media",
+                      raw,
+                    }
+                  : undefined,
+              } as AnexoComAnalise;
+            })
+          );
+        } else {
+          setAnexos([]);
+        }
         return;
       }
       const coordenacaoInicial = coordenacoes.length === 1 ? coordenacoes[0].id : "";
