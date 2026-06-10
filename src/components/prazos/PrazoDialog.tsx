@@ -257,10 +257,11 @@ export function PrazoDialog({
 
   // Auto-calcular data limite quando Prazo (dias) muda
   useEffect(() => {
+    if (prazo) return;
     if (dataLimiteEditadaManualmente) return;
     const calc = computeDataLimite(dataBase, prazoDias, prazoUnidade);
     setDataLimite(calc);
-  }, [prazoDias, prazoUnidade, dataBase, dataLimiteEditadaManualmente]);
+  }, [prazo, prazoDias, prazoUnidade, dataBase, dataLimiteEditadaManualmente]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -440,7 +441,9 @@ export function PrazoDialog({
                 min={0}
                 value={prazoDias}
                 onChange={(e) => {
-                  setPrazoDias(parseInt(e.target.value || "0", 10));
+                  const dias = parseInt(e.target.value || "0", 10);
+                  setPrazoDias(dias);
+                  if (prazo) setDataLimite(computeDataLimite(dataBase, dias, prazoUnidade));
                   setDataLimiteEditadaManualmente(false);
                 }}
                 className="h-10 w-20"
@@ -448,7 +451,9 @@ export function PrazoDialog({
               <Select
                 value={prazoUnidade}
                 onValueChange={(v) => {
-                  setPrazoUnidade(v as Unidade);
+                  const unidade = v as Unidade;
+                  setPrazoUnidade(unidade);
+                  if (prazo) setDataLimite(computeDataLimite(dataBase, prazoDias, unidade));
                   setDataLimiteEditadaManualmente(false);
                 }}
               >
