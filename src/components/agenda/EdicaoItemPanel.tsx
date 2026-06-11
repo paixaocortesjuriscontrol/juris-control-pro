@@ -8,6 +8,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
+import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { AlertTriangle, Calendar as CalendarIcon, CheckCircle2, ExternalLink, User as UserIcon } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -251,38 +252,13 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
           )
         ) : isAudiencia ? (
           evento && (
-            <div className="h-full overflow-y-auto p-6 space-y-4">
-              <div>
-                <div className="text-xs uppercase tracking-wide text-muted-foreground">Audiência</div>
-                <h2 className="text-lg font-semibold leading-tight">{evento.titulo}</h2>
-              </div>
-              <div className="rounded-lg border p-4 space-y-2 bg-card text-sm">
-                {evento.processo_numero && (
-                  <div><span className="font-medium">Processo:</span> {evento.processo_numero}</div>
-                )}
-                {evento.data_audiencia && (
-                  <div><span className="font-medium">Data:</span> {format(parseISO(evento.data_audiencia), "dd/MM/yyyy HH:mm", { locale: ptBR })}</div>
-                )}
-                {evento.forum && (<div><span className="font-medium">Fórum:</span> {evento.forum}</div>)}
-                {evento.sala_forum && (<div><span className="font-medium">Sala:</span> {evento.sala_forum}</div>)}
-                {evento.local_audiencia && (<div><span className="font-medium">Local:</span> {evento.local_audiencia}</div>)}
-                {evento.modalidade && (<div><span className="font-medium">Modalidade:</span> {evento.modalidade}</div>)}
-                {evento.status && (<div><span className="font-medium">Status:</span> {evento.status}</div>)}
-              </div>
-              {evento.observacoes && (
-                <div className="rounded-lg border p-4 bg-card">
-                  <div className="text-sm font-medium mb-1">Observações</div>
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{evento.observacoes}</p>
-                </div>
-              )}
-              <Link
-                to="/painel-audiencias"
-                className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Abrir no Painel de Audiências
-              </Link>
-            </div>
+            <EditarAudienciaDialog
+              audiencia={evento as any}
+              open
+              onOpenChange={(o) => {
+                if (!o) closeAfter();
+              }}
+            />
           )
         ) : isParcelamento ? (
           evento && (

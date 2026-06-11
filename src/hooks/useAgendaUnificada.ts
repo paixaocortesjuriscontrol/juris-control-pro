@@ -783,6 +783,71 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       }
 
       // Dedup final (por chave de negócio DJEN) antes de ordenar
+      // ========= EXPANDIR PARCELAS (parcelas_evento) =========
+      const incluirParcelas =
+        !filters.tipos || filters.tipos.length === 0 ||
+        filters.tipos.includes("parcelamento") || filters.tipos.includes("prazo_parcela");
+
+      if (incluirParcelas) {
+        // Pega ids dos eventos do tipo 'parcelamento' já carregados (filtrados por usuário)
+        const parcEventoIds = resultItems
+          .filter((it) => it.tipo === "parcelamento" && it.origem === "evento")
+          .map((it) => it.id);
+
+        if (parcEventoIds.length > 0) {
+          const { data: parcelas } = await supabase
+            .from("parcelas_evento")
+            .select("id, evento_id, numero, data_vencimento, valor, status, observacoes, created_at, updated_at")
+            .in("evento_id", parcEventoIds)
+            .order("data_vencimento", { ascending: true });
+
+          const parentMap = new Map(
+            resultItems
+              .filter((it) => it.tipo === "parcelamento")
+              .map((it) => [it.id, it])
+          );
+
+          for (const p of (parcelas ?? []) as any[]) {
+            const parent = parentMap.get(p.evento_id);
+            if (!parent) continue;
+            const pid = `parcela-${p.id}`;
+            if (seenIds.has(pid)) continue;
+            seenIds.add(pid);
+
+            const dataBase = parseISO(p.data_vencimento);
+            const diasRestantes = differenceInDays(startOfDay(dataBase), today);
+            const statusUnificado = p.status === "pago" ? "concluido" : p.status || "pendente";
+            const isAtrasado = diasRestantes < 0 && statusUnificado === "pendente";
+
+            resultItems.push({
+              id: pid,
+              titulo: `Parcela ${p.numero ?? ""} - ${parent.titulo}`.trim(),
+              descricao: p.observacoes ?? parent.descricao ?? null,
+              tipo: "prazo_parcela",
+              origem: "evento",
+              data_inicio: `${p.data_vencimento}T00:00:00`,
+              data_fim: null,
+              dia_inteiro: true,
+              local: parent.local ?? null,
+              recorrente: false,
+              recorrencia_tipo: null,
+              status: statusUnificado,
+              concluido_em: p.status === "pago" ? p.updated_at : null,
+              created_at: p.created_at,
+              updated_at: p.updated_at,
+              processo_id: parent.processo_id ?? null,
+              processo: parent.processo ?? null,
+              grupo_parcelas: parent.id,
+              numero_parcela: p.numero ?? null,
+              valor_parcela: p.valor ?? null,
+              criado_por: parent.criado_por,
+              dias_restantes: diasRestantes,
+              is_atrasado: isAtrasado,
+            });
+          }
+        }
+      }
+
       const dedupedItems: ItemAgendaUnificado[] = [];
       const seenKeys = new Set<string>();
       for (const item of resultItems) {
