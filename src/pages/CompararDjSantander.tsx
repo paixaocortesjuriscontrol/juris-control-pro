@@ -1707,6 +1707,15 @@ export default function CompararDjSantander() {
     const exclusoesMon: string[] = [];
     monitoramentosConfig.forEach(m => (m.exclusoes || []).forEach(e => e && exclusoesMon.push(e.toUpperCase())));
 
+    // publicacoes_djen NÃO tem FK para coordenacoes — joins embedded falham.
+    // Resolve nomes de coordenação separadamente.
+    const nomesCoordenacoes = async (ids: string[]): Promise<Map<string, string>> => {
+      const unicos = [...new Set(ids.filter(Boolean))];
+      if (unicos.length === 0) return new Map();
+      const { data } = await supabase.from("coordenacoes").select("id, nome").in("id", unicos);
+      return new Map((data ?? []).map((c: any) => [c.id, c.nome]));
+    };
+
     const analisarUm = async (processo: string): Promise<string[]> => {
       const motivos: string[] = [];
       const digits = processo.replace(/\D/g, "");
@@ -1733,23 +1742,28 @@ export default function CompararDjSantander() {
       try {
         let q = supabase
           .from("publicacoes_djen")
-          .select("coordenacao_id, monitoramento_id, tribunal, orgao, tipo_comunicacao, coordenacoes:coordenacao_id(nome)")
+          .select("coordenacao_id, monitoramento_id, tribunal, orgao, tipo_comunicacao")
           .eq("dedup_processo_digits", digits);
         if (dispInicio) q = q.gte("data_disponibilizacao", `${dispInicio}T00:00:00.000Z`).lte("data_disponibilizacao", `${dispFim}T23:59:59.999Z`);
         if (pubInicio) q = q.gte("data_publicacao", `${pubInicio}T00:00:00.000Z`).lte("data_publicacao", `${pubFim}T23:59:59.999Z`);
-        const { data: capturadas } = await q;
+        const { data: capturadas, error: errCapturadas } = await q;
+        if (errCapturadas) console.warn("erro publicacoes_djen", errCapturadas);
         if (capturadas && capturadas.length > 0) {
           const naSelecionada = capturadas.filter((c: any) => monIds.includes(c.monitoramento_id));
           if (naSelecionada.length > 0) {
             motivos.push(`Capturado pela coordenação selecionada via ${descreverCaptura(naSelecionada)}. Verifique se está marcado como lido/arquivado, ou se a base do PDF normalizou o número de forma diferente.`);
             return motivos;
           }
-          const outras = [...new Set(capturadas.map((c: any) => c.coordenacoes?.nome).filter(Boolean))];
+          const nomes = await nomesCoordenacoes(capturadas.map((c: any) => c.coordenacao_id));
+          const outras = [...new Set(capturadas.map((c: any) => nomes.get(c.coordenacao_id)).filter(Boolean))] as string[];
           if (outras.length > 0) {
             const tribs = [...new Set(capturadas.map((c: any) => String(c.tribunal || "").toUpperCase()).filter(Boolean))].join(", ");
             motivos.push(`Encontrado no DJEN (${tribs || "tribunal não identificado"}), mas capturado por outra(s) coordenação(ões): ${outras.join(", ")}. Os termos da coordenação selecionada não casaram com esta publicação.`);
             return motivos;
           }
+          const tribs = [...new Set(capturadas.map((c: any) => String(c.tribunal || "").toUpperCase()).filter(Boolean))].join(", ");
+          motivos.push(`Encontrado no DJEN (${tribs || "tribunal não identificado"}) dentro do período, mas vinculado a outra coordenação.`);
+          return motivos;
         }
       } catch (e) {
         console.warn("erro publicacoes_djen", e);
@@ -1759,12 +1773,13 @@ export default function CompararDjSantander() {
       // de datas filtrado. Antes de cair para a consulta ao vivo, sinalizamos
       // isso explicitamente para evitar "Não localizado" enganoso.
       try {
-        const { data: foraPeriodo } = await supabase
+        const { data: foraPeriodo, error: errFora } = await supabase
           .from("publicacoes_djen")
-          .select("data_disponibilizacao, data_publicacao, tribunal, monitoramento_id, coordenacao_id, coordenacoes:coordenacao_id(nome)")
+          .select("data_disponibilizacao, data_publicacao, tribunal, monitoramento_id, coordenacao_id")
           .eq("dedup_processo_digits", digits)
           .order("data_disponibilizacao", { ascending: false })
           .limit(20);
+        if (errFora) console.warn("erro publicacoes_djen fora do periodo", errFora);
         if (foraPeriodo && foraPeriodo.length > 0) {
           const fmt = (iso: string | null) => {
             if (!iso) return "";
@@ -1779,7 +1794,8 @@ export default function CompararDjSantander() {
           )].slice(0, 5);
           const tribs = [...new Set(foraPeriodo.map((r: any) => String(r.tribunal || "").toUpperCase()).filter(Boolean))].join(", ");
           const naSelecionada = foraPeriodo.some((r: any) => monIds.includes(r.monitoramento_id));
-          const coords = [...new Set(foraPeriodo.map((r: any) => r.coordenacoes?.nome).filter(Boolean))];
+          const nomes = await nomesCoordenacoes(foraPeriodo.map((r: any) => r.coordenacao_id));
+          const coords = [...new Set(foraPeriodo.map((r: any) => nomes.get(r.coordenacao_id)).filter(Boolean))] as string[];
           const escopo = naSelecionada
             ? "pela coordenação selecionada"
             : (coords.length > 0 ? `por outra(s) coordenação(ões): ${coords.join(", ")}` : "em outra coordenação");
