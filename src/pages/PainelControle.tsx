@@ -378,13 +378,15 @@ export default function PainelControle() {
 
       const all = tarefas || [];
       const audienciaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "AUDIÊNCIA" || u === "AUDIENCIA"; });
-      const compromissoItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "EVENTO"; });
-      const tarefaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u !== "AUDIÊNCIA" && u !== "AUDIENCIA" && u !== "EVENTO"; });
+      const eventoTarefaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "EVENTO"; });
+      const prazoItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "PRAZO"; });
+      const tarefaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u !== "AUDIÊNCIA" && u !== "AUDIENCIA" && u !== "EVENTO" && u !== "PRAZO"; });
 
       return {
         tarefas: calcStats(tarefaItems),
+        prazos: calcStats(prazoItems),
         audiencias: calcStats(audienciaItems),
-        compromissos: calcStats(compromissoItems),
+        eventosTarefa: calcStats(eventoTarefaItems),
       };
     },
     enabled: !!user?.id && resumoStatsReady,
