@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
-import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
+import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
 import { ClipboardList, CalendarPlus, Clock, Gavel, Coins } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
@@ -1307,7 +1307,16 @@ export default function PainelControle() {
           <DialogHeader>
             <DialogTitle>Nova Audiência</DialogTitle>
           </DialogHeader>
-          <CadastroAudienciaForm />
+          <AudienciaFormSimplificado
+            hideTitleHeader
+            onSuccess={async () => {
+              setNovaAudienciaOpen(false);
+              await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+              await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
+              await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+            }}
+            onCancel={() => setNovaAudienciaOpen(false)}
+          />
         </DialogContent>
       </Dialog>
     </MainLayout>
