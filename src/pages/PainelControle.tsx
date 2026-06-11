@@ -436,8 +436,8 @@ export default function PainelControle() {
   // ===== CARDS DE RESUMO — usa resumoStats (query direta sem limite de página) =====
   const resumo = useMemo(() => {
     const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
-    if (!resumoStats) return { tarefas: empty, audiencias: empty, compromissos: empty };
-    return resumoStats;
+    if (!resumoStats) return { tarefas: empty, prazos: empty, audiencias: empty, eventosTarefa: empty };
+    return resumoStats as any;
   }, [resumoStats]);
 
   // Intimações pendentes — filtradas por processos da coordenação (ou todas para admin sem coordenação)
