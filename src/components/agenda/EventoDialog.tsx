@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
+import { ItemComentarios } from "@/components/comum/ItemComentarios";
 import {
   Select,
   SelectContent,
@@ -336,7 +338,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               <Label htmlFor="titulo" className="text-sm">
                 Título do evento <span className="text-destructive">*</span>
               </Label>
-              <Input
+              <AutoResizeTextarea
                 id="titulo"
                 value={titulo}
                 onChange={(e) => setTitulo(e.target.value)}
