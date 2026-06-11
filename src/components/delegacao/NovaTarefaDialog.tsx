@@ -1183,6 +1183,8 @@ export function NovaTarefaDialog({
                 )}
               </div>
 
+              <ItemComentarios tipo="tarefa" itemId={tarefaParaEditar?.id} />
+
             </form>
           </Form>
         </div>
