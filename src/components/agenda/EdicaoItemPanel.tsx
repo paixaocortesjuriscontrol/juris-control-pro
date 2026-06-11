@@ -260,6 +260,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
             <EditarAudienciaDialog
               audiencia={evento as any}
               open
+              inline
               onOpenChange={(o) => {
                 if (!o) closeAfter();
               }}
