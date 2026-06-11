@@ -389,7 +389,7 @@ export function PrazoDialog({
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
-            {prazo ? "Editar Prazo" : "Adicionar Prazo"}
+            Prazo
           </h3>
           {hasPublicacao ? (
             <BotaoPreencherIA
@@ -659,7 +659,7 @@ export function PrazoDialog({
         )}
       >
         <DialogHeader className="sr-only">
-          <DialogTitle>{prazo ? "Editar Prazo" : "Adicionar Prazo"}</DialogTitle>
+          <DialogTitle>Prazo</DialogTitle>
         </DialogHeader>
 
         {hasPublicacao ? (
