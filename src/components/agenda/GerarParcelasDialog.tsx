@@ -1031,6 +1031,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                 </>
               )}
             </div>
+
+            <ItemComentarios tipo="evento" itemId={evento?.id} />
           </form>
         </div>
 
