@@ -759,7 +759,11 @@ export function NovaTarefaDialog({
                   <FormItem>
                     <FormLabel>Título</FormLabel>
                     <FormControl>
-                      <Input placeholder="Título da tarefa" {...field} autoFocus />
+                      <AutoResizeTextarea
+                        placeholder="Título da tarefa"
+                        {...field}
+                        autoFocus
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
