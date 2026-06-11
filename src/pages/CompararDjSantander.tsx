@@ -1755,6 +1755,41 @@ export default function CompararDjSantander() {
         console.warn("erro publicacoes_djen", e);
       }
 
+      // Fallback: o processo pode existir na base DJEN, mas fora do intervalo
+      // de datas filtrado. Antes de cair para a consulta ao vivo, sinalizamos
+      // isso explicitamente para evitar "Não localizado" enganoso.
+      try {
+        const { data: foraPeriodo } = await supabase
+          .from("publicacoes_djen")
+          .select("data_disponibilizacao, data_publicacao, tribunal, monitoramento_id, coordenacao_id, coordenacoes:coordenacao_id(nome)")
+          .eq("dedup_processo_digits", digits)
+          .order("data_disponibilizacao", { ascending: false })
+          .limit(20);
+        if (foraPeriodo && foraPeriodo.length > 0) {
+          const fmt = (iso: string | null) => {
+            if (!iso) return "";
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return "";
+            return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}/${d.getUTCFullYear()}`;
+          };
+          const datas = [...new Set(
+            foraPeriodo
+              .map((r: any) => fmt(r.data_disponibilizacao) || fmt(r.data_publicacao))
+              .filter(Boolean)
+          )].slice(0, 5);
+          const tribs = [...new Set(foraPeriodo.map((r: any) => String(r.tribunal || "").toUpperCase()).filter(Boolean))].join(", ");
+          const naSelecionada = foraPeriodo.some((r: any) => monIds.includes(r.monitoramento_id));
+          const coords = [...new Set(foraPeriodo.map((r: any) => r.coordenacoes?.nome).filter(Boolean))];
+          const escopo = naSelecionada
+            ? "pela coordenação selecionada"
+            : (coords.length > 0 ? `por outra(s) coordenação(ões): ${coords.join(", ")}` : "em outra coordenação");
+          motivos.push(`Encontrado na base DJEN${tribs ? ` (${tribs})` : ""} ${escopo}, mas FORA do período filtrado. Disp./pub. em: ${datas.join(", ")}.`);
+          return motivos;
+        }
+      } catch (e) {
+        console.warn("erro publicacoes_djen fora do periodo", e);
+      }
+
       try {
         const { data, error } = await supabase.functions.invoke("buscar-pje", {
           body: {
