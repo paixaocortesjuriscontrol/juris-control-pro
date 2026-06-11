@@ -720,24 +720,14 @@ export function NovaTarefaDialog({
     inline ? (
       <div className="px-6 pt-5 pb-3 shrink-0 border-b">
         <h3 className="text-base font-semibold flex items-center gap-2">
-          {tarefaParaEditar ? "Editar Tarefa" : "Nova Tarefa"}
+          Tarefa
         </h3>
-        <p className="text-xs text-muted-foreground">
-          {tarefaParaEditar
-            ? "Atualize os campos e salve as alterações"
-            : "Preencha os campos para criar uma nova tarefa"}
-        </p>
       </div>
     ) : (
       <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
         <DialogTitle className="flex items-center gap-2">
-          {tarefaParaEditar ? "Editar Tarefa" : "Nova Tarefa"}
+          Tarefa
         </DialogTitle>
-        <DialogDescription>
-          {tarefaParaEditar
-            ? "Atualize os campos e salve as alterações"
-            : "Preencha os campos para criar uma nova tarefa"}
-        </DialogDescription>
       </DialogHeader>
     )
   );
