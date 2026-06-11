@@ -212,7 +212,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Editar Audiência</DialogTitle>
+          <DialogTitle>Audiência</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
