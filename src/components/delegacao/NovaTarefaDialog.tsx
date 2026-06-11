@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, X, Upload, FileText, Trash2, Sparkles, CheckCircle2, Eye, ExternalLink } from "lucide-react";
+import { Loader2, X, Upload, FileText, Trash2, Sparkles, CheckCircle2, Eye, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { Label } from "@/components/ui/label";
