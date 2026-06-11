@@ -393,6 +393,42 @@ export default function PainelControle() {
     staleTime: 30000,
   });
 
+  // Eventos e Parcelamentos a partir de eventos_agenda
+  const { data: eventosStats } = useQuery({
+    queryKey: ["painel-controle-eventos-stats", tabMode, hoje_str, membrosIdsParaResumo, isAdmin, adminCoordFilter],
+    queryFn: async () => {
+      const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
+      if (!user?.id) return { eventos: empty, parcelamentos: empty };
+      let q = supabase
+        .from("eventos_agenda")
+        .select("data_inicio, tipo, status, criado_por")
+        .neq("status", "cumprido");
+      if (tabMode === "pessoal") {
+        q = q.eq("criado_por", user.id);
+      } else if (isAdmin && adminCoordFilter !== "todas") {
+        // sem filtro de coordenação direto em eventos_agenda; usa criado_por dos membros
+        if (membrosIdsParaResumo.length > 0) q = q.in("criado_por", membrosIdsParaResumo);
+      } else if (!isAdmin && membrosIdsParaResumo.length > 0) {
+        q = q.in("criado_por", membrosIdsParaResumo);
+      }
+      const { data, error } = await q;
+      if (error) return { eventos: empty, parcelamentos: empty };
+      const hoje_d = new Date(hoje_str + "T00:00:00");
+      const calc = (items: any[]) => {
+        const atrasadas = items.filter(t => t.data_inicio && new Date(String(t.data_inicio).slice(0, 10) + "T00:00:00") < hoje_d).length;
+        const hoje_count = items.filter(t => String(t.data_inicio ?? "").slice(0, 10) === hoje_str).length;
+        const futuras = items.filter(t => t.data_inicio && new Date(String(t.data_inicio).slice(0, 10) + "T00:00:00") > hoje_d).length;
+        return { atrasadas, hoje: hoje_count, futuras, total: items.length };
+      };
+      const rows = data || [];
+      const parcels = rows.filter(r => (r.tipo ?? "").toLowerCase() === "parcelamento");
+      const eventos = rows.filter(r => (r.tipo ?? "").toLowerCase() !== "parcelamento");
+      return { eventos: calc(eventos), parcelamentos: calc(parcels) };
+    },
+    enabled: !!user?.id && resumoStatsReady,
+    staleTime: 30000,
+  });
+
   // IDs dos processos das coordenações do usuário (para filtrar intimações e andamentos)
   const { data: processosIds = [] } = useQuery({
     queryKey: ["painel-controle-processos-ids", tabMode, coordenacoesUsuario, isAdmin, adminCoordFilter],
