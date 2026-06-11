@@ -25,6 +25,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
+import { ItemComentarios } from "@/components/comum/ItemComentarios";
 import {
   Select,
   SelectContent,
@@ -759,7 +761,11 @@ export function NovaTarefaDialog({
                   <FormItem>
                     <FormLabel>Título</FormLabel>
                     <FormControl>
-                      <Input placeholder="Título da tarefa" {...field} autoFocus />
+                      <AutoResizeTextarea
+                        placeholder="Título da tarefa"
+                        {...field}
+                        autoFocus
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1176,6 +1182,8 @@ export function NovaTarefaDialog({
                   </div>
                 )}
               </div>
+
+              <ItemComentarios tipo="tarefa" itemId={tarefaParaEditar?.id} />
 
             </form>
           </Form>

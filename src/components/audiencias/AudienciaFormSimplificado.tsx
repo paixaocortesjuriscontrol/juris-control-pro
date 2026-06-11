@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import {
   Select,
   SelectContent,
@@ -164,11 +165,10 @@ export function AudienciaFormSimplificado({
         <Label className="text-sm">
           Título da audiência<span className="text-destructive">*</span>
         </Label>
-        <Input
+        <AutoResizeTextarea
           value={form.titulo}
           onChange={(e) => set("titulo", e.target.value)}
           placeholder="Digite o título da audiência"
-          className="h-10"
           autoFocus
         />
       </div>

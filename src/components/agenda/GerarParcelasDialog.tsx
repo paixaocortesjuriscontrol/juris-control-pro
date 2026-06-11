@@ -9,6 +9,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
+import { ItemComentarios } from "@/components/comum/ItemComentarios";
 import {
   Select,
   SelectContent,
@@ -599,7 +601,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                 <FileText className="w-4 h-4" />
                 Título do Parcelamento *
               </Label>
-              <Input
+              <AutoResizeTextarea
                 id="titulo"
                 value={formData.titulo}
                 onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
@@ -1029,6 +1031,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                 </>
               )}
             </div>
+
+            <ItemComentarios tipo="evento" itemId={evento?.id} />
           </form>
         </div>
 

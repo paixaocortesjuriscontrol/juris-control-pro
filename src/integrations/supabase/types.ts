@@ -1137,6 +1137,41 @@ export type Database = {
         }
         Relationships: []
       }
+      comentarios_audiencias: {
+        Row: {
+          audiencia_id: string
+          autor_id: string
+          conteudo: string
+          created_at: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          audiencia_id: string
+          autor_id: string
+          conteudo: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          audiencia_id?: string
+          autor_id?: string
+          conteudo?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comentarios_audiencias_audiencia_id_fkey"
+            columns: ["audiencia_id"]
+            isOneToOne: false
+            referencedRelation: "audiencias_detectadas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       comentarios_eventos: {
         Row: {
           autor_id: string

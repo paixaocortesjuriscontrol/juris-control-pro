@@ -12,6 +12,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, parseISO, isValid } from "date-fns";
 import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
+import { ItemComentarios } from "@/components/comum/ItemComentarios";
 
 interface Props {
   audiencia: AudienciaDetectada | null;
@@ -472,6 +473,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
               />
             </div>
           </div>
+
+          <ItemComentarios tipo="audiencia" itemId={audiencia?.id} />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
