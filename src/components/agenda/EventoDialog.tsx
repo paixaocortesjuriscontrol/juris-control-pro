@@ -588,6 +588,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               />
             </div>
 
+            <ItemComentarios tipo="evento" itemId={evento?.id} />
+
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
               <Button
                 type="button"
