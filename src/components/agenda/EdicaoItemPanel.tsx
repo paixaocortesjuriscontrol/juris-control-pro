@@ -163,7 +163,8 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
 
   const isParcelamento = item.tipo === "parcelamento";
   const isPrazoFatalTst = typeof item.id === "string" && item.id.startsWith("prazo-tst-");
-  const isEvento = (item.origem === "evento" || isParcelamento) && !isPrazoFatalTst;
+  const isAudiencia = typeof item.id === "string" && item.id.startsWith("audiencia-det-");
+  const isEvento = (item.origem === "evento" || isParcelamento) && !isPrazoFatalTst && !isAudiencia;
 
   const { data: coordenacoes = [] } = useQuery({
     queryKey: ["coordenacoes-edicao-painel-lateral", isAdmin, user?.id],
@@ -196,6 +197,14 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
           .from("processos")
           .select("id, numero, polo_ativo, polo_passivo, data_fatal, decisao_tst, responsavel_tst, equipe_tst, status, cliente_id, prazo_fatal_conferido, prazo_fatal_conferido_em, prazo_fatal_conferido_por")
           .eq("id", processoId)
+          .maybeSingle();
+        if (!cancelled) setEvento(data);
+      } else if (isAudiencia) {
+        const audId = item.id.replace(/^audiencia-det-/, "");
+        const { data } = await supabase
+          .from("audiencias_detectadas")
+          .select("*")
+          .eq("id", audId)
           .maybeSingle();
         if (!cancelled) setEvento(data);
       } else if (isEvento) {
@@ -239,6 +248,41 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
               diasRestantes={item.dias_restantes}
               onConferido={closeAfter}
             />
+          )
+        ) : isAudiencia ? (
+          evento && (
+            <div className="h-full overflow-y-auto p-6 space-y-4">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Audiência</div>
+                <h2 className="text-lg font-semibold leading-tight">{evento.titulo}</h2>
+              </div>
+              <div className="rounded-lg border p-4 space-y-2 bg-card text-sm">
+                {evento.processo_numero && (
+                  <div><span className="font-medium">Processo:</span> {evento.processo_numero}</div>
+                )}
+                {evento.data_audiencia && (
+                  <div><span className="font-medium">Data:</span> {format(parseISO(evento.data_audiencia), "dd/MM/yyyy HH:mm", { locale: ptBR })}</div>
+                )}
+                {evento.forum && (<div><span className="font-medium">Fórum:</span> {evento.forum}</div>)}
+                {evento.sala_forum && (<div><span className="font-medium">Sala:</span> {evento.sala_forum}</div>)}
+                {evento.local_audiencia && (<div><span className="font-medium">Local:</span> {evento.local_audiencia}</div>)}
+                {evento.modalidade && (<div><span className="font-medium">Modalidade:</span> {evento.modalidade}</div>)}
+                {evento.status && (<div><span className="font-medium">Status:</span> {evento.status}</div>)}
+              </div>
+              {evento.observacoes && (
+                <div className="rounded-lg border p-4 bg-card">
+                  <div className="text-sm font-medium mb-1">Observações</div>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{evento.observacoes}</p>
+                </div>
+              )}
+              <Link
+                to="/painel-audiencias"
+                className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Abrir no Painel de Audiências
+              </Link>
+            </div>
           )
         ) : isParcelamento ? (
           evento && (
