@@ -105,10 +105,7 @@ export default function PainelControle() {
   const [parcelasDialogOpen, setParcelasDialogOpen] = useState(false);
   const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
   const [selectedParcelamento, setSelectedParcelamento] = useState<EventoAgenda | null>(null);
-  const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
-  const [novoEventoOpen, setNovoEventoOpen] = useState(false);
-  const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
-  const [novaAudienciaOpen, setNovaAudienciaOpen] = useState(false);
+  const [novoItemTipo, setNovoItemTipo] = useState<null | "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento">(null);
   const [tarefaEditando, setTarefaEditando] = useState<any | null>(null);
   const [prazoEditando, setPrazoEditando] = useState<any | null>(null);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
