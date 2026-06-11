@@ -18,9 +18,10 @@ interface Props {
   audiencia: AudienciaDetectada | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  inline?: boolean;
 }
 
-export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) {
+export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = false }: Props) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
@@ -208,14 +209,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Audiência</DialogTitle>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+  const formBody = (
+    <form onSubmit={handleSubmit} className="space-y-4">
           {/* Dados Principais */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
@@ -495,6 +490,28 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange }: Props) 
             </Button>
           </DialogFooter>
         </form>
+  );
+
+  if (inline) {
+    return (
+      <div className="h-full flex flex-col bg-background overflow-hidden">
+        <div className="px-4 pt-4 sm:px-6 sm:pt-5 pb-3 shrink-0 border-b">
+          <h3 className="text-base font-semibold">Audiência</h3>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+          {formBody}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Audiência</DialogTitle>
+        </DialogHeader>
+        {formBody}
       </DialogContent>
     </Dialog>
   );
