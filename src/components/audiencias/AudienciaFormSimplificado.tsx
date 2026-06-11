@@ -155,7 +155,7 @@ export function AudienciaFormSimplificado({
       {!hideTitleHeader && (
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
-            Adicionar Audiência
+            Audiência
           </h3>
           <Tag className="h-4 w-4 text-muted-foreground" />
         </div>

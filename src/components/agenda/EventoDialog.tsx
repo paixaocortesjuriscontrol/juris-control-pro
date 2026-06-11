@@ -309,7 +309,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
           <div className={cn("flex flex-col min-h-0", hasPublicacao ? "w-full lg:w-[520px] bg-background" : "flex-1")}>
             <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0">
               <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
-                {isEditing ? "Editar Evento" : "Novo Evento"}
+                Evento
               </h3>
               {hasPublicacao && (
                 <BotaoPreencherIA
@@ -643,7 +643,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
         aria-describedby="evento-dialog-description"
       >
         <DialogHeader className="sr-only">
-          <DialogTitle>{isEditing ? "Editar Evento" : "Novo Evento"}</DialogTitle>
+          <DialogTitle>Evento</DialogTitle>
           <p id="evento-dialog-description">Formulário para criar ou editar um evento na agenda</p>
         </DialogHeader>
         {dialogBody}

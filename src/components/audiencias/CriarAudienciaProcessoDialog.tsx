@@ -25,7 +25,7 @@ export function CriarAudienciaProcessoDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[640px] max-h-[92vh] p-0 gap-0 flex flex-col overflow-hidden">
         <DialogHeader className="px-6 pt-6 pb-2">
-          <DialogTitle>Adicionar Audiência</DialogTitle>
+          <DialogTitle>Audiência</DialogTitle>
           <DialogDescription>
             Processo: {processoNumero}
           </DialogDescription>
