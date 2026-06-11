@@ -1381,6 +1381,92 @@ export default function CompararDjSantander() {
         else processoOffset += pageSize;
       }
 
+      // ============================================================
+      // Kurier: inclui as publicações capturadas pelo Kurier nesta
+      // coordenação. A dedup posterior (`dedupePublicacoesDjen`) colapsa
+      // duplicatas DJEN x Kurier pelo id_djen ou pelo fallback
+      // processo+data+conteúdo (fonte "kurier" está em FONTES_COM_FALLBACK).
+      // ============================================================
+      try {
+        const { data: credLinks } = await supabase
+          .from("kurier_credencial_coordenacoes")
+          .select("credencial_id")
+          .eq("coordenacao_id", selectedCoordenacao);
+        const credIds = (credLinks || []).map((c: any) => c.credencial_id).filter(Boolean);
+        if (credIds.length > 0) {
+          // Janela ampla por recebida_em para reduzir volume (+/- 7 dias),
+          // depois validamos data exata client-side via payload.
+          const refIni = selectedDate ?? selectedPubInicio ?? null;
+          const refFim = selectedDateFim ?? selectedPubFim ?? selectedDate ?? selectedPubInicio ?? null;
+          const lower = refIni ? new Date(refIni.getTime() - 7 * 86400000).toISOString() : null;
+          const upper = refFim ? new Date(refFim.getTime() + 14 * 86400000).toISOString() : null;
+
+          const ddmmToIso = (s: string | null | undefined): string | null => {
+            if (!s || typeof s !== "string") return null;
+            const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+            return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+          };
+          const inRange = (iso: string | null, ini: string | null, fim: string | null): boolean => {
+            if (!iso || !ini || !fim) return false;
+            return iso >= ini && iso <= fim;
+          };
+          const dispIni = inicioStr;
+          const dispFim = fimStr;
+          const pubIni = pubInicioStr;
+          const pubFim = pubFimStr;
+
+          let kOffset = 0;
+          let kHasMore = true;
+          while (kHasMore) {
+            let qk = supabase
+              .from("kurier_publicacoes_raw")
+              .select("id, id_kurier, payload, recebida_em, publicacao_djen_id")
+              .in("credencial_id", credIds);
+            if (lower) qk = qk.gte("recebida_em", lower);
+            if (upper) qk = qk.lte("recebida_em", upper);
+            const { data: kPubs, error: kErr } = await qk.range(kOffset, kOffset + pageSize - 1);
+            if (kErr) {
+              console.warn("Erro ao buscar Kurier:", kErr);
+              break;
+            }
+            (kPubs || []).forEach((k: any) => {
+              const p = k.payload || {};
+              const dispIso = ddmmToIso(p.DataDisponibilizacao);
+              const pubIso = ddmmToIso(p.DataPublicacao);
+              const matchDisp = dispIni && dispFim ? inRange(dispIso, dispIni, dispFim) : false;
+              const matchPub = pubIni && pubFim ? inRange(pubIso, pubIni, pubFim) : false;
+              // Se nenhum filtro de data foi informado, aceita tudo da janela
+              const semFiltros = !dispIni && !pubIni;
+              if (!matchDisp && !matchPub && !semFiltros) return;
+              const tribunal = String(p.Diario || "").replace(/_DJEN$/i, "").toUpperCase() || null;
+              const processoNum = p.Processo ? String(p.Processo) : null;
+              rawPubs.push({
+                id: `kurier:${k.id}`,
+                tipo_origem: "termo",
+                processo_id: null,
+                id_djen: k.publicacao_djen_id ? String(k.publicacao_djen_id) : null,
+                processo_numero: processoNum,
+                data_publicacao: pubIso ? `${pubIso}T12:00:00.000Z` : null,
+                data_disponibilizacao: dispIso ? `${dispIso}T12:00:00.000Z` : null,
+                created_at: k.recebida_em || new Date().toISOString(),
+                orgao: p.Forum || p.Vara || null,
+                tipo_comunicacao: null,
+                conteudo: p.Texto || null,
+                fonte: "kurier",
+                lida: null,
+                tribunal,
+                coordenacao_id: selectedCoordenacao,
+                monitoramento_id: null,
+              });
+            });
+            if (!kPubs || kPubs.length < pageSize) kHasMore = false;
+            else kOffset += pageSize;
+          }
+        }
+      } catch (e) {
+        console.warn("Falha ao integrar Kurier:", e);
+      }
+
       const monCoordById = new Map<string, string | null>(
         monitoramentos.map((m: any) => [m.id, m.coordenacao_id ?? null])
       );
