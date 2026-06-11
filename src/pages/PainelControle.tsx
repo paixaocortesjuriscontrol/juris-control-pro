@@ -41,6 +41,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
 import { ClipboardList, CalendarPlus, Clock, Gavel, Coins } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -376,14 +378,52 @@ export default function PainelControle() {
 
       const all = tarefas || [];
       const audienciaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "AUDIÊNCIA" || u === "AUDIENCIA"; });
-      const compromissoItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "EVENTO"; });
-      const tarefaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u !== "AUDIÊNCIA" && u !== "AUDIENCIA" && u !== "EVENTO"; });
+      const eventoTarefaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "EVENTO"; });
+      const prazoItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "PRAZO"; });
+      const tarefaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u !== "AUDIÊNCIA" && u !== "AUDIENCIA" && u !== "EVENTO" && u !== "PRAZO"; });
 
       return {
         tarefas: calcStats(tarefaItems),
+        prazos: calcStats(prazoItems),
         audiencias: calcStats(audienciaItems),
-        compromissos: calcStats(compromissoItems),
+        eventosTarefa: calcStats(eventoTarefaItems),
       };
+    },
+    enabled: !!user?.id && resumoStatsReady,
+    staleTime: 30000,
+  });
+
+  // Eventos e Parcelamentos a partir de eventos_agenda
+  const { data: eventosStats } = useQuery({
+    queryKey: ["painel-controle-eventos-stats", tabMode, hoje_str, membrosIdsParaResumo, isAdmin, adminCoordFilter],
+    queryFn: async () => {
+      const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
+      if (!user?.id) return { eventos: empty, parcelamentos: empty };
+      let q = supabase
+        .from("eventos_agenda")
+        .select("data_inicio, tipo, status, criado_por")
+        .neq("status", "cumprido");
+      if (tabMode === "pessoal") {
+        q = q.eq("criado_por", user.id);
+      } else if (isAdmin && adminCoordFilter !== "todas") {
+        // sem filtro de coordenação direto em eventos_agenda; usa criado_por dos membros
+        if (membrosIdsParaResumo.length > 0) q = q.in("criado_por", membrosIdsParaResumo);
+      } else if (!isAdmin && membrosIdsParaResumo.length > 0) {
+        q = q.in("criado_por", membrosIdsParaResumo);
+      }
+      const { data, error } = await q;
+      if (error) return { eventos: empty, parcelamentos: empty };
+      const hoje_d = new Date(hoje_str + "T00:00:00");
+      const calc = (items: any[]) => {
+        const atrasadas = items.filter(t => t.data_inicio && new Date(String(t.data_inicio).slice(0, 10) + "T00:00:00") < hoje_d).length;
+        const hoje_count = items.filter(t => String(t.data_inicio ?? "").slice(0, 10) === hoje_str).length;
+        const futuras = items.filter(t => t.data_inicio && new Date(String(t.data_inicio).slice(0, 10) + "T00:00:00") > hoje_d).length;
+        return { atrasadas, hoje: hoje_count, futuras, total: items.length };
+      };
+      const rows = data || [];
+      const parcels = rows.filter(r => (r.tipo ?? "").toLowerCase() === "parcelamento");
+      const eventos = rows.filter(r => (r.tipo ?? "").toLowerCase() !== "parcelamento");
+      return { eventos: calc(eventos), parcelamentos: calc(parcels) };
     },
     enabled: !!user?.id && resumoStatsReady,
     staleTime: 30000,
@@ -432,8 +472,8 @@ export default function PainelControle() {
   // ===== CARDS DE RESUMO — usa resumoStats (query direta sem limite de página) =====
   const resumo = useMemo(() => {
     const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
-    if (!resumoStats) return { tarefas: empty, audiencias: empty, compromissos: empty };
-    return resumoStats;
+    if (!resumoStats) return { tarefas: empty, prazos: empty, audiencias: empty, eventosTarefa: empty };
+    return resumoStats as any;
   }, [resumoStats]);
 
   // Intimações pendentes — filtradas por processos da coordenação (ou todas para admin sem coordenação)
@@ -879,14 +919,14 @@ export default function PainelControle() {
         <div className="flex-shrink-0 px-3 md:px-6 py-2 md:py-3 border-b border-border bg-card">
           {isLoading ? (
             <div className="flex gap-2">
-              {[...Array(5)].map((_, i) => (
+              {[...Array(6)].map((_, i) => (
                 <Skeleton key={i} className="h-14 md:h-20 flex-1 rounded-lg" />
               ))}
             </div>
           ) : (
-            <div className="flex gap-2 md:gap-3 overflow-x-auto pb-1 md:pb-0 md:flex-wrap scrollbar-none">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-3">
               {/* Data Atual */}
-              <div className="flex items-center gap-2 bg-primary text-primary-foreground rounded-lg px-3 py-2 flex-shrink-0">
+              <div className="flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg px-3 py-2">
                 <div className="text-center">
                   <p className="text-[10px] md:text-xs font-semibold uppercase tracking-wider opacity-80">
                     {format(nowBrt, "MMM", { locale: ptBR })}
@@ -900,56 +940,65 @@ export default function PainelControle() {
                 </div>
               </div>
 
-              <SummaryCard
-                label="Tarefas"
-                total={resumo.tarefas.total}
-                ringClass="border-amber-400/40 bg-amber-400/10 text-amber-600"
-                stats={[
-                  { label: "atras.", value: resumo.tarefas.atrasadas, highlight: true },
-                  { label: "hoje", value: resumo.tarefas.hoje },
-                  { label: "fut.", value: resumo.tarefas.futuras },
-                ]}
-              />
+              <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800">
+                <CardContent className="p-3 md:pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs md:text-sm font-medium text-amber-600 dark:text-amber-400 truncate">Tarefas</p>
+                      <p className="text-xl md:text-3xl font-bold text-amber-700 dark:text-amber-300">{resumo.tarefas.total}</p>
+                    </div>
+                    <ClipboardList className="w-6 h-6 md:w-10 md:h-10 text-amber-500/50 flex-shrink-0" />
+                  </div>
+                </CardContent>
+              </Card>
 
-              <SummaryCard
-                label="Intim."
-                total={intimacoesPendentes}
-                ringClass="border-blue-400/40 bg-blue-400/10 text-blue-600"
-                stats={[
-                  { label: "pend.", value: intimacoesPendentes, highlight: true },
-                ]}
-              />
+              <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800">
+                <CardContent className="p-3 md:pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Eventos</p>
+                      <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">{(eventosStats?.eventos.total ?? 0) + (resumo.eventosTarefa?.total ?? 0)}</p>
+                    </div>
+                    <CalendarPlus className="w-6 h-6 md:w-10 md:h-10 text-blue-500/50 flex-shrink-0" />
+                  </div>
+                </CardContent>
+              </Card>
 
-              <SummaryCard
-                label="Andamentos"
-                total={andamentosNaoLidos}
-                ringClass="border-primary/30 bg-primary/10 text-primary"
-                stats={[
-                  { label: "não lidos", value: andamentosNaoLidos, highlight: true },
-                ]}
-              />
+              <Card className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/30 border-rose-200 dark:border-rose-800">
+                <CardContent className="p-3 md:pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs md:text-sm font-medium text-rose-600 dark:text-rose-400 truncate">Prazos</p>
+                      <p className="text-xl md:text-3xl font-bold text-rose-700 dark:text-rose-300">{resumo.prazos?.total ?? 0}</p>
+                    </div>
+                    <Clock className="w-6 h-6 md:w-10 md:h-10 text-rose-500/50 flex-shrink-0" />
+                  </div>
+                </CardContent>
+              </Card>
 
-              <SummaryCard
-                label="Audiências"
-                total={resumo.audiencias.total}
-                ringClass="border-purple-400/40 bg-purple-400/10 text-purple-600"
-                stats={[
-                  { label: "atras.", value: resumo.audiencias.atrasadas, highlight: true },
-                  { label: "hoje", value: resumo.audiencias.hoje },
-                  { label: "fut.", value: resumo.audiencias.futuras },
-                ]}
-              />
+              <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/30 border-purple-200 dark:border-purple-800">
+                <CardContent className="p-3 md:pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs md:text-sm font-medium text-purple-600 dark:text-purple-400 truncate">Audiências</p>
+                      <p className="text-xl md:text-3xl font-bold text-purple-700 dark:text-purple-300">{resumo.audiencias.total}</p>
+                    </div>
+                    <Gavel className="w-6 h-6 md:w-10 md:h-10 text-purple-500/50 flex-shrink-0" />
+                  </div>
+                </CardContent>
+              </Card>
 
-              <SummaryCard
-                label="Comprom."
-                total={resumo.compromissos.total}
-                ringClass="border-emerald-400/40 bg-emerald-400/10 text-emerald-600"
-                stats={[
-                  { label: "atras.", value: resumo.compromissos.atrasadas, highlight: true },
-                  { label: "hoje", value: resumo.compromissos.hoje },
-                  { label: "fut.", value: resumo.compromissos.futuras },
-                ]}
-              />
+              <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800">
+                <CardContent className="p-3 md:pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs md:text-sm font-medium text-emerald-600 dark:text-emerald-400 truncate">Parcelamentos</p>
+                      <p className="text-xl md:text-3xl font-bold text-emerald-700 dark:text-emerald-300">{eventosStats?.parcelamentos.total ?? 0}</p>
+                    </div>
+                    <Coins className="w-6 h-6 md:w-10 md:h-10 text-emerald-500/50 flex-shrink-0" />
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>
