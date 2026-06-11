@@ -875,19 +875,19 @@ export default function PainelControle() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem onClick={() => setNovaTarefaOpen(true)}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setNovoItemTipo("tarefa"); }}>
                     <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setNovoEventoOpen(true)}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setNovoItemTipo("evento"); }}>
                     <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setNovoPrazoOpen(true)}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setNovoItemTipo("prazo"); }}>
                     <Clock className="w-4 h-4 mr-2" /> Prazo
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setNovaAudienciaOpen(true)}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setNovoItemTipo("audiencia"); }}>
                     <Gavel className="w-4 h-4 mr-2" /> Audiência
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setParcelasDialogOpen(true)}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setNovoItemTipo("parcelamento"); }}>
                     <Coins className="w-4 h-4 mr-2" /> Parcelamento recorrente
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -1005,7 +1005,7 @@ export default function PainelControle() {
           <div className="flex-1 min-h-0 overflow-hidden">
             <ListaAtividadesView
               embedded
-              onRequestNovo={() => setNovaTarefaOpen(true)}
+              onRequestNovo={() => { setSelectedItem(null); setNovoItemTipo("tarefa"); }}
               externalItems={itensPainelFiltrados}
               externalLoading={isLoading}
               forcedCoordenacaoId={
@@ -1247,6 +1247,21 @@ export default function PainelControle() {
             </aside>
           )}
 
+          {!selectedItem && novoItemTipo && (
+            <aside className="hidden lg:flex w-[640px] xl:w-[720px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0">
+              <NovoItemPanel
+                tipo={novoItemTipo}
+                onClose={() => setNovoItemTipo(null)}
+                onSuccess={async () => {
+                  setNovoItemTipo(null);
+                  await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+                  await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
+                  await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+                }}
+              />
+            </aside>
+          )}
+
         </div>
         )}
       </div>
@@ -1270,52 +1285,6 @@ export default function PainelControle() {
         }}
         evento={selectedParcelamento}
       />
-
-      {/* Nova Tarefa */}
-      <NovaTarefaDialogWrapper
-        open={novaTarefaOpen}
-        onOpenChange={(o) => {
-          setNovaTarefaOpen(o);
-          if (!o) setTarefaEditando(null);
-        }}
-        tarefaParaEditar={tarefaEditando}
-      />
-
-      {/* Novo Evento */}
-      <EventoDialog
-        open={novoEventoOpen}
-        onOpenChange={setNovoEventoOpen}
-        evento={null}
-      />
-
-      {/* Novo Prazo */}
-      <PrazoDialog
-        open={novoPrazoOpen}
-        onOpenChange={(o) => {
-          setNovoPrazoOpen(o);
-          if (!o) setPrazoEditando(null);
-        }}
-        prazo={prazoEditando}
-      />
-
-      {/* Nova Audiência */}
-      <Dialog open={novaAudienciaOpen} onOpenChange={setNovaAudienciaOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Nova Audiência</DialogTitle>
-          </DialogHeader>
-          <AudienciaFormSimplificado
-            hideTitleHeader
-            onSuccess={async () => {
-              setNovaAudienciaOpen(false);
-              await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-              await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
-              await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
-            }}
-            onCancel={() => setNovaAudienciaOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
     </MainLayout>
   );
 }
