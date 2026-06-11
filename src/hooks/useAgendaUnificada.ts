@@ -684,6 +684,104 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       }
 
       // ========= ORDENAR RESULTADOS =========
+      // ========= BUSCAR AUDIÊNCIAS DETECTADAS (manuais e DJEN) =========
+      const incluirAudiencias =
+        (!filters.tipos || filters.tipos.length === 0 || filters.tipos.includes("audiencia")) &&
+        (!filters.origens || filters.origens.includes("evento") || filters.origens.includes("tarefa"));
+
+      if (incluirAudiencias) {
+        let queryAud = supabase
+          .from("audiencias_detectadas")
+          .select(
+            "id, titulo, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, created_at, updated_at"
+          )
+          .not("data_audiencia", "is", null);
+
+        if (!filters.fetchAll) {
+          const targetUserIds =
+            filters.responsavelIds && filters.responsavelIds.length > 0 ? filters.responsavelIds : [user.id];
+
+          const { data: audAdvs } = await supabase
+            .from("audiencias_advogados")
+            .select("audiencia_id")
+            .in("advogado_id", targetUserIds);
+          const { data: audEnv } = await supabase
+            .from("audiencia_envolvidos")
+            .select("audiencia_id")
+            .in("usuario_id", targetUserIds);
+
+          const audIds = [
+            ...new Set([
+              ...(audAdvs ?? []).map((a: any) => a.audiencia_id),
+              ...(audEnv ?? []).map((a: any) => a.audiencia_id),
+            ]),
+          ];
+
+          const orParts: string[] = [];
+          if (targetUserIds.length > 0) orParts.push(`criado_por.in.(${targetUserIds.join(",")})`);
+          if (audIds.length > 0) orParts.push(`id.in.(${audIds.join(",")})`);
+
+          if (orParts.length > 0) {
+            queryAud = queryAud.or(orParts.join(","));
+          } else {
+            queryAud = queryAud.eq("criado_por", user.id);
+          }
+        }
+
+        if (filters.dataInicio) {
+          queryAud = queryAud.gte("data_audiencia", filters.dataInicio.toISOString());
+        }
+        if (filters.dataFim) {
+          queryAud = queryAud.lte("data_audiencia", filters.dataFim.toISOString());
+        }
+
+        queryAud = queryAud.range(from, to);
+
+        const { data: audiencias, error: audError } = await queryAud;
+
+        if (!audError && audiencias) {
+          for (const aud of audiencias as any[]) {
+            const audKey = `audiencia-det-${aud.id}`;
+            if (seenIds.has(audKey)) continue;
+            seenIds.add(audKey);
+
+            const dataISO: string = aud.data_audiencia;
+            const dataBase = parseISO(dataISO);
+            const diasRestantes = differenceInDays(startOfDay(dataBase), today);
+            const statusUnificado =
+              aud.status === "cumprido" || aud.status === "concluido"
+                ? "concluido"
+                : aud.status || "pendente";
+            const isAtrasado = diasRestantes < 0 && statusUnificado === "pendente";
+
+            resultItems.push({
+              id: audKey,
+              titulo: aud.titulo || `Audiência ${aud.processo_numero ?? ""}`.trim(),
+              descricao: aud.observacoes ?? null,
+              tipo: "audiencia",
+              origem: "evento",
+              data_inicio: dataISO,
+              data_fim: null,
+              dia_inteiro: !aud.hora,
+              local: aud.local_audiencia || aud.forum || null,
+              recorrente: false,
+              recorrencia_tipo: null,
+              status: statusUnificado,
+              concluido_em: null,
+              created_at: aud.created_at,
+              updated_at: aud.updated_at,
+              processo_id: aud.processo_id ?? null,
+              processo: aud.processo_numero
+                ? { id: aud.processo_id ?? aud.id, numero: aud.processo_numero }
+                : null,
+              criado_por: aud.criado_por,
+              dias_restantes: diasRestantes,
+              is_atrasado: isAtrasado,
+            });
+          }
+        }
+      }
+
       // Dedup final (por chave de negócio DJEN) antes de ordenar
       const dedupedItems: ItemAgendaUnificado[] = [];
       const seenKeys = new Set<string>();
