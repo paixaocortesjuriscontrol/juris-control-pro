@@ -162,7 +162,8 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
   const [tarefa, setTarefa] = useState<any | null>(null);
   const [evento, setEvento] = useState<any | null>(null);
 
-  const isParcelamento = item.tipo === "parcelamento";
+  const isParcela = item.tipo === "prazo_parcela";
+  const isParcelamento = item.tipo === "parcelamento" || isParcela;
   const isPrazoFatalTst = typeof item.id === "string" && item.id.startsWith("prazo-tst-");
   const isAudiencia = typeof item.id === "string" && item.id.startsWith("audiencia-det-");
   const isEvento = (item.origem === "evento" || isParcelamento) && !isPrazoFatalTst && !isAudiencia;
@@ -209,10 +210,14 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
           .maybeSingle();
         if (!cancelled) setEvento(data);
       } else if (isEvento) {
+        // Para uma parcela individual, edita o evento-pai (parcelamento)
+        const eventoId = isParcela
+          ? ((item as any).grupo_parcelas as string | undefined) ?? item.id
+          : item.id;
         const { data } = await supabase
           .from("eventos_agenda")
           .select("*")
-          .eq("id", item.id)
+          .eq("id", eventoId)
           .maybeSingle();
         if (!cancelled) setEvento(data);
       } else {
