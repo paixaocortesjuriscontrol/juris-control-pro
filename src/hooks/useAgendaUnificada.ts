@@ -789,23 +789,59 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         filters.tipos.includes("parcelamento") || filters.tipos.includes("prazo_parcela");
 
       if (incluirParcelas) {
-        // Pega ids dos eventos do tipo 'parcelamento' já carregados (filtrados por usuário)
-        const parcEventoIds = resultItems
-          .filter((it) => it.tipo === "parcelamento" && it.origem === "evento")
-          .map((it) => it.id);
+        // Buscar parcelas direto pela data de vencimento (o evento-pai pode
+        // estar em outro mês — ex.: parcelamento criado em junho com parcelas
+        // que se estendem por julho/agosto).
+        let queryParcelas = supabase
+          .from("parcelas_evento")
+          .select("id, evento_id, numero, data_vencimento, valor, status, observacoes, created_at, updated_at")
+          .order("data_vencimento", { ascending: true });
 
-        if (parcEventoIds.length > 0) {
-          const { data: parcelas } = await supabase
-            .from("parcelas_evento")
-            .select("id, evento_id, numero, data_vencimento, valor, status, observacoes, created_at, updated_at")
-            .in("evento_id", parcEventoIds)
-            .order("data_vencimento", { ascending: true });
+        if (filters.dataInicio) {
+          const di = filters.dataInicio;
+          const diStr = `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`;
+          queryParcelas = queryParcelas.gte("data_vencimento", diStr);
+        }
+        if (filters.dataFim) {
+          const df = filters.dataFim;
+          const dfStr = `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`;
+          queryParcelas = queryParcelas.lte("data_vencimento", dfStr);
+        }
 
+        const { data: parcelas } = await queryParcelas;
+
+        if (parcelas && parcelas.length > 0) {
+          // Carrega eventos-pai que ainda não estão em resultItems
           const parentMap = new Map(
             resultItems
               .filter((it) => it.tipo === "parcelamento")
               .map((it) => [it.id, it])
           );
+          const missingParentIds = [...new Set((parcelas as any[]).map(p => p.evento_id))].filter(id => !parentMap.has(id));
+          if (missingParentIds.length > 0) {
+            let queryParents = supabase
+              .from("eventos_agenda")
+              .select("id, titulo, descricao, local, processo_id, criado_por")
+              .in("id", missingParentIds);
+            // Se houver filtro por responsáveis, garantir que só vê pais permitidos
+            if (!filters.fetchAll && filters.responsavelIds && filters.responsavelIds.length > 0) {
+              queryParents = queryParents.in("criado_por", filters.responsavelIds);
+            }
+            const { data: parents } = await queryParents;
+            for (const pe of (parents ?? []) as any[]) {
+              parentMap.set(pe.id, {
+                id: pe.id,
+                titulo: pe.titulo,
+                descricao: pe.descricao,
+                tipo: "parcelamento",
+                origem: "evento",
+                local: pe.local,
+                processo_id: pe.processo_id,
+                processo: null,
+                criado_por: pe.criado_por,
+              } as any);
+            }
+          }
 
           for (const p of (parcelas ?? []) as any[]) {
             const parent = parentMap.get(p.evento_id);
