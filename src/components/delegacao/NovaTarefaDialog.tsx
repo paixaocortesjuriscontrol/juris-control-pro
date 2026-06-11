@@ -1109,10 +1109,19 @@ export function NovaTarefaDialog({
                               variant="ghost"
                               size="icon"
                               className="h-6 w-6"
-                              title="Abrir documento"
-                              onClick={() => window.open(anexo.url, "_blank")}
+                              title="Baixar documento"
+                              onClick={() => {
+                                const a = document.createElement("a");
+                                a.href = anexo.url!;
+                                a.download = anexo.nome || anexo.file?.name || "documento";
+                                a.target = "_blank";
+                                a.rel = "noopener";
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                              }}
                             >
-                              <ExternalLink className="w-3 h-3" />
+                              <Download className="w-3 h-3" />
                             </Button>
                           )}
                           {anexo.analise && (
@@ -1242,14 +1251,6 @@ export function NovaTarefaDialog({
                       ))}
                     </div>
                   </div>
-                )}
-                {(analiseVisualizando.analise as any)?.raw && (
-                  <details className="border rounded-md p-2">
-                    <summary className="cursor-pointer text-xs text-muted-foreground">Ver análise completa (JSON)</summary>
-                    <pre className="mt-2 text-[11px] whitespace-pre-wrap break-all bg-muted/40 p-2 rounded">
-{JSON.stringify((analiseVisualizando.analise as any).raw, null, 2)}
-                    </pre>
-                  </details>
                 )}
               </div>
             )}
