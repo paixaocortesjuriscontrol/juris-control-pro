@@ -1311,7 +1311,7 @@ export default function PainelControle() {
             hideTitleHeader
             onSuccess={async () => {
               setNovaAudienciaOpen(false);
-              await queryClient.invalidateQueries({ queryKey: AGENDA_INFINITE_QUERY_KEY });
+              await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
               await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
               await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
             }}
