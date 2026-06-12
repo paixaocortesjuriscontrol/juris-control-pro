@@ -497,11 +497,22 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       >
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <TabsList className="justify-start">
-            <TabsTrigger value="distribuicao">Distribuição TST</TabsTrigger>
+            <TabsTrigger
+              value="distribuicao"
+              className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+            >
+              Distribuição TST
+            </TabsTrigger>
             {isAdminOrCoordinator && (
               <TabsTrigger value="centralizadores" disabled={bennerDisabled}>Centralizadores</TabsTrigger>
             )}
-            <TabsTrigger value="benner" disabled={bennerDisabled}>Confere Benner</TabsTrigger>
+            <TabsTrigger
+              value="benner"
+              disabled={bennerDisabled}
+              className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black bg-yellow-100 text-yellow-900 dark:bg-yellow-950/40 dark:text-yellow-200"
+            >
+              Confere Benner
+            </TabsTrigger>
             {podeVerLogJudit && (
               <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
             )}
