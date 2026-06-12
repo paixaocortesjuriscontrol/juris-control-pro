@@ -595,6 +595,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               prontoEnviar={prontoEnviar}
               onProntoEnviarChange={setProntoEnviar}
               hideFooter
+              readOnly
             />
           ) : (
             <DadosBennerForm
@@ -617,6 +618,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               prontoEnviar={prontoEnviar}
               onProntoEnviarChange={setProntoEnviar}
               hideFooter
+              readOnly
             />
           )}
         </TabsContent>
