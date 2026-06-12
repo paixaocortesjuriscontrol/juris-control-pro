@@ -1599,17 +1599,19 @@ export default function DistribuicaoTst() {
                   ? `Preencher c/ Judit (${selectedIds.size})`
                   : "Preencher com Judit"}
             </Button>
-            <label
-              className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none px-1"
-              title="Inclui a lista de anexos do processo (consulta Judit mais cara)."
-            >
-              <Checkbox
-                checked={bulkComAnexos}
-                onCheckedChange={(v) => setBulkComAnexos(v === true)}
-                disabled={bulkJuditRunning}
-              />
-              Com anexos
-            </label>
+            {isAdmin && (
+              <label
+                className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none px-1"
+                title="Inclui a lista de anexos do processo (consulta Judit mais cara)."
+              >
+                <Checkbox
+                  checked={bulkComAnexos}
+                  onCheckedChange={(v) => setBulkComAnexos(v === true)}
+                  disabled={bulkJuditRunning}
+                />
+                Com anexos
+              </label>
+            )}
             {bulkJuditRunning && (
               <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={() => { bulkAbortRef.current = true; }}>
                 <X className="w-3 h-3 mr-1" /> Cancelar
