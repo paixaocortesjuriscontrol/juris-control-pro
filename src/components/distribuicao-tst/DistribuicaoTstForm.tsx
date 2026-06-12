@@ -1413,6 +1413,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 "Desistir - Mídia Negativa",
                 "Desistir - Súmula 266 C.TST",
                 "Prosseguir",
+                "Prosseguir - Recurso do Reclamante",
+                "Prosseguir - Recurso de Terceiro",
                 "Sobrestamento",
               ];
               const valor = form.decisao_quarteirizado || "";
