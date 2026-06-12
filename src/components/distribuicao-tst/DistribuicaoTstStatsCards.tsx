@@ -104,7 +104,7 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
               title="Clique nos números para filtrar"
             >
               <CardContent className="p-2">
-                <p className={cn("text-[10px] md:text-[11px] font-medium truncate leading-tight", opts.leftColor)} title={opts.title}>
+                <p className={cn("text-[8px] md:text-[10px] font-medium truncate leading-tight", opts.leftColor)} title={opts.title}>
                   {opts.title}
                 </p>
                 <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
@@ -113,20 +113,20 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
                     onClick={() => onCardClick?.(opts.leftKey)}
                     className={cn("flex items-baseline gap-1 cursor-pointer hover:opacity-80 transition-opacity", lActive && "underline")}
                   >
-                    <span className={cn("text-base md:text-lg font-bold leading-tight tabular-nums", opts.leftColor)}>
+                    <span className={cn("text-sm md:text-base font-bold leading-tight tabular-nums", opts.leftColor)}>
                       {loading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : opts.leftValue.toLocaleString("pt-BR")}
                     </span>
-                    <span className={cn("text-[9px] opacity-70", opts.leftColor)}>{opts.leftLabel}</span>
+                    <span className={cn("text-[8px] opacity-70", opts.leftColor)}>{opts.leftLabel}</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => onCardClick?.(opts.rightKey)}
                     className={cn("flex items-baseline gap-1 cursor-pointer hover:opacity-80 transition-opacity", rActive && "underline")}
                   >
-                    <span className={cn("text-base md:text-lg font-bold leading-tight tabular-nums", opts.rightColor)}>
+                    <span className={cn("text-sm md:text-base font-bold leading-tight tabular-nums", opts.rightColor)}>
                       {loading ? "" : opts.rightValue.toLocaleString("pt-BR")}
                     </span>
-                    <span className={cn("text-[9px] opacity-70", opts.rightColor)}>{opts.rightLabel}</span>
+                    <span className={cn("text-[8px] opacity-70", opts.rightColor)}>{opts.rightLabel}</span>
                   </button>
                 </div>
               </CardContent>
@@ -180,7 +180,7 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
               title="Clique nos números para filtrar"
             >
               <CardContent className="p-2">
-                <p className="text-[10px] md:text-[11px] font-medium truncate leading-tight text-cyan-700 dark:text-cyan-400" title="Benner Enviado / Não Enviado">
+                <p className="text-[8px] md:text-[10px] font-medium truncate leading-tight text-cyan-700 dark:text-cyan-400" title="Benner Enviado / Não Enviado">
                   Benner Enviado / Não
                 </p>
                 <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
@@ -193,10 +193,10 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
                     )}
                     title="Filtrar Benner Enviado"
                   >
-                    <span className="text-base md:text-lg font-bold leading-tight text-cyan-700 dark:text-cyan-400 tabular-nums">
+                    <span className="text-sm md:text-base font-bold leading-tight text-cyan-700 dark:text-cyan-400 tabular-nums">
                       {loading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : stats.bennerSim.toLocaleString("pt-BR")}
                     </span>
-                    <span className="text-[9px] text-cyan-700/70 dark:text-cyan-400/70">sim</span>
+                    <span className="text-[8px] text-cyan-700/70 dark:text-cyan-400/70">sim</span>
                   </button>
                   <button
                     type="button"
@@ -207,10 +207,10 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
                     )}
                     title="Filtrar Benner Não Enviado"
                   >
-                    <span className="text-base md:text-lg font-bold leading-tight text-orange-700 dark:text-orange-400 tabular-nums">
+                    <span className="text-sm md:text-base font-bold leading-tight text-orange-700 dark:text-orange-400 tabular-nums">
                       {loading ? "" : stats.bennerNao.toLocaleString("pt-BR")}
                     </span>
-                    <span className="text-[9px] text-orange-700/70 dark:text-orange-400/70">não</span>
+                    <span className="text-[8px] text-orange-700/70 dark:text-orange-400/70">não</span>
                   </button>
                 </div>
               </CardContent>
@@ -230,8 +230,8 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
             title={clickable ? "Clique para filtrar" : undefined}
           >
             <CardContent className="p-2">
-              <p className={cn("text-[10px] md:text-[11px] font-medium truncate leading-tight", c.textClass)} title={c.label}>{c.label}</p>
-              <p className={cn("text-base md:text-lg font-bold mt-0.5 leading-tight", c.textClass)}>
+              <p className={cn("text-[8px] md:text-[10px] font-medium truncate leading-tight", c.textClass)} title={c.label}>{c.label}</p>
+              <p className={cn("text-sm md:text-base font-bold mt-0.5 leading-tight", c.textClass)}>
                 {loading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : c.value.toLocaleString("pt-BR")}
               </p>
             </CardContent>
@@ -252,21 +252,21 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
                 title={onResponsavelClick ? "Clique para listar apenas seus Prontos" : "Totais do responsável logado"}
               >
                 <CardContent className="p-2">
-                  <p className="text-[10px] md:text-[11px] font-medium truncate leading-tight text-amber-700 dark:text-amber-400">
+                  <p className="text-[8px] md:text-[10px] font-medium truncate leading-tight text-amber-700 dark:text-amber-400">
                     Total por responsável
                   </p>
                   <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
                     <span className="flex items-baseline gap-1">
-                      <span className="text-base md:text-lg font-bold leading-tight text-amber-700 dark:text-amber-400 tabular-nums">
+                      <span className="text-sm md:text-base font-bold leading-tight text-amber-700 dark:text-amber-400 tabular-nums">
                         {loading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : responsavelCard.atribuidos.toLocaleString("pt-BR")}
                       </span>
-                      <span className="text-[9px] text-amber-700/70 dark:text-amber-400/70">atrib.</span>
+                      <span className="text-[8px] text-amber-700/70 dark:text-amber-400/70">atrib.</span>
                     </span>
                     <span className="flex items-baseline gap-1">
-                      <span className="text-base md:text-lg font-bold leading-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
+                      <span className="text-sm md:text-base font-bold leading-tight text-emerald-700 dark:text-emerald-400 tabular-nums">
                         {loading ? "" : responsavelCard.prontos.toLocaleString("pt-BR")}
                       </span>
-                      <span className="text-[9px] text-emerald-700/70 dark:text-emerald-400/70">prontos</span>
+                      <span className="text-[8px] text-emerald-700/70 dark:text-emerald-400/70">prontos</span>
                     </span>
                   </div>
                 </CardContent>
