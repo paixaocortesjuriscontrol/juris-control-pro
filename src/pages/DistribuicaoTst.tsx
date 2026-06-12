@@ -1392,6 +1392,25 @@ export default function DistribuicaoTst() {
               const me = user?.id ? responsavelCounts.find(c => c.id === user.id) : null;
               return { atribuidos: me?.count ?? 0, prontos: me?.pronto ?? 0 };
             })()}
+            onResponsavelClick={() => {
+              if (!user?.id) return;
+              // Reseta filtros conflitantes
+              setFiltroProcessoStatus("todos");
+              setFiltroDossieStatus("todos");
+              setFiltroJudit("todos");
+              setFiltroBenner("todos");
+              setFiltroSituacaoProcesso("todos");
+              setFiltroSemTurma(false);
+              setFiltroProblemaJudit("todos");
+              setFiltroEquipe("todos");
+              setFiltroDataInicio("");
+              setFiltroDataFim("");
+              setFiltroMesAno("todos");
+              setSelectedIds(new Set());
+              // Filtra por meu usuário + apenas Prontos
+              setFiltroResponsavelIds([user.id]);
+              setFiltroStatus("pronto_envio");
+            }}
           />
         )}
 
