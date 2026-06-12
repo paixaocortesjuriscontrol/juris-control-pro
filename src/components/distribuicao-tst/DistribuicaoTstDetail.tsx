@@ -53,7 +53,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const processoNumero = currentDado?.processo_numero || "";
   const { user } = useAuth();
   const podeVerLogJudit = user?.email?.toLowerCase() === "paixaocortesjuriscontrol@gmail.com";
-  const { isAdminOrCoordinator } = useUserRole();
+  const { isAdminOrCoordinator, isAdmin } = useUserRole();
 
   const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos" | "centralizadores" | "partes">(initialTab);
   const [anexos, setAnexos] = useState<any[] | null>(null);
@@ -523,20 +523,22 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             )}
           </TabsList>
           <div className="flex items-center gap-3">
-            <label
-              className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none"
-              title="Inclui a lista de documentos/anexos do processo (consulta mais cara)."
-            >
-              <Checkbox
-                checked={comAnexos}
-                onCheckedChange={(v) => setComAnexos(v === true)}
-                disabled={buscandoJudit}
-              />
-              Com anexos
-            </label>
+            {isAdmin && (
+              <label
+                className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none"
+                title="Inclui a lista de documentos/anexos do processo (consulta mais cara)."
+              >
+                <Checkbox
+                  checked={comAnexos}
+                  onCheckedChange={(v) => setComAnexos(v === true)}
+                  disabled={buscandoJudit}
+                />
+                Com anexos
+              </label>
+            )}
             <Button
               variant="outline"
-              onClick={() => runJudit(comAnexos, false)}
+              onClick={() => runJudit(isAdmin && comAnexos, false)}
               disabled={buscandoJudit || !processoNumero}
               className="border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
               title="Usa cache do dia quando disponível (mais rápido)"
@@ -549,7 +551,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => runJudit(comAnexos, true)}
+              onClick={() => runJudit(isAdmin && comAnexos, true)}
               disabled={buscandoJudit || !processoNumero}
               title="Ignora cache e força nova consulta na Judit (mais lento)"
               className="text-xs text-muted-foreground hover:text-foreground"
