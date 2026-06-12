@@ -3419,7 +3419,17 @@ const AnaliseDjen = () => {
         }
         // a. Pauta de Julgamento (frase exata, e não pode ser CEJUSC)
         const ehCejusc = /\bcejusc\b/i.test(texto);
-        if (!ehCejusc && lower.includes("pauta de julgamento")) {
+        // Acórdãos do TST às vezes carregam o cabeçalho "PAUTA DE JULGAMENTO
+        // (ÍNTEGRA)" no início do próprio acórdão. Para não classificar esses
+        // acórdãos como PAUTA, exige-se ausência de marcadores típicos de
+        // acórdão (ACORDAM, "A C Ó R D Ã O" espaçado, EMENTA, VOTO).
+        const textoSemAcentoFull = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const ehAcordao =
+          /\bACORDAM\b/i.test(textoSemAcentoFull) ||
+          /A\s*C\s*O\s*R\s*D\s*A\s*O/i.test(textoSemAcentoFull) ||
+          /\bEMENTA\b/i.test(textoSemAcentoFull) ||
+          /\bV\s*O\s*T\s*O\b/i.test(textoSemAcentoFull);
+        if (!ehCejusc && !ehAcordao && lower.includes("pauta de julgamento")) {
           return { id: pub.id, categoria: "PAUTA" };
         }
         // c. Prazos gerais (default)
