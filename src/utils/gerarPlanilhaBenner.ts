@@ -351,7 +351,7 @@ export async function gerarPlanilhaBenner(
         const ref = colToLetter(c + 1) + rowNum;
         // c==2 is tipo_recurso (original index 2, shifted to col D)
         const isYellow = c === 2 && d.tipo_recurso_auto && yellowStyleId > 0;
-        const styleId = isYellow ? yellowStyleId : (c + 1 <= 6 && centeredStyleId > 0 ? centeredStyleId : 0);
+        const styleId = isYellow ? yellowStyleId : (centeredStyleId > 0 ? centeredStyleId : 0);
         if (styleId > 0) {
           cellsXml += `<c r="${ref}" t="s" s="${styleId}"><v>${getStrIdx(val)}</v></c>`;
         } else {
@@ -366,7 +366,7 @@ export async function gerarPlanilhaBenner(
         const ref = colToLetter(c) + rowNum;
         // c==2 is tipo_recurso column
         const isYellow = c === 2 && d.tipo_recurso_auto && yellowStyleId > 0;
-        const styleId = isYellow ? yellowStyleId : (c <= 5 && centeredStyleId > 0 ? centeredStyleId : 0);
+        const styleId = isYellow ? yellowStyleId : (centeredStyleId > 0 ? centeredStyleId : 0);
         if (styleId > 0) {
           cellsXml += `<c r="${ref}" t="s" s="${styleId}"><v>${getStrIdx(val)}</v></c>`;
         } else {
