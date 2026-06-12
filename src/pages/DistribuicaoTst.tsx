@@ -2011,6 +2011,8 @@ export default function DistribuicaoTst() {
                 const isPronto = ((d as any).status || "") === "pronto_envio";
                 const hasProvasDigitais = String((d as any).provas_digitais || "").trim().toLowerCase() === "s";
                 const isSubidaMassa = !!(d as any).subida_em_massa || /subida\s+em\s+massa/i.test(d.relator || "");
+                const isOutroEscritorio = (d as any).processo_outro_escritorio === true;
+                const isSegredo = (d as any).segredo_justica === true;
                 const relatorDisplay = (d.relator || "").replace(/subida\s+em\s+massa.*$/i, "").trim().replace(/[-–—:]\s*$/, "").trim();
                 return (
                 <TableRow
