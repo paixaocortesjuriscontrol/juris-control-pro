@@ -357,6 +357,19 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   // "salvou com sucesso" mas os campos Benner voltavam vazios quando a
   // advogada editava/salvava antes da carga em segundo plano concluir).
   const bennerDirtyRef = useRef<Set<string>>(new Set());
+  // Refs-espelho SEMPRE atualizados a cada render. O botão "Salvar" do menu
+  // esquerdo chama handleSave via useImperativeHandle, cujas dependências não
+  // incluem bennerExtra — sem estes refs, o save rodava com uma closure
+  // CONGELADA dos campos Benner (valores antigos) e o diff saía vazio,
+  // descartando silenciosamente o que a advogada digitou.
+  const bennerExtraRef = useRef<Record<string, any>>(bennerExtra);
+  bennerExtraRef.current = bennerExtra;
+  const bennerExtraInitialRef = useRef<Record<string, any>>(bennerExtraInitial);
+  bennerExtraInitialRef.current = bennerExtraInitial;
+  const bennerExtraLoadedRef = useRef<boolean>(bennerExtraLoaded);
+  bennerExtraLoadedRef.current = bennerExtraLoaded;
+  const bennerDadoRef = useRef<any>(bennerDado);
+  bennerDadoRef.current = bennerDado;
   useEffect(() => {
     if (bennerDado) {
       const initial = buildBennerExtra(bennerDado);
