@@ -132,6 +132,22 @@ function toSentenceCase(s: string): string {
   const lower = t.toLowerCase();
   return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
+// Para "Análise do quarteirizado": se houver '-', capitalizar a primeira
+// letra de cada lado do hífen (mantendo o restante em minúsculas).
+function toSentenceCaseDash(s: string): string {
+  const t = String(s ?? "").trim();
+  if (!t) return "";
+  if (!t.includes("-")) return toSentenceCase(t);
+  return t
+    .split("-")
+    .map(part => {
+      const p = part.trim().toLowerCase();
+      if (!p) return "";
+      return p.charAt(0).toUpperCase() + p.slice(1);
+    })
+    .filter(Boolean)
+    .join(" - ");
+}
 function formatTipoRecurso(s: string): string {
   return String(s ?? "")
     .split(",")
@@ -420,7 +436,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(d.data_distribuicao);
         outRow[LAYOUT_COLS[4]] = fixVicePresidencia(turmaRaw);
         outRow[LAYOUT_COLS[5]] = cleanRelator(String(d.relator ?? "").trim());
-        outRow[LAYOUT_COLS[6]] = toSentenceCase(String(d.decisao_quarteirizado ?? "").trim());
+        outRow[LAYOUT_COLS[6]] = toSentenceCaseDash(String(d.decisao_quarteirizado ?? "").trim());
         // Fallback entre colunas equivalentes: a tela Distribuição TST grava
         // em `midia_negativa`/`honra` (campos antigos) E a aba Dados Benner
         // grava em `risco_midia`/`materia_honra` (campos extras). Considerar
@@ -456,7 +472,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         outRow[LAYOUT_COLS[30]] = d.posicao_relator_desfavoravel ? "X" : "";
         outRow[LAYOUT_COLS[31]] = d.recurso_bem_aparelhado ? "X" : "";
         outRow[LAYOUT_COLS[32]] = d.recurso_mal_aparelhado ? "X" : "";
-        outRow[LAYOUT_COLS[33]] = String(d.chance_exito ?? "").trim();
+        outRow[LAYOUT_COLS[33]] = toSentenceCase(String(d.chance_exito ?? "").trim());
         outRow["__numProcesso"] = numProcesso;
 
         // Sanitize dash-only values
@@ -574,7 +590,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
           if (!val) continue;
           const ref = colToLetter(c) + rowNum;
           const idx = getStringIndex(val);
-          cellsXml += c <= 5 && centeredStyleId > 0
+          cellsXml += centeredStyleId > 0
             ? `<c r="${ref}" t="s" s="${centeredStyleId}"><v>${idx}</v></c>`
             : `<c r="${ref}" t="s"><v>${idx}</v></c>`;
         }
@@ -753,7 +769,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
           const val = String(row[LAYOUT_COLS[c]] ?? "");
           if (!val) continue;
           const ref = colToLetter(c + 1) + rowNum;
-          cellsXml += c + 1 <= 6 && centeredStyleId > 0
+          cellsXml += centeredStyleId > 0
             ? `<c r="${ref}" t="s" s="${centeredStyleId}"><v>${getStrIdx(val)}</v></c>`
             : `<c r="${ref}" t="s"><v>${getStrIdx(val)}</v></c>`;
         }
