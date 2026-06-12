@@ -918,18 +918,22 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           judit_preenchido_em: new Date().toISOString(),
         }
       : payloadBase;
-    // Computa o diff dos campos Benner unificados: só envia o que mudou em
-    // relação ao snapshot inicial carregado do banco. Nunca persistir antes
-    // de ter carregado de fato (`bennerExtraLoaded`) — caso contrário todos
-    // os campos não editados iriam como NULL e apagariam dados existentes.
+    // Computa o diff dos campos Benner unificados: envia SOMENTE os campos
+    // que o usuário tocou nesta sessão (dirty). Isso é seguro mesmo que o
+    // registro Benner ainda não tenha terminado de carregar em segundo plano
+    // — campos não tocados nunca entram no patch, então nada é apagado.
     const buildBennerDiff = (): Record<string, any> | null => {
-      if (!bennerExtraLoaded) return null;
       const diff: Record<string, any> = {};
-      for (const k of BENNER_EXTRA_FIELDS) {
+      const norm = (v: any) => (v === undefined || v === "" ? null : v);
+      for (const k of bennerDirtyRef.current) {
         const cur = (bennerExtra as any)[k];
-        const prev = (bennerExtraInitial as any)[k];
-        const norm = (v: any) => (v === undefined || v === "" ? null : v);
-        if (norm(cur) !== norm(prev)) diff[k] = norm(cur);
+        // Se a carga inicial concluiu, pula campos que voltaram ao valor
+        // original; sem carga concluída, persiste tudo que foi tocado.
+        if (bennerExtraLoaded) {
+          const prev = (bennerExtraInitial as any)[k];
+          if (norm(cur) === norm(prev)) continue;
+        }
+        diff[k] = norm(cur);
       }
       return Object.keys(diff).length > 0 ? diff : null;
     };
