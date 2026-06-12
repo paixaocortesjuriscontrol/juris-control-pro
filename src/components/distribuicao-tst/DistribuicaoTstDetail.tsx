@@ -422,69 +422,120 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pl-1">
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={prontoEnviar}
-            onCheckedChange={(v) => {
-              if (v && (transitoJulgado || segredoJustica || outroEscritorio)) {
-                const motivos: string[] = [];
-                if (transitoJulgado) motivos.push("Trânsito em Julgado");
-                if (segredoJustica) motivos.push("Segredo de Justiça");
-                if (outroEscritorio) motivos.push("Processo de outro escritório");
-                toast.error(`Não é possível marcar como "Pronto para Enviar": ${motivos.join(", ")}.`);
-                return;
-              }
-              setProntoEnviar(v);
-            }}
-            disabled={(bennerDado as any)?.status === "planilhado" || (bennerDado as any)?.status === "enviado" || transitoJulgado || segredoJustica || outroEscritorio}
-          />
-          <Label className="text-sm font-medium">Pronto para Enviar</Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Switch checked={problemaJudit} onCheckedChange={setProblemaJudit} />
-          <Label className="text-sm font-medium text-amber-700 dark:text-amber-400">Problema Judit</Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={transitoJulgado}
-            onCheckedChange={(v) => {
-              setTransitoJulgado(v);
-              if (v && prontoEnviar) { setProntoEnviar(false); toast.info('"Pronto para Enviar" foi desmarcado: processo em Trânsito em Julgado.'); }
-            }}
-          />
-          <Label className="text-sm font-medium text-orange-700 dark:text-orange-400">Trânsito em Julgado</Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={outroEscritorio}
-            onCheckedChange={(v) => {
-              setOutroEscritorio(v);
-              if (v && prontoEnviar) { setProntoEnviar(false); toast.info('"Pronto para Enviar" foi desmarcado: processo de outro escritório.'); }
-            }}
-          />
-          <Label className="text-sm font-medium text-purple-700 dark:text-purple-400">Processo outro escritório</Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={segredoJustica}
-            onCheckedChange={(v) => {
-              setSegredoJustica(v);
-              if (v && prontoEnviar) { setProntoEnviar(false); toast.info('"Pronto para Enviar" foi desmarcado: processo em Segredo de Justiça.'); }
-            }}
-          />
-          <Label className="text-sm font-medium text-rose-700 dark:text-rose-400">Segredo de Justiça</Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Switch checked={recursoTerceiro} onCheckedChange={setRecursoTerceiro} />
-          <Label className="text-sm font-medium text-indigo-700 dark:text-indigo-400">Recurso de terceiro</Label>
-        </div>
-        <div className="flex items-center gap-2">
-          <Switch checked={cejusc} onCheckedChange={setCejusc} />
-          <Label className="text-sm font-medium text-teal-700 dark:text-teal-400">CEJUSC</Label>
-        </div>
-      </div>
+      <div className="flex flex-col lg:flex-row gap-4">
+        <aside className="lg:w-60 lg:shrink-0 lg:sticky lg:top-2 self-start space-y-4">
+          <div className="rounded-lg border border-border bg-card p-3 space-y-3 shadow-sm">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Status do processo
+            </div>
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-medium leading-tight">Pronto para Enviar</Label>
+                <Switch
+                  checked={prontoEnviar}
+                  onCheckedChange={(v) => {
+                    if (v && (transitoJulgado || segredoJustica || outroEscritorio)) {
+                      const motivos: string[] = [];
+                      if (transitoJulgado) motivos.push("Trânsito em Julgado");
+                      if (segredoJustica) motivos.push("Segredo de Justiça");
+                      if (outroEscritorio) motivos.push("Processo de outro escritório");
+                      toast.error(`Não é possível marcar como "Pronto para Enviar": ${motivos.join(", ")}.`);
+                      return;
+                    }
+                    setProntoEnviar(v);
+                  }}
+                  disabled={(bennerDado as any)?.status === "planilhado" || (bennerDado as any)?.status === "enviado" || transitoJulgado || segredoJustica || outroEscritorio}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-medium leading-tight text-amber-700 dark:text-amber-400">Problema Judit</Label>
+                <Switch checked={problemaJudit} onCheckedChange={setProblemaJudit} />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-medium leading-tight text-orange-700 dark:text-orange-400">Trânsito em Julgado</Label>
+                <Switch
+                  checked={transitoJulgado}
+                  onCheckedChange={(v) => {
+                    setTransitoJulgado(v);
+                    if (v && prontoEnviar) { setProntoEnviar(false); toast.info('"Pronto para Enviar" foi desmarcado: processo em Trânsito em Julgado.'); }
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-medium leading-tight text-purple-700 dark:text-purple-400">Outro escritório</Label>
+                <Switch
+                  checked={outroEscritorio}
+                  onCheckedChange={(v) => {
+                    setOutroEscritorio(v);
+                    if (v && prontoEnviar) { setProntoEnviar(false); toast.info('"Pronto para Enviar" foi desmarcado: processo de outro escritório.'); }
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-medium leading-tight text-rose-700 dark:text-rose-400">Segredo de Justiça</Label>
+                <Switch
+                  checked={segredoJustica}
+                  onCheckedChange={(v) => {
+                    setSegredoJustica(v);
+                    if (v && prontoEnviar) { setProntoEnviar(false); toast.info('"Pronto para Enviar" foi desmarcado: processo em Segredo de Justiça.'); }
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-medium leading-tight text-indigo-700 dark:text-indigo-400">Recurso de terceiro</Label>
+                <Switch checked={recursoTerceiro} onCheckedChange={setRecursoTerceiro} />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-medium leading-tight text-teal-700 dark:text-teal-400">CEJUSC</Label>
+                <Switch checked={cejusc} onCheckedChange={setCejusc} />
+              </div>
+            </div>
+          </div>
 
+          <div className="rounded-lg border border-border bg-card p-3 space-y-2 shadow-sm">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Consulta Judit
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => runJudit(isAdmin && comAnexos, false)}
+              disabled={buscandoJudit || !processoNumero}
+              className="w-full border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+              title="Usa cache do dia quando disponível (mais rápido)"
+            >
+              {buscandoJudit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
+              {buscandoJudit
+                ? (juditElapsed < 3 ? "Consultando…" : `Aguardando ${juditElapsed}s`)
+                : "Buscar Judit"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => runJudit(isAdmin && comAnexos, true)}
+              disabled={buscandoJudit || !processoNumero}
+              title="Ignora cache e força nova consulta na Judit (mais lento)"
+              className="w-full text-xs text-muted-foreground hover:text-foreground"
+            >
+              Forçar atualização
+            </Button>
+            {isAdmin && (
+              <label
+                className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none pt-1"
+                title="Inclui a lista de documentos/anexos do processo (consulta mais cara)."
+              >
+                <Checkbox
+                  checked={comAnexos}
+                  onCheckedChange={(v) => setComAnexos(v === true)}
+                  disabled={buscandoJudit}
+                />
+                Com anexos
+              </label>
+            )}
+          </div>
+        </aside>
+
+        <div className="flex-1 min-w-0">
       <Tabs
         value={tab}
         activationMode="manual"
@@ -495,8 +546,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         }}
         className="w-full"
       >
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <TabsList className="justify-start">
+        <div className="flex items-center gap-2 flex-wrap">
+          <TabsList className="justify-start flex-wrap h-auto">
             <TabsTrigger
               value="distribuicao"
               className="bg-emerald-50 text-emerald-900 border border-emerald-200 data-[state=active]:bg-emerald-100 data-[state=active]:text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100 dark:border-emerald-900"
@@ -522,43 +573,6 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
             )}
           </TabsList>
-          <div className="flex items-center gap-3">
-            {isAdmin && (
-              <label
-                className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none"
-                title="Inclui a lista de documentos/anexos do processo (consulta mais cara)."
-              >
-                <Checkbox
-                  checked={comAnexos}
-                  onCheckedChange={(v) => setComAnexos(v === true)}
-                  disabled={buscandoJudit}
-                />
-                Com anexos
-              </label>
-            )}
-            <Button
-              variant="outline"
-              onClick={() => runJudit(isAdmin && comAnexos, false)}
-              disabled={buscandoJudit || !processoNumero}
-              className="border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
-              title="Usa cache do dia quando disponível (mais rápido)"
-            >
-              {buscandoJudit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
-              {buscandoJudit
-                ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando crawler… ${juditElapsed}s`)
-                : "Judit"}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => runJudit(isAdmin && comAnexos, true)}
-              disabled={buscandoJudit || !processoNumero}
-              title="Ignora cache e força nova consulta na Judit (mais lento)"
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              Forçar atualização
-            </Button>
-          </div>
         </div>
 
         <TabsContent
