@@ -1,4 +1,5 @@
 import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +17,7 @@ import { ResponsaveisSelector } from "@/components/distribuicao-tst/Responsaveis
 import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMultiSelect";
 import { MultiTipoRecurso } from "@/components/distribuicao-tst/MultiTipoRecurso";
 import { RelatorTurmaCombo } from "@/components/distribuicao-tst/RelatorTurmaCombo";
+import { persistirPartesJudit } from "@/lib/juditDistribuicaoTst";
 const OPCOES_RECURSO_NORM = [
   "Agravo de Instrumento em Recurso de Revista",
   "Recurso de Revista com Agravo",
@@ -298,6 +300,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
+  const queryClient = useQueryClient();
   const [responsaveisLoaded, setResponsaveisLoaded] = useState(false);
   const { data: turmasTst = [] } = useTurmasTst();
   const { data: relatoresTst = [] } = useRelatoresTst();
@@ -665,6 +668,17 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       // ATENÇÃO: ACTIVE/PASSIVE no TST = recorrente/recorrido, NÃO reclamante/reclamada,
       // por isso o backend é a fonte preferida.
       const partes = Array.isArray(data?.parties_detail) ? data.parties_detail : [];
+      // Persiste as partes (origem 'judit') para que a aba "Partes do processo"
+      // reflita imediatamente o resultado da consulta Judit.
+      try {
+        const bennerId = (dado as any)?.id || null;
+        if (bennerId && partes.length > 0) {
+          await persistirPartesJudit(bennerId, data);
+          await queryClient.invalidateQueries({ queryKey: ["partes-processo-benner", bennerId] });
+        }
+      } catch (e) {
+        console.warn("Falha ao persistir partes_processo_benner:", e);
+      }
       const nomesPorPersonType = (re: RegExp) =>
         [...new Set(
           partes
