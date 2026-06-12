@@ -2034,6 +2034,9 @@ export default function DistribuicaoTst() {
                 const isSubidaMassa = !!(d as any).subida_em_massa || /subida\s+em\s+massa/i.test(d.relator || "");
                 const isOutroEscritorio = (d as any).processo_outro_escritorio === true;
                 const isSegredo = (d as any).segredo_justica === true;
+                const isProblemaJudit = (d as any).problema_judit === true;
+                const isRecursoTerceiro = (d as any).recurso_terceiro === true;
+                const isCejusc = (d as any).cejusc === true;
                 const relatorDisplay = (d.relator || "").replace(/subida\s+em\s+massa.*$/i, "").trim().replace(/[-–—:]\s*$/, "").trim();
                 return (
                 <TableRow
