@@ -2086,6 +2086,16 @@ export default function DistribuicaoTst() {
                                   Subida em Massa
                                 </Badge>
                               )}
+                              {isOutroEscritorio && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-violet-600 hover:bg-violet-600 text-white" title="Processo de outro escritório">
+                                  Outro escritório
+                                </Badge>
+                              )}
+                              {isSegredo && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-rose-600 hover:bg-rose-600 text-white" title="Segredo de Justiça">
+                                  Segredo de Justiça
+                                </Badge>
+                              )}
                             </div>
                             {isAdminOrCoordinator && (
                               <div className="mt-1">
@@ -2133,6 +2143,16 @@ export default function DistribuicaoTst() {
                           {isSubidaMassa && (
                             <Badge className="text-[10px] px-1 py-0 h-4 bg-purple-600 hover:bg-purple-600 text-white" title="Relator marcado como Subida em Massa">
                               Subida em Massa
+                            </Badge>
+                          )}
+                          {isOutroEscritorio && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-violet-600 hover:bg-violet-600 text-white" title="Processo de outro escritório">
+                              Outro escritório
+                            </Badge>
+                          )}
+                          {isSegredo && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-rose-600 hover:bg-rose-600 text-white" title="Segredo de Justiça">
+                              Segredo de Justiça
                             </Badge>
                           )}
                         </div>
