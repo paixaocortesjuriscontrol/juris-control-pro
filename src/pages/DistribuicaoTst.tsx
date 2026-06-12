@@ -500,6 +500,7 @@ export default function DistribuicaoTst() {
       case "bennerNao": setFiltroBenner("nao"); break;
       case "processosAtivos": setFiltroSituacaoProcesso("ativo"); break;
       case "transitoJulgado": setFiltroSituacaoProcesso("transito"); break;
+      case "aFazer": setFiltroSituacaoProcesso("a_fazer"); break;
       case "semTurma": setFiltroSemTurma(true); break;
       case "problemaJudit": setFiltroProblemaJudit("sim"); break;
       case "ate2025":
