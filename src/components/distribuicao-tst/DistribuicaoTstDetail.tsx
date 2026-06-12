@@ -499,7 +499,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <TabsList className="justify-start">
             <TabsTrigger
               value="distribuicao"
-              className="data-[state=active]:bg-emerald-600 data-[state=active]:text-white bg-emerald-100 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200"
+              className="bg-emerald-50 text-emerald-900 border border-emerald-200 data-[state=active]:bg-emerald-100 data-[state=active]:text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100 dark:border-emerald-900"
             >
               Distribuição TST
             </TabsTrigger>
@@ -509,7 +509,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             <TabsTrigger
               value="benner"
               disabled={bennerDisabled}
-              className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black bg-yellow-100 text-yellow-900 dark:bg-yellow-950/40 dark:text-yellow-200"
+              className="bg-yellow-50 text-yellow-900 border border-yellow-200 data-[state=active]:bg-yellow-100 data-[state=active]:text-yellow-900 dark:bg-yellow-950/30 dark:text-yellow-100 dark:border-yellow-900"
             >
               Confere Benner
             </TabsTrigger>
