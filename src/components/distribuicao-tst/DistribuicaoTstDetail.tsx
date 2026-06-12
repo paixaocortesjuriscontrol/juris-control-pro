@@ -415,15 +415,18 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         <Button variant="ghost" size="sm" onClick={onClose}>
           <ArrowLeft className="w-4 h-4 mr-1" /> Voltar à lista
         </Button>
-        <h2 className="text-lg font-semibold text-foreground">{titulo}</h2>
-        <Button className="ml-auto" onClick={() => handleSaveTop()} disabled={savingTop}>
-          {savingTop ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-          Salvar
-        </Button>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-4">
         <aside className="lg:w-60 lg:shrink-0 lg:sticky lg:top-2 self-start space-y-4">
+          <Button
+            className="w-full"
+            onClick={() => handleSaveTop()}
+            disabled={savingTop}
+          >
+            {savingTop ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Salvar
+          </Button>
           <div className="rounded-lg border border-border bg-card p-3 space-y-3 shadow-sm">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Status do processo
