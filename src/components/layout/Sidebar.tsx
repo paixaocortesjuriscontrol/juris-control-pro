@@ -106,7 +106,9 @@ export function Sidebar() {
             <div className="animate-fade-in">
               <h1 className="font-serif text-lg font-bold text-sidebar-foreground">Juris Control</h1>
               <p className="text-xs text-sidebar-foreground/60">Paixão Cortes Advogados</p>
-              <p className="text-[10px] text-sidebar-foreground/40 mt-0.5">v{APP_VERSION}</p>
+              <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full bg-emerald-600 hover:bg-emerald-600 text-white font-serif text-[11px] font-semibold shadow-sm">
+                v{APP_VERSION}
+              </span>
             </div>
           )}
         </div>
