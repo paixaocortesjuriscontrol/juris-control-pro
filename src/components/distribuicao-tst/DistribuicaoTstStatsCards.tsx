@@ -77,6 +77,95 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
       {cards.map((c) => {
         const isActive = activeKey === c.key;
         const clickable = !!onCardClick;
+        // Helper: render a "Sim / Não" combined card with two clickable values
+        const renderCombined = (opts: {
+          keyId: string;
+          title: string;
+          containerClass: string;
+          leftKey: StatsCardKey;
+          leftValue: number;
+          leftLabel: string;
+          leftColor: string;
+          rightKey: StatsCardKey;
+          rightValue: number;
+          rightLabel: string;
+          rightColor: string;
+        }) => {
+          const lActive = activeKey === opts.leftKey;
+          const rActive = activeKey === opts.rightKey;
+          return (
+            <Card
+              key={opts.keyId}
+              className={cn(
+                "bg-gradient-to-br transition-all",
+                opts.containerClass,
+                (lActive || rActive) && "ring-2 ring-primary ring-offset-1"
+              )}
+              title="Clique nos números para filtrar"
+            >
+              <CardContent className="p-2">
+                <p className={cn("text-[10px] md:text-[11px] font-medium truncate leading-tight", opts.leftColor)} title={opts.title}>
+                  {opts.title}
+                </p>
+                <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => onCardClick?.(opts.leftKey)}
+                    className={cn("flex items-baseline gap-1 cursor-pointer hover:opacity-80 transition-opacity", lActive && "underline")}
+                  >
+                    <span className={cn("text-base md:text-lg font-bold leading-tight tabular-nums", opts.leftColor)}>
+                      {loading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : opts.leftValue.toLocaleString("pt-BR")}
+                    </span>
+                    <span className={cn("text-[9px] opacity-70", opts.leftColor)}>{opts.leftLabel}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onCardClick?.(opts.rightKey)}
+                    className={cn("flex items-baseline gap-1 cursor-pointer hover:opacity-80 transition-opacity", rActive && "underline")}
+                  >
+                    <span className={cn("text-base md:text-lg font-bold leading-tight tabular-nums", opts.rightColor)}>
+                      {loading ? "" : opts.rightValue.toLocaleString("pt-BR")}
+                    </span>
+                    <span className={cn("text-[9px] opacity-70", opts.rightColor)}>{opts.rightLabel}</span>
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        };
+        if (c.key === "juditPreenchido") {
+          return renderCombined({
+            keyId: "juditCombined",
+            title: "Judit Preenchido / Não",
+            containerClass: "from-purple-50 to-slate-50 dark:from-purple-950/40 dark:to-slate-950/40 border-purple-200 dark:border-purple-800",
+            leftKey: "juditPreenchido", leftValue: stats.juditPreenchido, leftLabel: "sim",
+            leftColor: "text-purple-700 dark:text-purple-400",
+            rightKey: "juditNaoPreenchido", rightValue: stats.juditNaoPreenchido, rightLabel: "não",
+            rightColor: "text-slate-700 dark:text-slate-400",
+          });
+        }
+        if (c.key === "dossiesValidos") {
+          return renderCombined({
+            keyId: "dossiesCombined",
+            title: "Dossiês Válidos / Inválidos",
+            containerClass: "from-emerald-50 to-rose-50 dark:from-emerald-950/40 dark:to-rose-950/40 border-emerald-200 dark:border-emerald-800",
+            leftKey: "dossiesValidos", leftValue: stats.dossiesValidos, leftLabel: "válidos",
+            leftColor: "text-emerald-700 dark:text-emerald-400",
+            rightKey: "dossiesInvalidos", rightValue: stats.dossiesInvalidos + stats.dossiesNaoPreenchidos, rightLabel: "inválidos",
+            rightColor: "text-rose-700 dark:text-rose-400",
+          });
+        }
+        if (c.key === "comEquipe") {
+          return renderCombined({
+            keyId: "equipeCombined",
+            title: "Com / Sem Equipe",
+            containerClass: "from-lime-50 to-fuchsia-50 dark:from-lime-950/40 dark:to-fuchsia-950/40 border-lime-200 dark:border-lime-800",
+            leftKey: "comEquipe", leftValue: stats.comEquipe, leftLabel: "com",
+            leftColor: "text-lime-700 dark:text-lime-400",
+            rightKey: "semEquipe", rightValue: stats.semEquipe, rightLabel: "sem",
+            rightColor: "text-fuchsia-700 dark:text-fuchsia-400",
+          });
+        }
         if (c.key === "bennerSim") {
           const simActive = activeKey === "bennerSim";
           const naoActive = activeKey === "bennerNao";
