@@ -674,6 +674,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         const bennerId = (dado as any)?.id || null;
         if (bennerId && partes.length > 0) {
           await persistirPartesJudit(bennerId, data);
+          await queryClient.invalidateQueries({ queryKey: ["partes-processo-benner", bennerId] });
         }
       } catch (e) {
         console.warn("Falha ao persistir partes_processo_benner:", e);
