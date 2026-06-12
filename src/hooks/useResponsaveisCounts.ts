@@ -16,6 +16,7 @@ export interface ResponsavelCount {
 export function useResponsaveisCounts(filters: DistribuicaoTstFilters) {
   const [counts, setCounts] = useState<ResponsavelCount[]>([]);
   const [loading, setLoading] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
   const filtersKey = JSON.stringify(filters);
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export function useResponsaveisCounts(filters: DistribuicaoTstFilters) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersKey]);
+  }, [filtersKey, reloadTick]);
 
-  return { counts, loading };
+  return { counts, loading, refetch: () => setReloadTick((t) => t + 1) };
 }

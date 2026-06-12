@@ -277,7 +277,17 @@ export default function DistribuicaoTst() {
     return () => clearTimeout(timer);
 }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, filtroTagId, JSON.stringify(idsAllowedFromTag || [])]);
 
-  const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(debouncedFilters, stickyId);
+  // Para não-admins, o filtro "A fazer" sempre amarra ao usuário logado,
+  // independentemente do select de responsáveis.
+  const listFilters = useMemo(() => {
+    if (debouncedFilters.situacaoProcesso === "a_fazer" && !isAdmin && user?.id) {
+      return { ...debouncedFilters, responsavelIds: [user.id] };
+    }
+    return debouncedFilters;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id]);
+
+  const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
   const dadosOrdenados = useMemo(() => {
     if (!sortBy) return dados;
@@ -312,7 +322,7 @@ export default function DistribuicaoTst() {
 
   // Totais por responsável (todos os registros que batem com os filtros, ignorando o filtro de responsável)
   const countsFilters = { ...debouncedFilters, responsavelIds: undefined };
-  const { counts: responsavelCounts } = useResponsaveisCounts(countsFilters);
+  const { counts: responsavelCounts, refetch: refetchResponsavelCounts } = useResponsaveisCounts(countsFilters);
 
   // Auto-seleciona o usuário logado como responsável ao abrir a tela
   // (apenas se ele estiver na lista de responsáveis). Roda uma única vez.
@@ -335,6 +345,15 @@ export default function DistribuicaoTst() {
   }, [JSON.stringify(debouncedFilters), page]);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
 
+  // Card "A fazer": sempre conta com base no usuário logado para não-admins.
+  // Para admins, respeita o filtro de responsável atual.
+  const aFazerFilters = useMemo(() => {
+    if (isAdmin || !user?.id) return debouncedFilters;
+    return { ...debouncedFilters, responsavelIds: [user.id] };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id]);
+  const { stats: statsAFazer } = useDistribuicaoTstStats(aFazerFilters);
+
   // Total Geral e Prontos para Enviar (geral): ignoram o filtro de responsável
   // (mostram sempre o total do escritório para os demais filtros selecionados).
   const { stats: statsGeral } = useDistribuicaoTstStats(countsFilters);
@@ -342,6 +361,7 @@ export default function DistribuicaoTst() {
     ...stats,
     total: statsGeral.total,
     prontoEnvio: statsGeral.prontoEnvio,
+    aFazer: statsAFazer.aFazer,
   };
 
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
@@ -1260,6 +1280,7 @@ export default function DistribuicaoTst() {
               setDetailInitialTab("distribuicao");
               try { fetchDados(); } catch {}
               try { refetchStats(); } catch {}
+              try { refetchResponsavelCounts(); } catch {}
             }}
           />
         </div>
