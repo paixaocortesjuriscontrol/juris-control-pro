@@ -2034,6 +2034,9 @@ export default function DistribuicaoTst() {
                 const isSubidaMassa = !!(d as any).subida_em_massa || /subida\s+em\s+massa/i.test(d.relator || "");
                 const isOutroEscritorio = (d as any).processo_outro_escritorio === true;
                 const isSegredo = (d as any).segredo_justica === true;
+                const isProblemaJudit = (d as any).problema_judit === true;
+                const isRecursoTerceiro = (d as any).recurso_terceiro === true;
+                const isCejusc = (d as any).cejusc === true;
                 const relatorDisplay = (d.relator || "").replace(/subida\s+em\s+massa.*$/i, "").trim().replace(/[-–—:]\s*$/, "").trim();
                 return (
                 <TableRow
@@ -2117,6 +2120,21 @@ export default function DistribuicaoTst() {
                                   Segredo de Justiça
                                 </Badge>
                               )}
+                              {isProblemaJudit && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-amber-500 hover:bg-amber-500 text-white" title="Problema Judit">
+                                  Problema Judit
+                                </Badge>
+                              )}
+                              {isRecursoTerceiro && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-indigo-600 hover:bg-indigo-600 text-white" title="Recurso de terceiro">
+                                  Recurso de terceiro
+                                </Badge>
+                              )}
+                              {isCejusc && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-teal-600 hover:bg-teal-600 text-white" title="CEJUSC">
+                                  CEJUSC
+                                </Badge>
+                              )}
                             </div>
                             {isAdminOrCoordinator && (
                               <div className="mt-1">
@@ -2174,6 +2192,21 @@ export default function DistribuicaoTst() {
                           {isSegredo && (
                             <Badge className="text-[10px] px-1 py-0 h-4 bg-rose-600 hover:bg-rose-600 text-white" title="Segredo de Justiça">
                               Segredo de Justiça
+                            </Badge>
+                          )}
+                          {isProblemaJudit && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-amber-500 hover:bg-amber-500 text-white" title="Problema Judit">
+                              Problema Judit
+                            </Badge>
+                          )}
+                          {isRecursoTerceiro && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-indigo-600 hover:bg-indigo-600 text-white" title="Recurso de terceiro">
+                              Recurso de terceiro
+                            </Badge>
+                          )}
+                          {isCejusc && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-teal-600 hover:bg-teal-600 text-white" title="CEJUSC">
+                              CEJUSC
                             </Badge>
                           )}
                         </div>
