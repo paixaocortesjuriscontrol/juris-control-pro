@@ -82,6 +82,10 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
 
   useEffect(() => {
     setCurrentDado(normalizeDado(dado));
+    // Troca de registro: descarta o Benner carregado do registro anterior
+    // para que nenhum save use o id antigo (duplicatas nunca se misturam).
+    setBennerDado(null);
+    setBennerLoaded(false);
   }, [dado?.id]);
 
   const runJudit = async (comAnexos: boolean, forceRefresh: boolean = false) => {
