@@ -883,10 +883,13 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
   );
 
   return (
-    <div className="space-y-6">
+    <div className={cn("space-y-6", readOnly && "pointer-events-none select-none opacity-95")}>
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={onCancel}><ArrowLeft className="w-5 h-5" /></Button>
         <h2 className="text-xl font-bold text-foreground">{dado ? "Editar Registro" : "Novo Registro"}</h2>
+        {readOnly && (
+          <span className="ml-2 text-xs uppercase tracking-wide text-muted-foreground bg-muted px-2 py-1 rounded">Somente conferência</span>
+        )}
       </div>
 
       {/* SEÇÃO RECURSO - Azul */}
