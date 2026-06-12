@@ -109,12 +109,50 @@ function cleanDadoBennerValue(val: unknown): string {
   return s && !/^[-–—_\s]+$/.test(s) ? s : "";
 }
 
+function fixVicePresidencia(s: string): string {
+  return String(s ?? "")
+    .replace(/Vice[\s\-]*Presi[eêEÊ]ncia/gi, "Vice-Presidência")
+    .replace(/Vice[\s\-]*Presid[eê]ncia/gi, "Vice-Presidência");
+}
+function toSentenceCase(s: string): string {
+  const t = String(s ?? "").trim();
+  if (!t) return "";
+  const lower = t.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+function formatTipoRecursoList(parts: string[]): string {
+  return parts
+    .map(p => String(p ?? "").trim())
+    .filter(Boolean)
+    .map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .join(", ");
+}
+function cleanRelator(s: string): string {
+  return String(s ?? "")
+    .replace(/\b(Ministr[oa]s?)\b\.?/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+function parseDateAny(s: any): number {
+  const v = String(s ?? "").trim();
+  if (!v) return Number.POSITIVE_INFINITY;
+  const dm = v.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (dm) {
+    const y = +dm[3] < 100 ? 2000 + +dm[3] : +dm[3];
+    return Date.UTC(y, +dm[2] - 1, +dm[1]);
+  }
+  const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return Date.UTC(+iso[1], +iso[2] - 1, +iso[3]);
+  const t = Date.parse(v);
+  return isNaN(t) ? Number.POSITIVE_INFINITY : t;
+}
+
 function getValuesFromDado(d: DadoBenner): string[] {
   // IMPORTANTE: Todos os valores devem vir EXCLUSIVAMENTE do formulário
   // da aba "Dados Benner" / "Distribuição TST". Nunca usar fallback.
   const reclList = splitRecursoValues((d as any).tipo_recurso_reclamante);
   const bancoList = splitRecursoValues((d as any).tipo_recurso_banco);
-  const tipoRecurso = [...reclList, ...bancoList].join(", ");
+  const tipoRecurso = formatTipoRecursoList([...reclList, ...bancoList]);
   const midiaSN = d.risco_midia ? toSN(d.risco_midia) : "";
   const riscoDesc = cleanDadoBennerValue(d.risco_descricao);
   const bemAparelhado = !!d.recurso_bem_aparelhado;
@@ -125,9 +163,9 @@ function getValuesFromDado(d: DadoBenner): string[] {
     d.tribunal || "",
     tipoRecurso,
     formatDateForSpreadsheet(d.data_distribuicao),
-    d.turma || "",
-    d.relator || "",
-    cleanDadoBennerValue((d as any).decisao_quarteirizado),
+    fixVicePresidencia(d.turma || ""),
+    cleanRelator(d.relator || ""),
+    toSentenceCase(cleanDadoBennerValue((d as any).decisao_quarteirizado)),
     midiaSN,
     riscoDesc,
     d.provas_digitais ? toSN(d.provas_digitais) : "",
@@ -170,8 +208,12 @@ export async function gerarPlanilhaBenner(
   dados: DadoBenner[],
   mode: ExportModeBenner = "full"
 ): Promise<ResultadoGeracaoBenner> {
-  const validos = dados.filter(d => !isDossieInvalido(d.dossie));
-  const rejeitados = dados.filter(d => isDossieInvalido(d.dossie));
+  // Ordenação obrigatória: Data da Distribuição (menor para maior) antes de exportar
+  const dadosOrdenados = [...dados].sort(
+    (a, b) => parseDateAny(a.data_distribuicao) - parseDateAny(b.data_distribuicao)
+  );
+  const validos = dadosOrdenados.filter(d => !isDossieInvalido(d.dossie));
+  const rejeitados = dadosOrdenados.filter(d => isDossieInvalido(d.dossie));
 
   if (rejeitados.length > 0) {
     gerarPlanilhaRejeicoes(rejeitados);
