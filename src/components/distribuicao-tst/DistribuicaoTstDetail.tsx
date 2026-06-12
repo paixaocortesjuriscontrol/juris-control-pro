@@ -503,9 +503,6 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             >
               Distribuição TST
             </TabsTrigger>
-            {isAdminOrCoordinator && (
-              <TabsTrigger value="centralizadores" disabled={bennerDisabled}>Centralizadores</TabsTrigger>
-            )}
             <TabsTrigger
               value="benner"
               disabled={bennerDisabled}
@@ -513,14 +510,17 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             >
               Confere Benner
             </TabsTrigger>
-            {podeVerLogJudit && (
-              <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
-            )}
             <TabsTrigger value="analise-judit" disabled={bennerDisabled}>Análise Judit</TabsTrigger>
+            <TabsTrigger value="partes" disabled={bennerDisabled}>Partes do processo</TabsTrigger>
             {anexos && (
               <TabsTrigger value="anexos">Anexos ({anexos.length})</TabsTrigger>
             )}
-            <TabsTrigger value="partes" disabled={bennerDisabled}>Partes do processo</TabsTrigger>
+            {isAdminOrCoordinator && (
+              <TabsTrigger value="centralizadores" disabled={bennerDisabled}>Centralizadores</TabsTrigger>
+            )}
+            {podeVerLogJudit && (
+              <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
+            )}
           </TabsList>
           <div className="flex items-center gap-3">
             <label
