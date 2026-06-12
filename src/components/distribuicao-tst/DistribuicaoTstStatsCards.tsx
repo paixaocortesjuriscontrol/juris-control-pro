@@ -56,24 +56,20 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "ate2025", label: "Até 2025", value: stats.ate2025, className: "from-sky-50 to-sky-100 dark:from-sky-950/50 dark:to-sky-900/30 border-sky-200 dark:border-sky-800", textClass: "text-sky-600 dark:text-sky-400" },
     // Roxos / Violeta
     { key: "processosUnicos", label: "Processos Únicos", value: stats.processosUnicos, className: "from-indigo-50 to-indigo-100 dark:from-indigo-950/50 dark:to-indigo-900/30 border-indigo-200 dark:border-indigo-800", textClass: "text-indigo-600 dark:text-indigo-400" },
-    { key: "juditPreenchido", label: "Preenchido Judit", value: stats.juditPreenchido, className: "from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/30 border-purple-200 dark:border-purple-800", textClass: "text-purple-600 dark:text-purple-400" },
+    { key: "juditPreenchido", label: "Judit Preenchido / Não", value: stats.juditPreenchido, className: "from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/30 border-purple-200 dark:border-purple-800", textClass: "text-purple-600 dark:text-purple-400" },
     { key: "de2026", label: "2026 em diante", value: stats.de2026, className: "from-violet-50 to-violet-100 dark:from-violet-950/50 dark:to-violet-900/30 border-violet-200 dark:border-violet-800", textClass: "text-violet-600 dark:text-violet-400" },
     // Verdes
     { key: "processosValidos", label: "Processos Válidos", value: stats.processosValidos, className: "from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800", textClass: "text-emerald-600 dark:text-emerald-400" },
-    { key: "dossiesValidos", label: "Dossiês Válidos", value: stats.dossiesValidos, className: "from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800", textClass: "text-emerald-600 dark:text-emerald-400" },
+    { key: "dossiesValidos", label: "Dossiês Válidos / Inválidos", value: stats.dossiesValidos, className: "from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800", textClass: "text-emerald-600 dark:text-emerald-400" },
     { key: "processosAtivos", label: "Processos Ativos", value: stats.processosAtivos, className: "from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/30 border-green-200 dark:border-green-800", textClass: "text-green-600 dark:text-green-400" },
-    { key: "comEquipe", label: "Com Equipe", value: stats.comEquipe, className: "from-lime-50 to-lime-100 dark:from-lime-950/50 dark:to-lime-900/30 border-lime-200 dark:border-lime-800", textClass: "text-lime-700 dark:text-lime-400" },
+    { key: "comEquipe", label: "Com / Sem Equipe", value: stats.comEquipe, className: "from-lime-50 to-lime-100 dark:from-lime-950/50 dark:to-lime-900/30 border-lime-200 dark:border-lime-800", textClass: "text-lime-700 dark:text-lime-400" },
     // Amarelos / Laranja
     { key: "transitoJulgado", label: "Trânsito em Julgado", value: stats.transitoJulgado, className: "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800", textClass: "text-amber-600 dark:text-amber-400" },
     { key: "problemaJudit", label: "Problema Judit", value: stats.problemaJudit, className: "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800", textClass: "text-amber-700 dark:text-amber-400" },
-    // Neutros
-    { key: "juditNaoPreenchido", label: "Não Preenchidos Judit", value: stats.juditNaoPreenchido, className: "from-slate-50 to-slate-100 dark:from-slate-950/50 dark:to-slate-900/30 border-slate-200 dark:border-slate-800", textClass: "text-slate-600 dark:text-slate-400" },
     // Vermelhos / Rosas (última fileira)
     { key: "processosInvalidos", label: "Processos Inválidos", value: stats.processosInvalidos, className: "from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/30 border-rose-200 dark:border-rose-800", textClass: "text-rose-600 dark:text-rose-400" },
-    { key: "dossiesInvalidos", label: "Dossiês Inválidos/Não Localizados", value: stats.dossiesInvalidos + stats.dossiesNaoPreenchidos, className: "from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/30 border-rose-200 dark:border-rose-800", textClass: "text-rose-600 dark:text-rose-400" },
     { key: "semTurma", label: "Sem Turma", value: stats.semTurma, className: "from-pink-50 to-pink-100 dark:from-pink-950/50 dark:to-pink-900/30 border-pink-200 dark:border-pink-800", textClass: "text-pink-600 dark:text-pink-400" },
     { key: "semResponsavel", label: "Sem Responsável", value: stats.semResponsavel, className: "from-red-50 to-red-100 dark:from-red-950/50 dark:to-red-900/30 border-red-200 dark:border-red-800", textClass: "text-red-600 dark:text-red-400" },
-    { key: "semEquipe", label: "Sem Equipe", value: stats.semEquipe, className: "from-fuchsia-50 to-fuchsia-100 dark:from-fuchsia-950/50 dark:to-fuchsia-900/30 border-fuchsia-200 dark:border-fuchsia-800", textClass: "text-fuchsia-700 dark:text-fuchsia-400" },
   ];
 
   return (
