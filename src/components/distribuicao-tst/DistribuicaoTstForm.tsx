@@ -357,6 +357,19 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   // "salvou com sucesso" mas os campos Benner voltavam vazios quando a
   // advogada editava/salvava antes da carga em segundo plano concluir).
   const bennerDirtyRef = useRef<Set<string>>(new Set());
+  // Refs-espelho SEMPRE atualizados a cada render. O botão "Salvar" do menu
+  // esquerdo chama handleSave via useImperativeHandle, cujas dependências não
+  // incluem bennerExtra — sem estes refs, o save rodava com uma closure
+  // CONGELADA dos campos Benner (valores antigos) e o diff saía vazio,
+  // descartando silenciosamente o que a advogada digitou.
+  const bennerExtraRef = useRef<Record<string, any>>(bennerExtra);
+  bennerExtraRef.current = bennerExtra;
+  const bennerExtraInitialRef = useRef<Record<string, any>>(bennerExtraInitial);
+  bennerExtraInitialRef.current = bennerExtraInitial;
+  const bennerExtraLoadedRef = useRef<boolean>(bennerExtraLoaded);
+  bennerExtraLoadedRef.current = bennerExtraLoaded;
+  const bennerDadoRef = useRef<any>(bennerDado);
+  bennerDadoRef.current = bennerDado;
   useEffect(() => {
     if (bennerDado) {
       const initial = buildBennerExtra(bennerDado);
@@ -925,12 +938,17 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     const buildBennerDiff = (): Record<string, any> | null => {
       const diff: Record<string, any> = {};
       const norm = (v: any) => (v === undefined || v === "" ? null : v);
+      // Lê SEMPRE dos refs (valores atuais), nunca da closure — o save pode
+      // ser disparado pelo botão externo via ref imperativa com closure velha.
+      const extra = bennerExtraRef.current;
+      const extraInitial = bennerExtraInitialRef.current;
+      const extraLoaded = bennerExtraLoadedRef.current;
       for (const k of bennerDirtyRef.current) {
-        const cur = (bennerExtra as any)[k];
+        const cur = (extra as any)[k];
         // Se a carga inicial concluiu, pula campos que voltaram ao valor
         // original; sem carga concluída, persiste tudo que foi tocado.
-        if (bennerExtraLoaded) {
-          const prev = (bennerExtraInitial as any)[k];
+        if (extraLoaded) {
+          const prev = (extraInitial as any)[k];
           if (norm(cur) === norm(prev)) continue;
         }
         diff[k] = norm(cur);
@@ -938,6 +956,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       return Object.keys(diff).length > 0 ? diff : null;
     };
     const bennerDiff = buildBennerDiff();
+    console.log("[DistribuicaoTST save]", {
+      id: dado?.id,
+      camposTocados: Array.from(bennerDirtyRef.current),
+      bennerDiff,
+    });
 
     // IMPORTANTE: persistir PRIMEIRO os campos exclusivos do Dados Benner
     // (Análise/Risco, Julgamento, Resultado, etc.) e SÓ DEPOIS salvar a
@@ -946,7 +969,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     // depois, o form remonta com a snapshot anterior do bennerDado e a UI
     // mostra os valores antigos (parecendo que a alteração não foi salva),
     // mesmo com o banco já atualizado na sequência.
-    const extraTargetId = (bennerDado as any)?.id || dado?.id;
+    const extraTargetId = (bennerDadoRef.current as any)?.id || dado?.id;
     if (onSaveBennerExtra && extraTargetId && bennerDiff) {
       try {
         await onSaveBennerExtra(bennerDiff, extraTargetId);
