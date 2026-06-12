@@ -1155,7 +1155,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Tema</Label>
+              <Label>Tema IRR</Label>
               <Input value={form.tema || ""} onChange={e => set("tema", e.target.value)} />
             </div>
             <div className="space-y-2">
@@ -1198,12 +1198,15 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <Label>Decisão - Análise do Quarteirizado</Label>
             {(() => {
               const OPCOES_QUARTEIRIZADO = [
+                "Acordo",
+                "Arquivado",
                 "Desistir - Falha Processual",
                 "Desistir - Fatos e Provas",
                 "Desistir - Jurisprudência consolidada",
                 "Desistir - Mídia Negativa",
                 "Desistir - Súmula 266 C.TST",
                 "Prosseguir",
+                "Sobrestamento",
               ];
               const valor = form.decisao_quarteirizado || "";
               const isPredef = OPCOES_QUARTEIRIZADO.includes(valor);
