@@ -351,17 +351,31 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   // banco. Antes disso, NUNCA persistir (evita salvar tudo nulo e apagar
   // valores existentes em dados_benner numa race condition).
   const [bennerExtraLoaded, setBennerExtraLoaded] = useState<boolean>(!!bennerDado);
+  // Campos que o usuário REALMENTE tocou nesta sessão de edição. É a fonte
+  // da verdade do save: o que está aqui é persistido SEMPRE, mesmo que o
+  // `bennerDado` ainda não tenha terminado de carregar (corrige o bug de
+  // "salvou com sucesso" mas os campos Benner voltavam vazios quando a
+  // advogada editava/salvava antes da carga em segundo plano concluir).
+  const bennerDirtyRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (bennerDado) {
       const initial = buildBennerExtra(bennerDado);
-      setBennerExtra(initial);
+      // NUNCA sobrescrever o que o usuário já digitou: mescla a carga do
+      // banco preservando os campos marcados como "dirty".
+      setBennerExtra((prev) => {
+        const next = { ...initial };
+        for (const k of bennerDirtyRef.current) next[k] = (prev as any)[k];
+        return next;
+      });
       setBennerExtraInitial(initial);
       setBennerExtraLoaded(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bennerDado?.id]);
-  const setExtra = (field: string, value: any) =>
+  const setExtra = (field: string, value: any) => {
+    bennerDirtyRef.current.add(field);
     setBennerExtra((prev) => ({ ...prev, [field]: value }));
+  };
 
   // Destaque verde "Judit" quando o registro foi preenchido pela Judit e o campo tem valor.
   const isJuditFilled = (value: any) =>
