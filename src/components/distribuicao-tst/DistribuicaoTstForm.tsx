@@ -299,6 +299,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Marca os campos preenchidos pela IA a partir dos anexos.
   const [iaFields, setIaFields] = useState<Set<string>>(new Set());
+  const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
 
   // Destaque verde "Judit" quando o registro foi preenchido pela Judit e o campo tem valor.
   const isJuditFilled = (value: any) =>
