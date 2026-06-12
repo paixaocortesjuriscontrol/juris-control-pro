@@ -81,6 +81,57 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
       {cards.map((c) => {
         const isActive = activeKey === c.key;
         const clickable = !!onCardClick;
+        if (c.key === "bennerSim") {
+          const simActive = activeKey === "bennerSim";
+          const naoActive = activeKey === "bennerNao";
+          return (
+            <Card
+              key="bennerCombined"
+              className={cn(
+                "bg-gradient-to-br transition-all",
+                "from-cyan-50 to-orange-50 dark:from-cyan-950/40 dark:to-orange-950/40 border-cyan-200 dark:border-cyan-800",
+                (simActive || naoActive) && "ring-2 ring-primary ring-offset-1"
+              )}
+              title="Clique nos números para filtrar"
+            >
+              <CardContent className="p-2">
+                <p className="text-[10px] md:text-[11px] font-medium truncate leading-tight text-cyan-700 dark:text-cyan-400" title="Benner Enviado / Não Enviado">
+                  Benner Enviado / Não
+                </p>
+                <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => onCardClick?.("bennerSim")}
+                    className={cn(
+                      "flex items-baseline gap-1 cursor-pointer hover:opacity-80 transition-opacity",
+                      simActive && "underline"
+                    )}
+                    title="Filtrar Benner Enviado"
+                  >
+                    <span className="text-base md:text-lg font-bold leading-tight text-cyan-700 dark:text-cyan-400 tabular-nums">
+                      {loading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : stats.bennerSim.toLocaleString("pt-BR")}
+                    </span>
+                    <span className="text-[9px] text-cyan-700/70 dark:text-cyan-400/70">sim</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onCardClick?.("bennerNao")}
+                    className={cn(
+                      "flex items-baseline gap-1 cursor-pointer hover:opacity-80 transition-opacity",
+                      naoActive && "underline"
+                    )}
+                    title="Filtrar Benner Não Enviado"
+                  >
+                    <span className="text-base md:text-lg font-bold leading-tight text-orange-700 dark:text-orange-400 tabular-nums">
+                      {loading ? "" : stats.bennerNao.toLocaleString("pt-BR")}
+                    </span>
+                    <span className="text-[9px] text-orange-700/70 dark:text-orange-400/70">não</span>
+                  </button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        }
         const cardNode = (
           <Card
             key={c.key}
