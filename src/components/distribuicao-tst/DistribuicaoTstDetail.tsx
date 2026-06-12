@@ -297,10 +297,11 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         const result = await formRef.current.save({ silent: true });
         saved = !!result || saved;
       }
-      if (tab === "benner" && bennerFormRef.current) {
-        const result = await bennerFormRef.current.save({ silent: true });
-        saved = !!result || saved;
-      }
+      // A aba "Dados Benner" agora é somente conferência (read-only). A edição
+      // dos campos Benner foi unificada na aba "Distribuição TST". Por isso não
+      // disparamos save no bennerFormRef quando essa aba está ativa — os
+      // switches do header (Pronto, Trânsito, etc.) continuam sendo persistidos
+      // logo abaixo.
       // Persiste o switch "Pronto para Enviar" diretamente em dados_benner se alterado
       // (independente da aba ativa), para que o estado fique consistente em qualquer aba.
       // Só mexe no status se ele estiver em um dos estados controlados pelo switch
