@@ -2120,6 +2120,21 @@ export default function DistribuicaoTst() {
                                   Segredo de Justiça
                                 </Badge>
                               )}
+                              {isProblemaJudit && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-amber-500 hover:bg-amber-500 text-white" title="Problema Judit">
+                                  Problema Judit
+                                </Badge>
+                              )}
+                              {isRecursoTerceiro && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-indigo-600 hover:bg-indigo-600 text-white" title="Recurso de terceiro">
+                                  Recurso de terceiro
+                                </Badge>
+                              )}
+                              {isCejusc && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-teal-600 hover:bg-teal-600 text-white" title="CEJUSC">
+                                  CEJUSC
+                                </Badge>
+                              )}
                             </div>
                             {isAdminOrCoordinator && (
                               <div className="mt-1">
@@ -2177,6 +2192,21 @@ export default function DistribuicaoTst() {
                           {isSegredo && (
                             <Badge className="text-[10px] px-1 py-0 h-4 bg-rose-600 hover:bg-rose-600 text-white" title="Segredo de Justiça">
                               Segredo de Justiça
+                            </Badge>
+                          )}
+                          {isProblemaJudit && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-amber-500 hover:bg-amber-500 text-white" title="Problema Judit">
+                              Problema Judit
+                            </Badge>
+                          )}
+                          {isRecursoTerceiro && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-indigo-600 hover:bg-indigo-600 text-white" title="Recurso de terceiro">
+                              Recurso de terceiro
+                            </Badge>
+                          )}
+                          {isCejusc && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-teal-600 hover:bg-teal-600 text-white" title="CEJUSC">
+                              CEJUSC
                             </Badge>
                           )}
                         </div>
