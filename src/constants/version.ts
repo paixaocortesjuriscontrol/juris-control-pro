@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "2.1";
+export const APP_VERSION = "2.2";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -14,4 +14,5 @@ export const VERSION_HISTORY = [
   { version: "1.0.8", date: "2026-05-04", notes: "Comentários de coordenação em publicações DJEN (UI + relatórios PDF/DOC)" },
   { version: "2.0", date: "2026-05-29", notes: "Marco 2.0: auto-save por aba, controles de acesso refinados em Distribuição TST" },
   { version: "2.1", date: "2026-06-12", notes: "Tags de status (Problema Judit, Segredo, Recurso de terceiro, CEJUSC) na lista de Distribuição TST" },
+  { version: "2.2", date: "2026-06-12", notes: "Cards de stats unificados em Distribuição TST (Benner, Judit, Equipe, Dossiês)" },
 ];
