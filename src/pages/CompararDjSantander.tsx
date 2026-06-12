@@ -123,11 +123,21 @@ function classificarTiposPorTitulo(texto: string): TipoCounts {
     } else if (/Lista\s+de\s+Distribui[cç][aã]o/i.test(corpoCompleto)) {
       distribuicao++;
       if (cnjFormatado) distribuicaoList.push(cnjFormatado);
-    } else if (!temCejusc && /Pauta\s+de\s+Julgamento/i.test(corpoCompleto)) {
-      pauta++;
-      if (cnjFormatado) pautaList.push(cnjFormatado);
     } else {
-      outros++;
+      // Acórdãos do TST podem trazer "PAUTA DE JULGAMENTO (ÍNTEGRA)" no
+      // cabeçalho; ignoramos PAUTA quando o bloco tem marcadores de acórdão.
+      const corpoSemAcento = corpoCompleto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const ehAcordao =
+        /\bACORDAM\b/i.test(corpoSemAcento) ||
+        /A\s*C\s*O\s*R\s*D\s*A\s*O/i.test(corpoSemAcento) ||
+        /\bEMENTA\b/i.test(corpoSemAcento) ||
+        /\bV\s*O\s*T\s*O\b/i.test(corpoSemAcento);
+      if (!temCejusc && !ehAcordao && /Pauta\s+de\s+Julgamento/i.test(corpoCompleto)) {
+        pauta++;
+        if (cnjFormatado) pautaList.push(cnjFormatado);
+      } else {
+        outros++;
+      }
     }
   }
 
