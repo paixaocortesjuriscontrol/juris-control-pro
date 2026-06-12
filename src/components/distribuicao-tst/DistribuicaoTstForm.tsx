@@ -1,4 +1,4 @@
-import { useState, useEffect, forwardRef, useImperativeHandle } from "react";
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -351,17 +351,31 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   // banco. Antes disso, NUNCA persistir (evita salvar tudo nulo e apagar
   // valores existentes em dados_benner numa race condition).
   const [bennerExtraLoaded, setBennerExtraLoaded] = useState<boolean>(!!bennerDado);
+  // Campos que o usuário REALMENTE tocou nesta sessão de edição. É a fonte
+  // da verdade do save: o que está aqui é persistido SEMPRE, mesmo que o
+  // `bennerDado` ainda não tenha terminado de carregar (corrige o bug de
+  // "salvou com sucesso" mas os campos Benner voltavam vazios quando a
+  // advogada editava/salvava antes da carga em segundo plano concluir).
+  const bennerDirtyRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (bennerDado) {
       const initial = buildBennerExtra(bennerDado);
-      setBennerExtra(initial);
+      // NUNCA sobrescrever o que o usuário já digitou: mescla a carga do
+      // banco preservando os campos marcados como "dirty".
+      setBennerExtra((prev) => {
+        const next = { ...initial };
+        for (const k of bennerDirtyRef.current) next[k] = (prev as any)[k];
+        return next;
+      });
       setBennerExtraInitial(initial);
       setBennerExtraLoaded(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bennerDado?.id]);
-  const setExtra = (field: string, value: any) =>
+  const setExtra = (field: string, value: any) => {
+    bennerDirtyRef.current.add(field);
     setBennerExtra((prev) => ({ ...prev, [field]: value }));
+  };
 
   // Destaque verde "Judit" quando o registro foi preenchido pela Judit e o campo tem valor.
   const isJuditFilled = (value: any) =>
@@ -904,18 +918,22 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           judit_preenchido_em: new Date().toISOString(),
         }
       : payloadBase;
-    // Computa o diff dos campos Benner unificados: só envia o que mudou em
-    // relação ao snapshot inicial carregado do banco. Nunca persistir antes
-    // de ter carregado de fato (`bennerExtraLoaded`) — caso contrário todos
-    // os campos não editados iriam como NULL e apagariam dados existentes.
+    // Computa o diff dos campos Benner unificados: envia SOMENTE os campos
+    // que o usuário tocou nesta sessão (dirty). Isso é seguro mesmo que o
+    // registro Benner ainda não tenha terminado de carregar em segundo plano
+    // — campos não tocados nunca entram no patch, então nada é apagado.
     const buildBennerDiff = (): Record<string, any> | null => {
-      if (!bennerExtraLoaded) return null;
       const diff: Record<string, any> = {};
-      for (const k of BENNER_EXTRA_FIELDS) {
+      const norm = (v: any) => (v === undefined || v === "" ? null : v);
+      for (const k of bennerDirtyRef.current) {
         const cur = (bennerExtra as any)[k];
-        const prev = (bennerExtraInitial as any)[k];
-        const norm = (v: any) => (v === undefined || v === "" ? null : v);
-        if (norm(cur) !== norm(prev)) diff[k] = norm(cur);
+        // Se a carga inicial concluiu, pula campos que voltaram ao valor
+        // original; sem carga concluída, persiste tudo que foi tocado.
+        if (bennerExtraLoaded) {
+          const prev = (bennerExtraInitial as any)[k];
+          if (norm(cur) === norm(prev)) continue;
+        }
+        diff[k] = norm(cur);
       }
       return Object.keys(diff).length > 0 ? diff : null;
     };
