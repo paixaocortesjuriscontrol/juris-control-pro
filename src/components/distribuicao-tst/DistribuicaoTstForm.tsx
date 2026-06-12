@@ -956,6 +956,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       return Object.keys(diff).length > 0 ? diff : null;
     };
     const bennerDiff = buildBennerDiff();
+    console.log("[DistribuicaoTST save]", {
+      id: dado?.id,
+      camposTocados: Array.from(bennerDirtyRef.current),
+      bennerDiff,
+    });
 
     // IMPORTANTE: persistir PRIMEIRO os campos exclusivos do Dados Benner
     // (Análise/Risco, Julgamento, Resultado, etc.) e SÓ DEPOIS salvar a
