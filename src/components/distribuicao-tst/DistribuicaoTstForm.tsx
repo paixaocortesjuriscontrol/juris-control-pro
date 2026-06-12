@@ -950,6 +950,19 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator", form.relator))}>
               <Label className="flex items-center">Relator <JuditBadge show={isJuditFilled(form.relator)} /><IaBadge field="relator" value={form.relator} /></Label>
               <RelatorTurmaCombo tipo="relator" value={form.relator} onChange={(v) => set("relator", v)} />
+              {(() => {
+                const r = classificarRelatorDB(form.relator as any, relatoresTst);
+                if (!r) return null;
+                const c = r.classificacao;
+                const cls = c === "POSITIVO" ? "bg-green-100 text-green-800 border-green-300"
+                  : c === "NEGATIVO" ? "bg-red-100 text-red-800 border-red-300"
+                  : "bg-amber-100 text-amber-800 border-amber-300";
+                return (
+                  <Badge className={cn("border", cls)}>
+                    Classificação: {c}{r.relator.observacao ? " ⚠" : ""}
+                  </Badge>
+                );
+              })()}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator_favorabilidade", form.relator_favorabilidade))}>
               <Label className="flex items-center">Relator (+ ou -) <JuditBadge show={isJuditFilled(form.relator_favorabilidade)} /><IaBadge field="relator_favorabilidade" value={form.relator_favorabilidade} /></Label>
@@ -967,6 +980,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma", form.turma))}>
               <Label className="flex items-center">Turma <JuditBadge show={isJuditFilled(form.turma)} /><IaBadge field="turma" value={form.turma} /></Label>
               <RelatorTurmaCombo tipo="turma" value={form.turma} onChange={(v) => set("turma", v)} />
+              {(() => {
+                const c = classificarTurmaDB(form.turma as any, turmasTst);
+                if (!c) return null;
+                const cls = c === "POSITIVO" ? "bg-green-100 text-green-800 border-green-300"
+                  : c === "NEGATIVO" ? "bg-red-100 text-red-800 border-red-300"
+                  : "bg-amber-100 text-amber-800 border-amber-300";
+                return <Badge className={cn("border", cls)}>Classificação: {c}</Badge>;
+              })()}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma_favorabilidade", form.turma_favorabilidade))}>
               <Label className="flex items-center">Turma (+ ou -) <JuditBadge show={isJuditFilled(form.turma_favorabilidade)} /><IaBadge field="turma_favorabilidade" value={form.turma_favorabilidade} /></Label>
