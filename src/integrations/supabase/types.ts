@@ -1664,6 +1664,7 @@ export type Database = {
           assunto: string | null
           benner_atualizado: boolean | null
           categoria: string | null
+          cejusc: boolean | null
           centralizador: string | null
           chance_exito: string | null
           chance_exito_banco: string | null
@@ -1730,6 +1731,7 @@ export type Database = {
           recorrente: string | null
           recurso_bem_aparelhado: boolean | null
           recurso_mal_aparelhado: boolean | null
+          recurso_terceiro: boolean | null
           recurso_terceiros: string | null
           relator: string | null
           resultado_conhecido_nao_provido: boolean | null
@@ -1774,6 +1776,7 @@ export type Database = {
           assunto?: string | null
           benner_atualizado?: boolean | null
           categoria?: string | null
+          cejusc?: boolean | null
           centralizador?: string | null
           chance_exito?: string | null
           chance_exito_banco?: string | null
@@ -1840,6 +1843,7 @@ export type Database = {
           recorrente?: string | null
           recurso_bem_aparelhado?: boolean | null
           recurso_mal_aparelhado?: boolean | null
+          recurso_terceiro?: boolean | null
           recurso_terceiros?: string | null
           relator?: string | null
           resultado_conhecido_nao_provido?: boolean | null
@@ -1884,6 +1888,7 @@ export type Database = {
           assunto?: string | null
           benner_atualizado?: boolean | null
           categoria?: string | null
+          cejusc?: boolean | null
           centralizador?: string | null
           chance_exito?: string | null
           chance_exito_banco?: string | null
@@ -1950,6 +1955,7 @@ export type Database = {
           recorrente?: string | null
           recurso_bem_aparelhado?: boolean | null
           recurso_mal_aparelhado?: boolean | null
+          recurso_terceiro?: boolean | null
           recurso_terceiros?: string | null
           relator?: string | null
           resultado_conhecido_nao_provido?: boolean | null
@@ -7750,6 +7756,7 @@ export type Database = {
       get_distribuicao_tst_stats: {
         Args: { filters?: Json }
         Returns: {
+          a_fazer: number
           ate_2025: number
           benner_nao: number
           benner_sim: number
