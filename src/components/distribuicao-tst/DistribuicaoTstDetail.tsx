@@ -501,7 +501,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             {isAdminOrCoordinator && (
               <TabsTrigger value="centralizadores" disabled={bennerDisabled}>Centralizadores</TabsTrigger>
             )}
-            <TabsTrigger value="benner" disabled={bennerDisabled}>Dados Benner</TabsTrigger>
+            <TabsTrigger value="benner" disabled={bennerDisabled}>Confere Benner</TabsTrigger>
             {podeVerLogJudit && (
               <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
             )}

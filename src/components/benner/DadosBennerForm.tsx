@@ -884,13 +884,26 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
 
   return (
     <div className={cn("space-y-6", readOnly && "pointer-events-none select-none opacity-95")}>
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={onCancel}><ArrowLeft className="w-5 h-5" /></Button>
-        <h2 className="text-xl font-bold text-foreground">{dado ? "Editar Registro" : "Novo Registro"}</h2>
-        {readOnly && (
-          <span className="ml-2 text-xs uppercase tracking-wide text-muted-foreground bg-muted px-2 py-1 rounded">Somente conferência</span>
-        )}
-      </div>
+      {!readOnly && (
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={onCancel}><ArrowLeft className="w-5 h-5" /></Button>
+          <h2 className="text-xl font-bold text-foreground">{dado ? "Editar Registro" : "Novo Registro"}</h2>
+        </div>
+      )}
+      {readOnly && (
+        <div className="sticky top-0 z-10 border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 dark:border-emerald-800 text-emerald-900 dark:text-emerald-100 rounded-lg p-3 shadow-sm">
+          <div className="flex items-start gap-2">
+            <CheckCircle2 className="w-5 h-5 mt-0.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div className="text-sm leading-snug">
+              <div className="font-semibold uppercase tracking-wide text-xs text-emerald-700 dark:text-emerald-300 mb-0.5">
+                Somente conferência
+              </div>
+              Esta aba serve apenas para conferir os dados que serão enviados para o Benner.
+              Todo o preenchimento deve ser realizado na aba <strong>Distribuição TST</strong>.
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SEÇÃO RECURSO - Azul */}
       <div className="border border-border rounded-lg overflow-hidden">
