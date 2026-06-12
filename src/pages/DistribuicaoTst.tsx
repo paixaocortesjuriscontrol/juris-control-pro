@@ -1225,7 +1225,7 @@ export default function DistribuicaoTst() {
   if (showForm || editando) {
     return (
       <MainLayout title="Distribuição TST">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-7xl mx-auto px-2">
           <DistribuicaoTstDetail
             dado={editando}
             initialTab={detailInitialTab}
