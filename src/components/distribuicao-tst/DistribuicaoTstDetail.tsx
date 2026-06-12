@@ -608,12 +608,17 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             onSaveBennerExtra={async (patch, id) => {
               const targetId = id || (bennerDado as any)?.id || currentDado?.id;
               if (!targetId) return false;
-              const { error } = await supabase
+              const { data: updRows, error } = await supabase
                 .from("dados_benner" as any)
                 .update(patch as any)
-                .eq("id", targetId);
+                .eq("id", targetId)
+                .select("id");
               if (error) {
                 toast.error("Erro ao salvar campos Benner: " + error.message);
+                return false;
+              }
+              if (!updRows || (updRows as any[]).length === 0) {
+                toast.error("Os campos Benner não foram salvos: registro não encontrado ou sem permissão.");
                 return false;
               }
               setBennerLoaded(false);
