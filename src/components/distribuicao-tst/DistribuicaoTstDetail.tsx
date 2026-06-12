@@ -509,6 +509,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             {anexos && (
               <TabsTrigger value="anexos">Anexos ({anexos.length})</TabsTrigger>
             )}
+            <TabsTrigger value="partes" disabled={bennerDisabled}>Partes do processo</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-3">
             <label
