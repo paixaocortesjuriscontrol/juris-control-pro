@@ -720,6 +720,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           />
         </TabsContent>
       </Tabs>
+        </div>
+      </div>
     </div>
   );
 }
