@@ -116,6 +116,50 @@ function toSN(val: string): string {
   return val;
 }
 
+// Normalizações de saída solicitadas pela advogada:
+// 1) "Vice-Presiência" / variantes -> "Vice-Presidência"
+// 2) "Análise do quarteirizado" só com a primeira letra maiúscula
+// 3) "Tipo de Recurso" cada item só com a primeira letra maiúscula
+// 4) "Relator" sem a palavra "Ministro/Ministra"
+function fixVicePresidencia(s: string): string {
+  return String(s ?? "")
+    .replace(/Vice[\s\-]*Presi[eêEÊ]ncia/gi, "Vice-Presidência")
+    .replace(/Vice[\s\-]*Presid[eê]ncia/gi, "Vice-Presidência");
+}
+function toSentenceCase(s: string): string {
+  const t = String(s ?? "").trim();
+  if (!t) return "";
+  const lower = t.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+function formatTipoRecurso(s: string): string {
+  return String(s ?? "")
+    .split(",")
+    .map(p => p.trim())
+    .filter(Boolean)
+    .map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .join(", ");
+}
+function cleanRelator(s: string): string {
+  return String(s ?? "")
+    .replace(/\b(Ministr[oa]s?)\b\.?/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+function parseDateAny(s: any): number {
+  const v = String(s ?? "").trim();
+  if (!v) return Number.POSITIVE_INFINITY;
+  const dm = v.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (dm) {
+    const y = +dm[3] < 100 ? 2000 + +dm[3] : +dm[3];
+    return Date.UTC(y, +dm[2] - 1, +dm[1]);
+  }
+  const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return Date.UTC(+iso[1], +iso[2] - 1, +iso[3]);
+  const t = Date.parse(v);
+  return isNaN(t) ? Number.POSITIVE_INFINITY : t;
+}
+
 function getTimestamp() {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}-${String(n.getDate()).padStart(2,"0")}_${String(n.getHours()).padStart(2,"0")}${String(n.getMinutes()).padStart(2,"0")}`;
@@ -307,6 +351,9 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
 
       if (allDist.length === 0) throw new Error("Nenhuma distribuição encontrada no banco");
 
+      // Ordenação obrigatória: Data da Distribuição no TST/STF (menor para maior)
+      allDist.sort((a, b) => parseDateAny(a.data_distribuicao) - parseDateAny(b.data_distribuicao));
+
       setProgress(50);
       setPhase("Gerando Layout Carga exclusivamente com Dados Benner...");
 
@@ -366,14 +413,14 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         const outRow: Record<string, any> = {};
         outRow[LAYOUT_COLS[0]] = dossie;
         outRow[LAYOUT_COLS[1]] = String(d.tribunal ?? "").trim();
-        outRow[LAYOUT_COLS[2]] = [
+        outRow[LAYOUT_COLS[2]] = formatTipoRecurso([
           ...splitRecursoValues((d as any).tipo_recurso_reclamante),
           ...splitRecursoValues((d as any).tipo_recurso_banco),
-        ].join(", ");
+        ].join(", "));
         outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(d.data_distribuicao);
-        outRow[LAYOUT_COLS[4]] = turmaRaw;
-        outRow[LAYOUT_COLS[5]] = String(d.relator ?? "").trim();
-        outRow[LAYOUT_COLS[6]] = String(d.decisao_quarteirizado ?? "").trim();
+        outRow[LAYOUT_COLS[4]] = fixVicePresidencia(turmaRaw);
+        outRow[LAYOUT_COLS[5]] = cleanRelator(String(d.relator ?? "").trim());
+        outRow[LAYOUT_COLS[6]] = toSentenceCase(String(d.decisao_quarteirizado ?? "").trim());
         // Fallback entre colunas equivalentes: a tela Distribuição TST grava
         // em `midia_negativa`/`honra` (campos antigos) E a aba Dados Benner
         // grava em `risco_midia`/`materia_honra` (campos extras). Considerar
