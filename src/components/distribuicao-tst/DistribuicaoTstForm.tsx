@@ -307,6 +307,47 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   const [iaFields, setIaFields] = useState<Set<string>>(new Set());
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
 
+  // ============================================================
+  // Campos exclusivos da tabela `dados_benner` (unificados nesta aba).
+  // Carregados de `bennerDado` e persistidos via `onSaveBennerExtra`.
+  // ============================================================
+  const BENNER_EXTRA_FIELDS = [
+    "analise_quarteirizado",
+    "risco_midia",
+    "risco_descricao",
+    "provas_digitais",
+    "materia_honra",
+    "tem_data_julgamento",
+    "data_julgamento",
+    "horario_julgamento",
+    "tipo_julgamento",
+    "entrega_memoriais",
+    "sustentacao_oral",
+    "resultado_sem_transcendencia",
+    "resultado_nao_conhecido",
+    "resultado_conhecido_provido",
+    "resultado_conhecido_nao_provido",
+    "resultado_outra",
+    "observacoes",
+    "notas",
+    "ganhamos",
+    "perdemos",
+    "processo_baixado",
+    "chance_exito",
+  ] as const;
+  const buildBennerExtra = (src: any | null | undefined): Record<string, any> => {
+    const out: Record<string, any> = {};
+    for (const k of BENNER_EXTRA_FIELDS) out[k] = src ? (src as any)[k] ?? null : null;
+    return out;
+  };
+  const [bennerExtra, setBennerExtra] = useState<Record<string, any>>(() => buildBennerExtra(bennerDado));
+  useEffect(() => {
+    setBennerExtra(buildBennerExtra(bennerDado));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bennerDado?.id]);
+  const setExtra = (field: string, value: any) =>
+    setBennerExtra((prev) => ({ ...prev, [field]: value }));
+
   // Destaque verde "Judit" quando o registro foi preenchido pela Judit e o campo tem valor.
   const isJuditFilled = (value: any) =>
     (!!dado?.judit_preenchido || juditSessionFields.size > 0) && !!(value && String(value).trim());
