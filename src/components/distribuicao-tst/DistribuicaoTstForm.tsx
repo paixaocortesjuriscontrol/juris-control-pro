@@ -299,6 +299,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Marca os campos preenchidos pela IA a partir dos anexos.
   const [iaFields, setIaFields] = useState<Set<string>>(new Set());
+  const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
 
   // Destaque verde "Judit" quando o registro foi preenchido pela Judit e o campo tem valor.
   const isJuditFilled = (value: any) =>
@@ -643,6 +644,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             filled.add(field);
           }
         };
+        // Para Tipo de Recurso, a Judit é fonte ÚNICA: quando não confirma,
+        // o valor antigo é APAGADO (sem fallback DataJud / classe da capa).
+        const applyJuditOnly = (field: string, novo: any) => {
+          const val = hasValue(novo) ? novo : null;
+          next[field] = val;
+          if (val) filled.add(field); else filled.delete(field);
+        };
         apply("dossie", data.dossie);
         apply("data_distribuicao_real", data.data_distribuicao);
         apply("relator", data.relator);
@@ -666,13 +674,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           "parte_recorrente",
           normalizarParteRecorrente(data.recorrente, reclamanteJudit, reclamadaJudit),
         );
-        // Tipo de recurso: vem direto da CLASSE da capa (ex.: "Recurso de Revista").
-        // Sem heurística por movimentos. Se a Judit não trouxer, não preenche
-        // nem apaga — usuário escolhe manualmente.
-        apply("tipo_recurso", normalizarTipoRecurso(data.tipo_recurso));
-        apply("tipo_recurso_reclamante", normalizarTipoRecurso(data.tipo_recurso_reclamante));
-        apply("tipo_recurso_banco", normalizarTipoRecurso(data.tipo_recurso_banco));
-        apply("tipo_recurso_terceiro", normalizarTipoRecurso(data.tipo_recurso_terceiro));
+        // Tipo de recurso: Judit é fonte ÚNICA — mesma regra da aba Dados Benner.
+        // Vazio da Judit APAGA valor antigo (inclusive valor importado de planilha).
+        applyJuditOnly("tipo_recurso", normalizarTipoRecurso(data.tipo_recurso));
+        applyJuditOnly("tipo_recurso_reclamante", normalizarTipoRecurso(data.tipo_recurso_reclamante));
+        applyJuditOnly("tipo_recurso_banco", normalizarTipoRecurso(data.tipo_recurso_banco));
+        applyJuditOnly("tipo_recurso_terceiro", normalizarTipoRecurso(data.tipo_recurso_terceiro));
         // Situação do processo / trânsito em julgado
         const situacao = (data.situacao_processo || "").toString();
         if (situacao) apply("situacao_processo", situacao);
@@ -696,6 +703,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       setForm(nextForm);
 
       setJuditSessionFields(filled);
+
+      // Aviso visual quando a Judit não confirmou nenhum recurso interposto
+      // (mesma lógica da aba Dados Benner).
+      const meta = (data as any)?._judit_meta;
+      const semRecurso =
+        !data.tipo_recurso && !data.tipo_recurso_reclamante && !data.tipo_recurso_banco;
+      setTipoRecursoJuditVazio(semRecurso && (meta?.fonte_tipo_recurso === "nenhuma" || semRecurso));
 
       const preenchidos = filled.size;
       if (preenchidos > 0) {
@@ -936,6 +950,19 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator", form.relator))}>
               <Label className="flex items-center">Relator <JuditBadge show={isJuditFilled(form.relator)} /><IaBadge field="relator" value={form.relator} /></Label>
               <RelatorTurmaCombo tipo="relator" value={form.relator} onChange={(v) => set("relator", v)} />
+              {(() => {
+                const r = classificarRelatorDB(form.relator as any, relatoresTst);
+                if (!r) return null;
+                const c = r.classificacao;
+                const cls = c === "POSITIVO" ? "bg-green-100 text-green-800 border-green-300"
+                  : c === "NEGATIVO" ? "bg-red-100 text-red-800 border-red-300"
+                  : "bg-amber-100 text-amber-800 border-amber-300";
+                return (
+                  <Badge className={cn("border", cls)}>
+                    Classificação: {c}{r.relator.observacao ? " ⚠" : ""}
+                  </Badge>
+                );
+              })()}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator_favorabilidade", form.relator_favorabilidade))}>
               <Label className="flex items-center">Relator (+ ou -) <JuditBadge show={isJuditFilled(form.relator_favorabilidade)} /><IaBadge field="relator_favorabilidade" value={form.relator_favorabilidade} /></Label>
@@ -953,6 +980,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma", form.turma))}>
               <Label className="flex items-center">Turma <JuditBadge show={isJuditFilled(form.turma)} /><IaBadge field="turma" value={form.turma} /></Label>
               <RelatorTurmaCombo tipo="turma" value={form.turma} onChange={(v) => set("turma", v)} />
+              {(() => {
+                const c = classificarTurmaDB(form.turma as any, turmasTst);
+                if (!c) return null;
+                const cls = c === "POSITIVO" ? "bg-green-100 text-green-800 border-green-300"
+                  : c === "NEGATIVO" ? "bg-red-100 text-red-800 border-red-300"
+                  : "bg-amber-100 text-amber-800 border-amber-300";
+                return <Badge className={cn("border", cls)}>Classificação: {c}</Badge>;
+              })()}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma_favorabilidade", form.turma_favorabilidade))}>
               <Label className="flex items-center">Turma (+ ou -) <JuditBadge show={isJuditFilled(form.turma_favorabilidade)} /><IaBadge field="turma_favorabilidade" value={form.turma_favorabilidade} /></Label>
@@ -997,6 +1032,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 value={form.tipo_recurso_reclamante}
                 onChange={(v) => set("tipo_recurso_reclamante", v)}
               />
+              {tipoRecursoJuditVazio && (
+                <div className="text-xs rounded border border-amber-300 bg-amber-50 text-amber-900 px-2 py-1.5 leading-snug">
+                  ⚠ Judit não identificou recurso interposto neste processo. Os
+                  campos de Tipo de Recurso foram limpos. Preencha manualmente
+                  apenas se você confirmar a existência de um recurso pelo
+                  PJe/TST.
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Aparelhamento</Label>
@@ -1047,6 +1090,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 value={form.tipo_recurso_banco}
                 onChange={(v) => set("tipo_recurso_banco", v)}
               />
+              {tipoRecursoJuditVazio && (
+                <div className="text-xs rounded border border-amber-300 bg-amber-50 text-amber-900 px-2 py-1.5 leading-snug">
+                  ⚠ Judit não identificou recurso interposto neste processo. Os
+                  campos de Tipo de Recurso foram limpos. Preencha manualmente
+                  apenas se você confirmar a existência de um recurso pelo
+                  PJe/TST.
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label>Aparelhamento</Label>
