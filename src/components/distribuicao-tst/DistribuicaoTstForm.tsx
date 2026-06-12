@@ -917,8 +917,6 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={onCancel}><ArrowLeft className="w-5 h-5" /></Button>
-        <h2 className="text-xl font-bold text-foreground">{dado ? "Editar Distribuição" : "Nova Distribuição"}</h2>
         {iaResumo && (
           <div
             className="ml-2 max-w-[60%] rounded-md border border-sky-500/40 bg-sky-50 dark:bg-sky-950/30 px-3 py-1.5 text-[11px] leading-snug text-sky-900 dark:text-sky-200 whitespace-pre-wrap"
