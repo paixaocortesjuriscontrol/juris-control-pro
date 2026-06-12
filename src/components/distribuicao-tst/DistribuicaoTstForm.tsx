@@ -644,6 +644,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             filled.add(field);
           }
         };
+        // Para Tipo de Recurso, a Judit é fonte ÚNICA: quando não confirma,
+        // o valor antigo é APAGADO (sem fallback DataJud / classe da capa).
+        const applyJuditOnly = (field: string, novo: any) => {
+          const val = hasValue(novo) ? novo : null;
+          next[field] = val;
+          if (val) filled.add(field); else filled.delete(field);
+        };
         apply("dossie", data.dossie);
         apply("data_distribuicao_real", data.data_distribuicao);
         apply("relator", data.relator);
@@ -667,13 +674,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           "parte_recorrente",
           normalizarParteRecorrente(data.recorrente, reclamanteJudit, reclamadaJudit),
         );
-        // Tipo de recurso: vem direto da CLASSE da capa (ex.: "Recurso de Revista").
-        // Sem heurística por movimentos. Se a Judit não trouxer, não preenche
-        // nem apaga — usuário escolhe manualmente.
-        apply("tipo_recurso", normalizarTipoRecurso(data.tipo_recurso));
-        apply("tipo_recurso_reclamante", normalizarTipoRecurso(data.tipo_recurso_reclamante));
-        apply("tipo_recurso_banco", normalizarTipoRecurso(data.tipo_recurso_banco));
-        apply("tipo_recurso_terceiro", normalizarTipoRecurso(data.tipo_recurso_terceiro));
+        // Tipo de recurso: Judit é fonte ÚNICA — mesma regra da aba Dados Benner.
+        // Vazio da Judit APAGA valor antigo (inclusive valor importado de planilha).
+        applyJuditOnly("tipo_recurso", normalizarTipoRecurso(data.tipo_recurso));
+        applyJuditOnly("tipo_recurso_reclamante", normalizarTipoRecurso(data.tipo_recurso_reclamante));
+        applyJuditOnly("tipo_recurso_banco", normalizarTipoRecurso(data.tipo_recurso_banco));
+        applyJuditOnly("tipo_recurso_terceiro", normalizarTipoRecurso(data.tipo_recurso_terceiro));
         // Situação do processo / trânsito em julgado
         const situacao = (data.situacao_processo || "").toString();
         if (situacao) apply("situacao_processo", situacao);
@@ -697,6 +703,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       setForm(nextForm);
 
       setJuditSessionFields(filled);
+
+      // Aviso visual quando a Judit não confirmou nenhum recurso interposto
+      // (mesma lógica da aba Dados Benner).
+      const meta = (data as any)?._judit_meta;
+      const semRecurso =
+        !data.tipo_recurso && !data.tipo_recurso_reclamante && !data.tipo_recurso_banco;
+      setTipoRecursoJuditVazio(semRecurso && (meta?.fonte_tipo_recurso === "nenhuma" || semRecurso));
 
       const preenchidos = filled.size;
       if (preenchidos > 0) {
