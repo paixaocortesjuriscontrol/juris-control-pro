@@ -904,6 +904,23 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           judit_preenchido_em: new Date().toISOString(),
         }
       : payloadBase;
+    // Computa o diff dos campos Benner unificados: só envia o que mudou em
+    // relação ao snapshot inicial carregado do banco. Nunca persistir antes
+    // de ter carregado de fato (`bennerExtraLoaded`) — caso contrário todos
+    // os campos não editados iriam como NULL e apagariam dados existentes.
+    const buildBennerDiff = (): Record<string, any> | null => {
+      if (!bennerExtraLoaded) return null;
+      const diff: Record<string, any> = {};
+      for (const k of BENNER_EXTRA_FIELDS) {
+        const cur = (bennerExtra as any)[k];
+        const prev = (bennerExtraInitial as any)[k];
+        const norm = (v: any) => (v === undefined || v === "" ? null : v);
+        if (norm(cur) !== norm(prev)) diff[k] = norm(cur);
+      }
+      return Object.keys(diff).length > 0 ? diff : null;
+    };
+    const bennerDiff = buildBennerDiff();
+
     // IMPORTANTE: persistir PRIMEIRO os campos exclusivos do Dados Benner
     // (Análise/Risco, Julgamento, Resultado, etc.) e SÓ DEPOIS salvar a
     // Distribuição. A save da distribuição aciona um reloadSavedRow no parent
@@ -912,9 +929,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     // mostra os valores antigos (parecendo que a alteração não foi salva),
     // mesmo com o banco já atualizado na sequência.
     const extraTargetId = (bennerDado as any)?.id || dado?.id;
-    if (onSaveBennerExtra && extraTargetId) {
+    if (onSaveBennerExtra && extraTargetId && bennerDiff) {
       try {
-        await onSaveBennerExtra(bennerExtra, extraTargetId);
+        await onSaveBennerExtra(bennerDiff, extraTargetId);
       } catch (e: any) {
         console.error("Falha ao salvar campos Benner unificados:", e);
       }
@@ -922,11 +939,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     const ok = await onSave(payload, dado?.id);
     // Se for um INSERT (sem id prévio), o extra-save acima não tinha alvo.
     // Salva agora usando o id retornado pelo insert.
-    if (ok && onSaveBennerExtra && !extraTargetId) {
+    if (ok && onSaveBennerExtra && !extraTargetId && bennerDiff) {
       const newId = typeof ok === "string" ? ok : undefined;
       if (newId) {
         try {
-          await onSaveBennerExtra(bennerExtra, newId);
+          await onSaveBennerExtra(bennerDiff, newId);
         } catch (e: any) {
           console.error("Falha ao salvar campos Benner unificados (novo):", e);
         }
