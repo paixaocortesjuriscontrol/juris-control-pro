@@ -204,16 +204,21 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       return;
     }
     setBennerLoading(true);
-    // CHAVE DE IDENTIFICAÇÃO: usar SEMPRE o id do registro quando disponível.
-    // Buscar por "processo" sozinho retorna a primeira linha duplicada e faz
-    // o switch "Pronto para Enviar" / "Problema Judit" salvar no dossiê errado
-    // quando o mesmo processo tem múltiplas linhas em dados_benner (dossiês
-    // diferentes). Só caímos para busca por processo quando ainda não há id
-    // (registro novo sendo criado).
-    const query = supabase.from("dados_benner" as any).select("*");
-    const { data, error } = currentDado?.id
-      ? await query.eq("id", currentDado.id).limit(1)
-      : await query.eq("processo", processoNumero).limit(1);
+    // CHAVE DE IDENTIFICAÇÃO: usar EXCLUSIVAMENTE o id do registro. Não cair
+    // mais para busca por "processo" — a base tem duplicatas (mesmo processo,
+    // com/sem dossiê) e isso fazia os switches do header salvarem na linha
+    // errada. Sem id (registro novo), bennerDado fica null até o primeiro save.
+    if (!currentDado?.id) {
+      setBennerDado(null);
+      setBennerLoaded(true);
+      setBennerLoading(false);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("dados_benner" as any)
+      .select("*")
+      .eq("id", currentDado.id)
+      .limit(1);
     if (error) {
       toast.error("Erro ao carregar Dados Benner: " + error.message);
     }
