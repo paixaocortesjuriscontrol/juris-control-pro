@@ -591,10 +591,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             onAnexosFound={(atts) => {
               const list = dedupeJuditAttachments(atts || []);
               setAnexos(list);
-              // Só pula para a aba Anexos quando a Judit realmente trouxe algum
-              // documento — caso contrário mantém o usuário na aba atual e o
-              // toast de "sem anexos" disparado no form já dá o feedback.
-              if (list.length > 0) setTab("anexos");
+              // Mantém o usuário na aba atual após a sincronização Judit.
+              // O contador de anexos no header da aba já indica que há novos
+              // documentos disponíveis.
             }}
           />
         </TabsContent>
