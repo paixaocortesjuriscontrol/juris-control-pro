@@ -134,18 +134,28 @@ function toSentenceCaseDash(s: string): string {
     .filter(Boolean)
     .join(" - ");
 }
+const SMALL_WORDS_PT = new Set(["de","da","do","das","dos","e","du","del","la","los","las"]);
+function toTitleCasePt(s: string): string {
+  const t = String(s ?? "").trim().toLowerCase();
+  if (!t) return "";
+  return t.split(/\s+/).map((w, i) => {
+    if (i > 0 && SMALL_WORDS_PT.has(w)) return w;
+    return w.split("-").map(part => part ? part.charAt(0).toUpperCase() + part.slice(1) : part).join("-");
+  }).join(" ");
+}
 function formatTipoRecursoList(parts: string[]): string {
   return parts
     .map(p => String(p ?? "").trim())
     .filter(Boolean)
-    .map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .map(p => toTitleCasePt(p))
     .join(", ");
 }
 function cleanRelator(s: string): string {
-  return String(s ?? "")
+  const cleaned = String(s ?? "")
     .replace(/\b(Ministr[oa]s?)\b\.?/gi, "")
     .replace(/\s{2,}/g, " ")
     .trim();
+  return toTitleCasePt(cleaned);
 }
 function parseDateAny(s: any): number {
   const v = String(s ?? "").trim();
