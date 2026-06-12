@@ -1280,6 +1280,7 @@ export default function DistribuicaoTst() {
               setDetailInitialTab("distribuicao");
               try { fetchDados(); } catch {}
               try { refetchStats(); } catch {}
+              try { refetchResponsavelCounts(); } catch {}
             }}
           />
         </div>
