@@ -197,24 +197,11 @@ export function useDadosBenner(filters?: DadosBennerFilters) {
       return false;
     }
 
-    if (processo) {
-      let upd: any = supabase.from("dados_benner" as any).update(dado as any).eq("processo", processo);
-      upd = dossie ? upd.eq("dossie", dossie) : upd.or("dossie.is.null,dossie.eq.");
-      const { data: updated, error } = await upd.select("id");
-      if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
-      const rows = (updated as any[]) || [];
-      if (rows.length > 0) {
-        savedRowId = rows[0].id;
-        await fetchDados();
-        return savedRowId;
-      }
-      if (id) {
-        toast.error("Nenhum registro ativo encontrado para este processo/dossiê. A alteração não foi salva.");
-        return false;
-      }
-    }
-
-    // Não havia linha ativa para esse processo/dossie: insere.
+    // IMPORTANTE: NÃO usar mais (processo, dossiê) como chave de UPDATE.
+    // A base contém duplicatas legadas (mesmo processo, com/sem dossiê) e
+    // atualizar por processo/dossiê acaba salvando na linha errada. Sem `id`,
+    // tratamos como inserção nova até a base ser higienizada.
+    // Não havia id: insere uma nova linha.
     const { data: inserted, error } = await supabase.from("dados_benner" as any).insert(dado as any).select("id").single();
     if (error) { toast.error("Erro ao salvar: " + error.message); return false; }
     await fetchDados();

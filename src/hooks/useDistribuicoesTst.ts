@@ -683,23 +683,11 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       }
     }
 
-    if (!savedRowId && processo) {
-      let upd: any = supabase.from("dados_benner" as any).update(payload as any).eq("processo", processo);
-      upd = dossie ? upd.eq("dossie", dossie) : upd.or("dossie.is.null,dossie.eq.");
-      const { data: updated, error } = await upd.select("id");
-      if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
-      const rows = (updated as any[]) || [];
-      if (rows.length > 0) {
-        // Se houver mais de uma linha ativa para o mesmo par (legado), todas
-        // são atualizadas. Usamos a primeira para vínculos de responsáveis.
-        savedRowId = rows[0].id;
-        rowId = savedRowId;
-      } else if (id) {
-        toast.error("Nenhum registro ativo encontrado para este processo/dossiê. A alteração não foi salva.");
-        return false;
-      }
-    }
-
+    // IMPORTANTE: NÃO usar mais (processo, dossiê) como chave de UPDATE.
+    // A base contém duplicatas legadas (mesmo processo, dossiês iguais ou um
+    // deles vazio) e atualizar por processo/dossiê acaba salvando na linha
+    // errada — ou em várias linhas — silenciosamente. Enquanto a base não for
+    // higienizada, qualquer save sem `id` é tratado como inserção nova.
     if (!savedRowId && !id) {
       // Não havia linha ativa: insere uma nova.
       payload.status = "rascunho";

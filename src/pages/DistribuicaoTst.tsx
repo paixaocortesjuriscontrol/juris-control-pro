@@ -686,20 +686,11 @@ export default function DistribuicaoTst() {
 
   // Save handler for Dados Benner form used from this page
   const handleSaveBenner = async (dado: DadoBennerInsert, id?: string) => {
+    // IMPORTANTE: NÃO usar mais (processo, dossiê) como chave para localizar
+    // a linha. A base contém duplicatas (mesmo processo, com/sem dossiê) e o
+    // lookup por processo cai na linha errada silenciosamente. Sem `id`,
+    // tratamos como inserção nova até a base ser higienizada.
     let rowId = id;
-    if (!rowId) {
-      const processo = String((dado as any).processo || "").trim();
-      const dossie = String((dado as any).dossie || "").trim();
-      if (processo) {
-        let query: any = supabase.from("dados_benner" as any).select("id").eq("processo", processo);
-        query = dossie ? query.eq("dossie", dossie) : query.or("dossie.is.null,dossie.eq.");
-        const { data: existing } = await query
-          .order("benner_atualizado", { ascending: false, nullsFirst: false })
-          .order("updated_at", { ascending: false, nullsFirst: false })
-          .limit(1);
-        rowId = (existing as any[])?.[0]?.id;
-      }
-    }
 
     if (rowId) {
       const { data: updated, error } = await supabase
