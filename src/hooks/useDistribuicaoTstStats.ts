@@ -25,6 +25,7 @@ export interface DistribuicaoTstStats {
   semResponsavel: number;
   comEquipe: number;
   semEquipe: number;
+  aFazer: number;
 }
 
 const ZERO: DistribuicaoTstStats = {
@@ -50,6 +51,7 @@ const ZERO: DistribuicaoTstStats = {
   semResponsavel: 0,
   comEquipe: 0,
   semEquipe: 0,
+  aFazer: 0,
 };
 
 export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
@@ -97,6 +99,7 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
         semResponsavel: Number(row.sem_responsavel) || 0,
         comEquipe: Number(row.com_equipe) || 0,
         semEquipe: Number(row.sem_equipe) || 0,
+        aFazer: Number(row.a_fazer) || 0,
       });
     } finally {
       setLoading(false);
