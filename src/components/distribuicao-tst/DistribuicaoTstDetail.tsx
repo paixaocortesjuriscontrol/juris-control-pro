@@ -671,6 +671,13 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             }}
           />
         </TabsContent>
+
+        <TabsContent value="partes" className="mt-4">
+          <PartesProcessoTab
+            dadosBennerId={(bennerDado as any)?.id || (currentDado as any)?.id || null}
+            processoNumero={processoNumero}
+          />
+        </TabsContent>
       </Tabs>
     </div>
   );
