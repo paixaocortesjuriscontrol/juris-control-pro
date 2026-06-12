@@ -123,7 +123,7 @@ const inferCamposJudit = (source: Partial<DadoBennerInsert>) => {
 };
 
 export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function DadosBennerForm(
-  { dado, initialData, markExistingJuditFields = false, onSave, onCancel, onJuditSync, prontoEnviar: prontoEnviarProp, onProntoEnviarChange, hideFooter = false, iaSugestao }: Props,
+  { dado, initialData, markExistingJuditFields = false, onSave, onCancel, onJuditSync, prontoEnviar: prontoEnviarProp, onProntoEnviarChange, hideFooter = false, iaSugestao, readOnly = false }: Props,
   ref,
 ) {
   const [form, setForm] = useState<DadoBennerInsert>({ ...emptyForm });
