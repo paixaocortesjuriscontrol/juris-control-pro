@@ -213,6 +213,11 @@ interface Props {
   /** Resumo textual da última execução da IA (anexos), exibido próximo ao título
    *  e mesclado automaticamente em "Observação Advogado" para ficar persistido. */
   iaResumo?: string | null;
+  /** Registro Dados Benner unificado nesta aba. Lê os campos exclusivos do
+   *  Benner para edi\u00e7\u00e3o inline. */
+  bennerDado?: any | null;
+  /** Persiste o patch de campos exclusivos do Benner ap\u00f3s o save principal. */
+  onSaveBennerExtra?: (patch: Record<string, any>, id?: string) => Promise<any>;
 }
 
 export interface DistribuicaoTstFormHandle {
