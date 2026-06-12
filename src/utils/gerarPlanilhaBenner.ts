@@ -120,6 +120,20 @@ function toSentenceCase(s: string): string {
   const lower = t.toLowerCase();
   return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
+function toSentenceCaseDash(s: string): string {
+  const t = String(s ?? "").trim();
+  if (!t) return "";
+  if (!t.includes("-")) return toSentenceCase(t);
+  return t
+    .split("-")
+    .map(part => {
+      const p = part.trim().toLowerCase();
+      if (!p) return "";
+      return p.charAt(0).toUpperCase() + p.slice(1);
+    })
+    .filter(Boolean)
+    .join(" - ");
+}
 function formatTipoRecursoList(parts: string[]): string {
   return parts
     .map(p => String(p ?? "").trim())
@@ -165,7 +179,7 @@ function getValuesFromDado(d: DadoBenner): string[] {
     formatDateForSpreadsheet(d.data_distribuicao),
     fixVicePresidencia(d.turma || ""),
     cleanRelator(d.relator || ""),
-    toSentenceCase(cleanDadoBennerValue((d as any).decisao_quarteirizado)),
+    toSentenceCaseDash(cleanDadoBennerValue((d as any).decisao_quarteirizado)),
     midiaSN,
     riscoDesc,
     d.provas_digitais ? toSN(d.provas_digitais) : "",
@@ -192,7 +206,7 @@ function getValuesFromDado(d: DadoBenner): string[] {
     d.posicao_relator_desfavoravel ? "X" : "",
     bemAparelhado ? "X" : "",
     malAparelhado ? "X" : "",
-    cleanDadoBennerValue(d.chance_exito),
+    toSentenceCase(cleanDadoBennerValue(d.chance_exito)),
   ];
 }
 
