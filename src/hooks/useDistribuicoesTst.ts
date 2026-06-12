@@ -87,7 +87,7 @@ export interface DistribuicaoTstFilters {
   processoStatus?: "todos" | "valido" | "invalido";
   judit?: "todos" | "sim" | "nao";
   erroJudit?: "todos" | "sim" | "nao";
-  situacaoProcesso?: "todos" | "ativo" | "transito" | "outros" | "outro_escritorio" | "segredo_justica";
+  situacaoProcesso?: "todos" | "ativo" | "transito" | "outros" | "outro_escritorio" | "segredo_justica" | "a_fazer";
   subidaMassa?: "todos" | "sim" | "nao";
   mesAno?: string;
   dataInicio?: string;
@@ -294,6 +294,12 @@ export async function fetchAllDistribuicaoTstIds(
       query = query.eq("processo_outro_escritorio", true);
     } else if (filters.situacaoProcesso === "segredo_justica") {
       query = query.eq("segredo_justica", true);
+    } else if (filters.situacaoProcesso === "a_fazer") {
+      query = query
+        .or("transito_julgado.is.null,transito_julgado.eq.false")
+        .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
+        .or("segredo_justica.is.null,segredo_justica.eq.false")
+        .or("status.is.null,status.neq.pronto_envio");
     }
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
@@ -448,6 +454,12 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       query = query.eq("processo_outro_escritorio", true);
     } else if (filters.situacaoProcesso === "segredo_justica") {
       query = query.eq("segredo_justica", true);
+    } else if (filters.situacaoProcesso === "a_fazer") {
+      query = query
+        .or("transito_julgado.is.null,transito_julgado.eq.false")
+        .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
+        .or("segredo_justica.is.null,segredo_justica.eq.false")
+        .or("status.is.null,status.neq.pronto_envio");
     }
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");

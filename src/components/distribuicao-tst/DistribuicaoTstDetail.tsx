@@ -76,6 +76,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [transitoJulgado, setTransitoJulgado] = useState(false);
   const [outroEscritorio, setOutroEscritorio] = useState(false);
   const [segredoJustica, setSegredoJustica] = useState(false);
+  const [recursoTerceiro, setRecursoTerceiro] = useState(false);
+  const [cejusc, setCejusc] = useState(false);
 
   useEffect(() => {
     setCurrentDado(normalizeDado(dado));
@@ -270,6 +272,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     setTransitoJulgado(!!(bennerDado as any)?.transito_julgado);
     setOutroEscritorio(!!(bennerDado as any)?.processo_outro_escritorio);
     setSegredoJustica(!!(bennerDado as any)?.segredo_justica);
+    setRecursoTerceiro(!!(bennerDado as any)?.recurso_terceiro);
+    setCejusc(!!(bennerDado as any)?.cejusc);
   }, [bennerDado]);
 
   // Carrega o registro Benner ao abrir o detalhe (independente da aba), para
@@ -351,7 +355,15 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       const currentTransito = !!(bennerDado as any)?.transito_julgado;
       const currentOutro = !!(bennerDado as any)?.processo_outro_escritorio;
       const currentSegredo = !!(bennerDado as any)?.segredo_justica;
-      if (currentTransito !== transitoJulgado || currentOutro !== outroEscritorio || currentSegredo !== segredoJustica) {
+      const currentRecursoT = !!(bennerDado as any)?.recurso_terceiro;
+      const currentCejusc = !!(bennerDado as any)?.cejusc;
+      if (
+        currentTransito !== transitoJulgado ||
+        currentOutro !== outroEscritorio ||
+        currentSegredo !== segredoJustica ||
+        currentRecursoT !== recursoTerceiro ||
+        currentCejusc !== cejusc
+      ) {
         const targetId = (bennerDado as any)?.id || currentDado?.id;
         if (targetId) {
           const payload: any = {};
@@ -364,6 +376,12 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           }
           if (currentSegredo !== segredoJustica) {
             payload.segredo_justica = segredoJustica;
+          }
+          if (currentRecursoT !== recursoTerceiro) {
+            payload.recurso_terceiro = recursoTerceiro;
+          }
+          if (currentCejusc !== cejusc) {
+            payload.cejusc = cejusc;
           }
           const { error: updErr } = await supabase
             .from("dados_benner" as any)
@@ -454,6 +472,14 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             }}
           />
           <Label className="text-sm font-medium text-rose-700 dark:text-rose-400">Segredo de Justiça</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={recursoTerceiro} onCheckedChange={setRecursoTerceiro} />
+          <Label className="text-sm font-medium text-indigo-700 dark:text-indigo-400">Recurso de terceiro</Label>
+        </div>
+        <div className="flex items-center gap-2">
+          <Switch checked={cejusc} onCheckedChange={setCejusc} />
+          <Label className="text-sm font-medium text-teal-700 dark:text-teal-400">CEJUSC</Label>
         </div>
       </div>
 

@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 
 export type StatsCardKey =
   | "total"
+  | "aFazer"
   | "processosUnicos"
   | "processosValidos"
   | "processosInvalidos"
@@ -32,6 +33,9 @@ interface Props {
   onCardClick?: (key: StatsCardKey) => void;
   /** Totais do responsável logado, exibido logo após o card "Total de Processos". */
   responsavelCard?: { atribuidos: number; prontos: number } | null;
+  /** Callback ao clicar no card "Total por responsável" — filtra a lista
+   *  para mostrar apenas os Prontos do responsável logado. */
+  onResponsavelClick?: () => void;
 }
 
 interface CardDef {
@@ -42,10 +46,11 @@ interface CardDef {
   textClass: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick }: Props) {
   const cards: CardDef[] = [
     // Azuis / Ciano / Teal / Sky
     { key: "total", label: "Total Geral", value: stats.total, className: "from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800", textClass: "text-blue-600 dark:text-blue-400" },
+    { key: "aFazer", label: "A fazer", value: stats.aFazer, className: "from-indigo-50 to-indigo-100 dark:from-indigo-950/50 dark:to-indigo-900/30 border-indigo-300 dark:border-indigo-700", textClass: "text-indigo-700 dark:text-indigo-300" },
     { key: "bennerSim", label: "Benner Enviado (Sim)", value: stats.bennerSim, className: "from-cyan-50 to-cyan-100 dark:from-cyan-950/50 dark:to-cyan-900/30 border-cyan-200 dark:border-cyan-800", textClass: "text-cyan-600 dark:text-cyan-400" },
     { key: "prontoEnvio", label: "Prontos para Enviar (geral)", value: stats.prontoEnvio, className: "from-teal-50 to-teal-100 dark:from-teal-950/50 dark:to-teal-900/30 border-teal-200 dark:border-teal-800", textClass: "text-teal-600 dark:text-teal-400" },
     { key: "ate2025", label: "Até 2025", value: stats.ate2025, className: "from-sky-50 to-sky-100 dark:from-sky-950/50 dark:to-sky-900/30 border-sky-200 dark:border-sky-800", textClass: "text-sky-600 dark:text-sky-400" },
@@ -103,11 +108,13 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
               {cardNode}
               <Card
                 key="__resp_card__"
+                onClick={onResponsavelClick}
                 className={cn(
                   "bg-gradient-to-br transition-all",
-                  "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800"
+                  "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800",
+                  onResponsavelClick && "cursor-pointer hover:shadow-md hover:scale-[1.02]"
                 )}
-                title="Totais do responsável logado"
+                title={onResponsavelClick ? "Clique para listar apenas seus Prontos" : "Totais do responsável logado"}
               >
                 <CardContent className="p-2">
                   <p className="text-[10px] md:text-[11px] font-medium truncate leading-tight text-amber-700 dark:text-amber-400">

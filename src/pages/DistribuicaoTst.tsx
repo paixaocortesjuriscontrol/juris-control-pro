@@ -451,9 +451,9 @@ export default function DistribuicaoTst() {
     if (filtroJudit === "nao" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroBenner === "todos") return "juditNaoPreenchido" as const;
     if (filtroBenner === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos") return "bennerSim" as const;
     if (filtroBenner === "nao" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos") return "bennerNao" as const;
-    if (filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "total" as const;
     if (filtroSituacaoProcesso === "ativo" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosAtivos" as const;
     if (filtroSituacaoProcesso === "transito" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "transitoJulgado" as const;
+    if (filtroSituacaoProcesso === "a_fazer" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "aFazer" as const;
     if (filtroSemTurma && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos") return "semTurma" as const;
     if (filtroProblemaJudit === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma) return "problemaJudit" as const;
     if (filtroDataInicio === "" && filtroDataFim === "2025-12-31" && filtroMesAno === "todos") return "ate2025" as const;
@@ -461,6 +461,7 @@ export default function DistribuicaoTst() {
     if (filtroStatus === "pronto_envio" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma && filtroProblemaJudit !== "sim") return "prontoEnvio" as const;
     if (filtroEquipe === "sim") return "comEquipe" as const;
     if (filtroEquipe === "nao") return "semEquipe" as const;
+    if (filtroSituacaoProcesso === "todos" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroStatus === "todos" && !filtroSemTurma && filtroProblemaJudit === "todos" && filtroEquipe === "todos" && !filtroDataInicio && !filtroDataFim) return "total" as const;
     return null;
   })();
 
@@ -499,6 +500,7 @@ export default function DistribuicaoTst() {
       case "bennerNao": setFiltroBenner("nao"); break;
       case "processosAtivos": setFiltroSituacaoProcesso("ativo"); break;
       case "transitoJulgado": setFiltroSituacaoProcesso("transito"); break;
+      case "aFazer": setFiltroSituacaoProcesso("a_fazer"); break;
       case "semTurma": setFiltroSemTurma(true); break;
       case "problemaJudit": setFiltroProblemaJudit("sim"); break;
       case "ate2025":
@@ -1390,6 +1392,25 @@ export default function DistribuicaoTst() {
               const me = user?.id ? responsavelCounts.find(c => c.id === user.id) : null;
               return { atribuidos: me?.count ?? 0, prontos: me?.pronto ?? 0 };
             })()}
+            onResponsavelClick={() => {
+              if (!user?.id) return;
+              // Reseta filtros conflitantes
+              setFiltroProcessoStatus("todos");
+              setFiltroDossieStatus("todos");
+              setFiltroJudit("todos");
+              setFiltroBenner("todos");
+              setFiltroSituacaoProcesso("todos");
+              setFiltroSemTurma(false);
+              setFiltroProblemaJudit("todos");
+              setFiltroEquipe("todos");
+              setFiltroDataInicio("");
+              setFiltroDataFim("");
+              setFiltroMesAno("todos");
+              setSelectedIds(new Set());
+              // Filtra por meu usuário + apenas Prontos
+              setFiltroResponsavelIds([user.id]);
+              setFiltroStatus("pronto_envio");
+            }}
           />
         )}
 
@@ -1879,6 +1900,7 @@ export default function DistribuicaoTst() {
                     <SelectItem value="outros">Outros</SelectItem>
                     <SelectItem value="outro_escritorio">Processo outro escritório</SelectItem>
                     <SelectItem value="segredo_justica">Segredo de Justiça</SelectItem>
+                    <SelectItem value="a_fazer">A fazer</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1989,6 +2011,8 @@ export default function DistribuicaoTst() {
                 const isPronto = ((d as any).status || "") === "pronto_envio";
                 const hasProvasDigitais = String((d as any).provas_digitais || "").trim().toLowerCase() === "s";
                 const isSubidaMassa = !!(d as any).subida_em_massa || /subida\s+em\s+massa/i.test(d.relator || "");
+                const isOutroEscritorio = (d as any).processo_outro_escritorio === true;
+                const isSegredo = (d as any).segredo_justica === true;
                 const relatorDisplay = (d.relator || "").replace(/subida\s+em\s+massa.*$/i, "").trim().replace(/[-–—:]\s*$/, "").trim();
                 return (
                 <TableRow
@@ -2062,6 +2086,16 @@ export default function DistribuicaoTst() {
                                   Subida em Massa
                                 </Badge>
                               )}
+                              {isOutroEscritorio && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-violet-600 hover:bg-violet-600 text-white" title="Processo de outro escritório">
+                                  Outro escritório
+                                </Badge>
+                              )}
+                              {isSegredo && (
+                                <Badge className="text-[10px] px-1 py-0 h-4 bg-rose-600 hover:bg-rose-600 text-white" title="Segredo de Justiça">
+                                  Segredo de Justiça
+                                </Badge>
+                              )}
                             </div>
                             {isAdminOrCoordinator && (
                               <div className="mt-1">
@@ -2109,6 +2143,16 @@ export default function DistribuicaoTst() {
                           {isSubidaMassa && (
                             <Badge className="text-[10px] px-1 py-0 h-4 bg-purple-600 hover:bg-purple-600 text-white" title="Relator marcado como Subida em Massa">
                               Subida em Massa
+                            </Badge>
+                          )}
+                          {isOutroEscritorio && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-violet-600 hover:bg-violet-600 text-white" title="Processo de outro escritório">
+                              Outro escritório
+                            </Badge>
+                          )}
+                          {isSegredo && (
+                            <Badge className="text-[10px] px-1 py-0 h-4 bg-rose-600 hover:bg-rose-600 text-white" title="Segredo de Justiça">
+                              Segredo de Justiça
                             </Badge>
                           )}
                         </div>
