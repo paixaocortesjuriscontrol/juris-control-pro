@@ -328,7 +328,6 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             .from("dados_benner" as any)
             .update({ status: desiredStatus } as any)
             .eq("id", (bennerDado as any).id);
-          setBennerLoaded(false);
           saved = true;
         }
       }
@@ -356,7 +355,6 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           if (updErr) {
             toast.error("Erro ao salvar Problema Judit: " + updErr.message);
           } else {
-            setBennerLoaded(false);
             saved = true;
           }
         }
@@ -401,7 +399,6 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           if (updErr) {
             toast.error("Erro ao salvar flags: " + updErr.message);
           } else {
-            setBennerLoaded(false);
             saved = true;
           }
         }
