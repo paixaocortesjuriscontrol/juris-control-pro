@@ -43,6 +43,13 @@ interface Props {
   hideFooter?: boolean;
   /** Sugestões de IA aplicadas a partir dos anexos. Marcadas em azul. */
   iaSugestao?: Record<string, any> | null;
+  /**
+   * Quando true, transforma a aba inteira em "somente leitura" (modo conferência).
+   * Bloqueia toda interação com inputs/selects/switches e oculta os botões
+   * Salvar e Buscar/Judit internos — usado na aba "Dados Benner" do detalhe
+   * de Distribuição TST, onde a edição passou a ser feita só na aba principal.
+   */
+  readOnly?: boolean;
 }
 
 export interface DadosBennerFormHandle {
@@ -116,7 +123,7 @@ const inferCamposJudit = (source: Partial<DadoBennerInsert>) => {
 };
 
 export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function DadosBennerForm(
-  { dado, initialData, markExistingJuditFields = false, onSave, onCancel, onJuditSync, prontoEnviar: prontoEnviarProp, onProntoEnviarChange, hideFooter = false, iaSugestao }: Props,
+  { dado, initialData, markExistingJuditFields = false, onSave, onCancel, onJuditSync, prontoEnviar: prontoEnviarProp, onProntoEnviarChange, hideFooter = false, iaSugestao, readOnly = false }: Props,
   ref,
 ) {
   const [form, setForm] = useState<DadoBennerInsert>({ ...emptyForm });
@@ -876,10 +883,13 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
   );
 
   return (
-    <div className="space-y-6">
+    <div className={cn("space-y-6", readOnly && "pointer-events-none select-none opacity-95")}>
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={onCancel}><ArrowLeft className="w-5 h-5" /></Button>
         <h2 className="text-xl font-bold text-foreground">{dado ? "Editar Registro" : "Novo Registro"}</h2>
+        {readOnly && (
+          <span className="ml-2 text-xs uppercase tracking-wide text-muted-foreground bg-muted px-2 py-1 rounded">Somente conferência</span>
+        )}
       </div>
 
       {/* SEÇÃO RECURSO - Azul */}
@@ -1315,54 +1325,8 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
           </div>
         </div>
       )}
-      {partesJudit.length > 0 && (
-        <div className="border border-border rounded-lg overflow-hidden">
-          <SectionHeader title={`Partes do Processo (${partesJudit.length})`} color="bg-teal-600 text-white" />
-          <div className="p-4">
-            <div className="rounded-md border overflow-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Polo</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>CPF/CNPJ</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {partesJudit.map((p, i) => (
-                    <TableRow
-                      key={i}
-                      className={cn(
-                        p.is_advogado && "text-muted-foreground",
-                        "bg-emerald-50/50 dark:bg-emerald-950/20"
-                      )}
-                    >
-                      <TableCell className="text-xs">
-                        {p.polo === "Active" ? "Ativo" : p.polo === "Passive" ? "Passivo" : p.polo || "—"}
-                      </TableCell>
-                      <TableCell className="text-xs">{p.tipo_pessoa || "—"}</TableCell>
-                      <TableCell className="font-medium text-sm">{p.nome}</TableCell>
-                      <TableCell className="text-xs font-mono">
-                        {p.documento
-                          ? p.documento.length === 11
-                            ? p.documento.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
-                            : p.documento.length === 14
-                              ? p.documento.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5")
-                              : p.documento
-                          : "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-              <Users className="w-3 h-3" /> Dados importados da Judit. Serão salvos na aba "Partes" ao gravar o registro.
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Bloco "Partes do Processo" foi movido para a aba dedicada "Partes do processo"
+          no detalhe de Distribuição TST. A persistência continua acontecendo via handleSave. */}
 
       {/* Footer */}
       {!hideFooter && (

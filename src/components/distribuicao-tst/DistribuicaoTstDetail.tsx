@@ -13,6 +13,7 @@ import { LogJuditTab } from "./LogJuditTab";
 import { AnaliseJuditTab } from "./AnaliseJuditTab";
 import { AnexosJuditTab } from "./AnexosJuditTab";
 import { CentralizadoresTab } from "./CentralizadoresTab";
+import { PartesProcessoTab } from "./PartesProcessoTab";
 import { DistribuicaoTst, DistribuicaoTstInsert, bennerToDistribuicao } from "@/hooks/useDistribuicoesTst";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -54,7 +55,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const podeVerLogJudit = user?.email?.toLowerCase() === "paixaocortesjuriscontrol@gmail.com";
   const { isAdminOrCoordinator } = useUserRole();
 
-  const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos" | "centralizadores">(initialTab);
+  const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos" | "centralizadores" | "partes">(initialTab);
   const [anexos, setAnexos] = useState<any[] | null>(null);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
   const [comAnexos, setComAnexos] = useState(false);
@@ -296,10 +297,11 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         const result = await formRef.current.save({ silent: true });
         saved = !!result || saved;
       }
-      if (tab === "benner" && bennerFormRef.current) {
-        const result = await bennerFormRef.current.save({ silent: true });
-        saved = !!result || saved;
-      }
+      // A aba "Dados Benner" agora é somente conferência (read-only). A edição
+      // dos campos Benner foi unificada na aba "Distribuição TST". Por isso não
+      // disparamos save no bennerFormRef quando essa aba está ativa — os
+      // switches do header (Pronto, Trânsito, etc.) continuam sendo persistidos
+      // logo abaixo.
       // Persiste o switch "Pronto para Enviar" diretamente em dados_benner se alterado
       // (independente da aba ativa), para que o estado fique consistente em qualquer aba.
       // Só mexe no status se ele estiver em um dos estados controlados pelo switch
@@ -507,6 +509,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             {anexos && (
               <TabsTrigger value="anexos">Anexos ({anexos.length})</TabsTrigger>
             )}
+            <TabsTrigger value="partes" disabled={bennerDisabled}>Partes do processo</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-3">
             <label
@@ -592,6 +595,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               prontoEnviar={prontoEnviar}
               onProntoEnviarChange={setProntoEnviar}
               hideFooter
+              readOnly
             />
           ) : (
             <DadosBennerForm
@@ -614,6 +618,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               prontoEnviar={prontoEnviar}
               onProntoEnviarChange={setProntoEnviar}
               hideFooter
+              readOnly
             />
           )}
         </TabsContent>
@@ -664,6 +669,13 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                 setTab("benner");
               }
             }}
+          />
+        </TabsContent>
+
+        <TabsContent value="partes" className="mt-4">
+          <PartesProcessoTab
+            dadosBennerId={(bennerDado as any)?.id || (currentDado as any)?.id || null}
+            processoNumero={processoNumero}
           />
         </TabsContent>
       </Tabs>
