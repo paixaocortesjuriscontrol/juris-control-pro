@@ -879,6 +879,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         }
       : payloadBase;
     const ok = await onSave(payload, dado?.id);
+    // Persiste tamb\u00e9m os campos exclusivos do Dados Benner unificados nesta aba.
+    if (ok && onSaveBennerExtra) {
+      try {
+        await onSaveBennerExtra(bennerExtra, (bennerDado as any)?.id);
+      } catch (e: any) {
+        console.error("Falha ao salvar campos Benner unificados:", e);
+      }
+    }
     setSaving(false);
     if (ok && !options?.silent) {
       toast.success("Salvo com sucesso!", { id: "save-success" });
