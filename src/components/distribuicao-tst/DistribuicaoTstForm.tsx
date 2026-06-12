@@ -344,8 +344,20 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     return out;
   };
   const [bennerExtra, setBennerExtra] = useState<Record<string, any>>(() => buildBennerExtra(bennerDado));
+  // Snapshot do estado original carregado de `bennerDado` — usado para
+  // computar o diff no save (só envia campos que o usuário realmente alterou).
+  const [bennerExtraInitial, setBennerExtraInitial] = useState<Record<string, any>>(() => buildBennerExtra(bennerDado));
+  // Indica que `bennerExtra` já foi populado a partir de uma carga real do
+  // banco. Antes disso, NUNCA persistir (evita salvar tudo nulo e apagar
+  // valores existentes em dados_benner numa race condition).
+  const [bennerExtraLoaded, setBennerExtraLoaded] = useState<boolean>(!!bennerDado);
   useEffect(() => {
-    setBennerExtra(buildBennerExtra(bennerDado));
+    if (bennerDado) {
+      const initial = buildBennerExtra(bennerDado);
+      setBennerExtra(initial);
+      setBennerExtraInitial(initial);
+      setBennerExtraLoaded(true);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bennerDado?.id]);
   const setExtra = (field: string, value: any) =>
