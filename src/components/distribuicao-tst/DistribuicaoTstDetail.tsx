@@ -578,6 +578,13 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           </TabsList>
         </div>
 
+        {processoNumero && (
+          <div className="mt-3 text-left text-sm font-semibold text-foreground">
+            Processo {processoNumero}
+            {currentDado?.dossie ? <span className="text-muted-foreground font-normal"> — Dossiê {currentDado.dossie}</span> : null}
+          </div>
+        )}
+
         <TabsContent
           value="distribuicao"
           forceMount
