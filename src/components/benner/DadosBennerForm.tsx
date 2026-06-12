@@ -43,6 +43,13 @@ interface Props {
   hideFooter?: boolean;
   /** Sugestões de IA aplicadas a partir dos anexos. Marcadas em azul. */
   iaSugestao?: Record<string, any> | null;
+  /**
+   * Quando true, transforma a aba inteira em "somente leitura" (modo conferência).
+   * Bloqueia toda interação com inputs/selects/switches e oculta os botões
+   * Salvar e Buscar/Judit internos — usado na aba "Dados Benner" do detalhe
+   * de Distribuição TST, onde a edição passou a ser feita só na aba principal.
+   */
+  readOnly?: boolean;
 }
 
 export interface DadosBennerFormHandle {
