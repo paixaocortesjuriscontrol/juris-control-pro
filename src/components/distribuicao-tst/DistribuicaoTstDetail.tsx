@@ -562,6 +562,21 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             onJuditSync={handleJuditSync}
             iaSugestao={iaDistribuicao}
             iaResumo={iaResumo}
+            bennerDado={bennerDado}
+            onSaveBennerExtra={async (patch, id) => {
+              const targetId = id || (bennerDado as any)?.id || currentDado?.id;
+              if (!targetId) return false;
+              const { error } = await supabase
+                .from("dados_benner" as any)
+                .update(patch as any)
+                .eq("id", targetId);
+              if (error) {
+                toast.error("Erro ao salvar campos Benner: " + error.message);
+                return false;
+              }
+              setBennerLoaded(false);
+              return true;
+            }}
             onAnexosFound={(atts) => {
               const list = dedupeJuditAttachments(atts || []);
               setAnexos(list);

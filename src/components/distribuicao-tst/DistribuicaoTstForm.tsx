@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 // Checkbox removido — opção "Com anexos" agora vive no DistribuicaoTstDetail.
 import { Save, ArrowLeft, Loader2 } from "lucide-react";
 import { DistribuicaoTst, DistribuicaoTstInsert } from "@/hooks/useDistribuicoesTst";
@@ -212,6 +213,11 @@ interface Props {
   /** Resumo textual da última execução da IA (anexos), exibido próximo ao título
    *  e mesclado automaticamente em "Observação Advogado" para ficar persistido. */
   iaResumo?: string | null;
+  /** Registro Dados Benner unificado nesta aba. Lê os campos exclusivos do
+   *  Benner para edi\u00e7\u00e3o inline. */
+  bennerDado?: any | null;
+  /** Persiste o patch de campos exclusivos do Benner ap\u00f3s o save principal. */
+  onSaveBennerExtra?: (patch: Record<string, any>, id?: string) => Promise<any>;
 }
 
 export interface DistribuicaoTstFormHandle {
@@ -286,7 +292,7 @@ const getEquipeOptions = (current?: string | null) => {
 };
 
 export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
-  { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo }: Props,
+  { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo, bennerDado, onSaveBennerExtra }: Props,
   ref
 ) {
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
@@ -300,6 +306,47 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   // Marca os campos preenchidos pela IA a partir dos anexos.
   const [iaFields, setIaFields] = useState<Set<string>>(new Set());
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
+
+  // ============================================================
+  // Campos exclusivos da tabela `dados_benner` (unificados nesta aba).
+  // Carregados de `bennerDado` e persistidos via `onSaveBennerExtra`.
+  // ============================================================
+  const BENNER_EXTRA_FIELDS = [
+    "analise_quarteirizado",
+    "risco_midia",
+    "risco_descricao",
+    "provas_digitais",
+    "materia_honra",
+    "tem_data_julgamento",
+    "data_julgamento",
+    "horario_julgamento",
+    "tipo_julgamento",
+    "entrega_memoriais",
+    "sustentacao_oral",
+    "resultado_sem_transcendencia",
+    "resultado_nao_conhecido",
+    "resultado_conhecido_provido",
+    "resultado_conhecido_nao_provido",
+    "resultado_outra",
+    "observacoes",
+    "notas",
+    "ganhamos",
+    "perdemos",
+    "processo_baixado",
+    "chance_exito",
+  ] as const;
+  const buildBennerExtra = (src: any | null | undefined): Record<string, any> => {
+    const out: Record<string, any> = {};
+    for (const k of BENNER_EXTRA_FIELDS) out[k] = src ? (src as any)[k] ?? null : null;
+    return out;
+  };
+  const [bennerExtra, setBennerExtra] = useState<Record<string, any>>(() => buildBennerExtra(bennerDado));
+  useEffect(() => {
+    setBennerExtra(buildBennerExtra(bennerDado));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bennerDado?.id]);
+  const setExtra = (field: string, value: any) =>
+    setBennerExtra((prev) => ({ ...prev, [field]: value }));
 
   // Destaque verde "Judit" quando o registro foi preenchido pela Judit e o campo tem valor.
   const isJuditFilled = (value: any) =>
@@ -832,6 +879,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         }
       : payloadBase;
     const ok = await onSave(payload, dado?.id);
+    // Persiste tamb\u00e9m os campos exclusivos do Dados Benner unificados nesta aba.
+    if (ok && onSaveBennerExtra) {
+      try {
+        await onSaveBennerExtra(bennerExtra, (bennerDado as any)?.id);
+      } catch (e: any) {
+        console.error("Falha ao salvar campos Benner unificados:", e);
+      }
+    }
     setSaving(false);
     if (ok && !options?.silent) {
       toast.success("Salvo com sucesso!", { id: "save-success" });
@@ -1290,6 +1345,204 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </div>
               );
             })()}
+          </div>
+        </div>
+      </div>
+
+      {/* SE\u00c7\u00c3O - Dados Benner (campos exclusivos unificados nesta aba) */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <SectionHeader title="Dados Benner — Análise / Risco" color="bg-[#0F766E]" />
+        <div className="p-4 space-y-4">
+          <div className="space-y-2">
+            <Label>Análise Quarteirizado</Label>
+            <Textarea
+              value={bennerExtra.analise_quarteirizado || ""}
+              onChange={e => setExtra("analise_quarteirizado", e.target.value)}
+              rows={6}
+              className="min-h-[140px] resize-y"
+              placeholder="Descreva a análise do quarteirizado..."
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Risco Mídia Negativa</Label>
+              <Select value={bennerExtra.risco_midia || "__none__"} onValueChange={v => setExtra("risco_midia", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="S">S</SelectItem>
+                  <SelectItem value="N">N</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Risco (descrição)</Label>
+              <Input value={bennerExtra.risco_descricao || ""} onChange={e => setExtra("risco_descricao", e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Provas Digitais</Label>
+              <Select value={bennerExtra.provas_digitais || "__none__"} onValueChange={v => setExtra("provas_digitais", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="S">S</SelectItem>
+                  <SelectItem value="N">N</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Matéria de Honra</Label>
+            <Select value={bennerExtra.materia_honra || "__none__"} onValueChange={v => setExtra("materia_honra", v === "__none__" ? "" : v)}>
+              <SelectTrigger className="md:w-1/3"><SelectValue placeholder="Selecione" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Selecione</SelectItem>
+                <SelectItem value="S">S</SelectItem>
+                <SelectItem value="N">N</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </div>
+
+      {/* SE\u00c7\u00c3O - Dados Benner / Julgamento */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <SectionHeader title="Dados Benner — Julgamento" color="bg-[#0E7490]" />
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label>Data Julgamento?</Label>
+              <Select value={bennerExtra.tem_data_julgamento || "__none__"} onValueChange={v => setExtra("tem_data_julgamento", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="S">S</SelectItem>
+                  <SelectItem value="N">N</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Data Julgamento</Label>
+              <Input type="date" value={bennerExtra.data_julgamento || ""} onChange={e => setExtra("data_julgamento", e.target.value || null)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Horário</Label>
+              <Input type="time" value={bennerExtra.horario_julgamento || ""} onChange={e => setExtra("horario_julgamento", e.target.value || null)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Tipo Julgamento</Label>
+              <Select value={bennerExtra.tipo_julgamento || "__none__"} onValueChange={v => setExtra("tipo_julgamento", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="Virtual">Virtual</SelectItem>
+                  <SelectItem value="Telepresencial">Telepresencial</SelectItem>
+                  <SelectItem value="Híbrido">Híbrido</SelectItem>
+                  <SelectItem value="Presencial">Presencial</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Entrega Memoriais</Label>
+              <Select value={bennerExtra.entrega_memoriais || "__none__"} onValueChange={v => setExtra("entrega_memoriais", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="S">S</SelectItem>
+                  <SelectItem value="N">N</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Sustentação Oral</Label>
+              <Select value={bennerExtra.sustentacao_oral || "__none__"} onValueChange={v => setExtra("sustentacao_oral", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="S">S</SelectItem>
+                  <SelectItem value="N">N</SelectItem>
+                  <SelectItem value="Não cabe">Não cabe</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* SE\u00c7\u00c3O - Dados Benner / Resultado */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <SectionHeader title="Dados Benner — Resultado" color="bg-green-600" />
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {([
+              ["resultado_sem_transcendencia", "Sem Transcendência"],
+              ["resultado_nao_conhecido", "Não Conhecido"],
+              ["resultado_conhecido_provido", "Conhecido e Provido"],
+              ["resultado_conhecido_nao_provido", "Conhecido e Não Provido"],
+            ] as const).map(([field, label]) => (
+              <div key={field} className="flex items-center gap-2">
+                <Checkbox
+                  id={`be-${field}`}
+                  checked={!!bennerExtra[field]}
+                  onCheckedChange={v => setExtra(field, !!v)}
+                />
+                <Label htmlFor={`be-${field}`} className="text-sm cursor-pointer">{label}</Label>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-2">
+            <Label>Outra (descrição)</Label>
+            <Input value={bennerExtra.resultado_outra || ""} onChange={e => setExtra("resultado_outra", e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Observações</Label>
+            <Textarea value={bennerExtra.observacoes || ""} onChange={e => setExtra("observacoes", e.target.value)} rows={3} />
+          </div>
+          <div className="space-y-2">
+            <Label>Notas</Label>
+            <Textarea value={bennerExtra.notas || ""} onChange={e => setExtra("notas", e.target.value)} rows={3} placeholder="Anotações livres sobre este registro..." />
+          </div>
+        </div>
+      </div>
+
+      {/* SE\u00c7\u00c3O - Dados Benner / Fechamento */}
+      <div className="border border-border rounded-lg overflow-hidden">
+        <SectionHeader title="Dados Benner — Fechamento" color="bg-yellow-500 !text-black" />
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
+            <div className="flex items-center gap-2">
+              <Checkbox id="be-ganhamos" checked={!!bennerExtra.ganhamos} onCheckedChange={v => setExtra("ganhamos", !!v)} />
+              <Label htmlFor="be-ganhamos" className="cursor-pointer">Ganhamos</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="be-perdemos" checked={!!bennerExtra.perdemos} onCheckedChange={v => setExtra("perdemos", !!v)} />
+              <Label htmlFor="be-perdemos" className="cursor-pointer">Perdemos</Label>
+            </div>
+            <div className="space-y-2">
+              <Label>Processo Baixado</Label>
+              <Select value={bennerExtra.processo_baixado || "__none__"} onValueChange={v => setExtra("processo_baixado", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="S">S</SelectItem>
+                  <SelectItem value="N">N</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Chance de Êxito (geral)</Label>
+              <Select value={bennerExtra.chance_exito || "__none__"} onValueChange={v => setExtra("chance_exito", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="PROVÁVEL">PROVÁVEL</SelectItem>
+                  <SelectItem value="POSSÍVEL">POSSÍVEL</SelectItem>
+                  <SelectItem value="REMOTA">REMOTA</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </div>
