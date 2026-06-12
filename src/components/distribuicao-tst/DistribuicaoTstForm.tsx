@@ -666,6 +666,16 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       // ATENÇÃO: ACTIVE/PASSIVE no TST = recorrente/recorrido, NÃO reclamante/reclamada,
       // por isso o backend é a fonte preferida.
       const partes = Array.isArray(data?.parties_detail) ? data.parties_detail : [];
+      // Persiste as partes (origem 'judit') para que a aba "Partes do processo"
+      // reflita imediatamente o resultado da consulta Judit.
+      try {
+        const bennerId = (dado as any)?.id || null;
+        if (bennerId && partes.length > 0) {
+          await persistirPartesJudit(bennerId, data);
+        }
+      } catch (e) {
+        console.warn("Falha ao persistir partes_processo_benner:", e);
+      }
       const nomesPorPersonType = (re: RegExp) =>
         [...new Set(
           partes
