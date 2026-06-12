@@ -300,6 +300,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
   const [saving, setSaving] = useState(false);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
+  const queryClient = useQueryClient();
   const [responsaveisLoaded, setResponsaveisLoaded] = useState(false);
   const { data: turmasTst = [] } = useTurmasTst();
   const { data: relatoresTst = [] } = useRelatoresTst();
