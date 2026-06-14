@@ -11,6 +11,7 @@ import {
   useConfiguracaoCargaBenner,
   useSalvarConfiguracaoCargaBenner,
 } from "@/hooks/useConfiguracoesCargaBenner";
+import { MainLayout } from "@/components/layout/MainLayout";
 
 function parseEmails(s: string): string[] {
   return s.split(/[,;\n]/).map((e) => e.trim()).filter(Boolean);
@@ -59,14 +60,17 @@ export default function ConfiguracoesCargaBenner() {
 
   if (isLoading) {
     return (
+      <MainLayout title="Configurações de Remessas Benner">
       <div className="container mx-auto py-12 text-center text-muted-foreground">
         <Loader2 className="w-6 h-6 animate-spin inline mr-2" />
         Carregando configurações...
       </div>
+      </MainLayout>
     );
   }
 
   return (
+    <MainLayout title="Configurações de Remessas Benner">
     <div className="container mx-auto py-6 space-y-4 max-w-3xl">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -199,5 +203,6 @@ export default function ConfiguracoesCargaBenner() {
         </Button>
       </div>
     </div>
+    </MainLayout>
   );
 }
