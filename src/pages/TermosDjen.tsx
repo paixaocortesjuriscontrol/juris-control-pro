@@ -485,6 +485,21 @@ export default function TermosDjen() {
                   </SelectContent>
                 </Select>
 
+                {/* Filtro Arquivados (somente admin) */}
+                {isAdmin && (
+                  <Select value={arquivadosFiltro} onValueChange={setArquivadosFiltro}>
+                    <SelectTrigger className="w-full sm:w-[150px] h-9">
+                      <Archive className="h-4 w-4 mr-2 text-muted-foreground" />
+                      <SelectValue placeholder="Arquivados" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ativos">Apenas ativos</SelectItem>
+                      <SelectItem value="arquivados">Apenas arquivados</SelectItem>
+                      <SelectItem value="todos">Ativos + arquivados</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+
                 {filtrosAtivos && (
                   <Button variant="ghost" size="sm" onClick={limparFiltros} className="h-9">
                     Limpar
@@ -690,6 +705,13 @@ export default function TermosDjen() {
         monitoramento={editingMonitoramento}
         duplicateFrom={duplicatingMonitoramento}
         coordenacoesOverride={coordenacoes}
+      />
+
+      <AuditoriaDjenDialog
+        open={!!auditoriaTarget}
+        onOpenChange={(o) => { if (!o) setAuditoriaTarget(null); }}
+        monitoramentoId={auditoriaTarget?.id || null}
+        termoBusca={auditoriaTarget?.termo_busca}
       />
     </MainLayout>
   );
