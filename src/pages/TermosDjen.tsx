@@ -626,29 +626,52 @@ export default function TermosDjen() {
                             </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" title="Excluir">
-                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title={m.arquivado ? "Desarquivar" : "Arquivar"}
+                                  disabled={!isAdmin}
+                                >
+                                  {m.arquivado ? (
+                                    <ArchiveRestore className="h-4 w-4 text-primary" />
+                                  ) : (
+                                    <Archive className="h-4 w-4 text-destructive" />
+                                  )}
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Excluir monitoramento?</AlertDialogTitle>
+                                  <AlertDialogTitle>
+                                    {m.arquivado ? "Desarquivar monitoramento?" : "Arquivar monitoramento?"}
+                                  </AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    O monitoramento <strong>"{m.termo_busca}"</strong> será excluído
-                                    permanentemente, junto com todas as publicações associadas.
+                                    O monitoramento <strong>"{m.termo_busca}"</strong> será{" "}
+                                    {m.arquivado
+                                      ? "desarquivado e voltará a ser exibido na lista ativa."
+                                      : "arquivado e ocultado da lista padrão. Nenhum dado será excluído e a ação ficará registrada na trilha de auditoria."}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                   <AlertDialogAction
-                                    onClick={() => excluirMonitoramento.mutate(m.id)}
-                                    className="bg-destructive text-destructive-foreground"
+                                    onClick={() => arquivarMonitoramento.mutate({ id: m.id, arquivado: !m.arquivado })}
+                                    className={m.arquivado ? "" : "bg-destructive text-destructive-foreground"}
                                   >
-                                    Excluir
+                                    {m.arquivado ? "Desarquivar" : "Arquivar"}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setAuditoriaTarget(m)}
+                                title="Trilha de auditoria"
+                              >
+                                <History className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
