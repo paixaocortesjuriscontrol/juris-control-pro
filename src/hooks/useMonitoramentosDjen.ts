@@ -357,6 +357,7 @@ export function useMonitoramentosDjen(options?: { enabled?: boolean; includeArqu
     criarMonitoramentosEmLote,
     atualizarMonitoramento,
     excluirMonitoramento,
+    arquivarMonitoramento,
     marcarPublicacaoLida,
     importarDescartada,
     descartarDefinitivamente,
