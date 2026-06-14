@@ -1379,13 +1379,6 @@ export default function DistribuicaoTst() {
                   </Button>
                 </Link>
               )}
-              {isAdmin && (
-                <Link to="/remessas-benner">
-                  <Button variant="outline">
-                    <Mail className="w-4 h-4 mr-2" /> Remessa Benner
-                  </Button>
-                </Link>
-              )}
               <BennerSimImport onUpdated={handleRefresh} />
               <DossiesNaoLocalizadosButton filters={debouncedFilters} selectedIds={selectedIds} />
               <Button variant="secondary" onClick={handleGerarCarga} disabled={cargaLoading}>
