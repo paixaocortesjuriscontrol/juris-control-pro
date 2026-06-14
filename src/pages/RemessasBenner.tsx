@@ -39,6 +39,7 @@ import {
 } from "@/hooks/useConfiguracoesCargaBenner";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
+import { MainLayout } from "@/components/layout/MainLayout";
 
 const STATUS_COLORS: Record<string, string> = {
   gerada: "bg-slate-200 text-slate-800",
