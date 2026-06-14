@@ -39,6 +39,7 @@ import {
 } from "@/hooks/useConfiguracoesCargaBenner";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
+import { MainLayout } from "@/components/layout/MainLayout";
 
 const STATUS_COLORS: Record<string, string> = {
   gerada: "bg-slate-200 text-slate-800",
@@ -63,6 +64,7 @@ export default function RemessasBenner() {
   }, [remessas, filterStatus]);
 
   return (
+    <MainLayout title="Remessas Benner">
     <div className="container mx-auto py-6 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -191,6 +193,7 @@ export default function RemessasBenner() {
         <RemessaDetailDrawer remessa={selected} onClose={() => setSelected(null)} />
       )}
     </div>
+    </MainLayout>
   );
 }
 
