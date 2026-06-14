@@ -68,12 +68,6 @@ export default function RemessasBenner() {
     <div className="container mx-auto py-6 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button asChild variant="outline" size="sm" className="gap-2" aria-label="Voltar para Admin. TST">
-            <Link to="/admin-tst">
-              <ArrowLeft className="w-4 h-4" />
-              Admin. TST
-            </Link>
-          </Button>
           <div>
             <h1 className="text-2xl font-bold">Remessas Carga Benner</h1>
             <p className="text-sm text-muted-foreground">Histórico de envios e conciliação com o Santander</p>
