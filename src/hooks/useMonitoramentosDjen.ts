@@ -24,6 +24,9 @@ export interface MonitoramentoDjen {
   tribunais_ufs?: string[];
   buscar_parte?: boolean;
   somente_kurier?: boolean;
+  arquivado?: boolean;
+  arquivado_em?: string | null;
+  arquivado_por?: string | null;
 }
 
 export interface PublicacaoDjen {
@@ -57,20 +60,25 @@ export interface PublicacaoContagem {
   nao_lidas: number;
 }
 
-export function useMonitoramentosDjen(options?: { enabled?: boolean }) {
+export function useMonitoramentosDjen(options?: { enabled?: boolean; includeArquivados?: boolean }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const enabled = options?.enabled ?? true;
+  const includeArquivados = options?.includeArquivados ?? false;
 
   const { data: monitoramentos = [], isLoading } = useQuery({
-    queryKey: ['monitoramentos-djen', user?.id],
+    queryKey: ['monitoramentos-djen', user?.id, includeArquivados],
     queryFn: async () => {
       if (!user?.id) return [];
       
-      const { data, error } = await supabase
+      let q = supabase
         .from('monitoramentos_djen')
         .select('*')
         .order('created_at', { ascending: false });
+      if (!includeArquivados) {
+        q = q.eq('arquivado', false);
+      }
+      const { data, error } = await q;
 
       if (error) throw error;
       return (data as MonitoramentoDjen[]).map((item) => ({
@@ -228,12 +236,7 @@ export function useMonitoramentosDjen(options?: { enabled?: boolean }) {
 
   const excluirMonitoramento = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('monitoramentos_djen')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      throw new Error('Exclusão desabilitada. Use a função Arquivar.');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['monitoramentos-djen'] });
@@ -244,6 +247,27 @@ export function useMonitoramentosDjen(options?: { enabled?: boolean }) {
     onError: (error) => {
       console.error("Erro ao excluir monitoramento:", error);
       toast.error(`Erro ao excluir monitoramento: ${error.message}`);
+    },
+  });
+
+  const arquivarMonitoramento = useMutation({
+    mutationFn: async ({ id, arquivado }: { id: string; arquivado: boolean }) => {
+      const { data, error } = await supabase
+        .from('monitoramentos_djen')
+        .update({ arquivado })
+        .eq('id', id)
+        .select('id');
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error('Sem permissão para arquivar este monitoramento.');
+      }
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['monitoramentos-djen'] });
+      toast.success(vars.arquivado ? 'Monitoramento arquivado!' : 'Monitoramento desarquivado!');
+    },
+    onError: (err: any) => {
+      toast.error(err?.message || 'Erro ao arquivar monitoramento.');
     },
   });
 
@@ -333,6 +357,7 @@ export function useMonitoramentosDjen(options?: { enabled?: boolean }) {
     criarMonitoramentosEmLote,
     atualizarMonitoramento,
     excluirMonitoramento,
+    arquivarMonitoramento,
     marcarPublicacaoLida,
     importarDescartada,
     descartarDefinitivamente,

@@ -6,13 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Newspaper, Filter, Search, Users, Power, PowerOff, Copy, FileText, FileType, Building2, BookOpen } from "lucide-react";
+import { Plus, Pencil, Archive, ArchiveRestore, History, Newspaper, Filter, Search, Users, Power, PowerOff, Copy, FileText, FileType, Building2, BookOpen } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useMonitoramentosDjen, MonitoramentoDjen } from "@/hooks/useMonitoramentosDjen";
 import { MonitoramentoDialog } from "@/components/djen/MonitoramentoDialog";
+import { AuditoriaDjenDialog } from "@/components/djen/AuditoriaDjenDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { gerarRelatorioTermosDjen } from "@/utils/gerarRelatorioTermosDjen";
 import { gerarRelatorioTermosDjenDocx } from "@/utils/gerarRelatorioTermosDjenDocx";
@@ -85,14 +86,16 @@ export default function TermosDjen() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingMonitoramento, setEditingMonitoramento] = useState<MonitoramentoDjen | null>(null);
   const [duplicatingMonitoramento, setDuplicatingMonitoramento] = useState<MonitoramentoDjen | null>(null);
+  const [auditoriaTarget, setAuditoriaTarget] = useState<MonitoramentoDjen | null>(null);
+  const [arquivadosFiltro, setArquivadosFiltro] = useState<string>("ativos");
 
   const {
     monitoramentos: todosMonitoramentos,
     contagensPublicacoes,
     isLoading,
     atualizarMonitoramento,
-    excluirMonitoramento,
-  } = useMonitoramentosDjen();
+    arquivarMonitoramento,
+  } = useMonitoramentosDjen({ includeArquivados: arquivadosFiltro !== "ativos" });
 
   // IDs de coordenações permitidas para este usuário
   const coordenacoesPermitidas = new Set(coordenacoes.map((c: any) => c.id));
@@ -123,6 +126,10 @@ export default function TermosDjen() {
   // Filtrar monitoramentos pelas coordenações do usuário + filtros ativos
   const monitoramentosFiltrados = useMemo(() => {
     return todosMonitoramentos.filter((m) => {
+      // Filtro de arquivados
+      if (arquivadosFiltro === "ativos" && m.arquivado) return false;
+      if (arquivadosFiltro === "arquivados" && !m.arquivado) return false;
+
       // Controle de acesso por coordenação
       if (!m.coordenacao_id) return isAdmin;
       if (!isAdmin && !coordenacoesPermitidas.has(m.coordenacao_id)) return false;
@@ -169,7 +176,7 @@ export default function TermosDjen() {
       if (!db) return -1;
       return da.localeCompare(db, 'pt-BR');
     });
-  }, [todosMonitoramentos, isAdmin, coordenacoesPermitidas, coordenacaoFiltro, tipoFiltro, statusFiltro, kurierFiltro, tribunalFiltro, termoBusca]);
+  }, [todosMonitoramentos, isAdmin, coordenacoesPermitidas, coordenacaoFiltro, tipoFiltro, statusFiltro, kurierFiltro, tribunalFiltro, termoBusca, arquivadosFiltro]);
 
   const filtrosAtivos =
     coordenacaoFiltro !== "__all__" ||
@@ -478,6 +485,21 @@ export default function TermosDjen() {
                   </SelectContent>
                 </Select>
 
+                {/* Filtro Arquivados (somente admin) */}
+                {isAdmin && (
+                  <Select value={arquivadosFiltro} onValueChange={setArquivadosFiltro}>
+                    <SelectTrigger className="w-full sm:w-[150px] h-9">
+                      <Archive className="h-4 w-4 mr-2 text-muted-foreground" />
+                      <SelectValue placeholder="Arquivados" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ativos">Apenas ativos</SelectItem>
+                      <SelectItem value="arquivados">Apenas arquivados</SelectItem>
+                      <SelectItem value="todos">Ativos + arquivados</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+
                 {filtrosAtivos && (
                   <Button variant="ghost" size="sm" onClick={limparFiltros} className="h-9">
                     Limpar
@@ -619,29 +641,52 @@ export default function TermosDjen() {
                             </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button variant="ghost" size="icon" title="Excluir">
-                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title={m.arquivado ? "Desarquivar" : "Arquivar"}
+                                  disabled={!isAdmin}
+                                >
+                                  {m.arquivado ? (
+                                    <ArchiveRestore className="h-4 w-4 text-primary" />
+                                  ) : (
+                                    <Archive className="h-4 w-4 text-destructive" />
+                                  )}
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Excluir monitoramento?</AlertDialogTitle>
+                                  <AlertDialogTitle>
+                                    {m.arquivado ? "Desarquivar monitoramento?" : "Arquivar monitoramento?"}
+                                  </AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    O monitoramento <strong>"{m.termo_busca}"</strong> será excluído
-                                    permanentemente, junto com todas as publicações associadas.
+                                    O monitoramento <strong>"{m.termo_busca}"</strong> será{" "}
+                                    {m.arquivado
+                                      ? "desarquivado e voltará a ser exibido na lista ativa."
+                                      : "arquivado e ocultado da lista padrão. Nenhum dado será excluído e a ação ficará registrada na trilha de auditoria."}
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
                                   <AlertDialogAction
-                                    onClick={() => excluirMonitoramento.mutate(m.id)}
-                                    className="bg-destructive text-destructive-foreground"
+                                    onClick={() => arquivarMonitoramento.mutate({ id: m.id, arquivado: !m.arquivado })}
+                                    className={m.arquivado ? "" : "bg-destructive text-destructive-foreground"}
                                   >
-                                    Excluir
+                                    {m.arquivado ? "Desarquivar" : "Arquivar"}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setAuditoriaTarget(m)}
+                                title="Trilha de auditoria"
+                              >
+                                <History className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -660,6 +705,13 @@ export default function TermosDjen() {
         monitoramento={editingMonitoramento}
         duplicateFrom={duplicatingMonitoramento}
         coordenacoesOverride={coordenacoes}
+      />
+
+      <AuditoriaDjenDialog
+        open={!!auditoriaTarget}
+        onOpenChange={(o) => { if (!o) setAuditoriaTarget(null); }}
+        monitoramentoId={auditoriaTarget?.id || null}
+        termoBusca={auditoriaTarget?.termo_busca}
       />
     </MainLayout>
   );
