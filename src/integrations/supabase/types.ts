@@ -4409,6 +4409,9 @@ export type Database = {
       }
       monitoramentos_djen: {
         Row: {
+          arquivado: boolean
+          arquivado_em: string | null
+          arquivado_por: string | null
           ativo: boolean
           buscar_parte: boolean | null
           condicao_concomitante: string | null
@@ -4430,6 +4433,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          arquivado?: boolean
+          arquivado_em?: string | null
+          arquivado_por?: string | null
           ativo?: boolean
           buscar_parte?: boolean | null
           condicao_concomitante?: string | null
@@ -4451,6 +4457,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          arquivado?: boolean
+          arquivado_em?: string | null
+          arquivado_por?: string | null
           ativo?: boolean
           buscar_parte?: boolean | null
           condicao_concomitante?: string | null
@@ -4494,6 +4503,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      monitoramentos_djen_auditoria: {
+        Row: {
+          acao: string
+          alterado_em: string
+          alterado_por: string | null
+          campos_alterados: string[] | null
+          dados_antes: Json | null
+          dados_depois: Json | null
+          id: string
+          monitoramento_id: string
+        }
+        Insert: {
+          acao: string
+          alterado_em?: string
+          alterado_por?: string | null
+          campos_alterados?: string[] | null
+          dados_antes?: Json | null
+          dados_depois?: Json | null
+          id?: string
+          monitoramento_id: string
+        }
+        Update: {
+          acao?: string
+          alterado_em?: string
+          alterado_por?: string | null
+          campos_alterados?: string[] | null
+          dados_antes?: Json | null
+          dados_depois?: Json | null
+          id?: string
+          monitoramento_id?: string
+        }
+        Relationships: []
       }
       monitoramentos_eprocesso: {
         Row: {
