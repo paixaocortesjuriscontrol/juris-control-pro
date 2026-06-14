@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
@@ -1376,6 +1376,13 @@ export default function DistribuicaoTst() {
                 <Link to="/distribuicao-tst/arquivados">
                   <Button variant="outline">
                     <Archive className="w-4 h-4 mr-2" /> Arquivados
+                  </Button>
+                </Link>
+              )}
+              {isAdmin && (
+                <Link to="/remessas-benner">
+                  <Button variant="outline">
+                    <Mail className="w-4 h-4 mr-2" /> Remessa Benner
                   </Button>
                 </Link>
               )}
