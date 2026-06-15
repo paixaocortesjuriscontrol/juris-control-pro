@@ -363,7 +363,7 @@ const normalizeIaValueForField = (field: string, value: any, reclamante: string,
 };
 
 export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
-  { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo, bennerDado, onSaveBennerExtra }: Props,
+  { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo, bennerDado, onSaveBennerExtra, onIaApplied }: Props,
   ref
 ) {
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
