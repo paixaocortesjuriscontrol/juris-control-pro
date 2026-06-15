@@ -43,6 +43,16 @@ function normalizePages(value: unknown): string[] {
     .filter(Boolean);
 }
 
+function normalizeAttachmentName(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .replace(/\s*\(C[ÓO]PIA\)\s*/gi, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]+/gi, "")
+    .toUpperCase();
+}
+
 function stripHtml(value: string) {
   return value
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -182,20 +192,33 @@ Deno.serve(async (req) => {
         if (incomingDocId) {
           documentoId = incomingDocId;
         } else {
+          const wantedName = normalizeAttachmentName(att.attachment_name || rawName);
+          const wantedExt = String(att.extension || "").trim().toLowerCase().replace(/^\./, "");
+          const wantedDate = String((att as any).attachment_date || "").trim();
+          const { data: previousAttachment } = await supabase
+            .from("judit_anexos")
+            .select("documento_id")
+            .eq("processo_numero", processoNumero)
+            .eq("texto_indexado", true)
+            .not("documento_id", "is", null)
+            .limit(200);
+          const previousRows = Array.isArray(previousAttachment) ? previousAttachment : [];
+          const siblingDocId = previousRows.find((row: any) => row?.documento_id)?.documento_id || null;
+          if (siblingDocId && wantedName) documentoId = siblingDocId;
           const { data: existingDoc } = await supabase
             .from("documentos")
             .select("id")
             .eq("processo_id", processoId)
             .eq("nome", safeName)
             .maybeSingle();
-          if (existingDoc?.id) {
+          if (!documentoId && existingDoc?.id) {
             documentoId = existingDoc.id;
             await supabase.from("documentos").update({
               tamanho_bytes: fileSize,
               tipo: contentType,
               categoria: "anexo-judit",
             } as any).eq("id", documentoId);
-          } else {
+          } else if (!documentoId) {
             const { data: newDoc, error: docErr } = await supabase
               .from("documentos")
               .insert({
@@ -271,17 +294,26 @@ Deno.serve(async (req) => {
             conteudo_extraido: conteudoFlat,
           } as any).eq("id", documentoId);
 
-          await supabase.from("judit_anexos")
-            .update({
+          const updatePayload = {
               texto_indexado: true,
               texto_indexado_em: new Date().toISOString(),
               documento_id: documentoId,
               processo_id: processoId,
               storage_path: storagePath,
               paginas_extraidas: finalPages,
-            } as any)
+            } as any;
+          await supabase.from("judit_anexos")
+            .update(updatePayload)
             .eq("processo_numero", processoNumero)
             .eq("attachment_id", stepId);
+          const siblingsUpdate = supabase.from("judit_anexos")
+            .update(updatePayload)
+            .eq("processo_numero", processoNumero);
+          if (wantedName) {
+            await siblingsUpdate
+              .eq("attachment_name", att.attachment_name || rawName)
+              .eq("extension", att.extension || null);
+          }
 
           results.push({ step_id: stepId, ok: true, pages: finalPages, documento_id: documentoId! });
         } else {
