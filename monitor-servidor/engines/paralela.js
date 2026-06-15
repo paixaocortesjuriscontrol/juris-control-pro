@@ -10,6 +10,9 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 // Timeout por chamada (1 monitoramento). 140s fica abaixo do limite do
 // Supabase Edge Functions (~150s) para detectar travas antes do 504.
 const TIMEOUT_MS = parseInt(process.env.PARALELA_TIMEOUT_MS || "140000", 10);
+// Concorrência interna: quantos (tribunal, tipo) processar em paralelo
+// dentro do MESMO slot do VPS. Faz 1 host se comportar como N workers lógicos.
+const CONCURRENCY = Math.max(1, parseInt(process.env.PARALELA_CONCURRENCY || "6", 10));
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -157,7 +160,7 @@ async function run({ sb, payload, log, job }) {
   };
   await flushProgresso(true);
 
-  // 3) Loop sequencial: 1 chamada à edge function por tribunal/tipo
+  // 3) Pool de concorrência: processa CONCURRENCY itens (tribunal/tipo) em paralelo
   let totalNovas = 0;
   let totalDescartadas = 0;
   let totalDuplicatas = 0;
@@ -178,17 +181,23 @@ async function run({ sb, payload, log, job }) {
     }
   };
 
-  for (const item of itens) {
-    if (await isCancelled()) {
-      log("paralela.cancelled", { remaining: itens.filter(i => i.status === "pendente").length });
-      break;
+  let cursor = 0;
+  let cancelledFlag = false;
+
+  const processItem = async (item) => {
+    if (cancelledFlag || (await isCancelled())) {
+      cancelledFlag = true;
+      return;
     }
     item.status = "executando";
     item.mensagem = `Processando ${item.tribunal} via VPS...`;
     await flushProgresso();
     try {
       for (const monitoramentoId of item.monitoramentoIds) {
-        if (await isCancelled()) break;
+        if (cancelledFlag || (await isCancelled())) {
+          cancelledFlag = true;
+          break;
+        }
         const { status, body } = await invokeDjen({
           dataInicio,
           dataFim,
@@ -208,6 +217,7 @@ async function run({ sb, payload, log, job }) {
         item.mensagem = `${item.tribunal}: ${item.current}/${item.total} termos`;
         await flushProgresso();
       }
+      if (cancelledFlag) return;
       item.current = item.total;
       item.mensagem = `Concluído: ${item.novas} novas, ${item.duplicatas} duplicadas, ${item.descartadas} descartadas`;
       item.status = "concluido";
@@ -223,6 +233,22 @@ async function run({ sb, payload, log, job }) {
       log("paralela.item_error", { id: item.id, e: item.erro });
     }
     await flushProgresso();
+  };
+
+  const worker = async () => {
+    while (!cancelledFlag) {
+      const idx = cursor++;
+      if (idx >= itens.length) return;
+      await processItem(itens[idx]);
+    }
+  };
+
+  const poolSize = Math.min(CONCURRENCY, itens.length);
+  log("paralela.pool", { concurrency: poolSize, totalItens: itens.length });
+  await Promise.all(Array.from({ length: poolSize }, () => worker()));
+
+  if (cancelledFlag) {
+    log("paralela.cancelled", { remaining: itens.filter((i) => i.status === "pendente").length });
   }
   await flushProgresso(true);
 
