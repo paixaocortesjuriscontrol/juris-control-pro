@@ -293,6 +293,16 @@ const getEquipeOptions = (current?: string | null) => {
   return [...options].sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
 };
 
+const normalizeDateInputValue = (value: any): any => {
+  if (value === null || value === undefined || value === "") return value;
+  const s = String(value).trim();
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  return value;
+};
+
 export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
   { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo, bennerDado, onSaveBennerExtra }: Props,
   ref
@@ -340,7 +350,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   ] as const;
   const buildBennerExtra = (src: any | null | undefined): Record<string, any> => {
     const out: Record<string, any> = {};
-    for (const k of BENNER_EXTRA_FIELDS) out[k] = src ? (src as any)[k] ?? null : null;
+    for (const k of BENNER_EXTRA_FIELDS) out[k] = src ? normalizeDateInputValue((src as any)[k] ?? null) : null;
     return out;
   };
   const [bennerExtra, setBennerExtra] = useState<Record<string, any>>(() => buildBennerExtra(bennerDado));
