@@ -196,19 +196,21 @@ Deno.serve(async (req) => {
         if (incomingDocId) {
           documentoId = incomingDocId;
         } else {
-          const wantedName = normalizeAttachmentName(att.attachment_name || rawName);
-          const wantedExt = String(att.extension || "").trim().toLowerCase().replace(/^\./, "");
-          const wantedDate = String((att as any).attachment_date || "").trim();
           const { data: previousAttachment } = await supabase
             .from("judit_anexos")
-            .select("documento_id")
+            .select("documento_id, attachment_name, attachment_date, extension")
             .eq("processo_numero", processoNumero)
             .eq("texto_indexado", true)
             .not("documento_id", "is", null)
             .limit(200);
           const previousRows = Array.isArray(previousAttachment) ? previousAttachment : [];
-          const siblingDocId = previousRows.find((row: any) => row?.documento_id)?.documento_id || null;
-          if (siblingDocId && wantedName) documentoId = siblingDocId;
+          const siblingDocId = previousRows.find((row: any) => {
+            const rowName = normalizeAttachmentName(row?.attachment_name);
+            const rowExt = String(row?.extension || "").trim().toLowerCase().replace(/^\./, "");
+            const rowDate = String(row?.attachment_date || "").trim();
+            return row?.documento_id && wantedName && rowName === wantedName && (!wantedExt || rowExt === wantedExt) && (!wantedDate || rowDate === wantedDate);
+          })?.documento_id || null;
+          if (siblingDocId) documentoId = siblingDocId;
           const { data: existingDoc } = await supabase
             .from("documentos")
             .select("id")
