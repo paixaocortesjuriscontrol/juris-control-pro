@@ -51,6 +51,9 @@ const ITEM_STATUS: Record<string, string> = {
   erro: "bg-destructive/15 text-destructive border-destructive/30",
 };
 
+type CoordenacaoOption = { id: string; nome: string };
+type MonitoramentoOption = { id: string; termo_busca?: string | null; descricao?: string | null; tipo?: string | null; oab?: string | null; uf?: string | null };
+
 function fmtDate(s: string | null | undefined): string {
   if (!s) return "—";
   try {
@@ -104,7 +107,7 @@ function EngineCard({ cfg, onToggle, onConfig }: {
     },
   });
   useEffect(() => {
-    setHorariosTexto((cfg.horarios_execucao || []).join(", "));
+    setHorariosTexto((JSON.parse(horariosKey) as string[]).join(", "));
   }, [cfg.id, horariosKey]);
 
   const horariosServidor = horariosTexto.split(",").map((h) => h.trim()).filter(Boolean);
@@ -131,7 +134,7 @@ function EngineCard({ cfg, onToggle, onConfig }: {
         .eq("coordenacao_id", coordenacaoId)
         .eq("ativo", true);
       if (error) throw error;
-      return (data || []).sort((a: any, b: any) =>
+      return ((data || []) as MonitoramentoOption[]).sort((a, b) =>
         formatMonitoramentoLabel(a).localeCompare(formatMonitoramentoLabel(b), "pt-BR")
       );
     },
@@ -232,7 +235,7 @@ function EngineCard({ cfg, onToggle, onConfig }: {
                 disabled={ativaAgora}
               >
                 <option value="">Todas</option>
-                {coordenacoes.map((c: any) => (
+                {(coordenacoes as CoordenacaoOption[]).map((c) => (
                   <option key={c.id} value={c.id}>{c.nome}</option>
                 ))}
               </select>
@@ -247,7 +250,7 @@ function EngineCard({ cfg, onToggle, onConfig }: {
                   disabled={ativaAgora}
                 >
                   <option value="">Todos</option>
-                  {(monitoramentos as any[]).map((m) => (
+                  {(monitoramentos as MonitoramentoOption[]).map((m) => (
                     <option key={m.id} value={m.id}>{formatMonitoramentoLabel(m)}</option>
                   ))}
                 </select>
