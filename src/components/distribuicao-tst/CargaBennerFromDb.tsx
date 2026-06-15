@@ -317,18 +317,6 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           if (error) throw error;
           if (data) allDist.push(...((data as any[]).map(mapBennerToDist)));
         }
-      } else if (selectedProcessNumbers && selectedProcessNumbers.length > 0) {
-        for (let i = 0; i < selectedProcessNumbers.length; i += 100) {
-          const batch = selectedProcessNumbers.slice(i, i + 100);
-          const { data, error } = await supabase
-            .from("dados_benner" as any)
-            .select("*")
-            .in("processo", batch)
-            .not("aba_origem", "is", null)
-            .order("created_at", { ascending: false });
-          if (error) throw error;
-          if (data) allDist.push(...((data as any[]).map(mapBennerToDist)));
-        }
       } else {
         while (true) {
           let query = supabase
@@ -673,7 +661,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       const remessa = await criarRemessa.mutateAsync({
         arquivo: res.blob,
         arquivoNome: res.filename,
-        filtros: { ...filters, selectedProcessNumbers, idsAllowedCount: idsAllowed?.length ?? null },
+        filtros: { ...filters, selectedRecordIdsCount: selectedRecordIds?.length ?? null, idsAllowedCount: idsAllowed?.length ?? null },
         itens,
       });
       toast.success(`Remessa ${remessa.numero_sequencial} criada com ${itens.length} item(ns)!`);
