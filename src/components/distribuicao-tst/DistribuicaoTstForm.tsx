@@ -470,19 +470,30 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           filled.add(k);
         }
       }
-      for (const k of BENNER_EXTRA_FIELDS) {
-        const v = (iaSugestao as any)?.[k];
-        if (v === null || v === undefined) continue;
-        const cur = bennerExtraRef.current[k];
-        const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
-        if (!curEmpty) continue;
-        const vNorm = normalizeDateInputValue(v);
-        setExtra(k, vNorm);
-        filled.add(k);
-      }
       setIaFields(filled);
       return next;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(iaSugestao || {}), dado?.id]);
+
+  // A aba principal também contém campos exclusivos do Dados Benner; aplica as
+  // sugestões neles e marca como dirty para que o próximo Salvar persista.
+  useEffect(() => {
+    if (!iaSugestao || Object.keys(iaSugestao).length === 0) return;
+    const updates: Record<string, any> = {};
+    for (const k of BENNER_EXTRA_FIELDS) {
+      const v = (iaSugestao as any)?.[k];
+      if (v === null || v === undefined) continue;
+      const cur = bennerExtraRef.current[k];
+      const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
+      if (!curEmpty) continue;
+      updates[k] = normalizeDateInputValue(v);
+    }
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    for (const k of keys) bennerDirtyRef.current.add(k);
+    setBennerExtra((prev) => ({ ...prev, ...updates }));
+    setIaFields((prev) => new Set([...Array.from(prev), ...keys]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(iaSugestao || {}), dado?.id]);
 
