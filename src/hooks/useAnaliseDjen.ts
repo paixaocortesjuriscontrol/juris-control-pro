@@ -196,15 +196,36 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
 
   const marcarComoLida = useMutation({
     mutationFn: async (ids: string[]) => {
-      const { error } = await supabase
-        .from('publicacoes_djen')
-        .update({ lida: true })
-        .in('id', ids);
+      if (!ids.length) return;
 
+      // 1) Flag global (best-effort, retrocompat)
+      await supabase.from('publicacoes_djen').update({ lida: true }).in('id', ids);
+
+      // 2) Per-user em publicacoes_djen_leituras (fonte da verdade da UI)
+      if (!user?.id) return;
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('nome')
+        .eq('id', user.id)
+        .maybeSingle();
+      const userName = profileData?.nome || user.email || 'Desconhecido';
+      const rows = ids.map((id) => ({
+        publicacao_id: id,
+        tabela_origem: 'termo',
+        usuario_id: user.id,
+        usuario_nome: userName,
+      }));
+      const { error } = await (supabase as any)
+        .from('publicacoes_djen_leituras')
+        .upsert(rows, { onConflict: 'publicacao_id,tabela_origem,usuario_id' });
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['analise-djen'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['analise-djen'] }),
+        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] }),
+        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] }),
+      ]);
       toast.success("Publicação(ões) marcada(s) como lida(s)");
     },
   });
