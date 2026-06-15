@@ -204,7 +204,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
         if (!pid) {
           const { data: novo, error: insErr } = await supabase
             .from("processos")
-            .insert({ numero: processoNumero })
+            .insert({ numero: processoNumero, area: "trabalhista" } as any)
             .select("id")
             .single();
           if (insErr || !novo?.id) {
