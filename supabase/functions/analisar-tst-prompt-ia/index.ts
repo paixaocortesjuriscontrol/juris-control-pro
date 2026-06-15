@@ -119,13 +119,64 @@ Deno.serve(async (req) => {
       type: "function",
       function: {
         name: "preencher_formulario",
-        description: "Devolve sugestões dos campos da Distribuição TST e Dados Benner a partir do prompt customizado e dos anexos.",
+        description: "Preenche campos dos formulários Distribuição TST e Dados Benner com base nas peças.",
         parameters: {
           type: "object",
           additionalProperties: false,
           properties: {
-            distribuicao_tst: { type: "object", additionalProperties: true },
-            dados_benner: { type: "object", additionalProperties: true },
+            distribuicao_tst: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                relator: { type: "string" },
+                turma: { type: "string" },
+                relator_favorabilidade: { type: "string", enum: ["POSITIVO", "NEGATIVO"] },
+                turma_favorabilidade: { type: "string", enum: ["POSITIVA", "NEGATIVA"] },
+                parte_recorrente: { type: "string" },
+                tipo_recurso_reclamante: { type: "string" },
+                tipo_recurso_banco: { type: "string" },
+                tipo_recurso_terceiro: { type: "string" },
+                materias_recurso_reclamante: { type: "string" },
+                materias_recurso_banco: { type: "string" },
+                materias_recurso_terceiro: { type: "string" },
+                aparelhamento_reclamante: { type: "string", enum: ["BEM APARELHADO", "MAL APARELHADO"] },
+                aparelhamento_banco: { type: "string", enum: ["BEM APARELHADO", "MAL APARELHADO"] },
+                aparelhamento_terceiro: { type: "string", enum: ["BEM APARELHADO", "MAL APARELHADO"] },
+                chance_exito_reclamante: { type: "string", enum: ["PROVÁVEL", "POSSÍVEL", "REMOTA"] },
+                chance_exito_banco: { type: "string", enum: ["PROVÁVEL", "POSSÍVEL", "REMOTA"] },
+                chance_exito_terceiro: { type: "string", enum: ["PROVÁVEL", "POSSÍVEL", "REMOTA"] },
+                honra: { type: "string" },
+                tema: { type: "string" },
+                execucao: { type: "string" },
+                midia_negativa: { type: "string", enum: ["S", "N"] },
+                decisao_quarteirizado: { type: "string" },
+                recurso_terceiros: { type: "string" },
+                transito_julgado: { type: "boolean" },
+                situacao_processo: { type: "string" },
+                observacao_advogado: { type: "string" },
+              },
+            },
+            dados_benner: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                materia_honra: { type: "string", enum: ["S", "N"] },
+                analise_quarteirizado: { type: "string" },
+                risco_midia: { type: "string", enum: ["S", "N"] },
+                risco_descricao: { type: "string" },
+                provas_digitais: { type: "string", enum: ["S", "N"] },
+                tem_data_julgamento: { type: "string", enum: ["S", "N"] },
+                data_julgamento: { type: "string", description: "DD/MM/AAAA" },
+                horario_julgamento: { type: "string", description: "HH:MM 24h" },
+                tipo_julgamento: { type: "string", enum: ["Virtual", "Telepresencial", "Híbrido", "Presencial"] },
+                situacao_processo: { type: "string" },
+                processo_baixado: { type: "string", enum: ["S", "N"] },
+                transito_julgado: { type: "boolean" },
+                data_transito_julgado: { type: "string", description: "DD/MM/AAAA" },
+                notas: { type: "string" },
+                observacoes: { type: "string" },
+              },
+            },
             resumo: { type: "string", description: "Resumo de 2–4 linhas do que foi extraído." },
             alertas: { type: "array", items: { type: "string" } },
           },
@@ -137,8 +188,8 @@ Deno.serve(async (req) => {
     const systemPrompt = `Você é um assistente jurídico que analisa peças do TST.
 REGRA DE OURO: NUNCA invente. Se não houver evidência no texto, OMITA o campo.
 Devolva EXCLUSIVAMENTE via tool call "preencher_formulario".
-Os campos de "distribuicao_tst" e "dados_benner" devem usar os nomes/colunas que o advogado mencionar no prompt customizado abaixo.
-Quando o prompt customizado pedir explicitamente que algum campo seja preenchido, use o nome literal do campo.`;
+Use APENAS as chaves definidas no schema do tool (campos do formulário Distribuição TST e Dados Benner).
+O prompt customizado do advogado abaixo orienta a INTERPRETAÇÃO das peças, mas as chaves de saída devem ser sempre as do schema.`;
 
     const userPrompt = [
       `PROMPT CUSTOMIZADO DO ADVOGADO ("${promptRow.titulo}"):`,
