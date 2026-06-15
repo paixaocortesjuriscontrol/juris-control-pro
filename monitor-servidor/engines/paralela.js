@@ -394,15 +394,14 @@ async function run({ sb, payload, log, job }) {
     const { data } = await sb.from("execucoes_servidor").select("status").eq("id", job.id).maybeSingle();
     return data?.status === "cancelado";
   };
+  const slots = await loadPool(sb);
+  if (slots.length === 0) throw new Error("Nenhuma VPS ativa em djen_proxy_pool. O DJEN Servidor não roda sem VPS.");
   const cancelPoll = setInterval(async () => {
     if (!cancelled && await isCancelled().catch(() => false)) {
       cancelled = true;
       abortController.abort();
     }
   }, CANCEL_CHECK_MS);
-
-  const slots = await loadPool(sb);
-  if (slots.length === 0) throw new Error("Nenhuma VPS ativa em djen_proxy_pool. O DJEN Servidor não roda sem VPS.");
 
   const byKey = new Map(itens.map((i) => [i.id, i]));
   const band0 = [];
