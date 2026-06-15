@@ -760,6 +760,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <AnexosJuditTab
             processoNumero={processoNumero}
             processoId={processoIdUnico || undefined}
+            dadosBennerId={(bennerDado as any)?.id || (currentDado as any)?.id || null}
             attachments={anexos || []}
             dadosJudit={currentDado ? {
               dossie: currentDado.dossie,
