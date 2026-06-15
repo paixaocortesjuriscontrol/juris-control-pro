@@ -312,7 +312,7 @@ Deno.serve(async (req) => {
           await supabase.from("judit_anexos")
             .update(updatePayload)
             .eq("processo_numero", processoNumero)
-            .eq("attachment_id", stepId);
+            .or(`attachment_id.eq.${stepId},step_id.eq.${stepId}`);
           const siblingsUpdate = supabase.from("judit_anexos")
             .update(updatePayload)
             .eq("processo_numero", processoNumero);
