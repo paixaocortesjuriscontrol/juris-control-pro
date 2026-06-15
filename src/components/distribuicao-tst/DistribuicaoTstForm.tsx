@@ -377,6 +377,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Marca os campos preenchidos pela IA a partir dos anexos.
   const [iaFields, setIaFields] = useState<Set<string>>(new Set());
+  // Última versão de `iaResumo` já mesclada em `observacao_advogado`, para que
+  // atualizações posteriores (ex.: recontagem dos campos pintados) substituam
+  // o bloco antigo no lugar em vez de duplicar.
+  const lastIaResumoRef = useRef<string | null>(null);
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
 
   // ============================================================
