@@ -322,6 +322,7 @@ export function AnexosJuditTab({ processoNumero, processoId, attachments, dadosJ
               attachments: [{
                 step_id: a.step_id,
                 attachment_name: arquivo!.filename || a.attachment_name,
+                attachment_date: a.attachment_date || null,
                 instance: a.instance || null,
                 cnj: a.cnj || processoNumero,
                 extension: a.extension || null,
