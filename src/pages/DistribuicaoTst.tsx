@@ -831,11 +831,12 @@ export default function DistribuicaoTst() {
     setBulkJuditRunning(true);
 
     try {
-      let allProcessos: { processo_numero: string; dossie: string | null; turma: string | null; relator: string | null; data_distribuicao: string | null; parte_recorrente: string | null }[] = [];
+      let allProcessos: { id: string; processo_numero: string; dossie: string | null; turma: string | null; relator: string | null; data_distribuicao: string | null; parte_recorrente: string | null }[] = [];
 
       // If rows are selected, use only those
       if (selectedIds.size > 0) {
         allProcessos = dados.filter(d => selectedIds.has(d.id)).map(d => ({
+          id: d.id,
           processo_numero: d.processo_numero,
           dossie: d.dossie,
           turma: d.turma,
@@ -850,7 +851,7 @@ export default function DistribuicaoTst() {
         while (true) {
           let q = supabase
             .from("dados_benner" as any)
-            .select("processo, dossie, turma, relator, data_distribuicao, recorrente")
+            .select("id, processo, dossie, turma, relator, data_distribuicao, recorrente")
             .not("aba_origem", "is", null)
             .order("created_at", { ascending: false });
           
@@ -867,6 +868,7 @@ export default function DistribuicaoTst() {
           if (error) { toast.error("Erro ao buscar processos: " + error.message); break; }
           // Mapeia para a forma esperada pelo loop abaixo
           const mapped = ((data as any[]) || []).map((d: any) => ({
+            id: d.id,
             processo_numero: d.processo,
             dossie: d.dossie,
             turma: d.turma,
@@ -880,11 +882,13 @@ export default function DistribuicaoTst() {
         }
       }
 
-      // Deduplicate by processo_numero
+      // Deduplica por ID. Mesmo processo pode existir mais de uma vez com
+      // dossiês/origens diferentes; deduplicar por número fazia a rotina em
+      // massa atualizar uma linha errada e deixar outra intacta.
       const seen = new Set<string>();
       const unique = allProcessos.filter(p => {
-        if (!p.processo_numero || seen.has(p.processo_numero)) return false;
-        seen.add(p.processo_numero);
+        if (!p.id || seen.has(p.id)) return false;
+        seen.add(p.id);
         return true;
       });
 
@@ -993,7 +997,8 @@ export default function DistribuicaoTst() {
           const baixadoStr = (juditData.processo_baixado || "").toString().toUpperCase();
           const ehTransito = /tr[âa]nsito/i.test(situacaoStr) || baixadoStr === "S";
 
-          // Build dados_benner record
+          // Atualiza apenas a linha selecionada. Mesmo processo pode ter mais
+          // de um dossiê/origem na base; nunca atualizar por `processo` aqui.
           const tribunaisAceitos = ["TST", "STF", "STJ"];
           const tribunalMapeado = tribunaisAceitos.includes(juditData.tribunal) ? juditData.tribunal : null;
 
@@ -1006,47 +1011,10 @@ export default function DistribuicaoTst() {
           const turmaFinal = juditData.turma || proc.turma || "";
           const erroJuditFlag = !isTurmaOficialTst(turmaFinal);
 
-          const dadoToSave: any = {
-            processo: proc.processo_numero,
-            dossie: juditData.dossie || proc.dossie || "",
-            turma: turmaFinal,
-            relator: juditData.relator || proc.relator || "",
-            data_distribuicao_real: juditData.data_distribuicao || proc.data_distribuicao || null,
-            data_distribuicao: juditData.data_distribuicao || proc.data_distribuicao || null,
-            recorrente: recorrenteJudit,
-            reclamante: reclamanteJudit || null,
-            reclamada: reclamadaJudit || null,
-            tribunal: tribunalMapeado || "TST",
-            tipo_recurso: juditData.tipo_recurso || null,
-            tipo_recurso_reclamante: juditData.tipo_recurso_reclamante || null,
-            tipo_recurso_banco: juditData.tipo_recurso_banco || null,
-            situacao_processo: juditData.situacao_processo || null,
-            transito_julgado: ehTransito || null,
-            tem_data_julgamento: juditData.tem_data_julgamento || null,
-            data_julgamento: juditData.data_julgamento || null,
-            horario_julgamento: juditData.horario_julgamento || null,
-            tipo_julgamento: juditData.tipo_julgamento || null,
-            resultado_sem_transcendencia: juditData.resultado_sem_transcendencia || false,
-            resultado_nao_conhecido: juditData.resultado_nao_conhecido || false,
-            resultado_conhecido_provido: juditData.resultado_conhecido_provido || false,
-            resultado_conhecido_nao_provido: juditData.resultado_conhecido_nao_provido || false,
-            resultado_outra: juditData.resultado_outra || null,
-            processo_baixado: juditData.processo_baixado || null,
-            erro_judit: erroJuditFlag,
-            status: "rascunho",
-          };
+          const bennerId = (proc as any).id as string | undefined;
+          if (!bennerId) continue;
 
-          // Upsert: check if exists
-          const { data: existingBenner } = await supabase
-            .from("dados_benner" as any)
-            .select("id")
-            .eq("processo", proc.processo_numero)
-            .limit(1);
-
-          let bennerId: string | null = null;
-
-          if (existingBenner && (existingBenner as any[]).length > 0) {
-            bennerId = (existingBenner as any[])[0].id;
+          {
             // Mesma regra do formulário individual: a Judit é fonte da verdade.
             // Para os campos de Tipo de Recurso a Judit é fonte ÚNICA — quando
             // ela não confirma um recurso, o valor antigo (possivelmente errado)
@@ -1086,7 +1054,7 @@ export default function DistribuicaoTst() {
               const { data: upd, error: updErr } = await (supabase
                 .from("dados_benner" as any)
                 .update(updateFields as any)
-                .eq("processo", proc.processo_numero)
+                .eq("id", bennerId)
                 .select("id") as any);
               if (updErr) {
                 console.warn("[bulk-judit] update error", proc.processo_numero, updErr.message);
@@ -1096,17 +1064,6 @@ export default function DistribuicaoTst() {
                 successCount++;
               }
             }
-          } else {
-            // Get user id
-            const { data: authData } = await supabase.auth.getUser();
-            dadoToSave.user_id = authData?.user?.id || null;
-            const { data: inserted } = await supabase
-              .from("dados_benner" as any)
-              .insert(dadoToSave)
-              .select("id")
-              .single();
-            bennerId = (inserted as any)?.id || null;
-            successCount++;
           }
 
           // Persiste partes detalhadas (CPF/CNPJ, advogados, etc.) na aba "Partes"
@@ -1138,7 +1095,7 @@ export default function DistribuicaoTst() {
               judit_preenchido_em: new Date().toISOString(),
               judit_preenchido_por: authData2?.user?.id || null,
             } as any)
-            .eq("processo", proc.processo_numero);
+            .eq("id", bennerId);
 
           // Throttle to avoid rate limits
           await new Promise(r => setTimeout(r, 800));

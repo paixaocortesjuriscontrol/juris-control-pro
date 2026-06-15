@@ -381,6 +381,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   // atualizações posteriores (ex.: recontagem dos campos pintados) substituam
   // o bloco antigo no lugar em vez de duplicar.
   const lastIaResumoRef = useRef<string | null>(null);
+  // ID real da linha ativa durante a sessão. Em "Novo registro + Judit", o
+  // pré-save cria a linha antes da consulta; usar só `dado?.id` aqui ficava
+  // preso no valor antigo (undefined) e o auto-save final inseria uma segunda
+  // linha. Este ref é atualizado assim que o primeiro save retorna o id.
+  const activeRecordIdRef = useRef<string | undefined>(dado?.id || undefined);
+  useEffect(() => {
+    activeRecordIdRef.current = dado?.id || undefined;
+  }, [dado?.id]);
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
 
   // ============================================================
@@ -718,7 +726,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             if (existingId) prePayload.processo_id = existingId as string;
           }
         }
-        const preResult = await onSave(prePayload, dado?.id);
+        const preResult = await onSave(prePayload, activeRecordIdRef.current);
+        if (preResult && typeof preResult === "string") {
+          activeRecordIdRef.current = preResult;
+        }
         if (preResult && typeof preResult === "string" && !dado?.id) {
           // Novo registro: propaga o id para o parent para que `dado` seja
           // recarregado e o auto-save pós-Judit atualize a mesma linha.
@@ -959,12 +970,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               if (existingId) payload.processo_id = existingId as string;
             }
           }
-          const result = await onSave(payload, dado?.id);
+          const result = await onSave(payload, activeRecordIdRef.current);
           if (result) {
             toast.success("Distribuição TST e Dados Benner sincronizados com Judit");
             // Se foi um insert novo, `result` é o id recém-criado; propaga para
             // o container habilitar as abas dependentes imediatamente.
-            const newId = typeof result === "string" ? result : (dado?.id || undefined);
+            if (typeof result === "string") activeRecordIdRef.current = result;
+            const newId = typeof result === "string" ? result : (activeRecordIdRef.current || dado?.id || undefined);
             onJuditSync?.(newId);
           }
         } catch (e: any) {
@@ -1093,7 +1105,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     // depois, o form remonta com a snapshot anterior do bennerDado e a UI
     // mostra os valores antigos (parecendo que a alteração não foi salva),
     // mesmo com o banco já atualizado na sequência.
-    const extraTargetId = (bennerDadoRef.current as any)?.id || dado?.id;
+    const extraTargetId = (bennerDadoRef.current as any)?.id || activeRecordIdRef.current || dado?.id;
     if (onSaveBennerExtra && extraTargetId && bennerDiff) {
       try {
         await onSaveBennerExtra(bennerDiff, extraTargetId);
@@ -1101,7 +1113,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         console.error("Falha ao salvar campos Benner unificados:", e);
       }
     }
-    const ok = await onSave(payload, dado?.id);
+    const ok = await onSave(payload, activeRecordIdRef.current || dado?.id);
+    if (ok && typeof ok === "string") activeRecordIdRef.current = ok;
     // Se for um INSERT (sem id prévio), o extra-save acima não tinha alvo.
     // Salva agora usando o id retornado pelo insert.
     if (ok && onSaveBennerExtra && !extraTargetId && bennerDiff) {
