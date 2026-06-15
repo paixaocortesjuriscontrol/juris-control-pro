@@ -640,12 +640,21 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             onJuditSync={handleJuditSync}
             iaSugestao={iaSugestaoDistribuicaoCompleta}
             iaResumo={iaResumo}
-            onIaApplied={({ distribuicao, benner }) => {
+            onIaApplied={({ distribuicao, benner, distribuicaoFields, bennerFields }) => {
               setIaResumo((prev) => {
                 if (!prev) return prev;
                 const re = /\d+\s*campo\(s\)\s*Distribuição\s*\+\s*\d+\s*campo\(s\)\s*Benner\./;
                 const novo = `${distribuicao} campo(s) Distribuição + ${benner} campo(s) Benner.`;
-                return re.test(prev) ? prev.replace(re, novo) : prev;
+                const withCount = re.test(prev) ? prev.replace(re, novo) : prev;
+                const clean = withCount
+                  .replace(/\nCampos IA Distribuição:\s*[^\n]*/g, "")
+                  .replace(/\nCampos IA Benner:\s*[^\n]*/g, "")
+                  .trim();
+                return [
+                  clean,
+                  distribuicaoFields.length ? `Campos IA Distribuição: ${distribuicaoFields.join(", ")}` : null,
+                  bennerFields.length ? `Campos IA Benner: ${bennerFields.join(", ")}` : null,
+                ].filter(Boolean).join("\n");
               });
             }}
             bennerDado={bennerDado}
