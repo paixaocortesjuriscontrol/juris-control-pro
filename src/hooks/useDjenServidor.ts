@@ -26,6 +26,28 @@ export interface ExecucaoServidor {
   erro: string | null;
   tentativas: number;
   created_at: string;
+  progresso?: ProgressoExecucao | null;
+  progresso_atualizado_em?: string | null;
+  payload?: Record<string, unknown> | null;
+}
+
+export interface ProgressoItem {
+  id: string;
+  label: string;
+  data?: string;
+  status: "pendente" | "executando" | "concluido" | "erro";
+  novas?: number;
+  descartadas?: number;
+  duplicatas?: number;
+}
+
+export interface ProgressoExecucao {
+  totalItens?: number;
+  concluidos?: number;
+  falhas?: number;
+  atual?: { id: string; label: string } | null;
+  itens?: ProgressoItem[];
+  janela?: { dataInicio: string; dataFim: string };
 }
 
 export interface WorkerServidor {
@@ -172,22 +194,72 @@ export function usePublicacoesServidor(opts: { dataInicio?: string; dataFim?: st
 export function useEnfileirarManual() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (tipo: string) => {
+    mutationFn: async (
+      args:
+        | string
+        | {
+            tipo: string;
+            payload?: Record<string, unknown>;
+          }
+    ) => {
+      const tipo = typeof args === "string" ? args : args.tipo;
+      const extraPayload = typeof args === "string" ? {} : (args.payload || {});
       const { data, error } = await supabase.rpc("enfileirar_execucao_servidor", {
         p_tipo: tipo,
         p_agendado_para: new Date().toISOString(),
-        p_payload: { manual: true },
+        p_payload: { manual: true, ...extraPayload },
       });
       if (error) throw error;
       return data;
     },
     onSuccess: async (id) => {
-      await qc.invalidateQueries({ queryKey: ["djen-servidor", "execucoes"] });
+      await qc.invalidateQueries({ queryKey: ["djen-servidor"] });
       if (id) toast.success("Execução enfileirada");
       else toast.info("Já existe execução enfileirada nesta janela");
     },
     onError: (e: Error) => toast.error(e.message),
   });
+}
+
+/**
+ * Última execução ativa (ou mais recente) de um tipo, com Realtime.
+ * Usado para mostrar a barra de progresso ao vivo nos cards do DJEN Servidor.
+ */
+export function useExecucaoServidorAoVivo(tipo: string) {
+  const qc = useQueryClient();
+  const key = ["djen-servidor", "execucao-ao-vivo", tipo];
+
+  const query = useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("execucoes_servidor")
+        .select("*")
+        .eq("tipo", tipo)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      return (data?.[0] as ExecucaoServidor | undefined) || null;
+    },
+    refetchInterval: 10_000,
+  });
+
+  useEffect(() => {
+    const ch = supabase
+      .channel(`execucao-ao-vivo-${tipo}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "execucoes_servidor", filter: `tipo=eq.${tipo}` },
+        () => qc.invalidateQueries({ queryKey: key })
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipo, qc]);
+
+  return query;
 }
 
 export function useComparadorPublicacoes(opts: { dataInicio: string; dataFim: string }) {

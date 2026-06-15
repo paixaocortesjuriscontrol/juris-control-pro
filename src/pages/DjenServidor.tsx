@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { format } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,7 +8,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Server, Activity, FileSearch, GitCompare, PlayCircle, Loader2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Server, Activity, FileSearch, GitCompare, PlayCircle, Loader2, CalendarIcon, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
+import { formatMonitoramentoLabel } from "@/utils/monitoramentoLabel";
 import {
   useConfiguracoesServidor,
   useExecucoesServidor,
@@ -16,13 +25,30 @@ import {
   useEnfileirarManual,
   useComparadorPublicacoes,
   useTickAge,
+  useExecucaoServidorAoVivo,
   type ConfigServidor,
+  type ProgressoItem,
 } from "@/hooks/useDjenServidor";
 
 const LABELS: Record<string, string> = {
   djen_paralela_servidor: "DJEN Termos Paralela",
   kurier_servidor: "DJEN Kurier",
   djet_pautas_servidor: "DJET Pautas DEJT",
+};
+
+const STATUS_HEADER: Record<string, { label: string; color: string; bg: string }> = {
+  pendente: { label: "Aguardando", color: "text-amber-700", bg: "bg-amber-500/10" },
+  executando: { label: "Executando", color: "text-primary", bg: "bg-primary/10" },
+  concluido: { label: "Concluído", color: "text-emerald-700", bg: "bg-emerald-500/10" },
+  erro: { label: "Erro", color: "text-destructive", bg: "bg-destructive/10" },
+  idle: { label: "Ocioso", color: "text-muted-foreground", bg: "bg-muted/50" },
+};
+
+const ITEM_STATUS: Record<string, string> = {
+  pendente: "bg-muted text-muted-foreground",
+  executando: "bg-primary/15 text-primary border-primary/30",
+  concluido: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
+  erro: "bg-destructive/15 text-destructive border-destructive/30",
 };
 
 function fmtDate(s: string | null | undefined): string {
@@ -44,27 +70,214 @@ function statusBadge(status: string) {
   return <Badge variant="outline" className={map[status] || ""}>{status}</Badge>;
 }
 
-function ConfigCard({ cfg, onToggle, onRun, runningId }: {
+function ymd(d?: Date) { return d ? format(d, "yyyy-MM-dd") : undefined; }
+
+/**
+ * Card por engine — agora com filtros (coordenação + termo), datas (início/fim)
+ * e barra de progresso ao vivo por monitoramento × dia.
+ */
+function EngineCard({ cfg, onToggle }: {
   cfg: ConfigServidor;
   onToggle: (id: string, ativo: boolean) => void;
-  onRun: (tipo: string) => void;
-  runningId: string | null;
 }) {
+  const enfileirar = useEnfileirarManual();
+  const live = useExecucaoServidorAoVivo(cfg.tipo);
+
+  const today = useMemo(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; }, []);
+  const [dataInicio, setDataInicio] = useState<Date | undefined>(today);
+  const [dataFim, setDataFim] = useState<Date | undefined>(today);
+
+  const isParalela = cfg.tipo === "djen_paralela_servidor";
+
+  // Filtros (só Paralela suporta hoje, mas UI presente para consistência)
+  const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  const [monitoramentoId, setMonitoramentoId] = useState<string>("");
+  const { data: coordenacoes = [] } = useCoordenacoesFull();
+  const { data: monitoramentos = [] } = useQuery({
+    queryKey: ["djen-servidor-monitoramentos", coordenacaoId],
+    queryFn: async () => {
+      if (!coordenacaoId) return [];
+      const { data, error } = await supabase
+        .from("monitoramentos_djen")
+        .select("id, termo_busca, descricao, tipo, oab, uf")
+        .eq("coordenacao_id", coordenacaoId)
+        .eq("ativo", true);
+      if (error) throw error;
+      return (data || []).sort((a: any, b: any) =>
+        formatMonitoramentoLabel(a).localeCompare(formatMonitoramentoLabel(b), "pt-BR")
+      );
+    },
+    enabled: !!coordenacaoId && isParalela,
+  });
+  useEffect(() => { if (!coordenacaoId) setMonitoramentoId(""); }, [coordenacaoId]);
+
+  const exec = live.data;
+  const execStatus = exec?.status || "idle";
+  const ativaAgora = execStatus === "pendente" || execStatus === "executando";
+  const headerCfg = STATUS_HEADER[execStatus] || STATUS_HEADER.idle;
+
+  const progresso = exec?.progresso;
+  const total = progresso?.totalItens ?? 0;
+  const done = progresso?.concluidos ?? 0;
+  const falhas = progresso?.falhas ?? 0;
+  const pct = total > 0 ? Math.floor((done / total) * 100) : 0;
+  const itens: ProgressoItem[] = progresso?.itens || [];
+
+  const handleRun = () => {
+    if (!dataInicio || !dataFim) return;
+    const payload: Record<string, unknown> = {
+      dataInicio: ymd(dataInicio),
+      dataFim: ymd(dataFim),
+    };
+    if (isParalela) {
+      if (coordenacaoId) payload.coordenacaoId = coordenacaoId;
+      if (monitoramentoId) payload.monitoramentoIds = [monitoramentoId];
+    }
+    enfileirar.mutate({ tipo: cfg.tipo, payload });
+  };
+
   return (
     <Card>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{LABELS[cfg.tipo] || cfg.tipo}</CardTitle>
-          <Switch checked={cfg.ativo} onCheckedChange={(v) => onToggle(cfg.id, v)} />
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-base">{LABELS[cfg.tipo] || cfg.tipo}</CardTitle>
+            <Switch checked={cfg.ativo} onCheckedChange={(v) => onToggle(cfg.id, v)} />
+          </div>
+          <div className={cn(
+            "px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1.5",
+            headerCfg.bg, headerCfg.color
+          )}>
+            {execStatus === "executando" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            {execStatus === "concluido" && <CheckCircle2 className="h-3.5 w-3.5" />}
+            {execStatus === "erro" && <XCircle className="h-3.5 w-3.5" />}
+            {(execStatus === "idle" || execStatus === "pendente") && <Clock className="h-3.5 w-3.5" />}
+            {headerCfg.label}
+          </div>
         </div>
-        <CardDescription className="text-xs">{cfg.frequencia} · {(cfg.horarios_execucao || []).join(", ") || "—"}</CardDescription>
+        <CardDescription className="text-xs">
+          {cfg.frequencia} · {(cfg.horarios_execucao || []).join(", ") || "—"}
+          {cfg.ultima_execucao && <> · Última: {fmtDate(cfg.ultima_execucao)}</>}
+        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-2 text-sm">
-        <div className="text-muted-foreground">Última execução: <span className="text-foreground">{fmtDate(cfg.ultima_execucao)}</span></div>
-        <Button size="sm" variant="secondary" onClick={() => onRun(cfg.tipo)} disabled={runningId === cfg.tipo}>
-          {runningId === cfg.tipo ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PlayCircle className="h-4 w-4 mr-2" />}
-          Executar agora
+
+      <CardContent className="space-y-3">
+        {/* Filtros Paralela */}
+        {isParalela && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Coordenação</label>
+              <select
+                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+                value={coordenacaoId}
+                onChange={(e) => setCoordenacaoId(e.target.value)}
+                disabled={ativaAgora}
+              >
+                <option value="">Todas</option>
+                {coordenacoes.map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.nome}</option>
+                ))}
+              </select>
+            </div>
+            {coordenacaoId && (
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Termo</label>
+                <select
+                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+                  value={monitoramentoId}
+                  onChange={(e) => setMonitoramentoId(e.target.value)}
+                  disabled={ativaAgora}
+                >
+                  <option value="">Todos</option>
+                  {(monitoramentos as any[]).map((m) => (
+                    <option key={m.id} value={m.id}>{formatMonitoramentoLabel(m)}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Datas */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Início</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start text-left font-normal h-9" disabled={ativaAgora}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dataInicio ? format(dataInicio, "dd/MM/yyyy") : "Selecione"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dataInicio} onSelect={setDataInicio} initialFocus className="pointer-events-auto p-3" />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Fim</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start text-left font-normal h-9" disabled={ativaAgora}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dataFim ? format(dataFim, "dd/MM/yyyy") : "Selecione"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dataFim} onSelect={setDataFim} initialFocus className="pointer-events-auto p-3" />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+
+        <Button
+          size="sm"
+          variant="secondary"
+          className="w-full"
+          onClick={handleRun}
+          disabled={ativaAgora || enfileirar.isPending}
+        >
+          {(ativaAgora || enfileirar.isPending) ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PlayCircle className="h-4 w-4 mr-2" />}
+          {ativaAgora ? "Executando..." : "Executar agora"}
         </Button>
+
+        {/* Progresso ao vivo */}
+        {exec && (ativaAgora || execStatus === "concluido" || execStatus === "erro") && (
+          <div className="space-y-2 pt-2 border-t">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                {done}/{total} {total === 1 ? "item" : "itens"}
+                {falhas > 0 && <span className="text-destructive"> · {falhas} erro(s)</span>}
+              </span>
+              <span className="font-medium">{pct}%</span>
+            </div>
+            <Progress value={pct} className="h-2" />
+            {progresso?.atual && (
+              <p className="text-xs text-muted-foreground truncate">
+                <Loader2 className="h-3 w-3 animate-spin inline mr-1" />
+                {progresso.atual.label}
+              </p>
+            )}
+            {itens.length > 0 && (
+              <div className="max-h-48 overflow-y-auto space-y-1 mt-2 pr-1">
+                {itens.slice().reverse().slice(0, 50).map((it) => (
+                  <div key={it.id} className="flex items-center gap-2 text-xs">
+                    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", ITEM_STATUS[it.status])}>
+                      {it.status}
+                    </Badge>
+                    <span className="truncate flex-1" title={it.label}>{it.label}</span>
+                    {it.status === "concluido" && (it.novas ?? 0) > 0 && (
+                      <span className="text-emerald-600 font-medium">+{it.novas}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {exec.erro && (
+              <p className="text-xs text-destructive truncate" title={exec.erro}>{exec.erro}</p>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -73,19 +286,16 @@ function ConfigCard({ cfg, onToggle, onRun, runningId }: {
 function VisaoGeral() {
   const { data: cfgs = [], toggle } = useConfiguracoesServidor();
   const { data: workers = [] } = useWorkersServidor();
-  const enfileirar = useEnfileirarManual();
   const tick = useTickAge();
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {cfgs.map((cfg) => (
-          <ConfigCard
+          <EngineCard
             key={cfg.id}
             cfg={cfg}
             onToggle={(id, ativo) => toggle.mutate({ id, ativo })}
-            onRun={(tipo) => enfileirar.mutate(tipo)}
-            runningId={enfileirar.isPending ? enfileirar.variables ?? null : null}
           />
         ))}
       </div>
