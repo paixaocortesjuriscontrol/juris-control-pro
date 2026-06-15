@@ -345,6 +345,16 @@ const normalizeIaValueForField = (field: string, value: any, reclamante: string,
     return normalizeYesNoToSN(normalized);
   }
   if (field === "transito_julgado") return normalizeBooleanLike(normalized);
+  if ([
+    "resultado_sem_transcendencia",
+    "resultado_nao_conhecido",
+    "resultado_conhecido_provido",
+    "resultado_conhecido_nao_provido",
+    "ganhamos",
+    "perdemos",
+  ].includes(field)) {
+    return normalizeBooleanLike(normalized);
+  }
   return normalizeDateInputValue(normalized);
 };
 
