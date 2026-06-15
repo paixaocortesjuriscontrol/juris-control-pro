@@ -130,6 +130,7 @@ Deno.serve(async (req) => {
       try {
         const rawName = String(att.attachment_name || `documento_${stepId}.${att.extension || "pdf"}`);
         const safeName = safeFileName(rawName, `documento_${stepId}.pdf`);
+        const documentName = `${stepId}_${safeName}`;
         const storagePath = `${processoId}/judit-anexos/${stepId}_${safeName}`;
         const wantedName = normalizeAttachmentName(att.attachment_name || rawName);
         const wantedExt = String(att.extension || "").trim().toLowerCase().replace(/^\./, "");
@@ -215,7 +216,7 @@ Deno.serve(async (req) => {
             .from("documentos")
             .select("id")
             .eq("processo_id", processoId)
-            .eq("nome", safeName)
+            .eq("nome", documentName)
             .maybeSingle();
           if (!documentoId && existingDoc?.id) {
             documentoId = existingDoc.id;
@@ -229,7 +230,7 @@ Deno.serve(async (req) => {
               .from("documentos")
               .insert({
                 processo_id: processoId,
-                nome: safeName,
+                nome: documentName,
                 tipo: contentType,
                 tamanho_bytes: fileSize,
                 uploaded_by: user.id,
