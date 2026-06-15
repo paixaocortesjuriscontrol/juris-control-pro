@@ -1283,8 +1283,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </div>
               )}
             </div>
-            <div className="space-y-2">
-              <Label>Aparelhamento</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("aparelhamento_reclamante", form.aparelhamento_reclamante))}>
+              <Label className="flex items-center">Aparelhamento <IaBadge field="aparelhamento_reclamante" value={form.aparelhamento_reclamante} /></Label>
               <Select value={form.aparelhamento_reclamante || "__none__"} onValueChange={v => set("aparelhamento_reclamante", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1295,15 +1295,15 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Matérias Recurso Reclamante</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("materias_recurso_reclamante", form.materias_recurso_reclamante))}>
+            <Label className="flex items-center">Matérias Recurso Reclamante <IaBadge field="materias_recurso_reclamante" value={form.materias_recurso_reclamante} /></Label>
             <MateriasMultiSelect
               value={form.materias_recurso_reclamante || null}
               onChange={(v) => set("materias_recurso_reclamante", v)}
             />
           </div>
-          <div className="space-y-2">
-            <Label>Chance de Êxito</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("chance_exito_reclamante", form.chance_exito_reclamante))}>
+            <Label className="flex items-center">Chance de Êxito <IaBadge field="chance_exito_reclamante" value={form.chance_exito_reclamante} /></Label>
             <Select value={form.chance_exito_reclamante || "__none__"} onValueChange={v => set("chance_exito_reclamante", v === "__none__" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
