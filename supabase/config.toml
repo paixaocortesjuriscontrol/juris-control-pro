@@ -39,6 +39,9 @@ verify_jwt = false
 [functions.monitorar-termos]
 verify_jwt = false
 
+[functions.dispatcher-servidor]
+verify_jwt = false
+
 [functions.backfill-djen]
 verify_jwt = false
 
