@@ -30,6 +30,27 @@ function instanceCandidates(value: unknown) {
   return order;
 }
 
+function compactHttpError(status: number, body: string) {
+  const clean = body
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `HTTP ${status}${clean ? `: ${clean.substring(0, 160)}` : ""}`;
+}
+
+async function fetchWithRetry(url: string, headers: HeadersInit) {
+  let last: Response | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(url, { headers });
+    if (res.ok || ![502, 503, 504].includes(res.status)) return res;
+    last = res;
+    await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1)));
+  }
+  return last!;
+}
+
 function collectAttachmentCandidates(payload: any, wanted: { id: string; name?: string; date?: string; ext?: string }) {
   const out: Array<{ ids: string[]; instances: string[] }> = [];
   const wantedName = normalizeAttachmentKey(wanted.name);
@@ -114,11 +135,12 @@ Deno.serve(async (req) => {
           if (tried.has(key)) continue;
           tried.add(key);
           const url = `${JUDIT_LAWSUITS}/lawsuits/${encodeURIComponent(cnjClean)}/${inst}/attachments/${encodeURIComponent(id)}`;
-          const r = await fetch(url, { headers: { "api-key": juditApiKey } });
+          const r = await fetchWithRetry(url, { "api-key": juditApiKey });
           if (r.ok) return r;
           const txt = await r.text();
-          lastErr = `HTTP ${r.status}: ${txt.substring(0, 200)}`;
-          if (r.status !== 404) return r;
+          lastErr = compactHttpError(r.status, txt);
+          if (r.status === 404 || [502, 503, 504].includes(r.status)) continue;
+          return r;
         }
       }
       return null;
