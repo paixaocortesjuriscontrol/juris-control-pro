@@ -88,6 +88,7 @@ async function djenFetchSlot(slot, queryParams, signal) {
       else markOk(slot.url);
       return out;
     } catch (e) {
+      if (signal?.aborted) throw e;
       lastErr = e;
       markFail(slot.url, "err");
     }
