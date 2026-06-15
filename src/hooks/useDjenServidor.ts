@@ -243,7 +243,7 @@ export function useCancelarExecucaoServidor() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc("cancelar_execucao_servidor", { p_id: id });
+      const { error } = await supabase.rpc("cancelar_execucao_servidor" as never, { p_id: id } as never);
       if (error) throw error;
     },
     onSuccess: async () => {
