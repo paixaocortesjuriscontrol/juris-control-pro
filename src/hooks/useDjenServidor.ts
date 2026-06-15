@@ -62,6 +62,7 @@ export interface WorkerServidor {
   host: string | null;
   status: string;
   current_tipo: string | null;
+  current_execucao_id?: string | null;
   heartbeat_at: string;
   started_at: string;
   metadata: Record<string, unknown> | null;
