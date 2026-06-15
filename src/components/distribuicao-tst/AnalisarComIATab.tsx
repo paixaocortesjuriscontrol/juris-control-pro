@@ -207,6 +207,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
 
       const lista = uniqueAttachments.filter((a) => selected.has(uidOf(a)));
       const documentoIds: string[] = [];
+      const falhas: { nome: string; motivo: string }[] = [];
       let idx = 0;
       for (const att of lista) {
         idx++;
@@ -219,13 +220,26 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
           const r = await indexarAnexo(att, pid);
           if (r.documento_id) documentoIds.push(r.documento_id);
           if (r.processo_id) pid = r.processo_id;
+          else falhas.push({ nome: att.attachment_name || att.step_id, motivo: "sem documento_id retornado" });
         } catch (e: any) {
-          console.warn("Falha ao indexar", att.step_id, e);
+          const motivo = e?.message || String(e);
+          console.warn("Falha ao indexar", att.step_id, motivo, e);
+          falhas.push({ nome: att.attachment_name || att.step_id, motivo });
         }
       }
       if (documentoIds.length === 0) {
-        toast.error("Nenhum anexo pôde ser indexado.");
+        const primeiras = falhas.slice(0, 3).map((f) => `• ${f.nome}: ${f.motivo}`).join("\n");
+        toast.error("Nenhum anexo pôde ser indexado.", {
+          description: primeiras || "Verifique se o JUDIT_API_KEY está configurado e se os PDFs têm texto extraível.",
+          duration: 15000,
+        });
         return;
+      }
+      if (falhas.length > 0) {
+        toast.warning(`${falhas.length} anexo(s) não indexado(s)`, {
+          description: falhas.slice(0, 3).map((f) => `${f.nome}: ${f.motivo}`).join(" | "),
+          duration: 10000,
+        });
       }
 
       setStage("Analisando com IA…");
