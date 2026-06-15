@@ -1036,17 +1036,10 @@ export default function DistribuicaoTst() {
             status: "rascunho",
           };
 
-          // Upsert: check if exists
-          const { data: existingBenner } = await supabase
-            .from("dados_benner" as any)
-            .select("id")
-            .eq("processo", proc.processo_numero)
-            .limit(1);
+          const bennerId = (proc as any).id as string | undefined;
+          if (!bennerId) continue;
 
-          let bennerId: string | null = null;
-
-          if (existingBenner && (existingBenner as any[]).length > 0) {
-            bennerId = (existingBenner as any[])[0].id;
+          {
             // Mesma regra do formulário individual: a Judit é fonte da verdade.
             // Para os campos de Tipo de Recurso a Judit é fonte ÚNICA — quando
             // ela não confirma um recurso, o valor antigo (possivelmente errado)
@@ -1086,7 +1079,7 @@ export default function DistribuicaoTst() {
               const { data: upd, error: updErr } = await (supabase
                 .from("dados_benner" as any)
                 .update(updateFields as any)
-                .eq("processo", proc.processo_numero)
+                .eq("id", bennerId)
                 .select("id") as any);
               if (updErr) {
                 console.warn("[bulk-judit] update error", proc.processo_numero, updErr.message);
@@ -1096,17 +1089,6 @@ export default function DistribuicaoTst() {
                 successCount++;
               }
             }
-          } else {
-            // Get user id
-            const { data: authData } = await supabase.auth.getUser();
-            dadoToSave.user_id = authData?.user?.id || null;
-            const { data: inserted } = await supabase
-              .from("dados_benner" as any)
-              .insert(dadoToSave)
-              .select("id")
-              .single();
-            bennerId = (inserted as any)?.id || null;
-            successCount++;
           }
 
           // Persiste partes detalhadas (CPF/CNPJ, advogados, etc.) na aba "Partes"
@@ -1138,7 +1120,7 @@ export default function DistribuicaoTst() {
               judit_preenchido_em: new Date().toISOString(),
               judit_preenchido_por: authData2?.user?.id || null,
             } as any)
-            .eq("processo", proc.processo_numero);
+            .eq("id", bennerId);
 
           // Throttle to avoid rate limits
           await new Promise(r => setTimeout(r, 800));
