@@ -10,8 +10,18 @@ const TIPO_ORDER = ["parte", "advogado", "palavra-chave", "processo"];
 const MAIN_TIPOS = ["parte", "advogado", "palavra-chave"];
 const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 800));
 const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 1200));
+const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
 
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const delay = (ms, signal) => new Promise((resolve) => {
+  if (!ms || ms <= 0 || signal?.aborted) return resolve();
+  const timer = setTimeout(done, ms);
+  function done() {
+    clearTimeout(timer);
+    signal?.removeEventListener?.("abort", done);
+    resolve();
+  }
+  signal?.addEventListener?.("abort", done, { once: true });
+});
 
 function mapTipo(tipo) {
   return tipo === "nome" ? "palavra-chave" : (tipo || "palavra-chave");
@@ -166,10 +176,11 @@ function shouldExclude(conteudo, mon, metadata) {
   });
 }
 
-async function buscarPaginado(slot, params) {
+async function buscarPaginado(slot, params, signal) {
   const all = [];
   const seen = new Set();
   for (let page = 1; page < 1000; page++) {
+    if (signal?.aborted) throw new Error("cancelado");
     const query = {
       ...params,
       pagina: String(page),
@@ -181,12 +192,12 @@ async function buscarPaginado(slot, params) {
     let out;
     let lastErr;
     for (let attempt = 0; attempt < 4; attempt++) {
-      out = await djenFetchSlot(slot, query).catch((e) => {
+      out = await djenFetchSlot(slot, query, signal).catch((e) => {
         lastErr = e;
         return null;
       });
       if (out && out.status !== 429 && out.status < 500) break;
-      await delay(out?.status === 429 ? 8000 * (attempt + 1) : 3000 * (attempt + 1));
+      await delay(out?.status === 429 ? 8000 * (attempt + 1) : 3000 * (attempt + 1), signal);
     }
     if (!out) throw lastErr || new Error("Falha ao consultar VPS DJEN");
     if (out.status === 404) break;
@@ -205,7 +216,7 @@ async function buscarPaginado(slot, params) {
     const total = getTotal(data);
     if (items.length === 0 || items.length < 50 || added === 0) break;
     if (typeof total === "number" && page * 50 >= total) break;
-    if (PAGE_DELAY_MS > 0) await delay(PAGE_DELAY_MS);
+    if (PAGE_DELAY_MS > 0) await delay(PAGE_DELAY_MS, signal);
   }
   return all;
 }
@@ -239,17 +250,18 @@ function baseParams(mon, dia, tribunal) {
   return params;
 }
 
-async function buscarTermo(slot, mon, dia, tribunal) {
+async function buscarTermo(slot, mon, dia, tribunal, signal) {
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
     const results = [];
     for (const nomeParte of termosDeParte(mon)) {
-      results.push(...await buscarPaginado(slot, { ...baseParams(mon, dia, tribunal), nomeParte }));
-      if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS);
+      if (signal?.aborted) throw new Error("cancelado");
+      results.push(...await buscarPaginado(slot, { ...baseParams(mon, dia, tribunal), nomeParte }, signal));
+      if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
     }
     return results;
   }
-  return await buscarPaginado(slot, baseParams(mon, dia, tribunal));
+  return await buscarPaginado(slot, baseParams(mon, dia, tribunal), signal);
 }
 
 async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
