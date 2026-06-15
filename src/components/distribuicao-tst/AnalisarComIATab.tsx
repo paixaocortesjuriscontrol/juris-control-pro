@@ -50,6 +50,25 @@ const formatarDataAnexo = (raw?: string | null): string => {
   return s;
 };
 
+const mensagemErroFunction = async (error: any, data: any, fallback: string) => {
+  if (data?.error) return typeof data.error === "string" ? data.error : JSON.stringify(data.error);
+  const context = error?.context;
+  if (context?.clone) {
+    try {
+      const text = await context.clone().text();
+      if (text) {
+        try {
+          const parsed = JSON.parse(text);
+          return parsed?.error?.message || parsed?.error || parsed?.message || text;
+        } catch {
+          return text;
+        }
+      }
+    } catch {}
+  }
+  return error?.message || fallback;
+};
+
 /**
  * Aba "Analisar com IA":
  *  1) Advogado escolhe um Prompt IA TST cadastrado em /prompts-ia-tst
@@ -176,7 +195,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIn
           }],
         },
       });
-      if (error || (r as any)?.error) throw new Error((error as any)?.message || (r as any)?.error || "falha");
+      if (error || (r as any)?.error) throw new Error(await mensagemErroFunction(error, r, "falha"));
       const result = ((r as any)?.results || [])[0];
       if (result?.documento_id) documentoId = result.documento_id;
       totalSent += slice.length;
@@ -279,7 +298,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIn
         },
       });
       if (error || (data as any)?.error) {
-        throw new Error((error as any)?.message || (data as any)?.error || "Falha na IA");
+        throw new Error(await mensagemErroFunction(error, data, "Falha na IA"));
       }
       const dist = (data as any)?.distribuicao_tst || {};
       const ben = (data as any)?.dados_benner || {};
