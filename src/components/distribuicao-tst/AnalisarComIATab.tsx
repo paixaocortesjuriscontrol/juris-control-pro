@@ -169,6 +169,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIn
           attachments: [{
             step_id: att.step_id,
             attachment_name: arquivo.filename || att.attachment_name,
+            attachment_date: att.attachment_date || null,
             instance: att.instance || null,
             cnj: att.cnj || processoNumero,
             extension: att.extension || null,
