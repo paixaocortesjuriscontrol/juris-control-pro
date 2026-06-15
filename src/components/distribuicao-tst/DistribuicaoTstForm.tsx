@@ -244,6 +244,7 @@ const emptyForm: DistribuicaoTstInsert = {
   responsaveis_ids: [],
   dossie: null,
   equipe: null,
+  tribunal: "TST",
   reclamante: null,
   reclamada: null,
   relator: null,
