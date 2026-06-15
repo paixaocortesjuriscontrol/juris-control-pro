@@ -194,15 +194,16 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
     }
     setProcessing(true);
     try {
-      // Resolve processo_id
+      // Resolve processo_id (somente leitura; a criação fica a cargo da edge function
+      // `processar-anexos-ia` para evitar duplicação de registros em public.processos).
       let pid: string | null = processoId || null;
       if (!pid) {
-        const { data: proc } = await supabase.from("processos").select("id").eq("numero", processoNumero).maybeSingle();
+        const { data: proc } = await supabase
+          .from("processos")
+          .select("id")
+          .eq("numero", processoNumero)
+          .maybeSingle();
         pid = proc?.id || null;
-        if (!pid) {
-          const { data: novo } = await supabase.from("processos").insert({ numero: processoNumero, area: "trabalhista", status: "ativo" } as any).select("id").single();
-          pid = novo?.id || null;
-        }
       }
 
       const lista = uniqueAttachments.filter((a) => selected.has(uidOf(a)));
