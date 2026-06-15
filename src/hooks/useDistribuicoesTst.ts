@@ -105,6 +105,7 @@ export interface DistribuicaoTst {
   subida_em_massa?: boolean;
   situacao_envio_carga_id?: string | null;
   processo_outro_escritorio?: boolean | null;
+  tribunal?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -204,6 +205,7 @@ export function bennerToDistribuicao(b: any): DistribuicaoTst {
     subida_em_massa: !!b.subida_em_massa,
     situacao_envio_carga_id: b.situacao_envio_carga_id ?? null,
     processo_outro_escritorio: !!b.processo_outro_escritorio,
+    tribunal: b.tribunal ?? null,
     problema_judit: !!b.problema_judit,
     segredo_justica: !!b.segredo_justica,
     recurso_terceiro: !!b.recurso_terceiro,
@@ -253,6 +255,13 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
   // Regra simples: a aba Distribuição só salva os campos que ela mostra.
   // Campos do Dados Benner (tribunal, situação, processo_baixado, pauta etc.)
   // não entram aqui, para uma aba oculta/antiga nunca sobrescrever o formulário ativo.
+
+  // Agora a aba "Confere Benner" será oculta (somente admin) e a Distribuição
+  // TST passa a ser a fonte canônica do Tribunal. Persistimos quando o form
+  // envia explicitamente o campo (default "TST" na UI).
+  if ((d as any).tribunal !== undefined) {
+    payload.tribunal = (d as any).tribunal;
+  }
 
   if (d.relator_favorabilidade !== undefined) {
     const v = (d.relator_favorabilidade || "").toLowerCase();

@@ -244,6 +244,7 @@ const emptyForm: DistribuicaoTstInsert = {
   responsaveis_ids: [],
   dossie: null,
   equipe: null,
+  tribunal: "TST",
   reclamante: null,
   reclamada: null,
   relator: null,
@@ -1201,6 +1202,22 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               <Label>Dossiê (A)</Label>
               <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} />
             </div>
+            <div className="space-y-2">
+              <Label>Tribunal (B)</Label>
+              <Select
+                value={(form as any).tribunal || "TST"}
+                onValueChange={v => set("tribunal", v)}
+              >
+                <SelectTrigger><SelectValue placeholder="TST" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TST">TST</SelectItem>
+                  <SelectItem value="STF">STF</SelectItem>
+                  <SelectItem value="STJ">STJ</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Equipe</Label>
               <Select value={String(form.equipe || "").trim() || "__none__"} onValueChange={v => set("equipe", v === "__none__" ? null : v)}>
