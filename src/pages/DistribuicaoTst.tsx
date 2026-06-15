@@ -1149,7 +1149,7 @@ export default function DistribuicaoTst() {
             <Button variant="outline" onClick={() => { setShowCarga(false); setCargaDistribuicoes(null); setCargaIdsAllowed(null); }}>Voltar à Lista</Button>
           </div>
           <CargaBennerFromDb 
-            selectedProcessNumbers={selectedIds.size > 0 ? dados.filter(d => selectedIds.has(d.id)).map(d => d.processo_numero) : undefined}
+            selectedRecordIds={selectedIds.size > 0 ? Array.from(selectedIds) : undefined}
             distribuicoes={cargaDistribuicoes || undefined}
             idsAllowed={cargaIdsAllowed || undefined}
             filters={{
@@ -1178,14 +1178,16 @@ export default function DistribuicaoTst() {
             dado={editando}
             initialTab={detailInitialTab}
             onSaveDistribuicao={async (d, id) => {
-              const result = await saveDado(d, id);
-              const savedId = typeof result === "string" ? result : (id || null);
+              const targetId = id || editando?.id || undefined;
+              const result = await saveDado(d, targetId);
+              const savedId = typeof result === "string" ? result : (targetId || null);
               if (savedId) { setStickyId(savedId); setHighlightUntil(Date.now() + 8000); }
               return result;
             }}
             onSaveBenner={async (d, id) => {
-              const result = await handleSaveBenner(d, id);
-              const savedId = typeof result === "string" ? result : (id || null);
+              const targetId = id || editando?.id || undefined;
+              const result = await handleSaveBenner(d, targetId);
+              const savedId = typeof result === "string" ? result : (targetId || null);
               if (savedId) { setStickyId(savedId); setHighlightUntil(Date.now() + 8000); }
               return result;
             }}
