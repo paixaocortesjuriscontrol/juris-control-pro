@@ -87,7 +87,8 @@ async function runSlot(slot) {
             finalizado_em: new Date().toISOString(),
             resultado,
           })
-          .eq("id", job.id);
+          .eq("id", job.id)
+          .neq("status", "cancelado");
         log("job_done", { id: job.id, resultado });
       } catch (e) {
         await sb
@@ -97,7 +98,8 @@ async function runSlot(slot) {
             finalizado_em: new Date().toISOString(),
             erro: String(e && e.stack ? e.stack : e),
           })
-          .eq("id", job.id);
+          .eq("id", job.id)
+          .neq("status", "cancelado");
         log("job_error", { id: job.id, e: e.message });
       }
 
