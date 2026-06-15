@@ -361,7 +361,8 @@ async function processPublicationFromIndex(
   stats: { novas: number; descartadas: number; duplicatas: number },
   tribunal: string | null,
   dataAtual: string,
-  allMonitoramentos?: Monitoramento[]
+  allMonitoramentos?: Monitoramento[],
+  persistMode: { servidor?: boolean; execucaoServidorId?: string | null } = {}
 ) {
   const conteudo = String(pub?.conteudo || pub?.texto || pub?.teor || pub?.descricao || "");
   const hashConteudo = generateHash(conteudo + (pub.data_disponibilizacao || pub.data_publicacao || pub.data || ''));
@@ -467,6 +468,7 @@ async function processPublicationFromIndex(
     }
     
     if (!rescuedId) {
+      if (!persistMode.servidor) {
       await supabase.from('publicacoes_djen_descartadas').insert({
         monitoramento_id: monitoramento.id,
         coordenacao_id: (monitoramento as any).coordenacao_id ?? null,
@@ -480,6 +482,7 @@ async function processPublicationFromIndex(
         motivo_descarte: `condicao_concomitante: ${monitoramento.condicao_concomitante || ''}`.trim(),
         ...metadataDescartada,
       });
+      }
 
       stats.descartadas++;
       return;
@@ -491,6 +494,7 @@ async function processPublicationFromIndex(
   const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || [], metadataDescartada.partes_json, metadataDescartada.advogados_json);
 
   if (motivoExclusao) {
+    if (!persistMode.servidor) {
     await supabase.from('publicacoes_djen_descartadas').insert({
       monitoramento_id: monitoramento.id,
       coordenacao_id: (monitoramento as any).coordenacao_id ?? null,
@@ -504,18 +508,20 @@ async function processPublicationFromIndex(
       motivo_descarte: `Termo de exclusão: ${motivoExclusao}`,
       ...metadataDescartada,
     });
+    }
 
     stats.descartadas++;
     return;
   }
 
   const coordenacaoId = (monitoramento as any).coordenacao_id ?? null;
+  const targetTable = persistMode.servidor ? 'publicacoes_djen_servidor' : 'publicacoes_djen';
 
-  // Pré-checagem por id_djen quando disponível (caminho principal); cai para hash_conteudo no fallback.
+  // Pré-checagem isolada por fluxo: servidor consulta/grava somente publicacoes_djen_servidor.
   let existing: { id: string } | null = null;
   if (idDjen && coordenacaoId) {
     const { data } = await supabase
-      .from('publicacoes_djen')
+      .from(targetTable)
       .select('id')
       .eq('coordenacao_id', coordenacaoId)
       .eq('id_djen', idDjen)
@@ -524,7 +530,7 @@ async function processPublicationFromIndex(
   }
   if (!existing) {
     const existingQuery = supabase
-      .from('publicacoes_djen')
+      .from(targetTable)
       .select('id')
       .eq('hash_conteudo', hashConteudo);
     const { data } = coordenacaoId
@@ -538,7 +544,7 @@ async function processPublicationFromIndex(
     return;
   }
 
-  const { data: publicacao, error: insertError } = await supabase.from('publicacoes_djen').insert({
+  const insertRow: Record<string, unknown> = {
     monitoramento_id: monitoramento.id,
     coordenacao_id: coordenacaoId,
     hash_conteudo: hashConteudo,
@@ -549,7 +555,13 @@ async function processPublicationFromIndex(
     processo_numero: processoNumero,
     tribunal: tribunal || null,
     ...metadataDescartada,
-  }).select('id').single();
+  };
+  if (persistMode.servidor) {
+    insertRow.origem = 'servidor';
+    insertRow.execucao_id = persistMode.execucaoServidorId ?? null;
+  }
+
+  const { data: publicacao, error: insertError } = await supabase.from(targetTable).insert(insertRow).select('id').single();
 
   if (insertError) {
     console.error(`Insert error:`, insertError);
