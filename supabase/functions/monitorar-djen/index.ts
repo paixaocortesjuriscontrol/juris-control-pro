@@ -654,6 +654,10 @@ export default async function handler(req: Request): Promise<Response> {
       Array.isArray(body?.monitoramentoIds) && body.monitoramentoIds.length > 0
         ? body.monitoramentoIds
         : null;
+    const tribunaisFiltro: string[] | null =
+      Array.isArray(body?.tribunais) && body.tribunais.length > 0
+        ? body.tribunais.map((t: unknown) => String(t).trim()).filter(Boolean)
+        : null;
 
     // Janela de datas: aceita dataInicio/dataFim (yyyy-mm-dd) OU diarioYmd (compat)
     const dataInicio: string =
@@ -748,7 +752,10 @@ export default async function handler(req: Request): Promise<Response> {
         item.status = 'executando';
         await flushProgresso();
         try {
-          const result = await processMonitoramentoIndexed(supabase, mon, dia, monitoramentos, {
+          const monProcessamento = tribunaisFiltro?.length
+            ? { ...(mon as any), tribunais: tribunaisFiltro }
+            : mon;
+          const result = await processMonitoramentoIndexed(supabase, monProcessamento, dia, monitoramentos, {
             servidor: !!execucaoServidorId,
             execucaoServidorId,
           });
