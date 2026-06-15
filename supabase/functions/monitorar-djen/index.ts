@@ -658,6 +658,7 @@ export default async function handler(req: Request): Promise<Response> {
       Array.isArray(body?.tribunais) && body.tribunais.length > 0
         ? body.tribunais.map((t: unknown) => String(t).trim()).filter(Boolean)
         : null;
+    const skipServidorProgress = body?.skipServidorProgress === true;
 
     // Janela de datas: aceita dataInicio/dataFim (yyyy-mm-dd) OU diarioYmd (compat)
     const dataInicio: string =
@@ -717,7 +718,7 @@ export default async function handler(req: Request): Promise<Response> {
     }
     let lastFlush = 0;
     const flushProgresso = async (force = false) => {
-      if (!execucaoServidorId) return;
+      if (!execucaoServidorId || skipServidorProgress) return;
       const now = Date.now();
       if (!force && now - lastFlush < 900) return;
       lastFlush = now;
