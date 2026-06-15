@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useCallback } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { format } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,9 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Server, Activity, FileSearch, GitCompare, PlayCircle, Loader2, CalendarIcon, CheckCircle2, XCircle, Clock, StopCircle, Zap, Newspaper, Radar, RotateCcw, Skull, Trash2, Globe, Wifi } from "lucide-react";
+import { Server, Activity, FileSearch, GitCompare, PlayCircle, Loader2, CalendarIcon, CheckCircle2, XCircle, Clock, StopCircle, Zap, Newspaper, Radar } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { formatMonitoramentoLabel } from "@/utils/monitoramentoLabel";
@@ -30,9 +30,9 @@ import {
   type ConfigServidor,
   type ProgressoItem,
 } from "@/hooks/useDjenServidor";
+import { DjenServidorParalelaCard } from "@/components/djen/DjenServidorParalelaCard";
 import { MonitoramentoTermosKurierCard } from "@/components/configuracoes/MonitoramentoTermosKurierCard";
 import { MonitoramentoDjetPautasCard } from "@/components/configuracoes/MonitoramentoDjetPautasCard";
-import { toast } from "sonner";
 
 const LABELS: Record<string, string> = {
   djen_paralela_servidor: "DJEN Servidor",
