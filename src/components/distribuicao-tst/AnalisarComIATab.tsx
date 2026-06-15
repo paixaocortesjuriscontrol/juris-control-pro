@@ -134,7 +134,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
     return pages;
   };
 
-  const indexarAnexo = async (att: Attachment, pidAcc: string | null): Promise<{ documento_id: string | null; processo_id: string | null }> => {
+  const indexarAnexo = async (att: Attachment, pid: string): Promise<{ documento_id: string | null }> => {
     let arquivo: any;
     if (att.storage_path) {
       const { data: signed } = await supabase.storage.from("documentos_processos").createSignedUrl(att.storage_path, 600);
@@ -147,7 +147,6 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
     if (!pages.some((p) => p.trim())) throw new Error("Sem texto extraível");
     const CHUNK = 50;
     let documentoId: string | null = null;
-    let processoId: string | null = pidAcc;
     let totalSent = 0;
     for (let start = 0; start < pages.length; start += CHUNK) {
       const slice = pages.slice(start, start + CHUNK);
@@ -155,8 +154,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
       const isLast = start + CHUNK >= pages.length;
       const { data: r, error } = await supabase.functions.invoke("processar-anexos-ia", {
         body: {
-          processo_numero: processoNumero,
-          processo_id: processoId,
+          processo_id: pid,
           source_storage_path: isFirst ? arquivo.storage_path : null,
           content_type: arquivo.content_type,
           file_size: arquivo.file_size,
@@ -177,10 +175,9 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
       if (error || (r as any)?.error) throw new Error((error as any)?.message || (r as any)?.error || "falha");
       const result = ((r as any)?.results || [])[0];
       if (result?.documento_id) documentoId = result.documento_id;
-      if ((r as any)?.processo_id) processoId = (r as any).processo_id;
       totalSent += slice.length;
     }
-    return { documento_id: documentoId, processo_id: processoId };
+    return { documento_id: documentoId };
   };
 
   const analisar = async () => {
@@ -194,16 +191,32 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
     }
     setProcessing(true);
     try {
-      // Resolve processo_id (somente leitura; a criação fica a cargo da edge function
-      // `processar-anexos-ia` para evitar duplicação de registros em public.processos).
+      // Resolve processo_id (chave única). Cria o processo se ainda não existir,
+      // para que todas as chamadas seguintes usem SEMPRE o id.
       let pid: string | null = processoId || null;
-      if (!pid) {
+      if (!pid && processoNumero) {
         const { data: proc } = await supabase
           .from("processos")
           .select("id")
           .eq("numero", processoNumero)
           .maybeSingle();
         pid = proc?.id || null;
+        if (!pid) {
+          const { data: novo, error: insErr } = await supabase
+            .from("processos")
+            .insert({ numero: processoNumero })
+            .select("id")
+            .single();
+          if (insErr || !novo?.id) {
+            toast.error("Não foi possível resolver o ID do processo.", { description: insErr?.message });
+            return;
+          }
+          pid = novo.id;
+        }
+      }
+      if (!pid) {
+        toast.error("Processo sem ID. Abra o detalhe a partir de um registro válido.");
+        return;
       }
 
       const lista = uniqueAttachments.filter((a) => selected.has(uidOf(a)));
@@ -221,7 +234,6 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
           const r = await indexarAnexo(att, pid);
           if (r.documento_id) documentoIds.push(r.documento_id);
           else falhas.push({ nome: att.attachment_name || att.step_id, motivo: "sem documento_id retornado" });
-          if (r.processo_id) pid = r.processo_id;
         } catch (e: any) {
           const motivo = e?.message || String(e);
           console.warn("Falha ao indexar", att.step_id, motivo, e);
@@ -248,7 +260,6 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
         body: {
           prompt_id: promptId,
           processo_id: pid,
-          processo_numero: processoNumero,
           documento_ids: documentoIds,
         },
       });
