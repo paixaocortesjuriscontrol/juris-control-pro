@@ -64,6 +64,7 @@ export function PublicacoesDjenList({
   onCriarTarefa,
 }: PublicacoesDjenListProps) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
