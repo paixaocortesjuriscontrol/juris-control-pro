@@ -101,13 +101,14 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       setProcessoIdUnico(null);
       return;
     }
-    supabase.rpc("find_processo_id_by_numero" as any, { _numero: processoNumero.trim() })
-      .then(({ data }) => {
+    void (async () => {
+      try {
+        const { data } = await supabase.rpc("find_processo_id_by_numero" as any, { _numero: processoNumero.trim() });
         if (!cancelled) setProcessoIdUnico((data as string) || null);
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setProcessoIdUnico(null);
-      });
+      }
+    })();
     return () => { cancelled = true; };
   }, [currentDado?.processo_id, processoNumero]);
 
