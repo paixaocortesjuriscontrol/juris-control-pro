@@ -760,10 +760,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               setIaDistribuicao(distribuicao_tst || {});
               setIaBenner(dados_benner || {});
               setIaResumo(resumo || null);
-              if (Object.keys(distribuicao_tst || {}).length > 0) {
+              if (Object.keys(distribuicao_tst || {}).length > 0 || Object.keys(dados_benner || {}).length > 0) {
                 setTab("distribuicao");
-              } else if (Object.keys(dados_benner || {}).length > 0) {
-                setTab("benner");
               }
             }}
           />
@@ -785,10 +783,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               setIaDistribuicao(distribuicao_tst || {});
               setIaBenner(dados_benner || {});
               setIaResumo(resumo || null);
-              if (Object.keys(distribuicao_tst || {}).length > 0) {
+              if (Object.keys(distribuicao_tst || {}).length > 0 || Object.keys(dados_benner || {}).length > 0) {
                 setTab("distribuicao");
-              } else if (Object.keys(dados_benner || {}).length > 0) {
-                setTab("benner");
               }
             }}
           />
