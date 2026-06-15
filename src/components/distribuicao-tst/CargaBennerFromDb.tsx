@@ -235,11 +235,12 @@ interface Props {
   onClose?: () => void;
   filters?: CargaFilters;
   selectedProcessNumbers?: string[];
+  selectedRecordIds?: string[];
   distribuicoes?: any[];
   idsAllowed?: string[];
 }
 
-export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumbers, distribuicoes, idsAllowed }: Props) {
+export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumbers, selectedRecordIds, distribuicoes, idsAllowed }: Props) {
   const [processing, setProcessing] = useState(true);
   const [phase, setPhase] = useState("");
   const [progress, setProgress] = useState(0);
@@ -250,7 +251,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
   const criarRemessa = useCriarRemessa();
   const navigate = useNavigate();
 
-  const isManualSelection = !!(selectedProcessNumbers && selectedProcessNumbers.length > 0);
+  const isManualSelection = !!((selectedRecordIds && selectedRecordIds.length > 0) || (selectedProcessNumbers && selectedProcessNumbers.length > 0));
   const hasPreFilteredData = !!(distribuicoes && distribuicoes.length > 0);
   const hasIdsAllowed = !!(idsAllowed && idsAllowed.length > 0);
 
