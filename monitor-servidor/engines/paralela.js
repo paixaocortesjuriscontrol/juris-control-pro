@@ -10,8 +10,18 @@ const TIPO_ORDER = ["parte", "advogado", "palavra-chave", "processo"];
 const MAIN_TIPOS = ["parte", "advogado", "palavra-chave"];
 const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 800));
 const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 1200));
+const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
 
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const delay = (ms, signal) => new Promise((resolve) => {
+  if (!ms || ms <= 0 || signal?.aborted) return resolve();
+  const timer = setTimeout(done, ms);
+  function done() {
+    clearTimeout(timer);
+    signal?.removeEventListener?.("abort", done);
+    resolve();
+  }
+  signal?.addEventListener?.("abort", done, { once: true });
+});
 
 function mapTipo(tipo) {
   return tipo === "nome" ? "palavra-chave" : (tipo || "palavra-chave");
@@ -166,10 +176,11 @@ function shouldExclude(conteudo, mon, metadata) {
   });
 }
 
-async function buscarPaginado(slot, params) {
+async function buscarPaginado(slot, params, signal) {
   const all = [];
   const seen = new Set();
   for (let page = 1; page < 1000; page++) {
+    if (signal?.aborted) throw new Error("cancelado");
     const query = {
       ...params,
       pagina: String(page),
@@ -181,12 +192,12 @@ async function buscarPaginado(slot, params) {
     let out;
     let lastErr;
     for (let attempt = 0; attempt < 4; attempt++) {
-      out = await djenFetchSlot(slot, query).catch((e) => {
+      out = await djenFetchSlot(slot, query, signal).catch((e) => {
         lastErr = e;
         return null;
       });
       if (out && out.status !== 429 && out.status < 500) break;
-      await delay(out?.status === 429 ? 8000 * (attempt + 1) : 3000 * (attempt + 1));
+      await delay(out?.status === 429 ? 8000 * (attempt + 1) : 3000 * (attempt + 1), signal);
     }
     if (!out) throw lastErr || new Error("Falha ao consultar VPS DJEN");
     if (out.status === 404) break;
@@ -205,7 +216,7 @@ async function buscarPaginado(slot, params) {
     const total = getTotal(data);
     if (items.length === 0 || items.length < 50 || added === 0) break;
     if (typeof total === "number" && page * 50 >= total) break;
-    if (PAGE_DELAY_MS > 0) await delay(PAGE_DELAY_MS);
+    if (PAGE_DELAY_MS > 0) await delay(PAGE_DELAY_MS, signal);
   }
   return all;
 }
@@ -239,17 +250,18 @@ function baseParams(mon, dia, tribunal) {
   return params;
 }
 
-async function buscarTermo(slot, mon, dia, tribunal) {
+async function buscarTermo(slot, mon, dia, tribunal, signal) {
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
     const results = [];
     for (const nomeParte of termosDeParte(mon)) {
-      results.push(...await buscarPaginado(slot, { ...baseParams(mon, dia, tribunal), nomeParte }));
-      if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS);
+      if (signal?.aborted) throw new Error("cancelado");
+      results.push(...await buscarPaginado(slot, { ...baseParams(mon, dia, tribunal), nomeParte }, signal));
+      if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
     }
     return results;
   }
-  return await buscarPaginado(slot, baseParams(mon, dia, tribunal));
+  return await buscarPaginado(slot, baseParams(mon, dia, tribunal), signal);
 }
 
 async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
@@ -321,8 +333,9 @@ async function run({ sb, payload, log, job }) {
   for (const m of lista) {
     const tipo = mapTipo(m.tipo);
     for (const tribunal of expandirTribunais(m.tribunais)) {
-      const key = `${tipo}|${tribunal}`;
-      if (!grouped.has(key)) grouped.set(key, { tipo, tribunal, monitoramentos: [] });
+      const splitTst = tribunal === "TST" && tipo !== "processo";
+      const key = splitTst ? `${tipo}|${tribunal}|${m.id}` : `${tipo}|${tribunal}`;
+      if (!grouped.has(key)) grouped.set(key, { id: key, tipo, tribunal, monitoramentos: [] });
       grouped.get(key).monitoramentos.push(m);
     }
   }
@@ -332,7 +345,7 @@ async function run({ sb, payload, log, job }) {
     const tb = TODOS_TRIBUNAIS.indexOf(b.tribunal);
     return (ta - tb) || (TIPO_ORDER.indexOf(a.tipo) - TIPO_ORDER.indexOf(b.tipo));
   }).map((g) => ({
-    id: `${g.tipo}|${g.tribunal}`,
+    id: g.id,
     label: g.monitoramentos.length > 1 ? `${g.monitoramentos.length} termos` : (g.monitoramentos[0]?.descricao || g.monitoramentos[0]?.termo_busca || g.tribunal),
     tribunal: g.tribunal,
     tipo: g.tipo,
@@ -354,7 +367,7 @@ async function run({ sb, payload, log, job }) {
     const now = Date.now();
     if (!force && now - lastFlush < 800) return;
     lastFlush = now;
-    const concluidos = itens.filter((i) => i.status === "concluido" || i.status === "erro").length;
+    const concluidos = itens.filter((i) => i.status === "concluido" || i.status === "erro" || i.status === "cancelado").length;
     const falhas = itens.filter((i) => i.status === "erro").length;
     const executando = itens.filter((i) => i.status === "executando");
     await sb.from("execucoes_servidor").update({
@@ -373,23 +386,30 @@ async function run({ sb, payload, log, job }) {
     }).eq("id", job.id);
   };
 
+  const abortController = new AbortController();
+  const signal = abortController.signal;
+  let cancelled = false;
   const isCancelled = async () => {
     if (!job?.id) return false;
     const { data } = await sb.from("execucoes_servidor").select("status").eq("id", job.id).maybeSingle();
     return data?.status === "cancelado";
   };
-
   const slots = await loadPool(sb);
   if (slots.length === 0) throw new Error("Nenhuma VPS ativa em djen_proxy_pool. O DJEN Servidor não roda sem VPS.");
+  const cancelPoll = setInterval(async () => {
+    if (!cancelled && await isCancelled().catch(() => false)) {
+      cancelled = true;
+      abortController.abort();
+    }
+  }, CANCEL_CHECK_MS);
 
   const byKey = new Map(itens.map((i) => [i.id, i]));
   const band0 = [];
   const band1 = [];
   const band2 = [];
   const band3 = [];
-  for (const tipo of MAIN_TIPOS) {
-    const item = byKey.get(`${tipo}|TST`);
-    if (item) for (const monId of item.monitoramentoIds) band0.push({ band: 0, item, monIds: [monId] });
+  for (const item of itens) {
+    if (item.tribunal === "TST" && MAIN_TIPOS.includes(item.tipo)) band0.push({ band: 0, item, monIds: item.monitoramentoIds });
   }
   const pushTipoUnits = (fila, band, tribunal) => {
     for (const tipo of MAIN_TIPOS) {
@@ -407,7 +427,6 @@ async function run({ sb, payload, log, job }) {
 
   let totalNovas = 0, totalDescartadas = 0, totalDuplicatas = 0, totalErros = 0;
   let bandAtual = 0;
-  let cancelled = false;
   const inBand = [0, 0, 0, 0];
   const pickNext = () => {
     while (bandAtual < bands.length) {
@@ -432,16 +451,22 @@ async function run({ sb, payload, log, job }) {
         const mon = monsPorId.get(monId);
         if (!mon) continue;
         for (const dia of dias) {
-          if (cancelled || (await isCancelled())) { cancelled = true; return; }
+          if (cancelled || signal.aborted || (await isCancelled())) {
+            cancelled = true;
+            abortController.abort();
+            item.status = "cancelado";
+            item.mensagem = "Cancelado pelo usuário";
+            return;
+          }
           item.mensagem = `${item.tribunal} ${dia}: ${item.current}/${item.total} via ${item.via.label}`;
-          const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal);
+          const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
           const stats = await persistPublicacoes(sb, pubs, mon, item.tribunal, dia, job?.id || null);
           item.novas += stats.novas;
           item.descartadas += stats.descartadas;
           item.duplicatas += stats.duplicatas;
           item.current += 1;
           await flushProgresso();
-          if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS);
+          if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
         }
       }
       if (item.current >= item.total) {
@@ -452,6 +477,13 @@ async function run({ sb, payload, log, job }) {
         totalDuplicatas += item.duplicatas;
       }
     } catch (e) {
+      if (cancelled || signal.aborted || String(e?.message || e).includes("cancel")) {
+        cancelled = true;
+        abortController.abort();
+        item.status = "cancelado";
+        item.mensagem = "Cancelado pelo usuário";
+        return;
+      }
       item.status = "erro";
       item.current = item.total;
       item.erro = String(e?.message || e).slice(0, 500);
@@ -479,7 +511,16 @@ async function run({ sb, payload, log, job }) {
   };
 
   await Promise.all(slots.map((slot) => worker(slot)));
-  if (cancelled) log("paralela.cancelled", { remaining: itens.filter((i) => i.status === "pendente").length });
+  clearInterval(cancelPoll);
+  if (cancelled) {
+    for (const item of itens) {
+      if (item.status === "pendente" || item.status === "executando") {
+        item.status = "cancelado";
+        item.mensagem = "Cancelado pelo usuário";
+      }
+    }
+    log("paralela.cancelled", { remaining: itens.filter((i) => i.status === "pendente").length });
+  }
   await flushProgresso(true);
   log("paralela.done", { monitoramentos: itens.length, novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros });
 

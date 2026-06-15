@@ -4,6 +4,7 @@ const ws = require("ws");
 
 const OFFLINE_MS = 60_000;
 const COOLDOWN_429_MS = 30_000;
+const PROXY_REQUEST_TIMEOUT_MS = Math.max(10_000, Number(process.env.DJEN_PROXY_TIMEOUT_MS || 60_000));
 
 let cache = { fetchedAt: 0, slots: [] };
 const TTL = 30_000;
@@ -56,7 +57,12 @@ async function parseProxyResponse(slot, res) {
   return { slot, status: res.status || 200, body: parsed ?? text };
 }
 
-async function djenFetchSlot(slot, queryParams) {
+function combineSignal(signal, timeoutMs) {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
+}
+
+async function djenFetchSlot(slot, queryParams, signal) {
   const upstreamUrl = buildUpstreamUrl(queryParams);
   const qs = new URLSearchParams(queryParams).toString();
   const base = slot.url.replace(/\/$/, "");
@@ -70,7 +76,7 @@ async function djenFetchSlot(slot, queryParams) {
       const res = await fetch(url, {
         method: "GET",
         headers: { "x-proxy-token": slot.token, "X-Proxy-Token": slot.token },
-        signal: AbortSignal.timeout(90_000),
+        signal: combineSignal(signal, PROXY_REQUEST_TIMEOUT_MS),
       });
       if (res.status === 404 || res.status === 502) {
         lastErr = new Error(`proxy_route_${res.status}`);
@@ -82,6 +88,7 @@ async function djenFetchSlot(slot, queryParams) {
       else markOk(slot.url);
       return out;
     } catch (e) {
+      if (signal?.aborted) throw e;
       lastErr = e;
       markFail(slot.url, "err");
     }
@@ -123,7 +130,7 @@ function markOk(url) {
   slotState.set(url, st);
 }
 
-async function djenFetch(sb, queryParams) {
+async function djenFetch(sb, queryParams, signal) {
   const slots = await loadPool(sb);
   let attempt = 0;
   while (attempt < slots.length * 2) {
@@ -134,7 +141,7 @@ async function djenFetch(sb, queryParams) {
       continue;
     }
     try {
-      const out = await djenFetchSlot(slot, queryParams);
+      const out = await djenFetchSlot(slot, queryParams, signal);
       if (out.status === 429 || out.status >= 500) continue;
       return out;
     } catch (e) {
