@@ -270,11 +270,12 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIn
       }
 
       setStage("Analisando com IA…");
+      const documentoIdsUnicos = Array.from(new Set(documentoIds));
       const { data, error } = await supabase.functions.invoke("analisar-tst-prompt-ia", {
         body: {
           prompt_id: promptId,
           processo_id: pid,
-          documento_ids: documentoIds,
+          documento_ids: documentoIdsUnicos,
         },
       });
       if (error || (data as any)?.error) {
