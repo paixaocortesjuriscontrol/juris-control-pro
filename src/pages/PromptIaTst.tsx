@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -48,6 +49,7 @@ export default function PromptIaTstPage() {
   );
 
   return (
+    <MainLayout title="Prompt IA TST">
     <div className="container mx-auto p-4 space-y-4 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -99,6 +101,7 @@ export default function PromptIaTstPage() {
         </div>
       )}
     </div>
+    </MainLayout>
   );
 }
 
