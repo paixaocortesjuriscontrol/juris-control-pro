@@ -1471,6 +1471,42 @@ export type Database = {
           },
         ]
       }
+      configuracoes_monitoramento_servidor: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          frequencia: string
+          horarios_execucao: string[] | null
+          id: string
+          metadata: Json | null
+          tipo: string
+          ultima_execucao: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          frequencia?: string
+          horarios_execucao?: string[] | null
+          id?: string
+          metadata?: Json | null
+          tipo: string
+          ultima_execucao?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          frequencia?: string
+          horarios_execucao?: string[] | null
+          id?: string
+          metadata?: Json | null
+          tipo?: string
+          ultima_execucao?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       consultas_judit: {
         Row: {
           created_at: string
@@ -3582,6 +3618,60 @@ export type Database = {
           tipo?: string
           total_lotes?: number | null
           ultimo_erro?: string | null
+        }
+        Relationships: []
+      }
+      execucoes_servidor: {
+        Row: {
+          agendado_para: string
+          created_at: string
+          dedupe_key: string | null
+          erro: string | null
+          finalizado_em: string | null
+          heartbeat_at: string | null
+          id: string
+          iniciado_em: string | null
+          payload: Json | null
+          resultado: Json | null
+          status: string
+          tentativas: number
+          tipo: string
+          updated_at: string
+          worker_id: string | null
+        }
+        Insert: {
+          agendado_para?: string
+          created_at?: string
+          dedupe_key?: string | null
+          erro?: string | null
+          finalizado_em?: string | null
+          heartbeat_at?: string | null
+          id?: string
+          iniciado_em?: string | null
+          payload?: Json | null
+          resultado?: Json | null
+          status?: string
+          tentativas?: number
+          tipo: string
+          updated_at?: string
+          worker_id?: string | null
+        }
+        Update: {
+          agendado_para?: string
+          created_at?: string
+          dedupe_key?: string | null
+          erro?: string | null
+          finalizado_em?: string | null
+          heartbeat_at?: string | null
+          id?: string
+          iniciado_em?: string | null
+          payload?: Json | null
+          resultado?: Json | null
+          status?: string
+          tentativas?: number
+          tipo?: string
+          updated_at?: string
+          worker_id?: string | null
         }
         Relationships: []
       }
@@ -6588,6 +6678,107 @@ export type Database = {
           },
         ]
       }
+      publicacoes_djen_servidor: {
+        Row: {
+          advogados_json: Json | null
+          conteudo: string | null
+          coordenacao_id: string | null
+          created_at: string
+          data_disponibilizacao: string | null
+          data_publicacao: string | null
+          dedup_conteudo_key: string | null
+          dedup_data_ref: string | null
+          dedup_head_norm: string | null
+          dedup_key: string | null
+          dedup_processo_digits: string | null
+          execucao_id: string | null
+          fonte: string | null
+          hash_conteudo: string
+          id: string
+          id_djen: string | null
+          kurier_login: string | null
+          meio: string | null
+          monitoramento_id: string
+          orgao: string | null
+          origem: string
+          partes_json: Json | null
+          polo_ativo: string | null
+          polo_passivo: string | null
+          processo_numero: string | null
+          tipo_comunicacao: string | null
+          tipo_publicacao: string
+          tribunal: string | null
+        }
+        Insert: {
+          advogados_json?: Json | null
+          conteudo?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          data_disponibilizacao?: string | null
+          data_publicacao?: string | null
+          dedup_conteudo_key?: string | null
+          dedup_data_ref?: string | null
+          dedup_head_norm?: string | null
+          dedup_key?: string | null
+          dedup_processo_digits?: string | null
+          execucao_id?: string | null
+          fonte?: string | null
+          hash_conteudo: string
+          id?: string
+          id_djen?: string | null
+          kurier_login?: string | null
+          meio?: string | null
+          monitoramento_id: string
+          orgao?: string | null
+          origem?: string
+          partes_json?: Json | null
+          polo_ativo?: string | null
+          polo_passivo?: string | null
+          processo_numero?: string | null
+          tipo_comunicacao?: string | null
+          tipo_publicacao?: string
+          tribunal?: string | null
+        }
+        Update: {
+          advogados_json?: Json | null
+          conteudo?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          data_disponibilizacao?: string | null
+          data_publicacao?: string | null
+          dedup_conteudo_key?: string | null
+          dedup_data_ref?: string | null
+          dedup_head_norm?: string | null
+          dedup_key?: string | null
+          dedup_processo_digits?: string | null
+          execucao_id?: string | null
+          fonte?: string | null
+          hash_conteudo?: string
+          id?: string
+          id_djen?: string | null
+          kurier_login?: string | null
+          meio?: string | null
+          monitoramento_id?: string
+          orgao?: string | null
+          origem?: string
+          partes_json?: Json | null
+          polo_ativo?: string | null
+          polo_passivo?: string | null
+          processo_numero?: string | null
+          tipo_comunicacao?: string | null
+          tipo_publicacao?: string
+          tribunal?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publicacoes_djen_servidor_execucao_id_fkey"
+            columns: ["execucao_id"]
+            isOneToOne: false
+            referencedRelation: "execucoes_servidor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       publicacoes_pje: {
         Row: {
           conteudo: string | null
@@ -7573,6 +7764,56 @@ export type Database = {
           },
         ]
       }
+      workers_servidor: {
+        Row: {
+          created_at: string
+          current_execucao_id: string | null
+          current_tipo: string | null
+          heartbeat_at: string
+          host: string | null
+          id: string
+          metadata: Json | null
+          started_at: string
+          status: string
+          updated_at: string
+          worker_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_execucao_id?: string | null
+          current_tipo?: string | null
+          heartbeat_at?: string
+          host?: string | null
+          id?: string
+          metadata?: Json | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          worker_id: string
+        }
+        Update: {
+          created_at?: string
+          current_execucao_id?: string | null
+          current_tipo?: string | null
+          heartbeat_at?: string
+          host?: string | null
+          id?: string
+          metadata?: Json | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workers_servidor_current_execucao_id_fkey"
+            columns: ["current_execucao_id"]
+            isOneToOne: false
+            referencedRelation: "execucoes_servidor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       profiles_basic: {
@@ -7727,6 +7968,10 @@ export type Database = {
         Returns: string
       }
       djen_strip_destinatarios: { Args: { p_text: string }; Returns: string }
+      enfileirar_execucao_servidor: {
+        Args: { p_agendado_para?: string; p_payload?: Json; p_tipo: string }
+        Returns: string
+      }
       find_processo_id_by_numero: { Args: { _numero: string }; Returns: string }
       gerar_numero_remessa_benner: { Args: never; Returns: string }
       get_cliente_ids_for_user: {
@@ -8148,6 +8393,32 @@ export type Database = {
         Returns: boolean
       }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
+      lease_proxima_execucao_servidor: {
+        Args: { p_tipos?: string[]; p_worker_id: string }
+        Returns: {
+          agendado_para: string
+          created_at: string
+          dedupe_key: string | null
+          erro: string | null
+          finalizado_em: string | null
+          heartbeat_at: string | null
+          id: string
+          iniciado_em: string | null
+          payload: Json | null
+          resultado: Json | null
+          status: string
+          tentativas: number
+          tipo: string
+          updated_at: string
+          worker_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "execucoes_servidor"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       limpar_execucoes_antigas: { Args: never; Returns: undefined }
       marcar_publicacoes_lidas_por_dedup: {
         Args: {
@@ -8161,6 +8432,10 @@ export type Database = {
       mark_djenp_duplicadas_global: { Args: never; Returns: number }
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
       rebuild_publicacoes_djen_unica_flags: { Args: never; Returns: undefined }
+      reset_jobs_orfaos_servidor: {
+        Args: { p_timeout_minutes?: number }
+        Returns: number
+      }
       restaurar_dados_benner_arquivado: {
         Args: { _id: string }
         Returns: string
