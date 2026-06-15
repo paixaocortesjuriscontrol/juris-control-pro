@@ -1,5 +1,6 @@
 // Replica src/utils/djenProxyPool.ts em Node (round-robin, offline 60s, cooldown 429)
 const { createClient } = require("@supabase/supabase-js");
+const ws = require("ws");
 
 const OFFLINE_MS = 60_000;
 const COOLDOWN_429_MS = 30_000;
@@ -108,6 +109,7 @@ async function djenFetch(sb, queryParams) {
 function makeSupabase() {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false },
+    realtime: { transport: ws },
   });
 }
 
