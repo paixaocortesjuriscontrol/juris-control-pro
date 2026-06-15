@@ -726,7 +726,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             if (existingId) prePayload.processo_id = existingId as string;
           }
         }
-        const preResult = await onSave(prePayload, dado?.id);
+        const preResult = await onSave(prePayload, activeRecordIdRef.current);
+        if (preResult && typeof preResult === "string") {
+          activeRecordIdRef.current = preResult;
+        }
         if (preResult && typeof preResult === "string" && !dado?.id) {
           // Novo registro: propaga o id para o parent para que `dado` seja
           // recarregado e o auto-save pós-Judit atualize a mesma linha.
@@ -967,12 +970,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               if (existingId) payload.processo_id = existingId as string;
             }
           }
-          const result = await onSave(payload, dado?.id);
+          const result = await onSave(payload, activeRecordIdRef.current);
           if (result) {
             toast.success("Distribuição TST e Dados Benner sincronizados com Judit");
             // Se foi um insert novo, `result` é o id recém-criado; propaga para
             // o container habilitar as abas dependentes imediatamente.
-            const newId = typeof result === "string" ? result : (dado?.id || undefined);
+            if (typeof result === "string") activeRecordIdRef.current = result;
+            const newId = typeof result === "string" ? result : (activeRecordIdRef.current || dado?.id || undefined);
             onJuditSync?.(newId);
           }
         } catch (e: any) {
