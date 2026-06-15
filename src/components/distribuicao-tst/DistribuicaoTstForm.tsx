@@ -1512,7 +1512,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("honra", form.honra))}>
-              <Label className="flex items-center">Honra <IaBadge field="honra" value={form.honra} /></Label>
+              <Label className="flex items-center">Matéria de Honra (O) <IaBadge field="honra" value={form.honra} /></Label>
               <Select value={form.honra || "__none__"} onValueChange={v => set("honra", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1540,7 +1540,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("midia_negativa", form.midia_negativa))}>
-              <Label className="flex items-center">Mídia Negativa <IaBadge field="midia_negativa" value={form.midia_negativa} /></Label>
+              <Label className="flex items-center">Mídia Negativa (H) <IaBadge field="midia_negativa" value={form.midia_negativa} /></Label>
               <Select value={form.midia_negativa || "__none__"} onValueChange={v => set("midia_negativa", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1563,7 +1563,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
           </div>
           <div className={cn("space-y-2 p-2 -m-2", fieldClass("decisao_quarteirizado", form.decisao_quarteirizado))}>
-            <Label className="flex items-center">Decisão - Análise do Quarteirizado <IaBadge field="decisao_quarteirizado" value={form.decisao_quarteirizado} /></Label>
+            <Label className="flex items-center">Decisão - Análise do Quarteirizado (G) <IaBadge field="decisao_quarteirizado" value={form.decisao_quarteirizado} /></Label>
             {(() => {
               const OPCOES_QUARTEIRIZADO = [
                 "Acordo",
@@ -1613,11 +1613,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           {/* Campos migrados de Dados Benner — Análise / Risco */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", iaClass("risco_descricao", bennerExtra.risco_descricao))}>
-              <Label className="flex items-center">Risco (descrição) <IaBadge field="risco_descricao" value={bennerExtra.risco_descricao} /></Label>
+              <Label className="flex items-center">Risco (descrição) (I) <IaBadge field="risco_descricao" value={bennerExtra.risco_descricao} /></Label>
               <Input value={bennerExtra.risco_descricao || ""} onChange={e => setExtra("risco_descricao", e.target.value)} />
             </div>
             <div className={cn("space-y-2 p-2 -m-2", iaClass("provas_digitais", bennerExtra.provas_digitais))}>
-              <Label className="flex items-center">Provas Digitais <IaBadge field="provas_digitais" value={bennerExtra.provas_digitais} /></Label>
+              <Label className="flex items-center">Provas Digitais (J) <IaBadge field="provas_digitais" value={bennerExtra.provas_digitais} /></Label>
               <Select value={bennerExtra.provas_digitais || "__none__"} onValueChange={v => setExtra("provas_digitais", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
