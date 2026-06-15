@@ -1,62 +1,59 @@
 ## Objetivo
 
-Reorganizar a tela de detalhe do processo em **Distribuição TST** para concentrar a edição em um único lugar, transformar a aba **Dados Benner** em conferência e isolar a lista de **Partes do Processo** em sua própria aba.
+Tornar a página **DJEN Servidor** equivalente ao card **DJEN Termos Paralela** do browser:
+- Filtros de **data início / fim**, **coordenação** e **termo** antes de disparar
+- Acompanhamento em **tempo real** com **barra de progresso por tribunal** (mesmo visual)
 
 ## Mudanças
 
-### 1) Nova aba "Partes do processo" (última posição)
-- Criar `src/components/distribuicao-tst/PartesProcessoTab.tsx`.
-- Lê de `partes_processo_benner` pelo `dados_benner_id` (mesma query que hoje está no `DadosBennerForm` em `carregarPartesPersistidas`).
-- Renderiza a mesma tabela (Polo / Tipo / Nome / CPF-CNPJ) que existe hoje no rodapé do `DadosBennerForm` (linhas 1318–1365).
-- Continua sendo **populada pelo botão Judit** já existente no cabeçalho do detalhe — após o auto-save, a aba recarrega via `useQuery` invalidada por `processoNumero` / `dadosBennerId`.
-- Adicionar `<TabsTrigger value="partes">Partes do processo ({n})</TabsTrigger>` no final do `TabsList` em `DistribuicaoTstDetail.tsx`, depois de "Anexos".
+### 1. Banco — `execucoes_servidor`
 
-### 2) Aba Dados Benner = somente leitura (conferência)
-- Remover o bloco "Partes do Processo" do `DadosBennerForm.tsx` (linhas 1318–1365) e o estado/efeitos associados (`partesJudit`, `carregarPartesPersistidas`, persistência em `partes_processo_benner` dentro do `handleSave`).
-- Aba Benner passa a renderizar o form com `readOnly`: novo prop `readOnly?: boolean` no `DadosBennerForm` que:
-  - Desabilita todos os inputs/selects/switches/textarea (`disabled` + `pointer-events-none` nos containers de tabela editável).
-  - Oculta o footer (já existe `hideFooter`) e o botão Salvar.
-  - Esconde o botão "Judit" interno (a busca passa a ser feita só pelo botão do cabeçalho do detalhe).
-- Em `DistribuicaoTstDetail.tsx` passar `readOnly` para o `DadosBennerForm` da aba `benner`; remover `bennerFormRef.current.handleSave()` da rotina `handleSaveTop()` quando a aba ativa é Benner (não há mais o que salvar ali).
+Adicionar colunas para o worker publicar progresso estruturado:
+- `progresso jsonb` — `{ totalTribunais, concluidos, falhas, porTribunal: [{tribunal, status, processadas, total}] }`
+- `progresso_atualizado_em timestamptz`
 
-### 3) Unificação Distribuição TST × Dados Benner (inline)
-A edição dos campos hoje exclusivos do Benner passa a viver dentro do `DistribuicaoTstForm`. Aba "Dados Benner" continua existindo apenas como conferência (item 2).
+Habilitar **Realtime** em `execucoes_servidor` para a UI receber updates ao vivo.
 
-Campos **deduplicados** (já existem nas duas — manter um único editor no Distribuição TST que grava em ambas via `handleSaveTop`):
-- `processo / dossie / turma / relator / tribunal`
-- `data_distribuicao` (Benner) ↔ `data_distribuicao_real / data_distribuicao_planilha` (Distribuição)
-- `parte_recorrente` ↔ `recorrente`
-- `tipo_recurso_reclamante / tipo_recurso_banco`, `materias_recurso_*`
-- `situacao_processo`, `transito_julgado`, `segredo_justica`, `processo_outro_escritorio`, `recurso_terceiro`, `cejusc`
+### 2. UI — `src/pages/DjenServidor.tsx`
 
-Campos **exclusivos de `dados_benner`** a adicionar inline no `DistribuicaoTstForm` (distribuídos nas seções existentes mais próximas; criar uma seção nova **"Dados Benner"** ao final do form somente para o que sobrar sem grupo natural):
-- Status interno Benner: `status`, `situacao_envio_carga`, `benner_atualizado`, `data_envio_benner`
-- Datas Benner: `data_publicacao`, `data_intimacao`, `data_protocolo`, `data_baixa`, `data_arquivamento`
-- Processo: `processo_baixado`, `honra`, `equipe`, `execucao`, `midia_negativa`
-- Posições: `posicao_relator_favoravel/desfavoravel`, `posicao_turma_favoravel/desfavoravel`, `aparelhamento_*`, `chance_exito_*`
-- Análise: `tema_irr` (já renomeado), `decisao_quarteirizado`, observações Benner (`observacoes`, `observacoes_internas`)
+Substituir o `ConfigCard` atual por um `ExecucaoServidorCard` por engine (Paralela / Kurier / Pautas) contendo:
+- Toggle ativo + agendamento (como hoje)
+- Filtros **Coordenação** e **Termo** (mesmo `useCoordenacoesFull` + query de `monitoramentos_djen`)
+- Datepickers **Início** / **Fim** (Calendar + Popover, default = hoje)
+- Botão **Executar agora** que enfileira em `execucoes_servidor` com `payload = { dataInicio, dataFim, coordenacaoId, monitoramentoIds }`
+- **Status ao vivo** da execução em andamento (assina Realtime), exibindo:
+  - Header colorido (idle / executando / concluído / erro)
+  - **Barra de progresso por tribunal** (lista) usando o mesmo visual do `MonitoramentoTermosParalelaCard` (Progress + Badge por status)
+  - Contadores: tribunais concluídos / total, processadas / total geral
 
-Regras:
-- Cada campo Benner adicionado lê seu valor inicial de `bennerDado` carregado por `DistribuicaoTstDetail`, e seu valor é persistido pelo mesmo `handleSaveTop` que hoje grava `distribuicoes_tst` + `dados_benner` em paralelo.
-- Onde o campo já existe nos dois (lista acima), manter **um único input** vinculado ao state do `DistribuicaoTstForm` e propagar para o payload Benner no `handleSaveBennerLocal` (`DistribuicaoTstDetail.tsx`).
-- Não duplicar visualmente; o usuário não deve ver o mesmo campo em dois lugares editáveis.
+Reusar `Progress`, `Badge`, `Calendar`, `Popover` já existentes — manter design tokens, sem hardcode de cores.
 
-### Resultado visual das abas
-`Distribuição TST` | `Centralizadores` | `Dados Benner` (read-only) | `Log Judit` | `Análise Judit` | `Anexos (n)` | `Partes do processo (n)`
+### 3. Hook — `src/hooks/useDjenServidor.ts`
 
-## Detalhes técnicos
+- Estender `useEnfileirarManual` para aceitar `payload` opcional ({ dataInicio, dataFim, coordenacaoId, monitoramentoIds })
+- Novo `useExecucaoServidorAoVivo(tipo)` — devolve a execução `pendente`/`executando` mais recente daquele tipo, assinando Realtime de `execucoes_servidor` para refletir `progresso` e `status`
 
-- Arquivos editados:
-  - `src/components/distribuicao-tst/DistribuicaoTstDetail.tsx` — adicionar TabsTrigger/TabsContent "partes"; passar `readOnly` ao `DadosBennerForm`; remover chamada `bennerFormRef.handleSave` quando aba ativa = benner.
-  - `src/components/distribuicao-tst/DistribuicaoTstForm.tsx` — adicionar seções/campos Benner inline; estender `DistribuicaoTstFormHandle` para retornar também o payload Benner unificado.
-  - `src/components/benner/DadosBennerForm.tsx` — novo prop `readOnly`; remover bloco `partesJudit` (tabela + estado + persistência).
-- Arquivo novo:
-  - `src/components/distribuicao-tst/PartesProcessoTab.tsx` — useQuery em `partes_processo_benner`, render da tabela.
-- Sem migração de banco: tabelas `dados_benner` e `partes_processo_benner` permanecem como estão; apenas a UI é reorganizada.
-- `handleSaveTop` continua salvando os dois registros (`distribuicoes_tst` + `dados_benner`) em paralelo — só muda quem origina os valores dos campos compartilhados (agora todos do `DistribuicaoTstForm`).
-- O botão **Judit** do cabeçalho do detalhe continua sendo o único ponto que popula partes; após sucesso, invalidar a query de `PartesProcessoTab`.
+### 4. Worker VPS — `monitor-servidor/`
 
-## Fora de escopo
-- Mudanças em `useDadosBenner` / `useDistribuicoesTst` que não sejam estritamente necessárias.
-- Alterar importação, cron, ou a tela de lista.
-- Outras telas que consomem `DadosBennerForm` (`DadosBennerDetail`) — lá continua editável (sem prop `readOnly`).
+- `index.js`: passar `payload` (com datas/filtros) e helper `reportProgress(partial)` que faz `update` em `execucoes_servidor.progresso`
+- `engines/paralela.js`, `engines/kurier.js`, `engines/pautas.js`: aceitar `payload.dataInicio`/`dataFim`/`coordenacaoId`/`monitoramentoIds` (defaults = hoje, sem filtro) e chamar `reportProgress` ao iniciar cada tribunal, ao finalizar e em intervalos (throttle 1s)
+
+### 5. Pós-deploy no VPS
+
+Usuário rodará no servidor:
+```bash
+cd /opt/juris-control-pro && git pull && cd monitor-servidor && npm install && pm2 restart jc-monitor-servidor
+```
+
+## Observações técnicas
+
+- A página atual já tem aba **Execuções** que continua existindo (lista histórica). A novidade é o card "ao vivo" embutido em **Visão geral** com o mesmo visual do Paralela.
+- O worker hoje processa tudo no dia atual sem filtros. Vou preservar esse comportamento como **default** quando `payload` vier vazio (compatível com o agendador automático).
+- `progresso` é jsonb livre — não precisa de migração futura para mudar formato.
+
+## Ordem de execução
+
+1. Migration (adicionar colunas + realtime)
+2. Atualizar worker (`monitor-servidor/index.js` + engines) para emitir progresso
+3. Atualizar hook `useDjenServidor.ts`
+4. Refatorar `DjenServidor.tsx` com filtros + card ao vivo
