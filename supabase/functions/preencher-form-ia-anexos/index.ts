@@ -16,8 +16,8 @@ function json(body: unknown, status = 200) {
 
 const SYSTEM_PROMPT = `Você é um analista de Direito do Trabalho especializado em recursos no TST.
 Sua tarefa: ler trechos de PEÇAS PROCESSUAIS (acórdãos, decisões monocráticas, intimações,
-pautas, despachos, certidões) e devolver dados estruturados para preencher os formulários
-"Distribuição TST" e "Dados Benner" do escritório.
+pautas, despachos, certidões) e devolver dados estruturados para preencher o formulário
+unificado "Distribuição TST" do escritório (a aba "Dados Benner" foi consolidada nele).
 
 REGRA DE OURO
 • NUNCA invente. Se a informação não está EXPLÍCITA no documento ou nos dados estruturados
@@ -88,14 +88,14 @@ CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
   - tema: tema central do recurso em até 200 chars.
   - execucao: descrição em fase de execução, se houver.
   - midia_negativa: "S" ou "N" — só preencha se houver evidência (ex: notícia anexada).
-  - decisao_quarteirizado: descrição da decisão sobre quarteirização, só se houver.
+  - decisao_quarteirizado: descrição da decisão/análise sobre quarteirização, só se houver
+    (campo único — substitui o antigo "analise_quarteirizado").
   - recurso_terceiros: idem.
   - transito_julgado: true se houver certidão de baixa / trânsito explícito.
     NUNCA preencher se a Judit indicar processo Ativo — ver regra crítica acima.
   - situacao_processo: descrição curta do estado atual.
   - observacao_advogado: resumo factual de até 2 frases, sem juízo de valor.
-
-▸ Em "dados_benner":
+  - risco_descricao: descrição curta do risco identificado, só se houver evidência.
   - provas_digitais: "S" se o recurso/acórdão menciona "prova digital", "documento eletrônico",
     "WhatsApp", "e-mail como prova", "gravação", "ata notarial digital", "blockchain"
     como objeto de discussão probatória. "N" se claramente não há.
@@ -109,7 +109,9 @@ CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
   - processo_baixado: "S" se há "baixa definitiva", "remetidos os autos à origem",
     "trânsito em julgado e baixa". "N" caso contrário.
   - data_transito_julgado: DD/MM/AAAA, só se houver certidão explícita.
-  - notas / observacoes: resumo factual de até 2 frases.
+
+▸ Em "dados_benner": (BLOCO RESERVADO — atualmente vazio; tudo foi consolidado em
+  "distribuicao_tst". NÃO devolva campos aqui; o sistema ignora.)
 
 EVIDÊNCIA OBRIGATÓRIA
 Para CADA campo que você preencher (exceto os derivados por regra), inclua em "_evidencias"
@@ -254,26 +256,21 @@ Deno.serve(async (req) => {
                 transito_julgado: { type: "boolean" },
                 situacao_processo: { type: "string" },
                 observacao_advogado: { type: "string" },
-              },
-            },
-            dados_benner: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                analise_quarteirizado: { type: "string" },
                 risco_descricao: { type: "string" },
                 provas_digitais: { type: "string", enum: ["S", "N"] },
                 tem_data_julgamento: { type: "string", enum: ["S", "N"] },
                 data_julgamento: { type: "string", description: "DD/MM/AAAA" },
                 horario_julgamento: { type: "string", description: "HH:MM 24h" },
                 tipo_julgamento: { type: "string", enum: ["Virtual", "Telepresencial", "Híbrido", "Presencial"] },
-                situacao_processo: { type: "string" },
                 processo_baixado: { type: "string", enum: ["S", "N"] },
-                transito_julgado: { type: "boolean" },
                 data_transito_julgado: { type: "string", description: "DD/MM/AAAA" },
-                notas: { type: "string" },
-                observacoes: { type: "string" },
               },
+            },
+            dados_benner: {
+              type: "object",
+              additionalProperties: false,
+              description: "Bloco legado mantido por compatibilidade. NÃO preencher.",
+              properties: {},
             },
             _evidencias: {
               type: "object",
