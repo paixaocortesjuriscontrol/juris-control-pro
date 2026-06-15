@@ -638,7 +638,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             onSave={handleSaveDistribuicaoLocal}
             onCancel={onClose}
             onJuditSync={handleJuditSync}
-            iaSugestao={iaDistribuicao}
+            iaSugestao={iaSugestaoDistribuicaoCompleta}
             iaResumo={iaResumo}
             bennerDado={bennerDado}
             onSaveBennerExtra={async (patch, id) => {
