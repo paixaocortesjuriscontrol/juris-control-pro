@@ -1633,8 +1633,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Entrega Memoriais</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("entrega_memoriais", bennerExtra.entrega_memoriais))}>
+              <Label className="flex items-center">Entrega Memoriais <IaBadge field="entrega_memoriais" value={bennerExtra.entrega_memoriais} /></Label>
               <Select value={bennerExtra.entrega_memoriais || "__none__"} onValueChange={v => setExtra("entrega_memoriais", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1644,8 +1644,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Sustentação Oral</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("sustentacao_oral", bennerExtra.sustentacao_oral))}>
+              <Label className="flex items-center">Sustentação Oral <IaBadge field="sustentacao_oral" value={bennerExtra.sustentacao_oral} /></Label>
               <Select value={bennerExtra.sustentacao_oral || "__none__"} onValueChange={v => setExtra("sustentacao_oral", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1671,18 +1671,18 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               ["resultado_conhecido_provido", "Conhecido e Provido"],
               ["resultado_conhecido_nao_provido", "Conhecido e Não Provido"],
             ] as const).map(([field, label]) => (
-              <div key={field} className="flex items-center gap-2">
+              <div key={field} className={cn("flex items-center gap-2 p-2 -m-2", iaClass(field, bennerExtra[field]))}>
                 <Checkbox
                   id={`be-${field}`}
                   checked={!!bennerExtra[field]}
                   onCheckedChange={v => setExtra(field, !!v)}
                 />
-                <Label htmlFor={`be-${field}`} className="text-sm cursor-pointer">{label}</Label>
+                <Label htmlFor={`be-${field}`} className="text-sm cursor-pointer flex items-center">{label}<IaBadge field={field} value={bennerExtra[field]} /></Label>
               </div>
             ))}
           </div>
-          <div className="space-y-2">
-            <Label>Outra (descrição)</Label>
+          <div className={cn("space-y-2 p-2 -m-2", iaClass("resultado_outra", bennerExtra.resultado_outra))}>
+            <Label className="flex items-center">Outra (descrição) <IaBadge field="resultado_outra" value={bennerExtra.resultado_outra} /></Label>
             <Input value={bennerExtra.resultado_outra || ""} onChange={e => setExtra("resultado_outra", e.target.value)} />
           </div>
           <div className={cn("space-y-2 p-2 -m-2", iaClass("observacoes", bennerExtra.observacoes))}>
@@ -1701,13 +1701,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <SectionHeader title="Dados Benner — Fechamento" color="bg-yellow-500 !text-black" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
-            <div className="flex items-center gap-2">
+            <div className={cn("flex items-center gap-2 p-2 -m-2", iaClass("ganhamos", bennerExtra.ganhamos))}>
               <Checkbox id="be-ganhamos" checked={!!bennerExtra.ganhamos} onCheckedChange={v => setExtra("ganhamos", !!v)} />
-              <Label htmlFor="be-ganhamos" className="cursor-pointer">Ganhamos</Label>
+              <Label htmlFor="be-ganhamos" className="cursor-pointer flex items-center">Ganhamos <IaBadge field="ganhamos" value={bennerExtra.ganhamos} /></Label>
             </div>
-            <div className="flex items-center gap-2">
+            <div className={cn("flex items-center gap-2 p-2 -m-2", iaClass("perdemos", bennerExtra.perdemos))}>
               <Checkbox id="be-perdemos" checked={!!bennerExtra.perdemos} onCheckedChange={v => setExtra("perdemos", !!v)} />
-              <Label htmlFor="be-perdemos" className="cursor-pointer">Perdemos</Label>
+              <Label htmlFor="be-perdemos" className="cursor-pointer flex items-center">Perdemos <IaBadge field="perdemos" value={bennerExtra.perdemos} /></Label>
             </div>
             <div className={cn("space-y-2 p-2 -m-2", iaClass("processo_baixado", bennerExtra.processo_baixado))}>
               <Label className="flex items-center">Processo Baixado <IaBadge field="processo_baixado" value={bennerExtra.processo_baixado} /></Label>
@@ -1720,8 +1720,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Chance de Êxito (geral)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("chance_exito", bennerExtra.chance_exito))}>
+              <Label className="flex items-center">Chance de Êxito (geral) <IaBadge field="chance_exito" value={bennerExtra.chance_exito} /></Label>
               <Select value={bennerExtra.chance_exito || "__none__"} onValueChange={v => setExtra("chance_exito", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
