@@ -649,6 +649,24 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     setIaFields((prev) => new Set([...Array.from(prev), "observacao_advogado"]));
   }, [iaResumo]);
 
+  // Reporta ao pai a quantidade real de campos pintados pela IA (após filtros
+  // de Judit/normalização), para que o resumo "N campo(s) Distribuição + M
+  // campo(s) Benner." bata com o que aparece em azul no formulário.
+  useEffect(() => {
+    if (!onIaApplied || !iaSugestao) return;
+    const benSet = new Set<string>(BENNER_EXTRA_FIELDS as readonly string[]);
+    let dist = 0;
+    let ben = 0;
+    for (const k of iaFields) {
+      if (k === "observacao_advogado") continue;
+      if (!(k in (iaSugestao as Record<string, any>))) continue;
+      if (benSet.has(k)) ben++;
+      else dist++;
+    }
+    onIaApplied({ distribuicao: dist, benner: ben });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [iaFields, JSON.stringify(iaSugestao || {})]);
+
   const handleBuscarJudit = async (comAnexosArg = false, forceRefresh = false) => {
     // Aceita o número vindo do form OU do `dado` carregado (corrige o bug onde
     // a 1ª tentativa falha "informe o número" porque o estado do form ainda não
