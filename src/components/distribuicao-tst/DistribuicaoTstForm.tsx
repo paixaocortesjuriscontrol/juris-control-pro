@@ -381,6 +381,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   // atualizações posteriores (ex.: recontagem dos campos pintados) substituam
   // o bloco antigo no lugar em vez de duplicar.
   const lastIaResumoRef = useRef<string | null>(null);
+  // ID real da linha ativa durante a sessão. Em "Novo registro + Judit", o
+  // pré-save cria a linha antes da consulta; usar só `dado?.id` aqui ficava
+  // preso no valor antigo (undefined) e o auto-save final inseria uma segunda
+  // linha. Este ref é atualizado assim que o primeiro save retorna o id.
+  const activeRecordIdRef = useRef<string | undefined>(dado?.id || undefined);
+  useEffect(() => {
+    activeRecordIdRef.current = dado?.id || undefined;
+  }, [dado?.id]);
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
 
   // ============================================================
