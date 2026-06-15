@@ -254,6 +254,13 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
   // Campos do Dados Benner (tribunal, situação, processo_baixado, pauta etc.)
   // não entram aqui, para uma aba oculta/antiga nunca sobrescrever o formulário ativo.
 
+  // Agora a aba "Confere Benner" será oculta (somente admin) e a Distribuição
+  // TST passa a ser a fonte canônica do Tribunal. Persistimos quando o form
+  // envia explicitamente o campo (default "TST" na UI).
+  if ((d as any).tribunal !== undefined) {
+    payload.tribunal = (d as any).tribunal;
+  }
+
   if (d.relator_favorabilidade !== undefined) {
     const v = (d.relator_favorabilidade || "").toLowerCase();
     payload.posicao_relator_favoravel = v.includes("positiv") || v.includes("favor") ? true : null;
