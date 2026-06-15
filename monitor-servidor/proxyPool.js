@@ -5,12 +5,14 @@ const ws = require("ws");
 const OFFLINE_MS = 60_000;
 const COOLDOWN_429_MS = 30_000;
 const PROXY_REQUEST_TIMEOUT_MS = Math.max(10_000, Number(process.env.DJEN_PROXY_TIMEOUT_MS || 60_000));
+const HEALTH_TIMEOUT_MS = 5_000;
 
 let cache = { fetchedAt: 0, slots: [] };
 const TTL = 30_000;
 
 let cursor = 0;
 const slotState = new Map();
+const dialectCache = new Map(); // slot.id → 'v1-djen' | 'v3-proxy'
 const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
 
 async function loadPool(sb) {
@@ -28,23 +30,56 @@ async function loadPool(sb) {
     .filter((r) => r.pool_enabled_global !== false)
     .map((r) => ({ id: r.id, label: r.label, url: r.base_url, token: r.token }));
 
-  if (process.env.INCLUDE_LOCAL_PROXY === "true") {
-    slots.unshift({
-      id: "local",
-      label: "Local VPS",
-      url: process.env.LOCAL_PROXY_URL || "http://127.0.0.1:8089",
-      token: process.env.LOCAL_PROXY_TOKEN || "",
-      local: true,
-    });
-  }
+  // Removido INCLUDE_LOCAL_PROXY: nas VPSs de produção (Hostinger/etc) não há
+  // proxy local em 127.0.0.1:8089, então injetar esse slot só gera "fetch failed"
+  // em série. O daemon usa apenas o pool em djen_proxy_pool.
 
   cache = { fetchedAt: now, slots };
   return slots;
 }
 
+async function detectDialect(slot) {
+  if (dialectCache.has(slot.id)) return dialectCache.get(slot.id);
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), HEALTH_TIMEOUT_MS);
+  let dialect = "v3-proxy"; // default conservador (mesma escolha do browser)
+  try {
+    const base = slot.url.replace(/\/$/, "");
+    const res = await fetch(`${base}/health`, { method: "GET", signal: ctrl.signal });
+    if (res.ok) {
+      const j = await res.json().catch(() => null);
+      const service = String(j?.service || "");
+      const version = String(j?.version || "");
+      const isV1 = /comunica/i.test(service);
+      const isV3 = !isV1 && (
+        service === "djen-vps-proxy" ||
+        /proxy/i.test(service) ||
+        version.startsWith("3.") ||
+        version.includes("https")
+      );
+      dialect = isV1 ? "v1-djen" : (isV3 ? "v3-proxy" : "v1-djen");
+    }
+  } catch {
+    // mantém default v3-proxy; auto-swap abaixo corrige se errar
+  } finally {
+    clearTimeout(to);
+  }
+  dialectCache.set(slot.id, dialect);
+  return dialect;
+}
+
 function buildUpstreamUrl(queryParams) {
   const qs = new URLSearchParams(queryParams).toString();
   return `${PJE_COMUNICA_API}?${qs}`;
+}
+
+function buildSlotUrl(slot, dialect, queryParams) {
+  const base = slot.url.replace(/\/$/, "");
+  const qs = new URLSearchParams(queryParams).toString();
+  if (dialect === "v3-proxy") {
+    return `${base}/proxy?url=${encodeURIComponent(buildUpstreamUrl(queryParams))}`;
+  }
+  return qs ? `${base}/djen?${qs}` : `${base}/djen`;
 }
 
 async function parseProxyResponse(slot, res) {
@@ -54,7 +89,14 @@ async function parseProxyResponse(slot, res) {
   if (parsed && typeof parsed === "object" && "body" in parsed) {
     return { slot, status: Number(parsed.status || res.status || 200), body: parsed.body };
   }
-  return { slot, status: res.status || 200, body: parsed ?? text };
+  // Quando o status do proxy é 4xx/5xx (ex.: 401 token errado, 403 IP bloqueado,
+  // 502 upstream), surfa um corpo curto e legível para diagnóstico.
+  const status = res.status || 200;
+  if (status >= 400) {
+    const snippet = (text || "").slice(0, 200);
+    return { slot, status, body: parsed ?? snippet, errorSnippet: snippet };
+  }
+  return { slot, status, body: parsed ?? text };
 }
 
 function combineSignal(signal, timeoutMs) {
@@ -63,37 +105,46 @@ function combineSignal(signal, timeoutMs) {
 }
 
 async function djenFetchSlot(slot, queryParams, signal) {
-  const upstreamUrl = buildUpstreamUrl(queryParams);
-  const qs = new URLSearchParams(queryParams).toString();
-  const base = slot.url.replace(/\/$/, "");
-  const urls = [
-    `${base}/proxy?url=${encodeURIComponent(upstreamUrl)}`,
-    `${base}/djen?${qs}`,
-  ];
+  // Detecta dialeto via /health (cacheado por slot.id) — mesma estratégia do
+  // browser. Em caso de 404/502, faz auto-swap e re-tenta no outro dialeto.
+  const headers = { "x-proxy-token": slot.token, "X-Proxy-Token": slot.token };
+  const doFetch = async (dialect) => {
+    const url = buildSlotUrl(slot, dialect, queryParams);
+    const res = await fetch(url, {
+      method: "GET",
+      headers,
+      signal: combineSignal(signal, PROXY_REQUEST_TIMEOUT_MS),
+    });
+    return { res, dialect };
+  };
+
+  let dialect = await detectDialect(slot);
   let lastErr;
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, {
-        method: "GET",
-        headers: { "x-proxy-token": slot.token, "X-Proxy-Token": slot.token },
-        signal: combineSignal(signal, PROXY_REQUEST_TIMEOUT_MS),
-      });
-      if (res.status === 404 || res.status === 502) {
-        lastErr = new Error(`proxy_route_${res.status}`);
-        continue;
-      }
-      const out = await parseProxyResponse(slot, res);
-      if (out.status === 429) markFail(slot.url, "429");
-      else if (out.status >= 500) markFail(slot.url, "err");
-      else markOk(slot.url);
-      return out;
-    } catch (e) {
-      if (signal?.aborted) throw e;
-      lastErr = e;
-      markFail(slot.url, "err");
+  try {
+    let { res } = await doFetch(dialect);
+    if (res.status === 404 || res.status === 502) {
+      const swapped = dialect === "v3-proxy" ? "v1-djen" : "v3-proxy";
+      dialectCache.set(slot.id, swapped);
+      ({ res } = await doFetch(swapped));
+      dialect = swapped;
     }
+    const out = await parseProxyResponse(slot, res);
+    if (out.status === 401 || out.status === 403) {
+      // surfa o motivo real para o log do daemon — quase sempre token errado
+      markFail(slot.url, "err");
+      const reason = out.errorSnippet || (typeof out.body === "string" ? out.body.slice(0, 200) : JSON.stringify(out.body).slice(0, 200));
+      throw new Error(`HTTP ${out.status} (${slot.label || slot.url}): ${reason}`);
+    }
+    if (out.status === 429) markFail(slot.url, "429");
+    else if (out.status >= 500) markFail(slot.url, "err");
+    else markOk(slot.url);
+    return out;
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    lastErr = e;
+    markFail(slot.url, "err");
+    throw lastErr;
   }
-  throw lastErr || new Error("Falha no proxy DJEN");
 }
 
 function pickNext(slots) {
