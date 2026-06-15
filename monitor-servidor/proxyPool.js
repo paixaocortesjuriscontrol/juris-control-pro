@@ -10,6 +10,7 @@ const TTL = 30_000;
 
 let cursor = 0;
 const slotState = new Map();
+const PJE_COMUNICA_API = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
 
 async function loadPool(sb) {
   const now = Date.now();
@@ -17,15 +18,19 @@ async function loadPool(sb) {
 
   const { data: pool, error } = await sb
     .from("djen_proxy_pool")
-    .select("url, token, ativo, ordem")
-    .eq("ativo", true)
-    .order("ordem", { ascending: true });
+    .select("id, label, base_url, token, enabled, pool_enabled_global, created_at")
+    .eq("enabled", true)
+    .order("created_at", { ascending: true });
   if (error) throw error;
 
-  const slots = (pool || []).map((r) => ({ url: r.url, token: r.token }));
+  const slots = (pool || [])
+    .filter((r) => r.pool_enabled_global !== false)
+    .map((r) => ({ id: r.id, label: r.label, url: r.base_url, token: r.token }));
 
   if (process.env.INCLUDE_LOCAL_PROXY === "true") {
     slots.unshift({
+      id: "local",
+      label: "Local VPS",
       url: process.env.LOCAL_PROXY_URL || "http://127.0.0.1:8089",
       token: process.env.LOCAL_PROXY_TOKEN || "",
       local: true,
@@ -34,6 +39,54 @@ async function loadPool(sb) {
 
   cache = { fetchedAt: now, slots };
   return slots;
+}
+
+function buildUpstreamUrl(queryParams) {
+  const qs = new URLSearchParams(queryParams).toString();
+  return `${PJE_COMUNICA_API}?${qs}`;
+}
+
+async function parseProxyResponse(slot, res) {
+  const text = await res.text();
+  let parsed;
+  try { parsed = JSON.parse(text); } catch { parsed = null; }
+  if (parsed && typeof parsed === "object" && "body" in parsed) {
+    return { slot, status: Number(parsed.status || res.status || 200), body: parsed.body };
+  }
+  return { slot, status: res.status || 200, body: parsed ?? text };
+}
+
+async function djenFetchSlot(slot, queryParams) {
+  const upstreamUrl = buildUpstreamUrl(queryParams);
+  const qs = new URLSearchParams(queryParams).toString();
+  const base = slot.url.replace(/\/$/, "");
+  const urls = [
+    `${base}/proxy?url=${encodeURIComponent(upstreamUrl)}`,
+    `${base}/djen?${qs}`,
+  ];
+  let lastErr;
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: { "x-proxy-token": slot.token, "X-Proxy-Token": slot.token },
+        signal: AbortSignal.timeout(90_000),
+      });
+      if (res.status === 404 || res.status === 502) {
+        lastErr = new Error(`proxy_route_${res.status}`);
+        continue;
+      }
+      const out = await parseProxyResponse(slot, res);
+      if (out.status === 429) markFail(slot.url, "429");
+      else if (out.status >= 500) markFail(slot.url, "err");
+      else markOk(slot.url);
+      return out;
+    } catch (e) {
+      lastErr = e;
+      markFail(slot.url, "err");
+    }
+  }
+  throw lastErr || new Error("Falha no proxy DJEN");
 }
 
 function pickNext(slots) {
@@ -80,25 +133,10 @@ async function djenFetch(sb, queryParams) {
       await new Promise((r) => setTimeout(r, 2000));
       continue;
     }
-    const qs = new URLSearchParams(queryParams).toString();
-    const url = `${slot.url.replace(/\/$/, "")}/djen?${qs}`;
     try {
-      const res = await fetch(url, {
-        method: "GET",
-        headers: { "x-proxy-token": slot.token },
-        signal: AbortSignal.timeout(90_000),
-      });
-      const json = await res.json();
-      if (json.status === 429) {
-        markFail(slot.url, "429");
-        continue;
-      }
-      if (!res.ok || (json.status && json.status >= 500)) {
-        markFail(slot.url, "err");
-        continue;
-      }
-      markOk(slot.url);
-      return { slot, status: json.status || res.status, body: json.body };
+      const out = await djenFetchSlot(slot, queryParams);
+      if (out.status === 429 || out.status >= 500) continue;
+      return out;
     } catch (e) {
       markFail(slot.url, "err");
     }
@@ -113,4 +151,4 @@ function makeSupabase() {
   });
 }
 
-module.exports = { djenFetch, loadPool, makeSupabase };
+module.exports = { djenFetch, djenFetchSlot, loadPool, makeSupabase };
