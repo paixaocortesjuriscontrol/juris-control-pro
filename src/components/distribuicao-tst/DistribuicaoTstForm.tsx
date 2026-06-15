@@ -1477,7 +1477,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <SectionHeader title="Dados Benner — Análise / Risco" color="bg-[#0F766E]" />
         <div className="p-4 space-y-4">
           <div className="space-y-2">
-            <Label>Análise Quarteirizado</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("analise_quarteirizado", bennerExtra.analise_quarteirizado))}>
+            <Label className="flex items-center">Análise Quarteirizado <IaBadge field="analise_quarteirizado" value={bennerExtra.analise_quarteirizado} /></Label>
             <Textarea
               value={bennerExtra.analise_quarteirizado || ""}
               onChange={e => setExtra("analise_quarteirizado", e.target.value)}
@@ -1485,10 +1486,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               className="min-h-[140px] resize-y"
               placeholder="Descreva a análise do quarteirizado..."
             />
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Risco Mídia Negativa</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("risco_midia", bennerExtra.risco_midia))}>
+              <Label className="flex items-center">Risco Mídia Negativa <IaBadge field="risco_midia" value={bennerExtra.risco_midia} /></Label>
               <Select value={bennerExtra.risco_midia || "__none__"} onValueChange={v => setExtra("risco_midia", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
