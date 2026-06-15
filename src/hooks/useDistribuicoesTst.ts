@@ -441,6 +441,27 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       ? "*, dados_benner_responsaveis!inner(usuario_id)"
       : "*";
 
+    // "Apenas duplicados": precisamos trazer também os pares (mesmas linhas
+    // com o mesmo número de processo), ordenados por processo, para que o
+    // usuário consiga identificar e arquivar manualmente.
+    let processosDup: string[] | null = null;
+    if (filters.duplicado === "sim") {
+      try {
+        processosDup = await fetchProcessosDuplicados();
+      } catch (e: any) {
+        toast.error("Erro ao buscar processos duplicados: " + (e?.message || e));
+        setLoading(false);
+        return;
+      }
+      if (processosDup.length === 0) {
+        setDados([]);
+        setTotalCount(0);
+        setResponsaveisMap(new Map());
+        setLoading(false);
+        return;
+      }
+    }
+
     // Build fresh query with all filters applied; optionally restricted to a chunk of IDs.
     const buildQuery = (chunkIds: string[] | null, withCount: boolean) => {
       let query: any = supabase
@@ -528,7 +549,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     else if (filters.emAnalise === "analisado") query = query.eq("analisado", true);
     if (filters.problemaJudit === "sim") query = query.eq("problema_judit", true);
     else if (filters.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
-    if (filters.duplicado === "sim") query = query.eq("ic_duplicado", true);
+    if (filters.duplicado === "sim" && processosDup) query = query.in("processo", processosDup);
     else if (filters.duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
     if (filters.fonteImportacao && filters.fonteImportacao !== "todas") {
       query = query.contains("fontes_importacao", [filters.fonteImportacao]);
