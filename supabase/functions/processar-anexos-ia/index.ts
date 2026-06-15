@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     console.log("[processar-anexos-ia] body keys", Object.keys(body || {}), {
-      processo_numero: body?.processo_numero,
+      processo_id: body?.processo_id,
       attachments: Array.isArray(body?.attachments) ? body.attachments.length : 0,
       pages_text: Array.isArray(body?.pages_text) ? body.pages_text.length : 0,
       chunk_first: body?.chunk_first,
@@ -83,8 +83,7 @@ Deno.serve(async (req) => {
       page_offset: body?.page_offset,
       documento_id: body?.documento_id,
     });
-    const processoNumero: string = String(body?.processo_numero || "").trim();
-    let processoId: string | null = body?.processo_id || null;
+    const processoId: string = String(body?.processo_id || "").trim();
     const attachments: AttIn[] = Array.isArray(body?.attachments) ? body.attachments : [];
     const topLevelPages = normalizePages(body?.pages_text);
     const topLevelSourcePath = body?.source_storage_path ? String(body.source_storage_path) : null;
@@ -95,34 +94,18 @@ Deno.serve(async (req) => {
     const pageOffset: number = Math.max(0, Number(body?.page_offset || 0) | 0);
     const incomingDocId: string | null = body?.documento_id ? String(body.documento_id) : null;
 
-    if (!processoNumero || attachments.length === 0) {
-      return json({ error: "processo_numero e attachments são obrigatórios" }, 400);
+    if (!processoId || attachments.length === 0) {
+      return json({ error: "processo_id e attachments são obrigatórios" }, 400);
     }
 
-    if (!processoId) {
-      console.log("[processar-anexos-ia] resolving processo by numero", processoNumero);
-      const { data: proc } = await supabase
-        .from("processos")
-        .select("id")
-        .eq("numero", processoNumero)
-        .maybeSingle();
-      if (proc?.id) {
-        processoId = proc.id;
-      } else {
-        console.log("[processar-anexos-ia] creating processo", processoNumero);
-        const { data: newProc, error: newErr } = await supabase
-          .from("processos")
-          .insert({ numero: processoNumero, area: "trabalhista", status: "ativo" } as any)
-          .select("id")
-          .single();
-        if (newErr) {
-          console.error("[processar-anexos-ia] insert processo erro", newErr);
-          return json({ error: "Falha ao criar processo: " + newErr.message }, 200);
-        }
-        processoId = newProc!.id;
-      }
-      console.log("[processar-anexos-ia] processo_id", processoId);
-    }
+    const { data: proc } = await supabase
+      .from("processos")
+      .select("id, numero")
+      .eq("id", processoId)
+      .maybeSingle();
+    if (!proc?.id) return json({ error: "Processo não encontrado pelo id" }, 404);
+    const processoNumero: string = String((proc as any).numero || "").trim();
+    console.log("[processar-anexos-ia] processo_id validado", processoId);
 
     const results: Array<{ step_id: string; ok: boolean; pages?: number; error?: string; documento_id?: string }> = [];
 

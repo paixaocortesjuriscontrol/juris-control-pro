@@ -191,31 +191,18 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
     }
     setProcessing(true);
     try {
-      // Resolve processo_id (chave única). Cria o processo se ainda não existir,
-      // para que todas as chamadas seguintes usem SEMPRE o id.
+      // Resolve processo_id (chave única). A partir daqui, todas as chamadas
+      // usam SOMENTE o id do processo; não cria processo aqui para não duplicar.
       let pid: string | null = processoId || null;
       if (!pid && processoNumero) {
-        const { data: proc } = await supabase
-          .from("processos")
-          .select("id")
-          .eq("numero", processoNumero)
-          .maybeSingle();
-        pid = proc?.id || null;
-        if (!pid) {
-          const { data: novo, error: insErr } = await supabase
-            .from("processos")
-            .insert({ numero: processoNumero, area: "trabalhista" } as any)
-            .select("id")
-            .single();
-          if (insErr || !novo?.id) {
-            toast.error("Não foi possível resolver o ID do processo.", { description: insErr?.message });
-            return;
-          }
-          pid = novo.id;
-        }
+        const { data: existingId } = await supabase.rpc(
+          "find_processo_id_by_numero" as any,
+          { _numero: processoNumero.trim() }
+        );
+        pid = (existingId as string) || null;
       }
       if (!pid) {
-        toast.error("Processo sem ID. Abra o detalhe a partir de um registro válido.");
+        toast.error("Processo sem ID único localizado. Salve o registro antes de analisar com IA.");
         return;
       }
 

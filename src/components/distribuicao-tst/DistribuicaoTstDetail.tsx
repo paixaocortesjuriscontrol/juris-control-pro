@@ -52,6 +52,7 @@ const normalizeDado = (value?: DistribuicaoTst | null): DistribuicaoTst | null =
 export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose, onAfterJuditSync }: Props) {
   const [currentDado, setCurrentDado] = useState<DistribuicaoTst | null>(() => normalizeDado(dado));
   const processoNumero = currentDado?.processo_numero || "";
+  const [processoIdUnico, setProcessoIdUnico] = useState<string | null>((currentDado as any)?.processo_id || null);
   const { user } = useAuth();
   const podeVerLogJudit = user?.email?.toLowerCase() === "paixaocortesjuriscontrol@gmail.com";
   const { isAdminOrCoordinator, isAdmin } = useUserRole();
@@ -88,6 +89,28 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     setBennerDado(null);
     setBennerLoaded(false);
   }, [dado?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const directId = String((currentDado as any)?.processo_id || "").trim();
+    if (directId) {
+      setProcessoIdUnico(directId);
+      return;
+    }
+    if (!processoNumero.trim()) {
+      setProcessoIdUnico(null);
+      return;
+    }
+    void (async () => {
+      try {
+        const { data } = await supabase.rpc("find_processo_id_by_numero" as any, { _numero: processoNumero.trim() });
+        if (!cancelled) setProcessoIdUnico((data as string) || null);
+      } catch {
+        if (!cancelled) setProcessoIdUnico(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentDado?.processo_id, processoNumero]);
 
   const runJudit = async (comAnexos: boolean, forceRefresh: boolean = false) => {
     // Se o usuário está em outra aba (ex.: Anexos, Análise, Log), o form
@@ -752,7 +775,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         <TabsContent value="analisar-ia" className="mt-4">
           <AnalisarComIATab
             processoNumero={processoNumero}
-            processoId={null}
+            processoId={processoIdUnico}
             attachments={anexos || []}
             onIaPreenchido={({ distribuicao_tst, dados_benner, resumo }) => {
               setIaDistribuicao(distribuicao_tst || {});
