@@ -308,6 +308,16 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
           setProgress(Math.min(pct, 50));
           setPhase(`Carregando distribuições do banco... (${Math.min(i + batch.length, ids.length)}/${ids.length})`);
         }
+      } else if (selectedRecordIds && selectedRecordIds.length > 0) {
+        for (let i = 0; i < selectedRecordIds.length; i += 500) {
+          const batch = selectedRecordIds.slice(i, i + 500);
+          const { data, error } = await supabase
+            .from("dados_benner" as any)
+            .select("*")
+            .in("id", batch);
+          if (error) throw error;
+          if (data) allDist.push(...((data as any[]).map(mapBennerToDist)));
+        }
       } else if (selectedProcessNumbers && selectedProcessNumbers.length > 0) {
         for (let i = 0; i < selectedProcessNumbers.length; i += 100) {
           const batch = selectedProcessNumbers.slice(i, i + 100);
