@@ -303,6 +303,51 @@ const normalizeDateInputValue = (value: any): any => {
   return value;
 };
 
+const normalizeYesNoToSimNao = (value: any): any => {
+  if (value === null || value === undefined || value === "") return value;
+  const s = String(value).trim().toUpperCase();
+  if (["S", "SIM", "YES", "TRUE"].includes(s)) return "SIM";
+  if (["N", "NAO", "NÃO", "NO", "FALSE"].includes(s)) return "NÃO";
+  return value;
+};
+
+const normalizeYesNoToSN = (value: any): any => {
+  if (value === null || value === undefined || value === "") return value;
+  const s = String(value).trim().toUpperCase();
+  if (["S", "SIM", "YES", "TRUE"].includes(s)) return "S";
+  if (["N", "NAO", "NÃO", "NO", "FALSE"].includes(s)) return "N";
+  return value;
+};
+
+const normalizeBooleanLike = (value: any): any => {
+  if (typeof value === "boolean") return value;
+  if (value === null || value === undefined || value === "") return value;
+  const s = String(value).trim().toUpperCase();
+  if (["S", "SIM", "YES", "TRUE", "TRANSITADO"].includes(s)) return true;
+  if (["N", "NAO", "NÃO", "NO", "FALSE", "ATIVO", "EM CURSO"].includes(s)) return false;
+  return value;
+};
+
+const normalizeIaValueForField = (field: string, value: any, reclamante: string, reclamada: string): any => {
+  const normalized = normalizarValorPorCampo(field, value, reclamante, reclamada);
+  if (["honra", "execucao", "midia_negativa", "recurso_terceiros"].includes(field)) {
+    return normalizeYesNoToSimNao(normalized);
+  }
+  if ([
+    "risco_midia",
+    "provas_digitais",
+    "materia_honra",
+    "tem_data_julgamento",
+    "entrega_memoriais",
+    "sustentacao_oral",
+    "processo_baixado",
+  ].includes(field)) {
+    return normalizeYesNoToSN(normalized);
+  }
+  if (field === "transito_julgado") return normalizeBooleanLike(normalized);
+  return normalizeDateInputValue(normalized);
+};
+
 export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
   { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo, bennerDado, onSaveBennerExtra }: Props,
   ref
@@ -346,6 +391,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     "ganhamos",
     "perdemos",
     "processo_baixado",
+    "situacao_processo",
+    "data_transito_julgado",
     "chance_exito",
   ] as const;
   const buildBennerExtra = (src: any | null | undefined): Record<string, any> => {
