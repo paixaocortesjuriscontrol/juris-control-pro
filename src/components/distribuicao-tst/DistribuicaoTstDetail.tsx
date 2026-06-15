@@ -632,7 +632,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           className="mt-4 data-[state=inactive]:hidden"
         >
           <DistribuicaoTstForm
-            key={`dist-${currentDado?.id || "novo"}-${saveVersion}`}
+            key={`dist-${currentDado?.id || "novo"}`}
             ref={formRef}
             dado={currentDado || null}
             onSave={handleSaveDistribuicaoLocal}
