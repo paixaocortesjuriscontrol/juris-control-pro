@@ -483,6 +483,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bennerDado?.id]);
+
+  useEffect(() => {
+    const persisted = extractPersistedIaFields((dado as any)?.observacao_advogado);
+    if (persisted.size === 0) return;
+    setIaFields((prev) => new Set([...Array.from(prev), ...Array.from(persisted)]));
+  }, [dado?.id, (dado as any)?.observacao_advogado]);
+
   const setExtra = (field: string, value: any) => {
     bennerDirtyRef.current.add(field);
     setBennerExtra((prev) => ({ ...prev, [field]: value }));
