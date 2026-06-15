@@ -187,21 +187,27 @@ async function run({ sb, payload, log, job }) {
     item.mensagem = `Processando ${item.tribunal} via VPS...`;
     await flushProgresso();
     try {
-      const { status, body } = await invokeDjen({
-        dataInicio,
-        dataFim,
-        execucaoServidorId: job?.id || null,
-        skipServidorProgress: true,
-        coordenacaoId,
-        monitoramentoIds: item.monitoramentoIds,
-        tribunais: [item.tribunal],
-      });
-      if (status < 200 || status >= 300) {
-        throw new Error(`status ${status}: ${JSON.stringify(body).slice(0, 300)}`);
+      for (const monitoramentoId of item.monitoramentoIds) {
+        if (await isCancelled()) break;
+        const { status, body } = await invokeDjen({
+          dataInicio,
+          dataFim,
+          execucaoServidorId: job?.id || null,
+          skipServidorProgress: true,
+          coordenacaoId,
+          monitoramentoIds: [monitoramentoId],
+          tribunais: [item.tribunal],
+        });
+        if (status < 200 || status >= 300) {
+          throw new Error(`status ${status}: ${JSON.stringify(body).slice(0, 300)}`);
+        }
+        item.novas += body?.novas ?? 0;
+        item.descartadas += body?.descartadas ?? 0;
+        item.duplicatas += body?.duplicatas ?? 0;
+        item.current += 1;
+        item.mensagem = `${item.tribunal}: ${item.current}/${item.total} termos`;
+        await flushProgresso();
       }
-      item.novas = body?.novas ?? 0;
-      item.descartadas = body?.descartadas ?? 0;
-      item.duplicatas = body?.duplicatas ?? 0;
       item.current = item.total;
       item.mensagem = `Concluído: ${item.novas} novas, ${item.duplicatas} duplicadas, ${item.descartadas} descartadas`;
       item.status = "concluido";
