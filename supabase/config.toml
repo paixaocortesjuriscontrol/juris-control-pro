@@ -190,6 +190,9 @@ verify_jwt = true
 [functions.preencher-form-ia-anexos-processo]
 verify_jwt = true
 
+[functions.analisar-tst-prompt-ia]
+verify_jwt = true
+
 [functions.fix-data-planilha]
 verify_jwt = false
 
