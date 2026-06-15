@@ -223,7 +223,7 @@ interface Props {
   /** Reporta a quantidade real de sugestões da IA que foram pintadas em azul
    *  no formulário (após filtragem por Judit, normalização etc.). Usado pelo
    *  pai para ajustar o resumo "N campo(s) Distribuição + M campo(s) Benner.". */
-  onIaApplied?: (counts: { distribuicao: number; benner: number }) => void;
+  onIaApplied?: (counts: { distribuicao: number; benner: number; distribuicaoFields: string[]; bennerFields: string[] }) => void;
 }
 
 export interface DistribuicaoTstFormHandle {
@@ -360,6 +360,21 @@ const normalizeIaValueForField = (field: string, value: any, reclamante: string,
     return normalizeBooleanLike(normalized);
   }
   return normalizeDateInputValue(normalized);
+};
+
+const extractPersistedIaFields = (text?: string | null): Set<string> => {
+  const fields = new Set<string>();
+  if (!text) return fields;
+  const re = /Campos IA (?:Distribuição|Benner):\s*([^\n]+)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    match[1]
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .forEach((field) => fields.add(field));
+  }
+  return fields;
 };
 
 export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
