@@ -243,7 +243,7 @@ export function AnexosJuditTab({ processoNumero, processoId, dadosBennerId, atta
       // Processa anexos em paralelo (limite de concorrência) — cada anexo
       // executa download → extração de PDF → gravação em chunks. Como o
       // processo_id já foi resolvido acima, não há contenção entre anexos.
-      const CONCURRENCY = 3;
+      const CONCURRENCY = Math.min(12, Math.max(1, pendentesAnexos.length));
       let concluidos = 0;
       const total = pendentesAnexos.length;
 
