@@ -1610,35 +1610,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               );
             })()}
           </div>
-        </div>
-      </div>
-
-      {/* SE\u00c7\u00c3O - Dados Benner (campos exclusivos unificados nesta aba) */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <SectionHeader title="Dados Benner — Análise / Risco" color="bg-[#0F766E]" />
-        <div className="p-4 space-y-4">
-          <div className={cn("space-y-2 p-2 -m-2", iaClass("analise_quarteirizado", bennerExtra.analise_quarteirizado))}>
-            <Label className="flex items-center">Análise Quarteirizado <IaBadge field="analise_quarteirizado" value={bennerExtra.analise_quarteirizado} /></Label>
-            <Textarea
-              value={bennerExtra.analise_quarteirizado || ""}
-              onChange={e => setExtra("analise_quarteirizado", e.target.value)}
-              rows={6}
-              className="min-h-[140px] resize-y"
-              placeholder="Descreva a análise do quarteirizado..."
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className={cn("space-y-2 p-2 -m-2", iaClass("risco_midia", bennerExtra.risco_midia))}>
-              <Label className="flex items-center">Risco Mídia Negativa <IaBadge field="risco_midia" value={bennerExtra.risco_midia} /></Label>
-              <Select value={bennerExtra.risco_midia || "__none__"} onValueChange={v => setExtra("risco_midia", v === "__none__" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Selecione</SelectItem>
-                  <SelectItem value="S">S</SelectItem>
-                  <SelectItem value="N">N</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Campos migrados de Dados Benner — Análise / Risco */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", iaClass("risco_descricao", bennerExtra.risco_descricao))}>
               <Label className="flex items-center">Risco (descrição) <IaBadge field="risco_descricao" value={bennerExtra.risco_descricao} /></Label>
               <Input value={bennerExtra.risco_descricao || ""} onChange={e => setExtra("risco_descricao", e.target.value)} />
@@ -1654,17 +1627,6 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-          </div>
-          <div className={cn("space-y-2 p-2 -m-2", iaClass("materia_honra", bennerExtra.materia_honra))}>
-            <Label className="flex items-center">Matéria de Honra <IaBadge field="materia_honra" value={bennerExtra.materia_honra} /></Label>
-            <Select value={bennerExtra.materia_honra || "__none__"} onValueChange={v => setExtra("materia_honra", v === "__none__" ? "" : v)}>
-              <SelectTrigger className="md:w-1/3"><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Selecione</SelectItem>
-                <SelectItem value="S">S</SelectItem>
-                <SelectItem value="N">N</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
         </div>
       </div>
