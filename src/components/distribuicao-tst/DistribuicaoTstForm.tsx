@@ -1265,7 +1265,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator", form.relator))}>
-              <Label className="flex items-center">Relator <JuditBadge show={isJuditFilled(form.relator)} /><IaBadge field="relator" value={form.relator} /></Label>
+              <Label className="flex items-center">Relator (F) <JuditBadge show={isJuditFilled(form.relator)} /><IaBadge field="relator" value={form.relator} /></Label>
               <RelatorTurmaCombo tipo="relator" value={form.relator} onChange={(v) => set("relator", v)} />
               {(() => {
                 const r = classificarRelatorDB(form.relator as any, relatoresTst);
@@ -1282,7 +1282,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               })()}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator_favorabilidade", form.relator_favorabilidade))}>
-              <Label className="flex items-center">Relator (+ ou -) <JuditBadge show={isJuditFilled(form.relator_favorabilidade)} /><IaBadge field="relator_favorabilidade" value={form.relator_favorabilidade} /></Label>
+              <Label className="flex items-center">Relator (+ ou -) (AD/AE) <JuditBadge show={isJuditFilled(form.relator_favorabilidade)} /><IaBadge field="relator_favorabilidade" value={form.relator_favorabilidade} /></Label>
               <Select value={form.relator_favorabilidade || "__none__"} onValueChange={v => set("relator_favorabilidade", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1295,7 +1295,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma", form.turma))}>
-              <Label className="flex items-center">Turma <JuditBadge show={isJuditFilled(form.turma)} /><IaBadge field="turma" value={form.turma} /></Label>
+              <Label className="flex items-center">Turma (E) <JuditBadge show={isJuditFilled(form.turma)} /><IaBadge field="turma" value={form.turma} /></Label>
               <RelatorTurmaCombo tipo="turma" value={form.turma} onChange={(v) => set("turma", v)} />
               {(() => {
                 const c = classificarTurmaDB(form.turma as any, turmasTst);
@@ -1307,7 +1307,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               })()}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma_favorabilidade", form.turma_favorabilidade))}>
-              <Label className="flex items-center">Turma (+ ou -) <JuditBadge show={isJuditFilled(form.turma_favorabilidade)} /><IaBadge field="turma_favorabilidade" value={form.turma_favorabilidade} /></Label>
+              <Label className="flex items-center">Turma (+ ou -) (AB/AC) <JuditBadge show={isJuditFilled(form.turma_favorabilidade)} /><IaBadge field="turma_favorabilidade" value={form.turma_favorabilidade} /></Label>
               <Select value={form.turma_favorabilidade || "__none__"} onValueChange={v => set("turma_favorabilidade", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1318,7 +1318,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("parte_recorrente", form.parte_recorrente))}>
-              <Label className="flex items-center">Parte Recorrente <JuditBadge show={isJuditFilled(form.parte_recorrente)} /><IaBadge field="parte_recorrente" value={form.parte_recorrente} /></Label>
+              <Label className="flex items-center">Parte Recorrente (AA) <JuditBadge show={isJuditFilled(form.parte_recorrente)} /><IaBadge field="parte_recorrente" value={form.parte_recorrente} /></Label>
               <Select value={form.parte_recorrente || "__none__"} onValueChange={v => set("parte_recorrente", v === "__none__" ? null : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
