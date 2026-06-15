@@ -1391,8 +1391,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 onChange={(v) => set("tipo_recurso_terceiro", v)}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Aparelhamento</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("aparelhamento_terceiro", (form as any).aparelhamento_terceiro))}>
+              <Label className="flex items-center">Aparelhamento <IaBadge field="aparelhamento_terceiro" value={(form as any).aparelhamento_terceiro} /></Label>
               <Select
                 value={(form as any).aparelhamento_terceiro || "__none__"}
                 onValueChange={(v) => set("aparelhamento_terceiro", v === "__none__" ? "" : v)}
@@ -1406,15 +1406,15 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Matérias Recurso (Terceiro)</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("materias_recurso_terceiro", (form as any).materias_recurso_terceiro))}>
+            <Label className="flex items-center">Matérias Recurso (Terceiro) <IaBadge field="materias_recurso_terceiro" value={(form as any).materias_recurso_terceiro} /></Label>
             <MateriasMultiSelect
               value={(form as any).materias_recurso_terceiro || null}
               onChange={(v) => set("materias_recurso_terceiro", v)}
             />
           </div>
-          <div className="space-y-2">
-            <Label>Chance de Êxito</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("chance_exito_terceiro", (form as any).chance_exito_terceiro))}>
+            <Label className="flex items-center">Chance de Êxito <IaBadge field="chance_exito_terceiro" value={(form as any).chance_exito_terceiro} /></Label>
             <Select
               value={(form as any).chance_exito_terceiro || "__none__"}
               onValueChange={(v) => set("chance_exito_terceiro", v === "__none__" ? "" : v)}
