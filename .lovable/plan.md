@@ -1,64 +1,71 @@
-# Diagnóstico — DJEN Servidor "não inicia" e usa 1 VPS
+## O que será construído
 
-## O que está acontecendo na verdade
+### 1. Novo menu "Prompt IA TST"
+CRUD de prompts compartilhados **por coordenação** (mesmo padrão de isolamento já usado no projeto).
 
-### 1. A execução **iniciou**, mas o VPS está rodando código antigo
-- Em `execucoes_servidor`, o job `3f575783-…` está com `status='busy'`, `iniciado_em=11:01:34`, heartbeat fresco.
-- O `progresso.itens` salvo tem ids como `"8d97420f-…"` (UUID de monitoramento) — formato da **engine antiga**.
-- A `monitor-servidor/engines/paralela.js` atual no repositório gera ids no formato `"${tipo}|${tribunal}"` (ex.: `"parte|TJSP"`) e mensagens "Aguardando slot...".
-- **Conclusão:** o `git pull && pm2 restart jc-monitor-servidor` pedido na conversa anterior **não foi aplicado** no `srv877805`. O VPS continua com a versão antiga, que não popula os 334 tribunais e fica travada nos itens "pendente" que aparecem na tela.
+Cadastro do prompt:
+- **Título** (aparece na lista da aba "Analisar com IA")
+- **Texto do prompt** (instruções para a IA)
+- **Descrição/observações** (quando usar)
+- **Modelo Gemini** (select: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash`) — default `gemini-2.5-flash`
+- **Ativo/Inativo** (toggle; inativos somem da lista de seleção)
+- **Auditoria**: data de cadastro, criado por, data de alteração, alterado por (preenchido automaticamente)
 
-### 2. "1 worker VPS · Pool 1/1" está correto, não é bug
-- `workers_servidor` tem apenas **1 host físico** (`srv877805`), com 3 slots — um por tipo:
-  - `hostinger-01-djen_paralela_servidor` (busy)
-  - `hostinger-01-djet_pautas_servidor` (idle)
-  - `hostinger-01-kurier_servidor` (idle)
-- Para DJEN existe **1 slot só**. A engine é **sequencial dentro do slot** (loop `for (const item of itens)`), invocando a edge `monitorar-djen` 1 tribunal por vez.
-- Por isso, mesmo após atualizar o VPS, o processamento continuará usando **um único worker** processando 334 tribunais em série — vai funcionar, mas devagar.
+Edição inline (sem botão "Editar"), padrão do projeto.
 
-## Plano de correção
+### 2. Aba "Analisar com IA" na tela Distribuição TST
+Ao clicar num processo da lista, abre o painel/modal de detalhes já existente e adiciona-se a aba **Analisar com IA** com este fluxo:
 
-### Passo 1 — Aplicar a engine nova no VPS (obrigatório)
-No host `srv877805`:
-```bash
-cd /opt/juris-control-pro
-git pull
-pm2 restart jc-monitor-servidor
-pm2 logs jc-monitor-servidor --lines 50
+1. **Select de Prompt** — lista os prompts ativos da coordenação (mostra Título).
+2. **Botão "Buscar anexos (Judit)"** — chama a Judit com `response_type: attachments` para o número do processo; mostra spinner.
+3. **Lista de anexos com checkbox** — cada item exibe nome do arquivo, tipo (PDF/DOC), data e tamanho. Advogado marca os que quer usar.
+4. **Botão "Analisar com IA"** — envia para a edge function `analisar-tst-ia` com: `prompt_id`, `processo_id`, lista de anexos selecionados (URLs/IDs Judit).
+5. **Painel de Sugestões** — ao lado de cada campo do formulário de Distribuição TST, a sugestão da IA aparece com botões **Aceitar** / **Ignorar**. Aceitar copia o valor para o campo (sem sobrescrever nada automaticamente).
+
+### 3. Backend
+- Tabela `prompts_ia_tst` com isolamento por `coordenacao_id` (RLS).
+- Edge function `analisar-tst-ia`:
+  - Baixa os anexos selecionados via Judit (proxy/download já existente no projeto).
+  - Envia para Gemini (`generativelanguage.googleapis.com`) como multimodal (PDFs inline) + prompt do advogado + instrução fixa para retornar JSON estruturado com os campos do formulário TST.
+  - Retorna `{ campo: { sugestao, confianca } }` para o frontend popular o painel.
+
+### Detalhes técnicos
+
+**DB (migration nova):**
+```sql
+CREATE TABLE public.prompts_ia_tst (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  coordenacao_id uuid NOT NULL REFERENCES public.coordenacoes(id) ON DELETE CASCADE,
+  titulo text NOT NULL,
+  prompt text NOT NULL,
+  descricao text,
+  modelo text NOT NULL DEFAULT 'gemini-2.5-flash',
+  ativo boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  created_by uuid REFERENCES auth.users(id),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  updated_by uuid REFERENCES auth.users(id)
+);
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.prompts_ia_tst TO authenticated;
+GRANT ALL ON public.prompts_ia_tst TO service_role;
+ALTER TABLE public.prompts_ia_tst ENABLE ROW LEVEL SECURITY;
+-- Policies: membros da coordenacao podem CRUD; trigger seta updated_at/updated_by.
 ```
-Esperado nos logs: `paralela.start` seguido de `paralela.monitoramentos` com o total, e o `progresso.itens` no banco passar a usar ids `tipo|tribunal` com mensagens `TJxx: n/m termos`.
 
-Antes disso, **cancelar** a execução órfã atual (`3f575783-…`) pelo botão "Forçar Parada" ou via update direto, para o worker pegar um job novo já com a engine atualizada.
+**Frontend:**
+- Novo item no sidebar: "Prompt IA TST" → rota `/prompts-ia-tst` com lista + edição inline.
+- Hook `usePromptsIaTst(coordenacaoId)` com React Query e `await invalidateQueries` antes de fechar/atualizar UI (padrão do projeto).
+- Nova aba dentro do componente de detalhes do processo em Distribuição TST: `AnalisarComIATab.tsx`.
 
-### Passo 2 — Paralelizar tribunais dentro do mesmo slot (opcional, mas resolve a lentidão)
-A `paralela.js` hoje processa os 334 (tribunal, tipo) em série. Acrescentar um pool de concorrência interno (ex. 6–8 chamadas simultâneas à edge `monitorar-djen`) faz **1 VPS** se comportar como vários workers lógicos, sem precisar provisionar host extra.
+**Edge function `analisar-tst-ia`:**
+- `verify_jwt = true`.
+- Lê `GEMINI_API_KEY` e `JUDIT_API_KEY` via `Deno.env`.
+- Para cada anexo selecionado: baixa PDF da Judit → base64 → envia como `inline_data` pro Gemini.
+- Prompt do sistema instrui a IA a devolver JSON com chaves = nomes dos campos do formulário TST. O texto do prompt cadastrado pelo advogado entra como contexto adicional.
+- Resposta normalizada `{ sugestoes: { campo: valor } }`.
 
-Mudanças propostas em `monitor-servidor/engines/paralela.js`:
-- Variável `PARALELA_CONCURRENCY` (default 6, configurável via `.env`).
-- Substituir o `for (const item of itens)` por um runner `runWithConcurrency(itens, PARALELA_CONCURRENCY, async (item) => { ... })` que mantém a lógica atual (mark `executando` → loop dos `monitoramentoIds` → mark `concluido/erro` → `flushProgresso`).
-- `flushProgresso` continua igual (já tem throttle de 800ms).
-- `isCancelled()` é consultado no início de cada item e antes de cada `invokeDjen`, preservando o "Forçar Parada".
+**Saída no formulário:** painel colapsável ao lado direito do form com cada sugestão e botão "Aceitar" (preenche o campo correspondente sem salvar — o advogado revisa e salva manualmente).
 
-Resultado esperado na UI: as barras de tribunais avançam em paralelo (~6 ao mesmo tempo), `currentWorker` continua sendo o mesmo `hostinger-01`, e a barra global "0/334" sobe rapidamente.
-
-### Passo 3 — Multi-host de verdade (não vou fazer agora, só registrar)
-Para ter **N VPSs** físicas processando DJEN de fato, é preciso:
-- Subir `monitor-servidor` em outro host (Hostinger-02 etc.) com `WORKER_ID_BASE` diferente.
-- Trocar o split de trabalho: em vez de 1 job grande que itera 334 tribunais, enfileirar **N sub-jobs** (um por bloco de tribunais) e deixar o `lease_proxima_execucao_servidor` distribuir entre os hosts.
-- Isso é uma refatoração maior (schema do job + UI agregadora) — só vale a pena depois que o Passo 2 não for suficiente.
-
-## Arquivos que serão tocados (apenas se você aprovar o Passo 2)
-
-- `monitor-servidor/engines/paralela.js` — adicionar pool de concorrência interno.
-- Nenhuma mudança em UI, hooks ou edge functions.
-
-## O que eu **não** vou mudar
-
-- `useDjenServidor.ts` / `DjenServidorParalelaCard.tsx`: a tela já reage ao novo formato de `progresso.itens`; só precisa de dados vindos da engine nova.
-- `supabase/functions/monitorar-djen/index.ts`: já aceita `tribunais[]` + `skipServidorProgress` — não há ajuste pendente.
-- Schema do banco: nenhuma alteração.
-
-## Confirme antes de eu implementar
-
-1. Faço a paralelização interna (Passo 2) com `PARALELA_CONCURRENCY=6` default?
-2. Quer também um botão na UI para **cancelar** explicitamente a execução órfã `3f575783-…` (caso "Forçar Parada" não esteja respondendo)?
+### Confirmação antes de codar
+- Já existe um componente "detalhes do processo" em Distribuição TST onde abrirei a nova aba (vou localizar pelo caminho da tela). Se preferir que abra em modal separado em vez de aba, me avise.
+- Vou usar `gemini-2.5-flash` como default. Posso adicionar `gemini-2.5-pro` na lista. Confirma essa lista de modelos?
