@@ -147,6 +147,7 @@ function App() {
               <Route path="/monitoramento-distribuicao" element={<ProtectedRoute><MonitoramentoDistribuicao /></ProtectedRoute>} />
               <Route path="/monitoramento-360" element={<ProtectedRoute><Monitoramento360 /></ProtectedRoute>} />
               <Route path="/monitoramento-djen" element={<ProtectedRoute><MonitoramentoDjen /></ProtectedRoute>} />
+              <Route path="/djen-servidor" element={<AdminRoute><DjenServidor /></AdminRoute>} />
               <Route path="/monitoracao" element={<AdminRoute><MonitoracaoHub /></AdminRoute>} />
               <Route path="/pastas" element={<ProtectedRoute><Pastas /></ProtectedRoute>} />
               <Route path="/pastas/:id" element={<ProtectedRoute><PastaDetalhes /></ProtectedRoute>} />
