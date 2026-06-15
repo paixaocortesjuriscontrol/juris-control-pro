@@ -41,7 +41,7 @@ export function usePromptsIaTst(opts?: { somenteAtivos?: boolean }) {
       if (opts?.somenteAtivos) q = q.eq("ativo", true);
       const { data, error } = await q;
       if (error) throw error;
-      return (data || []) as PromptIaTst[];
+      return ((data as unknown) as PromptIaTst[]) || [];
     },
   });
 }
@@ -58,7 +58,7 @@ export function useCreatePromptIaTst() {
         .select("*")
         .single();
       if (error) throw error;
-      return data as PromptIaTst;
+      return (data as unknown) as PromptIaTst;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: [KEY] });
@@ -77,7 +77,7 @@ export function useUpdatePromptIaTst() {
         .select("*")
         .single();
       if (error) throw error;
-      return data as PromptIaTst;
+      return (data as unknown) as PromptIaTst;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: [KEY] });
