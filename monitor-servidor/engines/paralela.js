@@ -191,6 +191,7 @@ async function run({ sb, payload, log, job }) {
         dataInicio,
         dataFim,
         execucaoServidorId: job?.id || null,
+        skipServidorProgress: true,
         coordenacaoId,
         monitoramentoIds: item.monitoramentoIds,
         tribunais: [item.tribunal],
