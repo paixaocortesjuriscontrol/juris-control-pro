@@ -446,20 +446,19 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         outRow[LAYOUT_COLS[4]] = fixVicePresidencia(turmaRaw);
         outRow[LAYOUT_COLS[5]] = cleanRelator(String(d.relator ?? "").trim());
         outRow[LAYOUT_COLS[6]] = toSentenceCaseDash(String(d.decisao_quarteirizado ?? "").trim());
-        // Fallback entre colunas equivalentes: a tela Distribuição TST grava
-        // em `midia_negativa`/`honra` (campos antigos) E a aba Dados Benner
-        // grava em `risco_midia`/`materia_honra` (campos extras). Considerar
-        // os dois para não perder informação preenchida pela advogada.
-        outRow[LAYOUT_COLS[7]] = (d.risco_midia || d.midia_negativa)
-          ? toSN(String(d.risco_midia || d.midia_negativa)) : "";
+        // Campos unificados: a aba Distribuição TST (Análise) é a fonte
+        // autoritativa. `risco_midia`/`materia_honra` são apenas fallback
+        // para registros legados (campo removido da aba Confere Benner).
+        outRow[LAYOUT_COLS[7]] = (d.midia_negativa || d.risco_midia)
+          ? toSN(String(d.midia_negativa || d.risco_midia)) : "";
         outRow[LAYOUT_COLS[8]] = String(d.risco_descricao ?? "").trim();
         outRow[LAYOUT_COLS[9]] = d.provas_digitais ? toSN(String(d.provas_digitais)) : "";
         outRow[LAYOUT_COLS[10]] = d.tem_data_julgamento ? toSN(String(d.tem_data_julgamento)) : "";
         outRow[LAYOUT_COLS[11]] = formatDateDDMMYYYY(d.data_julgamento);
         outRow[LAYOUT_COLS[12]] = String(d.horario_julgamento ?? "").trim();
         outRow[LAYOUT_COLS[13]] = String(d.tipo_julgamento ?? "").trim();
-        outRow[LAYOUT_COLS[14]] = (d.materia_honra || d.honra)
-          ? toSN(String(d.materia_honra || d.honra)) : "";
+        outRow[LAYOUT_COLS[14]] = (d.honra || d.materia_honra)
+          ? toSN(String(d.honra || d.materia_honra)) : "";
         outRow[LAYOUT_COLS[15]] = d.entrega_memoriais ? toSN(String(d.entrega_memoriais)) : "";
         outRow[LAYOUT_COLS[16]] = d.sustentacao_oral ? toSN(String(d.sustentacao_oral)) : "";
         outRow[LAYOUT_COLS[17]] = d.resultado_sem_transcendencia ? "X" : "";
