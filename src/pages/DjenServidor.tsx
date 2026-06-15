@@ -79,6 +79,7 @@ function ymd(d?: Date) { return d ? format(d, "yyyy-MM-dd") : undefined; }
 function EngineCard({ cfg, onToggle }: {
   cfg: ConfigServidor;
   onToggle: (id: string, ativo: boolean) => void;
+  onConfig: (id: string, patch: { ativo?: boolean; frequencia?: string; horarios_execucao?: string[]; metadata?: unknown }) => void;
 }) {
   const enfileirar = useEnfileirarManual();
   const live = useExecucaoServidorAoVivo(cfg.tipo);
@@ -88,6 +89,33 @@ function EngineCard({ cfg, onToggle }: {
   const [dataFim, setDataFim] = useState<Date | undefined>(today);
 
   const isParalela = cfg.tipo === "djen_paralela_servidor";
+  const horariosKey = JSON.stringify(cfg.horarios_execucao || []);
+  const [horariosTexto, setHorariosTexto] = useState((cfg.horarios_execucao || []).join(", "));
+  const { data: horariosDjenNormal = [] } = useQuery({
+    queryKey: ["djen-normal-paralela-horarios"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("configuracoes_monitoramento")
+        .select("horarios_execucao")
+        .eq("tipo", "djen_paralela")
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.horarios_execucao || []) as string[];
+    },
+  });
+  useEffect(() => {
+    setHorariosTexto((cfg.horarios_execucao || []).join(", "));
+  }, [cfg.id, horariosKey]);
+
+  const horariosServidor = horariosTexto.split(",").map((h) => h.trim()).filter(Boolean);
+  const conflitoHorarioNormal = isParalela && horariosServidor.some((h) => horariosDjenNormal.includes(h));
+
+  const handleHorariosBlur = () => {
+    if (conflitoHorarioNormal) return;
+    const atual = JSON.stringify(cfg.horarios_execucao || []);
+    const proximo = JSON.stringify(horariosServidor);
+    if (atual !== proximo) onConfig(cfg.id, { horarios_execucao: horariosServidor });
+  };
 
   // Filtros (só Paralela suporta hoje, mas UI presente para consistência)
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
