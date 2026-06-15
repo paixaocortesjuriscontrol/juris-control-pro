@@ -742,6 +742,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         <TabsContent value="anexos" className="mt-4">
           <AnexosJuditTab
             processoNumero={processoNumero}
+            processoId={processoIdUnico || undefined}
             attachments={anexos || []}
             dadosJudit={currentDado ? {
               dossie: currentDado.dossie,
@@ -779,6 +780,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             processoNumero={processoNumero}
             processoId={processoIdUnico}
             attachments={anexos || []}
+            onIndexacaoAtualizada={reloadAnexos}
             onIaPreenchido={({ distribuicao_tst, dados_benner, resumo }) => {
               setIaDistribuicao(distribuicao_tst || {});
               setIaBenner(dados_benner || {});
