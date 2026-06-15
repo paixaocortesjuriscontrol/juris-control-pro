@@ -13,6 +13,17 @@ function json(body: unknown, status = 200) {
   });
 }
 
+function compactEmptyObjects(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const out: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (raw === null || raw === undefined) continue;
+    if (typeof raw === "string" && raw.trim() === "") continue;
+    out[key] = raw;
+  }
+  return out;
+}
+
 /**
  * Roda IA com PROMPT CUSTOMIZADO cadastrado pelo advogado em "Prompt IA TST".
  * Recebe:
@@ -230,13 +241,16 @@ O prompt customizado do advogado abaixo orienta a INTERPRETAÇÃO das peças, ma
       return json({ error: "Falha ao parsear resposta da IA" }, 500);
     }
 
+    const distribuicaoTst = compactEmptyObjects(parsed?.distribuicao_tst) || {};
+    const dadosBenner = compactEmptyObjects(parsed?.dados_benner) || {};
+
     return json({
       processo_id: pid,
       prompt_id: promptId,
       prompt_titulo: promptRow.titulo,
       modelo,
-      distribuicao_tst: parsed?.distribuicao_tst || {},
-      dados_benner: parsed?.dados_benner || {},
+      distribuicao_tst: distribuicaoTst,
+      dados_benner: dadosBenner,
       resumo: parsed?.resumo || null,
       alertas: Array.isArray(parsed?.alertas) ? parsed.alertas : [],
       docs_analisados: docIds.length,

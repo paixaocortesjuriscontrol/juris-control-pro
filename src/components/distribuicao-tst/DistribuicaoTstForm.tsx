@@ -293,6 +293,16 @@ const getEquipeOptions = (current?: string | null) => {
   return [...options].sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
 };
 
+const normalizeDateInputValue = (value: any): any => {
+  if (value === null || value === undefined || value === "") return value;
+  const s = String(value).trim();
+  const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  return value;
+};
+
 export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
   { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo, bennerDado, onSaveBennerExtra }: Props,
   ref
@@ -340,7 +350,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   ] as const;
   const buildBennerExtra = (src: any | null | undefined): Record<string, any> => {
     const out: Record<string, any> = {};
-    for (const k of BENNER_EXTRA_FIELDS) out[k] = src ? (src as any)[k] ?? null : null;
+    for (const k of BENNER_EXTRA_FIELDS) out[k] = src ? normalizeDateInputValue((src as any)[k] ?? null) : null;
     return out;
   };
   const [bennerExtra, setBennerExtra] = useState<Record<string, any>>(() => buildBennerExtra(bennerDado));
@@ -454,7 +464,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         const cur = (prev as any)[k];
         const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
         if (curEmpty) {
-          const vNorm = normalizarValorPorCampo(k, v, String(prev.reclamante || ""), String(prev.reclamada || ""));
+          const vNorm = normalizeDateInputValue(normalizarValorPorCampo(k, v, String(prev.reclamante || ""), String(prev.reclamada || "")));
           if (vNorm === null || vNorm === undefined) continue;
           next[k] = vNorm;
           filled.add(k);
@@ -463,6 +473,27 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       setIaFields(filled);
       return next;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(iaSugestao || {}), dado?.id]);
+
+  // A aba principal também contém campos exclusivos do Dados Benner; aplica as
+  // sugestões neles e marca como dirty para que o próximo Salvar persista.
+  useEffect(() => {
+    if (!iaSugestao || Object.keys(iaSugestao).length === 0) return;
+    const updates: Record<string, any> = {};
+    for (const k of BENNER_EXTRA_FIELDS) {
+      const v = (iaSugestao as any)?.[k];
+      if (v === null || v === undefined) continue;
+      const cur = bennerExtraRef.current[k];
+      const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
+      if (!curEmpty) continue;
+      updates[k] = normalizeDateInputValue(v);
+    }
+    const keys = Object.keys(updates);
+    if (keys.length === 0) return;
+    for (const k of keys) bennerDirtyRef.current.add(k);
+    setBennerExtra((prev) => ({ ...prev, ...updates }));
+    setIaFields((prev) => new Set([...Array.from(prev), ...keys]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(iaSugestao || {}), dado?.id]);
 
@@ -502,7 +533,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           const cur = base[k];
           const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
           if (curEmpty) {
-            const vNorm = normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
+            const vNorm = normalizeDateInputValue(normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || "")));
             if (vNorm === null || vNorm === undefined) continue;
             base[k] = vNorm; filled.add(k);
           }
@@ -526,7 +557,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         for (const [k, v] of Object.entries(iaSugestao)) {
           if (v === null || v === undefined) continue;
           if (ALWAYS_JUDIT.has(k)) continue;
-          const vNorm = normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
+          const vNorm = normalizeDateInputValue(normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || "")));
           if (vNorm === null || vNorm === undefined) continue;
           base[k] = vNorm; filled.add(k);
         }
@@ -1456,8 +1487,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Dados Benner — Análise / Risco" color="bg-[#0F766E]" />
         <div className="p-4 space-y-4">
-          <div className="space-y-2">
-            <Label>Análise Quarteirizado</Label>
+          <div className={cn("space-y-2 p-2 -m-2", iaClass("analise_quarteirizado", bennerExtra.analise_quarteirizado))}>
+            <Label className="flex items-center">Análise Quarteirizado <IaBadge field="analise_quarteirizado" value={bennerExtra.analise_quarteirizado} /></Label>
             <Textarea
               value={bennerExtra.analise_quarteirizado || ""}
               onChange={e => setExtra("analise_quarteirizado", e.target.value)}
@@ -1467,8 +1498,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Risco Mídia Negativa</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("risco_midia", bennerExtra.risco_midia))}>
+              <Label className="flex items-center">Risco Mídia Negativa <IaBadge field="risco_midia" value={bennerExtra.risco_midia} /></Label>
               <Select value={bennerExtra.risco_midia || "__none__"} onValueChange={v => setExtra("risco_midia", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1478,12 +1509,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Risco (descrição)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("risco_descricao", bennerExtra.risco_descricao))}>
+              <Label className="flex items-center">Risco (descrição) <IaBadge field="risco_descricao" value={bennerExtra.risco_descricao} /></Label>
               <Input value={bennerExtra.risco_descricao || ""} onChange={e => setExtra("risco_descricao", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Provas Digitais</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("provas_digitais", bennerExtra.provas_digitais))}>
+              <Label className="flex items-center">Provas Digitais <IaBadge field="provas_digitais" value={bennerExtra.provas_digitais} /></Label>
               <Select value={bennerExtra.provas_digitais || "__none__"} onValueChange={v => setExtra("provas_digitais", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1494,8 +1525,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Matéria de Honra</Label>
+          <div className={cn("space-y-2 p-2 -m-2", iaClass("materia_honra", bennerExtra.materia_honra))}>
+            <Label className="flex items-center">Matéria de Honra <IaBadge field="materia_honra" value={bennerExtra.materia_honra} /></Label>
             <Select value={bennerExtra.materia_honra || "__none__"} onValueChange={v => setExtra("materia_honra", v === "__none__" ? "" : v)}>
               <SelectTrigger className="md:w-1/3"><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
@@ -1513,8 +1544,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <SectionHeader title="Dados Benner — Julgamento" color="bg-[#0E7490]" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label>Data Julgamento?</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("tem_data_julgamento", bennerExtra.tem_data_julgamento))}>
+              <Label className="flex items-center">Data Julgamento? <IaBadge field="tem_data_julgamento" value={bennerExtra.tem_data_julgamento} /></Label>
               <Select value={bennerExtra.tem_data_julgamento || "__none__"} onValueChange={v => setExtra("tem_data_julgamento", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1524,16 +1555,16 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Data Julgamento</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("data_julgamento", bennerExtra.data_julgamento))}>
+              <Label className="flex items-center">Data Julgamento <IaBadge field="data_julgamento" value={bennerExtra.data_julgamento} /></Label>
               <Input type="date" value={bennerExtra.data_julgamento || ""} onChange={e => setExtra("data_julgamento", e.target.value || null)} />
             </div>
-            <div className="space-y-2">
-              <Label>Horário</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("horario_julgamento", bennerExtra.horario_julgamento))}>
+              <Label className="flex items-center">Horário <IaBadge field="horario_julgamento" value={bennerExtra.horario_julgamento} /></Label>
               <Input type="time" value={bennerExtra.horario_julgamento || ""} onChange={e => setExtra("horario_julgamento", e.target.value || null)} />
             </div>
-            <div className="space-y-2">
-              <Label>Tipo Julgamento</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("tipo_julgamento", bennerExtra.tipo_julgamento))}>
+              <Label className="flex items-center">Tipo Julgamento <IaBadge field="tipo_julgamento" value={bennerExtra.tipo_julgamento} /></Label>
               <Select value={bennerExtra.tipo_julgamento || "__none__"} onValueChange={v => setExtra("tipo_julgamento", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1599,12 +1630,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <Label>Outra (descrição)</Label>
             <Input value={bennerExtra.resultado_outra || ""} onChange={e => setExtra("resultado_outra", e.target.value)} />
           </div>
-          <div className="space-y-2">
-            <Label>Observações</Label>
+          <div className={cn("space-y-2 p-2 -m-2", iaClass("observacoes", bennerExtra.observacoes))}>
+            <Label className="flex items-center">Observações <IaBadge field="observacoes" value={bennerExtra.observacoes} /></Label>
             <Textarea value={bennerExtra.observacoes || ""} onChange={e => setExtra("observacoes", e.target.value)} rows={3} />
           </div>
-          <div className="space-y-2">
-            <Label>Notas</Label>
+          <div className={cn("space-y-2 p-2 -m-2", iaClass("notas", bennerExtra.notas))}>
+            <Label className="flex items-center">Notas <IaBadge field="notas" value={bennerExtra.notas} /></Label>
             <Textarea value={bennerExtra.notas || ""} onChange={e => setExtra("notas", e.target.value)} rows={3} placeholder="Anotações livres sobre este registro..." />
           </div>
         </div>
@@ -1623,8 +1654,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               <Checkbox id="be-perdemos" checked={!!bennerExtra.perdemos} onCheckedChange={v => setExtra("perdemos", !!v)} />
               <Label htmlFor="be-perdemos" className="cursor-pointer">Perdemos</Label>
             </div>
-            <div className="space-y-2">
-              <Label>Processo Baixado</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("processo_baixado", bennerExtra.processo_baixado))}>
+              <Label className="flex items-center">Processo Baixado <IaBadge field="processo_baixado" value={bennerExtra.processo_baixado} /></Label>
               <Select value={bennerExtra.processo_baixado || "__none__"} onValueChange={v => setExtra("processo_baixado", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
