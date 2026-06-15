@@ -693,15 +693,22 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   useEffect(() => {
     if (!onIaApplied || !iaSugestao) return;
     const benSet = new Set<string>(BENNER_EXTRA_FIELDS as readonly string[]);
+    const distribuicaoFields: string[] = [];
+    const bennerFields: string[] = [];
     let dist = 0;
     let ben = 0;
     for (const k of iaFields) {
       if (k === "observacao_advogado") continue;
       if (!(k in (iaSugestao as Record<string, any>))) continue;
-      if (benSet.has(k)) ben++;
-      else dist++;
+      if (benSet.has(k)) {
+        ben++;
+        bennerFields.push(k);
+      } else {
+        dist++;
+        distribuicaoFields.push(k);
+      }
     }
-    onIaApplied({ distribuicao: dist, benner: ben });
+    onIaApplied({ distribuicao: dist, benner: ben, distribuicaoFields, bennerFields });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [iaFields, JSON.stringify(iaSugestao || {})]);
 
