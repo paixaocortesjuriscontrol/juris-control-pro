@@ -30,6 +30,9 @@ import {
   type ConfigServidor,
   type ProgressoItem,
 } from "@/hooks/useDjenServidor";
+import { MonitoramentoTermosParalelaCard } from "@/components/configuracoes/MonitoramentoTermosParalelaCard";
+import { MonitoramentoTermosKurierCard } from "@/components/configuracoes/MonitoramentoTermosKurierCard";
+import { MonitoramentoDjetPautasCard } from "@/components/configuracoes/MonitoramentoDjetPautasCard";
 
 const LABELS: Record<string, string> = {
   djen_paralela_servidor: "DJEN Servidor",
@@ -605,9 +608,9 @@ export default function DjenServidor() {
           <TabsTrigger value="publicacoes"><FileSearch className="h-4 w-4 mr-1" />Publicações</TabsTrigger>
           <TabsTrigger value="comparador"><GitCompare className="h-4 w-4 mr-1" />Comparador</TabsTrigger>
         </TabsList>
-        <TabsContent value="servidor"><EngineTab tipo="djen_paralela_servidor" /></TabsContent>
-        <TabsContent value="pautas"><EngineTab tipo="djet_pautas_servidor" /></TabsContent>
-        <TabsContent value="kurier"><EngineTab tipo="kurier_servidor" /></TabsContent>
+        <TabsContent value="servidor"><div className="space-y-4"><MonitoramentoTermosParalelaCard /></div></TabsContent>
+        <TabsContent value="pautas"><div className="space-y-4"><MonitoramentoDjetPautasCard /></div></TabsContent>
+        <TabsContent value="kurier"><div className="space-y-4"><MonitoramentoTermosKurierCard /></div></TabsContent>
         <TabsContent value="workers"><WorkersPanel /></TabsContent>
         <TabsContent value="execucoes"><ExecucoesPanel /></TabsContent>
         <TabsContent value="publicacoes"><PublicacoesPanel /></TabsContent>
