@@ -635,15 +635,38 @@ export default async function handler(req: Request): Promise<Response> {
 
     const body = await req.json().catch(() => ({}));
     const execucaoId = body?.execucaoId;
-    const diarioYmd = body?.diarioYmd || getBrazilISODate();
-    
-    console.log(`[DJEN] Started for ${diarioYmd}`);
+    const execucaoServidorId: string | null = body?.execucaoServidorId || null;
+    const coordenacaoIdFiltro: string | null = body?.coordenacaoId || null;
+    const monitoramentoIdsFiltro: string[] | null =
+      Array.isArray(body?.monitoramentoIds) && body.monitoramentoIds.length > 0
+        ? body.monitoramentoIds
+        : null;
 
-    // Load active monitoramentos
-    const { data: monitoramentos, error: monError } = await supabase
+    // Janela de datas: aceita dataInicio/dataFim (yyyy-mm-dd) OU diarioYmd (compat)
+    const dataInicio: string =
+      body?.dataInicio || body?.diarioYmd || getBrazilISODate();
+    const dataFim: string = body?.dataFim || body?.diarioYmd || dataInicio;
+
+    // Expande lista de datas inclusivas
+    const datasJanela: string[] = [];
+    {
+      const start = new Date(dataInicio + 'T12:00:00Z');
+      const end = new Date(dataFim + 'T12:00:00Z');
+      for (let d = new Date(start); d.getTime() <= end.getTime(); d.setUTCDate(d.getUTCDate() + 1)) {
+        datasJanela.push(d.toISOString().slice(0, 10));
+      }
+    }
+
+    console.log(`[DJEN] Started window ${dataInicio} → ${dataFim} (${datasJanela.length} dias)`);
+
+    // Load active monitoramentos with optional filters
+    let monQuery = supabase
       .from('monitoramentos_djen')
-      .select('id, tipo, termo_busca, termos_or, oab, uf, tribunais, exclusoes, condicao_concomitante, coordenacao_id, responsaveis_ids, criar_tarefa_auto')
+      .select('id, tipo, termo_busca, termos_or, oab, uf, tribunais, exclusoes, condicao_concomitante, coordenacao_id, responsaveis_ids, criar_tarefa_auto, descricao')
       .eq('ativo', true);
+    if (coordenacaoIdFiltro) monQuery = monQuery.eq('coordenacao_id', coordenacaoIdFiltro);
+    if (monitoramentoIdsFiltro) monQuery = monQuery.in('id', monitoramentoIdsFiltro);
+    const { data: monitoramentos, error: monError } = await monQuery;
 
     if (monError) {
       throw new Error(`Failed to load monitoramentos: ${monError.message}`);
@@ -651,20 +674,83 @@ export default async function handler(req: Request): Promise<Response> {
 
     console.log(`[DJEN] Processing ${monitoramentos?.length || 0} monitoramentos`);
 
+    // Helper: atualiza progresso na execucoes_servidor (se houver)
+    type ProgressoItem = {
+      id: string;
+      label: string;
+      data: string;
+      status: 'pendente' | 'executando' | 'concluido' | 'erro';
+      novas: number;
+      descartadas: number;
+      duplicatas: number;
+    };
+    const itens: ProgressoItem[] = [];
+    for (const dia of datasJanela) {
+      for (const m of (monitoramentos || [])) {
+        itens.push({
+          id: `${m.id}|${dia}`,
+          label: `${(m as any).descricao || (m as any).termo_busca || m.id} · ${dia}`,
+          data: dia,
+          status: 'pendente',
+          novas: 0,
+          descartadas: 0,
+          duplicatas: 0,
+        });
+      }
+    }
+    let lastFlush = 0;
+    const flushProgresso = async (force = false) => {
+      if (!execucaoServidorId) return;
+      const now = Date.now();
+      if (!force && now - lastFlush < 900) return;
+      lastFlush = now;
+      const concluidos = itens.filter(i => i.status === 'concluido' || i.status === 'erro').length;
+      const falhas = itens.filter(i => i.status === 'erro').length;
+      const atual = itens.find(i => i.status === 'executando');
+      await supabase
+        .from('execucoes_servidor')
+        .update({
+          progresso: {
+            totalItens: itens.length,
+            concluidos,
+            falhas,
+            atual: atual ? { id: atual.id, label: atual.label } : null,
+            itens: itens.slice(-200), // limita payload
+            janela: { dataInicio, dataFim },
+          },
+          progresso_atualizado_em: new Date().toISOString(),
+          heartbeat_at: new Date().toISOString(),
+        })
+        .eq('id', execucaoServidorId);
+    };
+    await flushProgresso(true);
+
     let totalNovas = 0;
     let totalDescartadas = 0;
     let totalDuplicatas = 0;
 
-    for (const mon of (monitoramentos || [])) {
-      try {
-        const result = await processMonitoramentoIndexed(supabase, mon, diarioYmd, monitoramentos);
-        totalNovas += result.novas;
-        totalDescartadas += result.descartadas;
-        totalDuplicatas += result.duplicatas;
-      } catch (err) {
-        console.error(`Error processing mon ${mon.id}:`, err);
+    for (const dia of datasJanela) {
+      for (const mon of (monitoramentos || [])) {
+        const item = itens.find(i => i.id === `${mon.id}|${dia}`)!;
+        item.status = 'executando';
+        await flushProgresso();
+        try {
+          const result = await processMonitoramentoIndexed(supabase, mon, dia, monitoramentos);
+          item.novas = result.novas;
+          item.descartadas = result.descartadas;
+          item.duplicatas = result.duplicatas;
+          item.status = 'concluido';
+          totalNovas += result.novas;
+          totalDescartadas += result.descartadas;
+          totalDuplicatas += result.duplicatas;
+        } catch (err) {
+          console.error(`Error processing mon ${mon.id} dia ${dia}:`, err);
+          item.status = 'erro';
+        }
+        await flushProgresso();
       }
     }
+    await flushProgresso(true);
 
     // Update execution if provided
     if (execucaoId) {
@@ -676,7 +762,8 @@ export default async function handler(req: Request): Promise<Response> {
             novas: totalNovas,
             descartadas: totalDescartadas,
             duplicatas: totalDuplicatas,
-            diario: diarioYmd,
+            dataInicio,
+            dataFim,
           }
         })
         .eq('tipo', 'DJEN');
@@ -691,6 +778,8 @@ export default async function handler(req: Request): Promise<Response> {
         descartadas: totalDescartadas,
         duplicatas: totalDuplicatas,
         monitoramentos: monitoramentos?.length || 0,
+        dataInicio,
+        dataFim,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
