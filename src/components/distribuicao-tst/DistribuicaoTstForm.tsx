@@ -564,15 +564,15 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       // Reaplica sugestões da IA (somente em campos vazios e não-Judit) para
       // que a montagem da aba não apague as sugestões pendentes.
       if (iaSugestao && Object.keys(iaSugestao).length > 0) {
+        const filled = new Set<string>();
         const iaSituacao = String((iaSugestao as any)?.situacao_processo || "");
         const iaBaixado = String((iaSugestao as any)?.processo_baixado || "").toUpperCase();
         if (/ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N") {
           base.transito_julgado = false;
           base.data_transito_julgado = null;
-        filled.add("transito_julgado");
+          filled.add("transito_julgado");
         }
         const PREFER_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
-        const filled = new Set<string>();
         for (const [k, v] of Object.entries(iaSugestao)) {
           if (v === null || v === undefined) continue;
           if (PREFER_JUDIT.has(k)) {
@@ -599,15 +599,15 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       setResponsaveisLoaded(true);
       const base: any = { ...emptyForm };
       if (iaSugestao && Object.keys(iaSugestao).length > 0) {
+        const filled = new Set<string>();
         const iaSituacao = String((iaSugestao as any)?.situacao_processo || "");
         const iaBaixado = String((iaSugestao as any)?.processo_baixado || "").toUpperCase();
         if (/ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N") {
           base.transito_julgado = false;
           base.data_transito_julgado = null;
-        filled.add("transito_julgado");
+          filled.add("transito_julgado");
         }
         const PREFER_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
-        const filled = new Set<string>();
         for (const [k, v] of Object.entries(iaSugestao)) {
           if (v === null || v === undefined) continue;
           if (PREFER_JUDIT.has(k)) {
