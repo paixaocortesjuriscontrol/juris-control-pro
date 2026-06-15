@@ -388,6 +388,7 @@ async function run({ sb, payload, log, job }) {
 
   const abortController = new AbortController();
   const signal = abortController.signal;
+  let cancelled = false;
   const isCancelled = async () => {
     if (!job?.id) return false;
     const { data } = await sb.from("execucoes_servidor").select("status").eq("id", job.id).maybeSingle();
@@ -427,7 +428,6 @@ async function run({ sb, payload, log, job }) {
 
   let totalNovas = 0, totalDescartadas = 0, totalDuplicatas = 0, totalErros = 0;
   let bandAtual = 0;
-  let cancelled = false;
   const inBand = [0, 0, 0, 0];
   const pickNext = () => {
     while (bandAtual < bands.length) {
@@ -452,7 +452,13 @@ async function run({ sb, payload, log, job }) {
         const mon = monsPorId.get(monId);
         if (!mon) continue;
         for (const dia of dias) {
-          if (cancelled || signal.aborted || (await isCancelled())) { cancelled = true; abortController.abort(); return; }
+          if (cancelled || signal.aborted || (await isCancelled())) {
+            cancelled = true;
+            abortController.abort();
+            item.status = "cancelado";
+            item.mensagem = "Cancelado pelo usuário";
+            return;
+          }
           item.mensagem = `${item.tribunal} ${dia}: ${item.current}/${item.total} via ${item.via.label}`;
           const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
           const stats = await persistPublicacoes(sb, pubs, mon, item.tribunal, dia, job?.id || null);
@@ -506,7 +512,16 @@ async function run({ sb, payload, log, job }) {
   };
 
   await Promise.all(slots.map((slot) => worker(slot)));
-  if (cancelled) log("paralela.cancelled", { remaining: itens.filter((i) => i.status === "pendente").length });
+  clearInterval(cancelPoll);
+  if (cancelled) {
+    for (const item of itens) {
+      if (item.status === "pendente" || item.status === "executando") {
+        item.status = "cancelado";
+        item.mensagem = "Cancelado pelo usuário";
+      }
+    }
+    log("paralela.cancelled", { remaining: itens.filter((i) => i.status === "pendente").length });
+  }
   await flushProgresso(true);
   log("paralela.done", { monitoramentos: itens.length, novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros });
 
