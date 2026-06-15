@@ -7890,6 +7890,7 @@ export type Database = {
         Args: { _evento_id: string; _user_id: string }
         Returns: boolean
       }
+      cancelar_execucao_servidor: { Args: { p_id: string }; Returns: undefined }
       compute_djen_conteudo_dedup_key: {
         Args: {
           p_conteudo: string
