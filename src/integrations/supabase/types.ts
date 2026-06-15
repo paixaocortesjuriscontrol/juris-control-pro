@@ -3632,6 +3632,8 @@ export type Database = {
           id: string
           iniciado_em: string | null
           payload: Json | null
+          progresso: Json | null
+          progresso_atualizado_em: string | null
           resultado: Json | null
           status: string
           tentativas: number
@@ -3649,6 +3651,8 @@ export type Database = {
           id?: string
           iniciado_em?: string | null
           payload?: Json | null
+          progresso?: Json | null
+          progresso_atualizado_em?: string | null
           resultado?: Json | null
           status?: string
           tentativas?: number
@@ -3666,6 +3670,8 @@ export type Database = {
           id?: string
           iniciado_em?: string | null
           payload?: Json | null
+          progresso?: Json | null
+          progresso_atualizado_em?: string | null
           resultado?: Json | null
           status?: string
           tentativas?: number
@@ -8405,6 +8411,8 @@ export type Database = {
           id: string
           iniciado_em: string | null
           payload: Json | null
+          progresso: Json | null
+          progresso_atualizado_em: string | null
           resultado: Json | null
           status: string
           tentativas: number
