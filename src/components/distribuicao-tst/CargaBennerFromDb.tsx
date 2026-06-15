@@ -483,6 +483,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         outRow[LAYOUT_COLS[32]] = d.recurso_mal_aparelhado ? "X" : "";
         outRow[LAYOUT_COLS[33]] = toSentenceCase(String(d.chance_exito ?? "").trim());
         outRow["__numProcesso"] = numProcesso;
+        outRow["__dadoBennerId"] = d.id || null;
 
         // Sanitize dash-only values
         for (const key of Object.keys(outRow)) {
@@ -656,7 +657,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         turma: String(row[LAYOUT_COLS[4]] ?? ""),
         relator: String(row[LAYOUT_COLS[5]] ?? ""),
         tribunal: String(row[LAYOUT_COLS[1]] ?? ""),
-        dado_benner_id: null,
+        dado_benner_id: row["__dadoBennerId"] || null,
       }));
       const remessa = await criarRemessa.mutateAsync({
         arquivo: res.blob,
