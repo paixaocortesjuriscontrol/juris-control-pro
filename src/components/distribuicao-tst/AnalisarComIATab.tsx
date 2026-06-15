@@ -219,8 +219,8 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
         try {
           const r = await indexarAnexo(att, pid);
           if (r.documento_id) documentoIds.push(r.documento_id);
-          if (r.processo_id) pid = r.processo_id;
           else falhas.push({ nome: att.attachment_name || att.step_id, motivo: "sem documento_id retornado" });
+          if (r.processo_id) pid = r.processo_id;
         } catch (e: any) {
           const motivo = e?.message || String(e);
           console.warn("Falha ao indexar", att.step_id, motivo, e);
