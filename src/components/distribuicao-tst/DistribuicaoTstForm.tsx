@@ -223,7 +223,7 @@ interface Props {
   /** Reporta a quantidade real de sugestões da IA que foram pintadas em azul
    *  no formulário (após filtragem por Judit, normalização etc.). Usado pelo
    *  pai para ajustar o resumo "N campo(s) Distribuição + M campo(s) Benner.". */
-  onIaApplied?: (counts: { distribuicao: number; benner: number }) => void;
+  onIaApplied?: (counts: { distribuicao: number; benner: number; distribuicaoFields: string[]; bennerFields: string[] }) => void;
 }
 
 export interface DistribuicaoTstFormHandle {
@@ -362,6 +362,21 @@ const normalizeIaValueForField = (field: string, value: any, reclamante: string,
   return normalizeDateInputValue(normalized);
 };
 
+const extractPersistedIaFields = (text?: string | null): Set<string> => {
+  const fields = new Set<string>();
+  if (!text) return fields;
+  const re = /Campos IA (?:Distribuição|Benner):\s*([^\n]+)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(text)) !== null) {
+    match[1]
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .forEach((field) => fields.add(field));
+  }
+  return fields;
+};
+
 export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
   { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo, bennerDado, onSaveBennerExtra, onIaApplied }: Props,
   ref
@@ -468,6 +483,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bennerDado?.id]);
+
+  useEffect(() => {
+    const persisted = extractPersistedIaFields((dado as any)?.observacao_advogado);
+    if (persisted.size === 0) return;
+    setIaFields((prev) => new Set([...Array.from(prev), ...Array.from(persisted)]));
+  }, [dado?.id, (dado as any)?.observacao_advogado]);
+
   const setExtra = (field: string, value: any) => {
     bennerDirtyRef.current.add(field);
     setBennerExtra((prev) => ({ ...prev, [field]: value }));
@@ -678,15 +700,22 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   useEffect(() => {
     if (!onIaApplied || !iaSugestao) return;
     const benSet = new Set<string>(BENNER_EXTRA_FIELDS as readonly string[]);
+    const distribuicaoFields: string[] = [];
+    const bennerFields: string[] = [];
     let dist = 0;
     let ben = 0;
     for (const k of iaFields) {
       if (k === "observacao_advogado") continue;
       if (!(k in (iaSugestao as Record<string, any>))) continue;
-      if (benSet.has(k)) ben++;
-      else dist++;
+      if (benSet.has(k)) {
+        ben++;
+        bennerFields.push(k);
+      } else {
+        dist++;
+        distribuicaoFields.push(k);
+      }
     }
-    onIaApplied({ distribuicao: dist, benner: ben });
+    onIaApplied({ distribuicao: dist, benner: ben, distribuicaoFields, bennerFields });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [iaFields, JSON.stringify(iaSugestao || {})]);
 
@@ -1092,11 +1121,6 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       return Object.keys(diff).length > 0 ? diff : null;
     };
     const bennerDiff = buildBennerDiff();
-    console.log("[DistribuicaoTST save]", {
-      id: dado?.id,
-      camposTocados: Array.from(bennerDirtyRef.current),
-      bennerDiff,
-    });
 
     // IMPORTANTE: persistir PRIMEIRO os campos exclusivos do Dados Benner
     // (Análise/Risco, Julgamento, Resultado, etc.) e SÓ DEPOIS salvar a
