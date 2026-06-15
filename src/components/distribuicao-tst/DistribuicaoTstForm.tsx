@@ -464,11 +464,21 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         const cur = (prev as any)[k];
         const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
         if (curEmpty) {
-          const vNorm = normalizarValorPorCampo(k, v, String(prev.reclamante || ""), String(prev.reclamada || ""));
+          const vNorm = normalizeDateInputValue(normalizarValorPorCampo(k, v, String(prev.reclamante || ""), String(prev.reclamada || "")));
           if (vNorm === null || vNorm === undefined) continue;
           next[k] = vNorm;
           filled.add(k);
         }
+      }
+      for (const k of BENNER_EXTRA_FIELDS) {
+        const v = (iaSugestao as any)?.[k];
+        if (v === null || v === undefined) continue;
+        const cur = bennerExtraRef.current[k];
+        const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
+        if (!curEmpty) continue;
+        const vNorm = normalizeDateInputValue(v);
+        setExtra(k, vNorm);
+        filled.add(k);
       }
       setIaFields(filled);
       return next;
