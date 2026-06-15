@@ -333,8 +333,9 @@ async function run({ sb, payload, log, job }) {
   for (const m of lista) {
     const tipo = mapTipo(m.tipo);
     for (const tribunal of expandirTribunais(m.tribunais)) {
-      const key = `${tipo}|${tribunal}`;
-      if (!grouped.has(key)) grouped.set(key, { tipo, tribunal, monitoramentos: [] });
+      const splitTst = tribunal === "TST" && tipo !== "processo";
+      const key = splitTst ? `${tipo}|${tribunal}|${m.id}` : `${tipo}|${tribunal}`;
+      if (!grouped.has(key)) grouped.set(key, { id: key, tipo, tribunal, monitoramentos: [] });
       grouped.get(key).monitoramentos.push(m);
     }
   }
@@ -344,7 +345,7 @@ async function run({ sb, payload, log, job }) {
     const tb = TODOS_TRIBUNAIS.indexOf(b.tribunal);
     return (ta - tb) || (TIPO_ORDER.indexOf(a.tipo) - TIPO_ORDER.indexOf(b.tipo));
   }).map((g) => ({
-    id: `${g.tipo}|${g.tribunal}`,
+    id: g.id,
     label: g.monitoramentos.length > 1 ? `${g.monitoramentos.length} termos` : (g.monitoramentos[0]?.descricao || g.monitoramentos[0]?.termo_busca || g.tribunal),
     tribunal: g.tribunal,
     tipo: g.tipo,
@@ -366,7 +367,7 @@ async function run({ sb, payload, log, job }) {
     const now = Date.now();
     if (!force && now - lastFlush < 800) return;
     lastFlush = now;
-    const concluidos = itens.filter((i) => i.status === "concluido" || i.status === "erro").length;
+    const concluidos = itens.filter((i) => i.status === "concluido" || i.status === "erro" || i.status === "cancelado").length;
     const falhas = itens.filter((i) => i.status === "erro").length;
     const executando = itens.filter((i) => i.status === "executando");
     await sb.from("execucoes_servidor").update({
