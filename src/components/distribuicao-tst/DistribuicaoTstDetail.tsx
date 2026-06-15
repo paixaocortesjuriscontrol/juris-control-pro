@@ -640,6 +640,14 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             onJuditSync={handleJuditSync}
             iaSugestao={iaSugestaoDistribuicaoCompleta}
             iaResumo={iaResumo}
+            onIaApplied={({ distribuicao, benner }) => {
+              setIaResumo((prev) => {
+                if (!prev) return prev;
+                const re = /\d+\s*campo\(s\)\s*Distribuição\s*\+\s*\d+\s*campo\(s\)\s*Benner\./;
+                const novo = `${distribuicao} campo(s) Distribuição + ${benner} campo(s) Benner.`;
+                return re.test(prev) ? prev.replace(re, novo) : prev;
+              });
+            }}
             bennerDado={bennerDado}
             onSaveBennerExtra={async (patch, id) => {
               const targetId = id || (bennerDado as any)?.id || currentDado?.id;
