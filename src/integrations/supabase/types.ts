@@ -1732,6 +1732,8 @@ export type Database = {
           ganhamos: boolean | null
           honra: string | null
           horario_julgamento: string | null
+          ia_campos_benner: string[] | null
+          ia_campos_distribuicao: string[] | null
           ic_duplicado: boolean
           id: string
           judit_preenchido: boolean | null
@@ -1844,6 +1846,8 @@ export type Database = {
           ganhamos?: boolean | null
           honra?: string | null
           horario_julgamento?: string | null
+          ia_campos_benner?: string[] | null
+          ia_campos_distribuicao?: string[] | null
           ic_duplicado?: boolean
           id?: string
           judit_preenchido?: boolean | null
@@ -1956,6 +1960,8 @@ export type Database = {
           ganhamos?: boolean | null
           honra?: string | null
           horario_julgamento?: string | null
+          ia_campos_benner?: string[] | null
+          ia_campos_distribuicao?: string[] | null
           ic_duplicado?: boolean
           id?: string
           judit_preenchido?: boolean | null
