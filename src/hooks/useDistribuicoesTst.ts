@@ -3,6 +3,33 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 /**
+ * Retorna a lista de números de processo que possuem pelo menos uma linha
+ * marcada como duplicada (`ic_duplicado = true`). Útil para exibir todos os
+ * pares duplicados (não apenas a linha marcada), permitindo ao usuário
+ * identificar e arquivar manualmente.
+ */
+async function fetchProcessosDuplicados(): Promise<string[]> {
+  const PAGE = 1000;
+  const set = new Set<string>();
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("dados_benner" as any)
+      .select("processo")
+      .not("aba_origem", "is", null)
+      .eq("ic_duplicado", true)
+      .not("processo", "is", null)
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const rows = (data as any[]) || [];
+    for (const r of rows) if (r.processo) set.add(r.processo);
+    if (rows.length < PAGE) break;
+    from += PAGE;
+  }
+  return Array.from(set);
+}
+
+/**
  * NOTA DE ARQUITETURA: A tela "Distribuição TST" lê e grava em `dados_benner`
  * (tabela única / fonte de verdade). Responsáveis múltiplos vivem em
  * `dados_benner_responsaveis` (link N:N para profiles).
