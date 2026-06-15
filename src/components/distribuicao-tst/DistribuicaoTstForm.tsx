@@ -442,12 +442,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         next.data_transito_julgado = null;
         filled.delete("transito_julgado");
       }
-      // Campos que SEMPRE são da Judit (reutilizados também no Dados Benner).
-      // A IA nunca pode tocar nesses, mesmo quando ainda estão vazios — eles
-      // dependem da consulta Judit/cadastro existente.
-      const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
+      // Campos estruturais da Judit só são preservados quando já há valor real.
+      // Se estiverem vazios, a IA pode sugerir preenchimento visual no formulário.
+      const PREFER_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
       const isJuditField = (k: string) => {
-        if (ALWAYS_JUDIT.has(k)) return true;
+        if (PREFER_JUDIT.has(k)) {
+          const v = (prev as any)?.[k] ?? (dado as any)?.[k];
+          if (v !== null && v !== undefined && String(v).trim() !== "") return true;
+        }
         // Bloqueia a IA de tocar em qualquer campo cujo valor veio (ou virá ao recarregar)
         // da Judit — fonte da verdade. Isso cobre tanto a sessão atual quanto o registro
         // já marcado como `judit_preenchido` no banco.
@@ -521,11 +523,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           base.transito_julgado = false;
           base.data_transito_julgado = null;
         }
-        const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
+        const PREFER_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
         const filled = new Set<string>();
         for (const [k, v] of Object.entries(iaSugestao)) {
           if (v === null || v === undefined) continue;
-          if (ALWAYS_JUDIT.has(k)) continue;
+          if (PREFER_JUDIT.has(k)) {
+            const existing = base[k] ?? (dado as any)?.[k];
+            if (existing !== null && existing !== undefined && String(existing).trim() !== "") continue;
+          }
           if ((dado as any)?.judit_preenchido) {
             const dv = (dado as any)?.[k];
             if (dv !== null && dv !== undefined && String(dv).trim() !== "") continue;
