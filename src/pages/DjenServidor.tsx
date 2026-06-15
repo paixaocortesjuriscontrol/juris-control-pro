@@ -99,11 +99,10 @@ function EngineCard({ cfg, onToggle, onConfig }: {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("configuracoes_monitoramento")
-        .select("horarios_execucao")
-        .eq("tipo", "djen_paralela")
-        .maybeSingle();
+        .select("tipo, horarios_execucao")
+        .in("tipo", ["djen", "djen_paralela"]);
       if (error) throw error;
-      return (data?.horarios_execucao || []) as string[];
+      return Array.from(new Set((data || []).flatMap((row) => row.horarios_execucao || []))) as string[];
     },
   });
   useEffect(() => {
