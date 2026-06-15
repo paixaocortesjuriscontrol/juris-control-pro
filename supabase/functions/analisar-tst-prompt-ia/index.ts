@@ -193,9 +193,7 @@ Deno.serve(async (req) => {
               type: "object",
               additionalProperties: false,
               properties: {
-                materia_honra: { type: "string", enum: ["S", "N"] },
                 analise_quarteirizado: { type: "string" },
-                risco_midia: { type: "string", enum: ["S", "N"] },
                 risco_descricao: { type: "string" },
                 provas_digitais: { type: "string", enum: ["S", "N"] },
                 tem_data_julgamento: { type: "string", enum: ["S", "N"] },

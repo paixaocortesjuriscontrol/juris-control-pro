@@ -209,7 +209,22 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [iaBenner, setIaBenner] = useState<Record<string, any> | null>(null);
   const [iaResumo, setIaResumo] = useState<string | null>(null);
   const iaSugestaoDistribuicaoCompleta = useMemo(
-    () => ({ ...(iaBenner || {}), ...(iaDistribuicao || {}) }),
+    () => {
+      // Após a unificação dos quadros Análise/Risco: `risco_midia` e
+      // `materia_honra` foram substituídos por `midia_negativa` e `honra` (no
+      // bloco Análise). Mantemos um remap defensivo para que sugestões de IA
+      // antigas (cacheadas ou geradas por versões anteriores do prompt) ainda
+      // preencham os campos certos sem sobrescrever valor já indicado pela IA
+      // nos novos nomes.
+      const merged: Record<string, any> = { ...(iaBenner || {}), ...(iaDistribuicao || {}) };
+      if (merged.risco_midia != null && (merged.midia_negativa == null || merged.midia_negativa === "")) {
+        merged.midia_negativa = merged.risco_midia;
+      }
+      if (merged.materia_honra != null && (merged.honra == null || merged.honra === "")) {
+        merged.honra = merged.materia_honra;
+      }
+      return merged;
+    },
     [JSON.stringify(iaBenner || {}), JSON.stringify(iaDistribuicao || {})],
   );
 
