@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Progress } from "@/components/ui/progress";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Server, Activity, FileSearch, GitCompare, PlayCircle, Loader2, CalendarIcon, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Server, Activity, FileSearch, GitCompare, PlayCircle, Loader2, CalendarIcon, CheckCircle2, XCircle, Clock, StopCircle, Zap, Newspaper, Radar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +26,7 @@ import {
   useComparadorPublicacoes,
   useTickAge,
   useExecucaoServidorAoVivo,
+  useCancelarExecucaoServidor,
   type ConfigServidor,
   type ProgressoItem,
 } from "@/hooks/useDjenServidor";
@@ -85,6 +86,7 @@ function EngineCard({ cfg, onToggle, onConfig }: {
   onConfig: (id: string, patch: { ativo?: boolean; frequencia?: string; horarios_execucao?: string[]; metadata?: unknown }) => void;
 }) {
   const enfileirar = useEnfileirarManual();
+  const cancelar = useCancelarExecucaoServidor();
   const live = useExecucaoServidorAoVivo(cfg.tipo);
 
   const today = useMemo(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; }, []);
@@ -301,6 +303,19 @@ function EngineCard({ cfg, onToggle, onConfig }: {
           {ativaAgora ? "Executando..." : "Executar agora"}
         </Button>
 
+        {ativaAgora && exec?.id && (
+          <Button
+            size="sm"
+            variant="destructive"
+            className="w-full"
+            onClick={() => cancelar.mutate(exec.id)}
+            disabled={cancelar.isPending}
+          >
+            <StopCircle className="h-4 w-4 mr-2" />
+            {cancelar.isPending ? "Cancelando..." : "Cancelar execução"}
+          </Button>
+        )}
+
         {/* Progresso ao vivo */}
         {exec && (ativaAgora || execStatus === "concluido" || execStatus === "erro") && (
           <div className="space-y-2 pt-2 border-t">
@@ -343,25 +358,28 @@ function EngineCard({ cfg, onToggle, onConfig }: {
   );
 }
 
-function VisaoGeral() {
+function EngineTab({ tipo }: { tipo: string }) {
   const { data: cfgs = [], toggle, updateConfig } = useConfiguracoesServidor();
+  const cfg = cfgs.find((c) => c.tipo === tipo);
+  if (!cfg) {
+    return <p className="text-sm text-muted-foreground">Configuração ainda não criada para <code>{tipo}</code>.</p>;
+  }
+  return (
+    <div className="max-w-4xl mx-auto">
+      <EngineCard
+        cfg={cfg}
+        onToggle={(id, ativo) => toggle.mutate({ id, ativo })}
+        onConfig={(id, patch) => updateConfig.mutate({ id, patch })}
+      />
+    </div>
+  );
+}
+
+function WorkersPanel() {
   const { data: workers = [] } = useWorkersServidor();
   const tick = useTickAge();
-
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        {cfgs.map((cfg) => (
-          <EngineCard
-            key={cfg.id}
-            cfg={cfg}
-            onToggle={(id, ativo) => toggle.mutate({ id, ativo })}
-            onConfig={(id, patch) => updateConfig.mutate({ id, patch })}
-          />
-        ))}
-      </div>
-
-      <Card>
+    <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Server className="h-4 w-4" /> Workers da VPS
@@ -401,7 +419,6 @@ function VisaoGeral() {
           )}
         </CardContent>
       </Card>
-    </div>
   );
 }
 
@@ -572,20 +589,26 @@ function ComparadorPanel() {
 }
 
 export default function DjenServidor() {
-  const [tab, setTab] = useState("geral");
+  const [tab, setTab] = useState("servidor");
   return (
     <MainLayout
       title="DJEN Servidor"
       subtitle="Pipeline DJEN/Kurier/Pautas executado 24/7 na VPS, com tabela separada para comparação"
     >
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="geral"><Server className="h-4 w-4 mr-1" />Visão geral</TabsTrigger>
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="servidor"><Zap className="h-4 w-4 mr-1" />DJEN Servidor</TabsTrigger>
+          <TabsTrigger value="pautas"><Newspaper className="h-4 w-4 mr-1" />DJEN Pautas</TabsTrigger>
+          <TabsTrigger value="kurier"><Radar className="h-4 w-4 mr-1" />DJEN Kurier</TabsTrigger>
+          <TabsTrigger value="workers"><Server className="h-4 w-4 mr-1" />Workers</TabsTrigger>
           <TabsTrigger value="execucoes"><Activity className="h-4 w-4 mr-1" />Execuções</TabsTrigger>
           <TabsTrigger value="publicacoes"><FileSearch className="h-4 w-4 mr-1" />Publicações</TabsTrigger>
           <TabsTrigger value="comparador"><GitCompare className="h-4 w-4 mr-1" />Comparador</TabsTrigger>
         </TabsList>
-        <TabsContent value="geral"><VisaoGeral /></TabsContent>
+        <TabsContent value="servidor"><EngineTab tipo="djen_paralela_servidor" /></TabsContent>
+        <TabsContent value="pautas"><EngineTab tipo="djet_pautas_servidor" /></TabsContent>
+        <TabsContent value="kurier"><EngineTab tipo="kurier_servidor" /></TabsContent>
+        <TabsContent value="workers"><WorkersPanel /></TabsContent>
         <TabsContent value="execucoes"><ExecucoesPanel /></TabsContent>
         <TabsContent value="publicacoes"><PublicacoesPanel /></TabsContent>
         <TabsContent value="comparador"><ComparadorPanel /></TabsContent>
