@@ -1476,8 +1476,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Dados Benner — Análise / Risco" color="bg-[#0F766E]" />
         <div className="p-4 space-y-4">
-          <div className="space-y-2">
-            <div className={cn("space-y-2 p-2 -m-2", iaClass("analise_quarteirizado", bennerExtra.analise_quarteirizado))}>
+          <div className={cn("space-y-2 p-2 -m-2", iaClass("analise_quarteirizado", bennerExtra.analise_quarteirizado))}>
             <Label className="flex items-center">Análise Quarteirizado <IaBadge field="analise_quarteirizado" value={bennerExtra.analise_quarteirizado} /></Label>
             <Textarea
               value={bennerExtra.analise_quarteirizado || ""}
@@ -1486,7 +1485,6 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               className="min-h-[140px] resize-y"
               placeholder="Descreva a análise do quarteirizado..."
             />
-            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", iaClass("risco_midia", bennerExtra.risco_midia))}>
