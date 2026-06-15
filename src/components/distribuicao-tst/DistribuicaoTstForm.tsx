@@ -220,6 +220,10 @@ interface Props {
   bennerDado?: any | null;
   /** Persiste o patch de campos exclusivos do Benner ap\u00f3s o save principal. */
   onSaveBennerExtra?: (patch: Record<string, any>, id?: string) => Promise<any>;
+  /** Reporta a quantidade real de sugestões da IA que foram pintadas em azul
+   *  no formulário (após filtragem por Judit, normalização etc.). Usado pelo
+   *  pai para ajustar o resumo "N campo(s) Distribuição + M campo(s) Benner.". */
+  onIaApplied?: (counts: { distribuicao: number; benner: number }) => void;
 }
 
 export interface DistribuicaoTstFormHandle {
@@ -359,7 +363,7 @@ const normalizeIaValueForField = (field: string, value: any, reclamante: string,
 };
 
 export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
-  { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo, bennerDado, onSaveBennerExtra }: Props,
+  { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo, bennerDado, onSaveBennerExtra, onIaApplied }: Props,
   ref
 ) {
   const [form, setForm] = useState<DistribuicaoTstInsert>({ ...emptyForm });
@@ -373,6 +377,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Marca os campos preenchidos pela IA a partir dos anexos.
   const [iaFields, setIaFields] = useState<Set<string>>(new Set());
+  // Última versão de `iaResumo` já mesclada em `observacao_advogado`, para que
+  // atualizações posteriores (ex.: recontagem dos campos pintados) substituam
+  // o bloco antigo no lugar em vez de duplicar.
+  const lastIaResumoRef = useRef<string | null>(null);
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
 
   // ============================================================
@@ -638,12 +646,41 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     if (!iaResumo) return;
     setForm((prev) => {
       const atual = (prev.observacao_advogado || "").trim();
-      if (atual.includes(iaResumo.trim())) return prev;
-      const novo = atual ? `${atual}\n\n${iaResumo}` : iaResumo;
+      const novoBloco = iaResumo.trim();
+      if (atual.includes(novoBloco)) {
+        lastIaResumoRef.current = iaResumo;
+        return prev;
+      }
+      const anterior = lastIaResumoRef.current?.trim();
+      let novo: string;
+      if (anterior && atual.includes(anterior)) {
+        novo = atual.replace(anterior, novoBloco).trim();
+      } else {
+        novo = atual ? `${atual}\n\n${iaResumo}` : iaResumo;
+      }
+      lastIaResumoRef.current = iaResumo;
       return { ...prev, observacao_advogado: novo };
     });
     setIaFields((prev) => new Set([...Array.from(prev), "observacao_advogado"]));
   }, [iaResumo]);
+
+  // Reporta ao pai a quantidade real de campos pintados pela IA (após filtros
+  // de Judit/normalização), para que o resumo "N campo(s) Distribuição + M
+  // campo(s) Benner." bata com o que aparece em azul no formulário.
+  useEffect(() => {
+    if (!onIaApplied || !iaSugestao) return;
+    const benSet = new Set<string>(BENNER_EXTRA_FIELDS as readonly string[]);
+    let dist = 0;
+    let ben = 0;
+    for (const k of iaFields) {
+      if (k === "observacao_advogado") continue;
+      if (!(k in (iaSugestao as Record<string, any>))) continue;
+      if (benSet.has(k)) ben++;
+      else dist++;
+    }
+    onIaApplied({ distribuicao: dist, benner: ben });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [iaFields, JSON.stringify(iaSugestao || {})]);
 
   const handleBuscarJudit = async (comAnexosArg = false, forceRefresh = false) => {
     // Aceita o número vindo do form OU do `dado` carregado (corrige o bug onde
