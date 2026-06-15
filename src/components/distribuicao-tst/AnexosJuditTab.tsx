@@ -46,6 +46,7 @@ interface Attachment {
 interface Props {
   processoNumero: string;
   processoId?: string;
+  dadosBennerId?: string | null;
   attachments: Attachment[];
   /** Dados estruturados da Judit a serem usados como camada 1 (hidratação determinística).
    *  Esses campos NÃO serão extraídos do PDF — são copiados literalmente no backend. */
@@ -75,7 +76,7 @@ interface Props {
   contexto?: "tst" | "processo";
 }
 
-export function AnexosJuditTab({ processoNumero, processoId, attachments, dadosJudit, onIaPreenchido, contexto = "tst" }: Props) {
+export function AnexosJuditTab({ processoNumero, processoId, dadosBennerId, attachments, dadosJudit, onIaPreenchido, contexto = "tst" }: Props) {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [processing, setProcessing] = useState(false);
@@ -414,11 +415,13 @@ export function AnexosJuditTab({ processoNumero, processoId, attachments, dadosJ
         return;
       }
 
-      const { data: bennerAtual } = await supabase
-        .from("dados_benner" as any)
-        .select("dossie, tribunal, tipo_recurso, data_distribuicao, turma, relator, recorrente, situacao_processo, processo_baixado")
-        .eq("processo", processoNumero)
-        .maybeSingle();
+      const { data: bennerAtual } = dadosBennerId
+        ? await supabase
+            .from("dados_benner" as any)
+            .select("dossie, tribunal, tipo_recurso, data_distribuicao, turma, relator, recorrente, situacao_processo, processo_baixado")
+            .eq("id", dadosBennerId)
+            .maybeSingle()
+        : { data: null } as any;
       const dadosJuditAtualizados = {
         ...(dadosJudit || {}),
         dossie: (bennerAtual as any)?.dossie || dadosJudit?.dossie || null,
