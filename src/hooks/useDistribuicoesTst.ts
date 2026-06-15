@@ -3,6 +3,33 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 /**
+ * Retorna a lista de números de processo que possuem pelo menos uma linha
+ * marcada como duplicada (`ic_duplicado = true`). Útil para exibir todos os
+ * pares duplicados (não apenas a linha marcada), permitindo ao usuário
+ * identificar e arquivar manualmente.
+ */
+async function fetchProcessosDuplicados(): Promise<string[]> {
+  const PAGE = 1000;
+  const set = new Set<string>();
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("dados_benner" as any)
+      .select("processo")
+      .not("aba_origem", "is", null)
+      .eq("ic_duplicado", true)
+      .not("processo", "is", null)
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const rows = (data as any[]) || [];
+    for (const r of rows) if (r.processo) set.add(r.processo);
+    if (rows.length < PAGE) break;
+    from += PAGE;
+  }
+  return Array.from(set);
+}
+
+/**
  * NOTA DE ARQUITETURA: A tela "Distribuição TST" lê e grava em `dados_benner`
  * (tabela única / fonte de verdade). Responsáveis múltiplos vivem em
  * `dados_benner_responsaveis` (link N:N para profiles).
@@ -256,6 +283,14 @@ export async function fetchAllDistribuicaoTstIds(
     ? "id, dados_benner_responsaveis!inner(usuario_id)"
     : "id";
 
+  // Para "Apenas duplicados", trazemos a linha marcada E seus pares
+  // (todas as linhas com o mesmo número de processo).
+  let processosDup: string[] | null = null;
+  if (filters.duplicado === "sim") {
+    processosDup = await fetchProcessosDuplicados();
+    if (processosDup.length === 0) return [];
+  }
+
   const PAGE = 1000;
   const all: string[] = [];
   let from = 0;
@@ -333,7 +368,7 @@ export async function fetchAllDistribuicaoTstIds(
     else if (filters.emAnalise === "analisado") query = query.eq("analisado", true);
     if (filters.problemaJudit === "sim") query = query.eq("problema_judit", true);
     else if (filters.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
-    if (filters.duplicado === "sim") query = query.eq("ic_duplicado", true);
+    if (filters.duplicado === "sim" && processosDup) query = query.in("processo", processosDup);
     else if (filters.duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
     if (filters.fonteImportacao && filters.fonteImportacao !== "todas") {
       query = query.contains("fontes_importacao", [filters.fonteImportacao]);
@@ -405,6 +440,27 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     const selectClause = hasResponsavelFilter
       ? "*, dados_benner_responsaveis!inner(usuario_id)"
       : "*";
+
+    // "Apenas duplicados": precisamos trazer também os pares (mesmas linhas
+    // com o mesmo número de processo), ordenados por processo, para que o
+    // usuário consiga identificar e arquivar manualmente.
+    let processosDup: string[] | null = null;
+    if (filters.duplicado === "sim") {
+      try {
+        processosDup = await fetchProcessosDuplicados();
+      } catch (e: any) {
+        toast.error("Erro ao buscar processos duplicados: " + (e?.message || e));
+        setLoading(false);
+        return;
+      }
+      if (processosDup.length === 0) {
+        setDados([]);
+        setTotalCount(0);
+        setResponsaveisMap(new Map());
+        setLoading(false);
+        return;
+      }
+    }
 
     // Build fresh query with all filters applied; optionally restricted to a chunk of IDs.
     const buildQuery = (chunkIds: string[] | null, withCount: boolean) => {
@@ -493,7 +549,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     else if (filters.emAnalise === "analisado") query = query.eq("analisado", true);
     if (filters.problemaJudit === "sim") query = query.eq("problema_judit", true);
     else if (filters.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
-    if (filters.duplicado === "sim") query = query.eq("ic_duplicado", true);
+    if (filters.duplicado === "sim" && processosDup) query = query.in("processo", processosDup);
     else if (filters.duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
     if (filters.fonteImportacao && filters.fonteImportacao !== "todas") {
       query = query.contains("fontes_importacao", [filters.fonteImportacao]);
