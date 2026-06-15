@@ -30,6 +30,7 @@ interface Props {
   processoNumero: string;
   processoId?: string | null;
   attachments: Attachment[];
+  onIndexacaoAtualizada?: () => Promise<void> | void;
   onIaPreenchido?: (payload: {
     distribuicao_tst: Record<string, any>;
     dados_benner: Record<string, any>;
@@ -58,10 +59,11 @@ const formatarDataAnexo = (raw?: string | null): string => {
  *  4) Sugestões aparecem como preenchimento azul nos formulários (mesma prop
  *     `iaSugestao` já consumida por DistribuicaoTstForm/DadosBennerForm).
  */
-export function AnalisarComIATab({ processoNumero, processoId, attachments, onIaPreenchido }: Props) {
+export function AnalisarComIATab({ processoNumero, processoId, attachments, onIndexacaoAtualizada, onIaPreenchido }: Props) {
   const { data: prompts = [], isLoading: loadingPrompts } = usePromptsIaTst({ somenteAtivos: true });
   const [promptId, setPromptId] = useState<string>("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [indexedNow, setIndexedNow] = useState<Set<string>>(new Set());
   const [processing, setProcessing] = useState(false);
   const [stage, setStage] = useState("");
 
@@ -79,6 +81,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
 
   const allChecked = uniqueAttachments.length > 0 && selected.size === uniqueAttachments.length;
   const someChecked = selected.size > 0 && !allChecked;
+  const isIndexed = (a: Attachment) => indexedNow.has(uidOf(a)) || (!!a.texto_indexado && !!a.documento_id);
   const toggle = (id: string, v: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
