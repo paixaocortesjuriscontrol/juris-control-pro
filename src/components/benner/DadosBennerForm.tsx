@@ -1084,35 +1084,6 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Risco Mídia Negativa (H)</Label>
-              <Select value={form.risco_midia || "__none__"} onValueChange={v => set("risco_midia", v === "__none__" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Selecione</SelectItem>
-                  <SelectItem value="S">S</SelectItem>
-                  <SelectItem value="N">N</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Risco (I)</Label>
-              <Input value={form.risco_descricao || ""} onChange={e => set("risco_descricao", e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Provas Digitais (J)</Label>
-              <Select value={form.provas_digitais || "__none__"} onValueChange={v => set("provas_digitais", v === "__none__" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Selecione</SelectItem>
-                  <SelectItem value="S">S</SelectItem>
-                  <SelectItem value="N">N</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldHighlight("tem_data_julgamento"))}>
               <JuditLabel field="tem_data_julgamento"><Label>Data Julgamento? (K)</Label></JuditLabel>
@@ -1149,17 +1120,6 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Matéria de Honra (O)</Label>
-              <Select value={form.materia_honra || "__none__"} onValueChange={v => set("materia_honra", v === "__none__" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Selecione</SelectItem>
-                  <SelectItem value="S">S</SelectItem>
-                  <SelectItem value="N">N</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-2">
               <Label>Entrega Memoriais (P)</Label>
               <Select value={form.entrega_memoriais || "__none__"} onValueChange={v => set("entrega_memoriais", v === "__none__" ? "" : v)}>
