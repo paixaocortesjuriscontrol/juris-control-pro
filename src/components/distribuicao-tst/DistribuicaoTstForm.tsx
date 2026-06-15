@@ -1341,8 +1341,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </div>
               )}
             </div>
-            <div className="space-y-2">
-              <Label>Aparelhamento</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("aparelhamento_banco", form.aparelhamento_banco))}>
+              <Label className="flex items-center">Aparelhamento <IaBadge field="aparelhamento_banco" value={form.aparelhamento_banco} /></Label>
               <Select value={form.aparelhamento_banco || "__none__"} onValueChange={v => set("aparelhamento_banco", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1353,15 +1353,15 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Matérias Recurso do Banco</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("materias_recurso_banco", form.materias_recurso_banco))}>
+            <Label className="flex items-center">Matérias Recurso do Banco <IaBadge field="materias_recurso_banco" value={form.materias_recurso_banco} /></Label>
             <MateriasMultiSelect
               value={form.materias_recurso_banco || null}
               onChange={(v) => set("materias_recurso_banco", v)}
             />
           </div>
-          <div className="space-y-2">
-            <Label>Chance de Êxito</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("chance_exito_banco", form.chance_exito_banco))}>
+            <Label className="flex items-center">Chance de Êxito <IaBadge field="chance_exito_banco" value={form.chance_exito_banco} /></Label>
             <Select value={form.chance_exito_banco || "__none__"} onValueChange={v => set("chance_exito_banco", v === "__none__" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
