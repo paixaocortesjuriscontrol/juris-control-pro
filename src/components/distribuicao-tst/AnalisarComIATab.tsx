@@ -240,7 +240,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIn
         }
       }
 
-      const CONCURRENCY = 3;
+      const CONCURRENCY = Math.min(12, Math.max(1, pendentes.length));
       let cursor = 0;
       let done = 0;
       const workers: Promise<void>[] = [];
