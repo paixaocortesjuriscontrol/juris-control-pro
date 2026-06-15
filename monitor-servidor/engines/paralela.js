@@ -11,6 +11,27 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 // Supabase Edge Functions (~150s) para detectar travas antes do 504.
 const TIMEOUT_MS = parseInt(process.env.PARALELA_TIMEOUT_MS || "140000", 10);
 
+const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
+const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
+const TODOS_TRIBUNAIS = [...TODOS_TRT, "STF", "STJ", "TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6", ...TODOS_CIVEIS];
+const TIPO_ORDER = ["parte", "advogado", "palavra-chave", "processo"];
+
+function mapTipo(tipo) {
+  return tipo === "nome" ? "palavra-chave" : (tipo || "palavra-chave");
+}
+
+function expandirTribunais(tribunais) {
+  if (!Array.isArray(tribunais) || tribunais.length === 0) return TODOS_TRIBUNAIS;
+  const set = new Set();
+  for (const raw of tribunais) {
+    const t = String(raw || "").trim();
+    if (t === "TODOS_CIVEIS") TODOS_CIVEIS.forEach((x) => set.add(x));
+    else if (t === "TODOS_TRT") TODOS_TRT.forEach((x) => set.add(x));
+    else if (t) set.add(t);
+  }
+  return set.size > 0 ? TODOS_TRIBUNAIS.filter((t) => set.has(t)) : TODOS_TRIBUNAIS;
+}
+
 async function invokeDjen(body) {
   const url = `${SUPABASE_URL}/functions/v1/monitorar-djen`;
   const ctrl = new AbortController();
@@ -62,7 +83,7 @@ async function run({ sb, payload, log, job }) {
   // 1) Lista monitoramentos ativos respeitando filtros
   let q = sb
     .from("monitoramentos_djen")
-    .select("id, descricao, termo_busca, tipo, coordenacao_id")
+    .select("id, descricao, termo_busca, tipo, coordenacao_id, tribunais")
     .eq("ativo", true);
   if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
   if (monitoramentoIdsFiltro) q = q.in("id", monitoramentoIdsFiltro);
@@ -72,17 +93,38 @@ async function run({ sb, payload, log, job }) {
   const lista = monitoramentos || [];
   log("paralela.monitoramentos", { total: lista.length });
 
-  // 2) Estado de progresso (1 item por monitoramento)
-  const itens = lista.map((m) => ({
-    id: m.id,
-    label: m.descricao || m.termo_busca || m.id,
-    tipo: m.tipo,
-    status: "pendente",
-    novas: 0,
-    descartadas: 0,
-    duplicatas: 0,
-    erro: null,
-  }));
+  // 2) Estado de progresso (1 item por tribunal/tipo), espelhando a tela Paralela.
+  const grouped = new Map();
+  for (const m of lista) {
+    const tipo = mapTipo(m.tipo);
+    const tribunais = expandirTribunais(m.tribunais);
+    for (const tribunal of tribunais) {
+      const key = `${tipo}|${tribunal}`;
+      if (!grouped.has(key)) grouped.set(key, { tipo, tribunal, monitoramentos: [] });
+      grouped.get(key).monitoramentos.push(m);
+    }
+  }
+  const itens = Array.from(grouped.values())
+    .sort((a, b) => {
+      const ta = TODOS_TRIBUNAIS.indexOf(a.tribunal);
+      const tb = TODOS_TRIBUNAIS.indexOf(b.tribunal);
+      return (ta - tb) || (TIPO_ORDER.indexOf(a.tipo) - TIPO_ORDER.indexOf(b.tipo));
+    })
+    .map((g) => ({
+      id: `${g.tipo}|${g.tribunal}`,
+      label: g.monitoramentos.length > 1 ? `${g.monitoramentos.length} termos` : (g.monitoramentos[0]?.descricao || g.monitoramentos[0]?.termo_busca || g.tribunal),
+      tribunal: g.tribunal,
+      tipo: g.tipo,
+      monitoramentoIds: g.monitoramentos.map((m) => m.id),
+      status: "pendente",
+      current: 0,
+      total: g.monitoramentos.length,
+      mensagem: "Aguardando slot...",
+      novas: 0,
+      descartadas: 0,
+      duplicatas: 0,
+      erro: null,
+    }));
 
   let lastFlush = 0;
   const flushProgresso = async (force = false) => {
@@ -115,7 +157,7 @@ async function run({ sb, payload, log, job }) {
   };
   await flushProgresso(true);
 
-  // 3) Loop sequencial: 1 chamada à edge function por monitoramento
+  // 3) Loop sequencial: 1 chamada à edge function por tribunal/tipo
   let totalNovas = 0;
   let totalDescartadas = 0;
   let totalDuplicatas = 0;
@@ -142,21 +184,32 @@ async function run({ sb, payload, log, job }) {
       break;
     }
     item.status = "executando";
+    item.mensagem = `Processando ${item.tribunal} via VPS...`;
     await flushProgresso();
     try {
-      const { status, body } = await invokeDjen({
-        dataInicio,
-        dataFim,
-        execucaoServidorId: job?.id || null,
-        coordenacaoId,
-        monitoramentoIds: [item.id],
-      });
-      if (status < 200 || status >= 300) {
-        throw new Error(`status ${status}: ${JSON.stringify(body).slice(0, 300)}`);
+      for (const monitoramentoId of item.monitoramentoIds) {
+        if (await isCancelled()) break;
+        const { status, body } = await invokeDjen({
+          dataInicio,
+          dataFim,
+          execucaoServidorId: job?.id || null,
+          skipServidorProgress: true,
+          coordenacaoId,
+          monitoramentoIds: [monitoramentoId],
+          tribunais: [item.tribunal],
+        });
+        if (status < 200 || status >= 300) {
+          throw new Error(`status ${status}: ${JSON.stringify(body).slice(0, 300)}`);
+        }
+        item.novas += body?.novas ?? 0;
+        item.descartadas += body?.descartadas ?? 0;
+        item.duplicatas += body?.duplicatas ?? 0;
+        item.current += 1;
+        item.mensagem = `${item.tribunal}: ${item.current}/${item.total} termos`;
+        await flushProgresso();
       }
-      item.novas = body?.novas ?? 0;
-      item.descartadas = body?.descartadas ?? 0;
-      item.duplicatas = body?.duplicatas ?? 0;
+      item.current = item.total;
+      item.mensagem = `Concluído: ${item.novas} novas, ${item.duplicatas} duplicadas, ${item.descartadas} descartadas`;
       item.status = "concluido";
       totalNovas += item.novas;
       totalDescartadas += item.descartadas;
@@ -164,6 +217,8 @@ async function run({ sb, payload, log, job }) {
     } catch (e) {
       item.status = "erro";
       item.erro = String(e && e.message ? e.message : e).slice(0, 500);
+      item.current = item.total;
+      item.mensagem = "Erro na execução";
       totalErros += 1;
       log("paralela.item_error", { id: item.id, e: item.erro });
     }

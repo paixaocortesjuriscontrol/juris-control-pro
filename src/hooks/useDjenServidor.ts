@@ -34,8 +34,14 @@ export interface ExecucaoServidor {
 export interface ProgressoItem {
   id: string;
   label: string;
+  tribunal?: string | null;
+  tipo?: string | null;
+  mensagem?: string | null;
+  erro?: string | null;
+  current?: number;
+  total?: number;
   data?: string;
-  status: "pendente" | "executando" | "concluido" | "erro";
+  status: "pendente" | "executando" | "concluido" | "erro" | "cancelado";
   novas?: number;
   descartadas?: number;
   duplicatas?: number;
@@ -56,6 +62,7 @@ export interface WorkerServidor {
   host: string | null;
   status: string;
   current_tipo: string | null;
+  current_execucao_id?: string | null;
   heartbeat_at: string;
   started_at: string;
   metadata: Record<string, unknown> | null;

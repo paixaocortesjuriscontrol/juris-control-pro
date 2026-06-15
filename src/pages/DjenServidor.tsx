@@ -30,7 +30,7 @@ import {
   type ConfigServidor,
   type ProgressoItem,
 } from "@/hooks/useDjenServidor";
-import { MonitoramentoTermosParalelaCard } from "@/components/configuracoes/MonitoramentoTermosParalelaCard";
+import { DjenServidorParalelaCard } from "@/components/djen/DjenServidorParalelaCard";
 import { MonitoramentoTermosKurierCard } from "@/components/configuracoes/MonitoramentoTermosKurierCard";
 import { MonitoramentoDjetPautasCard } from "@/components/configuracoes/MonitoramentoDjetPautasCard";
 
@@ -44,6 +44,7 @@ const STATUS_HEADER: Record<string, { label: string; color: string; bg: string }
   pendente: { label: "Aguardando", color: "text-amber-700", bg: "bg-amber-500/10" },
   executando: { label: "Executando", color: "text-primary", bg: "bg-primary/10" },
   concluido: { label: "Concluído", color: "text-emerald-700", bg: "bg-emerald-500/10" },
+  cancelado: { label: "Cancelado", color: "text-amber-700", bg: "bg-amber-500/10" },
   erro: { label: "Erro", color: "text-destructive", bg: "bg-destructive/10" },
   idle: { label: "Ocioso", color: "text-muted-foreground", bg: "bg-muted/50" },
 };
@@ -53,6 +54,7 @@ const ITEM_STATUS: Record<string, string> = {
   executando: "bg-primary/15 text-primary border-primary/30",
   concluido: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
   erro: "bg-destructive/15 text-destructive border-destructive/30",
+  cancelado: "bg-amber-500/15 text-amber-700 border-amber-500/30",
 };
 
 type CoordenacaoOption = { id: string; nome: string };
@@ -608,7 +610,7 @@ export default function DjenServidor() {
           <TabsTrigger value="publicacoes"><FileSearch className="h-4 w-4 mr-1" />Publicações</TabsTrigger>
           <TabsTrigger value="comparador"><GitCompare className="h-4 w-4 mr-1" />Comparador</TabsTrigger>
         </TabsList>
-        <TabsContent value="servidor"><div className="space-y-4"><MonitoramentoTermosParalelaCard /></div></TabsContent>
+        <TabsContent value="servidor"><div className="space-y-4"><DjenServidorParalelaCard /></div></TabsContent>
         <TabsContent value="pautas"><div className="space-y-4"><MonitoramentoDjetPautasCard /></div></TabsContent>
         <TabsContent value="kurier"><div className="space-y-4"><MonitoramentoTermosKurierCard /></div></TabsContent>
         <TabsContent value="workers"><WorkersPanel /></TabsContent>
