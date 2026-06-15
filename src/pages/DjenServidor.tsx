@@ -17,7 +17,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { formatMonitoramentoLabel } from "@/utils/monitoramentoLabel";
-import { MonitoramentoTermosParalelaCard } from "@/components/configuracoes/MonitoramentoTermosParalelaCard";
 import {
   useConfiguracoesServidor,
   useExecucoesServidor,
@@ -32,7 +31,7 @@ import {
 } from "@/hooks/useDjenServidor";
 
 const LABELS: Record<string, string> = {
-  djen_paralela_servidor: "DJEN Termos Paralela",
+  djen_paralela_servidor: "DJEN Servidor",
   kurier_servidor: "DJEN Kurier",
   djet_pautas_servidor: "DJET Pautas DEJT",
 };
