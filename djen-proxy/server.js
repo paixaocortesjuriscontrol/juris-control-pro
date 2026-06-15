@@ -61,7 +61,11 @@ function handleHealth(req, res) {
 }
 
 function handleDjen(req, res, parsedUrl) {
-  if (req.headers['x-proxy-token'] !== PROXY_TOKEN) {
+  const receivedToken = String(req.headers['x-proxy-token'] || '')
+    .split(',')
+    .map((t) => t.trim())
+    .find(Boolean) || '';
+  if (receivedToken !== PROXY_TOKEN) {
     return json(res, 401, { error: 'unauthorized' }, corsHeaders());
   }
 
