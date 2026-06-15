@@ -244,11 +244,15 @@ function calcularPendentes(
   for (const [campo, c] of Object.entries(confianca || {})) {
     if (c === "baixa") set.add(campo);
   }
-  // Coerência K↔L: se há data de julgamento, marca tem_data_julgamento
-  if (benner.data_julgamento && !benner.tem_data_julgamento) {
-    benner.tem_data_julgamento = "S";
+  // Coerência K↔L: se há data de julgamento, marca tem_data_julgamento.
+  // Após a unificação, os campos vivem em `distribuicao_tst`; o bloco
+  // `dados_benner` é apenas fallback para respostas legadas da IA.
+  const dataJulg = dist.data_julgamento || benner.data_julgamento;
+  const temData = dist.tem_data_julgamento || benner.tem_data_julgamento;
+  if (dataJulg && !temData) {
+    dist.tem_data_julgamento = "S";
   }
-  if (!benner.data_julgamento && benner.tem_data_julgamento === "S") {
+  if (!dataJulg && temData === "S") {
     set.add("data_julgamento");
   }
   return [...set].sort();
@@ -270,7 +274,16 @@ export function validarEHidratar(
   const { aplicados, alertas: alertasJudit } = hidratarJudit(distLimpo, bennerLimpo, judit);
   alertas.push(...alertasJudit);
 
-  // 3. Calcula pendentes
+  // 3. Consolida campos do bloco legado `dados_benner` em `distribuicao_tst`
+  //    (a aba Dados Benner foi removida; o form é unificado). `dist` ganha
+  //    precedência se houver colisão.
+  for (const [k, v] of Object.entries(bennerLimpo)) {
+    if (distLimpo[k] === undefined || distLimpo[k] === null || distLimpo[k] === "") {
+      distLimpo[k] = v;
+    }
+  }
+
+  // 4. Calcula pendentes
   const pendentes = calcularPendentes(
     distLimpo,
     bennerLimpo,
@@ -278,14 +291,14 @@ export function validarEHidratar(
     extracao._campos_pendentes_revisao_humana || []
   );
 
-  // 4. Sanidade extra: Santander recorrente sem nada extraído gera alerta
-  if (judit && ehSantanderRecorrente(judit.recorrentes) && !bennerLimpo.data_julgamento) {
+  // 5. Sanidade extra: Santander recorrente sem nada extraído gera alerta
+  if (judit && ehSantanderRecorrente(judit.recorrentes) && !distLimpo.data_julgamento) {
     // não é erro; só registra para o usuário
   }
 
   return {
     distribuicao_tst: distLimpo,
-    dados_benner: bennerLimpo,
+    dados_benner: {},
     alertas,
     pendentes,
     evidencias,
