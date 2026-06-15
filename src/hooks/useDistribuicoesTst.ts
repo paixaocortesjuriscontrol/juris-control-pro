@@ -662,11 +662,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     let rowId = id;
     if (!payload.aba_origem) payload.aba_origem = "Manual";
 
-    // Estratégia: quando há id, salva primeiro a linha ativa exata. Isso permite
-    // alterar também os campos da própria chave (processo/dossiê). Se o id ficou
-    // obsoleto, cai para o par processo+dossiê na tabela ativa.
-    const processo = String(payload.processo || "").trim();
-    const dossie = String(payload.dossie || "").trim();
+    // Estratégia: quando há id, salva EXCLUSIVAMENTE a linha ativa exata. Isso
+    // permite alterar também processo/dossiê sem tocar em duplicatas legadas.
     let savedRowId: string | null = null;
 
     if (id) {
