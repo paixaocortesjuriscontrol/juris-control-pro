@@ -513,7 +513,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         const cur = (prev as any)[k];
         const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
         if (curEmpty) {
-          const vNorm = normalizeDateInputValue(normalizarValorPorCampo(k, v, String(prev.reclamante || ""), String(prev.reclamada || "")));
+          const vNorm = normalizeIaValueForField(k, v, String(prev.reclamante || ""), String(prev.reclamada || ""));
           if (vNorm === null || vNorm === undefined) continue;
           next[k] = vNorm;
           filled.add(k);
@@ -536,7 +536,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       const cur = bennerExtraRef.current[k];
       const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
       if (!curEmpty) continue;
-      updates[k] = normalizeDateInputValue(v);
+      updates[k] = normalizeIaValueForField(k, v, String(form.reclamante || ""), String(form.reclamada || ""));
     }
     const keys = Object.keys(updates);
     if (keys.length === 0) return;
@@ -585,7 +585,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           const cur = base[k];
           const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
           if (curEmpty) {
-            const vNorm = normalizeDateInputValue(normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || "")));
+            const vNorm = normalizeIaValueForField(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
             if (vNorm === null || vNorm === undefined) continue;
             base[k] = vNorm; filled.add(k);
           }
@@ -612,7 +612,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             const existing = base[k];
             if (existing !== null && existing !== undefined && String(existing).trim() !== "") continue;
           }
-          const vNorm = normalizeDateInputValue(normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || "")));
+          const vNorm = normalizeIaValueForField(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
           if (vNorm === null || vNorm === undefined) continue;
           base[k] = vNorm; filled.add(k);
         }
