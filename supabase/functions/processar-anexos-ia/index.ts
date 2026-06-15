@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
         let fileSize = Number(att.file_size || topLevelFileSize || 0) || 0;
         let downloadedBytes: Uint8Array | null = null;
 
-        if (suppliedSourcePath && chunkFirst) {
+        if (suppliedSourcePath && chunkFirst && suppliedSourcePath !== storagePath) {
           await supabase.storage.from(BUCKET).remove([storagePath]);
           const { error: copyErr } = await (supabase.storage.from(BUCKET) as any).copy(suppliedSourcePath, storagePath);
           if (copyErr) {
