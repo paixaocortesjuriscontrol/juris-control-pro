@@ -197,13 +197,18 @@ Deno.serve(async (req) => {
 REGRA DE OURO: NUNCA invente. Se não houver evidência no texto, OMITA o campo.
 Devolva EXCLUSIVAMENTE via tool call "preencher_formulario".
 Use APENAS as chaves definidas no schema do tool (campos do formulário Distribuição TST e Dados Benner).
-O prompt customizado do advogado abaixo orienta a INTERPRETAÇÃO das peças, mas as chaves de saída devem ser sempre as do schema.`;
+O prompt customizado do advogado abaixo é obrigatório e deve orientar a INTERPRETAÇÃO das peças.
+Se o prompt customizado disser para aguardar o comando "Analise", considere que esse comando JÁ FOI DADO nesta chamada.
+Mapeie a resposta solicitada pelo prompt para as chaves do schema; não devolva texto livre fora do tool call.`;
 
     const userPrompt = [
       `PROMPT CUSTOMIZADO DO ADVOGADO ("${promptRow.titulo}"):`,
       "----------",
       String(promptRow.prompt || "").trim(),
       "----------",
+      ``,
+      `COMANDO: Analise`,
+      `Aplique integralmente o prompt customizado acima aos documentos indexados abaixo e preencha os campos compatíveis do formulário.`,
       ``,
       `Processo: ${processoNumero || pid}`,
       ``,
