@@ -65,6 +65,7 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: Mail, label: "Remessas Benner", path: "/remessas-benner", color: "text-sky-400", adminOnly: true },
   { icon: BookOpen, label: "Matérias Benner", path: "/materias-benner", color: "text-sky-400" },
   { icon: ShieldCheck, label: "Admin. TST", path: "/admin-tst", color: "text-sky-400", adminOrCoordOnly: true },
+  { icon: Sparkles, label: "Prompt IA TST", path: "/prompts-ia-tst", color: "text-purple-400" },
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400" },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
   { icon: FileText, label: "Documentos", path: "/documentos" },

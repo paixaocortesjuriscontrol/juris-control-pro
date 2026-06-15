@@ -6309,6 +6309,56 @@ export type Database = {
         }
         Relationships: []
       }
+      prompts_ia_tst: {
+        Row: {
+          ativo: boolean
+          coordenacao_id: string
+          created_at: string
+          created_by: string | null
+          descricao: string | null
+          id: string
+          modelo: string
+          prompt: string
+          titulo: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          coordenacao_id: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          modelo?: string
+          prompt: string
+          titulo: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          coordenacao_id?: string
+          created_at?: string
+          created_by?: string | null
+          descricao?: string | null
+          id?: string
+          modelo?: string
+          prompt?: string
+          titulo?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompts_ia_tst_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       publicacoes_djen: {
         Row: {
           advogados_json: Json | null

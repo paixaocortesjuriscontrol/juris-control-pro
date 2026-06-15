@@ -12,6 +12,7 @@ import { DadosBennerForm, DadosBennerFormHandle } from "@/components/benner/Dado
 import { LogJuditTab } from "./LogJuditTab";
 import { AnaliseJuditTab } from "./AnaliseJuditTab";
 import { AnexosJuditTab } from "./AnexosJuditTab";
+import { AnalisarComIATab } from "./AnalisarComIATab";
 import { CentralizadoresTab } from "./CentralizadoresTab";
 import { PartesProcessoTab } from "./PartesProcessoTab";
 import { DistribuicaoTst, DistribuicaoTstInsert, bennerToDistribuicao } from "@/hooks/useDistribuicoesTst";
@@ -55,7 +56,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const podeVerLogJudit = user?.email?.toLowerCase() === "paixaocortesjuriscontrol@gmail.com";
   const { isAdminOrCoordinator, isAdmin } = useUserRole();
 
-  const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos" | "centralizadores" | "partes">(initialTab);
+  const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos" | "analisar-ia" | "centralizadores" | "partes">(initialTab);
   const [anexos, setAnexos] = useState<any[] | null>(null);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
   const [comAnexos, setComAnexos] = useState(false);
@@ -575,6 +576,13 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             {anexos && (
               <TabsTrigger value="anexos">Anexos ({anexos.length})</TabsTrigger>
             )}
+            <TabsTrigger
+              value="analisar-ia"
+              disabled={bennerDisabled}
+              className="bg-purple-50 text-purple-900 border border-purple-200 data-[state=active]:bg-purple-100 dark:bg-purple-950/30 dark:text-purple-100 dark:border-purple-900"
+            >
+              Analisar com IA
+            </TabsTrigger>
             {isAdminOrCoordinator && (
               <TabsTrigger value="centralizadores" disabled={bennerDisabled}>Centralizadores</TabsTrigger>
             )}
@@ -738,6 +746,24 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <PartesProcessoTab
             dadosBennerId={(bennerDado as any)?.id || (currentDado as any)?.id || null}
             processoNumero={processoNumero}
+          />
+        </TabsContent>
+
+        <TabsContent value="analisar-ia" className="mt-4">
+          <AnalisarComIATab
+            processoNumero={processoNumero}
+            processoId={(currentDado as any)?.id || null}
+            attachments={anexos || []}
+            onIaPreenchido={({ distribuicao_tst, dados_benner, resumo }) => {
+              setIaDistribuicao(distribuicao_tst || {});
+              setIaBenner(dados_benner || {});
+              setIaResumo(resumo || null);
+              if (Object.keys(distribuicao_tst || {}).length > 0) {
+                setTab("distribuicao");
+              } else if (Object.keys(dados_benner || {}).length > 0) {
+                setTab("benner");
+              }
+            }}
           />
         </TabsContent>
       </Tabs>
