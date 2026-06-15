@@ -30,12 +30,19 @@ async function invokeDjen(body) {
   }
 }
 
-async function run({ payload, log }) {
+async function run({ payload, log, job }) {
   if (!SUPABASE_URL || !SERVICE_KEY) {
     throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes no .env do VPS");
   }
   log("paralela.start", { payload });
   const { status, body } = await invokeDjen({
+    // novos params (intervalo + filtros + ID para reportar progresso)
+    dataInicio: payload?.dataInicio,
+    dataFim: payload?.dataFim,
+    coordenacaoId: payload?.coordenacaoId,
+    monitoramentoIds: payload?.monitoramentoIds,
+    execucaoServidorId: job?.id || null,
+    // compat antigo
     diarioYmd: payload?.diarioYmd,
     execucaoId: payload?.execucaoId,
   });
