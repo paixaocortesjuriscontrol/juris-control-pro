@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, Search, Save } from "lucide-react";
@@ -208,6 +208,10 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [iaDistribuicao, setIaDistribuicao] = useState<Record<string, any> | null>(null);
   const [iaBenner, setIaBenner] = useState<Record<string, any> | null>(null);
   const [iaResumo, setIaResumo] = useState<string | null>(null);
+  const iaSugestaoDistribuicaoCompleta = useMemo(
+    () => ({ ...(iaBenner || {}), ...(iaDistribuicao || {}) }),
+    [JSON.stringify(iaBenner || {}), JSON.stringify(iaDistribuicao || {})],
+  );
 
   const reloadSavedRow = useCallback(async (savedId?: string | boolean | null) => {
     const id = typeof savedId === "string" ? savedId : (currentDado?.id || (bennerDado as any)?.id || null);
