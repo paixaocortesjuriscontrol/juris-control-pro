@@ -83,7 +83,7 @@ async function run({ sb, payload, log, job }) {
   // 1) Lista monitoramentos ativos respeitando filtros
   let q = sb
     .from("monitoramentos_djen")
-    .select("id, descricao, termo_busca, tipo, coordenacao_id")
+    .select("id, descricao, termo_busca, tipo, coordenacao_id, tribunais")
     .eq("ativo", true);
   if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
   if (monitoramentoIdsFiltro) q = q.in("id", monitoramentoIdsFiltro);
@@ -93,17 +93,38 @@ async function run({ sb, payload, log, job }) {
   const lista = monitoramentos || [];
   log("paralela.monitoramentos", { total: lista.length });
 
-  // 2) Estado de progresso (1 item por monitoramento)
-  const itens = lista.map((m) => ({
-    id: m.id,
-    label: m.descricao || m.termo_busca || m.id,
-    tipo: m.tipo,
-    status: "pendente",
-    novas: 0,
-    descartadas: 0,
-    duplicatas: 0,
-    erro: null,
-  }));
+  // 2) Estado de progresso (1 item por tribunal/tipo), espelhando a tela Paralela.
+  const grouped = new Map();
+  for (const m of lista) {
+    const tipo = mapTipo(m.tipo);
+    const tribunais = expandirTribunais(m.tribunais);
+    for (const tribunal of tribunais) {
+      const key = `${tipo}|${tribunal}`;
+      if (!grouped.has(key)) grouped.set(key, { tipo, tribunal, monitoramentos: [] });
+      grouped.get(key).monitoramentos.push(m);
+    }
+  }
+  const itens = Array.from(grouped.values())
+    .sort((a, b) => {
+      const ta = TODOS_TRIBUNAIS.indexOf(a.tribunal);
+      const tb = TODOS_TRIBUNAIS.indexOf(b.tribunal);
+      return (ta - tb) || (TIPO_ORDER.indexOf(a.tipo) - TIPO_ORDER.indexOf(b.tipo));
+    })
+    .map((g) => ({
+      id: `${g.tipo}|${g.tribunal}`,
+      label: g.monitoramentos.length > 1 ? `${g.monitoramentos.length} termos` : (g.monitoramentos[0]?.descricao || g.monitoramentos[0]?.termo_busca || g.tribunal),
+      tribunal: g.tribunal,
+      tipo: g.tipo,
+      monitoramentoIds: g.monitoramentos.map((m) => m.id),
+      status: "pendente",
+      current: 0,
+      total: g.monitoramentos.length,
+      mensagem: "Aguardando slot...",
+      novas: 0,
+      descartadas: 0,
+      duplicatas: 0,
+      erro: null,
+    }));
 
   let lastFlush = 0;
   const flushProgresso = async (force = false) => {
