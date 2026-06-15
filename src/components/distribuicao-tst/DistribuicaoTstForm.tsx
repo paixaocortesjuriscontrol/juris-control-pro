@@ -487,7 +487,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       if (/ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N") {
         next.transito_julgado = false;
         next.data_transito_julgado = null;
-        filled.delete("transito_julgado");
+        filled.add("transito_julgado");
       }
       // Campos estruturais da Judit só são preservados quando já há valor real.
       // Se estiverem vazios, a IA pode sugerir preenchimento visual no formulário.
@@ -569,6 +569,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         if (/ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N") {
           base.transito_julgado = false;
           base.data_transito_julgado = null;
+        filled.add("transito_julgado");
         }
         const PREFER_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
         const filled = new Set<string>();
@@ -603,6 +604,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         if (/ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N") {
           base.transito_julgado = false;
           base.data_transito_julgado = null;
+        filled.add("transito_julgado");
         }
         const PREFER_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
         const filled = new Set<string>();
