@@ -578,7 +578,8 @@ async function processMonitoramentoIndexed(
   supabase: any,
   monitoramento: Monitoramento,
   diarioYmd: string,
-  allMonitoramentos?: Monitoramento[]
+  allMonitoramentos?: Monitoramento[],
+  persistMode: { servidor?: boolean; execucaoServidorId?: string | null } = {}
 ): Promise<{ novas: number; descartadas: number; duplicatas: number }> {
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
   const dataAtual = formatLocalDate(new Date());
@@ -624,7 +625,7 @@ async function processMonitoramentoIndexed(
     }
 
     for (const pub of candidatos.values()) {
-      await processPublicationFromIndex(supabase, pub, monitoramento, stats, tribunal || pub.tribunal, dataAtual, allMonitoramentos);
+      await processPublicationFromIndex(supabase, pub, monitoramento, stats, tribunal || pub.tribunal, dataAtual, allMonitoramentos, persistMode);
     }
   }
 
@@ -747,7 +748,10 @@ export default async function handler(req: Request): Promise<Response> {
         item.status = 'executando';
         await flushProgresso();
         try {
-          const result = await processMonitoramentoIndexed(supabase, mon, dia, monitoramentos);
+          const result = await processMonitoramentoIndexed(supabase, mon, dia, monitoramentos, {
+            servidor: !!execucaoServidorId,
+            execucaoServidorId,
+          });
           item.novas = result.novas;
           item.descartadas = result.descartadas;
           item.duplicatas = result.duplicatas;
