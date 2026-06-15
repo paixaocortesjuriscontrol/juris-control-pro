@@ -437,7 +437,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
 
         const outRow: Record<string, any> = {};
         outRow[LAYOUT_COLS[0]] = dossie;
-        outRow[LAYOUT_COLS[1]] = String(d.tribunal ?? "").trim();
+        outRow[LAYOUT_COLS[1]] = String(d.tribunal ?? "").trim() || "TST";
         outRow[LAYOUT_COLS[2]] = formatTipoRecurso([
           ...splitRecursoValues((d as any).tipo_recurso_reclamante),
           ...splitRecursoValues((d as any).tipo_recurso_banco),
@@ -474,12 +474,28 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           (d as any).tipo_recurso_reclamante,
           (d as any).tipo_recurso_banco
         );
-        outRow[LAYOUT_COLS[27]] = d.posicao_turma_favoravel ? "X" : "";
-        outRow[LAYOUT_COLS[28]] = d.posicao_turma_desfavoravel ? "X" : "";
-        outRow[LAYOUT_COLS[29]] = d.posicao_relator_favoravel ? "X" : "";
-        outRow[LAYOUT_COLS[30]] = d.posicao_relator_desfavoravel ? "X" : "";
-        outRow[LAYOUT_COLS[31]] = d.recurso_bem_aparelhado ? "X" : "";
-        outRow[LAYOUT_COLS[32]] = d.recurso_mal_aparelhado ? "X" : "";
+        // Posições: derivar automaticamente das seleções da aba Distribuição TST
+        // (turma_favorabilidade / relator_favorabilidade). Fallback para os
+        // booleans legados gravados pela aba Confere Benner (agora oculta).
+        const turmaFavTxt = String((d as any).turma_favorabilidade ?? "").toLowerCase();
+        const turmaPos = turmaFavTxt.includes("positiv") || turmaFavTxt.includes("favor") && !turmaFavTxt.includes("desfav");
+        const turmaNeg = turmaFavTxt.includes("negativ") || turmaFavTxt.includes("desfav");
+        const relFavTxt = String((d as any).relator_favorabilidade ?? "").toLowerCase();
+        const relPos = relFavTxt.includes("positiv") || relFavTxt.includes("favor") && !relFavTxt.includes("desfav");
+        const relNeg = relFavTxt.includes("negativ") || relFavTxt.includes("desfav");
+        outRow[LAYOUT_COLS[27]] = (turmaPos || d.posicao_turma_favoravel) ? "X" : "";
+        outRow[LAYOUT_COLS[28]] = (turmaNeg || d.posicao_turma_desfavoravel) ? "X" : "";
+        outRow[LAYOUT_COLS[29]] = (relPos || d.posicao_relator_favoravel) ? "X" : "";
+        outRow[LAYOUT_COLS[30]] = (relNeg || d.posicao_relator_desfavoravel) ? "X" : "";
+        // Aparelhamento: derivar de aparelhamento_reclamante / aparelhamento_banco
+        // (BEM APARELHADO / MAL APARELHADO). Qualquer um marcando "BEM" preenche AF;
+        // qualquer um marcando "MAL" preenche AG. Fallback para os booleans legados.
+        const apRecl = String((d as any).aparelhamento_reclamante ?? "").toUpperCase();
+        const apBanc = String((d as any).aparelhamento_banco ?? "").toUpperCase();
+        const bemAp = apRecl.includes("BEM") || apBanc.includes("BEM");
+        const malAp = apRecl.includes("MAL") || apBanc.includes("MAL");
+        outRow[LAYOUT_COLS[31]] = (bemAp || d.recurso_bem_aparelhado) ? "X" : "";
+        outRow[LAYOUT_COLS[32]] = (malAp || d.recurso_mal_aparelhado) ? "X" : "";
         outRow[LAYOUT_COLS[33]] = toSentenceCase(String(d.chance_exito ?? "").trim());
         outRow["__numProcesso"] = numProcesso;
         outRow["__dadoBennerId"] = d.id || null;
