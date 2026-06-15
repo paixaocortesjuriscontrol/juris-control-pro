@@ -386,11 +386,19 @@ async function run({ sb, payload, log, job }) {
     }).eq("id", job.id);
   };
 
+  const abortController = new AbortController();
+  const signal = abortController.signal;
   const isCancelled = async () => {
     if (!job?.id) return false;
     const { data } = await sb.from("execucoes_servidor").select("status").eq("id", job.id).maybeSingle();
     return data?.status === "cancelado";
   };
+  const cancelPoll = setInterval(async () => {
+    if (!cancelled && await isCancelled().catch(() => false)) {
+      cancelled = true;
+      abortController.abort();
+    }
+  }, CANCEL_CHECK_MS);
 
   const slots = await loadPool(sb);
   if (slots.length === 0) throw new Error("Nenhuma VPS ativa em djen_proxy_pool. O DJEN Servidor não roda sem VPS.");
@@ -400,9 +408,8 @@ async function run({ sb, payload, log, job }) {
   const band1 = [];
   const band2 = [];
   const band3 = [];
-  for (const tipo of MAIN_TIPOS) {
-    const item = byKey.get(`${tipo}|TST`);
-    if (item) for (const monId of item.monitoramentoIds) band0.push({ band: 0, item, monIds: [monId] });
+  for (const item of itens) {
+    if (item.tribunal === "TST" && MAIN_TIPOS.includes(item.tipo)) band0.push({ band: 0, item, monIds: item.monitoramentoIds });
   }
   const pushTipoUnits = (fila, band, tribunal) => {
     for (const tipo of MAIN_TIPOS) {
@@ -445,16 +452,16 @@ async function run({ sb, payload, log, job }) {
         const mon = monsPorId.get(monId);
         if (!mon) continue;
         for (const dia of dias) {
-          if (cancelled || (await isCancelled())) { cancelled = true; return; }
+          if (cancelled || signal.aborted || (await isCancelled())) { cancelled = true; abortController.abort(); return; }
           item.mensagem = `${item.tribunal} ${dia}: ${item.current}/${item.total} via ${item.via.label}`;
-          const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal);
+          const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
           const stats = await persistPublicacoes(sb, pubs, mon, item.tribunal, dia, job?.id || null);
           item.novas += stats.novas;
           item.descartadas += stats.descartadas;
           item.duplicatas += stats.duplicatas;
           item.current += 1;
           await flushProgresso();
-          if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS);
+          if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
         }
       }
       if (item.current >= item.total) {
@@ -465,6 +472,13 @@ async function run({ sb, payload, log, job }) {
         totalDuplicatas += item.duplicatas;
       }
     } catch (e) {
+      if (cancelled || signal.aborted || String(e?.message || e).includes("cancel")) {
+        cancelled = true;
+        abortController.abort();
+        item.status = "cancelado";
+        item.mensagem = "Cancelado pelo usuário";
+        return;
+      }
       item.status = "erro";
       item.current = item.total;
       item.erro = String(e?.message || e).slice(0, 500);
