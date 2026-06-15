@@ -35,6 +35,7 @@ import ErrataDjen from "./pages/ErrataDjen";
 import MonitoramentoDistribuicao from "./pages/MonitoramentoDistribuicao";
 import Monitoramento360 from "./pages/Monitoramento360";
 import MonitoramentoDjen from "./pages/MonitoramentoDjen";
+import DjenServidor from "./pages/DjenServidor";
 import MonitoracaoHub from "./pages/MonitoracaoHub";
 import MinhaCarteira from "./pages/MinhaCarteira";
 import AnaliseDjen from "./pages/AnaliseDjen";
