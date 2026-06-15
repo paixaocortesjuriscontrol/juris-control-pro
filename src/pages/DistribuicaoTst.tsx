@@ -997,7 +997,8 @@ export default function DistribuicaoTst() {
           const baixadoStr = (juditData.processo_baixado || "").toString().toUpperCase();
           const ehTransito = /tr[âa]nsito/i.test(situacaoStr) || baixadoStr === "S";
 
-          // Build dados_benner record
+          // Atualiza apenas a linha selecionada. Mesmo processo pode ter mais
+          // de um dossiê/origem na base; nunca atualizar por `processo` aqui.
           const tribunaisAceitos = ["TST", "STF", "STJ"];
           const tribunalMapeado = tribunaisAceitos.includes(juditData.tribunal) ? juditData.tribunal : null;
 
@@ -1009,36 +1010,6 @@ export default function DistribuicaoTst() {
           };
           const turmaFinal = juditData.turma || proc.turma || "";
           const erroJuditFlag = !isTurmaOficialTst(turmaFinal);
-
-          const dadoToSave: any = {
-            processo: proc.processo_numero,
-            dossie: juditData.dossie || proc.dossie || "",
-            turma: turmaFinal,
-            relator: juditData.relator || proc.relator || "",
-            data_distribuicao_real: juditData.data_distribuicao || proc.data_distribuicao || null,
-            data_distribuicao: juditData.data_distribuicao || proc.data_distribuicao || null,
-            recorrente: recorrenteJudit,
-            reclamante: reclamanteJudit || null,
-            reclamada: reclamadaJudit || null,
-            tribunal: tribunalMapeado || "TST",
-            tipo_recurso: juditData.tipo_recurso || null,
-            tipo_recurso_reclamante: juditData.tipo_recurso_reclamante || null,
-            tipo_recurso_banco: juditData.tipo_recurso_banco || null,
-            situacao_processo: juditData.situacao_processo || null,
-            transito_julgado: ehTransito || null,
-            tem_data_julgamento: juditData.tem_data_julgamento || null,
-            data_julgamento: juditData.data_julgamento || null,
-            horario_julgamento: juditData.horario_julgamento || null,
-            tipo_julgamento: juditData.tipo_julgamento || null,
-            resultado_sem_transcendencia: juditData.resultado_sem_transcendencia || false,
-            resultado_nao_conhecido: juditData.resultado_nao_conhecido || false,
-            resultado_conhecido_provido: juditData.resultado_conhecido_provido || false,
-            resultado_conhecido_nao_provido: juditData.resultado_conhecido_nao_provido || false,
-            resultado_outra: juditData.resultado_outra || null,
-            processo_baixado: juditData.processo_baixado || null,
-            erro_judit: erroJuditFlag,
-            status: "rascunho",
-          };
 
           const bennerId = (proc as any).id as string | undefined;
           if (!bennerId) continue;
