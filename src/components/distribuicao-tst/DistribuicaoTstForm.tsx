@@ -472,7 +472,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     ) : null;
 
   const isIaFilled = (field: string, value: any) =>
-    iaFields.has(field) && !!(value !== null && value !== undefined && String(value).trim() !== "");
+    iaFields.has(field) && value !== null && value !== undefined && (typeof value === "boolean" || String(value).trim() !== "");
   const iaClass = (field: string, value: any) =>
     isIaFilled(field, value)
       ? "ring-2 ring-sky-500 bg-sky-50 dark:bg-sky-950/30 rounded-md transition-all"
