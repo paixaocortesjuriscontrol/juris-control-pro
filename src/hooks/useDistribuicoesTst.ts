@@ -3,30 +3,42 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 /**
- * Retorna a lista de números de processo que possuem pelo menos uma linha
- * marcada como duplicada (`ic_duplicado = true`). Útil para exibir todos os
- * pares duplicados (não apenas a linha marcada), permitindo ao usuário
- * identificar e arquivar manualmente.
+ * Retorna os IDs de TODAS as linhas cujo processo aparece mais de uma vez.
+ * Não depende de `ic_duplicado`, porque esse marcador pode estar errado ou
+ * incompleto; o filtro da tela precisa mostrar o duplicado real e seus pares.
  */
-async function fetchProcessosDuplicados(): Promise<string[]> {
+async function fetchDuplicateDistribuicaoTstIds(): Promise<string[]> {
   const PAGE = 1000;
-  const set = new Set<string>();
+  const byProcesso = new Map<string, string[]>();
   let from = 0;
   while (true) {
     const { data, error } = await supabase
       .from("dados_benner" as any)
-      .select("processo")
+      .select("id, processo")
       .not("aba_origem", "is", null)
-      .eq("ic_duplicado", true)
       .not("processo", "is", null)
+      .order("processo", { ascending: true, nullsFirst: false })
+      .order("id", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) throw error;
     const rows = (data as any[]) || [];
-    for (const r of rows) if (r.processo) set.add(r.processo);
+    for (const r of rows) {
+      const raw = String(r.processo || "").trim();
+      if (!raw) continue;
+      const digits = raw.replace(/\D/g, "");
+      const key = digits.length >= 20 ? digits : raw.toLowerCase();
+      const ids = byProcesso.get(key) || [];
+      ids.push(r.id);
+      byProcesso.set(key, ids);
+    }
     if (rows.length < PAGE) break;
     from += PAGE;
   }
-  return Array.from(set);
+  const duplicateIds: string[] = [];
+  byProcesso.forEach((ids) => {
+    if (ids.length > 1) duplicateIds.push(...ids);
+  });
+  return duplicateIds;
 }
 
 /**
@@ -283,12 +295,12 @@ export async function fetchAllDistribuicaoTstIds(
     ? "id, dados_benner_responsaveis!inner(usuario_id)"
     : "id";
 
-  // Para "Apenas duplicados", trazemos a linha marcada E seus pares
-  // (todas as linhas com o mesmo número de processo).
-  let processosDup: string[] | null = null;
+  // Para "Apenas duplicados", filtramos por IDs reais dos grupos cujo processo
+  // aparece mais de uma vez, não pelo marcador `ic_duplicado`.
+  let duplicateIds: string[] | null = null;
   if (filters.duplicado === "sim") {
-    processosDup = await fetchProcessosDuplicados();
-    if (processosDup.length === 0) return [];
+    duplicateIds = await fetchDuplicateDistribuicaoTstIds();
+    if (duplicateIds.length === 0) return [];
   }
 
   const PAGE = 1000;
@@ -368,7 +380,7 @@ export async function fetchAllDistribuicaoTstIds(
     else if (filters.emAnalise === "analisado") query = query.eq("analisado", true);
     if (filters.problemaJudit === "sim") query = query.eq("problema_judit", true);
     else if (filters.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
-    if (filters.duplicado === "sim" && processosDup) query = query.in("processo", processosDup);
+    if (filters.duplicado === "sim" && duplicateIds) query = query.in("id", duplicateIds);
     else if (filters.duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
     if (filters.fonteImportacao && filters.fonteImportacao !== "todas") {
       query = query.contains("fontes_importacao", [filters.fonteImportacao]);
@@ -441,19 +453,18 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       ? "*, dados_benner_responsaveis!inner(usuario_id)"
       : "*";
 
-    // "Apenas duplicados": precisamos trazer também os pares (mesmas linhas
-    // com o mesmo número de processo), ordenados por processo, para que o
-    // usuário consiga identificar e arquivar manualmente.
-    let processosDup: string[] | null = null;
+    // "Apenas duplicados": traz todos os IDs dos processos que têm pares reais,
+    // ordenados por processo, para identificar e arquivar manualmente.
+    let duplicateIds: string[] | null = null;
     if (filters.duplicado === "sim") {
       try {
-        processosDup = await fetchProcessosDuplicados();
+        duplicateIds = await fetchDuplicateDistribuicaoTstIds();
       } catch (e: any) {
         toast.error("Erro ao buscar processos duplicados: " + (e?.message || e));
         setLoading(false);
         return;
       }
-      if (processosDup.length === 0) {
+      if (duplicateIds.length === 0) {
         setDados([]);
         setTotalCount(0);
         setResponsaveisMap(new Map());
@@ -549,7 +560,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     else if (filters.emAnalise === "analisado") query = query.eq("analisado", true);
     if (filters.problemaJudit === "sim") query = query.eq("problema_judit", true);
     else if (filters.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
-    if (filters.duplicado === "sim" && processosDup) query = query.in("processo", processosDup);
+    if (filters.duplicado === "sim" && duplicateIds && !chunkIds) query = query.in("id", duplicateIds);
     else if (filters.duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
     if (filters.fonteImportacao && filters.fonteImportacao !== "todas") {
       query = query.contains("fontes_importacao", [filters.fonteImportacao]);
@@ -591,6 +602,12 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
         : idsWithoutResponsavel;
     } else if (filters.idsAllowed && filters.idsAllowed.length > 0) {
       chunkSource = filters.idsAllowed;
+    }
+    if (duplicateIds) {
+      const dupSet = new Set(duplicateIds);
+      chunkSource = chunkSource
+        ? chunkSource.filter((id) => dupSet.has(id))
+        : duplicateIds;
     }
 
     if (chunkSource) {
@@ -657,6 +674,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     }
 
     let rows = rawRows.map(bennerToDistribuicao);
+    if (filters.duplicado === "sim") {
+      rows = rows.map((row) => ({ ...row, ic_duplicado: true }));
+    }
     setTotalCount(count);
 
     // Se houver um registro recém-editado (sticky) que NÃO bate mais com
