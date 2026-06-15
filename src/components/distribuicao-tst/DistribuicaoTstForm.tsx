@@ -1535,8 +1535,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <SectionHeader title="Dados Benner — Julgamento" color="bg-[#0E7490]" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label>Data Julgamento?</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("tem_data_julgamento", bennerExtra.tem_data_julgamento))}>
+              <Label className="flex items-center">Data Julgamento? <IaBadge field="tem_data_julgamento" value={bennerExtra.tem_data_julgamento} /></Label>
               <Select value={bennerExtra.tem_data_julgamento || "__none__"} onValueChange={v => setExtra("tem_data_julgamento", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1546,16 +1546,16 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Data Julgamento</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("data_julgamento", bennerExtra.data_julgamento))}>
+              <Label className="flex items-center">Data Julgamento <IaBadge field="data_julgamento" value={bennerExtra.data_julgamento} /></Label>
               <Input type="date" value={bennerExtra.data_julgamento || ""} onChange={e => setExtra("data_julgamento", e.target.value || null)} />
             </div>
-            <div className="space-y-2">
-              <Label>Horário</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("horario_julgamento", bennerExtra.horario_julgamento))}>
+              <Label className="flex items-center">Horário <IaBadge field="horario_julgamento" value={bennerExtra.horario_julgamento} /></Label>
               <Input type="time" value={bennerExtra.horario_julgamento || ""} onChange={e => setExtra("horario_julgamento", e.target.value || null)} />
             </div>
-            <div className="space-y-2">
-              <Label>Tipo Julgamento</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("tipo_julgamento", bennerExtra.tipo_julgamento))}>
+              <Label className="flex items-center">Tipo Julgamento <IaBadge field="tipo_julgamento" value={bennerExtra.tipo_julgamento} /></Label>
               <Select value={bennerExtra.tipo_julgamento || "__none__"} onValueChange={v => setExtra("tipo_julgamento", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
