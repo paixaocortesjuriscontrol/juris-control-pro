@@ -11,6 +11,27 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 // Supabase Edge Functions (~150s) para detectar travas antes do 504.
 const TIMEOUT_MS = parseInt(process.env.PARALELA_TIMEOUT_MS || "140000", 10);
 
+const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
+const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
+const TODOS_TRIBUNAIS = [...TODOS_TRT, "STF", "STJ", "TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6", ...TODOS_CIVEIS];
+const TIPO_ORDER = ["parte", "advogado", "palavra-chave", "processo"];
+
+function mapTipo(tipo) {
+  return tipo === "nome" ? "palavra-chave" : (tipo || "palavra-chave");
+}
+
+function expandirTribunais(tribunais) {
+  if (!Array.isArray(tribunais) || tribunais.length === 0) return TODOS_TRIBUNAIS;
+  const set = new Set();
+  for (const raw of tribunais) {
+    const t = String(raw || "").trim();
+    if (t === "TODOS_CIVEIS") TODOS_CIVEIS.forEach((x) => set.add(x));
+    else if (t === "TODOS_TRT") TODOS_TRT.forEach((x) => set.add(x));
+    else if (t) set.add(t);
+  }
+  return set.size > 0 ? TODOS_TRIBUNAIS.filter((t) => set.has(t)) : TODOS_TRIBUNAIS;
+}
+
 async function invokeDjen(body) {
   const url = `${SUPABASE_URL}/functions/v1/monitorar-djen`;
   const ctrl = new AbortController();
