@@ -1183,11 +1183,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
-              <Label>Data Distribuição Planilha</Label>
+              <Label>Data Distribuição Planilha (D)</Label>
               <Input type="date" value={form.data_distribuicao_planilha || ""} onChange={e => set("data_distribuicao_planilha", e.target.value || null)} />
             </div>
             <div className="space-y-2">
-              <Label>Data Distribuição Real</Label>
+              <Label>Data Distribuição Real (D)</Label>
               <Input type="date" value={form.data_distribuicao_real || ""} onChange={e => set("data_distribuicao_real", e.target.value || null)} />
               <p className="text-[10px] text-muted-foreground">Preenchida via Judit ou manualmente</p>
             </div>
@@ -1198,7 +1198,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Dossiê</Label>
+              <Label>Dossiê (A)</Label>
               <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} />
             </div>
             <div className="space-y-2">
