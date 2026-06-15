@@ -52,7 +52,7 @@ async function runSlot(slot) {
         await new Promise((r) => setTimeout(r, POLL));
         continue;
       }
-      if (!job) {
+      if (!job || !job.id || !job.tipo) {
         await new Promise((r) => setTimeout(r, POLL));
         continue;
       }
@@ -65,6 +65,19 @@ async function runSlot(slot) {
       });
 
       const engine = ENGINES[job.tipo];
+      if (!engine || typeof engine.run !== "function") {
+        const msg = `Engine não encontrada para tipo: ${job.tipo}`;
+        await sb
+          .from("execucoes_servidor")
+          .update({
+            status: "erro",
+            finalizado_em: new Date().toISOString(),
+            erro: msg,
+          })
+          .eq("id", job.id);
+        log("job_error", { id: job.id, tipo: job.tipo, e: msg });
+        continue;
+      }
       try {
         const resultado = await engine.run({ sb, payload: job.payload || {}, log });
         await sb
