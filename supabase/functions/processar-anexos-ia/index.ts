@@ -18,6 +18,7 @@ function json(body: unknown, status = 200) {
 interface AttIn {
   step_id: string;
   attachment_name?: string | null;
+  attachment_date?: string | null;
   instance?: string | null;
   cnj?: string | null;
   extension?: string | null;
@@ -130,6 +131,9 @@ Deno.serve(async (req) => {
         const rawName = String(att.attachment_name || `documento_${stepId}.${att.extension || "pdf"}`);
         const safeName = safeFileName(rawName, `documento_${stepId}.pdf`);
         const storagePath = `${processoId}/judit-anexos/${stepId}_${safeName}`;
+        const wantedName = normalizeAttachmentName(att.attachment_name || rawName);
+        const wantedExt = String(att.extension || "").trim().toLowerCase().replace(/^\./, "");
+        const wantedDate = String(att.attachment_date || "").trim();
         const suppliedSourcePath = att.source_storage_path || topLevelSourcePath;
         let contentType = att.content_type || topLevelContentType || "application/pdf";
         let fileSize = Number(att.file_size || topLevelFileSize || 0) || 0;
