@@ -76,7 +76,7 @@ function ymd(d?: Date) { return d ? format(d, "yyyy-MM-dd") : undefined; }
  * Card por engine — agora com filtros (coordenação + termo), datas (início/fim)
  * e barra de progresso ao vivo por monitoramento × dia.
  */
-function EngineCard({ cfg, onToggle }: {
+function EngineCard({ cfg, onToggle, onConfig }: {
   cfg: ConfigServidor;
   onToggle: (id: string, ativo: boolean) => void;
   onConfig: (id: string, patch: { ativo?: boolean; frequencia?: string; horarios_execucao?: string[]; metadata?: unknown }) => void;
