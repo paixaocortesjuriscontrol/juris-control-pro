@@ -18,6 +18,7 @@ function json(body: unknown, status = 200) {
 interface AttIn {
   step_id: string;
   attachment_name?: string | null;
+  attachment_date?: string | null;
   instance?: string | null;
   cnj?: string | null;
   extension?: string | null;
@@ -41,6 +42,16 @@ function normalizePages(value: unknown): string[] {
   return value
     .map((item) => String(item ?? "").replace(/\u0000/g, "").trim())
     .filter(Boolean);
+}
+
+function normalizeAttachmentName(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .replace(/\s*\(C[ÓO]PIA\)\s*/gi, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]+/gi, "")
+    .toUpperCase();
 }
 
 function stripHtml(value: string) {
@@ -119,13 +130,17 @@ Deno.serve(async (req) => {
       try {
         const rawName = String(att.attachment_name || `documento_${stepId}.${att.extension || "pdf"}`);
         const safeName = safeFileName(rawName, `documento_${stepId}.pdf`);
+        const documentName = `${stepId}_${safeName}`;
         const storagePath = `${processoId}/judit-anexos/${stepId}_${safeName}`;
+        const wantedName = normalizeAttachmentName(att.attachment_name || rawName);
+        const wantedExt = String(att.extension || "").trim().toLowerCase().replace(/^\./, "");
+        const wantedDate = String(att.attachment_date || "").trim();
         const suppliedSourcePath = att.source_storage_path || topLevelSourcePath;
         let contentType = att.content_type || topLevelContentType || "application/pdf";
         let fileSize = Number(att.file_size || topLevelFileSize || 0) || 0;
         let downloadedBytes: Uint8Array | null = null;
 
-        if (suppliedSourcePath && chunkFirst) {
+        if (suppliedSourcePath && chunkFirst && suppliedSourcePath !== storagePath) {
           await supabase.storage.from(BUCKET).remove([storagePath]);
           const { error: copyErr } = await (supabase.storage.from(BUCKET) as any).copy(suppliedSourcePath, storagePath);
           if (copyErr) {
@@ -182,25 +197,40 @@ Deno.serve(async (req) => {
         if (incomingDocId) {
           documentoId = incomingDocId;
         } else {
+          const { data: previousAttachment } = await supabase
+            .from("judit_anexos")
+            .select("documento_id, attachment_name, attachment_date, extension")
+            .eq("processo_numero", processoNumero)
+            .eq("texto_indexado", true)
+            .not("documento_id", "is", null)
+            .limit(200);
+          const previousRows = Array.isArray(previousAttachment) ? previousAttachment : [];
+          const siblingDocId = previousRows.find((row: any) => {
+            const rowName = normalizeAttachmentName(row?.attachment_name);
+            const rowExt = String(row?.extension || "").trim().toLowerCase().replace(/^\./, "");
+            const rowDate = String(row?.attachment_date || "").trim();
+            return row?.documento_id && wantedName && rowName === wantedName && (!wantedExt || rowExt === wantedExt) && (!wantedDate || rowDate === wantedDate);
+          })?.documento_id || null;
+          if (siblingDocId) documentoId = siblingDocId;
           const { data: existingDoc } = await supabase
             .from("documentos")
             .select("id")
             .eq("processo_id", processoId)
-            .eq("nome", safeName)
+            .eq("nome", documentName)
             .maybeSingle();
-          if (existingDoc?.id) {
+          if (!documentoId && existingDoc?.id) {
             documentoId = existingDoc.id;
             await supabase.from("documentos").update({
               tamanho_bytes: fileSize,
               tipo: contentType,
               categoria: "anexo-judit",
             } as any).eq("id", documentoId);
-          } else {
+          } else if (!documentoId) {
             const { data: newDoc, error: docErr } = await supabase
               .from("documentos")
               .insert({
                 processo_id: processoId,
-                nome: safeName,
+                nome: documentName,
                 tipo: contentType,
                 tamanho_bytes: fileSize,
                 uploaded_by: user.id,
@@ -271,17 +301,28 @@ Deno.serve(async (req) => {
             conteudo_extraido: conteudoFlat,
           } as any).eq("id", documentoId);
 
-          await supabase.from("judit_anexos")
-            .update({
+          const updatePayload = {
               texto_indexado: true,
               texto_indexado_em: new Date().toISOString(),
               documento_id: documentoId,
               processo_id: processoId,
               storage_path: storagePath,
               paginas_extraidas: finalPages,
-            } as any)
+            } as any;
+          await supabase.from("judit_anexos")
+            .update(updatePayload)
             .eq("processo_numero", processoNumero)
-            .eq("attachment_id", stepId);
+            .or(`attachment_id.eq.${stepId},step_id.eq.${stepId}`);
+          const siblingsUpdate = supabase.from("judit_anexos")
+            .update(updatePayload)
+            .eq("processo_numero", processoNumero);
+          if (wantedName) {
+            let siblingQuery = siblingsUpdate
+              .eq("attachment_name", att.attachment_name || rawName)
+            if (wantedDate) siblingQuery = siblingQuery.eq("attachment_date", wantedDate);
+            if (att.extension) siblingQuery = siblingQuery.eq("extension", att.extension);
+            await siblingQuery;
+          }
 
           results.push({ step_id: stepId, ok: true, pages: finalPages, documento_id: documentoId! });
         } else {

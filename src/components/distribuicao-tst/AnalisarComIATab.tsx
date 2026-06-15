@@ -30,6 +30,7 @@ interface Props {
   processoNumero: string;
   processoId?: string | null;
   attachments: Attachment[];
+  onIndexacaoAtualizada?: () => Promise<void> | void;
   onIaPreenchido?: (payload: {
     distribuicao_tst: Record<string, any>;
     dados_benner: Record<string, any>;
@@ -58,10 +59,11 @@ const formatarDataAnexo = (raw?: string | null): string => {
  *  4) Sugestões aparecem como preenchimento azul nos formulários (mesma prop
  *     `iaSugestao` já consumida por DistribuicaoTstForm/DadosBennerForm).
  */
-export function AnalisarComIATab({ processoNumero, processoId, attachments, onIaPreenchido }: Props) {
+export function AnalisarComIATab({ processoNumero, processoId, attachments, onIndexacaoAtualizada, onIaPreenchido }: Props) {
   const { data: prompts = [], isLoading: loadingPrompts } = usePromptsIaTst({ somenteAtivos: true });
   const [promptId, setPromptId] = useState<string>("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [indexedNow, setIndexedNow] = useState<Set<string>>(new Set());
   const [processing, setProcessing] = useState(false);
   const [stage, setStage] = useState("");
 
@@ -79,6 +81,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
 
   const allChecked = uniqueAttachments.length > 0 && selected.size === uniqueAttachments.length;
   const someChecked = selected.size > 0 && !allChecked;
+  const isIndexed = (a: Attachment) => indexedNow.has(uidOf(a)) || (!!a.texto_indexado && !!a.documento_id);
   const toggle = (id: string, v: boolean) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -165,7 +168,8 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
           documento_id: documentoId,
           attachments: [{
             step_id: att.step_id,
-            attachment_name: arquivo.filename || att.attachment_name,
+            attachment_name: att.attachment_name || arquivo.filename,
+            attachment_date: att.attachment_date || null,
             instance: att.instance || null,
             cnj: att.cnj || processoNumero,
             extension: att.extension || null,
@@ -209,24 +213,47 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
       const lista = uniqueAttachments.filter((a) => selected.has(uidOf(a)));
       const documentoIds: string[] = [];
       const falhas: { nome: string; motivo: string }[] = [];
-      let idx = 0;
-      for (const att of lista) {
-        idx++;
-        if (att.texto_indexado && att.documento_id) {
+      const jaIndexados = lista.filter((a) => isIndexed(a) && a.documento_id);
+      const pendentes = lista.filter((a) => !(isIndexed(a) && a.documento_id));
+      for (const att of jaIndexados) {
+        if (att.documento_id) {
           documentoIds.push(att.documento_id);
-          continue;
         }
-        setStage(`Indexando anexo ${idx}/${lista.length}…`);
+      }
+
+      const CONCURRENCY = 3;
+      let cursor = 0;
+      let done = 0;
+      const workers: Promise<void>[] = [];
+      const processarPendente = async (att: Attachment) => {
+        setStage(`Indexando ${done + 1}/${pendentes.length} (${CONCURRENCY} em paralelo)…`);
         try {
           const r = await indexarAnexo(att, pid);
-          if (r.documento_id) documentoIds.push(r.documento_id);
+          if (r.documento_id) {
+            documentoIds.push(r.documento_id);
+            setIndexedNow((prev) => new Set(prev).add(uidOf(att)));
+          }
           else falhas.push({ nome: att.attachment_name || att.step_id, motivo: "sem documento_id retornado" });
         } catch (e: any) {
           const motivo = e?.message || String(e);
           console.warn("Falha ao indexar", att.step_id, motivo, e);
           falhas.push({ nome: att.attachment_name || att.step_id, motivo });
+        } finally {
+          done++;
+          setStage(`Indexados ${done}/${pendentes.length}…`);
         }
+      };
+      for (let w = 0; w < Math.min(CONCURRENCY, pendentes.length); w++) {
+        workers.push((async () => {
+          while (true) {
+            const idx = cursor++;
+            if (idx >= pendentes.length) return;
+            await processarPendente(pendentes[idx]);
+          }
+        })());
       }
+      await Promise.all(workers);
+      if (pendentes.length > 0) await onIndexacaoAtualizada?.();
       if (documentoIds.length === 0) {
         const primeiras = falhas.slice(0, 3).map((f) => `• ${f.nome}: ${f.motivo}`).join("\n");
         toast.error("Nenhum anexo pôde ser indexado.", {
@@ -243,11 +270,12 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
       }
 
       setStage("Analisando com IA…");
+      const documentoIdsUnicos = Array.from(new Set(documentoIds));
       const { data, error } = await supabase.functions.invoke("analisar-tst-prompt-ia", {
         body: {
           prompt_id: promptId,
           processo_id: pid,
-          documento_ids: documentoIds,
+          documento_ids: documentoIdsUnicos,
         },
       });
       if (error || (data as any)?.error) {
@@ -354,7 +382,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIa
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate flex items-center gap-2">
                       {att.attachment_name || `documento_${att.step_id}`}
-                      {att.texto_indexado && (
+                      {isIndexed(att) && (
                         <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
                           <CheckCircle2 className="w-3 h-3" /> indexado
                         </span>
