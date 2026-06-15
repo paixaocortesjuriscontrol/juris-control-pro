@@ -522,7 +522,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           const cur = base[k];
           const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
           if (curEmpty) {
-            const vNorm = normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
+            const vNorm = normalizeDateInputValue(normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || "")));
             if (vNorm === null || vNorm === undefined) continue;
             base[k] = vNorm; filled.add(k);
           }
@@ -546,7 +546,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         for (const [k, v] of Object.entries(iaSugestao)) {
           if (v === null || v === undefined) continue;
           if (ALWAYS_JUDIT.has(k)) continue;
-          const vNorm = normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
+          const vNorm = normalizeDateInputValue(normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || "")));
           if (vNorm === null || vNorm === undefined) continue;
           base[k] = vNorm; filled.add(k);
         }
