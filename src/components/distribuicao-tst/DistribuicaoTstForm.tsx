@@ -646,8 +646,19 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     if (!iaResumo) return;
     setForm((prev) => {
       const atual = (prev.observacao_advogado || "").trim();
-      if (atual.includes(iaResumo.trim())) return prev;
-      const novo = atual ? `${atual}\n\n${iaResumo}` : iaResumo;
+      const novoBloco = iaResumo.trim();
+      if (atual.includes(novoBloco)) {
+        lastIaResumoRef.current = iaResumo;
+        return prev;
+      }
+      const anterior = lastIaResumoRef.current?.trim();
+      let novo: string;
+      if (anterior && atual.includes(anterior)) {
+        novo = atual.replace(anterior, novoBloco).trim();
+      } else {
+        novo = atual ? `${atual}\n\n${iaResumo}` : iaResumo;
+      }
+      lastIaResumoRef.current = iaResumo;
       return { ...prev, observacao_advogado: novo };
     });
     setIaFields((prev) => new Set([...Array.from(prev), "observacao_advogado"]));
