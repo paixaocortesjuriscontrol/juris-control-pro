@@ -520,14 +520,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       for (const [k, v] of Object.entries(iaSugestao)) {
         if (v === null || v === undefined) continue;
         if (isJuditField(k)) continue;
-        const cur = (prev as any)[k];
-        const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
-        if (curEmpty) {
-          const vNorm = normalizeIaValueForField(k, v, String(prev.reclamante || ""), String(prev.reclamada || ""));
-          if (vNorm === null || vNorm === undefined) continue;
-          next[k] = vNorm;
-          filled.add(k);
-        }
+        const vNorm = normalizeIaValueForField(k, v, String(prev.reclamante || ""), String(prev.reclamada || ""));
+        if (vNorm === null || vNorm === undefined) continue;
+        next[k] = vNorm;
+        filled.add(k);
       }
       setIaFields(filled);
       return next;
@@ -543,9 +539,6 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     for (const k of BENNER_EXTRA_FIELDS) {
       const v = (iaSugestao as any)?.[k];
       if (v === null || v === undefined) continue;
-      const cur = bennerExtraRef.current[k];
-      const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
-      if (!curEmpty) continue;
       updates[k] = normalizeIaValueForField(k, v, String(form.reclamante || ""), String(form.reclamada || ""));
     }
     const keys = Object.keys(updates);
@@ -593,13 +586,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             const dv = (dado as any)?.[k];
             if (dv !== null && dv !== undefined && String(dv).trim() !== "") continue;
           }
-          const cur = base[k];
-          const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
-          if (curEmpty) {
-            const vNorm = normalizeIaValueForField(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
-            if (vNorm === null || vNorm === undefined) continue;
-            base[k] = vNorm; filled.add(k);
-          }
+          const vNorm = normalizeIaValueForField(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
+          if (vNorm === null || vNorm === undefined) continue;
+          base[k] = vNorm; filled.add(k);
         }
         if (filled.size > 0) setIaFields((prev) => new Set([...Array.from(prev), ...Array.from(filled)]));
       }
