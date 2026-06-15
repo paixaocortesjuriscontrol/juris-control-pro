@@ -1436,8 +1436,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <SectionHeader title="Análise" color="bg-[#1D69C8]" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Honra</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("honra", form.honra))}>
+              <Label className="flex items-center">Honra <IaBadge field="honra" value={form.honra} /></Label>
               <Select value={form.honra || "__none__"} onValueChange={v => set("honra", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1447,12 +1447,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Tema IRR</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("tema", form.tema))}>
+              <Label className="flex items-center">Tema IRR <IaBadge field="tema" value={form.tema} /></Label>
               <Input value={form.tema || ""} onChange={e => set("tema", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Execução</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("execucao", form.execucao))}>
+              <Label className="flex items-center">Execução <IaBadge field="execucao" value={form.execucao} /></Label>
               <Select value={form.execucao || "__none__"} onValueChange={v => set("execucao", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1464,8 +1464,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Mídia Negativa</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("midia_negativa", form.midia_negativa))}>
+              <Label className="flex items-center">Mídia Negativa <IaBadge field="midia_negativa" value={form.midia_negativa} /></Label>
               <Select value={form.midia_negativa || "__none__"} onValueChange={v => set("midia_negativa", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1475,8 +1475,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Recurso de Terceiros</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("recurso_terceiros", form.recurso_terceiros))}>
+              <Label className="flex items-center">Recurso de Terceiros <IaBadge field="recurso_terceiros" value={form.recurso_terceiros} /></Label>
               <Select value={form.recurso_terceiros || "__none__"} onValueChange={v => set("recurso_terceiros", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1487,8 +1487,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Decisão - Análise do Quarteirizado</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("decisao_quarteirizado", form.decisao_quarteirizado))}>
+            <Label className="flex items-center">Decisão - Análise do Quarteirizado <IaBadge field="decisao_quarteirizado" value={form.decisao_quarteirizado} /></Label>
             {(() => {
               const OPCOES_QUARTEIRIZADO = [
                 "Acordo",
