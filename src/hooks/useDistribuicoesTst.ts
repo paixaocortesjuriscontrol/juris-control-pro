@@ -205,6 +205,7 @@ export function bennerToDistribuicao(b: any): DistribuicaoTst {
     subida_em_massa: !!b.subida_em_massa,
     situacao_envio_carga_id: b.situacao_envio_carga_id ?? null,
     processo_outro_escritorio: !!b.processo_outro_escritorio,
+    tribunal: b.tribunal ?? null,
     problema_judit: !!b.problema_judit,
     segredo_justica: !!b.segredo_justica,
     recurso_terceiro: !!b.recurso_terceiro,
