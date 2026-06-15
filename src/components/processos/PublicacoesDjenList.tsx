@@ -121,14 +121,38 @@ export function PublicacoesDjenList({
     setMarkingAsRead(true);
     try {
       const ids = Array.from(selectedIds);
-      const { error } = await supabase
+
+      // 1) Flag global (retrocompat)
+      await supabase
         .from("publicacoes_djen_processos")
         .update({ lida: true })
         .in("id", ids);
 
-      if (error) throw error;
+      // 2) Per-user em publicacoes_djen_leituras (fonte da verdade da UI)
+      if (user?.id) {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("nome")
+          .eq("id", user.id)
+          .maybeSingle();
+        const userName = profileData?.nome || user.email || "Desconhecido";
+        const rows = ids.map((id) => ({
+          publicacao_id: id,
+          tabela_origem: "processo",
+          usuario_id: user.id,
+          usuario_nome: userName,
+        }));
+        const { error: errLeit } = await (supabase as any)
+          .from("publicacoes_djen_leituras")
+          .upsert(rows, { onConflict: "publicacao_id,tabela_origem,usuario_id" });
+        if (errLeit) throw errLeit;
+      }
 
-      queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo", processoId] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo", processoId] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas-stats-header"] }),
+      ]);
       setSelectedIds(new Set());
       toast.success("Publicação(ões) marcada(s) como lida(s)");
     } catch (error: any) {
