@@ -220,6 +220,10 @@ interface Props {
   bennerDado?: any | null;
   /** Persiste o patch de campos exclusivos do Benner ap\u00f3s o save principal. */
   onSaveBennerExtra?: (patch: Record<string, any>, id?: string) => Promise<any>;
+  /** Reporta a quantidade real de sugestões da IA que foram pintadas em azul
+   *  no formulário (após filtragem por Judit, normalização etc.). Usado pelo
+   *  pai para ajustar o resumo "N campo(s) Distribuição + M campo(s) Benner.". */
+  onIaApplied?: (counts: { distribuicao: number; benner: number }) => void;
 }
 
 export interface DistribuicaoTstFormHandle {
