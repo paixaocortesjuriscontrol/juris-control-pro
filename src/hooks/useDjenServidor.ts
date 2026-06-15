@@ -109,10 +109,10 @@ export function useConfiguracoesServidor() {
   });
 
   const updateConfig = useMutation({
-    mutationFn: async ({ id, patch }: { id: string; patch: Partial<Pick<ConfigServidor, "ativo" | "frequencia" | "horarios_execucao" | "metadata">> }) => {
+    mutationFn: async ({ id, patch }: { id: string; patch: { ativo?: boolean; frequencia?: string; horarios_execucao?: string[]; metadata?: unknown } }) => {
       const { error } = await supabase
         .from("configuracoes_monitoramento_servidor")
-        .update(patch)
+        .update(patch as never)
         .eq("id", id);
       if (error) throw error;
     },
