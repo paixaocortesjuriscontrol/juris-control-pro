@@ -158,7 +158,11 @@ export function DjenServidorParalelaCard() {
   const isRunning = execStatus === "pendente" || execStatus === "executando";
   const statusConfig = STATUS_CONFIG[execStatus] || STATUS_CONFIG.idle;
   const progress = exec?.progresso;
-  const tracks = (progress?.itens || []) as ProgressoItem[];
+  const tracks = ((progress?.itens || []) as ProgressoItem[]).map((track) =>
+    execStatus === "cancelado" && (track.status === "executando" || track.status === "pendente")
+      ? { ...track, status: "cancelado" as const, mensagem: "Cancelado pelo usuário" }
+      : track
+  );
   const total = progress?.totalItens ?? tracks.length;
   const done = progress?.concluidos ?? tracks.filter((t) => ["concluido", "erro", "cancelado"].includes(t.status)).length;
   const falhas = progress?.falhas ?? tracks.filter((t) => t.status === "erro").length;
