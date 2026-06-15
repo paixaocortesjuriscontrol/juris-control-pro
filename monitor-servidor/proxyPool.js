@@ -107,7 +107,9 @@ function combineSignal(signal, timeoutMs) {
 async function djenFetchSlot(slot, queryParams, signal) {
   // Detecta dialeto via /health (cacheado por slot.id) — mesma estratégia do
   // browser. Em caso de 404/502, faz auto-swap e re-tenta no outro dialeto.
-  const headers = { "x-proxy-token": slot.token, "X-Proxy-Token": slot.token };
+  // Envie apenas um header: em Node/undici, chaves que diferem só por casing
+  // podem chegar no proxy como "token, token", falhando a comparação exata.
+  const headers = { "x-proxy-token": slot.token };
   const doFetch = async (dialect) => {
     const url = buildSlotUrl(slot, dialect, queryParams);
     const res = await fetch(url, {
