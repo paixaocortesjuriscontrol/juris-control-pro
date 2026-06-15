@@ -17,7 +17,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { formatMonitoramentoLabel } from "@/utils/monitoramentoLabel";
-import { MonitoramentoTermosParalelaCard } from "@/components/configuracoes/MonitoramentoTermosParalelaCard";
 import {
   useConfiguracoesServidor,
   useExecucoesServidor,
@@ -32,7 +31,7 @@ import {
 } from "@/hooks/useDjenServidor";
 
 const LABELS: Record<string, string> = {
-  djen_paralela_servidor: "DJEN Termos Paralela",
+  djen_paralela_servidor: "DJEN Servidor",
   kurier_servidor: "DJEN Kurier",
   djet_pautas_servidor: "DJET Pautas DEJT",
 };
@@ -51,6 +50,9 @@ const ITEM_STATUS: Record<string, string> = {
   concluido: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
   erro: "bg-destructive/15 text-destructive border-destructive/30",
 };
+
+type CoordenacaoOption = { id: string; nome: string };
+type MonitoramentoOption = { id: string; termo_busca?: string | null; descricao?: string | null; tipo?: string | null; oab?: string | null; uf?: string | null };
 
 function fmtDate(s: string | null | undefined): string {
   if (!s) return "—";
@@ -77,9 +79,10 @@ function ymd(d?: Date) { return d ? format(d, "yyyy-MM-dd") : undefined; }
  * Card por engine — agora com filtros (coordenação + termo), datas (início/fim)
  * e barra de progresso ao vivo por monitoramento × dia.
  */
-function EngineCard({ cfg, onToggle }: {
+function EngineCard({ cfg, onToggle, onConfig }: {
   cfg: ConfigServidor;
   onToggle: (id: string, ativo: boolean) => void;
+  onConfig: (id: string, patch: { ativo?: boolean; frequencia?: string; horarios_execucao?: string[]; metadata?: unknown }) => void;
 }) {
   const enfileirar = useEnfileirarManual();
   const live = useExecucaoServidorAoVivo(cfg.tipo);
@@ -89,6 +92,32 @@ function EngineCard({ cfg, onToggle }: {
   const [dataFim, setDataFim] = useState<Date | undefined>(today);
 
   const isParalela = cfg.tipo === "djen_paralela_servidor";
+  const horariosKey = JSON.stringify(cfg.horarios_execucao || []);
+  const [horariosTexto, setHorariosTexto] = useState((cfg.horarios_execucao || []).join(", "));
+  const { data: horariosDjenNormal = [] } = useQuery({
+    queryKey: ["djen-normal-paralela-horarios"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("configuracoes_monitoramento")
+        .select("tipo, horarios_execucao")
+        .in("tipo", ["djen", "djen_paralela"]);
+      if (error) throw error;
+      return Array.from(new Set((data || []).flatMap((row) => row.horarios_execucao || []))) as string[];
+    },
+  });
+  useEffect(() => {
+    setHorariosTexto((JSON.parse(horariosKey) as string[]).join(", "));
+  }, [cfg.id, horariosKey]);
+
+  const horariosServidor = horariosTexto.split(",").map((h) => h.trim()).filter(Boolean);
+  const conflitoHorarioNormal = isParalela && horariosServidor.some((h) => horariosDjenNormal.includes(h));
+
+  const handleHorariosBlur = () => {
+    if (conflitoHorarioNormal) return;
+    const atual = JSON.stringify(cfg.horarios_execucao || []);
+    const proximo = JSON.stringify(horariosServidor);
+    if (atual !== proximo) onConfig(cfg.id, { horarios_execucao: horariosServidor });
+  };
 
   // Filtros (só Paralela suporta hoje, mas UI presente para consistência)
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
@@ -104,7 +133,7 @@ function EngineCard({ cfg, onToggle }: {
         .eq("coordenacao_id", coordenacaoId)
         .eq("ativo", true);
       if (error) throw error;
-      return (data || []).sort((a: any, b: any) =>
+      return ((data || []) as MonitoramentoOption[]).sort((a, b) =>
         formatMonitoramentoLabel(a).localeCompare(formatMonitoramentoLabel(b), "pt-BR")
       );
     },
@@ -157,12 +186,42 @@ function EngineCard({ cfg, onToggle }: {
           </div>
         </div>
         <CardDescription className="text-xs">
-          {cfg.frequencia} · {(cfg.horarios_execucao || []).join(", ") || "—"}
+          {cfg.frequencia} · Servidor: {(cfg.horarios_execucao || []).join(", ") || "sem horário fixo"}
           {cfg.ultima_execucao && <> · Última: {fmtDate(cfg.ultima_execucao)}</>}
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-3">
+        <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Clock className="h-4 w-4 text-primary" /> Agendamento do servidor
+            </div>
+            {cfg.ativo ? <Badge variant="default">Ativo</Badge> : <Badge variant="secondary">Inativo</Badge>}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Horários BRT do servidor</label>
+              <Input
+                value={horariosTexto}
+                onChange={(e) => setHorariosTexto(e.target.value)}
+                onBlur={handleHorariosBlur}
+                placeholder={cfg.frequencia === "diario" ? "07:30, 13:30" : "opcional"}
+                disabled={ativaAgora}
+                className={conflitoHorarioNormal ? "border-destructive focus-visible:ring-destructive" : undefined}
+              />
+            </div>
+            <Button size="sm" variant="outline" onClick={handleHorariosBlur} disabled={ativaAgora || conflitoHorarioNormal}>
+              Salvar horário
+            </Button>
+          </div>
+          {isParalela && horariosDjenNormal.length > 0 && (
+            <p className={cn("text-xs", conflitoHorarioNormal ? "text-destructive" : "text-muted-foreground")}>
+              DJEN normal: {horariosDjenNormal.join(", ")} {conflitoHorarioNormal && "· escolha outro horário para o servidor"}
+            </p>
+          )}
+        </div>
+
         {/* Filtros Paralela */}
         {isParalela && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -175,7 +234,7 @@ function EngineCard({ cfg, onToggle }: {
                 disabled={ativaAgora}
               >
                 <option value="">Todas</option>
-                {coordenacoes.map((c: any) => (
+                {(coordenacoes as CoordenacaoOption[]).map((c) => (
                   <option key={c.id} value={c.id}>{c.nome}</option>
                 ))}
               </select>
@@ -190,7 +249,7 @@ function EngineCard({ cfg, onToggle }: {
                   disabled={ativaAgora}
                 >
                   <option value="">Todos</option>
-                  {(monitoramentos as any[]).map((m) => (
+                  {(monitoramentos as MonitoramentoOption[]).map((m) => (
                     <option key={m.id} value={m.id}>{formatMonitoramentoLabel(m)}</option>
                   ))}
                 </select>
@@ -236,7 +295,7 @@ function EngineCard({ cfg, onToggle }: {
           variant="secondary"
           className="w-full"
           onClick={handleRun}
-          disabled={ativaAgora || enfileirar.isPending}
+          disabled={ativaAgora || enfileirar.isPending || conflitoHorarioNormal}
         >
           {(ativaAgora || enfileirar.isPending) ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PlayCircle className="h-4 w-4 mr-2" />}
           {ativaAgora ? "Executando..." : "Executar agora"}
@@ -285,28 +344,21 @@ function EngineCard({ cfg, onToggle }: {
 }
 
 function VisaoGeral() {
-  const { data: cfgs = [], toggle } = useConfiguracoesServidor();
+  const { data: cfgs = [], toggle, updateConfig } = useConfiguracoesServidor();
   const { data: workers = [] } = useWorkersServidor();
   const tick = useTickAge();
 
   return (
     <div className="space-y-4">
-      {/* Card completo idêntico ao DJEN Termos Paralela normal (com Coordenação,
-          datas, Executar/Forçar Parada/Limpar/Reset, Progresso global, Roteamento
-          da sessão e lista de Tribunais em tempo real). */}
-      <MonitoramentoTermosParalelaCard />
-
-      {/* Demais engines do servidor (Kurier, Pautas) mantidos compactos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {cfgs
-          .filter((c) => c.tipo !== "djen_paralela_servidor")
-          .map((cfg) => (
-            <EngineCard
-              key={cfg.id}
-              cfg={cfg}
-              onToggle={(id, ativo) => toggle.mutate({ id, ativo })}
-            />
-          ))}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        {cfgs.map((cfg) => (
+          <EngineCard
+            key={cfg.id}
+            cfg={cfg}
+            onToggle={(id, ativo) => toggle.mutate({ id, ativo })}
+            onConfig={(id, patch) => updateConfig.mutate({ id, patch })}
+          />
+        ))}
       </div>
 
       <Card>

@@ -64,6 +64,7 @@ export interface WorkerServidor {
 export interface PublicacaoServidor {
   id: string;
   monitoramento_id: string;
+  coordenacao_id?: string | null;
   processo_numero: string | null;
   tribunal: string | null;
   data_publicacao: string | null;
@@ -72,8 +73,10 @@ export interface PublicacaoServidor {
   origem: string;
   created_at: string;
   hash_conteudo: string;
+  id_djen?: string | null;
   dedup_processo_digits: string | null;
   dedup_data_ref: string | null;
+  dedup_conteudo_key?: string | null;
 }
 
 export function useConfiguracoesServidor() {
@@ -105,7 +108,22 @@ export function useConfiguracoesServidor() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  return { ...query, toggle };
+  const updateConfig = useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: { ativo?: boolean; frequencia?: string; horarios_execucao?: string[]; metadata?: unknown } }) => {
+      const { error } = await supabase
+        .from("configuracoes_monitoramento_servidor")
+        .update(patch as never)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["djen-servidor", "configs"] });
+      toast.success("Configuração atualizada");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return { ...query, toggle, updateConfig };
 }
 
 export function useExecucoesServidor(limit = 50) {
@@ -269,13 +287,13 @@ export function useComparadorPublicacoes(opts: { dataInicio: string; dataFim: st
       const [serv, brow] = await Promise.all([
         supabase
           .from("publicacoes_djen_servidor")
-          .select("processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, tribunal")
+          .select("processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, tribunal")
           .gte("dedup_data_ref", opts.dataInicio)
           .lte("dedup_data_ref", opts.dataFim)
           .limit(5000),
         supabase
           .from("publicacoes_djen")
-          .select("processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, tribunal")
+          .select("processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, tribunal")
           .gte("dedup_data_ref", opts.dataInicio)
           .lte("dedup_data_ref", opts.dataFim)
           .limit(5000),
@@ -283,8 +301,16 @@ export function useComparadorPublicacoes(opts: { dataInicio: string; dataFim: st
       if (serv.error) throw serv.error;
       if (brow.error) throw brow.error;
 
-      const key = (r: { dedup_processo_digits?: string | null; dedup_data_ref?: string | null; hash_conteudo: string }) =>
-        `${r.dedup_processo_digits || ""}|${r.dedup_data_ref || ""}|${r.hash_conteudo}`;
+      const key = (r: {
+        coordenacao_id?: string | null;
+        id_djen?: string | null;
+        dedup_conteudo_key?: string | null;
+        dedup_processo_digits?: string | null;
+        dedup_data_ref?: string | null;
+        hash_conteudo: string;
+      }) => r.id_djen
+        ? `${r.coordenacao_id || "sem_coord"}|id_djen|${r.id_djen}`
+        : (r.dedup_conteudo_key || `${r.coordenacao_id || "sem_coord"}|legacy|${r.dedup_processo_digits || ""}|${r.dedup_data_ref || ""}|${r.hash_conteudo}`);
 
       const sSet = new Map(serv.data!.map((r) => [key(r), r]));
       const bSet = new Map(brow.data!.map((r) => [key(r), r]));

@@ -128,6 +128,8 @@ async function run({ sb, payload, log, job }) {
       const { status, body } = await invokeDjen({
         dataInicio,
         dataFim,
+        execucaoServidorId: job?.id || null,
+        coordenacaoId,
         monitoramentoIds: [item.id],
       });
       if (status < 200 || status >= 300) {
