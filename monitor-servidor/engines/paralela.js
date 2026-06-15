@@ -157,7 +157,7 @@ async function run({ sb, payload, log, job }) {
   };
   await flushProgresso(true);
 
-  // 3) Loop sequencial: 1 chamada à edge function por monitoramento
+  // 3) Loop sequencial: 1 chamada à edge function por tribunal/tipo
   let totalNovas = 0;
   let totalDescartadas = 0;
   let totalDuplicatas = 0;
@@ -184,6 +184,7 @@ async function run({ sb, payload, log, job }) {
       break;
     }
     item.status = "executando";
+    item.mensagem = `Processando ${item.tribunal} via VPS...`;
     await flushProgresso();
     try {
       const { status, body } = await invokeDjen({
@@ -191,7 +192,8 @@ async function run({ sb, payload, log, job }) {
         dataFim,
         execucaoServidorId: job?.id || null,
         coordenacaoId,
-        monitoramentoIds: [item.id],
+        monitoramentoIds: item.monitoramentoIds,
+        tribunais: [item.tribunal],
       });
       if (status < 200 || status >= 300) {
         throw new Error(`status ${status}: ${JSON.stringify(body).slice(0, 300)}`);
@@ -199,6 +201,8 @@ async function run({ sb, payload, log, job }) {
       item.novas = body?.novas ?? 0;
       item.descartadas = body?.descartadas ?? 0;
       item.duplicatas = body?.duplicatas ?? 0;
+      item.current = item.total;
+      item.mensagem = `Concluído: ${item.novas} novas, ${item.duplicatas} duplicadas, ${item.descartadas} descartadas`;
       item.status = "concluido";
       totalNovas += item.novas;
       totalDescartadas += item.descartadas;
@@ -206,6 +210,8 @@ async function run({ sb, payload, log, job }) {
     } catch (e) {
       item.status = "erro";
       item.erro = String(e && e.message ? e.message : e).slice(0, 500);
+      item.current = item.total;
+      item.mensagem = "Erro na execução";
       totalErros += 1;
       log("paralela.item_error", { id: item.id, e: item.erro });
     }
