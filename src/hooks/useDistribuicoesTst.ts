@@ -368,7 +368,7 @@ export async function fetchAllDistribuicaoTstIds(
     else if (filters.emAnalise === "analisado") query = query.eq("analisado", true);
     if (filters.problemaJudit === "sim") query = query.eq("problema_judit", true);
     else if (filters.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
-    if (filters.duplicado === "sim") query = query.eq("ic_duplicado", true);
+    if (filters.duplicado === "sim" && processosDup) query = query.in("processo", processosDup);
     else if (filters.duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
     if (filters.fonteImportacao && filters.fonteImportacao !== "todas") {
       query = query.contains("fontes_importacao", [filters.fonteImportacao]);
