@@ -208,7 +208,18 @@ async function run({ sb, payload, log, job }) {
           tribunais: [item.tribunal],
         });
         if (status < 200 || status >= 300) {
-          throw new Error(`status ${status}: ${JSON.stringify(body).slice(0, 300)}`);
+          // 504 IDLE_TIMEOUT da edge function: a invocação travou no servidor
+          // do Supabase. Não derruba o item inteiro — registra e segue para o
+          // próximo monitoramento/tribunal.
+          const msg = `status ${status}: ${JSON.stringify(body).slice(0, 200)}`;
+          if (status === 504 || status === 408 || status === 524) {
+            log("paralela.item_timeout", { id: item.id, monitoramentoId, status });
+            item.current += 1;
+            item.mensagem = `${item.tribunal}: ${item.current}/${item.total} (timeout, pulado)`;
+            await flushProgresso();
+            continue;
+          }
+          throw new Error(msg);
         }
         item.novas += body?.novas ?? 0;
         item.descartadas += body?.descartadas ?? 0;
