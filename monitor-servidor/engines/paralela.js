@@ -68,6 +68,28 @@ function ymdToday() {
   }).format(new Date());
 }
 
+// Expande [dataInicio..dataFim] em uma lista de dias YYYY-MM-DD (inclusive).
+// Espelha o loop por dia do motor "DJEN Termos Paralela" do navegador, onde
+// cada chamada cobre 1 dia — assim a edge function nunca chega perto dos 150s.
+function expandirDias(dataInicio, dataFim) {
+  const out = [];
+  if (!dataInicio) return out;
+  const start = new Date(`${dataInicio}T12:00:00Z`);
+  const end = new Date(`${dataFim || dataInicio}T12:00:00Z`);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) {
+    return [dataInicio];
+  }
+  const cur = new Date(start);
+  while (cur <= end) {
+    const y = cur.getUTCFullYear();
+    const m = String(cur.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(cur.getUTCDate()).padStart(2, "0");
+    out.push(`${y}-${m}-${d}`);
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
+}
+
 async function run({ sb, payload, log, job }) {
   if (!SUPABASE_URL || !SERVICE_KEY) {
     throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes no .env do VPS");
@@ -81,7 +103,14 @@ async function run({ sb, payload, log, job }) {
       ? payload.monitoramentoIds
       : null;
 
-  log("paralela.start", { dataInicio, dataFim, coordenacaoId, monitoramentoIdsFiltro });
+  const dias = expandirDias(dataInicio, dataFim);
+  log("paralela.start", {
+    dataInicio,
+    dataFim,
+    dias: dias.length,
+    coordenacaoId,
+    monitoramentoIdsFiltro,
+  });
 
   // 1) Lista monitoramentos ativos respeitando filtros
   let q = sb
@@ -121,7 +150,8 @@ async function run({ sb, payload, log, job }) {
       monitoramentoIds: g.monitoramentos.map((m) => m.id),
       status: "pendente",
       current: 0,
-      total: g.monitoramentos.length,
+      // Igual ao motor do navegador: total = termos × dias para esse tribunal.
+      total: g.monitoramentos.length * Math.max(1, dias.length),
       mensagem: "Aguardando slot...",
       novas: 0,
       descartadas: 0,
@@ -193,40 +223,42 @@ async function run({ sb, payload, log, job }) {
     item.mensagem = `Processando ${item.tribunal} via VPS...`;
     await flushProgresso();
     try {
-      for (const monitoramentoId of item.monitoramentoIds) {
-        if (cancelledFlag || (await isCancelled())) {
-          cancelledFlag = true;
-          break;
-        }
-        const { status, body } = await invokeDjen({
-          dataInicio,
-          dataFim,
-          execucaoServidorId: job?.id || null,
-          skipServidorProgress: true,
-          coordenacaoId,
-          monitoramentoIds: [monitoramentoId],
-          tribunais: [item.tribunal],
-        });
-        if (status < 200 || status >= 300) {
-          // 504 IDLE_TIMEOUT da edge function: a invocação travou no servidor
-          // do Supabase. Não derruba o item inteiro — registra e segue para o
-          // próximo monitoramento/tribunal.
-          const msg = `status ${status}: ${JSON.stringify(body).slice(0, 200)}`;
-          if (status === 504 || status === 408 || status === 524) {
-            log("paralela.item_timeout", { id: item.id, monitoramentoId, status });
-            item.current += 1;
-            item.mensagem = `${item.tribunal}: ${item.current}/${item.total} (timeout, pulado)`;
-            await flushProgresso();
-            continue;
+      // Espelha exatamente o motor "DJEN Termos Paralela" do navegador:
+      // para cada tribunal, itera (dia × monitoramento). Cada chamada à
+      // edge function cobre 1 dia, evitando IDLE_TIMEOUT 504.
+      outer: for (const monitoramentoId of item.monitoramentoIds) {
+        for (const dia of (dias.length ? dias : [dataInicio])) {
+          if (cancelledFlag || (await isCancelled())) {
+            cancelledFlag = true;
+            break outer;
           }
-          throw new Error(msg);
+          const { status, body } = await invokeDjen({
+            dataInicio: dia,
+            dataFim: dia,
+            execucaoServidorId: job?.id || null,
+            skipServidorProgress: true,
+            coordenacaoId,
+            monitoramentoIds: [monitoramentoId],
+            tribunais: [item.tribunal],
+          });
+          if (status < 200 || status >= 300) {
+            const msg = `status ${status}: ${JSON.stringify(body).slice(0, 200)}`;
+            if (status === 504 || status === 408 || status === 524) {
+              log("paralela.item_timeout", { id: item.id, monitoramentoId, dia, status });
+              item.current += 1;
+              item.mensagem = `${item.tribunal} ${dia}: ${item.current}/${item.total} (timeout, pulado)`;
+              await flushProgresso();
+              continue;
+            }
+            throw new Error(msg);
+          }
+          item.novas += body?.novas ?? 0;
+          item.descartadas += body?.descartadas ?? 0;
+          item.duplicatas += body?.duplicatas ?? 0;
+          item.current += 1;
+          item.mensagem = `${item.tribunal} ${dia}: ${item.current}/${item.total}`;
+          await flushProgresso();
         }
-        item.novas += body?.novas ?? 0;
-        item.descartadas += body?.descartadas ?? 0;
-        item.duplicatas += body?.duplicatas ?? 0;
-        item.current += 1;
-        item.mensagem = `${item.tribunal}: ${item.current}/${item.total} termos`;
-        await flushProgresso();
       }
       if (cancelledFlag) return;
       item.current = item.total;
