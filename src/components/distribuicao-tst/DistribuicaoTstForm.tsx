@@ -303,6 +303,61 @@ const normalizeDateInputValue = (value: any): any => {
   return value;
 };
 
+const normalizeYesNoToSimNao = (value: any): any => {
+  if (value === null || value === undefined || value === "") return value;
+  const s = String(value).trim().toUpperCase();
+  if (["S", "SIM", "YES", "TRUE"].includes(s)) return "SIM";
+  if (["N", "NAO", "NÃO", "NO", "FALSE"].includes(s)) return "NÃO";
+  return value;
+};
+
+const normalizeYesNoToSN = (value: any): any => {
+  if (value === null || value === undefined || value === "") return value;
+  const s = String(value).trim().toUpperCase();
+  if (["S", "SIM", "YES", "TRUE"].includes(s)) return "S";
+  if (["N", "NAO", "NÃO", "NO", "FALSE"].includes(s)) return "N";
+  return value;
+};
+
+const normalizeBooleanLike = (value: any): any => {
+  if (typeof value === "boolean") return value;
+  if (value === null || value === undefined || value === "") return value;
+  const s = String(value).trim().toUpperCase();
+  if (["S", "SIM", "YES", "TRUE", "TRANSITADO"].includes(s)) return true;
+  if (["N", "NAO", "NÃO", "NO", "FALSE", "ATIVO", "EM CURSO"].includes(s)) return false;
+  return value;
+};
+
+const normalizeIaValueForField = (field: string, value: any, reclamante: string, reclamada: string): any => {
+  const normalized = normalizarValorPorCampo(field, value, reclamante, reclamada);
+  if (["honra", "execucao", "midia_negativa", "recurso_terceiros"].includes(field)) {
+    return normalizeYesNoToSimNao(normalized);
+  }
+  if ([
+    "risco_midia",
+    "provas_digitais",
+    "materia_honra",
+    "tem_data_julgamento",
+    "entrega_memoriais",
+    "sustentacao_oral",
+    "processo_baixado",
+  ].includes(field)) {
+    return normalizeYesNoToSN(normalized);
+  }
+  if (field === "transito_julgado") return normalizeBooleanLike(normalized);
+  if ([
+    "resultado_sem_transcendencia",
+    "resultado_nao_conhecido",
+    "resultado_conhecido_provido",
+    "resultado_conhecido_nao_provido",
+    "ganhamos",
+    "perdemos",
+  ].includes(field)) {
+    return normalizeBooleanLike(normalized);
+  }
+  return normalizeDateInputValue(normalized);
+};
+
 export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(function DistribuicaoTstForm(
   { dado, onSave, onCancel, onJuditSync, onAnexosFound, iaSugestao, iaResumo, bennerDado, onSaveBennerExtra }: Props,
   ref
@@ -346,6 +401,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     "ganhamos",
     "perdemos",
     "processo_baixado",
+    "situacao_processo",
+    "data_transito_julgado",
     "chance_exito",
   ] as const;
   const buildBennerExtra = (src: any | null | undefined): Record<string, any> => {
@@ -415,7 +472,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     ) : null;
 
   const isIaFilled = (field: string, value: any) =>
-    iaFields.has(field) && !!(value !== null && value !== undefined && String(value).trim() !== "");
+    iaFields.has(field) && value !== null && value !== undefined && (typeof value === "boolean" || String(value).trim() !== "");
   const iaClass = (field: string, value: any) =>
     isIaFilled(field, value)
       ? "ring-2 ring-sky-500 bg-sky-50 dark:bg-sky-950/30 rounded-md transition-all"
@@ -440,7 +497,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       if (/ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N") {
         next.transito_julgado = false;
         next.data_transito_julgado = null;
-        filled.delete("transito_julgado");
+        filled.add("transito_julgado");
       }
       // Campos estruturais da Judit só são preservados quando já há valor real.
       // Se estiverem vazios, a IA pode sugerir preenchimento visual no formulário.
@@ -463,14 +520,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       for (const [k, v] of Object.entries(iaSugestao)) {
         if (v === null || v === undefined) continue;
         if (isJuditField(k)) continue;
-        const cur = (prev as any)[k];
-        const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
-        if (curEmpty) {
-          const vNorm = normalizeDateInputValue(normalizarValorPorCampo(k, v, String(prev.reclamante || ""), String(prev.reclamada || "")));
-          if (vNorm === null || vNorm === undefined) continue;
-          next[k] = vNorm;
-          filled.add(k);
-        }
+        const vNorm = normalizeIaValueForField(k, v, String(prev.reclamante || ""), String(prev.reclamada || ""));
+        if (vNorm === null || vNorm === undefined) continue;
+        next[k] = vNorm;
+        filled.add(k);
       }
       setIaFields(filled);
       return next;
@@ -486,10 +539,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     for (const k of BENNER_EXTRA_FIELDS) {
       const v = (iaSugestao as any)?.[k];
       if (v === null || v === undefined) continue;
-      const cur = bennerExtraRef.current[k];
-      const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
-      if (!curEmpty) continue;
-      updates[k] = normalizeDateInputValue(v);
+      updates[k] = normalizeIaValueForField(k, v, String(form.reclamante || ""), String(form.reclamada || ""));
     }
     const keys = Object.keys(updates);
     if (keys.length === 0) return;
@@ -517,14 +567,15 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       // Reaplica sugestões da IA (somente em campos vazios e não-Judit) para
       // que a montagem da aba não apague as sugestões pendentes.
       if (iaSugestao && Object.keys(iaSugestao).length > 0) {
+        const filled = new Set<string>();
         const iaSituacao = String((iaSugestao as any)?.situacao_processo || "");
         const iaBaixado = String((iaSugestao as any)?.processo_baixado || "").toUpperCase();
         if (/ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N") {
           base.transito_julgado = false;
           base.data_transito_julgado = null;
+          filled.add("transito_julgado");
         }
         const PREFER_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
-        const filled = new Set<string>();
         for (const [k, v] of Object.entries(iaSugestao)) {
           if (v === null || v === undefined) continue;
           if (PREFER_JUDIT.has(k)) {
@@ -535,13 +586,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             const dv = (dado as any)?.[k];
             if (dv !== null && dv !== undefined && String(dv).trim() !== "") continue;
           }
-          const cur = base[k];
-          const curEmpty = cur === null || cur === undefined || (typeof cur === "string" && cur.trim() === "");
-          if (curEmpty) {
-            const vNorm = normalizeDateInputValue(normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || "")));
-            if (vNorm === null || vNorm === undefined) continue;
-            base[k] = vNorm; filled.add(k);
-          }
+          const vNorm = normalizeIaValueForField(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
+          if (vNorm === null || vNorm === undefined) continue;
+          base[k] = vNorm; filled.add(k);
         }
         if (filled.size > 0) setIaFields((prev) => new Set([...Array.from(prev), ...Array.from(filled)]));
       }
@@ -551,21 +598,22 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       setResponsaveisLoaded(true);
       const base: any = { ...emptyForm };
       if (iaSugestao && Object.keys(iaSugestao).length > 0) {
+        const filled = new Set<string>();
         const iaSituacao = String((iaSugestao as any)?.situacao_processo || "");
         const iaBaixado = String((iaSugestao as any)?.processo_baixado || "").toUpperCase();
         if (/ativ|active|em\s*curso|em\s*tramita|andamento/i.test(iaSituacao) || iaBaixado === "N") {
           base.transito_julgado = false;
           base.data_transito_julgado = null;
+          filled.add("transito_julgado");
         }
         const PREFER_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
-        const filled = new Set<string>();
         for (const [k, v] of Object.entries(iaSugestao)) {
           if (v === null || v === undefined) continue;
           if (PREFER_JUDIT.has(k)) {
             const existing = base[k];
             if (existing !== null && existing !== undefined && String(existing).trim() !== "") continue;
           }
-          const vNorm = normalizeDateInputValue(normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || "")));
+          const vNorm = normalizeIaValueForField(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
           if (vNorm === null || vNorm === undefined) continue;
           base[k] = vNorm; filled.add(k);
         }
@@ -1236,8 +1284,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </div>
               )}
             </div>
-            <div className="space-y-2">
-              <Label>Aparelhamento</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("aparelhamento_reclamante", form.aparelhamento_reclamante))}>
+              <Label className="flex items-center">Aparelhamento <IaBadge field="aparelhamento_reclamante" value={form.aparelhamento_reclamante} /></Label>
               <Select value={form.aparelhamento_reclamante || "__none__"} onValueChange={v => set("aparelhamento_reclamante", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1248,15 +1296,15 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Matérias Recurso Reclamante</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("materias_recurso_reclamante", form.materias_recurso_reclamante))}>
+            <Label className="flex items-center">Matérias Recurso Reclamante <IaBadge field="materias_recurso_reclamante" value={form.materias_recurso_reclamante} /></Label>
             <MateriasMultiSelect
               value={form.materias_recurso_reclamante || null}
               onChange={(v) => set("materias_recurso_reclamante", v)}
             />
           </div>
-          <div className="space-y-2">
-            <Label>Chance de Êxito</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("chance_exito_reclamante", form.chance_exito_reclamante))}>
+            <Label className="flex items-center">Chance de Êxito <IaBadge field="chance_exito_reclamante" value={form.chance_exito_reclamante} /></Label>
             <Select value={form.chance_exito_reclamante || "__none__"} onValueChange={v => set("chance_exito_reclamante", v === "__none__" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
@@ -1294,8 +1342,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </div>
               )}
             </div>
-            <div className="space-y-2">
-              <Label>Aparelhamento</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("aparelhamento_banco", form.aparelhamento_banco))}>
+              <Label className="flex items-center">Aparelhamento <IaBadge field="aparelhamento_banco" value={form.aparelhamento_banco} /></Label>
               <Select value={form.aparelhamento_banco || "__none__"} onValueChange={v => set("aparelhamento_banco", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1306,15 +1354,15 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Matérias Recurso do Banco</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("materias_recurso_banco", form.materias_recurso_banco))}>
+            <Label className="flex items-center">Matérias Recurso do Banco <IaBadge field="materias_recurso_banco" value={form.materias_recurso_banco} /></Label>
             <MateriasMultiSelect
               value={form.materias_recurso_banco || null}
               onChange={(v) => set("materias_recurso_banco", v)}
             />
           </div>
-          <div className="space-y-2">
-            <Label>Chance de Êxito</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("chance_exito_banco", form.chance_exito_banco))}>
+            <Label className="flex items-center">Chance de Êxito <IaBadge field="chance_exito_banco" value={form.chance_exito_banco} /></Label>
             <Select value={form.chance_exito_banco || "__none__"} onValueChange={v => set("chance_exito_banco", v === "__none__" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
@@ -1344,8 +1392,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 onChange={(v) => set("tipo_recurso_terceiro", v)}
               />
             </div>
-            <div className="space-y-2">
-              <Label>Aparelhamento</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("aparelhamento_terceiro", (form as any).aparelhamento_terceiro))}>
+              <Label className="flex items-center">Aparelhamento <IaBadge field="aparelhamento_terceiro" value={(form as any).aparelhamento_terceiro} /></Label>
               <Select
                 value={(form as any).aparelhamento_terceiro || "__none__"}
                 onValueChange={(v) => set("aparelhamento_terceiro", v === "__none__" ? "" : v)}
@@ -1359,15 +1407,15 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Matérias Recurso (Terceiro)</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("materias_recurso_terceiro", (form as any).materias_recurso_terceiro))}>
+            <Label className="flex items-center">Matérias Recurso (Terceiro) <IaBadge field="materias_recurso_terceiro" value={(form as any).materias_recurso_terceiro} /></Label>
             <MateriasMultiSelect
               value={(form as any).materias_recurso_terceiro || null}
               onChange={(v) => set("materias_recurso_terceiro", v)}
             />
           </div>
-          <div className="space-y-2">
-            <Label>Chance de Êxito</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("chance_exito_terceiro", (form as any).chance_exito_terceiro))}>
+            <Label className="flex items-center">Chance de Êxito <IaBadge field="chance_exito_terceiro" value={(form as any).chance_exito_terceiro} /></Label>
             <Select
               value={(form as any).chance_exito_terceiro || "__none__"}
               onValueChange={(v) => set("chance_exito_terceiro", v === "__none__" ? "" : v)}
@@ -1389,8 +1437,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <SectionHeader title="Análise" color="bg-[#1D69C8]" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Honra</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("honra", form.honra))}>
+              <Label className="flex items-center">Honra <IaBadge field="honra" value={form.honra} /></Label>
               <Select value={form.honra || "__none__"} onValueChange={v => set("honra", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1400,12 +1448,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Tema IRR</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("tema", form.tema))}>
+              <Label className="flex items-center">Tema IRR <IaBadge field="tema" value={form.tema} /></Label>
               <Input value={form.tema || ""} onChange={e => set("tema", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Execução</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("execucao", form.execucao))}>
+              <Label className="flex items-center">Execução <IaBadge field="execucao" value={form.execucao} /></Label>
               <Select value={form.execucao || "__none__"} onValueChange={v => set("execucao", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1417,8 +1465,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label>Mídia Negativa</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("midia_negativa", form.midia_negativa))}>
+              <Label className="flex items-center">Mídia Negativa <IaBadge field="midia_negativa" value={form.midia_negativa} /></Label>
               <Select value={form.midia_negativa || "__none__"} onValueChange={v => set("midia_negativa", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1428,8 +1476,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Recurso de Terceiros</Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("recurso_terceiros", form.recurso_terceiros))}>
+              <Label className="flex items-center">Recurso de Terceiros <IaBadge field="recurso_terceiros" value={form.recurso_terceiros} /></Label>
               <Select value={form.recurso_terceiros || "__none__"} onValueChange={v => set("recurso_terceiros", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1440,8 +1488,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Decisão - Análise do Quarteirizado</Label>
+          <div className={cn("space-y-2 p-2 -m-2", fieldClass("decisao_quarteirizado", form.decisao_quarteirizado))}>
+            <Label className="flex items-center">Decisão - Análise do Quarteirizado <IaBadge field="decisao_quarteirizado" value={form.decisao_quarteirizado} /></Label>
             {(() => {
               const OPCOES_QUARTEIRIZADO = [
                 "Acordo",
@@ -1586,8 +1634,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Entrega Memoriais</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("entrega_memoriais", bennerExtra.entrega_memoriais))}>
+              <Label className="flex items-center">Entrega Memoriais <IaBadge field="entrega_memoriais" value={bennerExtra.entrega_memoriais} /></Label>
               <Select value={bennerExtra.entrega_memoriais || "__none__"} onValueChange={v => setExtra("entrega_memoriais", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1597,8 +1645,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Sustentação Oral</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("sustentacao_oral", bennerExtra.sustentacao_oral))}>
+              <Label className="flex items-center">Sustentação Oral <IaBadge field="sustentacao_oral" value={bennerExtra.sustentacao_oral} /></Label>
               <Select value={bennerExtra.sustentacao_oral || "__none__"} onValueChange={v => setExtra("sustentacao_oral", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1624,18 +1672,18 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               ["resultado_conhecido_provido", "Conhecido e Provido"],
               ["resultado_conhecido_nao_provido", "Conhecido e Não Provido"],
             ] as const).map(([field, label]) => (
-              <div key={field} className="flex items-center gap-2">
+              <div key={field} className={cn("flex items-center gap-2 p-2 -m-2", iaClass(field, bennerExtra[field]))}>
                 <Checkbox
                   id={`be-${field}`}
                   checked={!!bennerExtra[field]}
                   onCheckedChange={v => setExtra(field, !!v)}
                 />
-                <Label htmlFor={`be-${field}`} className="text-sm cursor-pointer">{label}</Label>
+                <Label htmlFor={`be-${field}`} className="text-sm cursor-pointer flex items-center">{label}<IaBadge field={field} value={bennerExtra[field]} /></Label>
               </div>
             ))}
           </div>
-          <div className="space-y-2">
-            <Label>Outra (descrição)</Label>
+          <div className={cn("space-y-2 p-2 -m-2", iaClass("resultado_outra", bennerExtra.resultado_outra))}>
+            <Label className="flex items-center">Outra (descrição) <IaBadge field="resultado_outra" value={bennerExtra.resultado_outra} /></Label>
             <Input value={bennerExtra.resultado_outra || ""} onChange={e => setExtra("resultado_outra", e.target.value)} />
           </div>
           <div className={cn("space-y-2 p-2 -m-2", iaClass("observacoes", bennerExtra.observacoes))}>
@@ -1654,13 +1702,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <SectionHeader title="Dados Benner — Fechamento" color="bg-yellow-500 !text-black" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
-            <div className="flex items-center gap-2">
+            <div className={cn("flex items-center gap-2 p-2 -m-2", iaClass("ganhamos", bennerExtra.ganhamos))}>
               <Checkbox id="be-ganhamos" checked={!!bennerExtra.ganhamos} onCheckedChange={v => setExtra("ganhamos", !!v)} />
-              <Label htmlFor="be-ganhamos" className="cursor-pointer">Ganhamos</Label>
+              <Label htmlFor="be-ganhamos" className="cursor-pointer flex items-center">Ganhamos <IaBadge field="ganhamos" value={bennerExtra.ganhamos} /></Label>
             </div>
-            <div className="flex items-center gap-2">
+            <div className={cn("flex items-center gap-2 p-2 -m-2", iaClass("perdemos", bennerExtra.perdemos))}>
               <Checkbox id="be-perdemos" checked={!!bennerExtra.perdemos} onCheckedChange={v => setExtra("perdemos", !!v)} />
-              <Label htmlFor="be-perdemos" className="cursor-pointer">Perdemos</Label>
+              <Label htmlFor="be-perdemos" className="cursor-pointer flex items-center">Perdemos <IaBadge field="perdemos" value={bennerExtra.perdemos} /></Label>
             </div>
             <div className={cn("space-y-2 p-2 -m-2", iaClass("processo_baixado", bennerExtra.processo_baixado))}>
               <Label className="flex items-center">Processo Baixado <IaBadge field="processo_baixado" value={bennerExtra.processo_baixado} /></Label>
@@ -1673,8 +1721,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Chance de Êxito (geral)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("situacao_processo", bennerExtra.situacao_processo))}>
+              <Label className="flex items-center">Situação do Processo <IaBadge field="situacao_processo" value={bennerExtra.situacao_processo} /></Label>
+              <Input value={bennerExtra.situacao_processo || ""} onChange={e => setExtra("situacao_processo", e.target.value)} />
+            </div>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("chance_exito", bennerExtra.chance_exito))}>
+              <Label className="flex items-center">Chance de Êxito (geral) <IaBadge field="chance_exito" value={bennerExtra.chance_exito} /></Label>
               <Select value={bennerExtra.chance_exito || "__none__"} onValueChange={v => setExtra("chance_exito", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1692,10 +1744,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       {/* Trânsito em Julgado */}
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Trânsito em Julgado" color="bg-[#B4A7D6] !text-black" />
-        <div className="p-4">
-          <div className="flex items-center gap-3">
+        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={cn("flex items-center gap-3 p-2 -m-2", fieldClass("transito_julgado", form.transito_julgado))}>
             <Switch checked={!!form.transito_julgado} onCheckedChange={v => set("transito_julgado", v)} />
-            <Label>Trânsito em Julgado</Label>
+            <Label className="flex items-center">Trânsito em Julgado <IaBadge field="transito_julgado" value={form.transito_julgado} /></Label>
+          </div>
+          <div className={cn("space-y-2 p-2 -m-2", iaClass("data_transito_julgado", bennerExtra.data_transito_julgado))}>
+            <Label className="flex items-center">Data Trânsito em Julgado <IaBadge field="data_transito_julgado" value={bennerExtra.data_transito_julgado} /></Label>
+            <Input type="date" value={bennerExtra.data_transito_julgado || ""} onChange={e => setExtra("data_transito_julgado", e.target.value || null)} />
           </div>
         </div>
       </div>
