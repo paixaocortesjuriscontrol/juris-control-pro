@@ -1105,7 +1105,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     // depois, o form remonta com a snapshot anterior do bennerDado e a UI
     // mostra os valores antigos (parecendo que a alteração não foi salva),
     // mesmo com o banco já atualizado na sequência.
-    const extraTargetId = (bennerDadoRef.current as any)?.id || dado?.id;
+    const extraTargetId = (bennerDadoRef.current as any)?.id || activeRecordIdRef.current || dado?.id;
     if (onSaveBennerExtra && extraTargetId && bennerDiff) {
       try {
         await onSaveBennerExtra(bennerDiff, extraTargetId);
@@ -1113,7 +1113,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         console.error("Falha ao salvar campos Benner unificados:", e);
       }
     }
-    const ok = await onSave(payload, dado?.id);
+    const ok = await onSave(payload, activeRecordIdRef.current || dado?.id);
+    if (ok && typeof ok === "string") activeRecordIdRef.current = ok;
     // Se for um INSERT (sem id prévio), o extra-save acima não tinha alvo.
     // Salva agora usando o id retornado pelo insert.
     if (ok && onSaveBennerExtra && !extraTargetId && bennerDiff) {
