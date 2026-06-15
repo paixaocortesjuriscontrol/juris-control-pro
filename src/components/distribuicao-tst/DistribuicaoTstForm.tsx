@@ -1633,7 +1633,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
       {/* SE\u00c7\u00c3O - Dados Benner / Julgamento */}
       <div className="border border-border rounded-lg overflow-hidden">
-        <SectionHeader title="Dados Benner — Julgamento" color="bg-[#0E7490]" />
+        <SectionHeader title="Julgamento" color="bg-[#0E7490]" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", iaClass("tem_data_julgamento", bennerExtra.tem_data_julgamento))}>
@@ -1699,7 +1699,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
       {/* SE\u00c7\u00c3O - Dados Benner / Resultado */}
       <div className="border border-border rounded-lg overflow-hidden">
-        <SectionHeader title="Dados Benner — Resultado" color="bg-green-600" />
+        <SectionHeader title="Resultado" color="bg-green-600" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {([
@@ -1735,7 +1735,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
       {/* SE\u00c7\u00c3O - Dados Benner / Fechamento */}
       <div className="border border-border rounded-lg overflow-hidden">
-        <SectionHeader title="Dados Benner — Fechamento" color="bg-yellow-500 !text-black" />
+        <SectionHeader title="Fechamento" color="bg-yellow-500 !text-black" />
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
             <div className={cn("flex items-center gap-2 p-2 -m-2", iaClass("ganhamos", bennerExtra.ganhamos))}>
