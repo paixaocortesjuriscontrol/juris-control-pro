@@ -1,0 +1,243 @@
+import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+export interface ConfigServidor {
+  id: string;
+  tipo: string;
+  frequencia: string;
+  ativo: boolean;
+  horarios_execucao: string[] | null;
+  ultima_execucao: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface ExecucaoServidor {
+  id: string;
+  tipo: string;
+  status: string;
+  agendado_para: string;
+  iniciado_em: string | null;
+  finalizado_em: string | null;
+  worker_id: string | null;
+  heartbeat_at: string | null;
+  resultado: Record<string, unknown> | null;
+  erro: string | null;
+  tentativas: number;
+  created_at: string;
+}
+
+export interface WorkerServidor {
+  id: string;
+  worker_id: string;
+  host: string | null;
+  status: string;
+  current_tipo: string | null;
+  heartbeat_at: string;
+  started_at: string;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface PublicacaoServidor {
+  id: string;
+  monitoramento_id: string;
+  processo_numero: string | null;
+  tribunal: string | null;
+  data_publicacao: string | null;
+  data_disponibilizacao: string | null;
+  conteudo: string | null;
+  origem: string;
+  created_at: string;
+  hash_conteudo: string;
+  dedup_processo_digits: string | null;
+  dedup_data_ref: string | null;
+}
+
+export function useConfiguracoesServidor() {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ["djen-servidor", "configs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("configuracoes_monitoramento_servidor")
+        .select("*")
+        .order("tipo");
+      if (error) throw error;
+      return data as ConfigServidor[];
+    },
+  });
+
+  const toggle = useMutation({
+    mutationFn: async ({ id, ativo }: { id: string; ativo: boolean }) => {
+      const { error } = await supabase
+        .from("configuracoes_monitoramento_servidor")
+        .update({ ativo })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["djen-servidor", "configs"] });
+      toast.success("Configuração atualizada");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return { ...query, toggle };
+}
+
+export function useExecucoesServidor(limit = 50) {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ["djen-servidor", "execucoes", limit],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("execucoes_servidor")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return data as ExecucaoServidor[];
+    },
+  });
+
+  useEffect(() => {
+    const ch = supabase
+      .channel("execucoes-servidor-rt")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "execucoes_servidor" },
+        () => qc.invalidateQueries({ queryKey: ["djen-servidor", "execucoes"] })
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [qc]);
+
+  return query;
+}
+
+export function useWorkersServidor() {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ["djen-servidor", "workers"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("workers_servidor")
+        .select("*")
+        .order("worker_id");
+      if (error) throw error;
+      return data as WorkerServidor[];
+    },
+    refetchInterval: 15_000,
+  });
+
+  useEffect(() => {
+    const ch = supabase
+      .channel("workers-servidor-rt")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "workers_servidor" },
+        () => qc.invalidateQueries({ queryKey: ["djen-servidor", "workers"] })
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [qc]);
+
+  return query;
+}
+
+export function usePublicacoesServidor(opts: { dataInicio?: string; dataFim?: string; limit?: number } = {}) {
+  const { dataInicio, dataFim, limit = 200 } = opts;
+  return useQuery({
+    queryKey: ["djen-servidor", "publicacoes", dataInicio, dataFim, limit],
+    queryFn: async () => {
+      let q = supabase
+        .from("publicacoes_djen_servidor")
+        .select("*")
+        .order("data_publicacao", { ascending: false })
+        .limit(limit);
+      if (dataInicio) q = q.gte("dedup_data_ref", dataInicio);
+      if (dataFim) q = q.lte("dedup_data_ref", dataFim);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data as PublicacaoServidor[];
+    },
+  });
+}
+
+export function useEnfileirarManual() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (tipo: string) => {
+      const { data, error } = await supabase.rpc("enfileirar_execucao_servidor", {
+        p_tipo: tipo,
+        p_agendado_para: new Date().toISOString(),
+        p_payload: { manual: true },
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: async (id) => {
+      await qc.invalidateQueries({ queryKey: ["djen-servidor", "execucoes"] });
+      if (id) toast.success("Execução enfileirada");
+      else toast.info("Já existe execução enfileirada nesta janela");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useComparadorPublicacoes(opts: { dataInicio: string; dataFim: string }) {
+  return useQuery({
+    queryKey: ["djen-servidor", "comparador", opts.dataInicio, opts.dataFim],
+    queryFn: async () => {
+      const [serv, brow] = await Promise.all([
+        supabase
+          .from("publicacoes_djen_servidor")
+          .select("processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, tribunal")
+          .gte("dedup_data_ref", opts.dataInicio)
+          .lte("dedup_data_ref", opts.dataFim)
+          .limit(5000),
+        supabase
+          .from("publicacoes_djen")
+          .select("processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, tribunal")
+          .gte("dedup_data_ref", opts.dataInicio)
+          .lte("dedup_data_ref", opts.dataFim)
+          .limit(5000),
+      ]);
+      if (serv.error) throw serv.error;
+      if (brow.error) throw brow.error;
+
+      const key = (r: { dedup_processo_digits?: string | null; dedup_data_ref?: string | null; hash_conteudo: string }) =>
+        `${r.dedup_processo_digits || ""}|${r.dedup_data_ref || ""}|${r.hash_conteudo}`;
+
+      const sSet = new Map(serv.data!.map((r) => [key(r), r]));
+      const bSet = new Map(brow.data!.map((r) => [key(r), r]));
+
+      const soServidor = [...sSet.entries()].filter(([k]) => !bSet.has(k)).map(([, v]) => v);
+      const soBrowser = [...bSet.entries()].filter(([k]) => !sSet.has(k)).map(([, v]) => v);
+      const ambos = [...sSet.entries()].filter(([k]) => bSet.has(k)).map(([, v]) => v);
+
+      return {
+        totalServidor: serv.data!.length,
+        totalBrowser: brow.data!.length,
+        soServidor,
+        soBrowser,
+        ambos,
+      };
+    },
+    enabled: !!opts.dataInicio && !!opts.dataFim,
+  });
+}
+
+export function useTickAge() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return now;
+}
