@@ -40,11 +40,10 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const promptId: string = String(body?.prompt_id || "").trim();
     const processoId: string | null = body?.processo_id || null;
-    const processoNumero: string = String(body?.processo_numero || "").trim();
     const documentoIds: string[] = Array.isArray(body?.documento_ids) ? body.documento_ids : [];
 
     if (!promptId) return json({ error: "prompt_id é obrigatório" }, 400);
-    if (!processoId && !processoNumero) return json({ error: "processo_id ou processo_numero é obrigatório" }, 400);
+    if (!processoId) return json({ error: "processo_id é obrigatório (chave única do processo)" }, 400);
 
     // 1) Carrega prompt (RLS é por coordenação)
     const promptClient = createClient(
@@ -60,17 +59,15 @@ Deno.serve(async (req) => {
     if (promptErr || !promptRow) return json({ error: "Prompt não encontrado ou sem acesso" }, 404);
     if (!promptRow.ativo) return json({ error: "Prompt está inativo" }, 400);
 
-    // 2) Resolve processo_id
-    let pid = processoId;
-    if (!pid) {
-      const { data: proc } = await supabase
-        .from("processos")
-        .select("id")
-        .eq("numero", processoNumero)
-        .maybeSingle();
-      pid = proc?.id || null;
-    }
-    if (!pid) return json({ error: "Processo não encontrado" }, 404);
+    // 2) Confirma o processo_id (chave única)
+    const { data: proc } = await supabase
+      .from("processos")
+      .select("id, numero")
+      .eq("id", processoId)
+      .maybeSingle();
+    if (!proc?.id) return json({ error: "Processo não encontrado pelo id" }, 404);
+    const pid = proc.id;
+    const processoNumero = proc.numero || "";
 
     // 3) Carrega texto indexado dos anexos
     let q = supabase
