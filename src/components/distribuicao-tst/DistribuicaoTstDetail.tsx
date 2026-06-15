@@ -752,7 +752,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         <TabsContent value="analisar-ia" className="mt-4">
           <AnalisarComIATab
             processoNumero={processoNumero}
-            processoId={(currentDado as any)?.id || null}
+            processoId={null}
             attachments={anexos || []}
             onIaPreenchido={({ distribuicao_tst, dados_benner, resumo }) => {
               setIaDistribuicao(distribuicao_tst || {});
