@@ -1732,6 +1732,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("situacao_processo", bennerExtra.situacao_processo))}>
+              <Label className="flex items-center">Situação do Processo <IaBadge field="situacao_processo" value={bennerExtra.situacao_processo} /></Label>
+              <Input value={bennerExtra.situacao_processo || ""} onChange={e => setExtra("situacao_processo", e.target.value)} />
+            </div>
             <div className={cn("space-y-2 p-2 -m-2", iaClass("chance_exito", bennerExtra.chance_exito))}>
               <Label className="flex items-center">Chance de Êxito (geral) <IaBadge field="chance_exito" value={bennerExtra.chance_exito} /></Label>
               <Select value={bennerExtra.chance_exito || "__none__"} onValueChange={v => setExtra("chance_exito", v === "__none__" ? "" : v)}>
@@ -1751,10 +1755,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       {/* Trânsito em Julgado */}
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Trânsito em Julgado" color="bg-[#B4A7D6] !text-black" />
-        <div className="p-4">
-          <div className="flex items-center gap-3">
+        <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className={cn("flex items-center gap-3 p-2 -m-2", fieldClass("transito_julgado", form.transito_julgado))}>
             <Switch checked={!!form.transito_julgado} onCheckedChange={v => set("transito_julgado", v)} />
-            <Label>Trânsito em Julgado</Label>
+            <Label className="flex items-center">Trânsito em Julgado <IaBadge field="transito_julgado" value={form.transito_julgado} /></Label>
+          </div>
+          <div className={cn("space-y-2 p-2 -m-2", iaClass("data_transito_julgado", bennerExtra.data_transito_julgado))}>
+            <Label className="flex items-center">Data Trânsito em Julgado <IaBadge field="data_transito_julgado" value={bennerExtra.data_transito_julgado} /></Label>
+            <Input type="date" value={bennerExtra.data_transito_julgado || ""} onChange={e => setExtra("data_transito_julgado", e.target.value || null)} />
           </div>
         </div>
       </div>
