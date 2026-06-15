@@ -224,7 +224,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIn
       let cursor = 0;
       let done = 0;
       const workers: Promise<void>[] = [];
-      const processarPendente = async (att: Attachment, idx: number) => {
+      const processarPendente = async (att: Attachment) => {
         setStage(`Indexando ${done + 1}/${pendentes.length} (${CONCURRENCY} em paralelo)…`);
         try {
           const r = await indexarAnexo(att, pid);
@@ -247,7 +247,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIn
           while (true) {
             const idx = cursor++;
             if (idx >= pendentes.length) return;
-            await processarPendente(pendentes[idx], idx);
+            await processarPendente(pendentes[idx]);
           }
         })());
       }
