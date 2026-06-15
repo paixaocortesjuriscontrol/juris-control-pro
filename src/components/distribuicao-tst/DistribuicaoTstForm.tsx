@@ -557,11 +557,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           base.transito_julgado = false;
           base.data_transito_julgado = null;
         }
-        const ALWAYS_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
+        const PREFER_JUDIT = new Set(["relator", "turma", "tipo_recurso_reclamante", "tipo_recurso_terceiro"]);
         const filled = new Set<string>();
         for (const [k, v] of Object.entries(iaSugestao)) {
           if (v === null || v === undefined) continue;
-          if (ALWAYS_JUDIT.has(k)) continue;
+          if (PREFER_JUDIT.has(k)) {
+            const existing = base[k];
+            if (existing !== null && existing !== undefined && String(existing).trim() !== "") continue;
+          }
           const vNorm = normalizeDateInputValue(normalizarValorPorCampo(k, v, String(base.reclamante || ""), String(base.reclamada || "")));
           if (vNorm === null || vNorm === undefined) continue;
           base[k] = vNorm; filled.add(k);
