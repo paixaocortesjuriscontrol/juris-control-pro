@@ -380,7 +380,7 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIn
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate flex items-center gap-2">
                       {att.attachment_name || `documento_${att.step_id}`}
-                      {att.texto_indexado && (
+                      {isIndexed(att) && (
                         <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
                           <CheckCircle2 className="w-3 h-3" /> indexado
                         </span>
