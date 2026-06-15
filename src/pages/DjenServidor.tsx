@@ -284,28 +284,21 @@ function EngineCard({ cfg, onToggle }: {
 }
 
 function VisaoGeral() {
-  const { data: cfgs = [], toggle } = useConfiguracoesServidor();
+  const { data: cfgs = [], toggle, updateConfig } = useConfiguracoesServidor();
   const { data: workers = [] } = useWorkersServidor();
   const tick = useTickAge();
 
   return (
     <div className="space-y-4">
-      {/* Card completo idêntico ao DJEN Termos Paralela normal (com Coordenação,
-          datas, Executar/Forçar Parada/Limpar/Reset, Progresso global, Roteamento
-          da sessão e lista de Tribunais em tempo real). */}
-      <MonitoramentoTermosParalelaCard />
-
-      {/* Demais engines do servidor (Kurier, Pautas) mantidos compactos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {cfgs
-          .filter((c) => c.tipo !== "djen_paralela_servidor")
-          .map((cfg) => (
-            <EngineCard
-              key={cfg.id}
-              cfg={cfg}
-              onToggle={(id, ativo) => toggle.mutate({ id, ativo })}
-            />
-          ))}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        {cfgs.map((cfg) => (
+          <EngineCard
+            key={cfg.id}
+            cfg={cfg}
+            onToggle={(id, ativo) => toggle.mutate({ id, ativo })}
+            onConfig={(id, patch) => updateConfig.mutate({ id, patch })}
+          />
+        ))}
       </div>
 
       <Card>
