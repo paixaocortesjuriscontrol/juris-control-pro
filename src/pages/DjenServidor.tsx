@@ -293,7 +293,7 @@ function EngineCard({ cfg, onToggle, onConfig }: {
           variant="secondary"
           className="w-full"
           onClick={handleRun}
-          disabled={ativaAgora || enfileirar.isPending}
+          disabled={ativaAgora || enfileirar.isPending || conflitoHorarioNormal}
         >
           {(ativaAgora || enfileirar.isPending) ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PlayCircle className="h-4 w-4 mr-2" />}
           {ativaAgora ? "Executando..." : "Executar agora"}
