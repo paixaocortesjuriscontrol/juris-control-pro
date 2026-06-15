@@ -1341,7 +1341,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_reclamante", form.tipo_recurso_reclamante))}>
               <Label className="flex items-center">
-                Tipo de Recurso do Reclamante
+                Tipo de Recurso do Reclamante (C)
                 <JuditBadge show={isJuditFilled(form.tipo_recurso_reclamante)} />
                 <IaBadge field="tipo_recurso_reclamante" value={form.tipo_recurso_reclamante} />
               </Label>
@@ -1359,7 +1359,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               )}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("aparelhamento_reclamante", form.aparelhamento_reclamante))}>
-              <Label className="flex items-center">Aparelhamento <IaBadge field="aparelhamento_reclamante" value={form.aparelhamento_reclamante} /></Label>
+              <Label className="flex items-center">Aparelhamento (AF/AG) <IaBadge field="aparelhamento_reclamante" value={form.aparelhamento_reclamante} /></Label>
               <Select value={form.aparelhamento_reclamante || "__none__"} onValueChange={v => set("aparelhamento_reclamante", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1378,7 +1378,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             />
           </div>
           <div className={cn("space-y-2 p-2 -m-2", fieldClass("chance_exito_reclamante", form.chance_exito_reclamante))}>
-            <Label className="flex items-center">Chance de Êxito <IaBadge field="chance_exito_reclamante" value={form.chance_exito_reclamante} /></Label>
+            <Label className="flex items-center">Chance de Êxito (AH) <IaBadge field="chance_exito_reclamante" value={form.chance_exito_reclamante} /></Label>
             <Select value={form.chance_exito_reclamante || "__none__"} onValueChange={v => set("chance_exito_reclamante", v === "__none__" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
@@ -1399,7 +1399,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_banco", form.tipo_recurso_banco))}>
               <Label className="flex items-center">
-                Tipo de Recurso do Banco
+                Tipo de Recurso do Banco (C)
                 <JuditBadge show={isJuditFilled(form.tipo_recurso_banco)} />
                 <IaBadge field="tipo_recurso_banco" value={form.tipo_recurso_banco} />
               </Label>
@@ -1417,7 +1417,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               )}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("aparelhamento_banco", form.aparelhamento_banco))}>
-              <Label className="flex items-center">Aparelhamento <IaBadge field="aparelhamento_banco" value={form.aparelhamento_banco} /></Label>
+              <Label className="flex items-center">Aparelhamento (AF/AG) <IaBadge field="aparelhamento_banco" value={form.aparelhamento_banco} /></Label>
               <Select value={form.aparelhamento_banco || "__none__"} onValueChange={v => set("aparelhamento_banco", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1436,7 +1436,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             />
           </div>
           <div className={cn("space-y-2 p-2 -m-2", fieldClass("chance_exito_banco", form.chance_exito_banco))}>
-            <Label className="flex items-center">Chance de Êxito <IaBadge field="chance_exito_banco" value={form.chance_exito_banco} /></Label>
+            <Label className="flex items-center">Chance de Êxito (AH) <IaBadge field="chance_exito_banco" value={form.chance_exito_banco} /></Label>
             <Select value={form.chance_exito_banco || "__none__"} onValueChange={v => set("chance_exito_banco", v === "__none__" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
@@ -1457,7 +1457,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_terceiro", (form as any).tipo_recurso_terceiro))}>
               <Label className="flex items-center">
-                Tipo de Recurso (Terceiro)
+                Tipo de Recurso (Terceiro) (C)
                 <JuditBadge show={isJuditFilled((form as any).tipo_recurso_terceiro)} />
                 <IaBadge field="tipo_recurso_terceiro" value={(form as any).tipo_recurso_terceiro} />
               </Label>
@@ -1467,7 +1467,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               />
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("aparelhamento_terceiro", (form as any).aparelhamento_terceiro))}>
-              <Label className="flex items-center">Aparelhamento <IaBadge field="aparelhamento_terceiro" value={(form as any).aparelhamento_terceiro} /></Label>
+              <Label className="flex items-center">Aparelhamento (AF/AG) <IaBadge field="aparelhamento_terceiro" value={(form as any).aparelhamento_terceiro} /></Label>
               <Select
                 value={(form as any).aparelhamento_terceiro || "__none__"}
                 onValueChange={(v) => set("aparelhamento_terceiro", v === "__none__" ? "" : v)}
@@ -1489,7 +1489,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             />
           </div>
           <div className={cn("space-y-2 p-2 -m-2", fieldClass("chance_exito_terceiro", (form as any).chance_exito_terceiro))}>
-            <Label className="flex items-center">Chance de Êxito <IaBadge field="chance_exito_terceiro" value={(form as any).chance_exito_terceiro} /></Label>
+            <Label className="flex items-center">Chance de Êxito (AH) <IaBadge field="chance_exito_terceiro" value={(form as any).chance_exito_terceiro} /></Label>
             <Select
               value={(form as any).chance_exito_terceiro || "__none__"}
               onValueChange={(v) => set("chance_exito_terceiro", v === "__none__" ? "" : v)}
