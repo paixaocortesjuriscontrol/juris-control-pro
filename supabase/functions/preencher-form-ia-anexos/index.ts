@@ -96,7 +96,6 @@ CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
   - observacao_advogado: resumo factual de até 2 frases, sem juízo de valor.
 
 ▸ Em "dados_benner":
-  - materia_honra: "S" ou "N".
   - provas_digitais: "S" se o recurso/acórdão menciona "prova digital", "documento eletrônico",
     "WhatsApp", "e-mail como prova", "gravação", "ata notarial digital", "blockchain"
     como objeto de discussão probatória. "N" se claramente não há.
@@ -261,9 +260,7 @@ Deno.serve(async (req) => {
               type: "object",
               additionalProperties: false,
               properties: {
-                materia_honra: { type: "string", enum: ["S", "N"] },
                 analise_quarteirizado: { type: "string" },
-                risco_midia: { type: "string", enum: ["S", "N"] },
                 risco_descricao: { type: "string" },
                 provas_digitais: { type: "string", enum: ["S", "N"] },
                 tem_data_julgamento: { type: "string", enum: ["S", "N"] },
