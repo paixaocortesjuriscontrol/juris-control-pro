@@ -79,7 +79,7 @@ async function runSlot(slot) {
         continue;
       }
       try {
-        const resultado = await engine.run({ sb, payload: job.payload || {}, log });
+        const resultado = await engine.run({ sb, payload: job.payload || {}, log, job });
         await sb
           .from("execucoes_servidor")
           .update({
