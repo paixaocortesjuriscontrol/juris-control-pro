@@ -1621,12 +1621,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <Label>Outra (descrição)</Label>
             <Input value={bennerExtra.resultado_outra || ""} onChange={e => setExtra("resultado_outra", e.target.value)} />
           </div>
-          <div className="space-y-2">
-            <Label>Observações</Label>
+          <div className={cn("space-y-2 p-2 -m-2", iaClass("observacoes", bennerExtra.observacoes))}>
+            <Label className="flex items-center">Observações <IaBadge field="observacoes" value={bennerExtra.observacoes} /></Label>
             <Textarea value={bennerExtra.observacoes || ""} onChange={e => setExtra("observacoes", e.target.value)} rows={3} />
           </div>
-          <div className="space-y-2">
-            <Label>Notas</Label>
+          <div className={cn("space-y-2 p-2 -m-2", iaClass("notas", bennerExtra.notas))}>
+            <Label className="flex items-center">Notas <IaBadge field="notas" value={bennerExtra.notas} /></Label>
             <Textarea value={bennerExtra.notas || ""} onChange={e => setExtra("notas", e.target.value)} rows={3} placeholder="Anotações livres sobre este registro..." />
           </div>
         </div>
@@ -1645,8 +1645,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               <Checkbox id="be-perdemos" checked={!!bennerExtra.perdemos} onCheckedChange={v => setExtra("perdemos", !!v)} />
               <Label htmlFor="be-perdemos" className="cursor-pointer">Perdemos</Label>
             </div>
-            <div className="space-y-2">
-              <Label>Processo Baixado</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("processo_baixado", bennerExtra.processo_baixado))}>
+              <Label className="flex items-center">Processo Baixado <IaBadge field="processo_baixado" value={bennerExtra.processo_baixado} /></Label>
               <Select value={bennerExtra.processo_baixado || "__none__"} onValueChange={v => setExtra("processo_baixado", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
