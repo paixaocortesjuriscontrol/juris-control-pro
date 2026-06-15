@@ -216,17 +216,8 @@ export function AnexosJuditTab({ processoNumero, processoId, attachments, dadosJ
         okResults.push({ step_id: a.step_id, documento_id: a.documento_id! });
       }
       if (jaIndexados.length > 0 && pendentesAnexos.length === 0) {
-        // Nenhum anexo novo para baixar — resolve processo_id direto pelo número.
-        if (processoId) {
-          processoIdAcc = processoId;
-        } else {
-          const { data: proc } = await supabase
-            .from("processos")
-            .select("id")
-            .eq("numero", processoNumero)
-            .maybeSingle();
-          processoIdAcc = proc?.id || null;
-        }
+        // Nenhum anexo novo para baixar — usa somente o id único do processo.
+        processoIdAcc = processoId || null;
       }
       if (jaIndexados.length > 0) {
         toast.info(`${jaIndexados.length} anexo(s) já indexado(s) reaproveitado(s).`);
@@ -236,20 +227,16 @@ export function AnexosJuditTab({ processoNumero, processoId, attachments, dadosJ
       let reaproveitadosStorage = 0;
       // Resolve/cria processo_id uma única vez para permitir paralelismo real
       if (!processoIdAcc) {
-        const query = supabase.from("processos").select("id");
         const { data: proc } = processoId
-          ? await query.eq("id", processoId).maybeSingle()
-          : await query.eq("numero", processoNumero).maybeSingle();
+          ? await supabase.from("processos").select("id").eq("id", processoId).maybeSingle()
+          : { data: null as any };
         if (proc?.id) {
           processoIdAcc = proc.id;
-        } else {
-          const { data: novo, error: novoErr } = await supabase
-            .from("processos")
-            .insert({ numero: processoNumero, area: "trabalhista", status: "ativo" } as any)
-            .select("id")
-            .single();
-          if (!novoErr && novo?.id) processoIdAcc = novo.id;
         }
+      }
+      if (!processoIdAcc) {
+        toast.error("Processo sem ID único localizado. Salve o registro antes de analisar com IA.");
+        return;
       }
 
       // Processa anexos em paralelo (limite de concorrência) — cada anexo
