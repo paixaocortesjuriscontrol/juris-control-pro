@@ -1,5 +1,4 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,6 +23,31 @@ function compactEmptyObjects(value: unknown): unknown {
   return out;
 }
 
+async function openAIChatCompletionsFetch(body: any): Promise<Response> {
+  const key = Deno.env.get("OPENAI_API_KEY");
+  if (!key) {
+    return new Response(JSON.stringify({ error: { message: "OPENAI_API_KEY não configurada" } }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  try {
+    return await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (e: any) {
+    return new Response(JSON.stringify({ error: { message: `Falha de rede OpenAI: ${e?.message || e}` } }), {
+      status: 502,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+}
+
 /**
  * Roda IA com PROMPT CUSTOMIZADO cadastrado pelo advogado em "Prompt IA TST".
  * Recebe:
@@ -46,7 +70,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!user) return json({ error: "Token inválido" }, 401);
 
-    if (!Deno.env.get("GEMINI_API_KEY")) return json({ error: "GEMINI_API_KEY não configurada" }, 500);
+    if (!Deno.env.get("OPENAI_API_KEY")) return json({ error: "OPENAI_API_KEY não configurada" }, 500);
 
     const body = await req.json();
     const promptId: string = String(body?.prompt_id || "").trim();
@@ -122,7 +146,7 @@ Deno.serve(async (req) => {
     }
     const fullText = parts.join("\n\n");
 
-    // 4) Chama Gemini — tool call livre, devolve sugestões para ambos os formulários
+    // 4) Chama OpenAI direto — tool call livre, devolve sugestões para ambos os formulários
     const tool = {
       type: "function",
       function: {
@@ -219,8 +243,9 @@ Mapeie a resposta solicitada pelo prompt para as chaves do schema; não devolva 
       `Devolva via tool call "preencher_formulario" SOMENTE campos com evidência citável no texto.`,
     ].join("\n");
 
-    const modelo = String(promptRow.modelo || "gemini-2.5-flash");
-    const aiRes = await geminiChatCompletionsFetch({
+    const modeloSalvo = String(promptRow.modelo || "").trim();
+    const modelo = modeloSalvo.startsWith("gpt-") ? modeloSalvo : "gpt-4o-mini";
+    const aiRes = await openAIChatCompletionsFetch({
       model: modelo,
       temperature: 0,
       messages: [
@@ -232,7 +257,8 @@ Mapeie a resposta solicitada pelo prompt para as chaves do schema; não devolva 
     });
     if (!aiRes.ok) {
       const t = await aiRes.text();
-      return json({ error: `Gemini ${aiRes.status}: ${t.substring(0, 400)}` }, 500);
+      console.error("OpenAI erro analisar-tst-prompt-ia:", aiRes.status, t.substring(0, 1000));
+      return json({ error: `OpenAI ${aiRes.status}: ${t.substring(0, 400)}` }, 500);
     }
     const aiJson = await aiRes.json();
     const toolCall = aiJson?.choices?.[0]?.message?.tool_calls?.[0];
