@@ -606,13 +606,6 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             >
               Distribuição TST
             </TabsTrigger>
-            <TabsTrigger
-              value="benner"
-              disabled={bennerDisabled}
-              className="bg-yellow-50 text-yellow-900 border border-yellow-200 data-[state=active]:bg-yellow-100 data-[state=active]:text-yellow-900 dark:bg-yellow-950/30 dark:text-yellow-100 dark:border-yellow-900"
-            >
-              Confere Benner
-            </TabsTrigger>
             <TabsTrigger value="analise-judit" disabled={bennerDisabled}>Análise Judit</TabsTrigger>
             <TabsTrigger value="partes" disabled={bennerDisabled}>Partes do processo</TabsTrigger>
             {anexos && (
@@ -700,56 +693,6 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               // documentos disponíveis.
             }}
           />
-        </TabsContent>
-
-        <TabsContent
-          value="benner"
-          forceMount
-          className="mt-4 data-[state=inactive]:hidden"
-        >
-          {bennerLoading || (currentDado?.id && !bennerLoaded) ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : bennerDado ? (
-            <DadosBennerForm
-              key={`benner-${(bennerDado as any)?.id || "novo"}-${saveVersion}`}
-              ref={bennerFormRef}
-              dado={bennerDado}
-              markExistingJuditFields={!!(bennerDado as any)?.judit_preenchido}
-              onSave={handleSaveBennerLocal}
-              onCancel={onClose}
-              onJuditSync={handleJuditSync}
-              iaSugestao={iaBenner}
-              prontoEnviar={prontoEnviar}
-              onProntoEnviarChange={setProntoEnviar}
-              hideFooter
-              readOnly
-            />
-          ) : (
-            <DadosBennerForm
-              key={`benner-novo-${processoNumero}`}
-              ref={bennerFormRef}
-              initialData={{
-                processo: processoNumero,
-                dossie: currentDado?.dossie || "",
-                turma: currentDado?.turma || "",
-                relator: currentDado?.relator || "",
-                tribunal: (currentDado as any)?.tribunal || "",
-                data_distribuicao: currentDado?.data_distribuicao_real || currentDado?.data_distribuicao_planilha || null,
-                recorrente: currentDado?.parte_recorrente || "",
-                status: "rascunho",
-              } as Partial<DadoBennerInsert>}
-              onSave={handleSaveBennerLocal}
-              onCancel={onClose}
-              onJuditSync={handleJuditSync}
-              iaSugestao={iaBenner}
-              prontoEnviar={prontoEnviar}
-              onProntoEnviarChange={setProntoEnviar}
-              hideFooter
-              readOnly
-            />
-          )}
         </TabsContent>
 
         {podeVerLogJudit && (
