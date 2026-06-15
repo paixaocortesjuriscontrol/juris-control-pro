@@ -610,7 +610,7 @@ export default function DjenServidor() {
           <TabsTrigger value="publicacoes"><FileSearch className="h-4 w-4 mr-1" />Publicações</TabsTrigger>
           <TabsTrigger value="comparador"><GitCompare className="h-4 w-4 mr-1" />Comparador</TabsTrigger>
         </TabsList>
-        <TabsContent value="servidor"><div className="space-y-4"><MonitoramentoTermosParalelaCard /></div></TabsContent>
+        <TabsContent value="servidor"><div className="space-y-4"><DjenServidorParalelaCard /></div></TabsContent>
         <TabsContent value="pautas"><div className="space-y-4"><MonitoramentoDjetPautasCard /></div></TabsContent>
         <TabsContent value="kurier"><div className="space-y-4"><MonitoramentoTermosKurierCard /></div></TabsContent>
         <TabsContent value="workers"><WorkersPanel /></TabsContent>
