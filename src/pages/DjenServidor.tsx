@@ -17,6 +17,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { formatMonitoramentoLabel } from "@/utils/monitoramentoLabel";
+import { MonitoramentoTermosParalelaCard } from "@/components/configuracoes/MonitoramentoTermosParalelaCard";
 import {
   useConfiguracoesServidor,
   useExecucoesServidor,
@@ -290,14 +291,22 @@ function VisaoGeral() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {cfgs.map((cfg) => (
-          <EngineCard
-            key={cfg.id}
-            cfg={cfg}
-            onToggle={(id, ativo) => toggle.mutate({ id, ativo })}
-          />
-        ))}
+      {/* Card completo idêntico ao DJEN Termos Paralela normal (com Coordenação,
+          datas, Executar/Forçar Parada/Limpar/Reset, Progresso global, Roteamento
+          da sessão e lista de Tribunais em tempo real). */}
+      <MonitoramentoTermosParalelaCard />
+
+      {/* Demais engines do servidor (Kurier, Pautas) mantidos compactos */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {cfgs
+          .filter((c) => c.tipo !== "djen_paralela_servidor")
+          .map((cfg) => (
+            <EngineCard
+              key={cfg.id}
+              cfg={cfg}
+              onToggle={(id, ativo) => toggle.mutate({ id, ativo })}
+            />
+          ))}
       </div>
 
       <Card>
