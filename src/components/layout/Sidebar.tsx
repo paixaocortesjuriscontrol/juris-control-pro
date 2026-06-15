@@ -34,6 +34,7 @@ import {
   KeyRound,
   Sparkles,
   Mail,
+  Server,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
@@ -68,6 +69,7 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
   { icon: Brain, label: "Assistente IA", path: "/assistente-juridico" },
+  { icon: Server, label: "DJEN Servidor", path: "/djen-servidor", color: "text-emerald-400", adminOnly: true },
 ];
 
 // Itens visíveis apenas para administradores (na seção inferior)
