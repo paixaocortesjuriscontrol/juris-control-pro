@@ -32,6 +32,7 @@ import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, for
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
 import { jsPDF } from "jspdf";
 
 interface PublicacaoDjen {
