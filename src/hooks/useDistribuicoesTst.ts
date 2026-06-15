@@ -283,6 +283,14 @@ export async function fetchAllDistribuicaoTstIds(
     ? "id, dados_benner_responsaveis!inner(usuario_id)"
     : "id";
 
+  // Para "Apenas duplicados", trazemos a linha marcada E seus pares
+  // (todas as linhas com o mesmo número de processo).
+  let processosDup: string[] | null = null;
+  if (filters.duplicado === "sim") {
+    processosDup = await fetchProcessosDuplicados();
+    if (processosDup.length === 0) return [];
+  }
+
   const PAGE = 1000;
   const all: string[] = [];
   let from = 0;
