@@ -105,6 +105,7 @@ export interface DistribuicaoTst {
   subida_em_massa?: boolean;
   situacao_envio_carga_id?: string | null;
   processo_outro_escritorio?: boolean | null;
+  tribunal?: string | null;
   created_at: string;
   updated_at: string;
 }
