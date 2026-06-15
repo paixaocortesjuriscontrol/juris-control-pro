@@ -99,8 +99,9 @@ export function useDeletePromptIaTst() {
 }
 
 export const MODELOS_GEMINI = [
+  { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro — Análise Jurídica (recomendado)" },
+  { value: "gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (preview, raciocínio avançado)" },
   { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash (rápido, padrão)" },
-  { value: "gemini-2.5-pro", label: "Gemini 2.5 Pro (mais robusto)" },
   { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash" },
   { value: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite (mais barato)" },
 ];
