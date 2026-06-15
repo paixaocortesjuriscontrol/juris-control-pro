@@ -316,9 +316,11 @@ Deno.serve(async (req) => {
             .update(updatePayload)
             .eq("processo_numero", processoNumero);
           if (wantedName) {
-            await siblingsUpdate
+            let siblingQuery = siblingsUpdate
               .eq("attachment_name", att.attachment_name || rawName)
-              .eq("extension", att.extension || null);
+            if (wantedDate) siblingQuery = siblingQuery.eq("attachment_date", wantedDate);
+            if (att.extension) siblingQuery = siblingQuery.eq("extension", att.extension);
+            await siblingQuery;
           }
 
           results.push({ step_id: stepId, ok: true, pages: finalPages, documento_id: documentoId! });
