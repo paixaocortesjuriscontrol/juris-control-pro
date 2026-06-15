@@ -9,7 +9,7 @@ const ENGINES = {
 };
 
 const WORKER_BASE = process.env.WORKER_ID_BASE || "hostinger-01";
-const POLL = parseInt(process.env.POLL_INTERVAL_MS || "5000", 10);
+const POLL = parseInt(process.env.POLL_INTERVAL_MS || "1000", 10);
 const HB = parseInt(process.env.HEARTBEAT_MS || "30000", 10);
 
 const SLOTS = Object.keys(ENGINES).map((tipo) => ({
