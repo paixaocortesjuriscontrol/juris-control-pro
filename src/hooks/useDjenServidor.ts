@@ -239,6 +239,21 @@ export function useEnfileirarManual() {
   });
 }
 
+export function useCancelarExecucaoServidor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("cancelar_execucao_servidor" as never, { p_id: id } as never);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["djen-servidor"] });
+      toast.success("Cancelamento solicitado");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 /**
  * Última execução ativa (ou mais recente) de um tipo, com Realtime.
  * Usado para mostrar a barra de progresso ao vivo nos cards do DJEN Servidor.

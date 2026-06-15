@@ -121,7 +121,26 @@ async function run({ sb, payload, log, job }) {
   let totalDuplicatas = 0;
   let totalErros = 0;
 
+  // Helper: verifica se o usuário cancelou a execução via UI.
+  const isCancelled = async () => {
+    if (!job?.id) return false;
+    try {
+      const { data } = await sb
+        .from("execucoes_servidor")
+        .select("status")
+        .eq("id", job.id)
+        .maybeSingle();
+      return data?.status === "cancelado";
+    } catch {
+      return false;
+    }
+  };
+
   for (const item of itens) {
+    if (await isCancelled()) {
+      log("paralela.cancelled", { remaining: itens.filter(i => i.status === "pendente").length });
+      break;
+    }
     item.status = "executando";
     await flushProgresso();
     try {
