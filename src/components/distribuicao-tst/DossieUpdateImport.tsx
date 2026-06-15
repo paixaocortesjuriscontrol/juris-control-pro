@@ -101,15 +101,15 @@ export function DossieUpdateImport({ onUpdated }: Props) {
           const newDossie = dossieMap.get(row.processo);
           if (!newDossie) continue;
           if (!byDossie.has(newDossie)) byDossie.set(newDossie, []);
-          byDossie.get(newDossie)!.push(row.processo);
+          byDossie.get(newDossie)!.push(row.id);
         }
 
-        for (const [dossie, processos] of byDossie) {
+        for (const [dossie, ids] of byDossie) {
           const { error } = await supabase
             .from("dados_benner" as any)
             .update({ dossie } as any)
-            .in("processo", processos);
-          if (!error) updated += processos.length;
+            .in("id", ids);
+          if (!error) updated += ids.length;
         }
       }
 

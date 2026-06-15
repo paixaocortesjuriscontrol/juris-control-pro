@@ -234,12 +234,12 @@ interface CargaFilters {
 interface Props {
   onClose?: () => void;
   filters?: CargaFilters;
-  selectedProcessNumbers?: string[];
+  selectedRecordIds?: string[];
   distribuicoes?: any[];
   idsAllowed?: string[];
 }
 
-export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumbers, distribuicoes, idsAllowed }: Props) {
+export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, distribuicoes, idsAllowed }: Props) {
   const [processing, setProcessing] = useState(true);
   const [phase, setPhase] = useState("");
   const [progress, setProgress] = useState(0);
@@ -250,7 +250,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
   const criarRemessa = useCriarRemessa();
   const navigate = useNavigate();
 
-  const isManualSelection = !!(selectedProcessNumbers && selectedProcessNumbers.length > 0);
+  const isManualSelection = !!(selectedRecordIds && selectedRecordIds.length > 0);
   const hasPreFilteredData = !!(distribuicoes && distribuicoes.length > 0);
   const hasIdsAllowed = !!(idsAllowed && idsAllowed.length > 0);
 
@@ -307,15 +307,13 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
           setProgress(Math.min(pct, 50));
           setPhase(`Carregando distribuições do banco... (${Math.min(i + batch.length, ids.length)}/${ids.length})`);
         }
-      } else if (selectedProcessNumbers && selectedProcessNumbers.length > 0) {
-        for (let i = 0; i < selectedProcessNumbers.length; i += 100) {
-          const batch = selectedProcessNumbers.slice(i, i + 100);
+      } else if (selectedRecordIds && selectedRecordIds.length > 0) {
+        for (let i = 0; i < selectedRecordIds.length; i += 500) {
+          const batch = selectedRecordIds.slice(i, i + 500);
           const { data, error } = await supabase
             .from("dados_benner" as any)
             .select("*")
-            .in("processo", batch)
-            .not("aba_origem", "is", null)
-            .order("created_at", { ascending: false });
+            .in("id", batch);
           if (error) throw error;
           if (data) allDist.push(...((data as any[]).map(mapBennerToDist)));
         }
@@ -485,6 +483,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         outRow[LAYOUT_COLS[32]] = d.recurso_mal_aparelhado ? "X" : "";
         outRow[LAYOUT_COLS[33]] = toSentenceCase(String(d.chance_exito ?? "").trim());
         outRow["__numProcesso"] = numProcesso;
+        outRow["__dadoBennerId"] = d.id || null;
 
         // Sanitize dash-only values
         for (const key of Object.keys(outRow)) {
@@ -658,12 +657,12 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedProcessNumber
         turma: String(row[LAYOUT_COLS[4]] ?? ""),
         relator: String(row[LAYOUT_COLS[5]] ?? ""),
         tribunal: String(row[LAYOUT_COLS[1]] ?? ""),
-        dado_benner_id: null,
+        dado_benner_id: row["__dadoBennerId"] || null,
       }));
       const remessa = await criarRemessa.mutateAsync({
         arquivo: res.blob,
         arquivoNome: res.filename,
-        filtros: { ...filters, selectedProcessNumbers, idsAllowedCount: idsAllowed?.length ?? null },
+        filtros: { ...filters, selectedRecordIdsCount: selectedRecordIds?.length ?? null, idsAllowedCount: idsAllowed?.length ?? null },
         itens,
       });
       toast.success(`Remessa ${remessa.numero_sequencial} criada com ${itens.length} item(ns)!`);

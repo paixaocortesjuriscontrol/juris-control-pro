@@ -73,26 +73,35 @@ export function EquipeUpdateImport({ onUpdated }: Props) {
         return;
       }
 
-      // Agrupa dossiês por equipe para reduzir UPDATEs
-      const dossiesPorEquipe = new Map<string, string[]>();
-      for (const [dossie, equipe] of equipePorDossie) {
-        if (!dossiesPorEquipe.has(equipe)) dossiesPorEquipe.set(equipe, []);
-        dossiesPorEquipe.get(equipe)!.push(dossie);
+      let updated = 0;
+      const dossies = [...equipePorDossie.keys()];
+      const idsPorEquipe = new Map<string, string[]>();
+      for (let i = 0; i < dossies.length; i += 500) {
+        const batch = dossies.slice(i, i + 500);
+        const { data, error } = await supabase
+          .from("dados_benner" as any)
+          .select("id, dossie")
+          .in("dossie", batch);
+        if (error) { console.error("Erro ao localizar registros por dossiê:", error); continue; }
+        for (const row of (data as any[]) || []) {
+          const equipe = equipePorDossie.get(row.dossie);
+          if (!equipe) continue;
+          if (!idsPorEquipe.has(equipe)) idsPorEquipe.set(equipe, []);
+          idsPorEquipe.get(equipe)!.push(row.id);
+        }
       }
 
-      let updated = 0;
-      const grupos = [...dossiesPorEquipe.entries()];
+      const grupos = [...idsPorEquipe.entries()];
       for (let g = 0; g < grupos.length; g++) {
-        const [equipe, dossies] = grupos[g];
-        setProgress(Math.round(((g + 1) / grupos.length) * 100));
+        const [equipe, ids] = grupos[g];
+        setProgress(Math.round(((g + 1) / Math.max(grupos.length, 1)) * 100));
         setStatusText(`Equipe "${equipe}" (${g + 1}/${grupos.length}) · ${updated} atualizados`);
-        // updates em lotes de 500 dossiês
-        for (let i = 0; i < dossies.length; i += 500) {
-          const batch = dossies.slice(i, i + 500);
+        for (let i = 0; i < ids.length; i += 500) {
+          const batch = ids.slice(i, i + 500);
           const { data, error } = await supabase
             .from("dados_benner" as any)
             .update({ equipe } as any)
-            .in("dossie", batch)
+            .in("id", batch)
             .select("id");
           if (!error && data) updated += (data as any[]).length;
         }
