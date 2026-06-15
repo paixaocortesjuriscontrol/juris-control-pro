@@ -831,11 +831,12 @@ export default function DistribuicaoTst() {
     setBulkJuditRunning(true);
 
     try {
-      let allProcessos: { processo_numero: string; dossie: string | null; turma: string | null; relator: string | null; data_distribuicao: string | null; parte_recorrente: string | null }[] = [];
+      let allProcessos: { id: string; processo_numero: string; dossie: string | null; turma: string | null; relator: string | null; data_distribuicao: string | null; parte_recorrente: string | null }[] = [];
 
       // If rows are selected, use only those
       if (selectedIds.size > 0) {
         allProcessos = dados.filter(d => selectedIds.has(d.id)).map(d => ({
+          id: d.id,
           processo_numero: d.processo_numero,
           dossie: d.dossie,
           turma: d.turma,
@@ -850,7 +851,7 @@ export default function DistribuicaoTst() {
         while (true) {
           let q = supabase
             .from("dados_benner" as any)
-            .select("processo, dossie, turma, relator, data_distribuicao, recorrente")
+            .select("id, processo, dossie, turma, relator, data_distribuicao, recorrente")
             .not("aba_origem", "is", null)
             .order("created_at", { ascending: false });
           
@@ -867,6 +868,7 @@ export default function DistribuicaoTst() {
           if (error) { toast.error("Erro ao buscar processos: " + error.message); break; }
           // Mapeia para a forma esperada pelo loop abaixo
           const mapped = ((data as any[]) || []).map((d: any) => ({
+            id: d.id,
             processo_numero: d.processo,
             dossie: d.dossie,
             turma: d.turma,
@@ -880,11 +882,13 @@ export default function DistribuicaoTst() {
         }
       }
 
-      // Deduplicate by processo_numero
+      // Deduplica por ID. Mesmo processo pode existir mais de uma vez com
+      // dossiês/origens diferentes; deduplicar por número fazia a rotina em
+      // massa atualizar uma linha errada e deixar outra intacta.
       const seen = new Set<string>();
       const unique = allProcessos.filter(p => {
-        if (!p.processo_numero || seen.has(p.processo_numero)) return false;
-        seen.add(p.processo_numero);
+        if (!p.id || seen.has(p.id)) return false;
+        seen.add(p.id);
         return true;
       });
 
