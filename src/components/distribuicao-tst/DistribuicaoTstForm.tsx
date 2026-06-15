@@ -1500,12 +1500,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Risco (descrição)</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("risco_descricao", bennerExtra.risco_descricao))}>
+              <Label className="flex items-center">Risco (descrição) <IaBadge field="risco_descricao" value={bennerExtra.risco_descricao} /></Label>
               <Input value={bennerExtra.risco_descricao || ""} onChange={e => setExtra("risco_descricao", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Provas Digitais</Label>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("provas_digitais", bennerExtra.provas_digitais))}>
+              <Label className="flex items-center">Provas Digitais <IaBadge field="provas_digitais" value={bennerExtra.provas_digitais} /></Label>
               <Select value={bennerExtra.provas_digitais || "__none__"} onValueChange={v => setExtra("provas_digitais", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1516,8 +1516,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
           </div>
-          <div className="space-y-2">
-            <Label>Matéria de Honra</Label>
+          <div className={cn("space-y-2 p-2 -m-2", iaClass("materia_honra", bennerExtra.materia_honra))}>
+            <Label className="flex items-center">Matéria de Honra <IaBadge field="materia_honra" value={bennerExtra.materia_honra} /></Label>
             <Select value={bennerExtra.materia_honra || "__none__"} onValueChange={v => setExtra("materia_honra", v === "__none__" ? "" : v)}>
               <SelectTrigger className="md:w-1/3"><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
