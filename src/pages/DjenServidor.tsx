@@ -534,7 +534,9 @@ function PublicacoesPanel() {
 function ComparadorPanel() {
   const [dataInicio, setDataInicio] = useState(todayYmd(-7));
   const [dataFim, setDataFim] = useState(todayYmd());
-  const { data, isLoading } = useComparadorPublicacoes({ dataInicio, dataFim });
+  const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  const { data: coordenacoes = [] } = useCoordenacoesFull();
+  const { data, isLoading } = useComparadorPublicacoes({ dataInicio, dataFim, coordenacaoId: coordenacaoId || undefined });
 
   const exportarCsv = (rows: Array<{ processo_numero?: string | null; tribunal?: string | null; dedup_data_ref?: string | null; hash_conteudo: string }>, nome: string) => {
     const header = "tribunal,processo,data,hash\n";
@@ -563,6 +565,19 @@ function ComparadorPanel() {
           <div>
             <label className="text-xs text-muted-foreground">Fim</label>
             <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
+          </div>
+          <div className="min-w-[220px]">
+            <label className="text-xs text-muted-foreground">Coordenação</label>
+            <select
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+              value={coordenacaoId}
+              onChange={(e) => setCoordenacaoId(e.target.value)}
+            >
+              <option value="">Todas</option>
+              {(coordenacoes as CoordenacaoOption[]).map((c) => (
+                <option key={c.id} value={c.id}>{c.nome}</option>
+              ))}
+            </select>
           </div>
         </div>
         {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : data && (
