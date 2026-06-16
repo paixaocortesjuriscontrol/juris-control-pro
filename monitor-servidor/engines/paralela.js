@@ -467,10 +467,21 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
 
 async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
+  const tribunaisMon = Array.isArray(mon.tribunais) ? expandirTribunais(mon.tribunais) : [];
   for (const pub of pubs) {
     const conteudo = getConteudo(pub);
     const metadata = metadataFromRaw(pub);
-    if (!conteudo || !contemTermo(conteudo, mon, pub) || shouldExclude(conteudo, mon, metadata)) {
+    // Filtro por tribunais permitidos no monitoramento (espelha browser)
+    if (tribunaisMon.length > 0 && !tribunaisMon.includes(tribunal)) {
+      stats.descartadas++;
+      continue;
+    }
+    if (
+      !conteudo ||
+      shouldExclude(conteudo, mon, pub) ||
+      !contemTermo(conteudo, mon, pub) ||
+      !condicaoConcomitanteAtendida(pub, mon, conteudo)
+    ) {
       stats.descartadas++;
       continue;
     }
