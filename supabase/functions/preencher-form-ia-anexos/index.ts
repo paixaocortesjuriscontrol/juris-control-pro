@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
       .eq("processo_id", pid)
       .order("documento_id")
       .order("pagina")
-      .limit(800);
+      .limit(5000);
     if (documentoIds.length > 0) q = q.in("documento_id", documentoIds);
     const { data: paginas, error: pagErr } = await q;
     if (pagErr) return json({ error: "Erro ao carregar texto: " + pagErr.message }, 500);
@@ -206,19 +206,37 @@ Deno.serve(async (req) => {
     for (const p of paginas as any[]) {
       (grouped[p.documento_id] ||= []).push(`[Pág ${p.pagina}] ${p.conteudo_texto}`);
     }
-    const maxChars = 90000;
-    const parts: string[] = [];
-    let totalChars = 0;
-    for (const [docId, pages] of Object.entries(grouped)) {
-      const block = `=== ${docNames[docId] || "Documento"} ===\n${pages.join("\n")}`;
-      if (totalChars + block.length > maxChars) {
-        parts.push(block.substring(0, Math.max(0, maxChars - totalChars)) + "\n[...truncado]");
-        break;
+
+    // Prioriza peças substantivas (acórdão, RR, sentença, etc.) antes de cortar/dividir.
+    const SUBSTANTIVE = /(ac[oó]rd[aã]o|recurso\s+de\s+revista|\brr\b|airr|senten[cç]a|decis[aã]o\s+monocr[aá]tica|embargos|contesta[cç][aã]o|certid[aã]o\s+de\s+baixa|intima[cç][aã]o\s+de\s+pauta|pauta)/i;
+    const docEntries = Object.entries(grouped).map(([docId, pages]) => {
+      const nome = docNames[docId] || "Documento";
+      const block = `=== ${nome} ===\n${pages.join("\n")}`;
+      return { docId, nome, block, substantive: SUBSTANTIVE.test(nome) };
+    });
+    docEntries.sort((a, b) => (a.substantive === b.substantive ? 0 : a.substantive ? -1 : 1));
+
+    // Divide em chunks respeitando limite de chars (≈150k tokens cada).
+    const maxChars = 600_000;
+    const chunks: string[] = [];
+    let buf: string[] = [];
+    let bufChars = 0;
+    for (const { block } of docEntries) {
+      if (block.length > maxChars) {
+        // documento gigante vira chunk próprio (truncado)
+        if (buf.length) { chunks.push(buf.join("\n\n")); buf = []; bufChars = 0; }
+        chunks.push(block.substring(0, maxChars) + "\n[...truncado]");
+        continue;
       }
-      parts.push(block);
-      totalChars += block.length;
+      if (bufChars + block.length > maxChars && buf.length) {
+        chunks.push(buf.join("\n\n"));
+        buf = [];
+        bufChars = 0;
+      }
+      buf.push(block);
+      bufChars += block.length + 2;
     }
-    const fullText = parts.join("\n\n");
+    if (buf.length) chunks.push(buf.join("\n\n"));
 
     const tool = {
       type: "function",
