@@ -158,12 +158,79 @@ function metadataFromRaw(pub) {
 }
 
 function contemTermo(conteudo, mon) {
-  const text = normalize(conteudo);
-  const termos = [mon.termo_busca, ...(mon.termos_or || [])].map(normalize).filter(Boolean);
-  if (termos.length === 0) return true;
+function buildTextoCompleto(pub, conteudo) {
+  const obj = rawObj(pub);
+  const partes = [String(conteudo || "")];
+  const advs = obj?.destinatarioadvogados || obj?.advogados || pub?.destinatarioadvogados || pub?.advogados;
+  if (Array.isArray(advs)) {
+    for (const entry of advs) {
+      const adv = entry?.advogado || entry;
+      if (adv?.nome) partes.push(String(adv.nome));
+      if (adv?.numero_oab) partes.push(`OAB ${adv.uf_oab || ""} ${adv.numero_oab}`);
+    }
+  }
+  const dest = obj?.destinatarios || pub?.destinatarios;
+  if (Array.isArray(dest)) for (const d of dest) if (d?.nome) partes.push(String(d.nome));
+  for (const k of ["poloAtivo","polo_ativo","poloPassivo","polo_passivo","nomeDestinatario","destinatarioNome","destinatario_nome"]) {
+    const v = obj?.[k] ?? pub?.[k];
+    if (v) partes.push(typeof v === "string" ? v : JSON.stringify(v));
+  }
+  const pjson = obj?.partes || pub?.partes;
+  if (Array.isArray(pjson)) for (const p of pjson) {
+    if (typeof p === "string") partes.push(p);
+    else if (p?.nome) partes.push(String(p.nome));
+  }
+  return partes.join("\n");
+}
+
+// Parse termos_or no formato "12345/NOME" ou "NOME/12345" ou "TJSP - Adv. NOME"
+function parsearTermoOr(raw) {
+  const t = String(raw || "").trim();
+  if (!t) return null;
+  let m = t.match(/^(\d{3,6})\s*\/\s*(.+)$/);
+  if (m) return { oabDigits: m[1], nome: m[2].trim() };
+  m = t.match(/^(.+?)\s*\/\s*(\d{3,6})$/);
+  if (m) return { oabDigits: m[2], nome: m[1].trim() };
+  let clean = t
+    .replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, "")
+    .replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, "")
+    .replace(/^Adv\.?\s*/i, "")
+    .trim();
+  return clean ? { nome: clean } : null;
+}
+
+function contemTermo(conteudo, mon, pub) {
+  // Espelha src/hooks/useDjenTermosParalelaEngine.ts > validarTermo:
+  // valida no texto completo (conteudo + destinatarios + advogados),
+  // não apenas no conteudo cru. Caso contrário, publicações em que o
+  // advogado/parte aparece apenas nos metadados estruturados são
+  // descartadas incorretamente.
   if (mon.tipo === "parte") return true;
-  if (mon.oab && text.includes(String(mon.oab).replace(/\D/g, ""))) return true;
-  return termos.some((t) => text.includes(t));
+  const textoCompleto = buildTextoCompleto(pub, conteudo);
+  const text = normalize(textoCompleto);
+  const principal = normalize(mon.termo_busca);
+  if (!principal && !(mon.termos_or || []).length && !mon.oab) return true;
+  if (mon.tipo === "advogado") {
+    const oabDigits = mon.oab ? String(mon.oab).replace(/\D/g, "") : "";
+    if (oabDigits.length >= 3 && text.includes(oabDigits)) return true;
+    if (principal && text.includes(principal)) return true;
+    for (const t of mon.termos_or || []) {
+      const p = parsearTermoOr(t);
+      if (!p) continue;
+      if (p.oabDigits && p.oabDigits.length >= 3 && text.includes(p.oabDigits)) return true;
+      const nn = normalize(p.nome);
+      if (nn && text.includes(nn)) return true;
+    }
+    return false;
+  }
+  // palavra-chave (e demais)
+  if (principal && text.includes(principal)) return true;
+  for (const t of mon.termos_or || []) {
+    const p = parsearTermoOr(t);
+    const nn = normalize(p?.nome || t);
+    if (nn && text.includes(nn)) return true;
+  }
+  return false;
 }
 
 function shouldExclude(conteudo, mon, metadata) {
@@ -285,7 +352,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
   for (const pub of pubs) {
     const conteudo = getConteudo(pub);
     const metadata = metadataFromRaw(pub);
-    if (!conteudo || !contemTermo(conteudo, mon) || shouldExclude(conteudo, mon, metadata)) {
+    if (!conteudo || !contemTermo(conteudo, mon, pub) || shouldExclude(conteudo, mon, metadata)) {
       stats.descartadas++;
       continue;
     }
