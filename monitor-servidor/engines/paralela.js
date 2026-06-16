@@ -56,6 +56,15 @@ function generateHash(input) {
   return Math.abs(hash).toString(16);
 }
 
+function generatePublicacaoHash(conteudo, dataDisponibilizacao, processoNumero, idDjen) {
+  const proc = String(processoNumero || "").replace(/\D/g, "");
+  const data = String(dataDisponibilizacao || "").slice(0, 10);
+  const base = idDjen
+    ? `id_djen:${idDjen}|${data}|${proc}`
+    : `${data}|${proc}|${String(conteudo || "").toLowerCase().replace(/\s+/g, " ").trim().slice(0, 800)}`;
+  return generateHash(base);
+}
+
 function ymdToday() {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Sao_Paulo",
@@ -355,16 +364,17 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       stats.descartadas++;
       continue;
     }
-    const dataDisponibilizacao = getDataDisponibilizacao(pub, dia);
     const idDjen = getIdDjen(pub);
-    const hashConteudo = generateHash(conteudo + dataDisponibilizacao);
+    const dataDisponibilizacao = getDataDisponibilizacao(pub, dia);
+    const processoNumero = extractProcesso(pub, conteudo);
+    const hashConteudo = generatePublicacaoHash(conteudo, dataDisponibilizacao, processoNumero, idDjen);
     const coordenacaoId = mon.coordenacao_id || null;
     let exists = null;
     if (idDjen && coordenacaoId) {
       const { data } = await sb.from("publicacoes_djen_servidor").select("id").eq("coordenacao_id", coordenacaoId).eq("id_djen", idDjen).maybeSingle();
       exists = data || null;
     }
-    if (!exists) {
+    if (!exists && !idDjen) {
       const { data } = coordenacaoId
         ? await sb.from("publicacoes_djen_servidor").select("id").eq("coordenacao_id", coordenacaoId).eq("hash_conteudo", hashConteudo).maybeSingle()
         : await sb.from("publicacoes_djen_servidor").select("id").eq("monitoramento_id", mon.id).eq("hash_conteudo", hashConteudo).maybeSingle();
@@ -382,7 +392,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       conteudo,
       data_publicacao: nextBusinessDateYmd(dataDisponibilizacao),
       data_disponibilizacao: dataDisponibilizacao,
-      processo_numero: extractProcesso(pub, conteudo),
+      processo_numero: processoNumero,
       tribunal,
       ...metadata,
       origem: "servidor",
