@@ -301,6 +301,8 @@ Deno.serve(async (req: Request) => {
     const data_inicio = data_inicio_body ?? hojeYmd;
     const data_fim = data_fim_body ?? hojeYmd;
     const modo_personalizado = body.modo_personalizado === true;
+    const persistMode: "browser" | "servidor" = body.persist_mode === "servidor" ? "servidor" : "browser";
+    const pubTable = persistMode === "servidor" ? "publicacoes_djen_servidor" : "publicacoes_djen";
     if (!credencial_id) return jsonResponse({ error: "credencial_id obrigatório" }, 400);
 
     const { data: cred, error: credErr } = await admin
