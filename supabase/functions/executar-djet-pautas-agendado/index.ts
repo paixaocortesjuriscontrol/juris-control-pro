@@ -307,9 +307,11 @@ Deno.serve(async (req) => {
 
   try {
     let force = false;
+    let persistMode: "browser" | "servidor" = "browser";
     try {
       const body = await req.json().catch(() => ({}));
       force = body?.force === true;
+      if (body?.persist_mode === "servidor") persistMode = "servidor";
     } catch { /* ignore */ }
 
     // 1) Lê configuração
@@ -385,7 +387,7 @@ Deno.serve(async (req) => {
     }
 
     // 5) Executa em background (não bloqueia resposta do cron)
-    const task = runJob(supabase, exec.id as string, now.ymd);
+    const task = runJob(supabase, exec.id as string, now.ymd, persistMode);
     // @ts-ignore EdgeRuntime existe no Deno Deploy do Supabase
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
       // @ts-ignore
