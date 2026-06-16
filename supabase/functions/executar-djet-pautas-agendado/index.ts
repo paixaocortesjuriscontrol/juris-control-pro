@@ -133,25 +133,37 @@ async function persistMatches(
   supabase: ReturnType<typeof createClient>,
   matches: MatchOut[],
   monitCoordMap: Map<string, string | null>,
+  persistMode: "browser" | "servidor" = "browser",
+  execucaoId: string | null = null,
 ): Promise<{ novas: number; duplicadas: number }> {
   if (matches.length === 0) return { novas: 0, duplicadas: 0 };
   const seen = new Set<string>();
+  const tabela = persistMode === "servidor" ? "publicacoes_djen_servidor" : "publicacoes_djen";
+  const onConflict = persistMode === "servidor" ? "monitoramento_id,hash_conteudo" : "coordenacao_id,hash_conteudo";
   const rows = matches.filter((m) => {
     if (seen.has(m.hash)) return false;
     seen.add(m.hash);
     return true;
-  }).map((m) => ({
-    monitoramento_id: m.monitoramentoId,
-    coordenacao_id: monitCoordMap.get(m.monitoramentoId) ?? null,
-    hash_conteudo: m.hash,
-    data_disponibilizacao: m.dataPublicacao,
-    data_publicacao: calcularDataPublicacaoYmd(m.dataPublicacao),
-    processo_numero: m.processo,
-    conteudo: m.conteudo,
-    fonte: m.fonte,
-    tipo_publicacao: "pauta",
-    lida: false,
-  }));
+  }).map((m) => {
+    const base: Record<string, unknown> = {
+      monitoramento_id: m.monitoramentoId,
+      coordenacao_id: monitCoordMap.get(m.monitoramentoId) ?? null,
+      hash_conteudo: m.hash,
+      data_disponibilizacao: m.dataPublicacao,
+      data_publicacao: calcularDataPublicacaoYmd(m.dataPublicacao),
+      processo_numero: m.processo,
+      conteudo: m.conteudo,
+      fonte: m.fonte,
+      tipo_publicacao: "pauta",
+    };
+    if (persistMode === "servidor") {
+      base.origem = "servidor";
+      if (execucaoId) base.execucao_id = execucaoId;
+    } else {
+      base.lida = false;
+    }
+    return base;
+  });
 
   let novas = 0;
   let duplicadas = 0;
@@ -159,12 +171,12 @@ async function persistMatches(
   for (let i = 0; i < rows.length; i += batchSize) {
     const slice = rows.slice(i, i + batchSize);
     const { data, error } = await supabase
-      .from("publicacoes_djen")
-      .upsert(slice, { onConflict: "coordenacao_id,hash_conteudo", ignoreDuplicates: true })
+      .from(tabela)
+      .upsert(slice, { onConflict, ignoreDuplicates: true })
       .select("id");
     if (error) {
       for (const r of slice) {
-        const { error: e2 } = await supabase.from("publicacoes_djen").insert(r);
+        const { error: e2 } = await supabase.from(tabela).insert(r);
         if (!e2) novas++; else duplicadas++;
       }
     } else {
@@ -180,6 +192,7 @@ async function runJob(
   supabase: ReturnType<typeof createClient>,
   execId: string,
   ymd: string,
+  persistMode: "browser" | "servidor" = "browser",
 ) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -241,7 +254,7 @@ async function runJob(
           fonte: (m.fonte as string) || "dejt-pdf",
           tribunal: (m.tribunal as string) || tribunal,
         }));
-        const { novas, duplicadas } = await persistMatches(supabase, matches, monitCoordMap);
+        const { novas, duplicadas } = await persistMatches(supabase, matches, monitCoordMap, persistMode);
         totalNovas += novas;
         totalDuplicadas += duplicadas;
         console.log(`[DJET-Pautas-Agendado] ${tribunal}: ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
