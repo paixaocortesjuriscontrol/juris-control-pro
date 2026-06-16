@@ -36,7 +36,7 @@ async function run({ payload, log }) {
   }
   log("pautas.start", { payload });
   const force = payload?.force !== false; // default true
-  const { status, body } = await invokePautas({ force });
+  const { status, body } = await invokePautas({ force, persist_mode: "servidor" });
   if (status < 200 || status >= 300) {
     throw new Error(`executar-djet-pautas-agendado status ${status}: ${JSON.stringify(body).slice(0, 500)}`);
   }

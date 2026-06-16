@@ -301,6 +301,8 @@ Deno.serve(async (req: Request) => {
     const data_inicio = data_inicio_body ?? hojeYmd;
     const data_fim = data_fim_body ?? hojeYmd;
     const modo_personalizado = body.modo_personalizado === true;
+    const persistMode: "browser" | "servidor" = body.persist_mode === "servidor" ? "servidor" : "browser";
+    const pubTable = persistMode === "servidor" ? "publicacoes_djen_servidor" : "publicacoes_djen";
     if (!credencial_id) return jsonResponse({ error: "credencial_id obrigatório" }, 400);
 
     const { data: cred, error: credErr } = await admin
@@ -757,19 +759,20 @@ Deno.serve(async (req: Request) => {
             // Análise DJEN, com ou sem captura_total.
             const uniqueHashMatch = sha256(`${matched.coordenacao_id ?? "_"}|${cred.id}|${idKEff}|${hashConteudo}|${Date.now()}|${Math.random()}`);
             const { data: insPub, error: pubErr } = await admin
-              .from("publicacoes_djen")
+              .from(pubTable)
               .insert({
                 ...basePayload,
                 id_djen: null,
                 hash_conteudo: uniqueHashMatch,
                 monitoramento_id: matched.id,
                 coordenacao_id: matched.coordenacao_id ?? null,
+                ...(persistMode === "servidor" ? { origem: "servidor" } : {}),
               })
               .select("id")
               .maybeSingle();
 
             if (pubErr) {
-              console.warn("[kurier] erro insert publicacoes_djen:", pubErr.message);
+              console.warn(`[kurier] erro insert ${pubTable}:`, pubErr.message);
               motivoDescarte = `erro_insert:${pubErr.message.slice(0, 60)}`;
             } else if (insPub) {
               publicacaoDjenId = insPub.id;
@@ -805,13 +808,14 @@ Deno.serve(async (req: Request) => {
             if (matched && (matched.coordenacao_id ?? null) === ct.id && publicacaoDjenId) continue;
             const uniqueHash = sha256(`${ct.id}|${cred.id}|${idKEff}|${hashConteudo}|${Date.now()}|${Math.random()}`);
             const { data: insCt, error: ctErr } = await admin
-              .from("publicacoes_djen")
+              .from(pubTable)
               .insert({
                 ...basePayload,
                 id_djen: null,           // <- evita conflito no unique (coord, id_djen)
                 hash_conteudo: uniqueHash,
                 monitoramento_id: ct.monit_id,
                 coordenacao_id: ct.id,
+                ...(persistMode === "servidor" ? { origem: "servidor" } : {}),
               })
               .select("id")
               .maybeSingle();
