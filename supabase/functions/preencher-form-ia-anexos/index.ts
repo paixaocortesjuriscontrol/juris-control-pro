@@ -313,7 +313,13 @@ Deno.serve(async (req) => {
       },
     };
 
-    const aiRes = await geminiChatCompletionsFetch({
+    // Dispara N chamadas em paralelo (uma por chunk) e mescla as respostas.
+    const judiBlock = dadosJudit
+      ? `\nDADOS DA JUDIT (já confirmados, NÃO reextrair, serão sobrescritos pelo sistema):\n${JSON.stringify(dadosJudit, null, 2)}`
+      : `\n(Sem dados da Judit disponíveis para este processo.)`;
+
+    const callChunk = async (chunkText: string, idx: number) => {
+      const res = await geminiChatCompletionsFetch({
         model: "gemini-2.5-pro",
         temperature: 0,
         messages: [
@@ -322,47 +328,128 @@ Deno.serve(async (req) => {
             role: "user",
             content: [
               `Processo: ${processoNumero}`,
-              dadosJudit
-                ? `\nDADOS DA JUDIT (já confirmados, NÃO reextrair, serão sobrescritos pelo sistema):\n${JSON.stringify(dadosJudit, null, 2)}`
-                : `\n(Sem dados da Judit disponíveis para este processo.)`,
-              `\nTrechos das peças (ordenados por documento):\n\n${fullText}`,
+              chunks.length > 1
+                ? `\n[PARTE ${idx + 1} de ${chunks.length}] — Você está vendo apenas um subconjunto das peças. Extraia o que estiver evidente AQUI; campos sem evidência neste lote serão preenchidos por outras partes. NÃO invente para "completar".`
+                : "",
+              judiBlock,
+              `\nTrechos das peças (ordenados por documento):\n\n${chunkText}`,
               `\nUse a função preencher_formulario para devolver SOMENTE campos com evidência citável em "_evidencias".`,
-            ].join("\n"),
+            ].filter(Boolean).join("\n"),
           },
         ],
         tools: [tool],
         tool_choice: { type: "function", function: { name: "preencher_formulario" } },
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`Gemini ${res.status} no chunk ${idx + 1}: ${t.substring(0, 200)}`);
+      }
+      const j = await res.json();
+      const tc = j?.choices?.[0]?.message?.tool_calls?.[0];
+      if (!tc?.function?.arguments) throw new Error(`IA não retornou tool call no chunk ${idx + 1}`);
+      const p = JSON.parse(tc.function.arguments);
+      return { parsed: p, usage: j?.usage || null };
+    };
+
+    const settled = await Promise.allSettled(chunks.map((c, i) => callChunk(c, i)));
+    const okResults: Array<{ parsed: any; usage: any }> = [];
+    const chunkErrors: string[] = [];
+    settled.forEach((s, i) => {
+      if (s.status === "fulfilled") okResults.push(s.value);
+      else chunkErrors.push(`chunk ${i + 1}: ${s.reason?.message || String(s.reason)}`);
     });
-
-    if (!aiRes.ok) {
-      const t = await aiRes.text();
-      return json({ error: `Gemini ${aiRes.status}: ${t.substring(0, 300)}` }, 500);
+    if (okResults.length === 0) {
+      return json({ error: `Todas as chamadas falharam. ${chunkErrors.join(" | ")}` }, 500);
     }
 
-    const aiJson = await aiRes.json();
-    const toolCall = aiJson?.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) {
-      return json({ error: "IA não retornou tool call" }, 500);
+    // ----- Merge das respostas -----
+    const confRank: Record<string, number> = { alta: 3, media: 2, baixa: 1 };
+    const LIST_FIELDS = new Set([
+      "materias_recurso_reclamante",
+      "materias_recurso_banco",
+      "materias_recurso_terceiro",
+    ]);
+    const dist: Record<string, any> = {};
+    const distConf: Record<string, string> = {};
+    const evid: Record<string, any> = {};
+    const conf: Record<string, string> = {};
+    const alertas: string[] = [];
+    const pendentes: string[] = [];
+    const conflicts: Record<string, Set<string>> = {};
+
+    for (const { parsed: p } of okResults) {
+      const d = p?.distribuicao_tst || {};
+      const cMap = p?._confianca || {};
+      const eMap = p?._evidencias || {};
+      for (const [k, v] of Object.entries(d)) {
+        if (v === undefined || v === null || v === "") continue;
+        if (LIST_FIELDS.has(k) && typeof v === "string") {
+          const existing = typeof dist[k] === "string" ? dist[k] : "";
+          const merged = new Set(
+            [...existing.split(","), ...v.split(",")]
+              .map((s) => s.trim().toLowerCase())
+              .filter(Boolean),
+          );
+          // mantém capitalização da última ocorrência
+          const all = [...existing.split(","), ...v.split(",")].map((s) => s.trim()).filter(Boolean);
+          const seen = new Set<string>();
+          const out: string[] = [];
+          for (const item of all) {
+            const key = item.toLowerCase();
+            if (merged.has(key) && !seen.has(key)) { seen.add(key); out.push(item); }
+          }
+          dist[k] = out.join(", ");
+          if (eMap[k]) evid[k] = eMap[k];
+          continue;
+        }
+        const newConf = cMap[k] || "media";
+        const curConf = distConf[k];
+        if (!(k in dist)) {
+          dist[k] = v;
+          distConf[k] = newConf;
+          if (eMap[k]) evid[k] = eMap[k];
+          if (cMap[k]) conf[k] = cMap[k];
+        } else {
+          // conflito: registra se valores diferentes
+          if (JSON.stringify(dist[k]) !== JSON.stringify(v)) {
+            (conflicts[k] ||= new Set()).add(String(dist[k]));
+            conflicts[k].add(String(v));
+          }
+          if ((confRank[newConf] || 0) > (confRank[curConf] || 0)) {
+            dist[k] = v;
+            distConf[k] = newConf;
+            if (eMap[k]) evid[k] = eMap[k];
+            if (cMap[k]) conf[k] = cMap[k];
+          }
+        }
+      }
+      for (const a of (p?._alertas || [])) if (typeof a === "string") alertas.push(a);
+      for (const a of (p?._campos_pendentes_revisao_humana || [])) if (typeof a === "string") pendentes.push(a);
     }
-    let parsed: any;
-    try {
-      parsed = JSON.parse(toolCall.function.arguments);
-    } catch {
-      return json({ error: "Falha ao parsear resposta da IA" }, 500);
+    for (const [k, set] of Object.entries(conflicts)) {
+      if (set.size > 1) alertas.push(`Valores divergentes entre chunks para "${k}": ${[...set].join(" | ")} — mantido o de maior confiança.`);
     }
+    for (const e of chunkErrors) alertas.push(`Falha parcial: ${e}`);
+
+    const mergedParsed = {
+      distribuicao_tst: dist,
+      dados_benner: {},
+      _evidencias: evid,
+      _confianca: conf,
+      _alertas: [...new Set(alertas)],
+      _campos_pendentes_revisao_humana: [...new Set(pendentes)],
+    };
 
     // Camada 4 — validação programática + hidratação Judit determinística.
-    const validado = validarEHidratar(
-      {
-        distribuicao_tst: parsed?.distribuicao_tst || {},
-        dados_benner: parsed?.dados_benner || {},
-        _evidencias: parsed?._evidencias || {},
-        _confianca: parsed?._confianca || {},
-        _alertas: parsed?._alertas || [],
-        _campos_pendentes_revisao_humana: parsed?._campos_pendentes_revisao_humana || [],
-      },
-      dadosJudit
-    );
+    const validado = validarEHidratar(mergedParsed, dadosJudit);
+
+    const totalUsage = okResults.reduce((acc, r) => {
+      if (!r.usage) return acc;
+      acc.prompt_tokens += r.usage.prompt_tokens || 0;
+      acc.completion_tokens += r.usage.completion_tokens || 0;
+      acc.total_tokens += r.usage.total_tokens || 0;
+      return acc;
+    }, { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
 
     return json({
       processo_id: pid,
@@ -374,7 +461,10 @@ Deno.serve(async (req) => {
       judit_aplicado: validado.judit_aplicado,
       docs_analisados: docIds.length,
       paginas_analisadas: paginas.length,
-      tokens: aiJson?.usage || null,
+      chunks_executados: okResults.length,
+      chunks_totais: chunks.length,
+      chars_enviados: chunks.reduce((a, c) => a + c.length, 0),
+      tokens: totalUsage,
     });
   } catch (e: any) {
     console.error("preencher-form-ia-anexos erro:", e);
