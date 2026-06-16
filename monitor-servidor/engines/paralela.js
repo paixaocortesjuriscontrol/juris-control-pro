@@ -31,10 +31,31 @@ function normalize(text) {
   return String(text || "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\w\s]/g, " ")
+    .replace(/[&\/\\]/g, " ")
+    .replace(/[^0-9A-Za-z\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
-    .toLowerCase();
+    .toUpperCase();
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function contemFrase(textoNorm, fraseNorm) {
+  if (!fraseNorm) return true;
+  return new RegExp(`(?:^|\\s)${escapeRegex(fraseNorm)}(?:\\s|$)`).test(textoNorm);
+}
+
+function contemFraseComAnd(textoNorm, termoRaw) {
+  if (!termoRaw) return true;
+  if (!termoRaw.includes("+")) return contemFrase(textoNorm, normalize(termoRaw));
+  const partes = termoRaw.split("+").map((p) => p.trim()).filter(Boolean);
+  return partes.every((p) => {
+    if (/^OAB\s/i.test(p)) return true;
+    const pn = normalize(p);
+    return !pn || contemFrase(textoNorm, pn);
+  });
 }
 
 function normalizeForApi(text) {
@@ -179,16 +200,70 @@ function buildTextoCompleto(pub, conteudo) {
   }
   const dest = obj?.destinatarios || pub?.destinatarios;
   if (Array.isArray(dest)) for (const d of dest) if (d?.nome) partes.push(String(d.nome));
-  for (const k of ["poloAtivo","polo_ativo","poloPassivo","polo_passivo","nomeDestinatario","destinatarioNome","destinatario_nome"]) {
-    const v = obj?.[k] ?? pub?.[k];
-    if (v) partes.push(typeof v === "string" ? v : JSON.stringify(v));
-  }
-  const pjson = obj?.partes || pub?.partes;
-  if (Array.isArray(pjson)) for (const p of pjson) {
-    if (typeof p === "string") partes.push(p);
-    else if (p?.nome) partes.push(String(p.nome));
-  }
   return partes.join("\n");
+}
+
+function extrairPartesEstruturadas(pub) {
+  const obj = rawObj(pub);
+  const out = [];
+  const add = (raw) => {
+    if (!raw) return;
+    const s = typeof raw === "string"
+      ? raw
+      : (raw?.nome || raw?.nomeParte || raw?.parte || raw?.nomeDestinatario || raw?.destinatarioNome || "");
+    if (!s) return;
+    for (const n of String(s).split(/\s*,\s*|\s*;\s*/).map((x) => x.trim()).filter(Boolean)) out.push(n);
+  };
+  const dest = obj?.destinatarios || pub?.destinatarios;
+  if (Array.isArray(dest)) for (const d of dest) add(d);
+  add(obj?.poloAtivo || obj?.polo_ativo || pub?.poloAtivo || pub?.polo_ativo);
+  add(obj?.poloPassivo || obj?.polo_passivo || pub?.poloPassivo || pub?.polo_passivo);
+  add(obj?.nomeDestinatario || obj?.destinatarioNome || obj?.destinatario_nome || pub?.nomeDestinatario || pub?.destinatarioNome || pub?.destinatario_nome);
+  const pjson = obj?.partes || obj?.partes_json || pub?.partes || pub?.partes_json;
+  const arr = typeof pjson === "string" ? (() => { try { return JSON.parse(pjson); } catch { return []; } })() : pjson;
+  if (Array.isArray(arr)) for (const p of arr) add(p);
+  return out;
+}
+
+function validarAdvogadoMetadados(pub, oab, nome) {
+  const obj = rawObj(pub);
+  const advs = obj?.destinatarioadvogados || obj?.advogados || pub?.destinatarioadvogados || pub?.advogados;
+  if (!Array.isArray(advs) || advs.length === 0) return false;
+  const oabDigits = oab ? String(oab).replace(/\D/g, "") : "";
+  const nomeNorm = nome ? normalize(nome) : "";
+  for (const entry of advs) {
+    const adv = entry?.advogado || entry;
+    if (!adv) continue;
+    if (oabDigits && adv.numero_oab && String(adv.numero_oab).replace(/\D/g, "") === oabDigits) return true;
+    if (nomeNorm && adv.nome) {
+      const an = normalize(adv.nome);
+      if (an === nomeNorm || an.includes(nomeNorm) || nomeNorm.includes(an)) return true;
+    }
+  }
+  return false;
+}
+
+function validarParteMetadados(pub, nomeParte) {
+  const nomeNorm = normalize(nomeParte);
+  if (!nomeNorm) return false;
+  for (const p of extrairPartesEstruturadas(pub)) {
+    const cn = normalize(p);
+    if (cn && contemFrase(cn, nomeNorm)) return true;
+  }
+  return false;
+}
+
+function validarParteSecaoPartes(pub, nomeParte) {
+  const obj = rawObj(pub);
+  const texto = String(obj?.texto || obj?.conteudo || obj?.teor || pub?.texto || pub?.conteudo || pub?.teor || "");
+  const nomeNorm = normalize(nomeParte);
+  if (!texto || !nomeNorm) return false;
+  const header = texto.match(/\bParte\s*\(\s*s\s*\)\s*:?\s*/i);
+  if (!header || header.index === undefined) return false;
+  const after = texto.slice(header.index + header[0].length, header.index + header[0].length + 2500);
+  const advIdx = after.search(/(?:^|\n)\s*Advogados?\s*(?:\(\s*s\s*\))?\s*:?/i);
+  const secao = advIdx >= 0 ? after.slice(0, advIdx) : after;
+  return secao.split(/\r?\n/).map((l) => normalize(l.trim())).some((ln) => ln.length >= 3 && contemFrase(ln, nomeNorm));
 }
 
 // Parse termos_or no formato "12345/NOME" ou "NOME/12345" ou "TJSP - Adv. NOME"
@@ -208,43 +283,78 @@ function parsearTermoOr(raw) {
 }
 
 function contemTermo(conteudo, mon, pub) {
-  // Espelha src/hooks/useDjenTermosParalelaEngine.ts > validarTermo:
-  // valida no texto completo (conteudo + destinatarios + advogados),
-  // não apenas no conteudo cru. Caso contrário, publicações em que o
-  // advogado/parte aparece apenas nos metadados estruturados são
-  // descartadas incorretamente.
-  if (mon.tipo === "parte") return true;
-  const textoCompleto = buildTextoCompleto(pub, conteudo);
-  const text = normalize(textoCompleto);
-  const principal = normalize(mon.termo_busca);
-  if (!principal && !(mon.termos_or || []).length && !mon.oab) return true;
-  if (mon.tipo === "advogado") {
-    const oabDigits = mon.oab ? String(mon.oab).replace(/\D/g, "") : "";
-    if (oabDigits.length >= 3 && text.includes(oabDigits)) return true;
-    if (principal && text.includes(principal)) return true;
+  // Espelha src/hooks/useDjenTermosParalelaEngine.ts > validarTermo (estrito):
+  // - 'parte': SÓ casa em metadados estruturados ou na seção Parte(s).
+  // - 'advogado': metadados estruturados OU nome/oab no texto completo (frase exata).
+  // - 'palavra-chave': frase exata (word-boundary) no texto completo, com suporte a '+'.
+  const tipo = mapTipo(mon.tipo);
+  if (tipo === "parte") {
+    if (pub?.__matchedByNomeParte) return true;
+    if (validarParteMetadados(pub, mon.termo_busca)) return true;
+    if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const t of mon.termos_or || []) {
-      const p = parsearTermoOr(t);
-      if (!p) continue;
-      if (p.oabDigits && p.oabDigits.length >= 3 && text.includes(p.oabDigits)) return true;
-      const nn = normalize(p.nome);
-      if (nn && text.includes(nn)) return true;
+      if (validarParteMetadados(pub, String(t))) return true;
+      if (validarParteSecaoPartes(pub, String(t))) return true;
     }
     return false;
   }
-  // palavra-chave (e demais)
-  if (principal && text.includes(principal)) return true;
+  const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
+  if (tipo === "advogado") {
+    if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
+    const nomeNorm = normalize(mon.termo_busca);
+    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
+    if (mon.oab) {
+      const od = String(mon.oab).replace(/\D/g, "");
+      if (od.length >= 3 && textoNorm.includes(od)) return true;
+    }
+    for (const t of mon.termos_or || []) {
+      const p = parsearTermoOr(t);
+      if (!p) continue;
+      if (validarAdvogadoMetadados(pub, p.oabDigits, p.nome)) return true;
+      const nn = normalize(p.nome);
+      if (nn && contemFrase(textoNorm, nn)) return true;
+      if (p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
+    }
+    return false;
+  }
+  if (tipo === "processo") {
+    const nd = String(mon.termo_busca || "").replace(/\D/g, "");
+    const pn = String(pub?.numeroProcesso || pub?.numero_processo || pub?.processo_numero || pub?.processo || "").replace(/\D/g, "");
+    return pn.includes(nd);
+  }
+  // palavra-chave / nome
+  if (contemFraseComAnd(textoNorm, mon.termo_busca)) return true;
   for (const t of mon.termos_or || []) {
     const p = parsearTermoOr(t);
-    const nn = normalize(p?.nome || t);
-    if (nn && text.includes(nn)) return true;
+    if (!p) continue;
+    if (contemFraseComAnd(textoNorm, p.nome)) return true;
   }
   return false;
 }
 
-function shouldExclude(conteudo, mon, metadata) {
+function condicaoConcomitanteAtendida(pub, mon, conteudo) {
+  const cond = mon?.condicao_concomitante;
+  if (!cond) return true;
+  const grupos = String(cond).split("|").map((g) => g.trim()).filter(Boolean);
+  if (grupos.length === 0) return true;
+  const textoNorm = mon.tipo === "parte"
+    ? normalize(extrairPartesEstruturadas(pub).join("\n"))
+    : normalize(buildTextoCompleto(pub, conteudo));
+  if (!textoNorm) return mon.tipo !== "parte";
+  return grupos.some((g) => {
+    const ts = g.split(",").map((t) => t.trim()).filter(Boolean);
+    if (ts.length === 0) return true;
+    return ts.every((t) => contemFrase(textoNorm, normalize(t)));
+  });
+}
+
+function shouldExclude(conteudo, mon, pub) {
   const excs = Array.isArray(mon.exclusoes) ? mon.exclusoes : [];
   if (excs.length === 0) return false;
-  const text = normalize([conteudo, JSON.stringify(metadata?.partes_json || []), JSON.stringify(metadata?.advogados_json || [])].join("\n"));
+  const text = mon.tipo === "parte"
+    ? normalize(extrairPartesEstruturadas(pub).join("\n"))
+    : normalize(buildTextoCompleto(pub, conteudo));
+  if (!text) return false;
   return excs.some((e) => {
     const n = normalize(e);
     return n && text.includes(n);
