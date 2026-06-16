@@ -3,8 +3,14 @@ name: DJEN Servidor pagination parity
 description: monitor-servidor/engines/paralela.js must mirror browser continueUntilEmpty pagination
 type: constraint
 ---
-O motor `monitor-servidor/engines/paralela.js` precisa replicar o comportamento `continueUntilEmpty` do client browser (`src/utils/pjeComunicaClient.ts`). A API PJE Comunica frequentemente retorna páginas curtas (< 50) ou `hasMore=false` no meio do stream em buscas amplas (ex.: SANTANDER por parte no TST, 100+ páginas). `buscarPaginado` NÃO pode encerrar quando `items.length < 50`. Regras corretas:
+O motor `monitor-servidor/engines/paralela.js` precisa replicar:
 
-- Só encerrar quando duas páginas consecutivas vierem com 0 itens, OU quando `added === 0` (todos duplicados via id_djen), OU quando `total` declarado for alcançado.
-- Bug histórico: `if (items.length === 0 || items.length < 50 || added === 0) break;` causava perda massiva de publicações (ex.: 75 vs 4248 na coordenação Santander Civil).
-- Memória relacionada do browser: `mem/features/monitoring/djen-paralela-pagination-fix.md` e `mem/features/monitoring/djen-pagination-continueuntilempty.md`.
+1. **Paginação `continueUntilEmpty`**: A API PJE Comunica retorna páginas curtas ou `hasMore=false` no meio do stream em buscas amplas. `buscarPaginado` só encerra quando duas páginas consecutivas vierem vazias, quando `added===0` (todos duplicados via id_djen), ou quando `total` declarado for alcançado.
+
+2. **Validação `contemTermo` no texto COMPLETO** (não só no `conteudo`): precisa concatenar `conteudo + destinatarioadvogados[].advogado.nome + destinatarios[].nome + poloAtivo/Passivo + partes[]`. Sem isso, publicações em que o advogado/parte só aparece nos metadados estruturados são descartadas. Espelha `validarTermo` + `buildTextoCompleto` em `src/hooks/useDjenTermosParalelaEngine.ts`.
+
+3. **Tipo `advogado`**: validar OAB (>=3 dígitos) e nome no texto completo, e iterar `termos_or` com `parsearTermoOr` (formatos `12345/NOME`, `NOME/12345`, `TJSP - Adv. NOME`).
+
+Bug histórico: `contemTermo` só verificava `conteudo` cru, causando descartes massivos (ex.: 421 descartadas / 0 novas na Santander Cível em 2026-06-15, enquanto o browser persistia 239).
+
+Memórias relacionadas do browser: `mem/features/monitoring/djen-paralela-pagination-fix.md`, `mem/features/monitoring/djen-pagination-continueuntilempty.md`.
