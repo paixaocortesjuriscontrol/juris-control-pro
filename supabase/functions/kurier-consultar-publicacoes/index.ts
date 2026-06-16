@@ -255,15 +255,20 @@ Deno.serve(async (req: Request) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return jsonResponse({ error: "Unauthorized" }, 401);
+    if (!authHeader?.startsWith("Bearer ")) return jsonResponse({ error: "Unauthorized" }, 401);
 
     const userClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } },
     );
-    const { data: userData, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userData?.user) return jsonResponse({ error: "Unauthorized" }, 401);
+    // Valida o JWT localmente (getClaims) em vez de chamar o GoTrue (getUser),
+    // que devolve 401 quando a sessão foi revogada no servidor mas o token
+    // ainda é assinaturalmente válido.
+    const token = authHeader.slice("Bearer ".length);
+    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+    const userId = claimsData?.claims?.sub as string | undefined;
+    if (claimsErr || !userId) return jsonResponse({ error: "Unauthorized" }, 401);
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -274,7 +279,7 @@ Deno.serve(async (req: Request) => {
     const { data: roles } = await admin
       .from("user_roles")
       .select("role")
-      .eq("user_id", userData.user.id);
+      .eq("user_id", userId);
     const allowed = (roles ?? []).some((r: any) => r.role === "admin" || r.role === "coordenador");
     if (!allowed) return jsonResponse({ error: "Forbidden" }, 403);
 
