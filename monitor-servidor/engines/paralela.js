@@ -457,7 +457,9 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
     const results = [];
     for (const nomeParte of termosDeParte(mon)) {
       if (signal?.aborted) throw new Error("cancelado");
-      results.push(...await buscarPaginado(slot, { ...baseParams(mon, dia, tribunal), nomeParte }, signal));
+      const items = await buscarPaginado(slot, { ...baseParams(mon, dia, tribunal), nomeParte }, signal);
+      for (const it of items) it.__matchedByNomeParte = true;
+      results.push(...items);
       if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
     }
     return results;
@@ -534,7 +536,7 @@ async function run({ sb, payload, log, job }) {
 
   log("paralela.start", { dataInicio, dataFim, dias: dias.length, coordenacaoId, monitoramentoIdsFiltro });
 
-  let q = sb.from("monitoramentos_djen").select("id, descricao, termo_busca, termos_or, tipo, oab, uf, coordenacao_id, tribunais, exclusoes").eq("ativo", true);
+  let q = sb.from("monitoramentos_djen").select("id, descricao, termo_busca, termos_or, tipo, oab, uf, coordenacao_id, tribunais, exclusoes, condicao_concomitante").eq("ativo", true);
   if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
   if (monitoramentoIdsFiltro) q = q.in("id", monitoramentoIdsFiltro);
   const { data: monitoramentos, error: monErr } = await q;
