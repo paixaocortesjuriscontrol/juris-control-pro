@@ -257,31 +257,34 @@ Deno.serve(async (req: Request) => {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) return jsonResponse({ error: "Unauthorized" }, 401);
 
-    const userClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      { global: { headers: { Authorization: authHeader } } },
-    );
-    // Valida o JWT localmente (getClaims) em vez de chamar o GoTrue (getUser),
-    // que devolve 401 quando a sessão foi revogada no servidor mas o token
-    // ainda é assinaturalmente válido.
-    const token = authHeader.slice("Bearer ".length);
-    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
-    const userId = claimsData?.claims?.sub as string | undefined;
-    if (claimsErr || !userId) return jsonResponse({ error: "Unauthorized" }, 401);
-
     const admin = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
       { auth: { persistSession: false } },
     );
 
-    const { data: roles } = await admin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", userId);
-    const allowed = (roles ?? []).some((r: any) => r.role === "admin" || r.role === "coordenador");
-    if (!allowed) return jsonResponse({ error: "Forbidden" }, 403);
+    const token = authHeader.slice("Bearer ".length);
+    const isServiceInvocation = token === (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "");
+    if (!isServiceInvocation) {
+      const userClient = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+        { global: { headers: { Authorization: authHeader } } },
+      );
+      // Valida o JWT localmente (getClaims) em vez de chamar o GoTrue (getUser),
+      // que devolve 401 quando a sessão foi revogada no servidor mas o token
+      // ainda é assinaturalmente válido.
+      const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+      const userId = claimsData?.claims?.sub as string | undefined;
+      if (claimsErr || !userId) return jsonResponse({ error: "Unauthorized" }, 401);
+
+      const { data: roles } = await admin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+      const allowed = (roles ?? []).some((r: any) => r.role === "admin" || r.role === "coordenador");
+      if (!allowed) return jsonResponse({ error: "Forbidden" }, 403);
+    }
 
     const body = await req.json().catch(() => ({} as any));
     const credencial_id: string | undefined = body.credencial_id;
