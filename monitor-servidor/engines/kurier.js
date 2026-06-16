@@ -19,7 +19,7 @@ async function invokeKurier(credencialId, maxLotes) {
         Authorization: `Bearer ${SERVICE_KEY}`,
         apikey: SERVICE_KEY,
       },
-      body: JSON.stringify({ credencial_id: credencialId, max_lotes: maxLotes }),
+      body: JSON.stringify({ credencial_id: credencialId, max_lotes: maxLotes, persist_mode: "servidor" }),
       signal: ctrl.signal,
     });
     const text = await res.text();
