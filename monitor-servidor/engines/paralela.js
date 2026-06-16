@@ -157,7 +157,6 @@ function metadataFromRaw(pub) {
   };
 }
 
-function contemTermo(conteudo, mon) {
 function buildTextoCompleto(pub, conteudo) {
   const obj = rawObj(pub);
   const partes = [String(conteudo || "")];
