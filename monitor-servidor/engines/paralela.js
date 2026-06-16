@@ -179,6 +179,12 @@ function shouldExclude(conteudo, mon, metadata) {
 async function buscarPaginado(slot, params, signal) {
   const all = [];
   const seen = new Set();
+  // continueUntilEmpty: a API PJE Comunica frequentemente retorna páginas
+  // curtas (< 50) ou hasMore=false no meio do stream. Só paramos quando a
+  // página vier vazia OU quando nenhum item novo for adicionado (todos
+  // duplicados via id_djen). Espelha o comportamento do browser
+  // (memória: features/monitoring/djen-paralela-pagination-fix).
+  let emptyStreak = 0;
   for (let page = 1; page < 1000; page++) {
     if (signal?.aborted) throw new Error("cancelado");
     const query = {
@@ -214,8 +220,18 @@ async function buscarPaginado(slot, params, signal) {
       added++;
     }
     const total = getTotal(data);
-    if (items.length === 0 || items.length < 50 || added === 0) break;
-    if (typeof total === "number" && page * 50 >= total) break;
+    // Sair imediatamente apenas se a página vier completamente vazia em
+    // duas chamadas consecutivas, ou se total declarado já foi alcançado.
+    if (items.length === 0) {
+      emptyStreak++;
+      if (emptyStreak >= 2) break;
+    } else {
+      emptyStreak = 0;
+    }
+    // Se nenhum item novo foi adicionado, provavelmente estamos em loop
+    // de duplicatas — encerra.
+    if (items.length > 0 && added === 0) break;
+    if (typeof total === "number" && total > 0 && all.length >= total) break;
     if (PAGE_DELAY_MS > 0) await delay(PAGE_DELAY_MS, signal);
   }
   return all;
