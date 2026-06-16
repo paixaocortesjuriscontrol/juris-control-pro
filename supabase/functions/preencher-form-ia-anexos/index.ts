@@ -67,8 +67,8 @@ CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
         Quando o documento mencionar recurso interposto por parte do polo passivo que
         NÃO é o banco principal do escritório (ex.: empresa terceirizada quando o banco
         é o segundo réu, ou litisconsorte como SERVIBANCA, ATENTO, ALGAR, etc.),
-        preencha em `tipo_recurso_terceiro`, `materias_recurso_terceiro` e — se houver
-        evidência — `aparelhamento_terceiro`/`chance_exito_terceiro`.
+        preencha em \`tipo_recurso_terceiro\`, \`materias_recurso_terceiro\` e — se houver
+        evidência — \`aparelhamento_terceiro\`/\`chance_exito_terceiro\`.
         NÃO confunda com o recurso do BANCO. Use o nome do recorrente literal da peça
         para decidir e cite-o em "_evidencias.tipo_recurso_terceiro".
       • Inclua o fundamento legal quando o documento citar (ex: "Suspensão da prescrição
@@ -81,7 +81,7 @@ CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
       • Se identificar uma matéria mas não tiver certeza de qual lado a suscitou,
         adicione em "_alertas" "matéria X com lado indeterminado" e OMITA do campo.
   - tipo_recurso_reclamante / tipo_recurso_banco / tipo_recurso_terceiro:
-    literal Judit/peça; omita se não tiver certeza. `tipo_recurso_terceiro` é o tipo de
+    literal Judit/peça; omita se não tiver certeza. \`tipo_recurso_terceiro\` é o tipo de
     recurso interposto por outro reclamado/terceiro (NÃO o banco principal).
   - honra: frase curta sobre matéria de honra (≤200 chars), só se houver "destaque", "matéria de honra",
     "destacado pelo relator" no documento.
@@ -185,7 +185,7 @@ Deno.serve(async (req) => {
       .eq("processo_id", pid)
       .order("documento_id")
       .order("pagina")
-      .limit(800);
+      .limit(5000);
     if (documentoIds.length > 0) q = q.in("documento_id", documentoIds);
     const { data: paginas, error: pagErr } = await q;
     if (pagErr) return json({ error: "Erro ao carregar texto: " + pagErr.message }, 500);
@@ -206,19 +206,37 @@ Deno.serve(async (req) => {
     for (const p of paginas as any[]) {
       (grouped[p.documento_id] ||= []).push(`[Pág ${p.pagina}] ${p.conteudo_texto}`);
     }
-    const maxChars = 90000;
-    const parts: string[] = [];
-    let totalChars = 0;
-    for (const [docId, pages] of Object.entries(grouped)) {
-      const block = `=== ${docNames[docId] || "Documento"} ===\n${pages.join("\n")}`;
-      if (totalChars + block.length > maxChars) {
-        parts.push(block.substring(0, Math.max(0, maxChars - totalChars)) + "\n[...truncado]");
-        break;
+
+    // Prioriza peças substantivas (acórdão, RR, sentença, etc.) antes de cortar/dividir.
+    const SUBSTANTIVE = /(ac[oó]rd[aã]o|recurso\s+de\s+revista|\brr\b|airr|senten[cç]a|decis[aã]o\s+monocr[aá]tica|embargos|contesta[cç][aã]o|certid[aã]o\s+de\s+baixa|intima[cç][aã]o\s+de\s+pauta|pauta)/i;
+    const docEntries = Object.entries(grouped).map(([docId, pages]) => {
+      const nome = docNames[docId] || "Documento";
+      const block = `=== ${nome} ===\n${pages.join("\n")}`;
+      return { docId, nome, block, substantive: SUBSTANTIVE.test(nome) };
+    });
+    docEntries.sort((a, b) => (a.substantive === b.substantive ? 0 : a.substantive ? -1 : 1));
+
+    // Divide em chunks respeitando limite de chars (≈150k tokens cada).
+    const maxChars = 600_000;
+    const chunks: string[] = [];
+    let buf: string[] = [];
+    let bufChars = 0;
+    for (const { block } of docEntries) {
+      if (block.length > maxChars) {
+        // documento gigante vira chunk próprio (truncado)
+        if (buf.length) { chunks.push(buf.join("\n\n")); buf = []; bufChars = 0; }
+        chunks.push(block.substring(0, maxChars) + "\n[...truncado]");
+        continue;
       }
-      parts.push(block);
-      totalChars += block.length;
+      if (bufChars + block.length > maxChars && buf.length) {
+        chunks.push(buf.join("\n\n"));
+        buf = [];
+        bufChars = 0;
+      }
+      buf.push(block);
+      bufChars += block.length + 2;
     }
-    const fullText = parts.join("\n\n");
+    if (buf.length) chunks.push(buf.join("\n\n"));
 
     const tool = {
       type: "function",
@@ -295,7 +313,13 @@ Deno.serve(async (req) => {
       },
     };
 
-    const aiRes = await geminiChatCompletionsFetch({
+    // Dispara N chamadas em paralelo (uma por chunk) e mescla as respostas.
+    const judiBlock = dadosJudit
+      ? `\nDADOS DA JUDIT (já confirmados, NÃO reextrair, serão sobrescritos pelo sistema):\n${JSON.stringify(dadosJudit, null, 2)}`
+      : `\n(Sem dados da Judit disponíveis para este processo.)`;
+
+    const callChunk = async (chunkText: string, idx: number) => {
+      const res = await geminiChatCompletionsFetch({
         model: "gemini-2.5-pro",
         temperature: 0,
         messages: [
@@ -304,47 +328,128 @@ Deno.serve(async (req) => {
             role: "user",
             content: [
               `Processo: ${processoNumero}`,
-              dadosJudit
-                ? `\nDADOS DA JUDIT (já confirmados, NÃO reextrair, serão sobrescritos pelo sistema):\n${JSON.stringify(dadosJudit, null, 2)}`
-                : `\n(Sem dados da Judit disponíveis para este processo.)`,
-              `\nTrechos das peças (ordenados por documento):\n\n${fullText}`,
+              chunks.length > 1
+                ? `\n[PARTE ${idx + 1} de ${chunks.length}] — Você está vendo apenas um subconjunto das peças. Extraia o que estiver evidente AQUI; campos sem evidência neste lote serão preenchidos por outras partes. NÃO invente para "completar".`
+                : "",
+              judiBlock,
+              `\nTrechos das peças (ordenados por documento):\n\n${chunkText}`,
               `\nUse a função preencher_formulario para devolver SOMENTE campos com evidência citável em "_evidencias".`,
-            ].join("\n"),
+            ].filter(Boolean).join("\n"),
           },
         ],
         tools: [tool],
         tool_choice: { type: "function", function: { name: "preencher_formulario" } },
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(`Gemini ${res.status} no chunk ${idx + 1}: ${t.substring(0, 200)}`);
+      }
+      const j = await res.json();
+      const tc = j?.choices?.[0]?.message?.tool_calls?.[0];
+      if (!tc?.function?.arguments) throw new Error(`IA não retornou tool call no chunk ${idx + 1}`);
+      const p = JSON.parse(tc.function.arguments);
+      return { parsed: p, usage: j?.usage || null };
+    };
+
+    const settled = await Promise.allSettled(chunks.map((c, i) => callChunk(c, i)));
+    const okResults: Array<{ parsed: any; usage: any }> = [];
+    const chunkErrors: string[] = [];
+    settled.forEach((s, i) => {
+      if (s.status === "fulfilled") okResults.push(s.value);
+      else chunkErrors.push(`chunk ${i + 1}: ${s.reason?.message || String(s.reason)}`);
     });
-
-    if (!aiRes.ok) {
-      const t = await aiRes.text();
-      return json({ error: `Gemini ${aiRes.status}: ${t.substring(0, 300)}` }, 500);
+    if (okResults.length === 0) {
+      return json({ error: `Todas as chamadas falharam. ${chunkErrors.join(" | ")}` }, 500);
     }
 
-    const aiJson = await aiRes.json();
-    const toolCall = aiJson?.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall?.function?.arguments) {
-      return json({ error: "IA não retornou tool call" }, 500);
+    // ----- Merge das respostas -----
+    const confRank: Record<string, number> = { alta: 3, media: 2, baixa: 1 };
+    const LIST_FIELDS = new Set([
+      "materias_recurso_reclamante",
+      "materias_recurso_banco",
+      "materias_recurso_terceiro",
+    ]);
+    const dist: Record<string, any> = {};
+    const distConf: Record<string, string> = {};
+    const evid: Record<string, any> = {};
+    const conf: Record<string, string> = {};
+    const alertas: string[] = [];
+    const pendentes: string[] = [];
+    const conflicts: Record<string, Set<string>> = {};
+
+    for (const { parsed: p } of okResults) {
+      const d = p?.distribuicao_tst || {};
+      const cMap = p?._confianca || {};
+      const eMap = p?._evidencias || {};
+      for (const [k, v] of Object.entries(d)) {
+        if (v === undefined || v === null || v === "") continue;
+        if (LIST_FIELDS.has(k) && typeof v === "string") {
+          const existing = typeof dist[k] === "string" ? dist[k] : "";
+          const merged = new Set(
+            [...existing.split(","), ...v.split(",")]
+              .map((s) => s.trim().toLowerCase())
+              .filter(Boolean),
+          );
+          // mantém capitalização da última ocorrência
+          const all = [...existing.split(","), ...v.split(",")].map((s) => s.trim()).filter(Boolean);
+          const seen = new Set<string>();
+          const out: string[] = [];
+          for (const item of all) {
+            const key = item.toLowerCase();
+            if (merged.has(key) && !seen.has(key)) { seen.add(key); out.push(item); }
+          }
+          dist[k] = out.join(", ");
+          if (eMap[k]) evid[k] = eMap[k];
+          continue;
+        }
+        const newConf = cMap[k] || "media";
+        const curConf = distConf[k];
+        if (!(k in dist)) {
+          dist[k] = v;
+          distConf[k] = newConf;
+          if (eMap[k]) evid[k] = eMap[k];
+          if (cMap[k]) conf[k] = cMap[k];
+        } else {
+          // conflito: registra se valores diferentes
+          if (JSON.stringify(dist[k]) !== JSON.stringify(v)) {
+            (conflicts[k] ||= new Set()).add(String(dist[k]));
+            conflicts[k].add(String(v));
+          }
+          if ((confRank[newConf] || 0) > (confRank[curConf] || 0)) {
+            dist[k] = v;
+            distConf[k] = newConf;
+            if (eMap[k]) evid[k] = eMap[k];
+            if (cMap[k]) conf[k] = cMap[k];
+          }
+        }
+      }
+      for (const a of (p?._alertas || [])) if (typeof a === "string") alertas.push(a);
+      for (const a of (p?._campos_pendentes_revisao_humana || [])) if (typeof a === "string") pendentes.push(a);
     }
-    let parsed: any;
-    try {
-      parsed = JSON.parse(toolCall.function.arguments);
-    } catch {
-      return json({ error: "Falha ao parsear resposta da IA" }, 500);
+    for (const [k, set] of Object.entries(conflicts)) {
+      if (set.size > 1) alertas.push(`Valores divergentes entre chunks para "${k}": ${[...set].join(" | ")} — mantido o de maior confiança.`);
     }
+    for (const e of chunkErrors) alertas.push(`Falha parcial: ${e}`);
+
+    const mergedParsed = {
+      distribuicao_tst: dist,
+      dados_benner: {},
+      _evidencias: evid,
+      _confianca: conf,
+      _alertas: [...new Set(alertas)],
+      _campos_pendentes_revisao_humana: [...new Set(pendentes)],
+    };
 
     // Camada 4 — validação programática + hidratação Judit determinística.
-    const validado = validarEHidratar(
-      {
-        distribuicao_tst: parsed?.distribuicao_tst || {},
-        dados_benner: parsed?.dados_benner || {},
-        _evidencias: parsed?._evidencias || {},
-        _confianca: parsed?._confianca || {},
-        _alertas: parsed?._alertas || [],
-        _campos_pendentes_revisao_humana: parsed?._campos_pendentes_revisao_humana || [],
-      },
-      dadosJudit
-    );
+    const validado = validarEHidratar(mergedParsed, dadosJudit);
+
+    const totalUsage = okResults.reduce((acc, r) => {
+      if (!r.usage) return acc;
+      acc.prompt_tokens += r.usage.prompt_tokens || 0;
+      acc.completion_tokens += r.usage.completion_tokens || 0;
+      acc.total_tokens += r.usage.total_tokens || 0;
+      return acc;
+    }, { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 });
 
     return json({
       processo_id: pid,
@@ -356,7 +461,10 @@ Deno.serve(async (req) => {
       judit_aplicado: validado.judit_aplicado,
       docs_analisados: docIds.length,
       paginas_analisadas: paginas.length,
-      tokens: aiJson?.usage || null,
+      chunks_executados: okResults.length,
+      chunks_totais: chunks.length,
+      chars_enviados: chunks.reduce((a, c) => a + c.length, 0),
+      tokens: totalUsage,
     });
   } catch (e: any) {
     console.error("preencher-form-ia-anexos erro:", e);

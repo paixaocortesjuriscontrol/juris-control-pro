@@ -1,71 +1,35 @@
-## O que será construído
 
-### 1. Novo menu "Prompt IA TST"
-CRUD de prompts compartilhados **por coordenação** (mesmo padrão de isolamento já usado no projeto).
+## Problema confirmado
 
-Cadastro do prompt:
-- **Título** (aparece na lista da aba "Analisar com IA")
-- **Texto do prompt** (instruções para a IA)
-- **Descrição/observações** (quando usar)
-- **Modelo Gemini** (select: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash`) — default `gemini-2.5-flash`
-- **Ativo/Inativo** (toggle; inativos somem da lista de seleção)
-- **Auditoria**: data de cadastro, criado por, data de alteração, alterado por (preenchido automaticamente)
+`preencher-form-ia-anexos` hoje limita o prompt a `maxChars = 90.000` e dá `break` no overflow — quando estoura, descarta todos os documentos restantes (não só corta a página). Em processos reais temos 200k a 9M caracteres indexados (até 73 documentos), então a IA frequentemente **nunca vê** acórdão/RR/certidão que estão no fim da lista. Limite de `.limit(800)` páginas também impede leituras de processos muito grandes.
 
-Edição inline (sem botão "Editar"), padrão do projeto.
+## Solução: priorização + múltiplas chamadas com merge
 
-### 2. Aba "Analisar com IA" na tela Distribuição TST
-Ao clicar num processo da lista, abre o painel/modal de detalhes já existente e adiciona-se a aba **Analisar com IA** com este fluxo:
+### 1. Priorizar documentos substantivos antes de cortar
+Em `index.ts`, antes de montar o `fullText`, reordenar os documentos colocando primeiro os que têm regex substantiva (acórdão, recurso de revista, RR, AIRR, sentença, decisão monocrática, embargos, contestação, certidão de baixa, intimação de pauta) — mesma regex já usada em `analise-quarteirizado-ia/index.ts`. O resto vai depois.
 
-1. **Select de Prompt** — lista os prompts ativos da coordenação (mostra Título).
-2. **Botão "Buscar anexos (Judit)"** — chama a Judit com `response_type: attachments` para o número do processo; mostra spinner.
-3. **Lista de anexos com checkbox** — cada item exibe nome do arquivo, tipo (PDF/DOC), data e tamanho. Advogado marca os que quer usar.
-4. **Botão "Analisar com IA"** — envia para a edge function `analisar-tst-ia` com: `prompt_id`, `processo_id`, lista de anexos selecionados (URLs/IDs Judit).
-5. **Painel de Sugestões** — ao lado de cada campo do formulário de Distribuição TST, a sugestão da IA aparece com botões **Aceitar** / **Ignorar**. Aceitar copia o valor para o campo (sem sobrescrever nada automaticamente).
+### 2. Aumentar o orçamento por chamada
+Subir `maxChars` para `~600.000` (≈ 150k tokens; folga confortável dentro de 1M do Gemini 2.5 Pro) e `.limit(800)` → `.limit(5000)` páginas. Já cobre ~95% dos processos numa única chamada.
 
-### 3. Backend
-- Tabela `prompts_ia_tst` com isolamento por `coordenacao_id` (RLS).
-- Edge function `analisar-tst-ia`:
-  - Baixa os anexos selecionados via Judit (proxy/download já existente no projeto).
-  - Envia para Gemini (`generativelanguage.googleapis.com`) como multimodal (PDFs inline) + prompt do advogado + instrução fixa para retornar JSON estruturado com os campos do formulário TST.
-  - Retorna `{ campo: { sugestao, confianca } }` para o frontend popular o painel.
+### 3. Map-reduce para processos que ainda estouram
+Se após priorização o conteúdo total ainda exceder `maxChars`:
+- Dividir os documentos em N chunks de até `maxChars` cada (sem quebrar um documento entre chunks; se um único documento for maior que o limite, ele vira seu próprio chunk truncado, mas isso será raro).
+- Disparar as N chamadas ao Gemini **em paralelo** (`Promise.all`) com o mesmo system prompt e os mesmos dados Judit.
+- Fazer merge das respostas:
+  - Campos escalares (datas, tipo_julgamento, transito_julgado, etc.): aplicar prioridade por confiança `alta > media > baixa`; em empate, primeira ocorrência vence; registrar conflitos em `_alertas` ("data_julgamento divergente entre chunks: X vs Y").
+  - Campos de lista textual concatenada (`materias_recurso_*`): unir e deduplicar termos.
+  - `_evidencias`: mesclar mantendo o trecho da chamada que venceu o campo.
+  - `_alertas`, `_campos_pendentes_revisao_humana`: concatenar e deduplicar.
+- Passar o resultado merged para `validarEHidratar` (validar.ts) exatamente como hoje — o pipeline de validação/hidratação Judit não muda.
 
-### Detalhes técnicos
+### 4. Telemetria
+Retornar no JSON final: `docs_analisados`, `paginas_analisadas`, `chunks_executados`, `chars_enviados`, para o frontend exibir se quiser.
 
-**DB (migration nova):**
-```sql
-CREATE TABLE public.prompts_ia_tst (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  coordenacao_id uuid NOT NULL REFERENCES public.coordenacoes(id) ON DELETE CASCADE,
-  titulo text NOT NULL,
-  prompt text NOT NULL,
-  descricao text,
-  modelo text NOT NULL DEFAULT 'gemini-2.5-flash',
-  ativo boolean NOT NULL DEFAULT true,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  created_by uuid REFERENCES auth.users(id),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  updated_by uuid REFERENCES auth.users(id)
-);
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.prompts_ia_tst TO authenticated;
-GRANT ALL ON public.prompts_ia_tst TO service_role;
-ALTER TABLE public.prompts_ia_tst ENABLE ROW LEVEL SECURITY;
--- Policies: membros da coordenacao podem CRUD; trigger seta updated_at/updated_by.
-```
+## Aplicar a mesma estratégia em `analise-quarteirizado-ia`?
+Atualmente também tem `maxChars = 90.000` + `break`. O escopo dele já é mais estreito (só peças substantivas), mas para acórdãos grandes pode truncar. **Pergunta para você:** quer que eu aplique map-reduce também nessa função, ou deixo só na `preencher-form-ia-anexos` por enquanto?
 
-**Frontend:**
-- Novo item no sidebar: "Prompt IA TST" → rota `/prompts-ia-tst` com lista + edição inline.
-- Hook `usePromptsIaTst(coordenacaoId)` com React Query e `await invalidateQueries` antes de fechar/atualizar UI (padrão do projeto).
-- Nova aba dentro do componente de detalhes do processo em Distribuição TST: `AnalisarComIATab.tsx`.
+## Arquivos a alterar
+- `supabase/functions/preencher-form-ia-anexos/index.ts` — priorização, novo `maxChars`, loop de chunks, merge, telemetria.
+- (Opcional) `supabase/functions/analise-quarteirizado-ia/index.ts` — mesmo tratamento.
 
-**Edge function `analisar-tst-ia`:**
-- `verify_jwt = true`.
-- Lê `GEMINI_API_KEY` e `JUDIT_API_KEY` via `Deno.env`.
-- Para cada anexo selecionado: baixa PDF da Judit → base64 → envia como `inline_data` pro Gemini.
-- Prompt do sistema instrui a IA a devolver JSON com chaves = nomes dos campos do formulário TST. O texto do prompt cadastrado pelo advogado entra como contexto adicional.
-- Resposta normalizada `{ sugestoes: { campo: valor } }`.
-
-**Saída no formulário:** painel colapsável ao lado direito do form com cada sugestão e botão "Aceitar" (preenche o campo correspondente sem salvar — o advogado revisa e salva manualmente).
-
-### Confirmação antes de codar
-- Já existe um componente "detalhes do processo" em Distribuição TST onde abrirei a nova aba (vou localizar pelo caminho da tela). Se preferir que abra em modal separado em vez de aba, me avise.
-- Vou usar `gemini-2.5-flash` como default. Posso adicionar `gemini-2.5-pro` na lista. Confirma essa lista de modelos?
+Nenhuma mudança de schema, frontend, ou validar.ts.
