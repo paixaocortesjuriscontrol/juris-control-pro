@@ -71,6 +71,7 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: FileText, label: "Documentos", path: "/documentos" },
   { icon: Brain, label: "Assistente IA", path: "/assistente-juridico" },
   { icon: Server, label: "DJEN Servidor", path: "/djen-servidor", color: "text-emerald-400", adminOnly: true },
+  { icon: Server, label: "DJEN Local", path: "/djen-local", color: "text-emerald-400", adminOnly: true },
 ];
 
 // Itens visíveis apenas para administradores (na seção inferior)
