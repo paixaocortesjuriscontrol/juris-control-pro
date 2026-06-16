@@ -67,8 +67,8 @@ CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
         Quando o documento mencionar recurso interposto por parte do polo passivo que
         NÃO é o banco principal do escritório (ex.: empresa terceirizada quando o banco
         é o segundo réu, ou litisconsorte como SERVIBANCA, ATENTO, ALGAR, etc.),
-        preencha em `tipo_recurso_terceiro`, `materias_recurso_terceiro` e — se houver
-        evidência — `aparelhamento_terceiro`/`chance_exito_terceiro`.
+        preencha em \`tipo_recurso_terceiro\`, \`materias_recurso_terceiro\` e — se houver
+        evidência — \`aparelhamento_terceiro\`/\`chance_exito_terceiro\`.
         NÃO confunda com o recurso do BANCO. Use o nome do recorrente literal da peça
         para decidir e cite-o em "_evidencias.tipo_recurso_terceiro".
       • Inclua o fundamento legal quando o documento citar (ex: "Suspensão da prescrição
@@ -81,7 +81,7 @@ CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
       • Se identificar uma matéria mas não tiver certeza de qual lado a suscitou,
         adicione em "_alertas" "matéria X com lado indeterminado" e OMITA do campo.
   - tipo_recurso_reclamante / tipo_recurso_banco / tipo_recurso_terceiro:
-    literal Judit/peça; omita se não tiver certeza. `tipo_recurso_terceiro` é o tipo de
+    literal Judit/peça; omita se não tiver certeza. \`tipo_recurso_terceiro\` é o tipo de
     recurso interposto por outro reclamado/terceiro (NÃO o banco principal).
   - honra: frase curta sobre matéria de honra (≤200 chars), só se houver "destaque", "matéria de honra",
     "destacado pelo relator" no documento.
