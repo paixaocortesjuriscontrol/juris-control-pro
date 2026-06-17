@@ -64,6 +64,77 @@ function ymdToDdmmyyyy(ymd: string): string {
   return `${d}/${m}/${y}`;
 }
 
+function buildDateRange(inicioYmd: string, fimYmd: string): string[] {
+  const out: string[] = [];
+  const start = new Date(`${inicioYmd}T12:00:00Z`);
+  const end = new Date(`${fimYmd}T12:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return [inicioYmd];
+  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+type ProgressoStatus = "pendente" | "executando" | "concluido" | "erro" | "cancelado";
+type ProgressoPautaItem = {
+  id: string;
+  label: string;
+  tribunal: string;
+  data: string;
+  status: ProgressoStatus;
+  mensagem?: string | null;
+  erro?: string | null;
+  current: number;
+  total: number;
+  novas: number;
+  duplicatas: number;
+  descartadas: number;
+};
+
+function makeProgressItems(datas: string[]): ProgressoPautaItem[] {
+  return datas.flatMap((dia) => TRIBUNAIS_DEJT.map((tribunal) => ({
+    id: `${tribunal}|${dia}`,
+    label: `${tribunal} · ${ymdToDdmmyyyy(dia)}`,
+    tribunal,
+    data: dia,
+    status: "pendente" as ProgressoStatus,
+    mensagem: "Aguardando",
+    erro: null,
+    current: 0,
+    total: 1,
+    novas: 0,
+    duplicatas: 0,
+    descartadas: 0,
+  })));
+}
+
+async function inferExecucaoServidorId(supabase: ReturnType<typeof createClient>): Promise<string | null> {
+  const { data } = await supabase
+    .from("workers_servidor")
+    .select("current_execucao_id, heartbeat_at")
+    .eq("current_tipo", "djet_pautas_servidor")
+    .eq("status", "busy")
+    .not("current_execucao_id", "is", null)
+    .order("heartbeat_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const id = (data?.current_execucao_id as string | null) || null;
+  if (!id || !data?.heartbeat_at) return id;
+  const fresh = Date.now() - new Date(data.heartbeat_at as string).getTime() < 10 * 60_000;
+  return fresh ? id : null;
+}
+
+async function isExecucaoServidorCancelada(supabase: ReturnType<typeof createClient>, execucaoServidorId: string | null) {
+  if (!execucaoServidorId) return false;
+  const { data } = await supabase
+    .from("execucoes_servidor")
+    .select("status")
+    .eq("id", execucaoServidorId)
+    .maybeSingle();
+  return data?.status === "cancelado";
+}
+
 interface Monitoramento {
   id: string;
   tipo: string;
