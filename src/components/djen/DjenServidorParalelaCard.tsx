@@ -222,7 +222,7 @@ export function DjenServidorParalelaCard() {
   }, [cancelar, exec?.id, isRunning, queryClient]);
 
   if (!cfg) {
-    return <p className="text-sm text-muted-foreground">Configuração ainda não criada para DJEN Servidor.</p>;
+    return <p className="text-sm text-muted-foreground">Configuração ainda não criada para DJEN Termos.</p>;
   }
 
   return (
@@ -231,7 +231,7 @@ export function DjenServidorParalelaCard() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-primary" />
-            <CardTitle>DJEN Servidor</CardTitle>
+            <CardTitle>DJEN Termos</CardTitle>
             <Badge variant="outline" className="text-xs">
               {workersBase.length || 0} worker{workersBase.length === 1 ? "" : "s"} VPS
             </Badge>
