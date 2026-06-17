@@ -27,7 +27,7 @@ function formatDuracao(s: number) {
 }
 
 export function MonitoramentoTermosKurierCard() {
-  const { progress, isRunning, canResume, executar, retomar, cancelar, forceKill, resetTotal } = useDjenTermosKurier();
+  const { progress, isRunning, canResume, executar, drenarBacklog, retomar, cancelar, forceKill, resetTotal } = useDjenTermosKurier();
   const { config, saveConfig } = useDjenTermosKurierScheduler();
   const [baseUrlDraft, setBaseUrlDraft] = useState<string | null>(null);
   const [freqDraft, setFreqDraft] = useState<string | null>(null);
