@@ -356,6 +356,187 @@ export function useComparadorPublicacoes(opts: { dataInicio: string; dataFim: st
   });
 }
 
+export interface ComparadorAnaliseLinha {
+  coordenacaoId: string;
+  coordenacaoNome: string;
+  tipo: string; // tipo do monitoramento (advogado/processo/palavra-chave/parte) ou "sem_monitoramento"
+  totalServidor: number;
+  totalBrowser: number;
+  emAmbos: number;
+  soServidor: number;
+  soBrowser: number;
+}
+
+export interface ComparadorAnaliseRelatorio {
+  dataInicio: string;
+  dataFim: string;
+  geradoEm: string;
+  linhas: ComparadorAnaliseLinha[];
+  totais: {
+    servidor: number;
+    browser: number;
+    emAmbos: number;
+    soServidor: number;
+    soBrowser: number;
+  };
+}
+
+/**
+ * Versão manual (disparada via botão "Analisar") do comparador.
+ * Agrupa por coordenação x tipo de monitoramento, mostrando quantas publicações
+ * foram encontradas pelo servidor (VPS) vs. pelo navegador, em comum e exclusivas.
+ */
+export function useComparadorAnalise() {
+  return useMutation({
+    mutationFn: async (opts: {
+      dataInicio: string;
+      dataFim: string;
+      coordenacaoId?: string;
+    }): Promise<ComparadorAnaliseRelatorio> => {
+      const baseCols =
+        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal";
+      let servQ = supabase
+        .from("publicacoes_djen_servidor")
+        .select(baseCols)
+        .gte("dedup_data_ref", opts.dataInicio)
+        .lte("dedup_data_ref", opts.dataFim)
+        .limit(20000);
+      let browQ = supabase
+        .from("publicacoes_djen")
+        .select(baseCols)
+        .gte("dedup_data_ref", opts.dataInicio)
+        .lte("dedup_data_ref", opts.dataFim)
+        .limit(20000);
+      if (opts.coordenacaoId) {
+        servQ = servQ.eq("coordenacao_id", opts.coordenacaoId);
+        browQ = browQ.eq("coordenacao_id", opts.coordenacaoId);
+      }
+
+      const [serv, brow, coords, monits] = await Promise.all([
+        servQ,
+        browQ,
+        supabase.from("coordenacoes").select("id, nome"),
+        supabase.from("monitoramentos_djen").select("id, tipo, coordenacao_id"),
+      ]);
+      if (serv.error) throw serv.error;
+      if (brow.error) throw brow.error;
+      if (coords.error) throw coords.error;
+      if (monits.error) throw monits.error;
+
+      const coordNome = new Map<string, string>(
+        (coords.data || []).map((c: any) => [c.id, c.nome]),
+      );
+      const monitTipo = new Map<string, string>(
+        (monits.data || []).map((m: any) => [m.id, m.tipo]),
+      );
+
+      type Row = {
+        coordenacao_id?: string | null;
+        monitoramento_id?: string | null;
+        id_djen?: string | null;
+        dedup_conteudo_key?: string | null;
+        dedup_processo_digits?: string | null;
+        dedup_data_ref?: string | null;
+        hash_conteudo: string;
+      };
+
+      const key = (r: Row) =>
+        r.id_djen
+          ? `${r.coordenacao_id || "sem_coord"}|id_djen|${r.id_djen}`
+          : r.dedup_conteudo_key ||
+            `${r.coordenacao_id || "sem_coord"}|legacy|${r.dedup_processo_digits || ""}|${r.dedup_data_ref || ""}|${r.hash_conteudo}`;
+
+      const groupKey = (r: Row) => {
+        const coordId = r.coordenacao_id || "sem_coord";
+        const tipo = (r.monitoramento_id && monitTipo.get(r.monitoramento_id)) || "sem_monitoramento";
+        return `${coordId}::${tipo}`;
+      };
+
+      const sRows = (serv.data || []) as Row[];
+      const bRows = (brow.data || []) as Row[];
+
+      const sByKey = new Map(sRows.map((r) => [key(r), r] as const));
+      const bByKey = new Map(bRows.map((r) => [key(r), r] as const));
+
+      type Bucket = {
+        coordenacaoId: string;
+        tipo: string;
+        servidor: Set<string>;
+        browser: Set<string>;
+      };
+      const buckets = new Map<string, Bucket>();
+      const ensure = (r: Row): Bucket => {
+        const gk = groupKey(r);
+        let b = buckets.get(gk);
+        if (!b) {
+          b = {
+            coordenacaoId: r.coordenacao_id || "sem_coord",
+            tipo: (r.monitoramento_id && monitTipo.get(r.monitoramento_id)) || "sem_monitoramento",
+            servidor: new Set(),
+            browser: new Set(),
+          };
+          buckets.set(gk, b);
+        }
+        return b;
+      };
+      for (const r of sRows) ensure(r).servidor.add(key(r));
+      for (const r of bRows) ensure(r).browser.add(key(r));
+
+      const linhas: ComparadorAnaliseLinha[] = [];
+      let totServ = 0,
+        totBrow = 0,
+        totAmbos = 0,
+        totSoServ = 0,
+        totSoBrow = 0;
+      for (const b of buckets.values()) {
+        let emAmbos = 0;
+        for (const k of b.servidor) if (b.browser.has(k)) emAmbos++;
+        const soServidor = b.servidor.size - emAmbos;
+        const soBrowser = b.browser.size - emAmbos;
+        totServ += b.servidor.size;
+        totBrow += b.browser.size;
+        totAmbos += emAmbos;
+        totSoServ += soServidor;
+        totSoBrow += soBrowser;
+        linhas.push({
+          coordenacaoId: b.coordenacaoId,
+          coordenacaoNome: coordNome.get(b.coordenacaoId) || "Sem coordenação",
+          tipo: b.tipo,
+          totalServidor: b.servidor.size,
+          totalBrowser: b.browser.size,
+          emAmbos,
+          soServidor,
+          soBrowser,
+        });
+      }
+
+      linhas.sort((a, b) => {
+        const c = a.coordenacaoNome.localeCompare(b.coordenacaoNome, "pt-BR");
+        if (c !== 0) return c;
+        return a.tipo.localeCompare(b.tipo, "pt-BR");
+      });
+
+      // Sanity: alinhar com chaves cross-coord (dedup interno já usa coord no key)
+      const allKeys = new Set<string>([...sByKey.keys(), ...bByKey.keys()]);
+      void allKeys;
+
+      return {
+        dataInicio: opts.dataInicio,
+        dataFim: opts.dataFim,
+        geradoEm: new Date().toISOString(),
+        linhas,
+        totais: {
+          servidor: totServ,
+          browser: totBrow,
+          emAmbos: totAmbos,
+          soServidor: totSoServ,
+          soBrowser: totSoBrow,
+        },
+      };
+    },
+  });
+}
+
 export function useTickAge() {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
