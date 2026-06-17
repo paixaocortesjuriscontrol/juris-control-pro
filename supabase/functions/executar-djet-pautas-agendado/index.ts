@@ -452,6 +452,18 @@ async function runJob(
       .eq("tipo", persistMode === "servidor" ? "djet_pautas_servidor" : "djet_pautas");
   } catch (e) {
     console.error("[DJET-Pautas-Agendado] erro fatal:", e);
+    if (execucaoServidorId) {
+      await supabase
+        .from("execucoes_servidor")
+        .update({
+          status: "erro",
+          finalizado_em: new Date().toISOString(),
+          erro: String((e as Error)?.message || e),
+          progresso_atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", execucaoServidorId)
+        .neq("status", "cancelado");
+    }
     await supabase
       .from("execucoes_agendadas")
       .update({
