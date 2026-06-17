@@ -64,6 +64,77 @@ function ymdToDdmmyyyy(ymd: string): string {
   return `${d}/${m}/${y}`;
 }
 
+function buildDateRange(inicioYmd: string, fimYmd: string): string[] {
+  const out: string[] = [];
+  const start = new Date(`${inicioYmd}T12:00:00Z`);
+  const end = new Date(`${fimYmd}T12:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return [inicioYmd];
+  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+type ProgressoStatus = "pendente" | "executando" | "concluido" | "erro" | "cancelado";
+type ProgressoPautaItem = {
+  id: string;
+  label: string;
+  tribunal: string;
+  data: string;
+  status: ProgressoStatus;
+  mensagem?: string | null;
+  erro?: string | null;
+  current: number;
+  total: number;
+  novas: number;
+  duplicatas: number;
+  descartadas: number;
+};
+
+function makeProgressItems(datas: string[]): ProgressoPautaItem[] {
+  return datas.flatMap((dia) => TRIBUNAIS_DEJT.map((tribunal) => ({
+    id: `${tribunal}|${dia}`,
+    label: `${tribunal} · ${ymdToDdmmyyyy(dia)}`,
+    tribunal,
+    data: dia,
+    status: "pendente" as ProgressoStatus,
+    mensagem: "Aguardando",
+    erro: null,
+    current: 0,
+    total: 1,
+    novas: 0,
+    duplicatas: 0,
+    descartadas: 0,
+  })));
+}
+
+async function inferExecucaoServidorId(supabase: ReturnType<typeof createClient>): Promise<string | null> {
+  const { data } = await supabase
+    .from("workers_servidor")
+    .select("current_execucao_id, heartbeat_at")
+    .eq("current_tipo", "djet_pautas_servidor")
+    .eq("status", "busy")
+    .not("current_execucao_id", "is", null)
+    .order("heartbeat_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const id = (data?.current_execucao_id as string | null) || null;
+  if (!id || !data?.heartbeat_at) return id;
+  const fresh = Date.now() - new Date(data.heartbeat_at as string).getTime() < 10 * 60_000;
+  return fresh ? id : null;
+}
+
+async function isExecucaoServidorCancelada(supabase: ReturnType<typeof createClient>, execucaoServidorId: string | null) {
+  if (!execucaoServidorId) return false;
+  const { data } = await supabase
+    .from("execucoes_servidor")
+    .select("status")
+    .eq("id", execucaoServidorId)
+    .maybeSingle();
+  return data?.status === "cancelado";
+}
+
 interface Monitoramento {
   id: string;
   tipo: string;
@@ -194,6 +265,7 @@ async function runJob(
   ymd: string,
   persistMode: "browser" | "servidor" = "browser",
   configTable: string = "configuracoes_monitoramento",
+  options: { execucaoServidorId?: string | null; dataInicio?: string; dataFim?: string } = {},
 ) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -202,6 +274,51 @@ async function runJob(
   let totalNovas = 0;
   let totalDuplicadas = 0;
   let totalErros = 0;
+  const execucaoServidorId = persistMode === "servidor"
+    ? options.execucaoServidorId || await inferExecucaoServidorId(supabase)
+    : null;
+  let payloadServidor: Record<string, unknown> | null = null;
+  if (execucaoServidorId && (!options.dataInicio || !options.dataFim)) {
+    const { data } = await supabase
+      .from("execucoes_servidor")
+      .select("payload")
+      .eq("id", execucaoServidorId)
+      .maybeSingle();
+    payloadServidor = (data?.payload as Record<string, unknown> | null) || null;
+  }
+  const dataInicioOpcao = options.dataInicio || (typeof payloadServidor?.dataInicio === "string" ? payloadServidor.dataInicio : undefined);
+  const dataFimOpcao = options.dataFim || (typeof payloadServidor?.dataFim === "string" ? payloadServidor.dataFim : undefined);
+  const datasJanela = buildDateRange(dataInicioOpcao || ymd, dataFimOpcao || dataInicioOpcao || ymd);
+  const itens = makeProgressItems(datasJanela);
+  let lastFlush = 0;
+  const flushProgressoServidor = async (force = false) => {
+    if (!execucaoServidorId) return;
+    const now = Date.now();
+    if (!force && now - lastFlush < 700) return;
+    lastFlush = now;
+    const concluidos = itens.filter((i) => ["concluido", "erro", "cancelado"].includes(i.status)).length;
+    const falhas = itens.filter((i) => i.status === "erro").length;
+    const atual = itens.find((i) => i.status === "executando") || null;
+    await supabase
+      .from("execucoes_servidor")
+      .update({
+        status: "executando",
+        finalizado_em: null,
+        erro: null,
+        progresso: {
+          totalItens: itens.length,
+          concluidos,
+          falhas,
+          atual: atual ? { id: atual.id, label: atual.label } : null,
+          itens: itens.slice(-200),
+          janela: { dataInicio: datasJanela[0] || ymd, dataFim: datasJanela[datasJanela.length - 1] || ymd },
+        },
+        progresso_atualizado_em: new Date().toISOString(),
+        heartbeat_at: new Date().toISOString(),
+      })
+      .eq("id", execucaoServidorId)
+      .neq("status", "cancelado");
+  };
 
   try {
     // Carrega todos os monitoramentos ativos
@@ -216,15 +333,40 @@ async function runJob(
     const monitCoordMap = new Map<string, string | null>();
     monits.forEach((m) => monitCoordMap.set(m.id, m.coordenacao_id));
 
-    const dataDDMMYYYY = ymdToDdmmyyyy(ymd);
+    await flushProgressoServidor(true);
 
-    for (const tribunal of TRIBUNAIS_DEJT) {
-      const monitsTrib = monitsForTribunal(monits, tribunal);
-      const monsInput = monitsTrib.map(monitToInput).filter((m) => m.termos.length > 0 || m.oab);
-      if (monsInput.length === 0) continue;
+    for (const dataYmd of datasJanela) {
+      const dataDDMMYYYY = ymdToDdmmyyyy(dataYmd);
+      for (const tribunal of TRIBUNAIS_DEJT) {
+        if (await isExecucaoServidorCancelada(supabase, execucaoServidorId)) {
+          for (const it of itens.filter((i) => i.status === "pendente" || i.status === "executando")) {
+            it.status = "cancelado";
+            it.current = it.total;
+            it.mensagem = "Cancelado pelo usuário";
+          }
+          await flushProgressoServidor(true);
+          return;
+        }
+        const item = itens.find((i) => i.id === `${tribunal}|${dataYmd}`);
+        if (item) {
+          item.status = "executando";
+          item.mensagem = "Consultando PDF do DEJT";
+          await flushProgressoServidor(true);
+        }
+        const monitsTrib = monitsForTribunal(monits, tribunal);
+        const monsInput = monitsTrib.map(monitToInput).filter((m) => m.termos.length > 0 || m.oab);
+        if (monsInput.length === 0) {
+          if (item) {
+            item.status = "concluido";
+            item.current = 1;
+            item.mensagem = "Sem monitoramentos para o tribunal";
+          }
+          await flushProgressoServidor();
+          continue;
+        }
 
-      try {
-        const resp = await fetch(`${supabaseUrl}/functions/v1/buscar-dejt-pautas`, {
+        try {
+          const resp = await fetch(`${supabaseUrl}/functions/v1/buscar-dejt-pautas`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -239,13 +381,21 @@ async function runJob(
           }),
         });
 
-        if (!resp.ok) {
-          totalErros++;
-          console.error(`[DJET-Pautas-Agendado] ${tribunal}: HTTP ${resp.status}`);
-          continue;
-        }
-        const json = await resp.json();
-        const matches: MatchOut[] = (json?.matches || []).map((m: Record<string, unknown>) => ({
+          if (!resp.ok) {
+            totalErros++;
+            const msg = `HTTP ${resp.status}`;
+            if (item) {
+              item.status = "erro";
+              item.current = 1;
+              item.erro = msg;
+              item.mensagem = msg;
+            }
+            await flushProgressoServidor(true);
+            console.error(`[DJET-Pautas-Agendado] ${tribunal}: HTTP ${resp.status}`);
+            continue;
+          }
+          const json = await resp.json();
+          const matches: MatchOut[] = (json?.matches || []).map((m: Record<string, unknown>) => ({
           monitoramentoId: m.monitoramentoId as string,
           termoMatch: m.termoMatch as string,
           processo: (m.processo as string) ?? null,
@@ -255,16 +405,32 @@ async function runJob(
           fonte: (m.fonte as string) || "dejt-pdf",
           tribunal: (m.tribunal as string) || tribunal,
         }));
-        const { novas, duplicadas } = await persistMatches(supabase, matches, monitCoordMap, persistMode);
-        totalNovas += novas;
-        totalDuplicadas += duplicadas;
-        console.log(`[DJET-Pautas-Agendado] ${tribunal}: ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
-      } catch (e) {
-        totalErros++;
-        console.error(`[DJET-Pautas-Agendado] ${tribunal} erro:`, e);
-      }
+          const { novas, duplicadas } = await persistMatches(supabase, matches, monitCoordMap, persistMode, execucaoServidorId);
+          totalNovas += novas;
+          totalDuplicadas += duplicadas;
+          if (item) {
+            item.status = "concluido";
+            item.current = 1;
+            item.novas = novas;
+            item.duplicatas = duplicadas;
+            item.mensagem = `${matches.length} achado(s) · ${novas} nova(s)`;
+          }
+          await flushProgressoServidor(true);
+          console.log(`[DJET-Pautas-Agendado] ${tribunal}: ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
+        } catch (e) {
+          totalErros++;
+          if (item) {
+            item.status = "erro";
+            item.current = 1;
+            item.erro = String((e as Error)?.message || e);
+            item.mensagem = "Erro na consulta";
+          }
+          await flushProgressoServidor(true);
+          console.error(`[DJET-Pautas-Agendado] ${tribunal} erro:`, e);
+        }
 
-      await new Promise((r) => setTimeout(r, DELAY_BETWEEN_TRIBUNAIS_MS));
+        await new Promise((r) => setTimeout(r, DELAY_BETWEEN_TRIBUNAIS_MS));
+      }
     }
 
     await supabase
@@ -279,12 +445,38 @@ async function runJob(
       })
       .eq("id", execId);
 
+    await flushProgressoServidor(true);
+
+    if (execucaoServidorId) {
+      await supabase
+        .from("execucoes_servidor")
+        .update({
+          status: "concluido",
+          finalizado_em: new Date().toISOString(),
+          resultado: { exec_id: execId, novas: totalNovas, duplicadas: totalDuplicadas, erros: totalErros },
+        })
+        .eq("id", execucaoServidorId)
+        .neq("status", "cancelado");
+    }
+
     await supabase
       .from(configTable)
       .update({ ultima_execucao: new Date().toISOString() })
       .eq("tipo", persistMode === "servidor" ? "djet_pautas_servidor" : "djet_pautas");
   } catch (e) {
     console.error("[DJET-Pautas-Agendado] erro fatal:", e);
+    if (execucaoServidorId) {
+      await supabase
+        .from("execucoes_servidor")
+        .update({
+          status: "erro",
+          finalizado_em: new Date().toISOString(),
+          erro: String((e as Error)?.message || e),
+          progresso_atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", execucaoServidorId)
+        .neq("status", "cancelado");
+    }
     await supabase
       .from("execucoes_agendadas")
       .update({
@@ -309,10 +501,16 @@ Deno.serve(async (req) => {
   try {
     let force = false;
     let persistMode: "browser" | "servidor" = "browser";
+    let execucaoServidorId: string | null = null;
+    let dataInicio: string | undefined;
+    let dataFim: string | undefined;
     try {
       const body = await req.json().catch(() => ({}));
       force = body?.force === true;
       if (body?.persist_mode === "servidor") persistMode = "servidor";
+      execucaoServidorId = typeof body?.execucaoServidorId === "string" ? body.execucaoServidorId : null;
+      dataInicio = typeof body?.dataInicio === "string" ? body.dataInicio : undefined;
+      dataFim = typeof body?.dataFim === "string" ? body.dataFim : undefined;
     } catch { /* ignore */ }
 
     // 1) Lê configuração — usa tabela correta conforme modo (servidor vs browser)
@@ -390,7 +588,7 @@ Deno.serve(async (req) => {
     }
 
     // 5) Executa em background (não bloqueia resposta do cron)
-    const task = runJob(supabase, exec.id as string, now.ymd, persistMode);
+    const task = runJob(supabase, exec.id as string, now.ymd, persistMode, configTable, { execucaoServidorId, dataInicio, dataFim });
     // @ts-ignore EdgeRuntime existe no Deno Deploy do Supabase
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
       // @ts-ignore
