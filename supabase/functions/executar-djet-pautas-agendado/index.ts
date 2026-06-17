@@ -336,38 +336,47 @@ async function runJob(
 
     await flushProgressoServidor(true);
 
-    for (const dataYmd of datasJanela) {
-      const dataDDMMYYYY = ymdToDdmmyyyy(dataYmd);
-      for (const tribunal of TRIBUNAIS_DEJT) {
+    for (const tribunal of TRIBUNAIS_DEJT) {
+      const item = itens.find((i) => i.id === tribunal)!;
+      const monitsTrib = monitsForTribunal(monits, tribunal);
+      const monsInput = monitsTrib.map(monitToInput).filter((m) => m.termos.length > 0 || m.oab);
+      item.status = "executando";
+      item.mensagem = monsInput.length === 0 ? "Sem monitoramentos para este tribunal" : "Iniciando...";
+      await flushProgressoServidor(true);
+      if (monsInput.length === 0) {
+        item.status = "concluido";
+        item.current = item.total;
+        item.mensagem = "Sem monitoramentos aplicáveis";
+        await flushProgressoServidor(true);
+        continue;
+      }
+
+      for (const dataYmd of datasJanela) {
         if (await isExecucaoServidorCancelada(supabase, execucaoServidorId)) {
           for (const it of itens.filter((i) => i.status === "pendente" || i.status === "executando")) {
             it.status = "cancelado";
-            it.current = it.total;
             it.mensagem = "Cancelado pelo usuário";
           }
           await flushProgressoServidor(true);
           return;
         }
-        const item = itens.find((i) => i.id === `${tribunal}|${dataYmd}`);
-        if (item) {
-          item.status = "executando";
-          item.mensagem = "Consultando PDF do DEJT";
-          await flushProgressoServidor(true);
-        }
-        const monitsTrib = monitsForTribunal(monits, tribunal);
-        const monsInput = monitsTrib.map(monitToInput).filter((m) => m.termos.length > 0 || m.oab);
-        if (monsInput.length === 0) {
-          if (item) {
-            item.status = "concluido";
-            item.current = 1;
-            item.mensagem = "Sem monitoramentos para o tribunal";
-          }
+        const dataDDMMYYYY = ymdToDdmmyyyy(dataYmd);
+        item.mensagem = `Processando ${dataDDMMYYYY}`;
+        // Pula sábado/domingo: DEJT não publica caderno novo.
+        const dow = new Date(`${dataYmd}T12:00:00Z`).getUTCDay();
+        if (dow === 0 || dow === 6) {
+          item.current += 1;
+          item.diasSemPdf += 1;
+          item.mensagem = `Sem caderno (${dow === 0 ? "domingo" : "sábado"})`;
           await flushProgressoServidor();
           continue;
         }
-
         try {
-          const resp = await fetch(`${supabaseUrl}/functions/v1/buscar-dejt-pautas`, {
+          // Retry transiente (HTTP 5xx) — DEJT às vezes devolve 546/503.
+          let resp: Response | null = null;
+          let lastStatus = 0;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            resp = await fetch(`${supabaseUrl}/functions/v1/buscar-dejt-pautas`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -380,19 +389,23 @@ async function runJob(
             caderno: "judiciario",
             monitoramentos: monsInput,
           }),
-        });
-
-          if (!resp.ok) {
-            totalErros++;
-            const msg = `HTTP ${resp.status}`;
-            if (item) {
-              item.status = "erro";
-              item.current = 1;
-              item.erro = msg;
-              item.mensagem = msg;
+            });
+            lastStatus = resp.status;
+            if (resp.ok) break;
+            // 5xx ou 546 (timeout custom) → retenta
+            if (resp.status >= 500 || resp.status === 546) {
+              await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+              continue;
             }
+            break;
+          }
+          if (!resp || !resp.ok) {
+            totalErros++;
+            item.current += 1;
+            item.ultimoErro = `HTTP ${lastStatus}`;
+            item.mensagem = `Erro HTTP ${lastStatus} em ${dataDDMMYYYY}`;
             await flushProgressoServidor(true);
-            console.error(`[DJET-Pautas-Agendado] ${tribunal}: HTTP ${resp.status}`);
+            console.error(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY}: HTTP ${lastStatus}`);
             continue;
           }
           const json = await resp.json();
@@ -409,29 +422,29 @@ async function runJob(
           const { novas, duplicadas } = await persistMatches(supabase, matches, monitCoordMap, persistMode, execucaoServidorId);
           totalNovas += novas;
           totalDuplicadas += duplicadas;
-          if (item) {
-            item.status = "concluido";
-            item.current = 1;
-            item.novas = novas;
-            item.duplicatas = duplicadas;
-            item.mensagem = `${matches.length} achado(s) · ${novas} nova(s)`;
-          }
-          await flushProgressoServidor(true);
-          console.log(`[DJET-Pautas-Agendado] ${tribunal}: ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
+          item.current += 1;
+          item.novas += novas;
+          item.duplicatas += duplicadas;
+          item.mensagem = `${dataDDMMYYYY}: ${matches.length} achado(s) · ${novas} nova(s)`;
+          await flushProgressoServidor();
+          console.log(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY}: ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
         } catch (e) {
           totalErros++;
-          if (item) {
-            item.status = "erro";
-            item.current = 1;
-            item.erro = String((e as Error)?.message || e);
-            item.mensagem = "Erro na consulta";
-          }
+          item.current += 1;
+          item.ultimoErro = String((e as Error)?.message || e).slice(0, 200);
+          item.mensagem = `Erro em ${dataDDMMYYYY}`;
           await flushProgressoServidor(true);
-          console.error(`[DJET-Pautas-Agendado] ${tribunal} erro:`, e);
+          console.error(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY} erro:`, e);
         }
 
         await new Promise((r) => setTimeout(r, DELAY_BETWEEN_TRIBUNAIS_MS));
       }
+      // Tribunal finalizado: marca concluído (mesmo que tenha tido erros em dias específicos).
+      if (item.status !== "cancelado") {
+        item.status = "concluido";
+        item.mensagem = `Concluído · ${item.novas} nova(s)` + (item.ultimoErro ? ` · último erro: ${item.ultimoErro}` : "");
+      }
+      await flushProgressoServidor(true);
     }
 
     await supabase
