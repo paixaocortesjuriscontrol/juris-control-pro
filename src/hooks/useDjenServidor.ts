@@ -412,18 +412,20 @@ export function useComparadorAnalise() {
       coordenacaoId?: string;
     }): Promise<ComparadorAnaliseRelatorio> => {
       const baseCols =
-        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal";
+        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao";
+      const inicioDispoTs = `${opts.dataInicio}T00:00:00Z`;
+      const fimDispoTs = `${opts.dataFim}T23:59:59Z`;
       let servQ = supabase
         .from("publicacoes_djen_servidor")
         .select(baseCols)
-        .gte("dedup_data_ref", opts.dataInicio)
-        .lte("dedup_data_ref", opts.dataFim)
+        .gte("data_disponibilizacao", inicioDispoTs)
+        .lte("data_disponibilizacao", fimDispoTs)
         .limit(20000);
       let browQ = supabase
         .from("publicacoes_djen")
         .select(baseCols)
-        .gte("dedup_data_ref", opts.dataInicio)
-        .lte("dedup_data_ref", opts.dataFim)
+        .gte("data_disponibilizacao", inicioDispoTs)
+        .lte("data_disponibilizacao", fimDispoTs)
         .limit(20000);
       if (opts.coordenacaoId) {
         servQ = servQ.eq("coordenacao_id", opts.coordenacaoId);
