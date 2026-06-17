@@ -1,49 +1,58 @@
 ## Objetivo
 
-1. Mudar o padrão da execução do Kurier para o endpoint de **fila** (`ConsultarPublicacoes`), que traz as publicações **disponibilizadas no dia** e **confirma** cada item lido (removendo-o da fila do Kurier).
-2. Drenar todo o backlog acumulado hoje: rodar uma vez em modo fila contra todas as credenciais ativas para esvaziar e confirmar tudo que está parado lá.
+Espelhar 1:1 a lógica do Browser (`src/hooks/useDjenTermosParalelaEngine.ts`) no daemon Servidor (`monitor-servidor/engines/paralela.js`). Sem fallback cross-coordenação, sem rescue, sem mudar escopo de tipo.
 
-## Mudanças de código
+## Regras de escopo (já respeitadas — confirmadas no diagnóstico)
 
-### 1. `src/hooks/useDjenTermosKurierEngine.ts`
-- Trocar o default de `modoPersonalizado` em `executarDjenTermosKurier` de `true` para `false`.
-- Quando o modo for fila (padrão), **não** aplicar o "fallback hoje" em `effInicio`/`effFim` — o endpoint de fila ignora data e a janela é controlada pelo próprio Kurier. Só preencher `effInicio`/`effFim` quando o usuário passar datas explícitas (uso histórico).
-- Ajustar mensagens de progresso para refletir "modo fila — disponibilizadas + confirmação automática".
+- `tipo='parte'` → valida **só** em metadados estruturados (`destinatarios`, `poloAtivo/Passivo`, `partes_json`) ou na seção "Parte(s):" do texto. Nunca no corpo geral.
+- `tipo='advogado'` → valida em `destinatarioadvogados[]` (nome/OAB) OU no texto completo (que inclui nome do adv e OAB no rodapé estruturado). Idêntico ao Browser.
+- `tipo='palavra-chave'` → frase exata no texto completo (corpo + nomes estruturados). Idêntico ao Browser.
+- `tipo='processo'` → match por dígitos do `numeroProcesso`. Idêntico.
 
-### 2. `src/hooks/useDjenTermosKurier.ts`
-- `executar` e `retomar`: trocar default `modoPersonalizado = true` → `false`.
-- Assinatura preservada: para reconsulta histórica explícita, basta passar `true`.
+Validação (`contemTermo`, `buildTextoCompleto`, `validarAdvogadoMetadados`, `validarParteMetadados`, `validarParteSecaoPartes`, `parsearTermoOr`, exclusões, concomitante) já é byte-a-byte espelho do Browser. **Não mexo.**
 
-### 3. `supabase/functions/kurier-consultar-publicacoes/index.ts`
-- Nenhuma mudança de lógica de fila/confirmação (já está correta — confirma cada lote via `ConfirmarPublicacoes`).
-- Ajuste cosmético no log inicial: deixar explícito `modo=fila` vs `modo=personalizado` e se vai confirmar ou não.
+## Único gap real → retry de busca vazia
 
-### 4. Cron `useDjenTermosKurierScheduler` (se houver chamada com `modoPersonalizado`)
-- Conferir e alinhar ao novo default fila. Sem alterar frequência.
+O Browser, ao receber 0 resultados na 1ª passada de uma busca, espera 1.5s e refaz **a mesma busca** uma única vez (não muda parâmetro, não cai em outro endpoint, não consulta outra coord):
 
-## Drenar o backlog acumulado (hoje, agora)
+- Parte: `useDjenTermosParalelaEngine.ts:1311-1320` — refaz o `nomeParte=<termo>` se veio vazio.
+- Não-parte (advogado/palavra-chave): `useDjenTermosParalelaEngine.ts:1354-1383` — refaz os mesmos `baseParams` se veio vazio.
 
-Depois de aplicar as mudanças, vou disparar **uma execução em modo fila para cada credencial Kurier ativa**, chamando o edge function `kurier-consultar-publicacoes` direto via `supabase--curl_edge_functions`, com `max_lotes` alto e em loop até a fila retornar 0 recebidas. Cada lote já confirma os itens automaticamente.
+Isso existe porque a API PJE Comunica devolve listagem vazia intermitentemente, sem erro HTTP. Não é fallback para outro caminho — é só repetir a chamada idêntica.
 
-Passos:
-1. `supabase--read_query` para listar credenciais Kurier ativas (`kurier_credenciais` onde `ativo = true` e `senha_encrypted` não nulo).
-2. Para cada credencial, chamar o edge function em loop (`modo_personalizado = false`, `max_lotes = 10`) até a resposta vir com `total_recebidas = 0` ou `lotes_processados = 0`. Limite de segurança: 50 chamadas por credencial.
-3. Reportar totais: recebidas, novas, duplicadas, confirmadas por credencial.
+O Servidor (`paralela.js > buscarTermo`, linhas 454-468) **não tem esse retry**. É a única diferença comportamental que explica os déficits "só browser" do relatório (Janaina advogado −8, Santander Cível advogado −5, Renata parte −5, Bruna parte −3, Janaina parte −2, Thomás parte/palavra −2, Vanessa STF/STJ advogado −2).
 
-Observações:
-- Não toca em deduplicação (conforme combinado). Itens já gravados no DB ficam como `duplicadas` no relatório do drenar; o que importa é que **todas saem da fila do Kurier**.
-- O botão "Drenar backlog" da UI continua funcionando — agora é redundante com o padrão, mas mantenho para uso futuro.
+## Patch único
 
-## Resultado esperado
+`monitor-servidor/engines/paralela.js > buscarTermo`:
 
-| Cenário | Endpoint | Confirma? | Cobre o dia? |
-|---|---|---|---|
-| "Executar Kurier" (novo padrão) | `ConsultarPublicacoes` (fila) | Sim | Sim — disponibilizadas no dia |
-| Reconsulta histórica explícita (data preenchida) | `ConsultarPublicacoesPersonalizado` | Não | Por data de publicação no diário (D+1) |
-| Drenar agora (one-off pós-deploy) | `ConsultarPublicacoes` (fila) | Sim | Esvazia todo o acumulado e confirma |
+```text
+- caso parte: para cada termo, chama buscarPaginado. Se items.length===0 e !abort, await 1500ms e refaz a MESMA chamada uma vez.
+- caso não-parte: chama buscarPaginado. Se items.length===0 e !abort, await 1500ms e refaz a MESMA chamada uma vez.
+```
 
-A partir da próxima execução (manual ou cron), só virão as novas disponibilizadas desde a última passada, todas já confirmadas.
+Não altera:
+- `buscarPaginado` / `continueUntilEmpty`
+- `baseParams` (mesmos `numeroOab`/`ufOab`/`nomeAdvogado`/`nomeParte`/`texto`/`numeroProcesso` que o Browser monta)
+- `contemTermo` e toda a cadeia de validação
+- `persistPublicacoes`, hashes, dedup
+- Nada do Browser
 
-## Fora de escopo
-- Lógica de deduplicação (próxima conversa).
-- Mudanças de UI além de rótulos/mensagens necessárias.
+## Como confirmar paridade
+
+1. Aplicar o patch, fazer `git pull` + `pm2 restart djen-servidor` na VPS.
+2. Rodar DJEN Servidor para o dia 17/06.
+3. Abrir Comparador → Analisar.
+4. Coluna "só browser" deve cair para 0 (ou perto) em todas as coordenações.
+
+## Sobre o excesso "só servidor"
+
+O patch não diminui as 120 extras da Bruna GOL etc. Esse excesso vem de outro lugar (provavelmente o Servidor pagina mais fundo que o Browser, que para em algum limite). Trato isso separadamente se quiser — não está no escopo desta correção.
+
+## Arquivo modificado
+
+- `monitor-servidor/engines/paralela.js` (só `buscarTermo`)
+
+## Deploy
+
+Lovable não publica daemon Node. Após merge, na VPS: `git pull && pm2 restart djen-servidor`.
