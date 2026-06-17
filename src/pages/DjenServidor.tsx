@@ -23,7 +23,7 @@ import {
   useWorkersServidor,
   usePublicacoesServidor,
   useEnfileirarManual,
-  useComparadorPublicacoes,
+  useComparadorAnalise,
   useTickAge,
   useExecucaoServidorAoVivo,
   useCancelarExecucaoServidor,
