@@ -31,13 +31,11 @@ import {
   type ProgressoItem,
 } from "@/hooks/useDjenServidor";
 import { DjenServidorParalelaCard } from "@/components/djen/DjenServidorParalelaCard";
-import { MonitoramentoTermosKurierCard } from "@/components/configuracoes/MonitoramentoTermosKurierCard";
-import { MonitoramentoDjetPautasCard } from "@/components/configuracoes/MonitoramentoDjetPautasCard";
 
 const LABELS: Record<string, string> = {
-  djen_paralela_servidor: "DJEN Servidor",
+  djen_paralela_servidor: "DJEN Termos",
   kurier_servidor: "DJEN Kurier",
-  djet_pautas_servidor: "DJET Pautas DEJT",
+  djet_pautas_servidor: "DJEN Pautas",
 };
 
 const STATUS_HEADER: Record<string, { label: string; color: string; bg: string }> = {
@@ -617,7 +615,7 @@ export default function DjenServidor() {
     >
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList className="flex-wrap">
-          <TabsTrigger value="servidor"><Zap className="h-4 w-4 mr-1" />DJEN Servidor</TabsTrigger>
+          <TabsTrigger value="servidor"><Zap className="h-4 w-4 mr-1" />DJEN Termos</TabsTrigger>
           <TabsTrigger value="pautas"><Newspaper className="h-4 w-4 mr-1" />DJEN Pautas</TabsTrigger>
           <TabsTrigger value="kurier"><Radar className="h-4 w-4 mr-1" />DJEN Kurier</TabsTrigger>
           <TabsTrigger value="workers"><Server className="h-4 w-4 mr-1" />Workers</TabsTrigger>
@@ -626,8 +624,8 @@ export default function DjenServidor() {
           <TabsTrigger value="comparador"><GitCompare className="h-4 w-4 mr-1" />Comparador</TabsTrigger>
         </TabsList>
         <TabsContent value="servidor"><div className="space-y-4"><DjenServidorParalelaCard /></div></TabsContent>
-        <TabsContent value="pautas"><div className="space-y-4"><MonitoramentoDjetPautasCard /></div></TabsContent>
-        <TabsContent value="kurier"><div className="space-y-4"><MonitoramentoTermosKurierCard /></div></TabsContent>
+        <TabsContent value="pautas"><EngineTab tipo="djet_pautas_servidor" /></TabsContent>
+        <TabsContent value="kurier"><EngineTab tipo="kurier_servidor" /></TabsContent>
         <TabsContent value="workers"><WorkersPanel /></TabsContent>
         <TabsContent value="execucoes"><ExecucoesPanel /></TabsContent>
         <TabsContent value="publicacoes"><PublicacoesPanel /></TabsContent>
