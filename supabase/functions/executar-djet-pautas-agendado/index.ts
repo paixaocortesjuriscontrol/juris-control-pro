@@ -277,7 +277,18 @@ async function runJob(
   const execucaoServidorId = persistMode === "servidor"
     ? options.execucaoServidorId || await inferExecucaoServidorId(supabase)
     : null;
-  const datasJanela = buildDateRange(options.dataInicio || ymd, options.dataFim || options.dataInicio || ymd);
+  let payloadServidor: Record<string, unknown> | null = null;
+  if (execucaoServidorId && (!options.dataInicio || !options.dataFim)) {
+    const { data } = await supabase
+      .from("execucoes_servidor")
+      .select("payload")
+      .eq("id", execucaoServidorId)
+      .maybeSingle();
+    payloadServidor = (data?.payload as Record<string, unknown> | null) || null;
+  }
+  const dataInicioOpcao = options.dataInicio || (typeof payloadServidor?.dataInicio === "string" ? payloadServidor.dataInicio : undefined);
+  const dataFimOpcao = options.dataFim || (typeof payloadServidor?.dataFim === "string" ? payloadServidor.dataFim : undefined);
+  const datasJanela = buildDateRange(dataInicioOpcao || ymd, dataFimOpcao || dataInicioOpcao || ymd);
   const itens = makeProgressItems(datasJanela);
   let lastFlush = 0;
   const flushProgressoServidor = async (force = false) => {
