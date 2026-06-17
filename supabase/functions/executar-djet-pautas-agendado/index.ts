@@ -291,6 +291,7 @@ async function runJob(
     await supabase
       .from("execucoes_servidor")
       .update({
+        status: "executando",
         progresso: {
           totalItens: itens.length,
           concluidos,
@@ -433,6 +434,18 @@ async function runJob(
 
     await flushProgressoServidor(true);
 
+    if (execucaoServidorId) {
+      await supabase
+        .from("execucoes_servidor")
+        .update({
+          status: "concluido",
+          finalizado_em: new Date().toISOString(),
+          resultado: { exec_id: execId, novas: totalNovas, duplicadas: totalDuplicadas, erros: totalErros },
+        })
+        .eq("id", execucaoServidorId)
+        .neq("status", "cancelado");
+    }
+
     await supabase
       .from(configTable)
       .update({ ultima_execucao: new Date().toISOString() })
@@ -463,10 +476,16 @@ Deno.serve(async (req) => {
   try {
     let force = false;
     let persistMode: "browser" | "servidor" = "browser";
+    let execucaoServidorId: string | null = null;
+    let dataInicio: string | undefined;
+    let dataFim: string | undefined;
     try {
       const body = await req.json().catch(() => ({}));
       force = body?.force === true;
       if (body?.persist_mode === "servidor") persistMode = "servidor";
+      execucaoServidorId = typeof body?.execucaoServidorId === "string" ? body.execucaoServidorId : null;
+      dataInicio = typeof body?.dataInicio === "string" ? body.dataInicio : undefined;
+      dataFim = typeof body?.dataFim === "string" ? body.dataFim : undefined;
     } catch { /* ignore */ }
 
     // 1) Lê configuração — usa tabela correta conforme modo (servidor vs browser)
@@ -544,7 +563,7 @@ Deno.serve(async (req) => {
     }
 
     // 5) Executa em background (não bloqueia resposta do cron)
-    const task = runJob(supabase, exec.id as string, now.ymd, persistMode);
+    const task = runJob(supabase, exec.id as string, now.ymd, persistMode, configTable, { execucaoServidorId, dataInicio, dataFim });
     // @ts-ignore EdgeRuntime existe no Deno Deploy do Supabase
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
       // @ts-ignore
