@@ -793,6 +793,23 @@ export default async function handler(req: Request): Promise<Response> {
         .eq('tipo', 'DJEN');
     }
 
+    // Quando rodando no servidor (VPS), atualiza a tabela de config do servidor
+    if (execucaoServidorId) {
+      await supabase
+        .from('configuracoes_monitoramento_servidor')
+        .update({
+          ultima_execucao: new Date().toISOString(),
+          metadata: {
+            novas: totalNovas,
+            descartadas: totalDescartadas,
+            duplicatas: totalDuplicatas,
+            dataInicio,
+            dataFim,
+          }
+        })
+        .eq('tipo', 'djen_paralela_servidor');
+    }
+
     console.log(`[DJEN] Done: novas=${totalNovas}, desc=${totalDescartadas}, dup=${totalDuplicatas}`);
 
     return new Response(
