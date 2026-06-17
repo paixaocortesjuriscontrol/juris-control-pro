@@ -265,6 +265,7 @@ async function runJob(
   ymd: string,
   persistMode: "browser" | "servidor" = "browser",
   configTable: string = "configuracoes_monitoramento",
+  options: { execucaoServidorId?: string | null; dataInicio?: string; dataFim?: string } = {},
 ) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -273,6 +274,37 @@ async function runJob(
   let totalNovas = 0;
   let totalDuplicadas = 0;
   let totalErros = 0;
+  const execucaoServidorId = persistMode === "servidor"
+    ? options.execucaoServidorId || await inferExecucaoServidorId(supabase)
+    : null;
+  const datasJanela = buildDateRange(options.dataInicio || ymd, options.dataFim || options.dataInicio || ymd);
+  const itens = makeProgressItems(datasJanela);
+  let lastFlush = 0;
+  const flushProgressoServidor = async (force = false) => {
+    if (!execucaoServidorId) return;
+    const now = Date.now();
+    if (!force && now - lastFlush < 700) return;
+    lastFlush = now;
+    const concluidos = itens.filter((i) => ["concluido", "erro", "cancelado"].includes(i.status)).length;
+    const falhas = itens.filter((i) => i.status === "erro").length;
+    const atual = itens.find((i) => i.status === "executando") || null;
+    await supabase
+      .from("execucoes_servidor")
+      .update({
+        progresso: {
+          totalItens: itens.length,
+          concluidos,
+          falhas,
+          atual: atual ? { id: atual.id, label: atual.label } : null,
+          itens: itens.slice(-200),
+          janela: { dataInicio: datasJanela[0] || ymd, dataFim: datasJanela[datasJanela.length - 1] || ymd },
+        },
+        progresso_atualizado_em: new Date().toISOString(),
+        heartbeat_at: new Date().toISOString(),
+      })
+      .eq("id", execucaoServidorId)
+      .neq("status", "cancelado");
+  };
 
   try {
     // Carrega todos os monitoramentos ativos
@@ -287,15 +319,40 @@ async function runJob(
     const monitCoordMap = new Map<string, string | null>();
     monits.forEach((m) => monitCoordMap.set(m.id, m.coordenacao_id));
 
-    const dataDDMMYYYY = ymdToDdmmyyyy(ymd);
+    await flushProgressoServidor(true);
 
-    for (const tribunal of TRIBUNAIS_DEJT) {
-      const monitsTrib = monitsForTribunal(monits, tribunal);
-      const monsInput = monitsTrib.map(monitToInput).filter((m) => m.termos.length > 0 || m.oab);
-      if (monsInput.length === 0) continue;
+    for (const dataYmd of datasJanela) {
+      const dataDDMMYYYY = ymdToDdmmyyyy(dataYmd);
+      for (const tribunal of TRIBUNAIS_DEJT) {
+        if (await isExecucaoServidorCancelada(supabase, execucaoServidorId)) {
+          for (const it of itens.filter((i) => i.status === "pendente" || i.status === "executando")) {
+            it.status = "cancelado";
+            it.current = it.total;
+            it.mensagem = "Cancelado pelo usuário";
+          }
+          await flushProgressoServidor(true);
+          return;
+        }
+        const item = itens.find((i) => i.id === `${tribunal}|${dataYmd}`);
+        if (item) {
+          item.status = "executando";
+          item.mensagem = "Consultando PDF do DEJT";
+          await flushProgressoServidor(true);
+        }
+        const monitsTrib = monitsForTribunal(monits, tribunal);
+        const monsInput = monitsTrib.map(monitToInput).filter((m) => m.termos.length > 0 || m.oab);
+        if (monsInput.length === 0) {
+          if (item) {
+            item.status = "concluido";
+            item.current = 1;
+            item.mensagem = "Sem monitoramentos para o tribunal";
+          }
+          await flushProgressoServidor();
+          continue;
+        }
 
-      try {
-        const resp = await fetch(`${supabaseUrl}/functions/v1/buscar-dejt-pautas`, {
+        try {
+          const resp = await fetch(`${supabaseUrl}/functions/v1/buscar-dejt-pautas`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -310,13 +367,21 @@ async function runJob(
           }),
         });
 
-        if (!resp.ok) {
-          totalErros++;
-          console.error(`[DJET-Pautas-Agendado] ${tribunal}: HTTP ${resp.status}`);
-          continue;
-        }
-        const json = await resp.json();
-        const matches: MatchOut[] = (json?.matches || []).map((m: Record<string, unknown>) => ({
+          if (!resp.ok) {
+            totalErros++;
+            const msg = `HTTP ${resp.status}`;
+            if (item) {
+              item.status = "erro";
+              item.current = 1;
+              item.erro = msg;
+              item.mensagem = msg;
+            }
+            await flushProgressoServidor(true);
+            console.error(`[DJET-Pautas-Agendado] ${tribunal}: HTTP ${resp.status}`);
+            continue;
+          }
+          const json = await resp.json();
+          const matches: MatchOut[] = (json?.matches || []).map((m: Record<string, unknown>) => ({
           monitoramentoId: m.monitoramentoId as string,
           termoMatch: m.termoMatch as string,
           processo: (m.processo as string) ?? null,
@@ -326,16 +391,32 @@ async function runJob(
           fonte: (m.fonte as string) || "dejt-pdf",
           tribunal: (m.tribunal as string) || tribunal,
         }));
-        const { novas, duplicadas } = await persistMatches(supabase, matches, monitCoordMap, persistMode);
-        totalNovas += novas;
-        totalDuplicadas += duplicadas;
-        console.log(`[DJET-Pautas-Agendado] ${tribunal}: ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
-      } catch (e) {
-        totalErros++;
-        console.error(`[DJET-Pautas-Agendado] ${tribunal} erro:`, e);
-      }
+          const { novas, duplicadas } = await persistMatches(supabase, matches, monitCoordMap, persistMode, execucaoServidorId);
+          totalNovas += novas;
+          totalDuplicadas += duplicadas;
+          if (item) {
+            item.status = "concluido";
+            item.current = 1;
+            item.novas = novas;
+            item.duplicatas = duplicadas;
+            item.mensagem = `${matches.length} achado(s) · ${novas} nova(s)`;
+          }
+          await flushProgressoServidor(true);
+          console.log(`[DJET-Pautas-Agendado] ${tribunal}: ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
+        } catch (e) {
+          totalErros++;
+          if (item) {
+            item.status = "erro";
+            item.current = 1;
+            item.erro = String((e as Error)?.message || e);
+            item.mensagem = "Erro na consulta";
+          }
+          await flushProgressoServidor(true);
+          console.error(`[DJET-Pautas-Agendado] ${tribunal} erro:`, e);
+        }
 
-      await new Promise((r) => setTimeout(r, DELAY_BETWEEN_TRIBUNAIS_MS));
+        await new Promise((r) => setTimeout(r, DELAY_BETWEEN_TRIBUNAIS_MS));
+      }
     }
 
     await supabase
@@ -349,6 +430,8 @@ async function runJob(
         detalhes: { novas: totalNovas, duplicadas: totalDuplicadas, duracao_ms: Date.now() - startedAt },
       })
       .eq("id", execId);
+
+    await flushProgressoServidor(true);
 
     await supabase
       .from(configTable)
