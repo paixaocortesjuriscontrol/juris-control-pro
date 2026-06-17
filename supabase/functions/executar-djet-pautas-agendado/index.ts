@@ -193,6 +193,7 @@ async function runJob(
   execId: string,
   ymd: string,
   persistMode: "browser" | "servidor" = "browser",
+  configTable: string = "configuracoes_monitoramento",
 ) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
