@@ -132,7 +132,7 @@ async function processarCredencial(
   coordenacaoId?: string,
   dataInicioYmd?: string,
   dataFimYmd?: string,
-  modoPersonalizado = true,
+  modoPersonalizado = false,
 ) {
   track.status = "executando";
   track.startedAt = Date.now();
@@ -227,7 +227,7 @@ async function runPool(
   coordenacaoId?: string,
   dataInicioYmd?: string,
   dataFimYmd?: string,
-  modoPersonalizado = true,
+  modoPersonalizado = false,
 ) {
   let idx = 0;
   const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, tracks.length) }, async () => {
