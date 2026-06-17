@@ -280,9 +280,9 @@ async function runJob(
       .eq("id", execId);
 
     await supabase
-      .from("configuracoes_monitoramento")
+      .from(configTable)
       .update({ ultima_execucao: new Date().toISOString() })
-      .eq("tipo", "djet_pautas");
+      .eq("tipo", persistMode === "servidor" ? "djet_pautas_servidor" : "djet_pautas");
   } catch (e) {
     console.error("[DJET-Pautas-Agendado] erro fatal:", e);
     await supabase
