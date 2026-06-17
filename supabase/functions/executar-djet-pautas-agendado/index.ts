@@ -314,16 +314,18 @@ Deno.serve(async (req) => {
       if (body?.persist_mode === "servidor") persistMode = "servidor";
     } catch { /* ignore */ }
 
-    // 1) Lê configuração
+    // 1) Lê configuração — usa tabela correta conforme modo (servidor vs browser)
+    const configTable = persistMode === "servidor" ? "configuracoes_monitoramento_servidor" : "configuracoes_monitoramento";
+    const configTipo = persistMode === "servidor" ? "djet_pautas_servidor" : "djet_pautas";
     const { data: cfg, error: cfgErr } = await supabase
-      .from("configuracoes_monitoramento")
+      .from(configTable)
       .select("id, ativo, horarios_execucao")
-      .eq("tipo", "djet_pautas")
+      .eq("tipo", configTipo)
       .maybeSingle();
 
     if (cfgErr) throw cfgErr;
     if (!cfg || !cfg.ativo) {
-      return new Response(JSON.stringify({ skipped: "inativo" }), {
+      return new Response(JSON.stringify({ skipped: "inativo", table: configTable, tipo: configTipo }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
