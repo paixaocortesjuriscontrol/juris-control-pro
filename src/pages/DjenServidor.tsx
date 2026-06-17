@@ -545,8 +545,9 @@ function ComparadorPanel() {
 
   const exportarRelatorioCsv = () => {
     if (!data) return;
-    const header = "coordenacao,tipo_pesquisa,total_servidor,total_browser,em_ambos,so_servidor,so_browser\n";
-    const body = data.linhas
+    const header1 = "# Comparador DJEN Servidor x Browser (por coordenação e tipo de pesquisa)\n";
+    const cols1 = "coordenacao,tipo_pesquisa,total_servidor,total_browser,em_ambos,so_servidor,so_browser\n";
+    const body1 = data.linhas
       .map((l) =>
         [
           JSON.stringify(l.coordenacaoNome),
@@ -559,7 +560,16 @@ function ComparadorPanel() {
         ].join(","),
       )
       .join("\n");
-    const blob = new Blob([header + body], { type: "text/csv" });
+    const header2 = "\n\n# Resumo por fonte de busca (DJEN x Kurier x Pautas)\n";
+    const cols2 = "coordenacao,djen_servidor,djen_browser,djen_unico,kurier,pautas_tst\n";
+    const body2 = data.porFonte.linhas
+      .map((l) => [
+        JSON.stringify(l.coordenacaoNome),
+        l.djenServidor, l.djenBrowser, l.djenUnico, l.kurier, l.pautas ?? "",
+      ].join(","))
+      .join("\n");
+    const totais = `\n\n# Totais\nfonte,total\nDJEN_servidor,${data.porFonte.totais.djenServidor}\nDJEN_browser,${data.porFonte.totais.djenBrowser}\nDJEN_unico,${data.porFonte.totais.djenUnico}\nKurier,${data.porFonte.totais.kurier}\nPautas_TST,${data.porFonte.totais.pautas}\n`;
+    const blob = new Blob([header1 + cols1 + body1 + header2 + cols2 + body2 + totais], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
