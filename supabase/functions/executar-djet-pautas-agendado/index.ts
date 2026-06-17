@@ -80,32 +80,33 @@ type ProgressoPautaItem = {
   id: string;
   label: string;
   tribunal: string;
-  data: string;
   status: ProgressoStatus;
   mensagem?: string | null;
-  erro?: string | null;
+  ultimoErro?: string | null;
   current: number;
   total: number;
   novas: number;
   duplicatas: number;
   descartadas: number;
+  diasSemPdf: number;
 };
 
 function makeProgressItems(datas: string[]): ProgressoPautaItem[] {
-  return datas.flatMap((dia) => TRIBUNAIS_DEJT.map((tribunal) => ({
-    id: `${tribunal}|${dia}`,
-    label: `${tribunal} · ${ymdToDdmmyyyy(dia)}`,
+  const total = datas.length;
+  return TRIBUNAIS_DEJT.map((tribunal) => ({
+    id: tribunal,
+    label: tribunal,
     tribunal,
-    data: dia,
     status: "pendente" as ProgressoStatus,
     mensagem: "Aguardando",
-    erro: null,
+    ultimoErro: null,
     current: 0,
-    total: 1,
+    total,
     novas: 0,
     duplicatas: 0,
     descartadas: 0,
-  })));
+    diasSemPdf: 0,
+  }));
 }
 
 async function inferExecucaoServidorId(supabase: ReturnType<typeof createClient>): Promise<string | null> {
