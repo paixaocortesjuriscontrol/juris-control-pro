@@ -23,7 +23,7 @@ import {
   useWorkersServidor,
   usePublicacoesServidor,
   useEnfileirarManual,
-  useComparadorPublicacoes,
+  useComparadorAnalise,
   useTickAge,
   useExecucaoServidorAoVivo,
   useCancelarExecucaoServidor,
@@ -534,25 +534,57 @@ function ComparadorPanel() {
   const [dataFim, setDataFim] = useState(todayYmd());
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   const { data: coordenacoes = [] } = useCoordenacoesFull();
-  const { data, isLoading } = useComparadorPublicacoes({ dataInicio, dataFim, coordenacaoId: coordenacaoId || undefined });
+  const analise = useComparadorAnalise();
+  const data = analise.data;
+  const isLoading = analise.isPending;
 
-  const exportarCsv = (rows: Array<{ processo_numero?: string | null; tribunal?: string | null; dedup_data_ref?: string | null; hash_conteudo: string }>, nome: string) => {
-    const header = "tribunal,processo,data,hash\n";
-    const body = rows.map((r) => `${r.tribunal || ""},${r.processo_numero || ""},${r.dedup_data_ref || ""},${r.hash_conteudo}`).join("\n");
+  const handleAnalisar = () => {
+    if (!dataInicio || !dataFim) return;
+    analise.mutate({ dataInicio, dataFim, coordenacaoId: coordenacaoId || undefined });
+  };
+
+  const exportarRelatorioCsv = () => {
+    if (!data) return;
+    const header = "coordenacao,tipo_pesquisa,total_servidor,total_browser,em_ambos,so_servidor,so_browser\n";
+    const body = data.linhas
+      .map((l) =>
+        [
+          JSON.stringify(l.coordenacaoNome),
+          l.tipo,
+          l.totalServidor,
+          l.totalBrowser,
+          l.emAmbos,
+          l.soServidor,
+          l.soBrowser,
+        ].join(","),
+      )
+      .join("\n");
     const blob = new Blob([header + body], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${nome}_${dataInicio}_${dataFim}.csv`;
+    a.download = `relatorio_comparador_${dataInicio}_${dataFim}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const tipoLabel: Record<string, string> = {
+    advogado: "Advogado/OAB",
+    processo: "Processo",
+    "palavra-chave": "Palavra-chave",
+    parte: "Parte",
+    sem_monitoramento: "Sem monitoramento",
   };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2"><GitCompare className="h-4 w-4" /> Comparador Servidor × Browser</CardTitle>
-        <CardDescription>Diff entre `publicacoes_djen_servidor` e `publicacoes_djen` no período</CardDescription>
+        <CardDescription>
+          Escolha o período e clique em <strong>Analisar</strong> para gerar um relatório completo
+          comparando, coordenação a coordenação e por tipo de pesquisa, quantas publicações foram
+          capturadas pelo servidor (VPS) e pelo navegador, e quais são exclusivas de cada origem.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex gap-2 items-end flex-wrap">
@@ -577,28 +609,86 @@ function ComparadorPanel() {
               ))}
             </select>
           </div>
+          <Button onClick={handleAnalisar} disabled={isLoading || !dataInicio || !dataFim}>
+            {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <GitCompare className="h-4 w-4 mr-2" />}
+            Analisar
+          </Button>
+          {data && (
+            <Button variant="outline" onClick={exportarRelatorioCsv}>
+              Exportar CSV
+            </Button>
+          )}
         </div>
-        {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : data && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Apenas Servidor ({data.soServidor.length})</CardTitle></CardHeader>
-              <CardContent>
-                <Button size="sm" variant="outline" onClick={() => exportarCsv(data.soServidor, "so_servidor")}>Exportar CSV</Button>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Apenas Browser ({data.soBrowser.length})</CardTitle></CardHeader>
-              <CardContent>
-                <Button size="sm" variant="outline" onClick={() => exportarCsv(data.soBrowser, "so_browser")}>Exportar CSV</Button>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm">Em ambos ({data.ambos.length})</CardTitle></CardHeader>
-              <CardContent>
-                <p className="text-xs text-muted-foreground">Total Servidor: {data.totalServidor}</p>
-                <p className="text-xs text-muted-foreground">Total Browser: {data.totalBrowser}</p>
-              </CardContent>
-            </Card>
+        {analise.error && (
+          <p className="text-sm text-destructive">Erro ao gerar relatório: {(analise.error as Error).message}</p>
+        )}
+        {!data && !isLoading && (
+          <p className="text-sm text-muted-foreground">
+            Selecione um intervalo de datas (opcionalmente uma coordenação) e clique em <strong>Analisar</strong>.
+          </p>
+        )}
+        {data && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total Servidor</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.totais.servidor}</CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total Browser</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.totais.browser}</CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Em ambos</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.totais.emAmbos}</CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Só Servidor</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-emerald-700">{data.totais.soServidor}</CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Só Browser</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-amber-700">{data.totais.soBrowser}</CardContent></Card>
+            </div>
+
+            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+              <p><strong>Como ler:</strong> cada linha mostra uma combinação de coordenação e tipo de pesquisa (Advogado/OAB, Processo, Palavra-chave, Parte).</p>
+              <p>• <strong>Servidor</strong>: publicações capturadas pelo pipeline da VPS (24/7).</p>
+              <p>• <strong>Browser</strong>: publicações capturadas pela execução agendada no navegador.</p>
+              <p>• <strong>Em ambos</strong>: publicações idênticas encontradas pelas duas origens (sem divergência).</p>
+              <p>• <strong>Só Servidor</strong>: o pipeline da VPS encontrou, o navegador não — indica que o servidor está capturando casos extras.</p>
+              <p>• <strong>Só Browser</strong>: o navegador encontrou e o servidor não — indica lacuna no pipeline da VPS para revisar.</p>
+            </div>
+
+            {data.linhas.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma publicação no período para os critérios selecionados.</p>
+            ) : (
+              <div className="border rounded-md overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Coordenação</TableHead>
+                      <TableHead>Tipo de pesquisa</TableHead>
+                      <TableHead className="text-right">Servidor</TableHead>
+                      <TableHead className="text-right">Browser</TableHead>
+                      <TableHead className="text-right">Em ambos</TableHead>
+                      <TableHead className="text-right">Só Servidor</TableHead>
+                      <TableHead className="text-right">Só Browser</TableHead>
+                      <TableHead className="text-right">Diferença</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.linhas.map((l) => {
+                      const diff = l.soServidor - l.soBrowser;
+                      return (
+                        <TableRow key={`${l.coordenacaoId}-${l.tipo}`}>
+                          <TableCell className="font-medium">{l.coordenacaoNome}</TableCell>
+                          <TableCell><Badge variant="outline">{tipoLabel[l.tipo] || l.tipo}</Badge></TableCell>
+                          <TableCell className="text-right">{l.totalServidor}</TableCell>
+                          <TableCell className="text-right">{l.totalBrowser}</TableCell>
+                          <TableCell className="text-right">{l.emAmbos}</TableCell>
+                          <TableCell className="text-right text-emerald-700">{l.soServidor}</TableCell>
+                          <TableCell className="text-right text-amber-700">{l.soBrowser}</TableCell>
+                          <TableCell className={cn("text-right font-medium", diff > 0 ? "text-emerald-700" : diff < 0 ? "text-destructive" : "text-muted-foreground")}>
+                            {diff > 0 ? `+${diff}` : diff}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            <p className="text-[10px] text-muted-foreground">
+              Relatório gerado em {new Date(data.geradoEm).toLocaleString("pt-BR")} • Período {data.dataInicio} a {data.dataFim}
+            </p>
           </div>
         )}
       </CardContent>
