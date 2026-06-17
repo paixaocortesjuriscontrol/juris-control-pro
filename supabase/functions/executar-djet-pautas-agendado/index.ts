@@ -193,6 +193,7 @@ async function runJob(
   execId: string,
   ymd: string,
   persistMode: "browser" | "servidor" = "browser",
+  configTable: string = "configuracoes_monitoramento",
 ) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -279,9 +280,9 @@ async function runJob(
       .eq("id", execId);
 
     await supabase
-      .from("configuracoes_monitoramento")
+      .from(configTable)
       .update({ ultima_execucao: new Date().toISOString() })
-      .eq("tipo", "djet_pautas");
+      .eq("tipo", persistMode === "servidor" ? "djet_pautas_servidor" : "djet_pautas");
   } catch (e) {
     console.error("[DJET-Pautas-Agendado] erro fatal:", e);
     await supabase
@@ -314,16 +315,18 @@ Deno.serve(async (req) => {
       if (body?.persist_mode === "servidor") persistMode = "servidor";
     } catch { /* ignore */ }
 
-    // 1) Lê configuração
+    // 1) Lê configuração — usa tabela correta conforme modo (servidor vs browser)
+    const configTable = persistMode === "servidor" ? "configuracoes_monitoramento_servidor" : "configuracoes_monitoramento";
+    const configTipo = persistMode === "servidor" ? "djet_pautas_servidor" : "djet_pautas";
     const { data: cfg, error: cfgErr } = await supabase
-      .from("configuracoes_monitoramento")
+      .from(configTable)
       .select("id, ativo, horarios_execucao")
-      .eq("tipo", "djet_pautas")
+      .eq("tipo", configTipo)
       .maybeSingle();
 
     if (cfgErr) throw cfgErr;
     if (!cfg || !cfg.ativo) {
-      return new Response(JSON.stringify({ skipped: "inativo" }), {
+      return new Response(JSON.stringify({ skipped: "inativo", table: configTable, tipo: configTipo }), {
         status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
