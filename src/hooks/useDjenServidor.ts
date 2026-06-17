@@ -379,6 +379,24 @@ export interface ComparadorAnaliseRelatorio {
     soServidor: number;
     soBrowser: number;
   };
+  porFonte: {
+    totais: {
+      djenServidor: number;
+      djenBrowser: number;
+      djenUnico: number; // união de servidor+browser
+      kurier: number;
+      pautas: number;
+    };
+    linhas: Array<{
+      coordenacaoId: string;
+      coordenacaoNome: string;
+      djenServidor: number;
+      djenBrowser: number;
+      djenUnico: number;
+      kurier: number;
+      pautas: number | null; // null = não atribuível por coord
+    }>;
+  };
 }
 
 /**
