@@ -86,14 +86,10 @@ export function useDjenTermosKurierScheduler() {
         .update({ ultima_execucao: new Date().toISOString() })
         .eq("tipo", "kurier");
       await reload();
-      // Sempre dispara para HOJE em MODO PERSONALIZADO
-      // (ConsultarPublicacoesPersonalizado?data=HOJE). Espelha exatamente o
-      // que a tela Kurier retorna ao filtrar pela data do dia — sem depender
-      // da drenagem/confirmação da fila, que estava represando publicações
-      // novas em vários logins.
-      const d = new Date();
-      const hojeYmd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      void executarDjenTermosKurier(false, undefined, undefined, hojeYmd, hojeYmd, false, true);
+      // Dispara em MODO FILA (ConsultarPublicacoes): traz as publicações
+      // disponibilizadas no dia e confirma cada item lido (removendo da fila
+      // do Kurier). Sem filtro de data — o endpoint de fila ignora data.
+      void executarDjenTermosKurier(false, undefined, undefined, undefined, undefined, false, false);
     }, 30_000);
     return () => clearInterval(intv);
     // eslint-disable-next-line react-hooks/exhaustive-deps
