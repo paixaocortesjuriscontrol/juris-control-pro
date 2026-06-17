@@ -292,6 +292,8 @@ async function runJob(
       .from("execucoes_servidor")
       .update({
         status: "executando",
+        finalizado_em: null,
+        erro: null,
         progresso: {
           totalItens: itens.length,
           concluidos,
