@@ -60,7 +60,7 @@ export function useDjenTermosKurier() {
     dataFimYmd?: string,
     coordenacaoId?: string,
     monitoramentoIds?: string[],
-    modoPersonalizado = true,
+    modoPersonalizado = false,
   ) => {
     void executarDjenTermosKurier(false, monitoramentoIds, coordenacaoId, dataInicioYmd, dataFimYmd, false, modoPersonalizado);
     toast.info("Kurier iniciado");
@@ -77,7 +77,7 @@ export function useDjenTermosKurier() {
     dataFimYmd?: string,
     coordenacaoId?: string,
     monitoramentoIds?: string[],
-    modoPersonalizado = true,
+    modoPersonalizado = false,
   ) => {
     if (!checkpoint) return;
     void executarDjenTermosKurier(true, monitoramentoIds, coordenacaoId, dataInicioYmd, dataFimYmd, false, modoPersonalizado);

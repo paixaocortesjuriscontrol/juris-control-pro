@@ -132,7 +132,7 @@ async function processarCredencial(
   coordenacaoId?: string,
   dataInicioYmd?: string,
   dataFimYmd?: string,
-  modoPersonalizado = true,
+  modoPersonalizado = false,
 ) {
   track.status = "executando";
   track.startedAt = Date.now();
@@ -227,7 +227,7 @@ async function runPool(
   coordenacaoId?: string,
   dataInicioYmd?: string,
   dataFimYmd?: string,
-  modoPersonalizado = true,
+  modoPersonalizado = false,
 ) {
   let idx = 0;
   const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, tracks.length) }, async () => {
@@ -254,35 +254,28 @@ export async function executarDjenTermosKurier(
   dataInicioYmd?: string,
   dataFimYmd?: string,
   drenarBacklog = false,
-  modoPersonalizado = true,
+  modoPersonalizado = false,
 ): Promise<void> {
   if (running) return;
   running = true;
   cancelRequested = false;
   runKey = retomar ? (loadCheckpoint()?.runKey ?? crypto.randomUUID()) : crypto.randomUUID();
 
-  // Modo drenar: NÃO aplica filtro de data — consome todo backlog antigo do Kurier.
-  // Modo normal: se o usuário não preencheu, considera HOJE para evitar trazer atrasados.
-  const hojeYmd = (() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const dd = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${dd}`;
-  })();
-  const effInicio = drenarBacklog
-    ? (dataInicioYmd && /^\d{4}-\d{2}-\d{2}$/.test(dataInicioYmd) ? dataInicioYmd : undefined)
-    : (dataInicioYmd && /^\d{4}-\d{2}-\d{2}$/.test(dataInicioYmd) ? dataInicioYmd : hojeYmd);
-  const effFim = drenarBacklog
-    ? (dataFimYmd && /^\d{4}-\d{2}-\d{2}$/.test(dataFimYmd) ? dataFimYmd : undefined)
-    : (dataFimYmd && /^\d{4}-\d{2}-\d{2}$/.test(dataFimYmd) ? dataFimYmd : hojeYmd);
+  // Modo fila (padrão): endpoint ConsultarPublicacoes ignora data e confirma
+  // cada item lido. Só aplicamos data quando o usuário pediu modo personalizado
+  // explicitamente (reconsulta histórica) E informou datas.
+  const ymdValido = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  const effInicio = modoPersonalizado && ymdValido(dataInicioYmd) ? dataInicioYmd : undefined;
+  const effFim = modoPersonalizado && ymdValido(dataFimYmd) ? dataFimYmd : undefined;
 
   progress = initialProgress();
   progress.status = "executando";
   progress.iniciadoEm = new Date().toISOString();
   progress.mensagem = drenarBacklog
     ? `Drenando backlog do Kurier (sem filtro de data)…`
-    : `Carregando credenciais ativas… (janela ${effInicio} → ${effFim})`;
+    : modoPersonalizado
+      ? `Carregando credenciais ativas… (janela ${effInicio ?? "-"} → ${effFim ?? "-"})`
+      : `Carregando credenciais ativas… (modo fila — disponibilizadas do dia + confirmação automática)`;
   emit();
 
   try {
