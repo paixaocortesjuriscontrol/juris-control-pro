@@ -210,20 +210,31 @@ export function MonitoramentoTermosKurierCard() {
             <Button
               onClick={() => {
                 const f = getFilters();
-                executar(ymd(dataInicio), ymd(dataFim), f.coordenacaoId, f.monitoramentoIds, true);
+                executar(ymd(dataInicio), ymd(dataFim), f.coordenacaoId, f.monitoramentoIds, false);
               }}
               disabled={isRunning}
               className="bg-primary"
             >
+              <Play className="h-4 w-4 mr-1" />
+              Executar Kurier (fila + confirma)
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                const f = getFilters();
+                drenarBacklog(f.coordenacaoId, f.monitoramentoIds);
+              }}
+              disabled={isRunning}
+            >
               <Search className="h-4 w-4 mr-1" />
-              Buscar Kurier com termos DJEN → Análise DJEN
+              Drenar backlog
             </Button>
             {canResume && !isRunning && (
               <Button
                 variant="secondary"
                 onClick={() => {
                   const f = getFilters();
-                  retomar(ymd(dataInicio), ymd(dataFim), f.coordenacaoId, f.monitoramentoIds, true);
+                  retomar(ymd(dataInicio), ymd(dataFim), f.coordenacaoId, f.monitoramentoIds, false);
                 }}
               >
                 <RotateCcw className="h-4 w-4 mr-1" /> Retomar
