@@ -637,6 +637,47 @@ function ComparadorPanel() {
               <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Só Browser</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-amber-700">{data.totais.soBrowser}</CardContent></Card>
             </div>
 
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Resumo por fonte de busca</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">DJEN (único servidor+browser)</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-primary">{data.porFonte.totais.djenUnico}</CardContent></Card>
+                <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Kurier</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.porFonte.totais.kurier}</CardContent></Card>
+                <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Pautas TST {coordenacaoId ? "(N/A c/ filtro)" : ""}</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{coordenacaoId ? "—" : data.porFonte.totais.pautas}</CardContent></Card>
+                <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total geral</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.porFonte.totais.djenUnico + data.porFonte.totais.kurier + (coordenacaoId ? 0 : data.porFonte.totais.pautas)}</CardContent></Card>
+              </div>
+              {data.porFonte.linhas.length > 0 && (
+                <div className="border rounded-md overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Coordenação</TableHead>
+                        <TableHead className="text-right">DJEN Servidor</TableHead>
+                        <TableHead className="text-right">DJEN Browser</TableHead>
+                        <TableHead className="text-right">DJEN (único)</TableHead>
+                        <TableHead className="text-right">Kurier</TableHead>
+                        <TableHead className="text-right">Pautas TST</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.porFonte.linhas.map((l) => (
+                        <TableRow key={`fonte-${l.coordenacaoId}`}>
+                          <TableCell className="font-medium">{l.coordenacaoNome}</TableCell>
+                          <TableCell className="text-right">{l.djenServidor}</TableCell>
+                          <TableCell className="text-right">{l.djenBrowser}</TableCell>
+                          <TableCell className="text-right font-medium text-primary">{l.djenUnico}</TableCell>
+                          <TableCell className="text-right">{l.kurier}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{l.pautas ?? "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                <strong>DJEN</strong> = comparador servidor × browser (chave dedupada). <strong>Kurier</strong> = registros únicos em <code>kurier_publicacoes_raw</code> recebidos no período, atribuídos por credencial → coordenação. <strong>Pautas TST</strong> = registros em <code>pautas_tst</code> com <code>data_julgamento</code> no período (sem coordenação — exibido apenas no total).
+              </p>
+            </div>
+
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
               <p><strong>Como ler:</strong> cada linha mostra uma combinação de coordenação e tipo de pesquisa (Advogado/OAB, Processo, Palavra-chave, Parte).</p>
               <p>• <strong>Servidor</strong>: publicações capturadas pelo pipeline da VPS (24/7).</p>
