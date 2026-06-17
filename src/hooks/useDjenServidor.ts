@@ -379,6 +379,24 @@ export interface ComparadorAnaliseRelatorio {
     soServidor: number;
     soBrowser: number;
   };
+  porFonte: {
+    totais: {
+      djenServidor: number;
+      djenBrowser: number;
+      djenUnico: number; // união de servidor+browser
+      kurier: number;
+      pautas: number;
+    };
+    linhas: Array<{
+      coordenacaoId: string;
+      coordenacaoNome: string;
+      djenServidor: number;
+      djenBrowser: number;
+      djenUnico: number;
+      kurier: number;
+      pautas: number | null; // null = não atribuível por coord
+    }>;
+  };
 }
 
 /**
@@ -412,16 +430,39 @@ export function useComparadorAnalise() {
         browQ = browQ.eq("coordenacao_id", opts.coordenacaoId);
       }
 
-      const [serv, brow, coords, monits] = await Promise.all([
+      // Filtros adicionais (kurier / pautas)
+      const inicioTs = `${opts.dataInicio}T00:00:00Z`;
+      const fimTs = `${opts.dataFim}T23:59:59Z`;
+
+      let kurierQ = supabase
+        .from("kurier_publicacoes_raw")
+        .select("id_kurier, credencial_id, recebida_em")
+        .gte("recebida_em", inicioTs)
+        .lte("recebida_em", fimTs)
+        .limit(50000);
+      let pautasQ = supabase
+        .from("pautas_tst")
+        .select("id, processo_numero, data_julgamento")
+        .gte("data_julgamento", opts.dataInicio)
+        .lte("data_julgamento", opts.dataFim)
+        .limit(50000);
+
+      const [serv, brow, coords, monits, kurierRes, pautasRes, vincKurier] = await Promise.all([
         servQ,
         browQ,
         supabase.from("coordenacoes").select("id, nome"),
         supabase.from("monitoramentos_djen").select("id, tipo, coordenacao_id"),
+        kurierQ,
+        pautasQ,
+        supabase.from("kurier_credencial_coordenacoes").select("credencial_id, coordenacao_id"),
       ]);
       if (serv.error) throw serv.error;
       if (brow.error) throw brow.error;
       if (coords.error) throw coords.error;
       if (monits.error) throw monits.error;
+      if (kurierRes.error) console.warn("[comparador] kurier:", kurierRes.error.message);
+      if (pautasRes.error) console.warn("[comparador] pautas:", pautasRes.error.message);
+      if (vincKurier.error) console.warn("[comparador] kurier_credencial_coordenacoes:", vincKurier.error.message);
 
       const coordNome = new Map<string, string>(
         (coords.data || []).map((c: any) => [c.id, c.nome]),
@@ -520,6 +561,74 @@ export function useComparadorAnalise() {
       const allKeys = new Set<string>([...sByKey.keys(), ...bByKey.keys()]);
       void allKeys;
 
+      // ============ Por fonte de busca (Kurier / Pautas / DJEN) ============
+      const credToCoords = new Map<string, string[]>();
+      for (const v of (vincKurier.data || []) as Array<{ credencial_id: string; coordenacao_id: string }>) {
+        const arr = credToCoords.get(v.credencial_id) || [];
+        arr.push(v.coordenacao_id);
+        credToCoords.set(v.credencial_id, arr);
+      }
+
+      // Kurier por coord — atribui cada publicação a todas as coords vinculadas
+      // à credencial; dedupe id_kurier por coord. Respeita filtro de coord se houver.
+      const kurierPorCoord = new Map<string, Set<string>>();
+      for (const k of (kurierRes.data || []) as Array<{ id_kurier: string; credencial_id: string }>) {
+        const coordsArr = credToCoords.get(k.credencial_id) || ["sem_coord"];
+        for (const cid of coordsArr) {
+          if (opts.coordenacaoId && cid !== opts.coordenacaoId) continue;
+          let s = kurierPorCoord.get(cid);
+          if (!s) { s = new Set(); kurierPorCoord.set(cid, s); }
+          s.add(k.id_kurier);
+        }
+      }
+      const kurierTotal = new Set<string>(
+        ((kurierRes.data || []) as Array<{ id_kurier: string; credencial_id: string }>)
+          .filter((k) => {
+            if (!opts.coordenacaoId) return true;
+            const arr = credToCoords.get(k.credencial_id) || [];
+            return arr.includes(opts.coordenacaoId);
+          })
+          .map((k) => k.id_kurier),
+      ).size;
+
+      // Pautas: global (sem coord). Quando há filtro de coord, omitimos pautas.
+      const pautasTotal = opts.coordenacaoId ? 0 : ((pautasRes.data || []) as unknown[]).length;
+
+      // DJEN por coord (união servidor + browser)
+      const djenServPorCoord = new Map<string, Set<string>>();
+      const djenBrowPorCoord = new Map<string, Set<string>>();
+      for (const r of sRows) {
+        const cid = r.coordenacao_id || "sem_coord";
+        let s = djenServPorCoord.get(cid); if (!s) { s = new Set(); djenServPorCoord.set(cid, s); }
+        s.add(key(r));
+      }
+      for (const r of bRows) {
+        const cid = r.coordenacao_id || "sem_coord";
+        let s = djenBrowPorCoord.get(cid); if (!s) { s = new Set(); djenBrowPorCoord.set(cid, s); }
+        s.add(key(r));
+      }
+      const coordIdsFonte = new Set<string>([
+        ...djenServPorCoord.keys(),
+        ...djenBrowPorCoord.keys(),
+        ...kurierPorCoord.keys(),
+      ]);
+      const fonteLinhas = Array.from(coordIdsFonte).map((cid) => {
+        const sSet = djenServPorCoord.get(cid) || new Set<string>();
+        const bSet = djenBrowPorCoord.get(cid) || new Set<string>();
+        const uni = new Set<string>([...sSet, ...bSet]);
+        return {
+          coordenacaoId: cid,
+          coordenacaoNome: coordNome.get(cid) || "Sem coordenação",
+          djenServidor: sSet.size,
+          djenBrowser: bSet.size,
+          djenUnico: uni.size,
+          kurier: (kurierPorCoord.get(cid) || new Set<string>()).size,
+          pautas: null as number | null,
+        };
+      }).sort((a, b) => a.coordenacaoNome.localeCompare(b.coordenacaoNome, "pt-BR"));
+
+      const djenUnicoTotal = new Set<string>([...sByKey.keys(), ...bByKey.keys()]).size;
+
       return {
         dataInicio: opts.dataInicio,
         dataFim: opts.dataFim,
@@ -531,6 +640,16 @@ export function useComparadorAnalise() {
           emAmbos: totAmbos,
           soServidor: totSoServ,
           soBrowser: totSoBrow,
+        },
+        porFonte: {
+          totais: {
+            djenServidor: totServ,
+            djenBrowser: totBrow,
+            djenUnico: djenUnicoTotal,
+            kurier: kurierTotal,
+            pautas: pautasTotal,
+          },
+          linhas: fonteLinhas,
         },
       };
     },

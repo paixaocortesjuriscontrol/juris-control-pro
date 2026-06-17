@@ -545,8 +545,9 @@ function ComparadorPanel() {
 
   const exportarRelatorioCsv = () => {
     if (!data) return;
-    const header = "coordenacao,tipo_pesquisa,total_servidor,total_browser,em_ambos,so_servidor,so_browser\n";
-    const body = data.linhas
+    const header1 = "# Comparador DJEN Servidor x Browser (por coordenação e tipo de pesquisa)\n";
+    const cols1 = "coordenacao,tipo_pesquisa,total_servidor,total_browser,em_ambos,so_servidor,so_browser\n";
+    const body1 = data.linhas
       .map((l) =>
         [
           JSON.stringify(l.coordenacaoNome),
@@ -559,7 +560,16 @@ function ComparadorPanel() {
         ].join(","),
       )
       .join("\n");
-    const blob = new Blob([header + body], { type: "text/csv" });
+    const header2 = "\n\n# Resumo por fonte de busca (DJEN x Kurier x Pautas)\n";
+    const cols2 = "coordenacao,djen_servidor,djen_browser,djen_unico,kurier,pautas_tst\n";
+    const body2 = data.porFonte.linhas
+      .map((l) => [
+        JSON.stringify(l.coordenacaoNome),
+        l.djenServidor, l.djenBrowser, l.djenUnico, l.kurier, l.pautas ?? "",
+      ].join(","))
+      .join("\n");
+    const totais = `\n\n# Totais\nfonte,total\nDJEN_servidor,${data.porFonte.totais.djenServidor}\nDJEN_browser,${data.porFonte.totais.djenBrowser}\nDJEN_unico,${data.porFonte.totais.djenUnico}\nKurier,${data.porFonte.totais.kurier}\nPautas_TST,${data.porFonte.totais.pautas}\n`;
+    const blob = new Blob([header1 + cols1 + body1 + header2 + cols2 + body2 + totais], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -635,6 +645,47 @@ function ComparadorPanel() {
               <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Em ambos</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.totais.emAmbos}</CardContent></Card>
               <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Só Servidor</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-emerald-700">{data.totais.soServidor}</CardContent></Card>
               <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Só Browser</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-amber-700">{data.totais.soBrowser}</CardContent></Card>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Resumo por fonte de busca</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">DJEN (único servidor+browser)</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-primary">{data.porFonte.totais.djenUnico}</CardContent></Card>
+                <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Kurier</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.porFonte.totais.kurier}</CardContent></Card>
+                <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Pautas TST {coordenacaoId ? "(N/A c/ filtro)" : ""}</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{coordenacaoId ? "—" : data.porFonte.totais.pautas}</CardContent></Card>
+                <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total geral</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.porFonte.totais.djenUnico + data.porFonte.totais.kurier + (coordenacaoId ? 0 : data.porFonte.totais.pautas)}</CardContent></Card>
+              </div>
+              {data.porFonte.linhas.length > 0 && (
+                <div className="border rounded-md overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Coordenação</TableHead>
+                        <TableHead className="text-right">DJEN Servidor</TableHead>
+                        <TableHead className="text-right">DJEN Browser</TableHead>
+                        <TableHead className="text-right">DJEN (único)</TableHead>
+                        <TableHead className="text-right">Kurier</TableHead>
+                        <TableHead className="text-right">Pautas TST</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.porFonte.linhas.map((l) => (
+                        <TableRow key={`fonte-${l.coordenacaoId}`}>
+                          <TableCell className="font-medium">{l.coordenacaoNome}</TableCell>
+                          <TableCell className="text-right">{l.djenServidor}</TableCell>
+                          <TableCell className="text-right">{l.djenBrowser}</TableCell>
+                          <TableCell className="text-right font-medium text-primary">{l.djenUnico}</TableCell>
+                          <TableCell className="text-right">{l.kurier}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{l.pautas ?? "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                <strong>DJEN</strong> = comparador servidor × browser (chave dedupada). <strong>Kurier</strong> = registros únicos em <code>kurier_publicacoes_raw</code> recebidos no período, atribuídos por credencial → coordenação. <strong>Pautas TST</strong> = registros em <code>pautas_tst</code> com <code>data_julgamento</code> no período (sem coordenação — exibido apenas no total).
+              </p>
             </div>
 
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
