@@ -30,13 +30,19 @@ async function invokePautas(body) {
   }
 }
 
-async function run({ payload, log }) {
+async function run({ payload, log, job }) {
   if (!SUPABASE_URL || !SERVICE_KEY) {
     throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes no .env do VPS");
   }
   log("pautas.start", { payload });
   const force = payload?.force !== false; // default true
-  const { status, body } = await invokePautas({ force, persist_mode: "servidor" });
+  const { status, body } = await invokePautas({
+    force,
+    persist_mode: "servidor",
+    execucaoServidorId: job?.id,
+    dataInicio: payload?.dataInicio,
+    dataFim: payload?.dataFim,
+  });
   if (status < 200 || status >= 300) {
     throw new Error(`executar-djet-pautas-agendado status ${status}: ${JSON.stringify(body).slice(0, 500)}`);
   }
