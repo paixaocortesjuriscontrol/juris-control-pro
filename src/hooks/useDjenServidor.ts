@@ -512,22 +512,34 @@ export function useComparadorAnalise() {
         browser: Set<string>;
       };
       const buckets = new Map<string, Bucket>();
-      const ensure = (r: Row): Bucket => {
-        const gk = groupKey(r);
+      // Resolve um único (coord, tipo) por chave de publicação, priorizando o
+      // tipo escolhido pelo servidor; se o servidor não a encontrou, usa o do
+      // browser. Isso evita que a mesma publicação (mesmo id_djen) seja
+      // contada em buckets diferentes (advogado x parte) em cada lado.
+      const keyToBucket = new Map<string, { coordenacaoId: string; tipo: string }>();
+      const rowTipo = (r: Row) =>
+        (r.monitoramento_id && monitTipo.get(r.monitoramento_id)) || "sem_monitoramento";
+      const rowCoord = (r: Row) => r.coordenacao_id || "sem_coord";
+      for (const r of sRows) {
+        const k = key(r);
+        if (!keyToBucket.has(k)) keyToBucket.set(k, { coordenacaoId: rowCoord(r), tipo: rowTipo(r) });
+      }
+      for (const r of bRows) {
+        const k = key(r);
+        if (!keyToBucket.has(k)) keyToBucket.set(k, { coordenacaoId: rowCoord(r), tipo: rowTipo(r) });
+      }
+      const ensureByKey = (k: string): Bucket => {
+        const meta = keyToBucket.get(k)!;
+        const gk = `${meta.coordenacaoId}::${meta.tipo}`;
         let b = buckets.get(gk);
         if (!b) {
-          b = {
-            coordenacaoId: r.coordenacao_id || "sem_coord",
-            tipo: (r.monitoramento_id && monitTipo.get(r.monitoramento_id)) || "sem_monitoramento",
-            servidor: new Set(),
-            browser: new Set(),
-          };
+          b = { coordenacaoId: meta.coordenacaoId, tipo: meta.tipo, servidor: new Set(), browser: new Set() };
           buckets.set(gk, b);
         }
         return b;
       };
-      for (const r of sRows) ensure(r).servidor.add(key(r));
-      for (const r of bRows) ensure(r).browser.add(key(r));
+      for (const r of sRows) ensureByKey(key(r)).servidor.add(key(r));
+      for (const r of bRows) ensureByKey(key(r)).browser.add(key(r));
 
       const linhas: ComparadorAnaliseLinha[] = [];
       let totServ = 0,
