@@ -249,6 +249,7 @@ export function bennerToDistribuicao(b: any): DistribuicaoTst {
     segredo_justica: !!b.segredo_justica,
     recurso_terceiro: !!b.recurso_terceiro,
     cejusc: !!b.cejusc,
+    ic_arquivado: !!b.ic_arquivado,
   } as any;
 }
 
