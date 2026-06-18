@@ -63,6 +63,7 @@ import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
 import TstPrazos from "@/pages/TstPrazos";
 import PainelAudiencias from "@/pages/PainelAudiencias";
 import Notificacoes from "@/pages/Notificacoes";
+import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
@@ -768,6 +769,7 @@ export default function PainelControle() {
       title="Painel de Controle"
       headerActions={
         <div className="flex items-center gap-2">
+          <BuscaGlobalPainel />
           <Button asChild variant="outline" size="sm">
             <Link to="/dashboard">Dashboard</Link>
           </Button>
