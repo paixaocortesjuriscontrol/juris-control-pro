@@ -401,7 +401,7 @@ async function inserirPublicacoes(
           hash_conteudo: hashConteudo,
           id_djen: idDjen,
           conteudo: conteudo.slice(0, 50000), // Limite de tamanho
-          processo_numero: pub.numeroProcesso || null,
+          processo_numero: pub.numeroProcesso || pub.processo || pub.Processo || pub.numero_processo || null,
           data_publicacao: pub.dataPublicacao || null,
           data_disponibilizacao: pub.dataDisponibilizacao || null,
           tribunal: pub.siglaTribunal || null,
