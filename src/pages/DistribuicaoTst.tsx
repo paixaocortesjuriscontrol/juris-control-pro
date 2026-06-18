@@ -1480,7 +1480,21 @@ export default function DistribuicaoTst() {
             {isAdminOrCoordinator && (
               <>
                 <Label className="text-xs font-bold text-muted-foreground">Mês/Ano:</Label>
-                <Select value={filtroMesAno} onValueChange={setFiltroMesAno}>
+                <Select
+                  value={filtroMesAno}
+                  onValueChange={(val) => {
+                    setFiltroMesAno(val);
+                    if (val === "todos" || val === "sem-data") {
+                      setFiltroDataInicio("");
+                      setFiltroDataFim("");
+                    } else {
+                      const [y, m] = val.split("-").map(Number);
+                      const last = new Date(y, m, 0).getDate();
+                      setFiltroDataInicio(`${val}-01`);
+                      setFiltroDataFim(`${val}-${String(last).padStart(2, "0")}`);
+                    }
+                  }}
+                >
                   <SelectTrigger className="h-8 text-xs w-64">
                     <SelectValue placeholder="Selecione o mês/ano" />
                   </SelectTrigger>
@@ -1489,6 +1503,13 @@ export default function DistribuicaoTst() {
                       Todos meses ({mesesAnos.reduce((s, m) => s + m.count, 0)})
                     </SelectItem>
                     {mesesAnos.map(({ key, count }) => {
+                      if (key === "sem-data") {
+                        return (
+                          <SelectItem key={key} value={key}>
+                            Sem data ({count})
+                          </SelectItem>
+                        );
+                      }
                       const [y, m] = key.split("-");
                       const label = `${mesesLabels[parseInt(m) - 1]}/${y}`;
                       return (
