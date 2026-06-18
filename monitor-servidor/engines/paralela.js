@@ -756,6 +756,21 @@ async function run({ sb, payload, log, job }) {
           }
           item.mensagem = `${item.tribunal} ${dia}: ${item.current}/${item.total} via ${item.via.label}`;
           const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
+          if (item.tipo === "parte") {
+            try {
+              const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, item.tribunal, signal);
+              if (resgatadas.length > 0) {
+                const seenIds = new Set(pubs.map((p) => getIdDjen(p)).filter(Boolean));
+                for (const r of resgatadas) {
+                  const id = getIdDjen(r);
+                  if (id && seenIds.has(id)) continue;
+                  pubs.push(r);
+                }
+              }
+            } catch (e) {
+              log("paralela.resgate_parte_error", { tribunal: item.tribunal, monId, e: String(e?.message || e).slice(0, 300) });
+            }
+          }
           const stats = await persistPublicacoes(sb, pubs, mon, item.tribunal, dia, job?.id || null);
           item.novas += stats.novas;
           item.descartadas += stats.descartadas;
