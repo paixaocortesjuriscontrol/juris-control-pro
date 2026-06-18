@@ -386,21 +386,16 @@ export default function DistribuicaoTst() {
       setAbas([...map.entries()].map(([aba, count]) => ({ aba, count })).sort((a, b) => a.aba.localeCompare(b.aba)));
     }
 
-    const { data: mesesData } = await supabase
-      .from("dados_benner" as any)
-      .select("data_distribuicao")
-      .not("aba_origem", "is", null)
-      .not("data_distribuicao", "is", null);
-
+    // Mês/Ano agora é agrupado pela DATA REAL via RPC (rápido, sem carregar linhas).
+    const { data: mesesData } = await supabase.rpc("get_meses_data_distribuicao_real" as any);
     if (mesesData) {
-      const map = new Map<string, number>();
-      (mesesData as any[]).forEach((d: any) => {
-        if (d.data_distribuicao) {
-          const key = d.data_distribuicao.slice(0, 7);
-          if (key.length === 7) map.set(key, (map.get(key) || 0) + 1);
-        }
-      });
-      setMesesAnos([...map.entries()].map(([key, count]) => ({ key, count })).sort((a, b) => b.key.localeCompare(a.key)));
+      const rows = (mesesData as any[]) || [];
+      setMesesAnos(
+        rows
+          .filter((r) => typeof r.mes_ano === "string" && r.mes_ano.length === 7)
+          .map((r) => ({ key: r.mes_ano as string, count: Number(r.total) || 0 }))
+          .sort((a, b) => b.key.localeCompare(a.key))
+      );
     }
 
     // Distinct centralizadores (paginado para evitar limite 1000)
