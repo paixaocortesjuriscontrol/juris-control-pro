@@ -332,13 +332,8 @@ export async function fetchAllDistribuicaoTstIds(
   const realRespIds = respIds.filter((id) => id !== UNASSIGNED);
   const hasResponsavelFilter = realRespIds.length > 0;
 
-  let idsWithoutResponsavel: string[] | null = null;
-  if (wantsUnassigned) {
-    const { data, error } = await supabase.rpc("get_dados_benner_sem_responsavel" as any);
-    if (error) throw error;
-    idsWithoutResponsavel = ((data as any[]) || []).map((r: any) => r.id);
-    if (idsWithoutResponsavel.length === 0) return [];
-  }
+  // wantsUnassigned é aplicado diretamente via .eq("tem_responsavel", false)
+  // (coluna denormalizada com trigger) — sem chamada extra.
 
   const selectClause = hasResponsavelFilter
     ? "id, dados_benner_responsaveis!inner(usuario_id)"
@@ -363,7 +358,7 @@ export async function fetchAllDistribuicaoTstIds(
       .order("created_at", { ascending: false });
 
     if (hasResponsavelFilter) query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
-    if (wantsUnassigned && idsWithoutResponsavel) query = query.in("id", idsWithoutResponsavel);
+    if (wantsUnassigned) query = query.eq("tem_responsavel", false);
 
     if (filters.aba_origem && filters.aba_origem !== "todas") query = query.eq("aba_origem", filters.aba_origem);
     if (filters.centralizador && filters.centralizador !== "todos") {
