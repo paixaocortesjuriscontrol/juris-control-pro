@@ -8099,6 +8099,18 @@ export type Database = {
           total_processos: number
         }[]
       }
+      get_dados_benner_arquivados_duplicados: {
+        Args: never
+        Returns: {
+          aba_origem: string
+          arquivado_em: string
+          coordenacao_id: string
+          dossie: string
+          id: string
+          processo: string
+          snapshot: Json
+        }[]
+      }
       get_dados_benner_sem_responsavel: {
         Args: never
         Returns: {

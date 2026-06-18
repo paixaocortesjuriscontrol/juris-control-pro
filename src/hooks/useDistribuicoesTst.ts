@@ -6,10 +6,17 @@ import { toast } from "sonner";
  * Retorna os IDs de TODAS as linhas cujo processo aparece mais de uma vez.
  * Não depende de `ic_duplicado`, porque esse marcador pode estar errado ou
  * incompleto; o filtro da tela precisa mostrar o duplicado real e seus pares.
+ *
+ * Também inclui registros arquivados (`dados_benner_arquivados`) cujo processo
+ * aparece em outro registro (ativo ou arquivado), para que o usuário enxergue
+ * a duplicação completa mesmo quando uma das linhas já foi arquivada.
  */
-async function fetchDuplicateDistribuicaoTstIds(): Promise<string[]> {
+async function fetchDuplicateGroups(): Promise<{
+  activeIds: string[];
+  archivedRows: any[];
+}> {
   const PAGE = 1000;
-  const byProcesso = new Map<string, string[]>();
+  const byProcesso = new Map<string, { activeIds: string[]; archivedRows: any[] }>();
   let from = 0;
   while (true) {
     const { data, error } = await supabase
@@ -27,18 +34,50 @@ async function fetchDuplicateDistribuicaoTstIds(): Promise<string[]> {
       if (!raw) continue;
       const digits = raw.replace(/\D/g, "");
       const key = digits.length >= 20 ? digits : raw.toLowerCase();
-      const ids = byProcesso.get(key) || [];
-      ids.push(r.id);
-      byProcesso.set(key, ids);
+      const grp = byProcesso.get(key) || { activeIds: [], archivedRows: [] };
+      grp.activeIds.push(r.id);
+      byProcesso.set(key, grp);
     }
     if (rows.length < PAGE) break;
     from += PAGE;
   }
-  const duplicateIds: string[] = [];
-  byProcesso.forEach((ids) => {
-    if (ids.length > 1) duplicateIds.push(...ids);
+
+  // Busca arquivados via RPC SECURITY DEFINER (acessível a qualquer usuário
+  // autenticado, mas só expõe campos necessários para identificar a duplicata).
+  try {
+    const { data: arquivados, error: arqErr } = await supabase.rpc(
+      "get_dados_benner_arquivados_duplicados" as any
+    );
+    if (!arqErr) {
+      for (const a of ((arquivados as any[]) || [])) {
+        const raw = String(a.processo || "").trim();
+        if (!raw) continue;
+        const digits = raw.replace(/\D/g, "");
+        const key = digits.length >= 20 ? digits : raw.toLowerCase();
+        const grp = byProcesso.get(key) || { activeIds: [], archivedRows: [] };
+        grp.archivedRows.push(a);
+        byProcesso.set(key, grp);
+      }
+    }
+  } catch {
+    // segue sem arquivados se a RPC falhar
+  }
+
+  const activeIds: string[] = [];
+  const archivedRows: any[] = [];
+  byProcesso.forEach((grp) => {
+    const total = grp.activeIds.length + grp.archivedRows.length;
+    if (total > 1) {
+      activeIds.push(...grp.activeIds);
+      archivedRows.push(...grp.archivedRows);
+    }
   });
-  return duplicateIds;
+  return { activeIds, archivedRows };
+}
+
+async function fetchDuplicateDistribuicaoTstIds(): Promise<string[]> {
+  const { activeIds } = await fetchDuplicateGroups();
+  return activeIds;
 }
 
 /**
