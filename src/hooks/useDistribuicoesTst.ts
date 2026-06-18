@@ -407,7 +407,9 @@ export async function fetchAllDistribuicaoTstIds(
       const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
     }
-    if (filters.mesAno && filters.mesAno !== "todos") {
+    if (filters.mesAno === "sem-data") {
+      query = query.is("data_distribuicao_real", null);
+    } else if (filters.mesAno && filters.mesAno !== "todos") {
       const start = `${filters.mesAno}-01`;
       const [y, m] = filters.mesAno.split("-").map(Number);
       const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
@@ -584,7 +586,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
     }
-    if (filters.mesAno && filters.mesAno !== "todos") {
+    if (filters.mesAno === "sem-data") {
+      query = query.is("data_distribuicao_real", null);
+    } else if (filters.mesAno && filters.mesAno !== "todos") {
       const start = `${filters.mesAno}-01`;
       const [y, m] = filters.mesAno.split("-").map(Number);
       const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
