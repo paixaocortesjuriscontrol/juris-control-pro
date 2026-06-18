@@ -2042,6 +2042,11 @@ export default function DistribuicaoTst() {
                                   Dup.
                                 </Badge>
                               )}
+                              {(d as any).ic_arquivado && (
+                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-slate-500 text-slate-600 dark:text-slate-300" title="Registro arquivado">
+                                  Arquivado
+                                </Badge>
+                              )}
                               {isPronto && (
                                 <Badge className="text-[10px] px-1 py-0 h-4 bg-emerald-600 hover:bg-emerald-600 text-white" title="Pronto para enviar">
                                   Pronto
@@ -2114,6 +2119,11 @@ export default function DistribuicaoTst() {
                           {(d as any).ic_duplicado && (
                             <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
                               Dup.
+                            </Badge>
+                          )}
+                          {(d as any).ic_arquivado && (
+                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-slate-500 text-slate-600 dark:text-slate-300" title="Registro arquivado">
+                              Arquivado
                             </Badge>
                           )}
                           {isPronto && (

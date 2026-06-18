@@ -6,10 +6,17 @@ import { toast } from "sonner";
  * Retorna os IDs de TODAS as linhas cujo processo aparece mais de uma vez.
  * Não depende de `ic_duplicado`, porque esse marcador pode estar errado ou
  * incompleto; o filtro da tela precisa mostrar o duplicado real e seus pares.
+ *
+ * Também inclui registros arquivados (`dados_benner_arquivados`) cujo processo
+ * aparece em outro registro (ativo ou arquivado), para que o usuário enxergue
+ * a duplicação completa mesmo quando uma das linhas já foi arquivada.
  */
-async function fetchDuplicateDistribuicaoTstIds(): Promise<string[]> {
+async function fetchDuplicateGroups(): Promise<{
+  activeIds: string[];
+  archivedRows: any[];
+}> {
   const PAGE = 1000;
-  const byProcesso = new Map<string, string[]>();
+  const byProcesso = new Map<string, { activeIds: string[]; archivedRows: any[] }>();
   let from = 0;
   while (true) {
     const { data, error } = await supabase
@@ -27,18 +34,50 @@ async function fetchDuplicateDistribuicaoTstIds(): Promise<string[]> {
       if (!raw) continue;
       const digits = raw.replace(/\D/g, "");
       const key = digits.length >= 20 ? digits : raw.toLowerCase();
-      const ids = byProcesso.get(key) || [];
-      ids.push(r.id);
-      byProcesso.set(key, ids);
+      const grp = byProcesso.get(key) || { activeIds: [], archivedRows: [] };
+      grp.activeIds.push(r.id);
+      byProcesso.set(key, grp);
     }
     if (rows.length < PAGE) break;
     from += PAGE;
   }
-  const duplicateIds: string[] = [];
-  byProcesso.forEach((ids) => {
-    if (ids.length > 1) duplicateIds.push(...ids);
+
+  // Busca arquivados via RPC SECURITY DEFINER (acessível a qualquer usuário
+  // autenticado, mas só expõe campos necessários para identificar a duplicata).
+  try {
+    const { data: arquivados, error: arqErr } = await supabase.rpc(
+      "get_dados_benner_arquivados_duplicados" as any
+    );
+    if (!arqErr) {
+      for (const a of ((arquivados as any[]) || [])) {
+        const raw = String(a.processo || "").trim();
+        if (!raw) continue;
+        const digits = raw.replace(/\D/g, "");
+        const key = digits.length >= 20 ? digits : raw.toLowerCase();
+        const grp = byProcesso.get(key) || { activeIds: [], archivedRows: [] };
+        grp.archivedRows.push(a);
+        byProcesso.set(key, grp);
+      }
+    }
+  } catch {
+    // segue sem arquivados se a RPC falhar
+  }
+
+  const activeIds: string[] = [];
+  const archivedRows: any[] = [];
+  byProcesso.forEach((grp) => {
+    const total = grp.activeIds.length + grp.archivedRows.length;
+    if (total > 1) {
+      activeIds.push(...grp.activeIds);
+      archivedRows.push(...grp.archivedRows);
+    }
   });
-  return duplicateIds;
+  return { activeIds, archivedRows };
+}
+
+async function fetchDuplicateDistribuicaoTstIds(): Promise<string[]> {
+  const { activeIds } = await fetchDuplicateGroups();
+  return activeIds;
 }
 
 /**
@@ -210,6 +249,7 @@ export function bennerToDistribuicao(b: any): DistribuicaoTst {
     segredo_justica: !!b.segredo_justica,
     recurso_terceiro: !!b.recurso_terceiro,
     cejusc: !!b.cejusc,
+    ic_arquivado: !!b.ic_arquivado,
   } as any;
 }
 
@@ -465,15 +505,18 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     // "Apenas duplicados": traz todos os IDs dos processos que têm pares reais,
     // ordenados por processo, para identificar e arquivar manualmente.
     let duplicateIds: string[] | null = null;
+    let duplicateArchivedRows: any[] = [];
     if (filters.duplicado === "sim") {
       try {
-        duplicateIds = await fetchDuplicateDistribuicaoTstIds();
+        const grp = await fetchDuplicateGroups();
+        duplicateIds = grp.activeIds;
+        duplicateArchivedRows = grp.archivedRows;
       } catch (e: any) {
         toast.error("Erro ao buscar processos duplicados: " + (e?.message || e));
         setLoading(false);
         return;
       }
-      if (duplicateIds.length === 0) {
+      if (duplicateIds.length === 0 && duplicateArchivedRows.length === 0) {
         setDados([]);
         setTotalCount(0);
         setResponsaveisMap(new Map());
@@ -620,7 +663,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     }
 
     if (chunkSource) {
-      if (chunkSource.length === 0) {
+      if (chunkSource.length === 0 && duplicateArchivedRows.length === 0) {
         setDados([]);
         setTotalCount(0);
         setResponsaveisMap(new Map());
@@ -633,7 +676,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       for (let i = 0; i < chunkSource.length; i += CHUNK) {
         chunks.push(chunkSource.slice(i, i + CHUNK));
       }
-      const results = await Promise.all(chunks.map((c) => buildQuery(c, false)));
+      const results = chunks.length > 0
+        ? await Promise.all(chunks.map((c) => buildQuery(c, false)))
+        : [];
       const merged: any[] = [];
       for (const res of results) {
         if (res.error) {
@@ -642,6 +687,23 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
           return;
         }
         for (const r of (res.data as any[]) || []) merged.push(r);
+      }
+      // Anexa registros arquivados duplicados (quando filtro = "Apenas duplicados").
+      if (filters.duplicado === "sim" && duplicateArchivedRows.length > 0) {
+        for (const a of duplicateArchivedRows) {
+          const snap = (a.snapshot && typeof a.snapshot === "object") ? a.snapshot : {};
+          merged.push({
+            ...snap,
+            id: a.id,
+            processo: a.processo ?? snap.processo ?? null,
+            dossie: a.dossie ?? snap.dossie ?? null,
+            aba_origem: a.aba_origem ?? snap.aba_origem ?? null,
+            coordenacao_id: a.coordenacao_id ?? snap.coordenacao_id ?? null,
+            updated_at: a.arquivado_em ?? snap.updated_at ?? null,
+            created_at: snap.created_at ?? a.arquivado_em ?? null,
+            ic_arquivado: true,
+          });
+        }
       }
       // Reordena conforme a ordem global escolhida
       merged.sort((a, b) => {
