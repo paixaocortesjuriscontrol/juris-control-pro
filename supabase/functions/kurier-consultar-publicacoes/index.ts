@@ -304,8 +304,11 @@ Deno.serve(async (req: Request) => {
     const data_inicio = data_inicio_body ?? hojeYmd;
     const data_fim = data_fim_body ?? hojeYmd;
     const modo_personalizado = body.modo_personalizado === true;
-    const persistMode: "browser" | "servidor" = body.persist_mode === "servidor" ? "servidor" : "browser";
-    const pubTable = persistMode === "servidor" ? "publicacoes_djen_servidor" : "publicacoes_djen";
+    // Kurier sempre persiste em publicacoes_djen (tabela canônica da
+    // Análise DJEN). O parâmetro persist_mode é ignorado de propósito para
+    // não furar dedup/leituras/alertas que dependem desta tabela.
+    const persistMode: "browser" = "browser";
+    const pubTable = "publicacoes_djen";
     if (!credencial_id) return jsonResponse({ error: "credencial_id obrigatório" }, 400);
 
     const { data: cred, error: credErr } = await admin
@@ -769,7 +772,6 @@ Deno.serve(async (req: Request) => {
                 hash_conteudo: uniqueHashMatch,
                 monitoramento_id: matched.id,
                 coordenacao_id: matched.coordenacao_id ?? null,
-                ...(persistMode === "servidor" ? { origem: "servidor" } : {}),
               })
               .select("id")
               .maybeSingle();
@@ -818,7 +820,6 @@ Deno.serve(async (req: Request) => {
                 hash_conteudo: uniqueHash,
                 monitoramento_id: ct.monit_id,
                 coordenacao_id: ct.id,
-                ...(persistMode === "servidor" ? { origem: "servidor" } : {}),
               })
               .select("id")
               .maybeSingle();
