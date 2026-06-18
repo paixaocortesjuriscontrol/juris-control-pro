@@ -567,6 +567,32 @@ export default function DistribuicaoTst() {
     refetchStats();
   };
 
+  const handleArquivarDuplicados = async () => {
+    setArquivarDupRunning(true);
+    try {
+      const ids = await fetchAllFilteredBennerIds(debouncedFilters);
+      if (!ids || ids.length === 0) {
+        toast.warning("Nenhum registro encontrado com os filtros atuais.");
+        return;
+      }
+      const { data, error } = await supabase.rpc(
+        "arquivar_duplicados_dados_benner_ids" as any,
+        { _ids: ids, _motivo: "Arquivamento em lote de duplicados (filtros da tela)" } as any
+      );
+      if (error) { toast.error("Erro ao arquivar: " + error.message); return; }
+      const r: any = Array.isArray(data) ? data[0] : data;
+      const arq = r?.arquivados ?? 0;
+      const grp = r?.grupos ?? 0;
+      toast.success(`Arquivados ${arq} registros em ${grp} grupos de duplicados.`);
+      setArquivarDupOpen(false);
+      handleRefresh();
+    } catch (e: any) {
+      toast.error("Erro ao arquivar duplicados: " + (e?.message || e));
+    } finally {
+      setArquivarDupRunning(false);
+    }
+  };
+
   const handleMarcarPronto = async () => {
     const ids = Array.from(selectedIds);
     if (!ids.length) { toast.warning("Selecione registros para marcar como pronto"); return; }
