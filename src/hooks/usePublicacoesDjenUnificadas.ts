@@ -173,8 +173,8 @@ export interface PublicacaoUnificada {
   orgao?: string | null;
   tipo_comunicacao?: string | null;
   meio?: string | null;
-  advogados_json?: string[] | null;
-  partes_json?: string[] | null;
+  advogados_json?: any[] | null;
+  partes_json?: any[] | null;
   // Dados de descarte (para tipo descartada)
   motivo_descarte?: string | null;
   descartado_por?: string | null;
