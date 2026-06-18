@@ -847,22 +847,23 @@ export async function buscarPjeComunicaPaginado(
         }
       }
 
-      if (resp.items.length === 0) break;
-      // Heurística 1: API confirma fim quando devolve menos itens que o pageSize.
-      if (resp.items.length < pageSize) break;
-
-      // continueUntilEmpty: a API PJE Comunica é conhecida por retornar
-      // hasMore=false indevidamente em buscas amplas (ex.: SANTANDER no TST com
-      // dezenas de páginas). Quando esse flag está ligado, ignoramos hasMore e
-      // só paramos quando a página vier vazia OU não trouxer nenhum item NOVO.
+      // continueUntilEmpty: a API PJE Comunica é conhecida por retornar páginas
+      // CURTAS no meio do stream e/ou hasMore=false indevidamente em buscas
+      // amplas (ex.: SANTANDER no TST, OSMAR/CARLOS JOSÉ no TRT10). Nesse modo
+      // NÃO encerramos em página curta nem em hasMore=false — só paramos quando
+      // a página vier completamente vazia OU não trouxer nenhum item NOVO
+      // (anti-loop). Espelha o motor do servidor (monitor-servidor/engines/paralela.js).
       if (continueUntilEmpty) {
+        if (resp.items.length === 0) break;
         if (addedOnPage === 0) {
           console.warn(`[PJE Comunica] Página ${p} repetida/sem novos itens; encerrando paginação para evitar loop infinito.`);
           break;
         }
-      } else if (!resp.hasMore) {
-        // Modo conservador: respeita hasMore quando o chamador não pediu varredura completa.
-        break;
+      } else {
+        if (resp.items.length === 0) break;
+        // Heurística: API confirma fim quando devolve menos itens que o pageSize.
+        if (resp.items.length < pageSize) break;
+        if (!resp.hasMore) break;
       }
 
       if (delayMs > 0) {

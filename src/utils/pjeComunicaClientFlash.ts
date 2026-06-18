@@ -714,47 +714,48 @@ export async function buscarPjeComunicaPaginado(
       }
 
       // ========= FLASH: paginação inteligente =========
-      if (resp.items.length === 0) break;
-
-      // Heurística 1: API confirma que essa foi a última página (items < pageSize)
-      if (resp.items.length < pageSize) {
-        pagesAvoided += 1;
-        break;
-      }
-
-      // Heurística 2: totalExpected conhecido — sabemos exatamente quantas páginas são necessárias
-      const totalExpected = resp.totalElements;
-      if (typeof totalExpected === 'number' && totalExpected > 0) {
-        const totalSoFar = (p - startPage + 1) * pageSize;
-        if (totalSoFar >= totalExpected) {
+      // continueUntilEmpty: PJE Comunica é conhecida por retornar páginas CURTAS
+      // no meio do stream e/ou hasMore=false indevidamente em buscas amplas.
+      // Quando esse modo está ligado, só paramos em página vazia ou sem itens
+      // novos (anti-loop). Espelha o motor do servidor.
+      if (continueUntilEmpty) {
+        if (resp.items.length === 0) break;
+        if (addedOnPage === 0) {
+          console.warn(`[PJE Flash] Página ${p} repetida/sem novos itens; encerrando paginação para evitar loop infinito.`);
+          break;
+        }
+      } else {
+        if (resp.items.length === 0) break;
+        // Heurística 1: API confirma fim quando devolve menos itens que pageSize.
+        if (resp.items.length < pageSize) {
           pagesAvoided += 1;
           break;
         }
-      }
-
-      // Caso geral: respeita hasMore quando NÃO está em modo continueUntilEmpty
-      // EXCETO no modo confirmAmbiguous: se a página veio CHEIA e o servidor não
-      // forneceu totalExpected, rodamos UMA página adicional para confirmar fim.
-      if (!continueUntilEmpty && !resp.hasMore) {
-        const totalKnown = typeof totalExpected === 'number' && totalExpected > 0;
-        const ambiguous = confirmAmbiguous
-          && resp.items.length === pageSize
-          && !totalKnown;
-        if (ambiguous) {
-          // Marca esta como página confirmada e tenta a próxima
-          confirmedPages += 1;
-          if (delayMs > 0) {
-            await new Promise((r) => setTimeout(r, delayMs));
+        // Heurística 2: totalExpected conhecido — sabemos quantas páginas são.
+        const totalExpected = resp.totalElements;
+        if (typeof totalExpected === 'number' && totalExpected > 0) {
+          const totalSoFar = (p - startPage + 1) * pageSize;
+          if (totalSoFar >= totalExpected) {
+            pagesAvoided += 1;
+            break;
           }
-          continue;
         }
-        break;
-      }
-
-      // continueUntilEmpty: para se a página não trouxe nenhum item NOVO (anti-loop)
-      if (continueUntilEmpty && addedOnPage === 0) {
-        console.warn(`[PJE Flash] Página ${p} repetida/sem novos itens; encerrando paginação para evitar loop infinito.`);
-        break;
+        // Caso geral: respeita hasMore. confirmAmbiguous roda 1 página extra
+        // quando a última veio CHEIA e o servidor não enviou totalExpected.
+        if (!resp.hasMore) {
+          const totalKnown = typeof totalExpected === 'number' && totalExpected > 0;
+          const ambiguous = confirmAmbiguous
+            && resp.items.length === pageSize
+            && !totalKnown;
+          if (ambiguous) {
+            confirmedPages += 1;
+            if (delayMs > 0) {
+              await new Promise((r) => setTimeout(r, delayMs));
+            }
+            continue;
+          }
+          break;
+        }
       }
 
       if (delayMs > 0) {
