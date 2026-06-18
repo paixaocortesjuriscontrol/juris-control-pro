@@ -2365,6 +2365,26 @@ export default function DistribuicaoTst() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog open={arquivarDupOpen} onOpenChange={(o) => { if (!arquivarDupRunning) setArquivarDupOpen(o); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Arquivar duplicados respeitando os filtros?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Para cada grupo de processos duplicados, será mantido o registro com mais tags
+              (empate: mais campos preenchidos). Se outro registro do mesmo grupo tiver data de
+              alteração mais recente, esse será mantido no lugar. Os demais são movidos para a
+              área de arquivados — nada é apagado.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={arquivarDupRunning}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={arquivarDupRunning} onClick={(e) => { e.preventDefault(); handleArquivarDuplicados(); }}>
+              {arquivarDupRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Arquivar duplicados
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }
