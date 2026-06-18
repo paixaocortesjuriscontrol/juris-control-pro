@@ -642,11 +642,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     // Determina o conjunto de IDs alvo a ser percorrido em chunks (evita URL gigante).
     // Combina "sem responsável" (wantsUnassigned) e o filtro de TAGs (idsAllowed).
     let chunkSource: string[] | null = null;
-    if (wantsUnassigned && idsWithoutResponsavel) {
-      chunkSource = filters.idsAllowed && filters.idsAllowed.length > 0
-        ? idsWithoutResponsavel.filter((id) => filters.idsAllowed!.includes(id))
-        : idsWithoutResponsavel;
-    } else if (filters.idsAllowed && filters.idsAllowed.length > 0) {
+    if (filters.idsAllowed && filters.idsAllowed.length > 0) {
       chunkSource = filters.idsAllowed;
     }
     if (duplicateIds) {
