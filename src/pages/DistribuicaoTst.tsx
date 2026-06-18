@@ -13,7 +13,7 @@ import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { gerarRelatorioExcelDistribuicaoTst } from "@/lib/relatorioExcelDistribuicaoTst";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds, fetchMesesDataRealFiltered } from "@/hooks/useDistribuicoesTst";
+import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/DistribuicaoTstDetail";
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
@@ -411,21 +411,29 @@ export default function DistribuicaoTst() {
 
   useEffect(() => { fetchTabsData(); }, [fetchTabsData]);
 
-  // Mês/Ano agora é calculado a partir da `data_distribuicao_real` aplicando
-  // os mesmos filtros ativos (responsável, status, etc.) — assim as
-  // contagens do dropdown batem com o total exibido no card.
+  // Mês/Ano: lista fixa/global por `data_distribuicao_real` (não muda com
+  // filtros). Inclui um bucket "sem-data" para registros sem data real.
+  // A soma de "Todos meses" bate com o Total Geral quando não há filtros.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const meses = await fetchMesesDataRealFiltered(debouncedFilters);
-        if (!cancelled) setMesesAnos(meses);
+        const { data, error } = await supabase.rpc(
+          "get_meses_data_distribuicao_real" as any
+        );
+        if (error) throw error;
+        if (cancelled) return;
+        const rows = ((data as any[]) || []).map((r: any) => ({
+          key: r.mes_ano as string,
+          count: Number(r.total) || 0,
+        }));
+        setMesesAnos(rows);
       } catch (e) {
         console.error("Erro ao carregar meses (data real):", e);
       }
     })();
     return () => { cancelled = true; };
-  }, [JSON.stringify(debouncedFilters)]);
+  }, []);
 
   
 
