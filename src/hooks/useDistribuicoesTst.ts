@@ -662,7 +662,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     }
 
     if (chunkSource) {
-      if (chunkSource.length === 0) {
+      if (chunkSource.length === 0 && duplicateArchivedRows.length === 0) {
         setDados([]);
         setTotalCount(0);
         setResponsaveisMap(new Map());
@@ -675,7 +675,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       for (let i = 0; i < chunkSource.length; i += CHUNK) {
         chunks.push(chunkSource.slice(i, i + CHUNK));
       }
-      const results = await Promise.all(chunks.map((c) => buildQuery(c, false)));
+      const results = chunks.length > 0
+        ? await Promise.all(chunks.map((c) => buildQuery(c, false)))
+        : [];
       const merged: any[] = [];
       for (const res of results) {
         if (res.error) {
@@ -684,6 +686,23 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
           return;
         }
         for (const r of (res.data as any[]) || []) merged.push(r);
+      }
+      // Anexa registros arquivados duplicados (quando filtro = "Apenas duplicados").
+      if (filters.duplicado === "sim" && duplicateArchivedRows.length > 0) {
+        for (const a of duplicateArchivedRows) {
+          const snap = (a.snapshot && typeof a.snapshot === "object") ? a.snapshot : {};
+          merged.push({
+            ...snap,
+            id: a.id,
+            processo: a.processo ?? snap.processo ?? null,
+            dossie: a.dossie ?? snap.dossie ?? null,
+            aba_origem: a.aba_origem ?? snap.aba_origem ?? null,
+            coordenacao_id: a.coordenacao_id ?? snap.coordenacao_id ?? null,
+            updated_at: a.arquivado_em ?? snap.updated_at ?? null,
+            created_at: snap.created_at ?? a.arquivado_em ?? null,
+            ic_arquivado: true,
+          });
+        }
       }
       // Reordena conforme a ordem global escolhida
       merged.sort((a, b) => {
