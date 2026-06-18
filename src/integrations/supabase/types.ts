@@ -8026,9 +8026,20 @@ export type Database = {
         Returns: Json
       }
       desfazer_descarte_lote: { Args: { p_lote_id: string }; Returns: Json }
+      djen_first_comunicacao_id_from_json: {
+        Args: { p_advogados: Json; p_partes: Json }
+        Returns: string
+      }
       djen_normalize_conteudo_sem_destinatarios: {
         Args: { p_text: string }
         Returns: string
+      }
+      djen_pick_kurier_raw_processo: {
+        Args: { p_comunicacao_id: string; p_data_disponibilizacao?: string }
+        Returns: {
+          login_usado: string
+          processo: string
+        }[]
       }
       djen_strip_destinatarios: { Args: { p_text: string }; Returns: string }
       enfileirar_execucao_servidor: {
