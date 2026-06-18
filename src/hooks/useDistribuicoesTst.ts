@@ -407,14 +407,16 @@ export async function fetchAllDistribuicaoTstIds(
       const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
     }
-    if (filters.mesAno && filters.mesAno !== "todos") {
+    if (filters.mesAno === "sem-data") {
+      query = query.is("data_distribuicao_real", null);
+    } else if (filters.mesAno && filters.mesAno !== "todos") {
       const start = `${filters.mesAno}-01`;
       const [y, m] = filters.mesAno.split("-").map(Number);
       const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
       query = query.gte("data_distribuicao_real", start).lt("data_distribuicao_real", nextMonth);
     }
-    if (filters.dataInicio) query = query.gte("data_distribuicao_planilha", filters.dataInicio);
-    if (filters.dataFim) query = query.lte("data_distribuicao_planilha", filters.dataFim);
+    if (filters.dataInicio) query = query.gte("data_distribuicao_real", filters.dataInicio);
+    if (filters.dataFim) query = query.lte("data_distribuicao_real", filters.dataFim);
     if (filters.semTurma) query = query.or("turma.is.null,turma.eq.");
     if (filters.status && filters.status !== "todos") query = query.eq("status", filters.status);
     if (filters.emAnalise === "sim") query = query.eq("em_analise", true);
@@ -584,14 +586,16 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
     }
-    if (filters.mesAno && filters.mesAno !== "todos") {
+    if (filters.mesAno === "sem-data") {
+      query = query.is("data_distribuicao_real", null);
+    } else if (filters.mesAno && filters.mesAno !== "todos") {
       const start = `${filters.mesAno}-01`;
       const [y, m] = filters.mesAno.split("-").map(Number);
       const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
       query = query.gte("data_distribuicao_real", start).lt("data_distribuicao_real", nextMonth);
     }
-    if (filters.dataInicio) query = query.gte("data_distribuicao_planilha", filters.dataInicio);
-    if (filters.dataFim) query = query.lte("data_distribuicao_planilha", filters.dataFim);
+    if (filters.dataInicio) query = query.gte("data_distribuicao_real", filters.dataInicio);
+    if (filters.dataFim) query = query.lte("data_distribuicao_real", filters.dataFim);
     if (filters.semTurma) query = query.or("turma.is.null,turma.eq.");
     if (filters.status && filters.status !== "todos") query = query.eq("status", filters.status);
     if (filters.emAnalise === "sim") query = query.eq("em_analise", true);
@@ -942,8 +946,8 @@ export async function fetchMesesDataRealFiltered(
       const escaped = f.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
     }
-    if (f.dataInicio) query = query.gte("data_distribuicao_planilha", f.dataInicio);
-    if (f.dataFim) query = query.lte("data_distribuicao_planilha", f.dataFim);
+    if (f.dataInicio) query = query.gte("data_distribuicao_real", f.dataInicio);
+    if (f.dataFim) query = query.lte("data_distribuicao_real", f.dataFim);
     if (f.semTurma) query = query.or("turma.is.null,turma.eq.");
     if (f.status && f.status !== "todos") query = query.eq("status", f.status);
     if (f.emAnalise === "sim") query = query.eq("em_analise", true);
@@ -983,8 +987,7 @@ export async function fetchMesesDataRealFiltered(
       if (seen.has(r.id)) continue;
       seen.add(r.id);
       const d = r.data_distribuicao_real;
-      if (!d || typeof d !== "string" || d.length < 7) continue;
-      const key = d.slice(0, 7);
+      const key = !d || typeof d !== "string" || d.length < 7 ? "sem-data" : d.slice(0, 7);
       counts.set(key, (counts.get(key) || 0) + 1);
     }
     if (rows.length < PAGE) break;
@@ -993,5 +996,9 @@ export async function fetchMesesDataRealFiltered(
 
   return [...counts.entries()]
     .map(([key, count]) => ({ key, count }))
-    .sort((a, b) => b.key.localeCompare(a.key));
+    .sort((a, b) => {
+      if (a.key === "sem-data") return 1;
+      if (b.key === "sem-data") return -1;
+      return b.key.localeCompare(a.key);
+    });
 }
