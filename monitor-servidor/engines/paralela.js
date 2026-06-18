@@ -507,7 +507,8 @@ async function resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal) {
       .from("publicacoes_djen_servidor")
       .select("id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id")
       .eq("tribunal", tribunal)
-      .eq("data_disponibilizacao", dia)
+      .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
+      .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
       .neq("coordenacao_id", mon.coordenacao_id)
       .ilike("conteudo", `%${termo}%`)
       .limit(200);
