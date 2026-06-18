@@ -1788,6 +1788,7 @@ export type Database = {
           subida_em_massa: boolean
           sustentacao_oral: string | null
           tem_data_julgamento: string | null
+          tem_responsavel: boolean
           tema: string | null
           tipo_julgamento: string | null
           tipo_recurso: string | null
@@ -1902,6 +1903,7 @@ export type Database = {
           subida_em_massa?: boolean
           sustentacao_oral?: string | null
           tem_data_julgamento?: string | null
+          tem_responsavel?: boolean
           tema?: string | null
           tipo_julgamento?: string | null
           tipo_recurso?: string | null
@@ -2016,6 +2018,7 @@ export type Database = {
           subida_em_massa?: boolean
           sustentacao_oral?: string | null
           tem_data_julgamento?: string | null
+          tem_responsavel?: boolean
           tema?: string | null
           tipo_julgamento?: string | null
           tipo_recurso?: string | null

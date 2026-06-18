@@ -332,13 +332,8 @@ export async function fetchAllDistribuicaoTstIds(
   const realRespIds = respIds.filter((id) => id !== UNASSIGNED);
   const hasResponsavelFilter = realRespIds.length > 0;
 
-  let idsWithoutResponsavel: string[] | null = null;
-  if (wantsUnassigned) {
-    const { data, error } = await supabase.rpc("get_dados_benner_sem_responsavel" as any);
-    if (error) throw error;
-    idsWithoutResponsavel = ((data as any[]) || []).map((r: any) => r.id);
-    if (idsWithoutResponsavel.length === 0) return [];
-  }
+  // wantsUnassigned é aplicado diretamente via .eq("tem_responsavel", false)
+  // (coluna denormalizada com trigger) — sem chamada extra.
 
   const selectClause = hasResponsavelFilter
     ? "id, dados_benner_responsaveis!inner(usuario_id)"
@@ -363,7 +358,7 @@ export async function fetchAllDistribuicaoTstIds(
       .order("created_at", { ascending: false });
 
     if (hasResponsavelFilter) query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
-    if (wantsUnassigned && idsWithoutResponsavel) query = query.in("id", idsWithoutResponsavel);
+    if (wantsUnassigned) query = query.eq("tem_responsavel", false);
 
     if (filters.aba_origem && filters.aba_origem !== "todas") query = query.eq("aba_origem", filters.aba_origem);
     if (filters.centralizador && filters.centralizador !== "todos") {
@@ -483,19 +478,10 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
 
     let idsWithoutResponsavel: string[] | null = null;
     if (wantsUnassigned) {
-      const { data, error } = await supabase.rpc("get_dados_benner_sem_responsavel" as any);
-      if (error) {
-        toast.error("Erro ao filtrar 'Não distribuído': " + error.message);
-        setLoading(false);
-        return;
-      }
-      idsWithoutResponsavel = ((data as any[]) || []).map((r: any) => r.id);
-      if (idsWithoutResponsavel.length === 0) {
-        setDados([]);
-        setTotalCount(0);
-        setLoading(false);
-        return;
-      }
+      // Otimização: usa a coluna denormalizada `tem_responsavel` mantida por
+      // trigger em vez de carregar todos os IDs e percorrer em chunks.
+      // Não precisamos popular idsWithoutResponsavel — o filtro é aplicado
+      // diretamente em buildQuery via .eq("tem_responsavel", false).
     }
 
     const selectClause = hasResponsavelFilter
@@ -544,6 +530,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
 
       if (hasResponsavelFilter) {
         query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
+      }
+      if (wantsUnassigned) {
+        query = query.eq("tem_responsavel", false);
       }
       if (chunkIds) query = query.in("id", chunkIds);
 
@@ -648,11 +637,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     // Determina o conjunto de IDs alvo a ser percorrido em chunks (evita URL gigante).
     // Combina "sem responsável" (wantsUnassigned) e o filtro de TAGs (idsAllowed).
     let chunkSource: string[] | null = null;
-    if (wantsUnassigned && idsWithoutResponsavel) {
-      chunkSource = filters.idsAllowed && filters.idsAllowed.length > 0
-        ? idsWithoutResponsavel.filter((id) => filters.idsAllowed!.includes(id))
-        : idsWithoutResponsavel;
-    } else if (filters.idsAllowed && filters.idsAllowed.length > 0) {
+    if (filters.idsAllowed && filters.idsAllowed.length > 0) {
       chunkSource = filters.idsAllowed;
     }
     if (duplicateIds) {
