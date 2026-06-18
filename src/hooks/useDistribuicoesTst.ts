@@ -853,3 +853,145 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
 
   return { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages };
 }
+
+/**
+ * Conta linhas por mês (YYYY-MM) da `data_distribuicao_real` aplicando os
+ * mesmos filtros do hook principal — exceto `mesAno`, para que o dropdown
+ * mostre todos os meses disponíveis dentro do recorte atual.
+ * Pagina por 1000 e agrupa em memória.
+ */
+export async function fetchMesesDataRealFiltered(
+  filters: DistribuicaoTstFilters
+): Promise<{ key: string; count: number }[]> {
+  const f: DistribuicaoTstFilters = { ...filters, mesAno: undefined };
+
+  const UNASSIGNED = "__sem_responsavel__";
+  const respIds = f.responsavelIds || [];
+  const wantsUnassigned = respIds.includes(UNASSIGNED);
+  const realRespIds = respIds.filter((id) => id !== UNASSIGNED);
+  const hasResponsavelFilter = realRespIds.length > 0;
+
+  let duplicateIds: string[] | null = null;
+  if (f.duplicado === "sim") {
+    duplicateIds = await fetchDuplicateDistribuicaoTstIds();
+    if (duplicateIds.length === 0) return [];
+  }
+
+  const selectClause = hasResponsavelFilter
+    ? "id, data_distribuicao_real, dados_benner_responsaveis!inner(usuario_id)"
+    : "id, data_distribuicao_real";
+
+  const counts = new Map<string, number>();
+  const seen = new Set<string>();
+  const PAGE = 1000;
+  let from = 0;
+  while (true) {
+    let query = supabase
+      .from("dados_benner" as any)
+      .select(selectClause)
+      .not("aba_origem", "is", null)
+      .order("id", { ascending: true });
+
+    if (hasResponsavelFilter) query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
+    if (wantsUnassigned) query = query.eq("tem_responsavel", false);
+
+    if (f.aba_origem && f.aba_origem !== "todas") query = query.eq("aba_origem", f.aba_origem);
+    if (f.centralizador && f.centralizador !== "todos") {
+      if (f.centralizador === "__sem__") query = query.or("centralizador.is.null,centralizador.eq.");
+      else query = query.eq("centralizador", f.centralizador);
+    }
+    if (f.benner === "sim") query = query.eq("benner_atualizado", true);
+    else if (f.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
+    if (f.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
+    else if (f.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
+    else if (f.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
+    else if (f.dossieStatus === "invalido") query = query.not("dossie", "is", null).neq("dossie", "").not("dossie", "like", "__.__.___.______%/__");
+    else if (f.dossieStatus === "invalido_ou_nao_preenchido") query = query.or("dossie.is.null,dossie.eq.,dossie.not.like.__.__.___.______%/__");
+    const CNJ_REGEX = "^[0-9]{7}-[0-9]{2}\\.[0-9]{4}\\.[0-9]\\.[0-9]{2}\\.[0-9]{4}$";
+    if (f.processoStatus === "valido") query = query.filter("processo", "match", CNJ_REGEX);
+    else if (f.processoStatus === "invalido") query = query.or(`processo.is.null,processo.eq.,processo.not.match."${CNJ_REGEX}"`);
+    if (f.judit === "sim") query = query.eq("judit_preenchido", true);
+    else if (f.judit === "nao") query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
+    if (f.erroJudit === "sim") query = query.eq("erro_judit", true);
+    else if (f.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
+    if (f.situacaoProcesso === "ativo") {
+      query = query.ilike("situacao_processo", "ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
+    } else if (f.situacaoProcesso === "transito") {
+      query = query.eq("transito_julgado", true);
+    } else if (f.situacaoProcesso === "outros") {
+      query = query.or("situacao_processo.is.null,situacao_processo.not.ilike.ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
+    } else if (f.situacaoProcesso === "outro_escritorio") {
+      query = query.eq("processo_outro_escritorio", true);
+    } else if (f.situacaoProcesso === "segredo_justica") {
+      query = query.eq("segredo_justica", true);
+    } else if (f.situacaoProcesso === "a_fazer") {
+      query = query
+        .or("transito_julgado.is.null,transito_julgado.eq.false")
+        .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
+        .or("segredo_justica.is.null,segredo_justica.eq.false")
+        .or("status.is.null,status.neq.pronto_envio");
+    }
+    if (f.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
+    else if (f.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
+    if (f.processo) query = query.ilike("processo", `%${f.processo}%`);
+    if (f.dossie) query = query.ilike("dossie", `%${f.dossie}%`);
+    if (f.turma) query = query.ilike("turma", `%${f.turma}%`);
+    if (f.relator) query = query.ilike("relator", `%${f.relator}%`);
+    if (f.parte) query = query.ilike("recorrente", `%${f.parte}%`);
+    if (f.nomeParte) {
+      const escaped = f.nomeParte.replace(/[,()]/g, " ").trim();
+      query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
+    }
+    if (f.dataInicio) query = query.gte("data_distribuicao_planilha", f.dataInicio);
+    if (f.dataFim) query = query.lte("data_distribuicao_planilha", f.dataFim);
+    if (f.semTurma) query = query.or("turma.is.null,turma.eq.");
+    if (f.status && f.status !== "todos") query = query.eq("status", f.status);
+    if (f.emAnalise === "sim") query = query.eq("em_analise", true);
+    else if (f.emAnalise === "nao") {
+      query = query.or("em_analise.is.null,em_analise.eq.false").or("analisado.is.null,analisado.eq.false");
+    } else if (f.emAnalise === "analisado") query = query.eq("analisado", true);
+    if (f.problemaJudit === "sim") query = query.eq("problema_judit", true);
+    else if (f.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
+    if (f.duplicado === "sim" && duplicateIds) query = query.in("id", duplicateIds);
+    else if (f.duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
+    if (f.fonteImportacao && f.fonteImportacao !== "todas") {
+      query = query.contains("fontes_importacao", [f.fonteImportacao]);
+    }
+    if (f.provasDigitais === "sim") query = query.ilike("provas_digitais", "s");
+    else if (f.provasDigitais === "nao") query = query.ilike("provas_digitais", "n");
+    else if (f.provasDigitais === "nao_selecionado") query = query.or("provas_digitais.is.null,provas_digitais.eq.");
+    if (f.situacaoEnvioCargaId && f.situacaoEnvioCargaId !== "todas") {
+      if (f.situacaoEnvioCargaId === "__sem__") {
+        query = query.is("situacao_envio_carga_id", null);
+      } else {
+        query = query.eq("situacao_envio_carga_id", f.situacaoEnvioCargaId);
+      }
+    }
+    if (f.equipe === "sim") query = query.filter("equipe", "match", "[^[:space:]]");
+    else if (f.equipe === "nao") query = query.or('equipe.is.null,equipe.match."^[[:space:]]*$"');
+
+    if (f.idsAllowed && f.idsAllowed.length > 0) {
+      query = query.in("id", f.idsAllowed);
+    }
+
+    query = query.range(from, from + PAGE - 1);
+    const { data, error } = await query;
+    if (error) throw error;
+    const rows = (data as any[]) || [];
+    for (const r of rows) {
+      // Dedup id (join inner pode duplicar linhas)
+      if (seen.has(r.id)) continue;
+      seen.add(r.id);
+      const d = r.data_distribuicao_real;
+      if (!d || typeof d !== "string" || d.length < 7) continue;
+      const key = d.slice(0, 7);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    }
+    if (rows.length < PAGE) break;
+    from += PAGE;
+  }
+
+  return [...counts.entries()]
+    .map(([key, count]) => ({ key, count }))
+    .sort((a, b) => b.key.localeCompare(a.key));
+}

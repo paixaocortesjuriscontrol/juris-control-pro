@@ -13,7 +13,7 @@ import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { gerarRelatorioExcelDistribuicaoTst } from "@/lib/relatorioExcelDistribuicaoTst";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
+import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds, fetchMesesDataRealFiltered } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/DistribuicaoTstDetail";
 import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
@@ -386,18 +386,6 @@ export default function DistribuicaoTst() {
       setAbas([...map.entries()].map(([aba, count]) => ({ aba, count })).sort((a, b) => a.aba.localeCompare(b.aba)));
     }
 
-    // Mês/Ano agora é agrupado pela DATA REAL via RPC (rápido, sem carregar linhas).
-    const { data: mesesData } = await supabase.rpc("get_meses_data_distribuicao_real" as any);
-    if (mesesData) {
-      const rows = (mesesData as any[]) || [];
-      setMesesAnos(
-        rows
-          .filter((r) => typeof r.mes_ano === "string" && r.mes_ano.length === 7)
-          .map((r) => ({ key: r.mes_ano as string, count: Number(r.total) || 0 }))
-          .sort((a, b) => b.key.localeCompare(a.key))
-      );
-    }
-
     // Distinct centralizadores (paginado para evitar limite 1000)
     const centMap = new Map<string, number>();
     let off = 0;
@@ -422,6 +410,22 @@ export default function DistribuicaoTst() {
   }, []);
 
   useEffect(() => { fetchTabsData(); }, [fetchTabsData]);
+
+  // Mês/Ano agora é calculado a partir da `data_distribuicao_real` aplicando
+  // os mesmos filtros ativos (responsável, status, etc.) — assim as
+  // contagens do dropdown batem com o total exibido no card.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const meses = await fetchMesesDataRealFiltered(debouncedFilters);
+        if (!cancelled) setMesesAnos(meses);
+      } catch (e) {
+        console.error("Erro ao carregar meses (data real):", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [JSON.stringify(debouncedFilters)]);
 
   
 
