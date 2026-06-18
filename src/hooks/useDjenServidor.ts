@@ -420,12 +420,14 @@ export function useComparadorAnalise() {
         .select(baseCols)
         .gte("data_disponibilizacao", inicioDispoTs)
         .lte("data_disponibilizacao", fimDispoTs)
+        .not("id_djen", "is", null)
         .limit(20000);
       let browQ = supabase
         .from("publicacoes_djen")
         .select(baseCols)
         .gte("data_disponibilizacao", inicioDispoTs)
         .lte("data_disponibilizacao", fimDispoTs)
+        .not("id_djen", "is", null)
         .limit(20000);
       if (opts.coordenacaoId) {
         servQ = servQ.eq("coordenacao_id", opts.coordenacaoId);
