@@ -411,7 +411,7 @@ export async function fetchAllDistribuicaoTstIds(
       const start = `${filters.mesAno}-01`;
       const [y, m] = filters.mesAno.split("-").map(Number);
       const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
-      query = query.gte("data_distribuicao_planilha", start).lt("data_distribuicao_planilha", nextMonth);
+      query = query.gte("data_distribuicao_real", start).lt("data_distribuicao_real", nextMonth);
     }
     if (filters.dataInicio) query = query.gte("data_distribuicao_planilha", filters.dataInicio);
     if (filters.dataFim) query = query.lte("data_distribuicao_planilha", filters.dataFim);
@@ -588,7 +588,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       const start = `${filters.mesAno}-01`;
       const [y, m] = filters.mesAno.split("-").map(Number);
       const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
-      query = query.gte("data_distribuicao_planilha", start).lt("data_distribuicao_planilha", nextMonth);
+      query = query.gte("data_distribuicao_real", start).lt("data_distribuicao_real", nextMonth);
     }
     if (filters.dataInicio) query = query.gte("data_distribuicao_planilha", filters.dataInicio);
     if (filters.dataFim) query = query.lte("data_distribuicao_planilha", filters.dataFim);
