@@ -7905,6 +7905,13 @@ export type Database = {
         Args: { _id: string; _motivo?: string }
         Returns: string
       }
+      arquivar_duplicados_dados_benner_ids: {
+        Args: { _ids: string[]; _motivo?: string }
+        Returns: {
+          arquivados: number
+          grupos: number
+        }[]
+      }
       atualizar_cor_processo_tag: {
         Args: { _cor: string; _tag_id: string }
         Returns: {

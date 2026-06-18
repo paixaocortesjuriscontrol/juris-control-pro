@@ -143,6 +143,8 @@ export default function DistribuicaoTst() {
   const { isAdmin, isAdminOrCoordinator } = useUserRole();
   const { user } = useAuth();
   const [delegarOpen, setDelegarOpen] = useState(false);
+  const [arquivarDupOpen, setArquivarDupOpen] = useState(false);
+  const [arquivarDupRunning, setArquivarDupRunning] = useState(false);
   const [autoDistOpen, setAutoDistOpen] = useState(false);
   const [showCarga, setShowCarga] = useState(false);
   const [cargaDistribuicoes, setCargaDistribuicoes] = useState<any[] | null>(null);
@@ -563,6 +565,32 @@ export default function DistribuicaoTst() {
     fetchDados();
     fetchTabsData();
     refetchStats();
+  };
+
+  const handleArquivarDuplicados = async () => {
+    setArquivarDupRunning(true);
+    try {
+      const ids = await fetchAllFilteredBennerIds(debouncedFilters);
+      if (!ids || ids.length === 0) {
+        toast.warning("Nenhum registro encontrado com os filtros atuais.");
+        return;
+      }
+      const { data, error } = await supabase.rpc(
+        "arquivar_duplicados_dados_benner_ids" as any,
+        { _ids: ids, _motivo: "Arquivamento em lote de duplicados (filtros da tela)" } as any
+      );
+      if (error) { toast.error("Erro ao arquivar: " + error.message); return; }
+      const r: any = Array.isArray(data) ? data[0] : data;
+      const arq = r?.arquivados ?? 0;
+      const grp = r?.grupos ?? 0;
+      toast.success(`Arquivados ${arq} registros em ${grp} grupos de duplicados.`);
+      setArquivarDupOpen(false);
+      handleRefresh();
+    } catch (e: any) {
+      toast.error("Erro ao arquivar duplicados: " + (e?.message || e));
+    } finally {
+      setArquivarDupRunning(false);
+    }
   };
 
   const handleMarcarPronto = async () => {
@@ -1337,6 +1365,18 @@ export default function DistribuicaoTst() {
                     <Archive className="w-4 h-4 mr-2" /> Arquivados
                   </Button>
                 </Link>
+              )}
+              {isAdminOrCoordinator && filtroDuplicado === "sim" && (
+                <Button
+                  variant="outline"
+                  onClick={() => setArquivarDupOpen(true)}
+                  disabled={arquivarDupRunning}
+                  title="Arquiva os duplicados respeitando os filtros atuais. Mantém o registro com mais tags (empate: mais campos preenchidos). Se outro do grupo tiver alteração mais recente, esse é mantido. Nada é apagado."
+                  className="border-amber-400 text-amber-700 hover:bg-amber-50"
+                >
+                  {arquivarDupRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Archive className="w-4 h-4 mr-2" />}
+                  {arquivarDupRunning ? "Arquivando..." : "Arquivar duplicados"}
+                </Button>
               )}
               <BennerSimImport onUpdated={handleRefresh} />
               <DossiesNaoLocalizadosButton filters={debouncedFilters} selectedIds={selectedIds} />
@@ -2321,6 +2361,26 @@ export default function DistribuicaoTst() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-amber-600 text-white hover:bg-amber-700">
               Arquivar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={arquivarDupOpen} onOpenChange={(o) => { if (!arquivarDupRunning) setArquivarDupOpen(o); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Arquivar duplicados respeitando os filtros?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Para cada grupo de processos duplicados, será mantido o registro com mais tags
+              (empate: mais campos preenchidos). Se outro registro do mesmo grupo tiver data de
+              alteração mais recente, esse será mantido no lugar. Os demais são movidos para a
+              área de arquivados — nada é apagado.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={arquivarDupRunning}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction disabled={arquivarDupRunning} onClick={(e) => { e.preventDefault(); handleArquivarDuplicados(); }}>
+              {arquivarDupRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Arquivar duplicados
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
