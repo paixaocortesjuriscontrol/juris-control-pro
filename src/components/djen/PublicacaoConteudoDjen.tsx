@@ -29,8 +29,8 @@ interface PublicacaoConteudoDjenProps {
   orgaoEstruturado?: string | null;
   tipoComunicacaoEstruturado?: string | null;
   meioEstruturado?: string | null;
-  partesJson?: string[] | null;
-  advogadosJson?: string[] | null;
+  partesJson?: any[] | null;
+  advogadosJson?: any[] | null;
   /** Quando true (controlado pelo pai), exibe publicação sem scroll e não mostra o botão Expandir Geral */
   expandirGeralExterno?: boolean;
 }
@@ -152,7 +152,7 @@ const extractPartesAndAdvogados = (
   texto: string | null,
   poloAtivo: string | null,
   poloPassivo: string | null,
-  advogadosJson: string[] | null,
+  advogadosJson: any[] | null,
 ): { partes: string[]; advogados: string[] } => {
   const partes: string[] = [];
   const advogados: string[] = [];
@@ -450,8 +450,8 @@ const extractPartesAndAdvogados = (
  * Usa partes_json e advogados_json do Supabase; fallback para extração do conteúdo quando necessário.
  */
 export function getPartesEAdvogadosParaExibicao(
-  partesJson: string[] | null | undefined,
-  advogadosJson: string[] | null | undefined,
+  partesJson: any[] | null | undefined,
+  advogadosJson: any[] | null | undefined,
   conteudo: string | null,
   poloAtivo: string | null,
   poloPassivo: string | null

@@ -10,17 +10,17 @@ import { addDays, parse } from "date-fns";
 // Helper para formatar data em ISO com timezone UTC
 const formatToUTC = (date: Date) => date.toISOString();
 
-/** Parse seguro de advogados_json/partes_json: evita throw e retorna array ou null. */
-function parseJsonArraySafe(value: unknown): string[] | null {
+/** Parse seguro de advogados_json/partes_json: evita throw e preserva objetos da Kurier. */
+function parseJsonArraySafe(value: unknown): any[] | null {
   if (value == null) return null;
-  let arr: string[];
+  let arr: any[];
   if (Array.isArray(value)) {
-    arr = value.map((x) => String(x ?? "").trim()).filter(Boolean);
+    arr = value.filter((x) => x != null && (typeof x !== "string" || x.trim()));
   } else if (typeof value === "string" && value.trim()) {
     try {
       const parsed = JSON.parse(value);
       if (!Array.isArray(parsed)) return null;
-      arr = parsed.map((x: unknown) => String(x ?? "").trim()).filter(Boolean);
+      arr = parsed.filter((x: unknown) => x != null && (typeof x !== "string" || x.trim()));
     } catch {
       return null;
     }
@@ -173,8 +173,8 @@ export interface PublicacaoUnificada {
   orgao?: string | null;
   tipo_comunicacao?: string | null;
   meio?: string | null;
-  advogados_json?: string[] | null;
-  partes_json?: string[] | null;
+  advogados_json?: any[] | null;
+  partes_json?: any[] | null;
   // Dados de descarte (para tipo descartada)
   motivo_descarte?: string | null;
   descartado_por?: string | null;
