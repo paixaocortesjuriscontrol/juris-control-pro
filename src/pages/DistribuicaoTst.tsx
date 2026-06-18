@@ -143,6 +143,8 @@ export default function DistribuicaoTst() {
   const { isAdmin, isAdminOrCoordinator } = useUserRole();
   const { user } = useAuth();
   const [delegarOpen, setDelegarOpen] = useState(false);
+  const [arquivarDupOpen, setArquivarDupOpen] = useState(false);
+  const [arquivarDupRunning, setArquivarDupRunning] = useState(false);
   const [autoDistOpen, setAutoDistOpen] = useState(false);
   const [showCarga, setShowCarga] = useState(false);
   const [cargaDistribuicoes, setCargaDistribuicoes] = useState<any[] | null>(null);
