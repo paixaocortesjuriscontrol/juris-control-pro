@@ -504,15 +504,18 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     // "Apenas duplicados": traz todos os IDs dos processos que têm pares reais,
     // ordenados por processo, para identificar e arquivar manualmente.
     let duplicateIds: string[] | null = null;
+    let duplicateArchivedRows: any[] = [];
     if (filters.duplicado === "sim") {
       try {
-        duplicateIds = await fetchDuplicateDistribuicaoTstIds();
+        const grp = await fetchDuplicateGroups();
+        duplicateIds = grp.activeIds;
+        duplicateArchivedRows = grp.archivedRows;
       } catch (e: any) {
         toast.error("Erro ao buscar processos duplicados: " + (e?.message || e));
         setLoading(false);
         return;
       }
-      if (duplicateIds.length === 0) {
+      if (duplicateIds.length === 0 && duplicateArchivedRows.length === 0) {
         setDados([]);
         setTotalCount(0);
         setResponsaveisMap(new Map());
