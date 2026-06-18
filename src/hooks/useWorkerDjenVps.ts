@@ -245,7 +245,7 @@ export function useWorkerDjenVps({ coordenacaoId, autoStart = false }: UseWorker
         monitoramento_id: monitoramento.id,
         hash_conteudo: hashConteudo,
         conteudo: conteudo.slice(0, 50000),
-        processo_numero: pub.numeroProcesso || null,
+        processo_numero: pub.numeroProcesso || pub.processo || pub.Processo || pub.numero_processo || null,
         data_publicacao: pub.dataPublicacao || null,
         data_disponibilizacao: pub.dataDisponibilizacao || null,
         tribunal: pub.siglaTribunal || null,
