@@ -225,6 +225,9 @@ function optimizeItem(item: any) {
       item?.numero_processo ??
       item?.processo_numero ??
       item?.processoNumero ??
+      item?.processo ??
+      item?.Processo ??
+      item?.numero ??
       null,
 
     nomeOrgao:

@@ -381,16 +381,27 @@ async function inserirPublicacoes(
         ? `coord:${monitoramento.coordenacao_id}`
         : `mon:${monitoramento.id}`;
 
+      const numeroProcesso = pub.numeroProcesso || pub.processo || pub.Processo || pub.numero_processo || null;
       let existingQuery: any = idDjen
-        ? supabase.from('publicacoes_djen').select('id').eq('id_djen', idDjen)
-        : supabase.from('publicacoes_djen_global_hash').select('id').eq('escopo_dedup', escopoDedup).eq('hash_global', globalHash);
+        ? supabase.from('publicacoes_djen').select('id, processo_numero').eq('id_djen', idDjen)
+        : supabase.from('publicacoes_djen_global_hash').select('id, publicacao_id').eq('escopo_dedup', escopoDedup).eq('hash_global', globalHash);
       existingQuery = idDjen
         ? (monitoramento.coordenacao_id ? existingQuery.eq('coordenacao_id', monitoramento.coordenacao_id) : existingQuery.is('coordenacao_id', null))
         : existingQuery;
       existingQuery = existingQuery.maybeSingle();
       const { data: existing } = await existingQuery;
 
-      if (existing) continue; // Já existe nesta coordenação
+      if (existing) {
+        const publicacaoId = idDjen ? existing.id : existing.publicacao_id;
+        if (numeroProcesso && publicacaoId && (idDjen ? !existing.processo_numero : true)) {
+          await supabase
+            .from('publicacoes_djen')
+            .update({ processo_numero: numeroProcesso })
+            .eq('id', publicacaoId)
+            .is('processo_numero', null);
+        }
+        continue; // Já existe nesta coordenação
+      }
       
       // Inserir nova publicação
       const { data: inserted, error } = await supabase
@@ -401,7 +412,7 @@ async function inserirPublicacoes(
           hash_conteudo: hashConteudo,
           id_djen: idDjen,
           conteudo: conteudo.slice(0, 50000), // Limite de tamanho
-          processo_numero: pub.numeroProcesso || null,
+          processo_numero: numeroProcesso,
           data_publicacao: pub.dataPublicacao || null,
           data_disponibilizacao: pub.dataDisponibilizacao || null,
           tribunal: pub.siglaTribunal || null,
