@@ -536,6 +536,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       if (hasResponsavelFilter) {
         query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
       }
+      if (wantsUnassigned) {
+        query = query.eq("tem_responsavel", false);
+      }
       if (chunkIds) query = query.in("id", chunkIds);
 
       if (filters.aba_origem && filters.aba_origem !== "todas") query = query.eq("aba_origem", filters.aba_origem);
