@@ -983,8 +983,7 @@ export async function fetchMesesDataRealFiltered(
       if (seen.has(r.id)) continue;
       seen.add(r.id);
       const d = r.data_distribuicao_real;
-      if (!d || typeof d !== "string" || d.length < 7) continue;
-      const key = d.slice(0, 7);
+      const key = !d || typeof d !== "string" || d.length < 7 ? "sem-data" : d.slice(0, 7);
       counts.set(key, (counts.get(key) || 0) + 1);
     }
     if (rows.length < PAGE) break;
@@ -993,5 +992,9 @@ export async function fetchMesesDataRealFiltered(
 
   return [...counts.entries()]
     .map(([key, count]) => ({ key, count }))
-    .sort((a, b) => b.key.localeCompare(a.key));
+    .sort((a, b) => {
+      if (a.key === "sem-data") return 1;
+      if (b.key === "sem-data") return -1;
+      return b.key.localeCompare(a.key);
+    });
 }
