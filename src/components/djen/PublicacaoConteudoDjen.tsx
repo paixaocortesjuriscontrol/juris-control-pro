@@ -464,7 +464,20 @@ export function getPartesEAdvogadosParaExibicao(
     }
     return String(x || "").trim();
   }).filter(Boolean) : [];
-  const advogadosDoBanco = Array.isArray(advogadosJson) ? advogadosJson.map((x: any) => String(x || "").trim()).filter(Boolean) : [];
+  const advogadosDoBanco = Array.isArray(advogadosJson) ? advogadosJson.map((x: any) => {
+    if (typeof x === 'object' && x !== null) {
+      // Formato Kurier: { advogado: { nome, numero_oab, uf_oab }, ... }
+      const adv = x.advogado && typeof x.advogado === 'object' ? x.advogado : x;
+      const nome = (adv?.nome || adv?.name || '').toString().trim();
+      const numero = (adv?.numero_oab || adv?.oab || adv?.numero || '').toString().trim();
+      const uf = (adv?.uf_oab || adv?.uf || '').toString().trim().toUpperCase();
+      if (!nome) return '';
+      if (numero && uf) return `${nome} - OAB ${uf}-${numero}`;
+      if (numero) return `${nome} - OAB ${numero}`;
+      return nome;
+    }
+    return String(x || "").trim();
+  }).filter(Boolean) : [];
   const itemPareceParte = (s: string) =>
     /\b(BANCO|S\.A\.|S\/A|LTDA|RECUPERAÇÃO|CONTAX|INSTITUIÇÃO)\b/i.test(s) ||
     (!/\bOAB\b|\bDR\.|\bDRA\./i.test(s) && s.split(/\s+/).filter(Boolean).length >= 2);
