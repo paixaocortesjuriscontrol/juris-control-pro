@@ -483,19 +483,10 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
 
     let idsWithoutResponsavel: string[] | null = null;
     if (wantsUnassigned) {
-      const { data, error } = await supabase.rpc("get_dados_benner_sem_responsavel" as any);
-      if (error) {
-        toast.error("Erro ao filtrar 'Não distribuído': " + error.message);
-        setLoading(false);
-        return;
-      }
-      idsWithoutResponsavel = ((data as any[]) || []).map((r: any) => r.id);
-      if (idsWithoutResponsavel.length === 0) {
-        setDados([]);
-        setTotalCount(0);
-        setLoading(false);
-        return;
-      }
+      // Otimização: usa a coluna denormalizada `tem_responsavel` mantida por
+      // trigger em vez de carregar todos os IDs e percorrer em chunks.
+      // Não precisamos popular idsWithoutResponsavel — o filtro é aplicado
+      // diretamente em buildQuery via .eq("tem_responsavel", false).
     }
 
     const selectClause = hasResponsavelFilter
