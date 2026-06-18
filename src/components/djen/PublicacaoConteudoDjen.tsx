@@ -152,7 +152,7 @@ const extractPartesAndAdvogados = (
   texto: string | null,
   poloAtivo: string | null,
   poloPassivo: string | null,
-  advogadosJson: string[] | null,
+  advogadosJson: any[] | null,
 ): { partes: string[]; advogados: string[] } => {
   const partes: string[] = [];
   const advogados: string[] = [];
