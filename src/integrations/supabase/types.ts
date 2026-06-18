@@ -8376,6 +8376,13 @@ export type Database = {
           usuario_nome: string
         }[]
       }
+      get_meses_data_distribuicao_real: {
+        Args: never
+        Returns: {
+          mes_ano: string
+          total: number
+        }[]
+      }
       get_notificacoes_counts_by_coordenacao: {
         Args: {
           p_coordenacao_ids: string[]
