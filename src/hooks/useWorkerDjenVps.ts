@@ -227,14 +227,22 @@ export function useWorkerDjenVps({ coordenacaoId, autoStart = false }: UseWorker
     const hashConteudo = generateContentHash(conteudo, dataDisp);
     
     // Verificar duplicata
+    const numeroProcesso = pub.numeroProcesso || pub.processo || pub.Processo || pub.numero_processo || null;
+
     const { data: existing } = await supabase
       .from('publicacoes_djen')
-      .select('id')
+      .select('id, processo_numero')
       .eq('hash_conteudo', hashConteudo)
       .eq('monitoramento_id', monitoramento.id)
       .maybeSingle();
     
     if (existing) {
+      if (numeroProcesso && !existing.processo_numero) {
+        await supabase
+          .from('publicacoes_djen')
+          .update({ processo_numero: numeroProcesso })
+          .eq('id', existing.id);
+      }
       return { nova: false, duplicada: true };
     }
     
@@ -245,7 +253,7 @@ export function useWorkerDjenVps({ coordenacaoId, autoStart = false }: UseWorker
         monitoramento_id: monitoramento.id,
         hash_conteudo: hashConteudo,
         conteudo: conteudo.slice(0, 50000),
-        processo_numero: pub.numeroProcesso || pub.processo || pub.Processo || pub.numero_processo || null,
+        processo_numero: numeroProcesso,
         data_publicacao: pub.dataPublicacao || null,
         data_disponibilizacao: pub.dataDisponibilizacao || null,
         tribunal: pub.siglaTribunal || null,
