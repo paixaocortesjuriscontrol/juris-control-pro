@@ -311,12 +311,14 @@ export function useComparadorPublicacoes(opts: { dataInicio: string; dataFim: st
         .select("processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, tribunal")
         .gte("dedup_data_ref", opts.dataInicio)
         .lte("dedup_data_ref", opts.dataFim)
+        .not("id_djen", "is", null)
         .limit(5000);
       let browQ = supabase
         .from("publicacoes_djen")
         .select("processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, tribunal")
         .gte("dedup_data_ref", opts.dataInicio)
         .lte("dedup_data_ref", opts.dataFim)
+        .not("id_djen", "is", null)
         .limit(5000);
       if (opts.coordenacaoId) {
         servQ = servQ.eq("coordenacao_id", opts.coordenacaoId);
@@ -420,12 +422,14 @@ export function useComparadorAnalise() {
         .select(baseCols)
         .gte("data_disponibilizacao", inicioDispoTs)
         .lte("data_disponibilizacao", fimDispoTs)
+        .not("id_djen", "is", null)
         .limit(20000);
       let browQ = supabase
         .from("publicacoes_djen")
         .select(baseCols)
         .gte("data_disponibilizacao", inicioDispoTs)
         .lte("data_disponibilizacao", fimDispoTs)
+        .not("id_djen", "is", null)
         .limit(20000);
       if (opts.coordenacaoId) {
         servQ = servQ.eq("coordenacao_id", opts.coordenacaoId);
