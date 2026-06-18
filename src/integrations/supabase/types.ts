@@ -8035,6 +8035,7 @@ export type Database = {
         Args: { p_agendado_para?: string; p_payload?: Json; p_tipo: string }
         Returns: string
       }
+      extract_cnj_from_text: { Args: { p_text: string }; Returns: string }
       find_processo_id_by_numero: { Args: { _numero: string }; Returns: string }
       gerar_numero_remessa_benner: { Args: never; Returns: string }
       get_cliente_ids_for_user: {
