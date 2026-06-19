@@ -237,6 +237,11 @@ export default function DistribuicaoTst() {
   // Novo filtro: apenas processos com mais de um responsável.
   const [filtroMultiResp, setFiltroMultiResp] = useState<boolean>(false);
 
+  // IDs base por TAG (intersecção). undefined = sem restrição por TAG.
+  const idsAllowedFromTagFilter = filtroTagId === "todas" || filtroTagId === "__sem__"
+    ? undefined
+    : (idsAllowedFromTag ?? []);
+
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
 
