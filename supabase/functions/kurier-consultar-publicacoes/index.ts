@@ -304,6 +304,16 @@ Deno.serve(async (req: Request) => {
     const data_inicio = data_inicio_body ?? hojeYmd;
     const data_fim = data_fim_body ?? hojeYmd;
     const modo_personalizado = body.modo_personalizado === true;
+    // Modo backfill: em vez de consultar a fila Kurier, reprocessa payloads
+    // já gravados em kurier_publicacoes_raw com um determinado motivo_descarte.
+    // Útil para recuperar itens que foram confirmados na Kurier (saíram da fila)
+    // mas descartados localmente por filtro antigo. NÃO confirma nada na Kurier.
+    const backfill_raw: boolean = body.backfill_raw === true;
+    const backfill_motivo: string = typeof body.backfill_motivo === "string" && body.backfill_motivo
+      ? body.backfill_motivo : "fora_janela_disp_antes";
+    const backfill_date: string | undefined = typeof body.backfill_date === "string"
+      && /^\d{4}-\d{2}-\d{2}$/.test(body.backfill_date)
+      ? body.backfill_date : undefined;
     // Kurier sempre persiste em publicacoes_djen (tabela canônica da
     // Análise DJEN). O parâmetro persist_mode é ignorado de propósito para
     // não furar dedup/leituras/alertas que dependem desta tabela.
@@ -523,41 +533,58 @@ Deno.serve(async (req: Request) => {
         datas.push(d.toISOString().slice(0, 10));
       }
     }
-    const totalIter = useDateMode ? datas.length : max_lotes;
-    console.log(`[kurier] modo=${useDateMode ? "personalizado" : "fila"} iter=${totalIter}`);
+    const totalIter = backfill_raw ? 1 : (useDateMode ? datas.length : max_lotes);
+    console.log(`[kurier] modo=${backfill_raw ? "backfill" : (useDateMode ? "personalizado" : "fila")} iter=${totalIter}`);
 
     for (let lote = 0; lote < totalIter; lote++) {
-      // A fila da Kurier deve ser consultada sem parâmetros de data: algumas
-      // credenciais retornam 0 quando a data é enviada, impedindo a drenagem.
-      // A janela solicitada pelo usuário continua sendo obedecida no filtro
-      // local abaixo, e itens fora da janela são confirmados para liberar a fila.
-      const url = useDateMode
-        ? buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoesPersonalizado", { data: datas[lote] })
-        : buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoes", {});
-
-      let resp: Response;
-      let texto = "";
-      try {
-        resp = await fetch(url, { method: "GET", headers: buildKurierAuthHeaders(cred.login, senha) });
-        texto = await resp.text();
-      } catch (e) {
-        ultimoErro = `Falha rede lote ${lote}: ${String(e)}`;
-        break;
-      }
-      if (resp.status < 200 || resp.status >= 300) {
-        ultimoErro = resp.status === 401
-          ? "HTTP 401 — login ou senha recusados pela Kurier"
-          : `HTTP ${resp.status} lote ${lote}: ${texto.trim() ? texto.slice(0, 200) : "resposta sem mensagem"}`;
-        break;
-      }
-
       let pubs: KurierPub[] = [];
-      try {
-        const j = JSON.parse(texto);
-        pubs = extractPublicacoes(j);
-      } catch (e) {
-        ultimoErro = `JSON inválido lote ${lote}: ${texto.slice(0, 200)}`;
-        break;
+      if (backfill_raw) {
+        // Carrega payloads de descartes anteriores (já confirmados na fila Kurier)
+        // para reprocessar com a lógica atual. NÃO faz chamada à API.
+        const dataAlvo = backfill_date ?? hojeYmd;
+        const { data: rawDescartados, error: rawDescErr } = await admin
+          .from("kurier_publicacoes_raw")
+          .select("payload")
+          .eq("credencial_id", cred.id)
+          .eq("motivo_descarte", backfill_motivo)
+          .gte("created_at", `${dataAlvo}T00:00:00Z`)
+          .lt("created_at", `${dataAlvo}T23:59:59.999Z`)
+          .limit(10000);
+        if (rawDescErr) {
+          ultimoErro = `backfill load raw lote ${lote}: ${rawDescErr.message}`;
+          break;
+        }
+        pubs = ((rawDescartados ?? []) as any[]).map((r) => r.payload).filter(Boolean);
+        console.log(`[kurier][backfill] cred=${cred.id} motivo=${backfill_motivo} data=${dataAlvo} encontrados=${pubs.length}`);
+      } else {
+        // A fila da Kurier deve ser consultada sem parâmetros de data: algumas
+        // credenciais retornam 0 quando a data é enviada, impedindo a drenagem.
+        const url = useDateMode
+          ? buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoesPersonalizado", { data: datas[lote] })
+          : buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoes", {});
+
+        let resp: Response;
+        let texto = "";
+        try {
+          resp = await fetch(url, { method: "GET", headers: buildKurierAuthHeaders(cred.login, senha) });
+          texto = await resp.text();
+        } catch (e) {
+          ultimoErro = `Falha rede lote ${lote}: ${String(e)}`;
+          break;
+        }
+        if (resp.status < 200 || resp.status >= 300) {
+          ultimoErro = resp.status === 401
+            ? "HTTP 401 — login ou senha recusados pela Kurier"
+            : `HTTP ${resp.status} lote ${lote}: ${texto.trim() ? texto.slice(0, 200) : "resposta sem mensagem"}`;
+          break;
+        }
+        try {
+          const j = JSON.parse(texto);
+          pubs = extractPublicacoes(j);
+        } catch (e) {
+          ultimoErro = `JSON inválido lote ${lote}: ${texto.slice(0, 200)}`;
+          break;
+        }
       }
 
       if (!pubs.length) {
@@ -615,7 +642,12 @@ Deno.serve(async (req: Request) => {
         //   "Personalizado?data=X" já filtrou por data de PUBLICAÇÃO; aceitamos
         //   todos os itens retornados (espelhando a tela Kurier que mostra
         //   "X publicações encontradas").
-        const antesDaJanela = !useDateMode && !!(refYmd && data_inicio && refYmd < data_inicio);
+        // Itens "antes da janela" NÃO são mais descartados: a fila Kurier é
+        // destrutiva (confirmar = remover), então tudo que sai da fila precisa
+        // entrar na pipeline normal de matching/inserção. Mantemos apenas o
+        // corte para itens posteriores à janela (esses ficam na fila e voltam
+        // no dia correto).
+        const antesDaJanela = false;
         const depoisDaJanela = !useDateMode && !!(refYmd && data_fim && refYmd > data_fim);
         const semData = !useDateMode && !refYmd;
         const foraJanela = semData || antesDaJanela || depoisDaJanela;
@@ -862,7 +894,9 @@ Deno.serve(async (req: Request) => {
 
         // Em modo data, NÃO confirmamos — o endpoint Personalizado é só leitura
         // e queremos preservar a fila para o monitoramento normal.
-        if (!useDateMode) {
+        // Em modo backfill, também NÃO confirmamos — o item já foi confirmado
+        // no passado (foi por isso que sumiu da fila e teve que ser reprocessado).
+        if (!useDateMode && !backfill_raw) {
           const confirmacao = buildConfirmacaoKurier(p);
           if (confirmacao) confirmacoes.push(confirmacao);
           if (idK) idsConfirmar.push(idK);
