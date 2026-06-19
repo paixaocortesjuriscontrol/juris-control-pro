@@ -19,7 +19,6 @@ import { useDjenTermosKurierScheduler } from "@/hooks/useDjenTermosKurierSchedul
 import { KurierCredenciaisPanel } from "./KurierCredenciaisPanel";
 import { Play, Square, RotateCcw, ShieldAlert, Save, Activity, Loader2, Search, CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
-import { useState as useReactState } from "react";
 
 function formatDuracao(s: number) {
   if (!s) return "0s";
