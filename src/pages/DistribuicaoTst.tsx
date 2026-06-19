@@ -1473,6 +1473,11 @@ export default function DistribuicaoTst() {
             loading={statsLoading}
             activeKey={activeCardKey}
             onCardClick={handleCardClick}
+            multiRespCard={isAdmin ? {
+              count: multiRespIds.length,
+              active: filtroMultiResp,
+              onClick: () => handleCardClick("multiResp"),
+            } : null}
             responsavelCard={(() => {
               const me = user?.id ? responsavelCounts.find(c => c.id === user.id) : null;
               return { atribuidos: me?.count ?? 0, prontos: me?.pronto ?? 0 };
