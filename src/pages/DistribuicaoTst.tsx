@@ -275,7 +275,7 @@ export default function DistribuicaoTst() {
         provasDigitais: filtroProvasDigitais !== "todos" ? (filtroProvasDigitais as any) : undefined,
         situacaoEnvioCargaId: filtroSituacaoCarga !== "todas" ? filtroSituacaoCarga : undefined,
         equipe: filtroEquipe !== "todos" ? (filtroEquipe as any) : undefined,
-      idsAllowed: idsAllowedForFilters,
+      idsAllowed: idsAllowedFromTagFilter,
       });
     }, 400);
     return () => clearTimeout(timer);
