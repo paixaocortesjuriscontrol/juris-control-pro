@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
-import { formatConteudoParaExibicao, conteudoDisplayClasses, conteudoHtmlParaTexto, highlightTermInContent, stripHtmlAndDecodeEntities } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, conteudoHtmlParaTexto, highlightTermInContent, stripHtmlAndDecodeEntities, parseKurierBlob } from "@/utils/formatConteudo";
 
 interface PublicacaoConteudoDjenProps {
   processoNumero: string | null;
@@ -551,19 +551,48 @@ export function PublicacaoConteudoDjen({
   advogadosJson,
   expandirGeralExterno,
 }: PublicacaoConteudoDjenProps) {
+  // Detecta blob "searchable" do Kurier (campos colados sem pontuação)
+  const kurier = parseKurierBlob(conteudo);
+
   // Usar dados estruturados com fallback para regex
   const contentMeta = extractMetadataFromContent(conteudo);
 
-  const orgao = orgaoEstruturado || contentMeta.orgaoExtraido || fonte || tribunal || "-";
-  const tipoComunicacao = tipoComunicacaoEstruturado || contentMeta.tipoComunicacao || "Intimação";
-  const meioPublicacao = expandMeio(meioEstruturado || contentMeta.meio);
+  const orgao =
+    orgaoEstruturado ||
+    (kurier.isKurier ? kurier.meta.orgao : null) ||
+    contentMeta.orgaoExtraido ||
+    fonte ||
+    tribunal ||
+    "-";
+  const tipoComunicacao =
+    tipoComunicacaoEstruturado ||
+    (kurier.isKurier ? kurier.meta.tipoComunicacao : null) ||
+    contentMeta.tipoComunicacao ||
+    "Intimação";
+  const meioPublicacao = expandMeio(
+    meioEstruturado ||
+      (kurier.isKurier ? kurier.meta.meio : null) ||
+      contentMeta.meio,
+  );
 
-  const { partes: partesFinais, advogados } = getPartesEAdvogadosParaExibicao(
+  let { partes: partesFinais, advogados } = getPartesEAdvogadosParaExibicao(
     partesJson, advogadosJson, conteudo, poloAtivo, poloPassivo
   );
 
-  // Conteúdo limpo (sem cabeçalhos de metadados duplicados)
-  const conteudoLimpo = stripMetadataFromContent(conteudo);
+  // Para blob Kurier, se o banco não tem partes/advogados estruturados, usar o parser
+  if (kurier.isKurier) {
+    if (partesFinais.length === 0 && kurier.partes.length > 0) {
+      partesFinais = kurier.partes.map((p) => `[${p.papel}] ${p.nome}`);
+    }
+    if (advogados.length === 0 && kurier.advogados.length > 0) {
+      advogados = kurier.advogados;
+    }
+  }
+
+  // Conteúdo limpo: para Kurier, usa só o inteiro teor; para os demais, remove headers duplicados
+  const conteudoLimpo = kurier.isKurier
+    ? kurier.inteiroTeor || stripMetadataFromContent(conteudo)
+    : stripMetadataFromContent(conteudo);
 
   const [expandirGeralLocal, setExpandirGeralLocal] = useState(false);
   const expandirGeral = expandirGeralExterno ?? expandirGeralLocal;
