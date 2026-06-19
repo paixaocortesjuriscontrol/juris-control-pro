@@ -365,9 +365,11 @@ const extractGluedField = (
   label: RegExp,
   stopLabels: string[],
 ): string | null => {
+  // Sem `\b` no final — labels terminam em letras acentuadas (Ã/Ç) e são
+  // seguidos por dígitos/letras, casos onde `\b` não dispara em JS regex.
   const stops = stopLabels.join("|");
   const re = new RegExp(
-    `${label.source}\\s*([\\s\\S]*?)(?=\\s+(?:${stops})\\b|$)`,
+    `${label.source}\\s*([\\s\\S]*?)(?=\\s+(?:${stops})|$)`,
     "i",
   );
   const m = texto.match(re);
