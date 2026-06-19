@@ -293,6 +293,27 @@ export function MonitoramentoTermosKurierCard() {
             <Button variant="ghost" onClick={() => void resetTotal()}>
               Reset total
             </Button>
+            <Separator orientation="vertical" className="h-6" />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <CalendarIcon className="h-4 w-4 mr-1" />
+                  {backfillDate ? format(backfillDate, "dd/MM/yyyy") : "Data"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={backfillDate} onSelect={setBackfillDate} initialFocus />
+              </PopoverContent>
+            </Popover>
+            <Button
+              variant="secondary"
+              onClick={() => void runBackfillDescartados()}
+              disabled={backfillRunning}
+              title="Reprocessa publicações Kurier que foram descartadas localmente por fora_janela_disp_antes"
+            >
+              {backfillRunning ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
+              Recuperar descartados (fora janela)
+            </Button>
           </div>
           <p className="text-xs text-muted-foreground">
             Consulta o endpoint personalizado da Kurier para o período escolhido, registra o total recebido e envia os matches para a tela Análise DJEN com origem
