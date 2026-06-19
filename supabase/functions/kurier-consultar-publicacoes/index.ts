@@ -894,7 +894,9 @@ Deno.serve(async (req: Request) => {
 
         // Em modo data, NÃO confirmamos — o endpoint Personalizado é só leitura
         // e queremos preservar a fila para o monitoramento normal.
-        if (!useDateMode) {
+        // Em modo backfill, também NÃO confirmamos — o item já foi confirmado
+        // no passado (foi por isso que sumiu da fila e teve que ser reprocessado).
+        if (!useDateMode && !backfill_raw) {
           const confirmacao = buildConfirmacaoKurier(p);
           if (confirmacao) confirmacoes.push(confirmacao);
           if (idK) idsConfirmar.push(idK);
