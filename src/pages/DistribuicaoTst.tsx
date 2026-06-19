@@ -328,6 +328,21 @@ export default function DistribuicaoTst() {
   const countsFilters = { ...debouncedFilters, responsavelIds: undefined };
   const { counts: responsavelCounts, refetch: refetchResponsavelCounts } = useResponsaveisCounts(countsFilters);
 
+  // IDs de processos com mais de um responsável, respeitando os demais filtros
+  // (ignora filtro de responsável para que a contagem não se anule a si mesma).
+  const multiRespFiltersKey = JSON.stringify(countsFilters);
+  const { data: multiRespIds = [] } = useQuery({
+    queryKey: ["multi-resp-ids", multiRespFiltersKey],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc(
+        "get_distribuicao_tst_multi_resp_ids" as any,
+        { filters: countsFilters as any }
+      );
+      if (error) throw error;
+      return ((data as any[]) || []).map((r: any) => r.id as string);
+    },
+  });
+
   // Auto-seleciona o usuário logado como responsável ao abrir a tela
   // (apenas se ele estiver na lista de responsáveis). Roda uma única vez.
   useEffect(() => {
