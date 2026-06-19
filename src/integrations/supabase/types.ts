@@ -8128,6 +8128,12 @@ export type Database = {
         }[]
       }
       get_dashboard_stats: { Args: never; Returns: Json }
+      get_distribuicao_tst_multi_resp_ids: {
+        Args: { filters?: Json }
+        Returns: {
+          id: string
+        }[]
+      }
       get_distribuicao_tst_responsaveis_counts: {
         Args: { filters?: Json }
         Returns: {

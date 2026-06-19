@@ -234,11 +234,13 @@ export default function DistribuicaoTst() {
     enabled: filtroTagId !== "todas" && filtroTagId !== "__sem__",
     queryFn: () => fetchDadoIdsByTag(filtroTagId),
   });
-  const idsAllowedForFilters = filtroTagId === "todas"
+  // Novo filtro: apenas processos com mais de um responsável.
+  const [filtroMultiResp, setFiltroMultiResp] = useState<boolean>(false);
+
+  // IDs base por TAG (intersecção). undefined = sem restrição por TAG.
+  const idsAllowedFromTagFilter = filtroTagId === "todas" || filtroTagId === "__sem__"
     ? undefined
-    : filtroTagId === "__sem__"
-      ? undefined // tratado abaixo
-      : (idsAllowedFromTag ?? []);
+    : (idsAllowedFromTag ?? []);
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -273,21 +275,45 @@ export default function DistribuicaoTst() {
         provasDigitais: filtroProvasDigitais !== "todos" ? (filtroProvasDigitais as any) : undefined,
         situacaoEnvioCargaId: filtroSituacaoCarga !== "todas" ? filtroSituacaoCarga : undefined,
         equipe: filtroEquipe !== "todos" ? (filtroEquipe as any) : undefined,
-      idsAllowed: idsAllowedForFilters,
+      idsAllowed: idsAllowedFromTagFilter,
       });
     }, 400);
     return () => clearTimeout(timer);
 }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, filtroTagId, JSON.stringify(idsAllowedFromTag || [])]);
 
+  // IDs de processos com mais de um responsável, respeitando os demais filtros
+  // (ignora filtro de responsável para que a contagem não se anule a si mesma).
+  const multiRespFiltersKey = JSON.stringify({ ...debouncedFilters, responsavelIds: undefined });
+  const { data: multiRespIds = [] } = useQuery({
+    queryKey: ["multi-resp-ids", multiRespFiltersKey],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc(
+        "get_distribuicao_tst_multi_resp_ids" as any,
+        { filters: { ...debouncedFilters, responsavelIds: undefined } as any }
+      );
+      if (error) throw error;
+      return ((data as any[]) || []).map((r: any) => r.id as string);
+    },
+  });
+
   // Para não-admins, o filtro "A fazer" sempre amarra ao usuário logado,
   // independentemente do select de responsáveis.
   const listFilters = useMemo(() => {
+    let f = debouncedFilters;
     if (debouncedFilters.situacaoProcesso === "a_fazer" && !isAdmin && user?.id) {
-      return { ...debouncedFilters, responsavelIds: [user.id] };
+      f = { ...f, responsavelIds: [user.id] };
     }
-    return debouncedFilters;
+    if (filtroMultiResp) {
+      // Intersecta com a lista de processos com mais de um responsável.
+      const tagIds = idsAllowedFromTagFilter;
+      const finalIds = tagIds
+        ? multiRespIds.filter((id) => tagIds.includes(id))
+        : multiRespIds;
+      f = { ...f, idsAllowed: finalIds.length > 0 ? finalIds : ["__none__"] };
+    }
+    return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), JSON.stringify(idsAllowedFromTagFilter || [])]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
@@ -467,11 +493,13 @@ export default function DistribuicaoTst() {
     setFiltroSemTurma(false);
     setFiltroProblemaJudit("todos");
     setFiltroEquipe("todos");
+    setFiltroMultiResp(false);
     setSelectedIds(new Set());
   };
 
   // Estado do card ativo (sincroniza visual + aplica filtros). Derivado dos selects.
   const activeCardKey = (() => {
+    if (filtroMultiResp) return "multiResp" as const;
     if (filtroProcessoStatus === "valido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosValidos" as const;
     if (filtroProcessoStatus === "invalido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosInvalidos" as const;
     if (filtroDossieStatus === "valido" && filtroProcessoStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "dossiesValidos" as const;
@@ -506,6 +534,8 @@ export default function DistribuicaoTst() {
     setFiltroSemTurma(false);
     setFiltroProblemaJudit("todos");
     setFiltroEquipe("todos");
+    // Reseta o filtro "Mais de um responsável" ao alternar cards (re-aplica se for o próprio)
+    setFiltroMultiResp(false);
     // Reseta filtro de status (Pronto para Enviar) ao alternar cards
     if (key === "prontoEnvio" || isActive) setFiltroStatus("todos");
     // Reseta filtro "sem responsável" ao alternar cards
@@ -548,6 +578,7 @@ export default function DistribuicaoTst() {
         break;
       case "comEquipe": setFiltroEquipe("sim"); break;
       case "semEquipe": setFiltroEquipe("nao"); break;
+      case "multiResp": setFiltroMultiResp(true); break;
     }
   };
 
@@ -1442,6 +1473,11 @@ export default function DistribuicaoTst() {
             loading={statsLoading}
             activeKey={activeCardKey}
             onCardClick={handleCardClick}
+            multiRespCard={isAdmin ? {
+              count: multiRespIds.length,
+              active: filtroMultiResp,
+              onClick: () => handleCardClick("multiResp"),
+            } : null}
             responsavelCard={(() => {
               const me = user?.id ? responsavelCounts.find(c => c.id === user.id) : null;
               return { atribuidos: me?.count ?? 0, prontos: me?.pronto ?? 0 };
