@@ -268,3 +268,207 @@ export function highlightTermInContent(
 
   return parts.length > 0 ? parts : text;
 }
+
+// ============================================================================
+// PARSER: blob "searchable" do Kurier
+// ----------------------------------------------------------------------------
+// Quando o payload do Kurier não traz um campo de texto identificável, a
+// edge function persiste em `conteudo` um blob com todos os campos do objeto
+// serializados em sequência, sem pontuação ou quebras:
+//
+//   "Data de Publicacao 19-06-2026 Data de Divulgação 18-06-2026
+//    PROCESSO0001710-57.2001.4.01.4300 ORGÃOSPF COORDENADORIA ... 
+//    DATA DE DISPONIBILIZAÇÃO2026-06-18 TIPO DE COMUNICAÇÃOIntimação
+//    MEIODiário ... TRIBUNALSTJ DESPACHO / DECISÃO RECURSO ESPECIAL
+//    TEXTOEDcl no AgInt no REsp ... RELATORA MINISTRA REGINA ...
+//    EMBARGANTE INVESTCO S/A ADVOGADOS CARLOS JOSE ELIAS JUNIOR - DF010424
+//    ... EMBARGADO SINOMAR ... DECISÃO Vistos. Trata-se ..."
+//
+// Este parser identifica esse formato e extrai metadados, partes, advogados
+// e o inteiro teor para apresentação estruturada (igual ao DJEN).
+// ============================================================================
+
+export interface KurierParteParsed {
+  papel: string; // "Embargante", "Relator", "Reclamante" ...
+  nome: string;
+}
+
+export interface KurierBlobParsed {
+  isKurier: boolean;
+  meta: {
+    orgao: string | null;
+    dataDisp: string | null;
+    tipoComunicacao: string | null;
+    meio: string | null;
+    tribunal: string | null;
+    processo: string | null;
+  };
+  partes: KurierParteParsed[];
+  advogados: string[];
+  inteiroTeor: string;
+}
+
+const KURIER_PARTY_LABELS = [
+  "RELATOR(?:A)?",
+  "EMBARGANTE",
+  "EMBARGADO",
+  "RECORRENTE",
+  "RECORRIDO",
+  "AGRAVANTE",
+  "AGRAVADO",
+  "RECLAMANTE",
+  "RECLAMADO",
+  "AUTOR(?:A)?",
+  "R[ÉE]U",
+  "IMPETRANTE",
+  "IMPETRADO",
+  "REQUERENTE",
+  "REQUERIDO",
+  "EXEQUENTE",
+  "EXECUTADO",
+  "APELANTE",
+  "APELADO",
+  "INTERESSADO",
+  "ADVOGADOS?",
+];
+
+const KURIER_BODY_OPENERS = [
+  "DECISÃO",
+  "DESPACHO",
+  "SENTENÇA",
+  "ACÓRDÃO",
+  "EMENTA",
+  "RELATÓRIO",
+  "VOTO",
+];
+
+const capitalizePapel = (s: string): string => {
+  const lower = s.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+};
+
+const isKurierBlob = (texto: string): boolean => {
+  // Conteúdo HTML estruturado: não tratar como blob Kurier.
+  if (/<\s*(html|table|tr|td|p|div|br)\b/i.test(texto)) return false;
+  // Assinatura forte: label glued ao valor (sem separador).
+  return (
+    /\bDATA\s+DE\s+DISPONIBILIZAÇÃO\d{4}-\d{1,2}-\d{1,2}/i.test(texto) ||
+    /\bTIPO\s+DE\s+COMUNICAÇÃO[A-ZÀ-Ÿa-zà-ÿ]/.test(texto) ||
+    (/\bORG[ÃA]O[A-ZÀ-Ÿ]/.test(texto) && /\bMEIO[A-ZÀ-Ÿ]/.test(texto)) ||
+    /\bTRIBUNAL[A-Z]{2,5}\s+(?:DESPACHO|TEXTO|DECISÃO|SENTENÇA|ACÓRDÃO|RECURSO)/i.test(texto)
+  );
+};
+
+/** Extrai um campo "LABELvalor" do cabeçalho — captura tudo até o próximo label conhecido. */
+const extractGluedField = (
+  texto: string,
+  label: RegExp,
+  stopLabels: string[],
+): string | null => {
+  // Sem `\b` no final — labels terminam em letras acentuadas (Ã/Ç) e são
+  // seguidos por dígitos/letras, casos onde `\b` não dispara em JS regex.
+  const stops = stopLabels.join("|");
+  const re = new RegExp(
+    `${label.source}\\s*([\\s\\S]*?)(?=\\s+(?:${stops})|$)`,
+    "i",
+  );
+  const m = texto.match(re);
+  return m?.[1]?.trim().replace(/\s+/g, " ") || null;
+};
+
+export function parseKurierBlob(
+  conteudo: string | null | undefined,
+): KurierBlobParsed {
+  const empty: KurierBlobParsed = {
+    isKurier: false,
+    meta: { orgao: null, dataDisp: null, tipoComunicacao: null, meio: null, tribunal: null, processo: null },
+    partes: [],
+    advogados: [],
+    inteiroTeor: "",
+  };
+  const texto = String(conteudo || "").trim();
+  if (!texto) return empty;
+  if (!isKurierBlob(texto)) return empty;
+
+  // ── Divisão em "header" (antes de TEXTO) e "miolo" (depois de TEXTO) ──
+  // "TEXTO" é a sentinela que separa metadados do conteúdo estruturado.
+  const textoIdx = texto.search(/\bTEXTO(?=[A-ZÀ-Ÿ"'(\[])/);
+  const header = textoIdx >= 0 ? texto.slice(0, textoIdx) : texto;
+  let miolo = textoIdx >= 0 ? texto.slice(textoIdx).replace(/^TEXTO/, "").trim() : "";
+
+  // Labels conhecidos do header (para servirem de "stop" uns para os outros)
+  const headerLabels = [
+    "PROCESSO", "ORG[ÃA]O", "DATA\\s+DE\\s+DISPONIBILIZAÇÃO",
+    "DATA\\s+DE\\s+DIVULGAÇÃO", "DATA\\s+DE\\s+PUBLICACAO",
+    "TIPO\\s+DE\\s+COMUNICAÇÃO", "MEIO", "TRIBUNAL",
+    "DESPACHO\\s*/\\s*DECISÃO", "RECURSO\\s+ESPECIAL", "TEXTO",
+  ];
+
+  const processo = extractGluedField(header, /\bPROCESSO/i, headerLabels);
+  const orgao = extractGluedField(header, /\bORG[ÃA]O/i, headerLabels);
+  const dataDisp = extractGluedField(header, /\bDATA\s+DE\s+DISPONIBILIZAÇÃO/i, headerLabels);
+  const tipoComunicacao = extractGluedField(header, /\bTIPO\s+DE\s+COMUNICAÇÃO/i, headerLabels);
+  const meio = extractGluedField(header, /\bMEIO/i, headerLabels);
+  const tribunal = extractGluedField(header, /\bTRIBUNAL/i, headerLabels);
+
+  // ── Parse do miolo: partes + advogados + corpo ──────────────────────
+  const partes: KurierParteParsed[] = [];
+  const advogados: string[] = [];
+  let inteiroTeor = miolo;
+
+  if (miolo) {
+    // Localiza início do corpo da decisão (primeiro DECISÃO/DESPACHO/etc.
+    // PRECEDIDO de espaço, para não confundir com label "DECISÃO" colado).
+    const bodyOpenersAlt = KURIER_BODY_OPENERS.join("|");
+    const bodyRe = new RegExp(`\\s(?:${bodyOpenersAlt})\\b`, "i");
+    const bodyMatch = miolo.match(bodyRe);
+    let estrutBlock = miolo;
+    if (bodyMatch && bodyMatch.index !== undefined) {
+      estrutBlock = miolo.slice(0, bodyMatch.index);
+      inteiroTeor = miolo.slice(bodyMatch.index + 1); // +1 pula o espaço
+    } else {
+      // sem opener: deixa o miolo inteiro como inteiro teor; sem extração estrut
+      estrutBlock = "";
+      inteiroTeor = miolo;
+    }
+
+    // Quebra estrutBlock em segmentos "LABEL valor" usando lookahead nos labels
+    if (estrutBlock) {
+      const labelsAlt = KURIER_PARTY_LABELS.join("|");
+      const segRe = new RegExp(
+        `\\b(${labelsAlt})\\b\\s+([\\s\\S]*?)(?=\\s+\\b(?:${labelsAlt})\\b|$)`,
+        "gi",
+      );
+      let m: RegExpExecArray | null;
+      while ((m = segRe.exec(estrutBlock)) !== null) {
+        const rawLabel = m[1].toUpperCase();
+        const rawValue = m[2].trim().replace(/\s+/g, " ");
+        if (!rawValue) continue;
+
+        if (/^ADVOGADOS?$/.test(rawLabel)) {
+          // Divide por "NOME - UF + dígitos[A?]"
+          const advRe = /([A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç.\s']+?)\s*[-–]\s*([A-Z]{2})(\d{3,7}[A-Z]?)/g;
+          let am: RegExpExecArray | null;
+          while ((am = advRe.exec(rawValue)) !== null) {
+            const nome = am[1].trim().replace(/\s+/g, " ");
+            const uf = am[2];
+            const num = am[3];
+            if (nome.length >= 4) {
+              advogados.push(`${nome} - OAB ${uf}-${num}`);
+            }
+          }
+        } else {
+          partes.push({ papel: capitalizePapel(rawLabel), nome: rawValue });
+        }
+      }
+    }
+  }
+
+  return {
+    isKurier: true,
+    meta: { orgao, dataDisp, tipoComunicacao, meio, tribunal, processo },
+    partes,
+    advogados,
+    inteiroTeor: inteiroTeor.trim(),
+  };
+}
