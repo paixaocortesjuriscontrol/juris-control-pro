@@ -600,6 +600,30 @@ export default function DistribuicaoTst() {
     }
   };
 
+  const [arquivarSelRunning, setArquivarSelRunning] = useState(false);
+  const handleArquivarSelecionados = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para arquivar"); return; }
+    if (!window.confirm(`Arquivar ${ids.length} registro(s) selecionado(s)? Eles sairão da lista ativa e ficarão disponíveis em "Arquivados".`)) return;
+    setArquivarSelRunning(true);
+    let ok = 0; let fail = 0;
+    try {
+      for (const id of ids) {
+        const { error } = await supabase.rpc(
+          "arquivar_dados_benner" as any,
+          { _id: id, _motivo: "Arquivamento manual (seleção na tela)" } as any
+        );
+        if (error) fail++; else ok++;
+      }
+      if (ok) toast.success(`${ok} registro(s) arquivado(s).`);
+      if (fail) toast.error(`${fail} falha(s) ao arquivar.`);
+      setSelectedIds(new Set());
+      handleRefresh();
+    } finally {
+      setArquivarSelRunning(false);
+    }
+  };
+
   const handleMarcarPronto = async () => {
     const ids = Array.from(selectedIds);
     if (!ids.length) { toast.warning("Selecione registros para marcar como pronto"); return; }
@@ -1383,6 +1407,18 @@ export default function DistribuicaoTst() {
                 >
                   {arquivarDupRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Archive className="w-4 h-4 mr-2" />}
                   {arquivarDupRunning ? "Arquivando..." : "Arquivar duplicados"}
+                </Button>
+              )}
+              {isAdminOrCoordinator && selectedIds.size > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={handleArquivarSelecionados}
+                  disabled={arquivarSelRunning}
+                  title="Arquiva apenas os registros selecionados. Eles ficam disponíveis em 'Arquivados' e podem ser restaurados."
+                  className="border-amber-400 text-amber-700 hover:bg-amber-50"
+                >
+                  {arquivarSelRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Archive className="w-4 h-4 mr-2" />}
+                  {arquivarSelRunning ? "Arquivando..." : `Arquivar selecionados (${selectedIds.size})`}
                 </Button>
               )}
               <BennerSimImport onUpdated={handleRefresh} />
