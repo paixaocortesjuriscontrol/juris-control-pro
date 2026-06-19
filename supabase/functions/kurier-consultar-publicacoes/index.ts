@@ -533,8 +533,8 @@ Deno.serve(async (req: Request) => {
         datas.push(d.toISOString().slice(0, 10));
       }
     }
-    const totalIter = useDateMode ? datas.length : max_lotes;
-    console.log(`[kurier] modo=${useDateMode ? "personalizado" : "fila"} iter=${totalIter}`);
+    const totalIter = backfill_raw ? 1 : (useDateMode ? datas.length : max_lotes);
+    console.log(`[kurier] modo=${backfill_raw ? "backfill" : (useDateMode ? "personalizado" : "fila")} iter=${totalIter}`);
 
     for (let lote = 0; lote < totalIter; lote++) {
       // A fila da Kurier deve ser consultada sem parâmetros de data: algumas
