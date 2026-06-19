@@ -642,7 +642,12 @@ Deno.serve(async (req: Request) => {
         //   "Personalizado?data=X" já filtrou por data de PUBLICAÇÃO; aceitamos
         //   todos os itens retornados (espelhando a tela Kurier que mostra
         //   "X publicações encontradas").
-        const antesDaJanela = !useDateMode && !!(refYmd && data_inicio && refYmd < data_inicio);
+        // Itens "antes da janela" NÃO são mais descartados: a fila Kurier é
+        // destrutiva (confirmar = remover), então tudo que sai da fila precisa
+        // entrar na pipeline normal de matching/inserção. Mantemos apenas o
+        // corte para itens posteriores à janela (esses ficam na fila e voltam
+        // no dia correto).
+        const antesDaJanela = false;
         const depoisDaJanela = !useDateMode && !!(refYmd && data_fim && refYmd > data_fim);
         const semData = !useDateMode && !refYmd;
         const foraJanela = semData || antesDaJanela || depoisDaJanela;
