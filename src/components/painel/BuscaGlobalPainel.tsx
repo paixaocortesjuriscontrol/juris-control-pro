@@ -29,6 +29,15 @@ function escapeIlike(s: string) {
   return s.replace(/[%,()]/g, " ").trim();
 }
 
+function normalizeSearchTerm(s: string) {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function buildOr(columns: string[], terms: string[]) {
+  const uniqueTerms = Array.from(new Set(terms.map(escapeIlike).filter((term) => term.length >= 2)));
+  return columns.flatMap((column) => uniqueTerms.map((term) => `${column}.ilike.%${term}%`)).join(",");
+}
+
 export function BuscaGlobalPainel() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
@@ -59,6 +68,7 @@ export function BuscaGlobalPainel() {
     setOpen(true);
     setLoading(true);
     setHasSearched(true);
+    const termosBusca = [termo, normalizeSearchTerm(termo)];
     const like = `%${termo}%`;
     const digitsOnly = termo.replace(/\D/g, "");
     try {
@@ -75,16 +85,37 @@ export function BuscaGlobalPainel() {
               ].join(",")
             )
             .limit(8),
-          supabase.from("clientes").select("id, nome, documento").ilike("nome", like).limit(5),
+          supabase
+            .from("clientes")
+            .select("id, nome, cpf_cnpj")
+            .or(buildOr(["nome", "cpf_cnpj"], termosBusca))
+            .limit(5),
           supabase
             .from("tarefas")
-            .select("id, titulo, descricao, tipo, data_vencimento, status")
-            .or(`titulo.ilike.${like},descricao.ilike.${like}`)
+            .select("id, titulo, descricao, tipo_tarefa, data_vencimento, data_fatal, status, observacoes, descricao_ultimo_andamento, partes_ativas, partes_passivas, envolvimento_clientes, envolvimento_contrarios")
+            .or(
+              buildOr(
+                [
+                  "titulo",
+                  "descricao",
+                  "tipo_tarefa",
+                  "observacoes",
+                  "descricao_ultimo_andamento",
+                  "partes_ativas",
+                  "partes_passivas",
+                  "envolvimento_clientes",
+                  "envolvimento_contrarios",
+                ],
+                termosBusca
+              )
+            )
+            .order("data_vencimento", { ascending: true, nullsFirst: false })
             .limit(30),
           supabase
             .from("eventos_agenda")
             .select("id, titulo, descricao, data_inicio")
-            .or(`titulo.ilike.${like},descricao.ilike.${like}`)
+            .or(buildOr(["titulo", "descricao", "local", "modalidade", "tipo"], termosBusca))
+            .order("data_inicio", { ascending: true })
             .limit(20),
           supabase
             .from("audiencias_detectadas")
@@ -124,16 +155,16 @@ export function BuscaGlobalPainel() {
             id: `c-${c.id}`,
             tipo: "cliente",
             titulo: c.nome,
-            subtitulo: c.documento || undefined,
+            subtitulo: c.cpf_cnpj || undefined,
             to: `/clientes/${c.id}`,
           })
         );
         (tar.data || []).forEach((t: any) =>
           out.push({
             id: `t-${t.id}`,
-            tipo: t.tipo === "prazo" ? "prazo" : "tarefa",
+            tipo: (t.tipo_tarefa || "").toLowerCase().includes("prazo") ? "prazo" : "tarefa",
             titulo: t.titulo,
-            subtitulo: [t.status, t.data_vencimento].filter(Boolean).join(" • "),
+            subtitulo: [t.tipo_tarefa, t.status, t.data_fatal || t.data_vencimento, t.descricao].filter(Boolean).join(" • "),
             to: `/minha-agenda`,
           })
         );
