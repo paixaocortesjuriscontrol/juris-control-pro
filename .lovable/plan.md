@@ -1,65 +1,67 @@
+## Problema
+
+Publicações do **Kurier** aparecem como um bloco único de texto sem quebras (todo o cabeçalho, partes, advogados e inteiro teor grudados na mesma linha — ex.: "DATA DE DISPONIBILIZAÇÃO2026-06-18 TIPO DE COMUNICAÇÃOIntimação MEIODiário... TRIBUNALSTJ ... TEXTOEDcl no AgInt...").
+
+Isso acontece porque, quando o payload do Kurier não traz um campo de texto identificável, a edge function `kurier-consultar-publicacoes` salva como `conteudo` a string "searchable" (todos os campos do objeto serializados em sequência). O front-end então renderiza esse blob inteiro como inteiro teor, sem cabeçalho separado.
+
+As publicações do DJEN, em contraste, vêm com tags `<table>`/`<p>` que o renderizador transforma em linhas, e os campos estruturados (`orgao`, `tipo_comunicacao`, `meio`, `partes_json`, `advogados_json`) já alimentam a coluna esquerda.
+
 ## Objetivo
 
-Unificar a gravação do Kurier (browser e servidor) sempre em `publicacoes_djen` e recuperar imediatamente as 606 publicações capturadas hoje que ficaram em `publicacoes_djen_servidor`.
+Apresentar publicações do Kurier com o mesmo layout organizado das DJEN: coluna esquerda com Órgão / Data / Tipo / Meio / Parte(s) / Advogado(s), e coluna direita só com o inteiro teor (a partir de "TEXTO" / "DECISÃO" / "DESPACHO" / "SENTENÇA").
+
+**Sem mexer em datas, banco ou edge functions** — apenas camada de apresentação.
 
 ## Mudanças
 
-### 1. Edge function `kurier-consultar-publicacoes`
+### 1. `src/utils/formatConteudo.ts` — novo parser do blob Kurier
 
-Forçar Kurier a sempre gravar em `publicacoes_djen`, independente do `persist_mode` recebido. Alteração mínima em `supabase/functions/kurier-consultar-publicacoes/index.ts` (linhas 307–308):
+Adicionar `parseKurierBlob(texto)` que detecta o padrão Kurier (presença de `Data de Publicacao`/`Data de Divulgação` + `ORGÃO`/`TIPO DE COMUNICAÇÃO`/`MEIO`/`TRIBUNAL` colados aos valores) e devolve:
 
 ```ts
-// Kurier sempre persiste em publicacoes_djen (tabela canônica da Análise DJEN).
-// O parâmetro persist_mode é ignorado de propósito — manter compatibilidade
-// só com a tabela do "browser" para não furar dedup/leituras/alertas.
-const persistMode: "browser" = "browser";
-const pubTable = "publicacoes_djen";
+{
+  isKurier: boolean;
+  meta: { orgao, dataDisp, dataPub, tipoComunicacao, meio, tribunal, processo };
+  partes: Array<{ papel: string; nome: string }>;   // EMBARGANTE/EMBARGADO/RECLAMANTE/...
+  advogados: string[];                              // "NOME - OAB UF-NUMERO"
+  inteiroTeor: string;                              // tudo a partir de "TEXTO"/"DECISÃO"/"DESPACHO"/"SENTENÇA"/"ACÓRDÃO"
+}
 ```
 
-Também removo o campo `origem: "servidor"` que era adicionado quando `persistMode==="servidor"` nos dois inserts (linhas ~767 e ~815) — fica apenas o spread do `basePayload`.
+Regras de parsing (regex sobre o blob):
+- Labels conhecidos: `PROCESSO`, `ORG[ÃA]O`, `DATA DE DISPONIBILIZAÇÃO`, `TIPO DE COMUNICAÇÃO`, `MEIO`, `TRIBUNAL`, `RELATOR(A)`, `EMBARGANTE`, `EMBARGADO`, `RECORRENTE`, `RECORRIDO`, `AGRAVANTE`, `AGRAVADO`, `RECLAMANTE`, `RECLAMADO`, `AUTOR`, `RÉU`, `IMPETRANTE`, `IMPETRADO`, `REQUERENTE`, `REQUERIDO`, `ADVOGADOS`.
+- Cada label captura tudo até o próximo label ou até `TEXTO`/`DECISÃO`/`DESPACHO`/`SENTENÇA`/`ACÓRDÃO`.
+- Bloco `ADVOGADOS`: divide por padrão `NOME - UF + 6 dígitos` (ex.: `CARLOS JOSE ELIAS JUNIOR - DF010424`) e normaliza para `NOME - OAB DF-010424`.
+- `inteiroTeor`: substring a partir de `TEXTO` (ou `DECISÃO`/`DESPACHO`/`SENTENÇA`/`ACÓRDÃO`) — esse é o conteúdo que vai para a coluna direita.
 
-Não preciso mexer em `monitor-servidor/engines/kurier.js`; o body continua mandando `persist_mode: "servidor"` mas a edge function ignora.
+### 2. `src/components/djen/PublicacaoConteudoDjen.tsx` — integrar o parser
 
-### 2. Migração dos dados de hoje
+No início do componente:
 
-Migração SQL via tool de insert (DML, não DDL):
-
-- Copiar de `publicacoes_djen_servidor` para `publicacoes_djen` todas as 606 linhas com `created_at::date = CURRENT_DATE`, mapeando colunas comuns, definindo `fonte = 'kurier'`, `status = 'encontrada'` e `lida = false`.
-- Usar `ON CONFLICT DO NOTHING` para evitar duplicar caso algum hash já exista.
-- Depois, apagar de `publicacoes_djen_servidor` as linhas migradas (mesmo recorte de data) para não ficar resíduo confundindo relatórios.
-
-```sql
-INSERT INTO public.publicacoes_djen
-  (id, monitoramento_id, hash_conteudo, data_publicacao, data_disponibilizacao,
-   processo_numero, conteudo, fonte, tribunal, polo_ativo, polo_passivo,
-   orgao, tipo_comunicacao, meio, advogados_json, partes_json,
-   dedup_processo_digits, dedup_data_ref, dedup_head_norm, dedup_key,
-   dedup_conteudo_key, coordenacao_id, tipo_publicacao, id_djen, kurier_login,
-   status, lida, created_at)
-SELECT id, monitoramento_id, hash_conteudo, data_publicacao, data_disponibilizacao,
-   processo_numero, conteudo, 'kurier', tribunal, polo_ativo, polo_passivo,
-   orgao, tipo_comunicacao, meio, advogados_json, partes_json,
-   dedup_processo_digits, dedup_data_ref, dedup_head_norm, dedup_key,
-   dedup_conteudo_key, coordenacao_id, tipo_publicacao, id_djen, kurier_login,
-   'encontrada', false, created_at
-FROM public.publicacoes_djen_servidor
-WHERE created_at::date = CURRENT_DATE
-ON CONFLICT DO NOTHING;
-
-DELETE FROM public.publicacoes_djen_servidor
-WHERE created_at::date = CURRENT_DATE;
+```ts
+const kurier = parseKurierBlob(conteudo);
 ```
 
-> Observação: hoje (18/06) `publicacoes_djen_servidor` só recebeu Kurier (606 linhas, todas com `origem='servidor'`, `fonte=NULL`), então migrar tudo do dia é seguro. Confirmei isso no banco antes de propor.
+Quando `kurier.isKurier === true`:
+- `orgao = orgaoEstruturado || kurier.meta.orgao || fonte || tribunal`
+- `tipoComunicacao = tipoComunicacaoEstruturado || kurier.meta.tipoComunicacao || "Intimação"`
+- `meioPublicacao = expandMeio(meioEstruturado || kurier.meta.meio)`
+- Partes/advogados: se `partesJson`/`advogadosJson` vierem vazios, usar `kurier.partes` (formatado como `[Papel] NOME`) e `kurier.advogados`.
+- `conteudoLimpo = kurier.inteiroTeor` (substitui o blob completo na coluna direita).
+- Manter highlight do termo e marcação amarela existentes operando sobre `kurier.inteiroTeor`.
 
-## Deploy
+Para publicações que não são Kurier, comportamento atual permanece intocado.
 
-- Edge function: deploy automático do Lovable.
-- VPS: **não precisa** reiniciar `jc-monitor-servidor` — a engine continua chamando a edge function igual; só o destino interno mudou.
+### 3. Validação visual
 
-## Validação
+1. Abrir a publicação do print (processo `0001710-57.2001.4.01.4300`, login Kurier `paixaocortes2`) e conferir:
+   - Coluna esquerda preenchida: Órgão = `SPF COORDENADORIA DE PROCESSAMENTO DE FEITOS DE DIREITO PÚBLICO`, Tipo = `Intimação`, Meio = `Diário de Justiça Eletrônico Nacional`, Partes = `[Embargante] INVESTCO S/A`, `[Embargado] SINOMAR MESSIAS PIRES`, `[Embargado] WILMA FERREIRA DE LIMA`, Advogados = lista com OAB.
+   - Coluna direita começa em "DECISÃO Vistos. Trata-se de Embargos de Declaração...".
+2. Conferir uma publicação Kurier com conteúdo HTML estruturado (`<table>...<p>...`): deve continuar renderizando como hoje (parser não dispara).
+3. Conferir uma publicação DJEN normal: layout inalterado.
 
-1. `SELECT COUNT(*) FROM publicacoes_djen WHERE fonte='kurier' AND created_at::date=CURRENT_DATE;` deve passar de 0 para ~606.
-2. `SELECT COUNT(*) FROM publicacoes_djen_servidor WHERE created_at::date=CURRENT_DATE;` deve ir para 0.
-3. Abrir Análise DJEN filtrando por coordenação e ver as publicações Kurier de hoje aparecendo.
-4. Rodar 1 ciclo do Kurier (manual ou esperar o próximo do cron do VPS) e confirmar que os novos registros entram em `publicacoes_djen`.
+## O que NÃO muda
+
+- Datas (`data_disponibilizacao` e `data_publicacao`) ficam como estão — não trata "atraso".
+- Edge functions, schema do banco e fluxo de ingestão do Kurier não são tocados.
+- Lógica de descarte, deduplicação e marcação por coordenação fica igual.
