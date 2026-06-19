@@ -24,7 +24,8 @@ export type StatsCardKey =
   | "prontoEnvio"
   | "semResponsavel"
   | "comEquipe"
-  | "semEquipe";
+  | "semEquipe"
+  | "multiResp";
 
 interface Props {
   stats: DistribuicaoTstStats;
@@ -36,6 +37,8 @@ interface Props {
   /** Callback ao clicar no card "Total por responsável" — filtra a lista
    *  para mostrar apenas os Prontos do responsável logado. */
   onResponsavelClick?: () => void;
+  /** Card "Mais de um responsável" — quantidade de processos com >1 responsável. */
+  multiRespCard?: { count: number; active: boolean; onClick: () => void } | null;
 }
 
 interface CardDef {
@@ -46,7 +49,7 @@ interface CardDef {
   textClass: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick, multiRespCard }: Props) {
   const cards: CardDef[] = [
     // Azuis / Ciano / Teal / Sky
     { key: "total", label: "Total Geral", value: stats.total, className: "from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800", textClass: "text-blue-600 dark:text-blue-400" },
@@ -72,6 +75,15 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "semTurma", label: "Sem Turma", value: stats.semTurma, className: "from-pink-50 to-pink-100 dark:from-pink-950/50 dark:to-pink-900/30 border-pink-200 dark:border-pink-800", textClass: "text-pink-600 dark:text-pink-400" },
     { key: "semResponsavel", label: "Sem Responsável", value: stats.semResponsavel, className: "from-red-50 to-red-100 dark:from-red-950/50 dark:to-red-900/30 border-red-200 dark:border-red-800", textClass: "text-red-600 dark:text-red-400" },
   ];
+  if (multiRespCard) {
+    cards.push({
+      key: "multiResp",
+      label: "Mais de um responsável",
+      value: multiRespCard.count,
+      className: "from-fuchsia-50 to-fuchsia-100 dark:from-fuchsia-950/50 dark:to-fuchsia-900/30 border-fuchsia-300 dark:border-fuchsia-700",
+      textClass: "text-fuchsia-700 dark:text-fuchsia-400",
+    });
+  }
 
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-1.5 md:gap-2">
