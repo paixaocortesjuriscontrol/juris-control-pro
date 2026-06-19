@@ -165,7 +165,7 @@ export function BuscaGlobalPainel() {
             tipo: (t.tipo_tarefa || "").toLowerCase().includes("prazo") ? "prazo" : "tarefa",
             titulo: t.titulo,
             subtitulo: [t.tipo_tarefa, t.status, t.data_fatal || t.data_vencimento, t.descricao].filter(Boolean).join(" • "),
-            to: `/minha-agenda`,
+            to: `/minha-agenda?selectedId=${t.id}`,
           })
         );
         (evt.data || []).forEach((e: any) =>
@@ -174,7 +174,7 @@ export function BuscaGlobalPainel() {
             tipo: "evento",
             titulo: e.titulo,
             subtitulo: e.data_inicio,
-            to: `/minha-agenda`,
+            to: `/minha-agenda?selectedId=${e.id}`,
           })
         );
         (aud.data || []).forEach((a: any) =>
