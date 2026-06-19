@@ -600,6 +600,30 @@ export default function DistribuicaoTst() {
     }
   };
 
+  const [arquivarSelRunning, setArquivarSelRunning] = useState(false);
+  const handleArquivarSelecionados = async () => {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) { toast.warning("Selecione registros para arquivar"); return; }
+    if (!window.confirm(`Arquivar ${ids.length} registro(s) selecionado(s)? Eles sairão da lista ativa e ficarão disponíveis em "Arquivados".`)) return;
+    setArquivarSelRunning(true);
+    let ok = 0; let fail = 0;
+    try {
+      for (const id of ids) {
+        const { error } = await supabase.rpc(
+          "arquivar_dados_benner" as any,
+          { _id: id, _motivo: "Arquivamento manual (seleção na tela)" } as any
+        );
+        if (error) fail++; else ok++;
+      }
+      if (ok) toast.success(`${ok} registro(s) arquivado(s).`);
+      if (fail) toast.error(`${fail} falha(s) ao arquivar.`);
+      setSelectedIds(new Set());
+      handleRefresh();
+    } finally {
+      setArquivarSelRunning(false);
+    }
+  };
+
   const handleMarcarPronto = async () => {
     const ids = Array.from(selectedIds);
     if (!ids.length) { toast.warning("Selecione registros para marcar como pronto"); return; }
