@@ -1,67 +1,102 @@
-## Problema
+## Agendamento múltiplo (até 3x/dia) + retry/refila + card de novas publicações
 
-Publicações do **Kurier** aparecem como um bloco único de texto sem quebras (todo o cabeçalho, partes, advogados e inteiro teor grudados na mesma linha — ex.: "DATA DE DISPONIBILIZAÇÃO2026-06-18 TIPO DE COMUNICAÇÃOIntimação MEIODiário... TRIBUNALSTJ ... TEXTOEDcl no AgInt...").
+### 1) UI: até 3 horários por dia (DJEN Termos servidor, Kurier, Pautas)
 
-Isso acontece porque, quando o payload do Kurier não traz um campo de texto identificável, a edge function `kurier-consultar-publicacoes` salva como `conteudo` a string "searchable" (todos os campos do objeto serializados em sequência). O front-end então renderiza esse blob inteiro como inteiro teor, sem cabeçalho separado.
+Trocar o `<Input>` texto-livre vírgula-separado em `src/pages/DjenServidor.tsx` (linhas ~200–225) por um componente novo:
 
-As publicações do DJEN, em contraste, vêm com tags `<table>`/`<p>` que o renderizador transforma em linhas, e os campos estruturados (`orgao`, `tipo_comunicacao`, `meio`, `partes_json`, `advogados_json`) já alimentam a coluna esquerda.
+`src/components/djen/HorariosDoDiaPicker.tsx`
+- 3 slots fixos (Slot 1 / Slot 2 / Slot 3), cada um `<Input type="time">` BRT.
+- Slot vazio = desativado; mínimo 1 ativo.
+- Validação: horários únicos, ordenados antes de salvar.
+- Aviso visual se algum slot coincidir com horário do DJEN browser (regra de conflito atual já existe e é mantida).
+- Usado nos 3 cards (Termos, Kurier, Pautas) com a mesma UX. Backend já aceita `horarios_execucao text[]` — sem migration.
 
-## Objetivo
+### 2) Backend: retry no item + refila do que falhou
 
-Apresentar publicações do Kurier com o mesmo layout organizado das DJEN: coluna esquerda com Órgão / Data / Tipo / Meio / Parte(s) / Advogado(s), e coluna direita só com o inteiro teor (a partir de "TEXTO" / "DECISÃO" / "DESPACHO" / "SENTENÇA").
+#### 2.1 Retry inline (3 tentativas, backoff exponencial 2s/5s/12s) só para 5xx/timeout
 
-**Sem mexer em datas, banco ou edge functions** — apenas camada de apresentação.
+Em `monitor-servidor/engines/paralela.js`, `kurier.js` e `pautas.js`: envolver a chamada `buscarPaginado`/fetch principal por (tribunal × monitoramento) em retry. Status 4xx (401/403/429) continua falha imediata. Mesma política aplicada em `monitor-servidor/proxyPool.js` para 5xx (já marca `markFail`, só falta loop de retry).
 
-## Mudanças
+#### 2.2 Marcar item como "falho do dia" para refila
 
-### 1. `src/utils/formatConteudo.ts` — novo parser do blob Kurier
+Migration nova: tabela `execucoes_servidor_falhas`
 
-Adicionar `parseKurierBlob(texto)` que detecta o padrão Kurier (presença de `Data de Publicacao`/`Data de Divulgação` + `ORGÃO`/`TIPO DE COMUNICAÇÃO`/`MEIO`/`TRIBUNAL` colados aos valores) e devolve:
+```sql
+create table public.execucoes_servidor_falhas (
+  id uuid primary key default gen_random_uuid(),
+  tipo text not null,                        -- djen_paralela_servidor | kurier_servidor | djet_pautas_servidor
+  execucao_id uuid references public.execucoes_servidor(id) on delete set null,
+  item_key text not null,                    -- ex.: "paralela|TJES|<monit_id>" ou "kurier|<credencial_id>" ou "pautas|TST"
+  payload jsonb not null,                    -- dados pra reexecutar (tribunal, monitoramento_id, etc.)
+  ultimo_erro text,
+  tentativas int not null default 1,
+  status text not null default 'pendente',   -- pendente | resolvido | abandonado
+  dia_brt date not null default ((now() at time zone 'America/Sao_Paulo')::date),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (tipo, dia_brt, item_key)
+);
 
-```ts
-{
-  isKurier: boolean;
-  meta: { orgao, dataDisp, dataPub, tipoComunicacao, meio, tribunal, processo };
-  partes: Array<{ papel: string; nome: string }>;   // EMBARGANTE/EMBARGADO/RECLAMANTE/...
-  advogados: string[];                              // "NOME - OAB UF-NUMERO"
-  inteiroTeor: string;                              // tudo a partir de "TEXTO"/"DECISÃO"/"DESPACHO"/"SENTENÇA"/"ACÓRDÃO"
-}
+grant select, insert, update, delete on public.execucoes_servidor_falhas to authenticated;
+grant all on public.execucoes_servidor_falhas to service_role;
+alter table public.execucoes_servidor_falhas enable row level security;
+
+create policy "select_authenticated" on public.execucoes_servidor_falhas
+  for select to authenticated using (true);
+create policy "service_role_all" on public.execucoes_servidor_falhas
+  for all to service_role using (true) with check (true);
 ```
 
-Regras de parsing (regex sobre o blob):
-- Labels conhecidos: `PROCESSO`, `ORG[ÃA]O`, `DATA DE DISPONIBILIZAÇÃO`, `TIPO DE COMUNICAÇÃO`, `MEIO`, `TRIBUNAL`, `RELATOR(A)`, `EMBARGANTE`, `EMBARGADO`, `RECORRENTE`, `RECORRIDO`, `AGRAVANTE`, `AGRAVADO`, `RECLAMANTE`, `RECLAMADO`, `AUTOR`, `RÉU`, `IMPETRANTE`, `IMPETRADO`, `REQUERENTE`, `REQUERIDO`, `ADVOGADOS`.
-- Cada label captura tudo até o próximo label ou até `TEXTO`/`DECISÃO`/`DESPACHO`/`SENTENÇA`/`ACÓRDÃO`.
-- Bloco `ADVOGADOS`: divide por padrão `NOME - UF + 6 dígitos` (ex.: `CARLOS JOSE ELIAS JUNIOR - DF010424`) e normaliza para `NOME - OAB DF-010424`.
-- `inteiroTeor`: substring a partir de `TEXTO` (ou `DECISÃO`/`DESPACHO`/`SENTENÇA`/`ACÓRDÃO`) — esse é o conteúdo que vai para a coluna direita.
+Engines passam a fazer `upsert` em `execucoes_servidor_falhas` (com `on conflict (tipo, dia_brt, item_key) do update set tentativas = tentativas+1, ultimo_erro=...`) quando o retry inline esgotar. Ao sucesso, marcam `status='resolvido'`.
 
-### 2. `src/components/djen/PublicacaoConteudoDjen.tsx` — integrar o parser
+#### 2.3 Refila no dispatcher e no início de cada execução
 
-No início do componente:
+Em `supabase/functions/dispatcher-servidor/index.ts` e/ou no boot de cada engine:
+- Antes de varrer a fila normal, ler `execucoes_servidor_falhas` daquele `tipo` + `dia_brt = hoje BRT` + `status='pendente'` + `tentativas < 5` e processar primeiro só esses itens (chamando o engine com payload reduzido).
+- Após processar com sucesso → `status='resolvido'`.
+- Após 5 tentativas → `status='abandonado'`.
 
-```ts
-const kurier = parseKurierBlob(conteudo);
+Resultado prático: o caso de hoje (5 publicações TJES/TJAP do monitoramento "OSMAR MENDES PAIXAO CORTES" perdidas por 17 falhas 5xx) seria refilado na próxima janela do dia e capturado.
+
+### 3) Marcar rodada do dia em `execucoes_servidor`
+
+Migration leve: adicionar `rodada_do_dia int` e `slot_horario text` em `execucoes_servidor`. Sem GRANT novo (tabela existente).
+
+Dispatcher conta execuções do dia para o tipo antes de enfileirar e grava `rodada_do_dia` + `slot_horario` (o `h` do loop). RPC `enfileirar_execucao_servidor` recebe 2 params opcionais.
+
+### 4) Card "novas publicações desde a execução anterior" no Análise DJEN
+
+**Atenção importante (lembrete do usuário)**: o DJEN servidor ainda não grava em `publicacoes_djen` (tabela do browser). Hoje o servidor grava em `publicacoes_djen_servidor`. O Análise DJEN lê de `publicacoes_djen`. Para o card refletir o que o servidor capturou, **vou ler de AMBAS as tabelas** dentro do hook, deduplicando por `id_djen` e por `coordenacao_id` — sem mexer no fluxo de gravação atual. (Quando/se quiserem unificar gravação numa única tabela, será item separado.)
+
+`src/hooks/useNovasPublicacoesDoDia.ts`:
+- Query `publicacoes_djen` + `publicacoes_djen_servidor` filtrando `coordenacao_id` + `data_disponibilizacao::date = hoje BRT`.
+- Junta com `execucoes_servidor` por `execucao_id` para descobrir `rodada_do_dia` e `slot_horario`.
+- Retorna: total da rodada 1, rodada 2, rodada 3 e a lista de `id_djen` "novas" (que não existiam antes da primeira rodada do dia).
+
+`src/pages/AnaliseDjen.tsx` ganha, acima da lista, um card amarelo quando há coordenação selecionada e `rodada_do_dia >= 2` trouxe publicações:
+
+```text
+🟡  N novas publicações chegaram após a 1ª execução de hoje
+    Rodada 2 (14:00) · X novas  ·  Rodada 3 (18:00) · Y novas
+    [Ver apenas as novas]   [Marcar como visualizadas]
 ```
 
-Quando `kurier.isKurier === true`:
-- `orgao = orgaoEstruturado || kurier.meta.orgao || fonte || tribunal`
-- `tipoComunicacao = tipoComunicacaoEstruturado || kurier.meta.tipoComunicacao || "Intimação"`
-- `meioPublicacao = expandMeio(meioEstruturado || kurier.meta.meio)`
-- Partes/advogados: se `partesJson`/`advogadosJson` vierem vazios, usar `kurier.partes` (formatado como `[Papel] NOME`) e `kurier.advogados`.
-- `conteudoLimpo = kurier.inteiroTeor` (substitui o blob completo na coluna direita).
-- Manter highlight do termo e marcação amarela existentes operando sobre `kurier.inteiroTeor`.
+- Por padrão as "novas" sobem para o topo da lista com badge `Nova · 14:00`.
+- "Marcar como visualizadas" grava em `localStorage` (chave `djen-novas-vistas:{user}:{coord}:{ymd}`) o último `created_at` visto.
 
-Para publicações que não são Kurier, comportamento atual permanece intocado.
+### Fora do escopo
 
-### 3. Validação visual
+- Não mexer no motor de matching, dedupe, ou `monitorar-termos`/`monitorar-djen`.
+- Não unificar `publicacoes_djen` + `publicacoes_djen_servidor` em uma única tabela (item separado, se quiserem depois).
+- Não mexer no DJEN browser cron nem em `executar-djet-pautas-agendado` (já lê o array `horarios_execucao` corretamente).
 
-1. Abrir a publicação do print (processo `0001710-57.2001.4.01.4300`, login Kurier `paixaocortes2`) e conferir:
-   - Coluna esquerda preenchida: Órgão = `SPF COORDENADORIA DE PROCESSAMENTO DE FEITOS DE DIREITO PÚBLICO`, Tipo = `Intimação`, Meio = `Diário de Justiça Eletrônico Nacional`, Partes = `[Embargante] INVESTCO S/A`, `[Embargado] SINOMAR MESSIAS PIRES`, `[Embargado] WILMA FERREIRA DE LIMA`, Advogados = lista com OAB.
-   - Coluna direita começa em "DECISÃO Vistos. Trata-se de Embargos de Declaração...".
-2. Conferir uma publicação Kurier com conteúdo HTML estruturado (`<table>...<p>...`): deve continuar renderizando como hoje (parser não dispara).
-3. Conferir uma publicação DJEN normal: layout inalterado.
+### Arquivos tocados
 
-## O que NÃO muda
-
-- Datas (`data_disponibilizacao` e `data_publicacao`) ficam como estão — não trata "atraso".
-- Edge functions, schema do banco e fluxo de ingestão do Kurier não são tocados.
-- Lógica de descarte, deduplicação e marcação por coordenação fica igual.
+- `supabase/migrations/` (1 arquivo): cria `execucoes_servidor_falhas` + adiciona colunas `rodada_do_dia`, `slot_horario` em `execucoes_servidor` + atualiza RPC `enfileirar_execucao_servidor`.
+- `supabase/functions/dispatcher-servidor/index.ts`: refila falhas pendentes + grava rodada/slot.
+- `monitor-servidor/engines/paralela.js`, `kurier.js`, `pautas.js`: retry inline + upsert em `execucoes_servidor_falhas` + leitura de falhas pendentes no boot.
+- `monitor-servidor/proxyPool.js`: loop de retry 5xx com backoff exponencial.
+- `src/components/djen/HorariosDoDiaPicker.tsx` (novo).
+- `src/pages/DjenServidor.tsx`: troca o input texto-livre pelo componente novo nos 3 cards.
+- `src/hooks/useNovasPublicacoesDoDia.ts` (novo).
+- `src/pages/AnaliseDjen.tsx`: card + ordenação "novas no topo" + integração do hook.
