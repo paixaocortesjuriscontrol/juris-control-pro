@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Loader2, Scale, ClipboardList, CalendarDays, Gavel, Newspaper, UserCircle, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +36,22 @@ export function BuscaGlobalPainel() {
   const [loading, setLoading] = useState(false);
   const [resultados, setResultados] = useState<Resultado[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
 
   const executarBusca = async () => {
     const termo = escapeIlike(query);
@@ -63,14 +78,14 @@ export function BuscaGlobalPainel() {
           supabase.from("clientes").select("id, nome, documento").ilike("nome", like).limit(5),
           supabase
             .from("tarefas")
-            .select("id, titulo, tipo, data_vencimento, status")
-            .ilike("titulo", like)
-            .limit(8),
+            .select("id, titulo, descricao, tipo, data_vencimento, status")
+            .or(`titulo.ilike.${like},descricao.ilike.${like}`)
+            .limit(30),
           supabase
             .from("eventos_agenda")
-            .select("id, titulo, data_inicio")
-            .ilike("titulo", like)
-            .limit(5),
+            .select("id, titulo, descricao, data_inicio")
+            .or(`titulo.ilike.${like},descricao.ilike.${like}`)
+            .limit(20),
           supabase
             .from("audiencias_detectadas")
             .select("id, processo_numero, data_audiencia, tipo_audiencia")
@@ -173,13 +188,14 @@ export function BuscaGlobalPainel() {
   }, [resultados]);
 
   return (
-    <>
+    <div ref={containerRef} className="relative">
       <div className="flex items-center gap-2 w-64 md:w-96">
         <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => { if (hasSearched) setOpen(true); }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -192,7 +208,7 @@ export function BuscaGlobalPainel() {
           {query && (
             <button
               type="button"
-              onClick={() => setQuery("")}
+              onClick={() => { setQuery(""); setOpen(false); setHasSearched(false); setResultados([]); }}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               aria-label="Limpar"
             >
@@ -211,27 +227,36 @@ export function BuscaGlobalPainel() {
         </Button>
       </div>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-3xl max-h-[85vh] p-0 gap-0 flex flex-col overflow-hidden">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b">
-            <DialogTitle className="flex items-center gap-2 text-base">
+      {open && hasSearched && (
+        <div className="absolute z-50 top-full mt-2 right-0 w-[min(720px,calc(100vw-32px))] rounded-lg border border-border bg-popover shadow-2xl overflow-hidden">
+          <div className="px-4 py-2.5 border-b bg-muted/30 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm">
               <Search className="w-4 h-4 text-muted-foreground" />
-              Resultados para <span className="text-primary">"{query}"</span>
-              {!loading && hasSearched && (
-                <Badge variant="secondary" className="ml-2">
+              <span className="text-muted-foreground">Resultados para</span>
+              <span className="font-medium text-foreground">"{query}"</span>
+              {!loading && (
+                <Badge variant="secondary" className="ml-1">
                   {resultados.length} {resultados.length === 1 ? "item" : "itens"}
                 </Badge>
               )}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto">
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="text-muted-foreground hover:text-foreground"
+              aria-label="Fechar"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="max-h-[70vh] overflow-y-auto">
             {loading && (
-              <div className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground">
+              <div className="flex items-center justify-center gap-2 p-10 text-sm text-muted-foreground">
                 <Loader2 className="w-5 h-5 animate-spin" /> Buscando…
               </div>
             )}
-            {!loading && resultados.length === 0 && hasSearched && (
-              <div className="p-12 text-center text-sm text-muted-foreground">
+            {!loading && resultados.length === 0 && (
+              <div className="p-10 text-center text-sm text-muted-foreground">
                 Nenhum resultado encontrado.
               </div>
             )}
@@ -241,7 +266,7 @@ export function BuscaGlobalPainel() {
                 const Icon = meta.icon;
                 return (
                   <div key={tipo} className="border-b last:border-b-0">
-                    <div className="px-6 py-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted/50 sticky top-0">
+                    <div className="px-4 py-1.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted/50 sticky top-0 z-10">
                       <Icon className={cn("w-3.5 h-3.5", meta.color)} />
                       {meta.label}
                       <span className="text-muted-foreground/70 font-normal normal-case">
@@ -253,7 +278,7 @@ export function BuscaGlobalPainel() {
                         <button
                           key={r.id}
                           onClick={() => go(r)}
-                          className="w-full text-left px-6 py-3 flex items-start gap-3 hover:bg-accent transition-colors group"
+                          className="w-full text-left px-4 py-2.5 flex items-start gap-3 hover:bg-accent transition-colors group"
                         >
                           <div className={cn("mt-0.5 p-1.5 rounded-md bg-muted group-hover:bg-background", meta.color)}>
                             <Icon className="w-4 h-4" />
@@ -268,7 +293,7 @@ export function BuscaGlobalPainel() {
                               </div>
                             )}
                           </div>
-                          <div className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 self-center">
+                          <div className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 self-center whitespace-nowrap">
                             Abrir →
                           </div>
                         </button>
@@ -278,8 +303,8 @@ export function BuscaGlobalPainel() {
                 );
               })}
           </div>
-        </DialogContent>
-      </Dialog>
-    </>
+        </div>
+      )}
+    </div>
   );
 }
