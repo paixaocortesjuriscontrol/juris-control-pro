@@ -575,6 +575,7 @@ export default function DistribuicaoTst() {
         break;
       case "comEquipe": setFiltroEquipe("sim"); break;
       case "semEquipe": setFiltroEquipe("nao"); break;
+      case "multiResp": setFiltroMultiResp(true); break;
     }
   };
 
