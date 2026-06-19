@@ -456,7 +456,7 @@ export function parseKurierBlob(
             }
           }
         } else {
-          partes.push({ papel: capitalizePapel(rawLabel.replace(/A$/, "")) || rawLabel, nome: rawValue });
+          partes.push({ papel: capitalizePapel(rawLabel), nome: rawValue });
         }
       }
     }
