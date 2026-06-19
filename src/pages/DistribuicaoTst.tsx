@@ -533,6 +533,8 @@ export default function DistribuicaoTst() {
     setFiltroSemTurma(false);
     setFiltroProblemaJudit("todos");
     setFiltroEquipe("todos");
+    // Reseta o filtro "Mais de um responsável" ao alternar cards (re-aplica se for o próprio)
+    setFiltroMultiResp(false);
     // Reseta filtro de status (Pronto para Enviar) ao alternar cards
     if (key === "prontoEnvio" || isActive) setFiltroStatus("todos");
     // Reseta filtro "sem responsável" ao alternar cards
