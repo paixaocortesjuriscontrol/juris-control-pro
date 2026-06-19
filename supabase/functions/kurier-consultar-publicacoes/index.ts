@@ -304,6 +304,16 @@ Deno.serve(async (req: Request) => {
     const data_inicio = data_inicio_body ?? hojeYmd;
     const data_fim = data_fim_body ?? hojeYmd;
     const modo_personalizado = body.modo_personalizado === true;
+    // Modo backfill: em vez de consultar a fila Kurier, reprocessa payloads
+    // já gravados em kurier_publicacoes_raw com um determinado motivo_descarte.
+    // Útil para recuperar itens que foram confirmados na Kurier (saíram da fila)
+    // mas descartados localmente por filtro antigo. NÃO confirma nada na Kurier.
+    const backfill_raw: boolean = body.backfill_raw === true;
+    const backfill_motivo: string = typeof body.backfill_motivo === "string" && body.backfill_motivo
+      ? body.backfill_motivo : "fora_janela_disp_antes";
+    const backfill_date: string | undefined = typeof body.backfill_date === "string"
+      && /^\d{4}-\d{2}-\d{2}$/.test(body.backfill_date)
+      ? body.backfill_date : undefined;
     // Kurier sempre persiste em publicacoes_djen (tabela canônica da
     // Análise DJEN). O parâmetro persist_mode é ignorado de propósito para
     // não furar dedup/leituras/alertas que dependem desta tabela.
