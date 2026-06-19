@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Loader2, Scale, ClipboardList, CalendarDays, Gavel, Newspaper, UserCircle, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -33,31 +36,17 @@ export function BuscaGlobalPainel() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [resultados, setResultados] = useState<Resultado[]>([]);
-  const [activeIdx, setActiveIdx] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  useEffect(() => {
-    function onClick(e: MouseEvent) {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, []);
-
-  const termo = useMemo(() => escapeIlike(query), [query]);
-
-  useEffect(() => {
-    if (termo.length < 2) {
-      setResultados([]);
-      setLoading(false);
-      return;
-    }
-    let cancel = false;
+  const executarBusca = async () => {
+    const termo = escapeIlike(query);
+    if (termo.length < 2) return;
+    setOpen(true);
     setLoading(true);
-    const t = setTimeout(async () => {
-      const like = `%${termo}%`;
-      const digitsOnly = termo.replace(/\D/g, "");
-      try {
+    setHasSearched(true);
+    const like = `%${termo}%`;
+    const digitsOnly = termo.replace(/\D/g, "");
+    try {
         const [proc, cli, tar, evt, aud, pub] = await Promise.all([
           supabase
             .from("processos")
@@ -101,8 +90,6 @@ export function BuscaGlobalPainel() {
             )
             .limit(5),
         ]);
-
-        if (cancel) return;
 
         const out: Resultado[] = [];
 
@@ -164,22 +151,15 @@ export function BuscaGlobalPainel() {
         );
 
         setResultados(out);
-        setActiveIdx(0);
       } catch (err) {
         console.error("[busca-global]", err);
       } finally {
-        if (!cancel) setLoading(false);
+        setLoading(false);
       }
-    }, 250);
-    return () => {
-      cancel = true;
-      clearTimeout(t);
-    };
-  }, [termo]);
+  };
 
   const go = (r: Resultado) => {
     setOpen(false);
-    setQuery("");
     navigate(r.to);
   };
 
@@ -193,94 +173,113 @@ export function BuscaGlobalPainel() {
   }, [resultados]);
 
   return (
-    <div ref={containerRef} className="relative w-64 md:w-80">
-      <div className="relative">
-        <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              setActiveIdx((i) => Math.min(i + 1, resultados.length - 1));
-            } else if (e.key === "ArrowUp") {
-              e.preventDefault();
-              setActiveIdx((i) => Math.max(i - 1, 0));
-            } else if (e.key === "Enter" && resultados[activeIdx]) {
-              e.preventDefault();
-              go(resultados[activeIdx]);
-            } else if (e.key === "Escape") {
-              setOpen(false);
-            }
-          }}
-          placeholder="Buscar processo, tarefa, prazo…"
-          className="h-9 pl-8 pr-8 text-sm"
-        />
-        {query && (
-          <button
-            type="button"
-            onClick={() => {
-              setQuery("");
-              setResultados([]);
+    <>
+      <div className="flex items-center gap-2 w-64 md:w-96">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                executarBusca();
+              }
             }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+            placeholder="Buscar processo, cliente, tarefa…"
+            className="h-9 pl-8 pr-8 text-sm"
+          />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              aria-label="Limpar"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        <Button
+          size="sm"
+          onClick={executarBusca}
+          disabled={query.trim().length < 2 || loading}
+          className="h-9"
+        >
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4 mr-1.5" />}
+          Pesquisar
+        </Button>
       </div>
 
-      {open && query.length >= 2 && (
-        <div className="absolute z-50 mt-2 w-[min(28rem,90vw)] right-0 md:right-auto md:left-0 rounded-lg border border-border bg-popover shadow-xl overflow-hidden">
-          <div className="max-h-[60vh] overflow-y-auto">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] p-0 gap-0 flex flex-col overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Search className="w-4 h-4 text-muted-foreground" />
+              Resultados para <span className="text-primary">"{query}"</span>
+              {!loading && hasSearched && (
+                <Badge variant="secondary" className="ml-2">
+                  {resultados.length} {resultados.length === 1 ? "item" : "itens"}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto">
             {loading && (
-              <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" /> Buscando…
+              <div className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground">
+                <Loader2 className="w-5 h-5 animate-spin" /> Buscando…
               </div>
             )}
-            {!loading && resultados.length === 0 && (
-              <div className="p-4 text-sm text-muted-foreground">Nenhum resultado encontrado.</div>
+            {!loading && resultados.length === 0 && hasSearched && (
+              <div className="p-12 text-center text-sm text-muted-foreground">
+                Nenhum resultado encontrado.
+              </div>
             )}
-            {!loading && grupos.map(([tipo, items]) => {
-              const meta = TIPO_META[tipo];
-              const Icon = meta.icon;
-              return (
-                <div key={tipo} className="py-1">
-                  <div className="px-3 py-1 text-[11px] uppercase tracking-wider text-muted-foreground bg-muted/40">
-                    {meta.label}
+            {!loading &&
+              grupos.map(([tipo, items]) => {
+                const meta = TIPO_META[tipo];
+                const Icon = meta.icon;
+                return (
+                  <div key={tipo} className="border-b last:border-b-0">
+                    <div className="px-6 py-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground bg-muted/50 sticky top-0">
+                      <Icon className={cn("w-3.5 h-3.5", meta.color)} />
+                      {meta.label}
+                      <span className="text-muted-foreground/70 font-normal normal-case">
+                        ({items.length})
+                      </span>
+                    </div>
+                    <div className="divide-y">
+                      {items.map((r) => (
+                        <button
+                          key={r.id}
+                          onClick={() => go(r)}
+                          className="w-full text-left px-6 py-3 flex items-start gap-3 hover:bg-accent transition-colors group"
+                        >
+                          <div className={cn("mt-0.5 p-1.5 rounded-md bg-muted group-hover:bg-background", meta.color)}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-foreground truncate">
+                              {r.titulo}
+                            </div>
+                            {r.subtitulo && (
+                              <div className="text-xs text-muted-foreground truncate mt-0.5">
+                                {r.subtitulo}
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 self-center">
+                            Abrir →
+                          </div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  {items.map((r) => {
-                    const idx = resultados.indexOf(r);
-                    return (
-                      <button
-                        key={r.id}
-                        onMouseEnter={() => setActiveIdx(idx)}
-                        onClick={() => go(r)}
-                        className={cn(
-                          "w-full text-left px-3 py-2 flex items-start gap-2.5 hover:bg-accent transition-colors",
-                          idx === activeIdx && "bg-accent"
-                        )}
-                      >
-                        <Icon className={cn("w-4 h-4 mt-0.5 flex-shrink-0", meta.color)} />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium text-foreground truncate">{r.titulo}</div>
-                          {r.subtitulo && (
-                            <div className="text-xs text-muted-foreground truncate">{r.subtitulo}</div>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
-        </div>
-      )}
-    </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
