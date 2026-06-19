@@ -537,37 +537,54 @@ Deno.serve(async (req: Request) => {
     console.log(`[kurier] modo=${backfill_raw ? "backfill" : (useDateMode ? "personalizado" : "fila")} iter=${totalIter}`);
 
     for (let lote = 0; lote < totalIter; lote++) {
-      // A fila da Kurier deve ser consultada sem parâmetros de data: algumas
-      // credenciais retornam 0 quando a data é enviada, impedindo a drenagem.
-      // A janela solicitada pelo usuário continua sendo obedecida no filtro
-      // local abaixo, e itens fora da janela são confirmados para liberar a fila.
-      const url = useDateMode
-        ? buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoesPersonalizado", { data: datas[lote] })
-        : buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoes", {});
-
-      let resp: Response;
-      let texto = "";
-      try {
-        resp = await fetch(url, { method: "GET", headers: buildKurierAuthHeaders(cred.login, senha) });
-        texto = await resp.text();
-      } catch (e) {
-        ultimoErro = `Falha rede lote ${lote}: ${String(e)}`;
-        break;
-      }
-      if (resp.status < 200 || resp.status >= 300) {
-        ultimoErro = resp.status === 401
-          ? "HTTP 401 — login ou senha recusados pela Kurier"
-          : `HTTP ${resp.status} lote ${lote}: ${texto.trim() ? texto.slice(0, 200) : "resposta sem mensagem"}`;
-        break;
-      }
-
       let pubs: KurierPub[] = [];
-      try {
-        const j = JSON.parse(texto);
-        pubs = extractPublicacoes(j);
-      } catch (e) {
-        ultimoErro = `JSON inválido lote ${lote}: ${texto.slice(0, 200)}`;
-        break;
+      if (backfill_raw) {
+        // Carrega payloads de descartes anteriores (já confirmados na fila Kurier)
+        // para reprocessar com a lógica atual. NÃO faz chamada à API.
+        const dataAlvo = backfill_date ?? hojeYmd;
+        const { data: rawDescartados, error: rawDescErr } = await admin
+          .from("kurier_publicacoes_raw")
+          .select("payload")
+          .eq("credencial_id", cred.id)
+          .eq("motivo_descarte", backfill_motivo)
+          .gte("created_at", `${dataAlvo}T00:00:00Z`)
+          .lt("created_at", `${dataAlvo}T23:59:59.999Z`)
+          .limit(10000);
+        if (rawDescErr) {
+          ultimoErro = `backfill load raw lote ${lote}: ${rawDescErr.message}`;
+          break;
+        }
+        pubs = ((rawDescartados ?? []) as any[]).map((r) => r.payload).filter(Boolean);
+        console.log(`[kurier][backfill] cred=${cred.id} motivo=${backfill_motivo} data=${dataAlvo} encontrados=${pubs.length}`);
+      } else {
+        // A fila da Kurier deve ser consultada sem parâmetros de data: algumas
+        // credenciais retornam 0 quando a data é enviada, impedindo a drenagem.
+        const url = useDateMode
+          ? buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoesPersonalizado", { data: datas[lote] })
+          : buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoes", {});
+
+        let resp: Response;
+        let texto = "";
+        try {
+          resp = await fetch(url, { method: "GET", headers: buildKurierAuthHeaders(cred.login, senha) });
+          texto = await resp.text();
+        } catch (e) {
+          ultimoErro = `Falha rede lote ${lote}: ${String(e)}`;
+          break;
+        }
+        if (resp.status < 200 || resp.status >= 300) {
+          ultimoErro = resp.status === 401
+            ? "HTTP 401 — login ou senha recusados pela Kurier"
+            : `HTTP ${resp.status} lote ${lote}: ${texto.trim() ? texto.slice(0, 200) : "resposta sem mensagem"}`;
+          break;
+        }
+        try {
+          const j = JSON.parse(texto);
+          pubs = extractPublicacoes(j);
+        } catch (e) {
+          ultimoErro = `JSON inválido lote ${lote}: ${texto.slice(0, 200)}`;
+          break;
+        }
       }
 
       if (!pubs.length) {
