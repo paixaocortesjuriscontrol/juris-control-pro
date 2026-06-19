@@ -18,6 +18,8 @@ import { useDjenTermosKurier } from "@/hooks/useDjenTermosKurier";
 import { useDjenTermosKurierScheduler } from "@/hooks/useDjenTermosKurierScheduler";
 import { KurierCredenciaisPanel } from "./KurierCredenciaisPanel";
 import { Play, Square, RotateCcw, ShieldAlert, Save, Activity, Loader2, Search, CalendarIcon } from "lucide-react";
+import { toast } from "sonner";
+import { useState as useReactState } from "react";
 
 function formatDuracao(s: number) {
   if (!s) return "0s";
@@ -29,6 +31,49 @@ function formatDuracao(s: number) {
 export function MonitoramentoTermosKurierCard() {
   const { progress, isRunning, canResume, executar, drenarBacklog, retomar, cancelar, forceKill, resetTotal } = useDjenTermosKurier();
   const { config, saveConfig } = useDjenTermosKurierScheduler();
+  const qc = useQueryClient();
+  const [backfillRunning, setBackfillRunning] = useState(false);
+  const [backfillDate, setBackfillDate] = useState<Date | undefined>(new Date());
+  const runBackfillDescartados = async () => {
+    if (backfillRunning) return;
+    setBackfillRunning(true);
+    try {
+      const dataYmd = backfillDate ? format(backfillDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+      const { data: creds, error: credsErr } = await supabase
+        .from("kurier_credenciais")
+        .select("id, login")
+        .eq("ativo", true);
+      if (credsErr) throw credsErr;
+      if (!creds?.length) { toast.warning("Nenhuma credencial Kurier ativa"); return; }
+      toast.info(`Backfill iniciado para ${creds.length} credenciais (data ${dataYmd})…`);
+      let totalNovas = 0;
+      let totalDescartadas = 0;
+      const erros: string[] = [];
+      for (const c of creds) {
+        try {
+          const { data, error } = await supabase.functions.invoke("kurier-consultar-publicacoes", {
+            body: {
+              credencial_id: c.id,
+              backfill_raw: true,
+              backfill_motivo: "fora_janela_disp_antes",
+              backfill_date: dataYmd,
+            },
+          });
+          if (error) { erros.push(`${c.login}: ${error.message}`); continue; }
+          totalNovas += Number((data as any)?.total_novas || 0);
+          totalDescartadas += Number((data as any)?.total_descartadas || 0);
+        } catch (e: any) {
+          erros.push(`${c.login}: ${String(e?.message ?? e)}`);
+        }
+      }
+      if (erros.length) toast.error(`Backfill com ${erros.length} erro(s). Ex.: ${erros[0]}`);
+      toast.success(`Backfill concluído. Novas: ${totalNovas}, descartadas: ${totalDescartadas}.`);
+      await qc.invalidateQueries({ queryKey: ["publicacoes-djen"] });
+      await qc.invalidateQueries({ queryKey: ["publicacoes-unificadas"] });
+    } finally {
+      setBackfillRunning(false);
+    }
+  };
   const [baseUrlDraft, setBaseUrlDraft] = useState<string | null>(null);
   const [freqDraft, setFreqDraft] = useState<string | null>(null);
   const today = new Date();
