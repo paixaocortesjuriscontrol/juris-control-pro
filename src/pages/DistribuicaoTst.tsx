@@ -493,6 +493,7 @@ export default function DistribuicaoTst() {
     setFiltroSemTurma(false);
     setFiltroProblemaJudit("todos");
     setFiltroEquipe("todos");
+    setFiltroMultiResp(false);
     setSelectedIds(new Set());
   };
 
