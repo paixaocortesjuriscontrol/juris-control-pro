@@ -284,12 +284,21 @@ export default function DistribuicaoTst() {
   // Para não-admins, o filtro "A fazer" sempre amarra ao usuário logado,
   // independentemente do select de responsáveis.
   const listFilters = useMemo(() => {
+    let f = debouncedFilters;
     if (debouncedFilters.situacaoProcesso === "a_fazer" && !isAdmin && user?.id) {
-      return { ...debouncedFilters, responsavelIds: [user.id] };
+      f = { ...f, responsavelIds: [user.id] };
     }
-    return debouncedFilters;
+    if (filtroMultiResp) {
+      // Intersecta com a lista de processos com mais de um responsável.
+      const tagIds = idsAllowedFromTagFilter;
+      const finalIds = tagIds
+        ? multiRespIds.filter((id) => tagIds.includes(id))
+        : multiRespIds;
+      f = { ...f, idsAllowed: finalIds.length > 0 ? finalIds : ["__none__"] };
+    }
+    return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), JSON.stringify(idsAllowedFromTagFilter || [])]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
