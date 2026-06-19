@@ -1475,17 +1475,21 @@ export default function DistribuicaoTst() {
               Por responsável:
             </span>
             {responsavelCounts.filter(c => c.count > 0).map((c) => {
-              const active = filtroResponsavelIds.includes(c.id);
+              const isSemResp = c.id === "00000000-0000-0000-0000-000000000000";
+              const filterValue = isSemResp ? "__sem_responsavel__" : c.id;
+              const active = filtroResponsavelIds.includes(filterValue);
               const faltam = Math.max(0, c.count - (c.pronto || 0));
               return (
                 <button
                   key={c.id}
                   type="button"
-                  onClick={() => setFiltroResponsavelIds(active ? [] : [c.id])}
+                  onClick={() => setFiltroResponsavelIds(active ? [] : [filterValue])}
                   className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-all hover:shadow-sm ${
                     active
                       ? "border-primary bg-primary/10 text-primary"
-                      : "border-border bg-card text-foreground hover:bg-muted"
+                      : isSemResp
+                        ? "border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300"
+                        : "border-border bg-card text-foreground hover:bg-muted"
                   }`}
                   title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Faltam: ${faltam}`}
                 >
