@@ -795,8 +795,29 @@ Deno.serve(async (req: Request) => {
             // garante que múltiplas execuções/lotes não colidam). O usuário
             // quer enxergar TODAS as publicações trazidas pela Kurier na tela
             // Análise DJEN, com ou sem captura_total.
+            //
+            // Exceção: em modo BACKFILL, evitamos reinserir uma publicação
+            // que já existe na mesma coordenação (mesmo processo + mesma data
+            // de disponibilização). O usuário não quer "ressuscitar" como
+            // não-lida algo que já estava na tela e já foi lido ontem.
+            let jaExiste = false;
+            if (backfill_raw && digits && basePayload.dedup_data_ref) {
+              const { data: dup } = await admin
+                .from(pubTable)
+                .select("id")
+                .eq("coordenacao_id", matched.coordenacao_id ?? null)
+                .eq("dedup_processo_digits", digits)
+                .eq("dedup_data_ref", basePayload.dedup_data_ref)
+                .limit(1)
+                .maybeSingle();
+              if (dup?.id) {
+                jaExiste = true;
+                publicacaoDjenId = dup.id;
+                totalDuplicadas++;
+              }
+            }
             const uniqueHashMatch = sha256(`${matched.coordenacao_id ?? "_"}|${cred.id}|${idKEff}|${hashConteudo}|${Date.now()}|${Math.random()}`);
-            const { data: insPub, error: pubErr } = await admin
+            const { data: insPub, error: pubErr } = jaExiste ? { data: null, error: null } : await admin
               .from(pubTable)
               .insert({
                 ...basePayload,
@@ -843,6 +864,23 @@ Deno.serve(async (req: Request) => {
             // se o match não inseriu (ex.: 23505 por já existir vindo do DJEN
             // Termos OU sem_match), seguimos com a captura total.
             if (matched && (matched.coordenacao_id ?? null) === ct.id && publicacaoDjenId) continue;
+            // Backfill: evita reinserir publicação já existente na mesma
+            // coord (mesmo processo + mesma data de disponibilização).
+            if (backfill_raw && digits && basePayload.dedup_data_ref) {
+              const { data: dupCt } = await admin
+                .from(pubTable)
+                .select("id")
+                .eq("coordenacao_id", ct.id)
+                .eq("dedup_processo_digits", digits)
+                .eq("dedup_data_ref", basePayload.dedup_data_ref)
+                .limit(1)
+                .maybeSingle();
+              if (dupCt?.id) {
+                totalDuplicadas++;
+                if (!publicacaoDjenId) publicacaoDjenId = dupCt.id;
+                continue;
+              }
+            }
             const uniqueHash = sha256(`${ct.id}|${cred.id}|${idKEff}|${hashConteudo}|${Date.now()}|${Math.random()}`);
             const { data: insCt, error: ctErr } = await admin
               .from(pubTable)
