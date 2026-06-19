@@ -1409,6 +1409,18 @@ export default function DistribuicaoTst() {
                   {arquivarDupRunning ? "Arquivando..." : "Arquivar duplicados"}
                 </Button>
               )}
+              {isAdminOrCoordinator && selectedIds.size > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={handleArquivarSelecionados}
+                  disabled={arquivarSelRunning}
+                  title="Arquiva apenas os registros selecionados. Eles ficam disponíveis em 'Arquivados' e podem ser restaurados."
+                  className="border-amber-400 text-amber-700 hover:bg-amber-50"
+                >
+                  {arquivarSelRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Archive className="w-4 h-4 mr-2" />}
+                  {arquivarSelRunning ? "Arquivando..." : `Arquivar selecionados (${selectedIds.size})`}
+                </Button>
+              )}
               <BennerSimImport onUpdated={handleRefresh} />
               <DossiesNaoLocalizadosButton filters={debouncedFilters} selectedIds={selectedIds} />
               <Button variant="secondary" onClick={handleGerarCarga} disabled={cargaLoading}>
