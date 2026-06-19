@@ -281,6 +281,21 @@ export default function DistribuicaoTst() {
     return () => clearTimeout(timer);
 }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, filtroTagId, JSON.stringify(idsAllowedFromTag || [])]);
 
+  // IDs de processos com mais de um responsável, respeitando os demais filtros
+  // (ignora filtro de responsável para que a contagem não se anule a si mesma).
+  const multiRespFiltersKey = JSON.stringify({ ...debouncedFilters, responsavelIds: undefined });
+  const { data: multiRespIds = [] } = useQuery({
+    queryKey: ["multi-resp-ids", multiRespFiltersKey],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc(
+        "get_distribuicao_tst_multi_resp_ids" as any,
+        { filters: { ...debouncedFilters, responsavelIds: undefined } as any }
+      );
+      if (error) throw error;
+      return ((data as any[]) || []).map((r: any) => r.id as string);
+    },
+  });
+
   // Para não-admins, o filtro "A fazer" sempre amarra ao usuário logado,
   // independentemente do select de responsáveis.
   const listFilters = useMemo(() => {
@@ -336,21 +351,6 @@ export default function DistribuicaoTst() {
   // Totais por responsável (todos os registros que batem com os filtros, ignorando o filtro de responsável)
   const countsFilters = { ...debouncedFilters, responsavelIds: undefined };
   const { counts: responsavelCounts, refetch: refetchResponsavelCounts } = useResponsaveisCounts(countsFilters);
-
-  // IDs de processos com mais de um responsável, respeitando os demais filtros
-  // (ignora filtro de responsável para que a contagem não se anule a si mesma).
-  const multiRespFiltersKey = JSON.stringify(countsFilters);
-  const { data: multiRespIds = [] } = useQuery({
-    queryKey: ["multi-resp-ids", multiRespFiltersKey],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc(
-        "get_distribuicao_tst_multi_resp_ids" as any,
-        { filters: countsFilters as any }
-      );
-      if (error) throw error;
-      return ((data as any[]) || []).map((r: any) => r.id as string);
-    },
-  });
 
   // Auto-seleciona o usuário logado como responsável ao abrir a tela
   // (apenas se ele estiver na lista de responsáveis). Roda uma única vez.
