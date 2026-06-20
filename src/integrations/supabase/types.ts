@@ -3644,6 +3644,8 @@ export type Database = {
           progresso: Json | null
           progresso_atualizado_em: string | null
           resultado: Json | null
+          rodada_do_dia: number | null
+          slot_horario: string | null
           status: string
           tentativas: number
           tipo: string
@@ -3663,6 +3665,8 @@ export type Database = {
           progresso?: Json | null
           progresso_atualizado_em?: string | null
           resultado?: Json | null
+          rodada_do_dia?: number | null
+          slot_horario?: string | null
           status?: string
           tentativas?: number
           tipo: string
@@ -3682,6 +3686,8 @@ export type Database = {
           progresso?: Json | null
           progresso_atualizado_em?: string | null
           resultado?: Json | null
+          rodada_do_dia?: number | null
+          slot_horario?: string | null
           status?: string
           tentativas?: number
           tipo?: string
@@ -3689,6 +3695,56 @@ export type Database = {
           worker_id?: string | null
         }
         Relationships: []
+      }
+      execucoes_servidor_falhas: {
+        Row: {
+          created_at: string
+          dia_brt: string
+          execucao_id: string | null
+          id: string
+          item_key: string
+          payload: Json
+          status: string
+          tentativas: number
+          tipo: string
+          ultimo_erro: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dia_brt?: string
+          execucao_id?: string | null
+          id?: string
+          item_key: string
+          payload?: Json
+          status?: string
+          tentativas?: number
+          tipo: string
+          ultimo_erro?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dia_brt?: string
+          execucao_id?: string | null
+          id?: string
+          item_key?: string
+          payload?: Json
+          status?: string
+          tentativas?: number
+          tipo?: string
+          ultimo_erro?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "execucoes_servidor_falhas_execucao_id_fkey"
+            columns: ["execucao_id"]
+            isOneToOne: false
+            referencedRelation: "execucoes_servidor"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       google_calendar_tokens: {
         Row: {
@@ -8052,10 +8108,21 @@ export type Database = {
         }[]
       }
       djen_strip_destinatarios: { Args: { p_text: string }; Returns: string }
-      enfileirar_execucao_servidor: {
-        Args: { p_agendado_para?: string; p_payload?: Json; p_tipo: string }
-        Returns: string
-      }
+      enfileirar_execucao_servidor:
+        | {
+            Args: { p_agendado_para?: string; p_payload?: Json; p_tipo: string }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_agendado_para?: string
+              p_payload?: Json
+              p_rodada?: number
+              p_slot?: string
+              p_tipo: string
+            }
+            Returns: string
+          }
       extract_cnj_from_text: { Args: { p_text: string }; Returns: string }
       find_processo_id_by_numero: { Args: { _numero: string }; Returns: string }
       gerar_numero_remessa_benner: { Args: never; Returns: string }
@@ -8518,6 +8585,8 @@ export type Database = {
           progresso: Json | null
           progresso_atualizado_em: string | null
           resultado: Json | null
+          rodada_do_dia: number | null
+          slot_horario: string | null
           status: string
           tentativas: number
           tipo: string

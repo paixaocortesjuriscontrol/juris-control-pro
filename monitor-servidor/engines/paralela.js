@@ -2,6 +2,9 @@
 // Não chama a edge monitorar-djen; cada worker usa uma VPS do djen_proxy_pool.
 
 const { djenFetchSlot, loadPool } = require("../proxyPool");
+const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
+
+const TIPO_ENGINE = "djen_paralela_servidor";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -737,6 +740,67 @@ async function run({ sb, payload, log, job }) {
   await flushProgresso(true);
   log("paralela.pool", { vias: slots.length, totalItens: itens.length, bandas: { tst: band0.length, superiores: band1.length, outros: band2.length, processo: band3.length } });
 
+  // === RETRY: refila falhas pendentes do mesmo dia BRT ===
+  // Reprocessa (tribunal, monitoramento, dia) que falharam em execuções
+  // anteriores antes de varrer a fila principal. Itens com tentativas >= 5
+  // viram 'abandonado' automaticamente em recordFalha.
+  try {
+    const pendentes = await lerFalhasPendentes(sb, TIPO_ENGINE);
+    if (pendentes.length > 0) {
+      log("paralela.retry_pendentes", { qtd: pendentes.length });
+      for (const f of pendentes) {
+        if (cancelled || signal.aborted) break;
+        const p = f.payload || {};
+        const tribunal = p.tribunal;
+        const monId = p.monitoramentoId;
+        const dia = p.dia;
+        const tipoMon = p.tipo;
+        const mon = monId ? monsPorId.get(monId) : null;
+        if (!tribunal || !mon || !dia || !tipoMon) {
+          await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key);
+          continue;
+        }
+        const slot = slots[0];
+        try {
+          const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal);
+          if (tipoMon === "parte") {
+            try {
+              const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal);
+              if (resgatadas.length > 0) {
+                const seenIds = new Set(pubs.map((x) => getIdDjen(x)).filter(Boolean));
+                for (const r of resgatadas) {
+                  const id = getIdDjen(r);
+                  if (id && seenIds.has(id)) continue;
+                  pubs.push(r);
+                }
+              }
+            } catch (e) {
+              log("paralela.retry_resgate_error", { tribunal, monId, e: String(e?.message || e).slice(0, 300) });
+            }
+          }
+          const stats = await persistPublicacoes(sb, pubs, mon, tribunal, dia, job?.id || null);
+          totalNovas += stats.novas;
+          totalDescartadas += stats.descartadas;
+          totalDuplicatas += stats.duplicatas;
+          await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key);
+          log("paralela.retry_ok", { tribunal, monId, dia, novas: stats.novas });
+        } catch (e) {
+          await recordFalha(sb, {
+            tipo: TIPO_ENGINE,
+            execucaoId: job?.id || null,
+            itemKey: f.item_key,
+            payload: p,
+            erro: e?.message || e,
+          });
+          log("paralela.retry_fail", { tribunal, monId, dia, e: String(e?.message || e).slice(0, 300) });
+        }
+        if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
+      }
+    }
+  } catch (e) {
+    log("paralela.retry_loop_error", { e: String(e?.message || e).slice(0, 300) });
+  }
+
   const processUnit = async (unit, slot) => {
     const item = unit.item;
     item.status = "executando";
@@ -756,34 +820,63 @@ async function run({ sb, payload, log, job }) {
             return;
           }
           item.mensagem = `${item.tribunal} ${dia}: ${item.current}/${item.total} via ${item.via.label}`;
-          const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
-          if (item.tipo === "parte") {
-            try {
-              const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, item.tribunal, signal);
-              if (resgatadas.length > 0) {
-                const seenIds = new Set(pubs.map((p) => getIdDjen(p)).filter(Boolean));
-                for (const r of resgatadas) {
-                  const id = getIdDjen(r);
-                  if (id && seenIds.has(id)) continue;
-                  pubs.push(r);
+          // Try/catch por (mon, dia): falha de um par específico (ex: TJES
+          // 504) não derruba os outros pares do mesmo item; o par é gravado
+          // em execucoes_servidor_falhas para refila na próxima execução
+          // do mesmo dia BRT.
+          const itemKeyFalha = `paralela|${item.tribunal}|${monId}|${dia}`;
+          try {
+            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
+            if (item.tipo === "parte") {
+              try {
+                const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, item.tribunal, signal);
+                if (resgatadas.length > 0) {
+                  const seenIds = new Set(pubs.map((p) => getIdDjen(p)).filter(Boolean));
+                  for (const r of resgatadas) {
+                    const id = getIdDjen(r);
+                    if (id && seenIds.has(id)) continue;
+                    pubs.push(r);
+                  }
                 }
+              } catch (e) {
+                log("paralela.resgate_parte_error", { tribunal: item.tribunal, monId, e: String(e?.message || e).slice(0, 300) });
               }
-            } catch (e) {
-              log("paralela.resgate_parte_error", { tribunal: item.tribunal, monId, e: String(e?.message || e).slice(0, 300) });
             }
+            const stats = await persistPublicacoes(sb, pubs, mon, item.tribunal, dia, job?.id || null);
+            item.novas += stats.novas;
+            item.descartadas += stats.descartadas;
+            item.duplicatas += stats.duplicatas;
+            // se havia falha pendente p/ este par, marca como resolvido
+            await marcarFalhaResolvida(sb, TIPO_ENGINE, itemKeyFalha).catch(() => {});
+          } catch (e) {
+            if (cancelled || signal.aborted || String(e?.message || e).includes("cancel")) throw e;
+            await recordFalha(sb, {
+              tipo: TIPO_ENGINE,
+              execucaoId: job?.id || null,
+              itemKey: itemKeyFalha,
+              payload: { tribunal: item.tribunal, monitoramentoId: monId, dia, tipo: item.tipo },
+              erro: e?.message || e,
+            }).catch((ee) => log("paralela.recordFalha_error", { e: String(ee?.message || ee) }));
+            item.erro = String(e?.message || e).slice(0, 500);
+            log("paralela.par_error", { tribunal: item.tribunal, monId, dia, e: item.erro });
+            // Não rethrow: segue para próximos (monId, dia). O par foi
+            // marcado para refila na próxima rodada do dia.
           }
-          const stats = await persistPublicacoes(sb, pubs, mon, item.tribunal, dia, job?.id || null);
-          item.novas += stats.novas;
-          item.descartadas += stats.descartadas;
-          item.duplicatas += stats.duplicatas;
           item.current += 1;
           await flushProgresso();
           if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
         }
       }
-      if (item.current >= item.total) {
+      const teveFalhaParcial = !!item.erro;
+      if (item.current >= item.total && !teveFalhaParcial) {
         item.status = "concluido";
         item.mensagem = `Concluído: ${item.novas} novas, ${item.duplicatas} duplicadas, ${item.descartadas} descartadas`;
+        totalNovas += item.novas;
+        totalDescartadas += item.descartadas;
+        totalDuplicatas += item.duplicatas;
+      } else if (item.current >= item.total && teveFalhaParcial) {
+        item.status = "concluido";
+        item.mensagem = `Parcial: ${item.novas} novas, ${item.duplicatas} duplicadas, ${item.descartadas} descartadas · pares com falha serão reexecutados`;
         totalNovas += item.novas;
         totalDescartadas += item.descartadas;
         totalDuplicatas += item.duplicatas;

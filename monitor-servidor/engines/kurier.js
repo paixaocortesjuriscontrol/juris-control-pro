@@ -6,6 +6,8 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const MAX_LOTES = parseInt(process.env.KURIER_MAX_LOTES || "5", 10);
 const PER_CRED_DELAY_MS = parseInt(process.env.KURIER_DELAY_MS || "1200", 10);
+const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
+const TIPO_ENGINE = "kurier_servidor";
 
 async function invokeKurier(credencialId, maxLotes) {
   const url = `${SUPABASE_URL}/functions/v1/kurier-consultar-publicacoes`;
@@ -31,7 +33,7 @@ async function invokeKurier(credencialId, maxLotes) {
   }
 }
 
-async function run({ sb, payload, log }) {
+async function run({ sb, payload, log, job }) {
   if (!SUPABASE_URL || !SERVICE_KEY) {
     throw new Error("SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY ausentes no .env do VPS");
   }
@@ -53,19 +55,68 @@ async function run({ sb, payload, log }) {
   let totalNovas = 0;
   let totalProcessadas = 0;
 
+  // Reprocessa credenciais que falharam em rodadas anteriores do mesmo dia
+  // antes da varredura normal.
+  try {
+    const pendentes = await lerFalhasPendentes(sb, TIPO_ENGINE);
+    if (pendentes.length > 0) {
+      log("kurier.retry_pendentes", { qtd: pendentes.length });
+      for (const f of pendentes) {
+        const credId = f.payload?.credencial_id;
+        const cred = (creds || []).find((c) => c.id === credId);
+        if (!credId || !cred) {
+          await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key);
+          continue;
+        }
+        try {
+          const { status, body } = await invokeKurier(credId, maxLotes);
+          const novas = Number(body?.totalNovas || body?.inseridas || 0);
+          const proc = Number(body?.totalProcessadas || body?.processadas || 0);
+          if (status < 200 || status >= 300) throw new Error(`HTTP ${status}`);
+          totalNovas += novas;
+          totalProcessadas += proc;
+          results.push({ credencial_id: credId, login: cred.login, status, novas, processadas: proc, ok: true, retry: true });
+          await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key);
+        } catch (e) {
+          await recordFalha(sb, {
+            tipo: TIPO_ENGINE,
+            execucaoId: job?.id || null,
+            itemKey: f.item_key,
+            payload: f.payload,
+            erro: e?.message || e,
+          });
+          results.push({ credencial_id: credId, login: cred.login, error: String(e.message || e), retry: true });
+        }
+        if (PER_CRED_DELAY_MS > 0) await new Promise((r) => setTimeout(r, PER_CRED_DELAY_MS));
+      }
+    }
+  } catch (e) {
+    log("kurier.retry_loop_error", { e: String(e?.message || e).slice(0, 300) });
+  }
+
   for (const c of creds || []) {
     log("kurier.cred_start", { credencial_id: c.id, login: c.login });
+    const itemKeyFalha = `kurier|${c.id}`;
     try {
       const { status, body } = await invokeKurier(c.id, maxLotes);
       const novas = Number(body?.totalNovas || body?.inseridas || 0);
       const proc = Number(body?.totalProcessadas || body?.processadas || 0);
+      if (status < 200 || status >= 300) throw new Error(`HTTP ${status}: ${JSON.stringify(body).slice(0,200)}`);
       totalNovas += novas;
       totalProcessadas += proc;
       results.push({ credencial_id: c.id, login: c.login, status, novas, processadas: proc, ok: status >= 200 && status < 300 });
       log("kurier.cred_done", { credencial_id: c.id, status, novas, processadas: proc });
+      await marcarFalhaResolvida(sb, TIPO_ENGINE, itemKeyFalha).catch(() => {});
     } catch (e) {
       results.push({ credencial_id: c.id, login: c.login, error: String(e.message || e) });
       log("kurier.cred_error", { credencial_id: c.id, e: String(e.message || e) });
+      await recordFalha(sb, {
+        tipo: TIPO_ENGINE,
+        execucaoId: job?.id || null,
+        itemKey: itemKeyFalha,
+        payload: { credencial_id: c.id },
+        erro: e?.message || e,
+      }).catch(() => {});
     }
     if (PER_CRED_DELAY_MS > 0) await new Promise((r) => setTimeout(r, PER_CRED_DELAY_MS));
   }

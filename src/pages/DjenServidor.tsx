@@ -31,6 +31,7 @@ import {
   type ProgressoItem,
 } from "@/hooks/useDjenServidor";
 import { DjenServidorParalelaCard } from "@/components/djen/DjenServidorParalelaCard";
+import { HorariosDoDiaPicker } from "@/components/djen/HorariosDoDiaPicker";
 
 const LABELS: Record<string, string> = {
   djen_paralela_servidor: "DJEN Termos",
@@ -98,7 +99,6 @@ function EngineCard({ cfg, onToggle, onConfig }: {
 
   const isParalela = cfg.tipo === "djen_paralela_servidor";
   const horariosKey = JSON.stringify(cfg.horarios_execucao || []);
-  const [horariosTexto, setHorariosTexto] = useState((cfg.horarios_execucao || []).join(", "));
   const { data: horariosDjenNormal = [] } = useQuery({
     queryKey: ["djen-normal-paralela-horarios"],
     queryFn: async () => {
@@ -110,18 +110,13 @@ function EngineCard({ cfg, onToggle, onConfig }: {
       return Array.from(new Set((data || []).flatMap((row) => row.horarios_execucao || []))) as string[];
     },
   });
-  useEffect(() => {
-    setHorariosTexto((JSON.parse(horariosKey) as string[]).join(", "));
-  }, [cfg.id, horariosKey]);
-
-  const horariosServidor = horariosTexto.split(",").map((h) => h.trim()).filter(Boolean);
+  const horariosServidor = (cfg.horarios_execucao || []) as string[];
   const conflitoHorarioNormal = isParalela && horariosServidor.some((h) => horariosDjenNormal.includes(h));
 
-  const handleHorariosBlur = () => {
-    if (conflitoHorarioNormal) return;
+  const persistirHorarios = (proximos: string[]) => {
+    if (isParalela && proximos.some((h) => horariosDjenNormal.includes(h))) return;
     const atual = JSON.stringify(cfg.horarios_execucao || []);
-    const proximo = JSON.stringify(horariosServidor);
-    if (atual !== proximo) onConfig(cfg.id, { horarios_execucao: horariosServidor });
+    if (atual !== JSON.stringify(proximos)) onConfig(cfg.id, { horarios_execucao: proximos });
   };
 
   // Filtros (só Paralela suporta hoje, mas UI presente para consistência)
@@ -200,31 +195,20 @@ function EngineCard({ cfg, onToggle, onConfig }: {
         <div className="rounded-md border bg-muted/30 p-3 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm font-medium">
-              <Clock className="h-4 w-4 text-primary" /> Agendamento do servidor
+              <Clock className="h-4 w-4 text-primary" /> Agendamento do servidor (até 3x/dia)
             </div>
             {cfg.ativo ? <Badge variant="default">Ativo</Badge> : <Badge variant="secondary">Inativo</Badge>}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 items-end">
-            <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Horários BRT do servidor</label>
-              <Input
-                value={horariosTexto}
-                onChange={(e) => setHorariosTexto(e.target.value)}
-                onBlur={handleHorariosBlur}
-                placeholder={cfg.frequencia === "diario" ? "07:30, 13:30" : "opcional"}
-                disabled={ativaAgora}
-                className={conflitoHorarioNormal ? "border-destructive focus-visible:ring-destructive" : undefined}
-              />
-            </div>
-            <Button size="sm" variant="outline" onClick={handleHorariosBlur} disabled={ativaAgora || conflitoHorarioNormal}>
-              Salvar horário
-            </Button>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Horários BRT (até 3 por dia)</label>
+            <HorariosDoDiaPicker
+              value={horariosServidor}
+              onChange={persistirHorarios}
+              disabled={ativaAgora}
+              conflitos={isParalela ? horariosDjenNormal : []}
+              conflitoLabel={isParalela ? "Conflito com DJEN browser" : undefined}
+            />
           </div>
-          {isParalela && horariosDjenNormal.length > 0 && (
-            <p className={cn("text-xs", conflitoHorarioNormal ? "text-destructive" : "text-muted-foreground")}>
-              DJEN normal: {horariosDjenNormal.join(", ")} {conflitoHorarioNormal && "· escolha outro horário para o servidor"}
-            </p>
-          )}
         </div>
 
         {/* Filtros Paralela */}
