@@ -163,6 +163,9 @@ const AnaliseDjenServidor = () => {
   const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>('hoje');
   const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>('nao_lidas');
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
+  // Execução servidor focada: quando definida, mostra apenas as publicações
+  // que apareceram pela 1ª vez nesta execução (vs. execuções anteriores do mesmo dia).
+  const [execucaoFocada, setExecucaoFocada] = useState<ExecucaoDoDia | null>(null);
   // Toggle para ocultar visualmente publicações duplicadas (mesmo processo +
   // mesmo conteúdo dentro da mesma coordenação). Não altera o banco; apenas
   // filtra a lista renderizada. Preferência persistida em localStorage.
