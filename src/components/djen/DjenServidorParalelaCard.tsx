@@ -39,6 +39,8 @@ import {
   type ProgressoItem,
 } from "@/hooks/useDjenServidor";
 import { formatMonitoramentoLabel } from "@/utils/monitoramentoLabel";
+import { HorariosDoDiaPicker } from "@/components/djen/HorariosDoDiaPicker";
+import { DiasSemanaPicker, DIAS_SEMANA_DEFAULT } from "@/components/djen/DiasSemanaPicker";
 
 type MonitoramentoOption = {
   id: string;
@@ -116,7 +118,6 @@ export function DjenServidorParalelaCard() {
   const [dataFim, setDataFim] = useState<Date | undefined>();
   const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState("");
   const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState("");
-  const [horario, setHorario] = useState("07:00");
 
   useEffect(() => {
     const hoje = new Date();
@@ -125,9 +126,7 @@ export function DjenServidorParalelaCard() {
     setDataFim((value) => value || hoje);
   }, []);
 
-  useEffect(() => {
-    setHorario(cfg?.horarios_execucao?.[0] || "07:00");
-  }, [cfg?.id, JSON.stringify(cfg?.horarios_execucao || [])]);
+  const diasSemana = ((cfg?.metadata as any)?.dias_semana as number[] | undefined) || DIAS_SEMANA_DEFAULT;
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const coordenacaoFiltroEfetivo = filtroCoordenacaoId || null;
@@ -178,10 +177,16 @@ export function DjenServidorParalelaCard() {
   const workersOnline = workersBase.filter((w) => Date.now() - new Date(w.heartbeat_at).getTime() < 90_000);
   const currentWorker = workers.find((w) => w.current_execucao_id === exec?.id) || workersServidor.find((w) => w.status === "busy");
 
-  const handleSalvarHorario = useCallback(async () => {
+  const handleHorariosChange = useCallback(async (proximos: string[]) => {
     if (!cfg) return;
-    await updateConfig.mutateAsync({ id: cfg.id, patch: { horarios_execucao: horario ? [horario] : [] } });
-  }, [cfg, horario, updateConfig]);
+    await updateConfig.mutateAsync({ id: cfg.id, patch: { horarios_execucao: proximos } });
+  }, [cfg, updateConfig]);
+
+  const handleDiasSemanaChange = useCallback(async (dias: number[]) => {
+    if (!cfg) return;
+    const meta = { ...(cfg.metadata as any || {}), dias_semana: dias };
+    await updateConfig.mutateAsync({ id: cfg.id, patch: { metadata: meta } });
+  }, [cfg, updateConfig]);
 
   const handleToggleAgenda = useCallback(async (checked: boolean) => {
     if (!cfg) return;
@@ -259,32 +264,26 @@ export function DjenServidorParalelaCard() {
             </div>
             <Badge variant={cfg.ativo ? "default" : "secondary"}>{cfg.ativo ? "Ativo" : "Inativo"}</Badge>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-              <label htmlFor="djen-servidor-scheduler-toggle" className="text-sm font-medium">Ativar agendamento</label>
-              <Switch id="djen-servidor-scheduler-toggle" checked={cfg.ativo} onCheckedChange={handleToggleAgenda} />
-            </div>
-            <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
-              <label className="text-sm font-medium whitespace-nowrap">Horário (BRT)</label>
-              <Input
-                type="time"
-                value={horario}
-                onChange={(e) => setHorario(e.target.value)}
-                onBlur={handleSalvarHorario}
-                className="w-28 h-8"
-              />
-              <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-            </div>
+          <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+            <label htmlFor="djen-servidor-scheduler-toggle" className="text-sm font-medium">Ativar agendamento</label>
+            <Switch id="djen-servidor-scheduler-toggle" checked={cfg.ativo} onCheckedChange={handleToggleAgenda} />
           </div>
-          {cfg.ativo && nextRunLabel(horario) && (
-            <div className="flex items-center gap-2 rounded-md bg-background p-2 border">
-              <Clock className="h-4 w-4 text-primary flex-shrink-0" />
-              <div className="flex-1">
-                <p className="text-xs text-muted-foreground">Próxima execução</p>
-                <p className="text-sm font-medium">{nextRunLabel(horario)}</p>
-              </div>
-            </div>
-          )}
+          <div className="space-y-2">
+            <label className="text-xs text-muted-foreground">Horários BRT (até 3 por dia)</label>
+            <HorariosDoDiaPicker
+              value={(cfg.horarios_execucao || []) as string[]}
+              onChange={handleHorariosChange}
+              disabled={!cfg.ativo}
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs text-muted-foreground">Dias da semana</label>
+            <DiasSemanaPicker
+              value={diasSemana}
+              onChange={handleDiasSemanaChange}
+              disabled={!cfg.ativo}
+            />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

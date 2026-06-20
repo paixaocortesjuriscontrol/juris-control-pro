@@ -564,11 +564,11 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
       const numerosProcessosTermo: string[] = [];
 
       // ===== FAST PATH (RPC) =====
-      // Problema atual: muitos duplicados podem "consumir" o .limit(500) e derrubar o total (ex: 124 -> 90)
-      // + ficar lento por 3 queries + dedup no client.
-      // Para coordenação ESPECÍFICA, usamos RPC que já devolve a lista deduplicada e paginada no servidor.
-        const canUseRpc = filtros.tipoOrigem !== 'descartada'
-          && filtros.tipoOrigem !== 'djet-pautas';
+      // Desativado nesta variante: a RPC `get_djen_publicacoes_unificadas` lê das
+      // tabelas do DJEN browser (`publicacoes_djen`/`publicacoes_djen_processos`).
+      // Nesta tela queremos APENAS publicações encontradas pelo servidor
+      // (`publicacoes_djen_servidor`), então caímos sempre no fallback abaixo.
+      const canUseRpc = false;
       if (canUseRpc) {
         try {
         console.debug(`[DJEN] RPC deduplicada — page=${page} pageSize=${pageSize} offset=${offsetGlobal}`);
@@ -963,9 +963,10 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
       }
 
       // Buscar publicações de PROCESSOS (publicacoes_djen_processos)
-      // Obs: quando filtrando EXCLUSIVAMENTE por 'descartada', não deve trazer termos/processos.
-      // "parte" é um subconjunto de "termo" — não deve buscar publicações de processos
-      if (
+      // DESATIVADO nesta variante (Análise DJEN Servidor): a tabela
+      // `publicacoes_djen_processos` é alimentada pelo DJEN browser. Esta tela
+      // mostra somente publicações achadas pelo servidor.
+      if (false &&
         filtros.tipoOrigem !== 'termo' &&
         filtros.tipoOrigem !== 'parte' &&
         filtros.tipoOrigem !== 'descartada' &&
