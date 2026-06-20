@@ -26,9 +26,20 @@ function nowSP(): Date {
   return new Date(now.getTime() + (offsetMin - now.getTimezoneOffset()) * 60000);
 }
 
+function matchSlot(cfg: Cfg, sp: Date): string | null {
+  const horarios = cfg.horarios_execucao || [];
+  for (const h of horarios) {
+    const [hh, mm] = h.split(":").map(Number);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) continue;
+    const slot = hh * 60 + mm;
+    const cur = sp.getHours() * 60 + sp.getMinutes();
+    if (cur >= slot && cur < slot + 5) return `${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}`;
+  }
+  return null;
+}
+
 function shouldDispatch(cfg: Cfg, sp: Date): boolean {
   if (!cfg.ativo) return false;
-  const hhmm = `${String(sp.getHours()).padStart(2, "0")}:${String(sp.getMinutes()).padStart(2, "0")}`;
   const last = cfg.ultima_execucao ? new Date(cfg.ultima_execucao) : null;
 
   if (cfg.frequencia === "30min") {
@@ -87,13 +98,26 @@ Deno.serve(async (req) => {
   const enfileirados: string[] = [];
   for (const cfg of (cfgs || []) as Cfg[]) {
     if (!shouldDispatch(cfg, sp)) continue;
+    // Calcula rodada do dia e slot horário para visibilidade no Análise DJEN
+    const startBrt = new Date(sp);
+    startBrt.setHours(0, 0, 0, 0);
+    const startUtcIso = new Date(startBrt.getTime() + 3 * 60 * 60 * 1000).toISOString();
+    const { count: execHoje } = await sb
+      .from("execucoes_servidor")
+      .select("id", { count: "exact", head: true })
+      .eq("tipo", cfg.tipo)
+      .gte("agendado_para", startUtcIso);
+    const rodada = (execHoje ?? 0) + 1;
+    const slot = matchSlot(cfg, sp);
     const { data: jobId } = await sb.rpc("enfileirar_execucao_servidor", {
       p_tipo: cfg.tipo,
       p_agendado_para: new Date().toISOString(),
       p_payload: {},
+      p_rodada: rodada,
+      p_slot: slot,
     });
     if (jobId) {
-      enfileirados.push(`${cfg.tipo}:${jobId}`);
+      enfileirados.push(`${cfg.tipo}:${jobId}:r${rodada}${slot ? `@${slot}` : ""}`);
       await sb
         .from("configuracoes_monitoramento_servidor")
         .update({ ultima_execucao: new Date().toISOString() })
