@@ -5,7 +5,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const TIMEOUT_MS = parseInt(process.env.PAUTAS_TIMEOUT_MS || "1500000", 10); // 25min
-const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
+const { recordFalha, marcarFalhaResolvida } = require("../falhasRefila");
 const TIPO_ENGINE = "djet_pautas_servidor";
 
 async function invokePautas(body) {
@@ -46,14 +46,9 @@ async function run({ payload, log, job }) {
     dataInicio: payload?.dataInicio,
     dataFim: payload?.dataFim,
   };
-  try {
-    // Drena falha pendente do dia (se houver) antes de marcar essa execução
-    // como sucesso. Como pautas é um único job global, basta uma marcação.
-    const pendentes = await lerFalhasPendentes(require("./pautas") && undefined && undefined, TIPO_ENGINE).catch(() => []);
-    if (Array.isArray(pendentes) && pendentes.length > 0) {
-      log("pautas.retry_pendentes", { qtd: pendentes.length });
-    }
-  } catch {}
+  // Pautas é um job global — cada execução já reprocessa tudo do dia.
+  // Por isso só registramos falhas (para visibilidade) e marcamos
+  // como resolvidas em caso de sucesso; não há sub-itens para refila.
   let resp;
   try {
     resp = await invokePautas(reqBody);
