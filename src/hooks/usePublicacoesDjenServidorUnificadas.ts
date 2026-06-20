@@ -49,10 +49,6 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
   }
 };
 
-const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
-  return isEnd ? `${dateStr}T23:59:59.999Z` : `${dateStr}T00:00:00Z`;
-};
-
 function normalizarTermo(valor: string | null | undefined): string {
   return String(valor || "").trim();
 }
