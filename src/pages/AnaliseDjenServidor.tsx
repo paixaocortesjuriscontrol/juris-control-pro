@@ -121,7 +121,7 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T03:00:00Z`;
 };
 
-const AnaliseDjen = () => {
+const AnaliseDjenServidor = () => {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
   const navigate = useNavigate();
@@ -5105,4 +5105,4 @@ const AnaliseDjen = () => {
   );
 };
 
-export default AnaliseDjen;
+export default AnaliseDjenServidor;
