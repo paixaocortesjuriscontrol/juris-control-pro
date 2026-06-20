@@ -464,19 +464,16 @@ export function buildDjenLikeConteudo(params: {
 
   const sections: string[] = [];
 
-  const partes = extractPartesFromConteudo(original);
-  if (partes.length > 0) {
-    sections.push(['Parte(s)', ...partes].join('\n'));
-  }
-
-  // Injetar destinatários dos metadados da API como "Destinatário(s)" (NÃO como "Advogados")
-  // Esses são as partes notificadas, exatamente como aparece no portal DJEN
+  // UMA única seção "Parte(s)" — prioriza destinatários estruturados da API
+  // (PJE Comunica) e cai para extração do texto quando ausentes. Evita gerar
+  // dois blocos "Parte(s)" duplicados no conteúdo exibido.
+  const destsMeta = extractDestinatariosFromMeta(pub);
+  const partesTxt = extractPartesFromConteudo(original);
   const jaTemDestinatario = /\b(?:Destinat[áa]rio|Advogados?:|ADV\.|OAB[\s/])/i.test(original);
-  if (!jaTemDestinatario) {
-    const destsMeta = extractDestinatariosFromMeta(pub);
-    if (destsMeta.length > 0) {
-      sections.push('Parte(s):\n' + destsMeta.join('\n'));
-    }
+  const partesEscolhidas =
+    destsMeta.length > 0 && !jaTemDestinatario ? destsMeta : partesTxt;
+  if (partesEscolhidas.length > 0) {
+    sections.push('Parte(s):\n' + partesEscolhidas.join('\n'));
   }
 
   const blocks = [
