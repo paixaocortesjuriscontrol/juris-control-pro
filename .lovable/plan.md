@@ -1,56 +1,88 @@
-## Contexto
+## Objetivo
 
-O picker de 3 horários (`HorariosDoDiaPicker`) já está montado em `/djen-servidor` para os 3 cards (DJEN Termos, DJEN Kurier, DJEN Pautas), mas:
-- Você relata que não vê o picker no DJEN Termos — vou validar com screenshot e, se necessário, ajustar UI/labels para deixar claro (hoje aparece dentro do bloco "Agendamento do servidor"). Confirmaremos no preview.
-- Falta seleção de **dias da semana** em todos os 3 cards.
-- Falta a tela **Análise DJEN Servidor** (cópia da Análise DJEN, lendo só `publicacoes_djen_servidor`).
+Na tela **Análise DJEN Servidor**, marcar e mostrar as publicações que apareceram em execuções **posteriores** do mesmo dia (mesma `data_disponibilizacao`), comparando execuções consecutivas. Kurier fora.
 
-## Mudanças
+## Modelo de dados
 
-### 1. Dias da semana (todos os 3 cards do `/djen-servidor`)
+### Nova tabela `publicacoes_djen_servidor_execucoes` (junção)
 
-- Componente novo `src/components/djen/DiasSemanaPicker.tsx`: 7 toggles (Seg–Dom). Default = Seg–Sex quando vazio.
-- Persistência: campo `metadata.dias_semana` (int[] 0–6, 0=Dom) em `configuracoes_monitoramento_servidor` — sem migration, já é jsonb.
-- Dispatcher (`supabase/functions/dispatcher-servidor/index.ts`): ao iterar slots do dia, verifica `dayOfWeek BRT ∈ dias_semana`; se não, pula. Default Seg–Sex se ausente.
+Registra **toda vez** que uma execução "viu" uma publicação — inclusive quando ela já existia (duplicata). Sem isso, não há como dizer "a execução das 12:00 também viu as 140 da execução das 7:00".
 
-### 2. Picker de horários no DJEN Termos
+Colunas:
+- `publicacao_id uuid` → FK `publicacoes_djen_servidor(id)` ON DELETE CASCADE
+- `execucao_id uuid` → FK `execucoes_servidor(id)` ON DELETE CASCADE
+- `tipo_engine text` (`paralela` | `pautas`)
+- `created_at timestamptz default now()`
+- PK composta `(publicacao_id, execucao_id)`
+- Índices: `(execucao_id)` e `(publicacao_id)`
 
-- Validar visualmente no preview com Playwright. O componente já é renderizado para todos os tipos; provavelmente é só uma questão de scroll/altura do card. Se preciso, reorganizar o bloco "Agendamento do servidor" para o topo do `CardContent`.
+RLS / GRANTs:
+- `GRANT SELECT` para `authenticated`
+- `GRANT ALL` para `service_role`
+- Policy SELECT: `authenticated` lê tudo (mesma postura da `publicacoes_djen_servidor`)
+- Sem policies de escrita — só `service_role` (edge functions) escreve
 
-### 3. Tela `Análise DJEN Servidor`
+## Mudanças nas engines (gravar na junção)
 
-- Nova rota `/analise-djen-servidor` (AdminRoute), nova entrada no Sidebar (logo abaixo de "DJEN Servidor").
-- Novo arquivo `src/pages/AnaliseDjenServidor.tsx`: **cópia fiel** de `AnaliseDjen.tsx`, mudando só:
-  - título da página → "Análise DJEN Servidor"
-  - hook de dados → `usePublicacoesDjenServidorUnificadas`
-- Novo hook `src/hooks/usePublicacoesDjenServidorUnificadas.ts`: cópia de `usePublicacoesDjenUnificadas.ts` substituindo:
-  - `from('publicacoes_djen')` → `from('publicacoes_djen_servidor')`
-  - mantém `publicacoes_djen_leituras` / `publicacoes_djen_descartadas` / `publicacoes_djen_processos` como estão (são compartilhados; servidor ainda não escreve em `processos`, então a aba processos vai aparecer vazia — esperado).
-  - chaves de cache do React Query ganham sufixo `-servidor` para não colidir.
-- Zero alteração em `AnaliseDjen.tsx` e `usePublicacoesDjenUnificadas.ts`.
+### 1. `monitor-servidor/engines/paralela.js` (Termos servidor)
+Logo após o INSERT bem-sucedido **e** no caminho "já existe / duplicata" (quando obtemos o `publicacao_id` da linha existente), fazer:
+```js
+await supabase.from('publicacoes_djen_servidor_execucoes')
+  .upsert({ publicacao_id, execucao_id: execucaoId, tipo_engine: 'paralela' },
+          { onConflict: 'publicacao_id,execucao_id', ignoreDuplicates: true });
+```
 
-### 4. Validação das 3 execuções
+### 2. `supabase/functions/executar-djet-pautas-agendado` (Pautas servidor)
+Depois do upsert em `publicacoes_djen_servidor`, recuperar os ids (via `select`/`returning`) e inserir em lote na junção com `tipo_engine='pautas'`, `onConflict` ignorado.
 
-- Após deploy: rodar dispatcher manualmente via Playwright/SQL e confirmar que 3 slots no mesmo dia geram 3 linhas distintas em `execucoes_servidor` (com `rodada_do_dia` 1/2/3 e `slot_horario` correto). Ajustar se a dedupe key do RPC `enfileirar_execucao_servidor` rejeitar a 2ª/3ª execução.
+### 3. Kurier
+Não alterar.
 
-## Detalhes técnicos
+## Backfill (opcional, mas recomendado para histórico recente)
 
-- `metadata.dias_semana` é lido tanto no dispatcher quanto no UI (default `[1,2,3,4,5]`).
-- Card "Novas publicações" da Análise DJEN Servidor lê `execucoes_servidor` (filtrando `tipo` ∈ `{djen_paralela_servidor, kurier_servidor, djet_pautas_servidor}`) e cruza com `publicacoes_djen_servidor` pelo dia BRT para mostrar quantas vieram em cada rodada.
-- Nenhuma alteração nas engines `paralela.js` / `kurier.js` / `pautas.js` — elas já gravam `coordenacao_id` e `id_djen` em `publicacoes_djen_servidor`.
+Migration única: copiar `(id, execucao_id, 'paralela')` de `publicacoes_djen_servidor` onde `execucao_id IS NOT NULL` para a junção. Isso garante que execuções antigas tenham pelo menos o registro "vista pela primeira vez". Sem dados de "vista de novo", mas suficiente para a tela funcionar daí em diante.
+
+## UI — `src/pages/AnaliseDjenServidor.tsx` + hook
+
+### Card "Execuções do dia" (novo)
+Aparece quando há mais de uma execução servidor para a `data_disponibilizacao` filtrada (ou hoje, quando nada filtrado), respeitando o filtro de coordenação já ativo na tela.
+
+Para cada execução do dia, em ordem cronológica:
+- Horário (HH:MM) + tipo (Termos / Pautas)
+- Total de publicações vistas naquela execução (`count` na junção, com join na publicação para aplicar filtros de coordenação)
+- **Novas vs. execução anterior do mesmo dia**: publicações cujo `publicacao_id` aparece nesta execução **e não aparece** em nenhuma execução anterior do mesmo `data_disponibilizacao` (e mesmo escopo de filtros).
+  - Ex.: 7:00 → 140 vistas, 140 novas. 12:00 → 149 vistas, **9 novas**.
+- Badge clicável "Ver X novas" filtra a lista principal para esse subconjunto.
+
+### Marcação visual na lista principal
+Cada linha de publicação ganha uma pílula discreta quando ela é "nova em execução posterior" (ou seja, a primeira execução que a viu **não é** a primeira execução do dia): `Nova na execução HH:MM`. Tooltip mostra de quais execuções ela veio.
+
+### Hook `usePublicacoesDjenServidorUnificadas`
+- Aceitar filtros opcionais: `execucaoId` (limita à junção dessa execução) e `apenasNovasNaExecucao` (limita às que não aparecem em execução anterior do mesmo dia).
+- Trazer, junto com cada publicação, a lista de `execucao_ids` em que ela apareceu (para tooltip e marcação).
+
+## Cálculo de "novas vs. anterior" (definição precisa)
+
+Para a execução `E` com `data_disponibilizacao = D`:
+```text
+novas(E) = { p | (p, E) ∈ junção
+             AND NÃO EXISTE E' tal que
+                 (p, E') ∈ junção
+                 AND execucoes_servidor(E').data_disponibilizacao = D
+                 AND execucoes_servidor(E').started_at < execucoes_servidor(E).started_at }
+```
+Implementado via subquery `NOT EXISTS` no servidor — não no cliente.
+
+## Fora de escopo
+- Kurier.
+- Mudanças em `AnaliseDjen.tsx` (browser) e em `usePublicacoesDjenUnificadas`.
+- Comparação entre dias diferentes (só consecutivas do mesmo dia).
 
 ## Arquivos
 
-- novo: `src/components/djen/DiasSemanaPicker.tsx`
-- novo: `src/pages/AnaliseDjenServidor.tsx`
-- novo: `src/hooks/usePublicacoesDjenServidorUnificadas.ts`
-- editar: `src/pages/DjenServidor.tsx` (integra DiasSemanaPicker em cada card)
-- editar: `supabase/functions/dispatcher-servidor/index.ts` (respeita dias_semana)
-- editar: `src/App.tsx` (rota)
-- editar: `src/components/layout/Sidebar.tsx` (entrada)
-
-## Fora de escopo
-
-- Card de "Novas publicações" na `AnaliseDjen.tsx` original (será apenas na cópia Servidor).
-- Migração de schema (não há tabela nova).
-- Mudanças em engines / matching / dedupe.
+- migration: criar tabela `publicacoes_djen_servidor_execucoes` + GRANTs + RLS + índices + backfill.
+- editar: `monitor-servidor/engines/paralela.js` (upsert na junção em ambos os caminhos).
+- editar: `supabase/functions/executar-djet-pautas-agendado/index.ts` (insert em lote na junção).
+- editar: `src/hooks/usePublicacoesDjenServidorUnificadas.ts` (filtros `execucaoId` / `apenasNovasNaExecucao` + execucao_ids por publicação).
+- novo: `src/components/djen/ExecucoesDoDiaCard.tsx`.
+- editar: `src/pages/AnaliseDjenServidor.tsx` (montar o card + pílula nas linhas).
