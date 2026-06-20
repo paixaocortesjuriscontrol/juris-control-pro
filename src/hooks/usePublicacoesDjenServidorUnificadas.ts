@@ -450,8 +450,8 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
             .from('publicacoes_djen_servidor') as any)
             .select('id, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, coordenacao_id', { count: 'exact' })
             .eq('tipo_publicacao', 'pauta');
-          if (di) q = q.gte('created_at', di);
-          if (df) q = q.lte('created_at', df);
+          if (di) q = filtros.apenasHoje ? q.gte('data_publicacao', di) : q.gte('created_at', di);
+          if (df) q = filtros.apenasHoje ? q.lte('data_publicacao', df) : q.lte('created_at', df);
           if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
           if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
           if (filtros.coordenacaoId) q = q.eq('coordenacao_id', filtros.coordenacaoId);
@@ -520,8 +520,8 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         .or('tipo_publicacao.is.null,tipo_publicacao.neq.pauta')
         .order('created_at', { ascending: false });
 
-      if (di) q = q.gte('created_at', di);
-      if (df) q = q.lte('created_at', df);
+      if (di) q = filtros.apenasHoje ? q.gte('data_publicacao', di) : q.gte('created_at', di);
+      if (df) q = filtros.apenasHoje ? q.lte('data_publicacao', df) : q.lte('created_at', df);
       if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
       if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
       if (filtros.coordenacaoId) q = q.eq('coordenacao_id', filtros.coordenacaoId);
@@ -927,8 +927,8 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           `)
           .order('created_at', { ascending: false });
 
-        if (dataInicioFiltro) queryTermos = queryTermos.gte('created_at', dataInicioFiltro);
-        if (dataFimFiltro) queryTermos = queryTermos.lte('created_at', dataFimFiltro);
+        if (dataInicioFiltro) queryTermos = filtros.apenasHoje ? queryTermos.gte('data_publicacao', dataInicioFiltro) : queryTermos.gte('created_at', dataInicioFiltro);
+        if (dataFimFiltro) queryTermos = filtros.apenasHoje ? queryTermos.lte('data_publicacao', dataFimFiltro) : queryTermos.lte('created_at', dataFimFiltro);
         // Para DJET Pautas, `data_disponibilizacao` é gravada como meia-noite UTC
         // (semântica de DATE, não de timestamp local). Usar o range BRT (03:00→02:59 UTC)
         // descarta as pautas porque a meia-noite UTC fica ANTES da janela. Quando o filtro
