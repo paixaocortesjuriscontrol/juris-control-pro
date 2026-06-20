@@ -3752,7 +3752,7 @@ const AnaliseDjen = () => {
   };
 
   return (
-    <MainLayout title="Análise DJEN" subtitle="Publicações do dia para análise do advogado">
+    <MainLayout title="Análise DJEN Servidor" subtitle="Publicações do dia para análise do advogado">
       <div className="space-y-6">
         {/* Banners de execução DJEN */}
         <DjenExecutionBanner />
