@@ -4166,6 +4166,14 @@ const AnaliseDjenServidor = () => {
           </CardContent>
         </Card>
 
+        {/* Diferenças entre execuções servidor do dia (Termos/Pautas) */}
+        <ExecucoesDoDiaCard
+          coordenacaoId={coordenacaoFiltroEfetivo || null}
+          dataDisponibilizacao={dataDisponibilizacaoDebounced || null}
+          execucaoSelecionadaId={execucaoFocada?.id || null}
+          onSelecionarExecucao={setExecucaoFocada}
+        />
+
         {/* Actions - Mobile optimized */}
         <div className="flex flex-wrap gap-1.5 md:gap-2">
           <Button
