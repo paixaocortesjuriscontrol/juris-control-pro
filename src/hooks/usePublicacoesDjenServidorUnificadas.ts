@@ -963,9 +963,10 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
       }
 
       // Buscar publicações de PROCESSOS (publicacoes_djen_processos)
-      // Obs: quando filtrando EXCLUSIVAMENTE por 'descartada', não deve trazer termos/processos.
-      // "parte" é um subconjunto de "termo" — não deve buscar publicações de processos
-      if (
+      // DESATIVADO nesta variante (Análise DJEN Servidor): a tabela
+      // `publicacoes_djen_processos` é alimentada pelo DJEN browser. Esta tela
+      // mostra somente publicações achadas pelo servidor.
+      if (false &&
         filtros.tipoOrigem !== 'termo' &&
         filtros.tipoOrigem !== 'parte' &&
         filtros.tipoOrigem !== 'descartada' &&
