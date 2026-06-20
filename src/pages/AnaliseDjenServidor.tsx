@@ -3563,8 +3563,12 @@ const AnaliseDjenServidor = () => {
     if (ocultarDuplicadas) {
       result = dedupePublicacoesDjen(result);
     }
+    if (execucaoFocada && execucaoFocada.novasIds.length > 0) {
+      const novasSet = new Set(execucaoFocada.novasIds);
+      result = result.filter((pub) => novasSet.has(pub.id));
+    }
     return result;
-  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas, tipoOrigem]);
+  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas, tipoOrigem, execucaoFocada]);
 
   // Quantas publicações foram ocultadas pela deduplicação (para o badge).
   const totalDuplicadasOcultas = useMemo(() => {
