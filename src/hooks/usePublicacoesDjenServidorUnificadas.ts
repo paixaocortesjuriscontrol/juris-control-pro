@@ -531,7 +531,6 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
       if (filtros.coordenacaoId) q = q.eq('coordenacao_id', filtros.coordenacaoId);
       if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
       if (filtros.tribunal) q = q.ilike('tribunal', `%${filtros.tribunal}%`);
-      const monitoramentoMap = await carregarMonitoramentosDjen((rows || []).map((r: any) => r.monitoramento_id), signal);
 
       const { data: rows, error } = await q.limit(20000).abortSignal(signal);
       if (error) {
@@ -559,30 +558,32 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         });
       }
 
-      const mappedForDedup = filteredRows.map((r) => ({
+      const mappedForDedup = filteredRows.map((r) => {
         const monitoramento = monitoramentoMap.get(r.monitoramento_id);
-        id: r.id,
-        tipo_origem: 'termo' as const,
-        processo_id: null,
-        processo_numero: r.processo_numero,
-        conteudo: r.conteudo,
-        data_publicacao: r.data_publicacao,
-        data_disponibilizacao: r.data_disponibilizacao,
-        fonte: r.fonte,
-        lida: false,
-        created_at: r.created_at,
-        monitoramento_id: r.monitoramento_id,
-        monitoramento_termo: monitoramento?.termo_busca ?? null,
-        monitoramento_descricao: null,
-        monitoramento_tipo: monitoramento?.tipo ?? null,
-        monitoramento_oab: null,
-        monitoramento_uf: null,
-        coordenacao_id: r.coordenacao_id ?? monitoramento?.coordenacao_id ?? null,
-        coordenacao_nome: null,
-        polo_ativo: null,
-        polo_passivo: null,
-        tribunal: r.tribunal ?? null,
-      })) as PublicacaoUnificada[];
+        return {
+          id: r.id,
+          tipo_origem: 'termo' as const,
+          processo_id: null,
+          processo_numero: r.processo_numero,
+          conteudo: r.conteudo,
+          data_publicacao: r.data_publicacao,
+          data_disponibilizacao: r.data_disponibilizacao,
+          fonte: r.fonte,
+          lida: false,
+          created_at: r.created_at,
+          monitoramento_id: r.monitoramento_id,
+          monitoramento_termo: monitoramento?.termo_busca ?? null,
+          monitoramento_descricao: null,
+          monitoramento_tipo: monitoramento?.tipo ?? null,
+          monitoramento_oab: null,
+          monitoramento_uf: null,
+          coordenacao_id: r.coordenacao_id ?? monitoramento?.coordenacao_id ?? null,
+          coordenacao_nome: null,
+          polo_ativo: null,
+          polo_passivo: null,
+          tribunal: r.tribunal ?? null,
+        };
+      }) as PublicacaoUnificada[];
 
       const ids = mappedForDedup.map((r) => r.id);
       const readSet = new Set<string>();
