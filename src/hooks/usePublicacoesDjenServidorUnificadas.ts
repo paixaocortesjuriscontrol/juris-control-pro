@@ -340,10 +340,10 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
       const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
+        ? `${filtros.dataDisponibilizacao}T00:00:00Z`
         : null;
       const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
+        ? `${filtros.dataDisponibilizacao}T23:59:59.999Z`
         : null;
 
       try {
@@ -431,10 +431,10 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
       const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
+        ? `${filtros.dataDisponibilizacao}T00:00:00Z`
         : null;
       const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
+        ? `${filtros.dataDisponibilizacao}T23:59:59.999Z`
         : null;
 
       // Conta per-user via RPC: "não lidas" considera publicacoes_djen_leituras
@@ -643,10 +643,10 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
       const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
+        ? `${filtros.dataDisponibilizacao}T00:00:00Z`
         : null;
       const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
+        ? `${filtros.dataDisponibilizacao}T23:59:59.999Z`
         : null;
 
       const resultados: PublicacaoUnificada[] = [];
