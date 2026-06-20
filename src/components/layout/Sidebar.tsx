@@ -57,7 +57,7 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle", highlight: true },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
   { icon: ArrowRightLeft, label: "Comparar DJEN", path: "/comparar-dj-santander", highlight: true },
-  { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true, adminOrCoordOnly: true },
+  { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true, adminOnly: true },
   { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true, adminOrCoordOnly: true },
   // Demais itens
@@ -88,8 +88,8 @@ export function Sidebar() {
   const { isAdmin, isAdminOrCoordinator, role } = useUserRole();
   const isAdvogadoTemporario = role === "advogado_temporario";
 
-  // Advogado Temporário (perfil de conferência) vê Análise DJEN, Termos DJEN e Comparar DJEN
-  const allowedForTemporario = new Set(["/analise-djen", "/termos-djen", "/comparar-dj-santander", "/errata-djen"]);
+  // Advogado Temporário (perfil de conferência) vê Análise DJEN e Comparar DJEN
+  const allowedForTemporario = new Set(["/analise-djen", "/comparar-dj-santander", "/errata-djen"]);
 
   const visiblePublicos = isAdvogadoTemporario
     ? menuItemsPublicos.filter((item) => allowedForTemporario.has(item.path))
