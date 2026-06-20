@@ -73,6 +73,8 @@ import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, for
 import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 
 import { usePublicacoesDjenServidorUnificadas, PublicacaoUnificada, FiltroLeituraDjen } from "@/hooks/usePublicacoesDjenServidorUnificadas";
+import { ExecucoesDoDiaCard } from "@/components/djen/ExecucoesDoDiaCard";
+import type { ExecucaoDoDia } from "@/hooks/useExecucoesDoDiaServidor";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
