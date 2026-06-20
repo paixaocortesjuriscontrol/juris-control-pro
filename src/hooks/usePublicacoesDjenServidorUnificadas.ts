@@ -518,9 +518,9 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         }
       }
 
-      let q = (supabase
-        .from('publicacoes_djen_servidor') as any)
-        .select('id, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, fonte, created_at, monitoramento_id, tipo_publicacao, coordenacao_id, monitoramento:monitoramentos_djen!inner(tipo, termo_busca, coordenacao_id)', { count: 'exact' })
+        let q = (supabase
+          .from('publicacoes_djen_servidor') as any)
+          .select('id, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, fonte, created_at, monitoramento_id, tipo_publicacao, coordenacao_id', { count: 'exact' })
         .or('tipo_publicacao.is.null,tipo_publicacao.neq.pauta')
         .order('created_at', { ascending: false });
 
@@ -531,7 +531,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
       if (filtros.coordenacaoId) q = q.eq('coordenacao_id', filtros.coordenacaoId);
       if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
       if (filtros.tribunal) q = q.ilike('tribunal', `%${filtros.tribunal}%`);
-      if (filtros.tipoOrigem === 'parte') q = q.eq('monitoramento.tipo', 'parte');
+      const monitoramentoMap = await carregarMonitoramentosDjen((rows || []).map((r: any) => r.monitoramento_id), signal);
 
       const { data: rows, error } = await q.limit(20000).abortSignal(signal);
       if (error) {
@@ -540,13 +540,18 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
       }
 
       let filteredRows = (rows || []) as any[];
+      const monitoramentoMap = await carregarMonitoramentosDjen(filteredRows.map((r: any) => r.monitoramento_id), signal);
+      if (filtros.tipoOrigem === 'parte') {
+        filteredRows = filteredRows.filter((pub) => (monitoramentoMap.get(pub.monitoramento_id)?.tipo || '').toLowerCase() === 'parte');
+      }
       if (filtros.termoBusca) {
         const termo = filtros.termoBusca.toLowerCase();
         const termoDigits = termo.replace(/\D/g, '');
         filteredRows = filteredRows.filter((pub) => {
+          const monitoramento = monitoramentoMap.get(pub.monitoramento_id);
           const matchConteudo = conteudoContemFraseExata(pub.conteudo, filtros.termoBusca!);
           const matchProcesso = pub.processo_numero?.toLowerCase().includes(termo);
-          const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termo);
+          const matchTermoMonitor = monitoramento?.termo_busca?.toLowerCase().includes(termo);
           const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
             ? (() => { const d = pub.processo_numero.replace(/\D/g, ''); return d.includes(termoDigits) || termoDigits.includes(d); })()
             : false;
@@ -555,6 +560,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
       }
 
       const mappedForDedup = filteredRows.map((r) => ({
+        const monitoramento = monitoramentoMap.get(r.monitoramento_id);
         id: r.id,
         tipo_origem: 'termo' as const,
         processo_id: null,
@@ -566,12 +572,12 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         lida: false,
         created_at: r.created_at,
         monitoramento_id: r.monitoramento_id,
-        monitoramento_termo: r.monitoramento?.termo_busca ?? null,
+        monitoramento_termo: monitoramento?.termo_busca ?? null,
         monitoramento_descricao: null,
-        monitoramento_tipo: r.monitoramento?.tipo ?? null,
+        monitoramento_tipo: monitoramento?.tipo ?? null,
         monitoramento_oab: null,
         monitoramento_uf: null,
-        coordenacao_id: r.coordenacao_id ?? r.monitoramento?.coordenacao_id ?? null,
+        coordenacao_id: r.coordenacao_id ?? monitoramento?.coordenacao_id ?? null,
         coordenacao_nome: null,
         polo_ativo: null,
         polo_passivo: null,
