@@ -273,7 +273,7 @@ async function mergeWithLeituras(
   return merged;
 }
 
-export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
+export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const readStatus: FiltroLeituraDjen = filtros.readStatus ?? (filtros.apenasNaoLidas ? 'nao_lidas' : 'todas');
