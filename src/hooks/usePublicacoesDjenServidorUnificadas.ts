@@ -452,13 +452,13 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         try {
           let q = (supabase
             .from('publicacoes_djen_servidor') as any)
-            .select('id, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
+            .select('id, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, coordenacao_id', { count: 'exact' })
             .eq('tipo_publicacao', 'pauta');
           if (di) q = q.gte('created_at', di);
           if (df) q = q.lte('created_at', df);
           if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
           if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
-          if (filtros.coordenacaoId) q = q.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
+          if (filtros.coordenacaoId) q = q.eq('coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
           const { data: pautasRows } = await q.limit(2000).abortSignal(signal);
           // Per-user read status via RPC
@@ -490,7 +490,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
               monitoramento_tipo: null,
               monitoramento_oab: null,
               monitoramento_uf: null,
-              coordenacao_id: r.monitoramento?.coordenacao_id ?? null,
+              coordenacao_id: r.coordenacao_id ?? null,
               coordenacao_nome: null,
               polo_ativo: null,
               polo_passivo: null,
