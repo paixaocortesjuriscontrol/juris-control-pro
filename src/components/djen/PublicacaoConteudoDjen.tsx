@@ -517,9 +517,10 @@ const stripMetadataFromContent = (texto: string | null): string | null => {
   const headerPattern = /^(\s*(Órgão\s*:|Data\s+de\s+(disponibilização|publicação)\s*:|Tipo\s+de\s+comunica[çc][ãa]o\s*:|Meio\s*:|Processo\s*:|Advogados?\s*:|Destinat[áa]rio\s*\(?\s*s?\s*\)?\s*:)[^\n]*\n?)+/im;
   plain = plain.replace(headerPattern, '');
   // Remove bloco "Advogados:" ou "Destinatário(s):" com nomes em sequência (sem OAB)
-  plain = plain.replace(/(?:Advogados?|Destinat[áa]rio\s*\(?\s*s?\s*\)?)\s*:\s*\n(?:[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n]*\n?){1,10}/i, '');
-  // Remove bloco "Parte(s):" com nomes em sequência (injetado por buildDjenLikeConteudo)
-  plain = plain.replace(/Parte\s*\(?\s*s?\s*\)?\s*:?\s*\n(?:[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n]*\n?){1,30}/i, '');
+  plain = plain.replace(/(?:Advogados?|Destinat[áa]rio\s*\(?\s*s?\s*\)?)\s*:\s*\n(?:[A-ZÁÉÍÓÚÂÊÔÃÕÇ][^\n]*\n?){1,10}/gi, '');
+  // Remove TODOS os blocos "Parte(s)" / "Parte(s):" injetados por buildDjenLikeConteudo
+  // (podem aparecer 2x: um vindo de extractPartesFromConteudo e outro de destinatariosMeta).
+  plain = plain.replace(/Parte\s*\(?\s*s?\s*\)?\s*:?\s*\n(?:[A-ZÁÉÍÓÚÂÊÔÃÕÇ0-9][^\n]*\n?){1,30}/gi, '');
   return plain.trim() || texto;
 };
 
