@@ -39,6 +39,8 @@ import {
   type ProgressoItem,
 } from "@/hooks/useDjenServidor";
 import { formatMonitoramentoLabel } from "@/utils/monitoramentoLabel";
+import { HorariosDoDiaPicker } from "@/components/djen/HorariosDoDiaPicker";
+import { DiasSemanaPicker, DIAS_SEMANA_DEFAULT } from "@/components/djen/DiasSemanaPicker";
 
 type MonitoramentoOption = {
   id: string;
