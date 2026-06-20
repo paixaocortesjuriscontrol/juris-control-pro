@@ -8108,21 +8108,16 @@ export type Database = {
         }[]
       }
       djen_strip_destinatarios: { Args: { p_text: string }; Returns: string }
-      enfileirar_execucao_servidor:
-        | {
-            Args: { p_agendado_para?: string; p_payload?: Json; p_tipo: string }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_agendado_para?: string
-              p_payload?: Json
-              p_rodada?: number
-              p_slot?: string
-              p_tipo: string
-            }
-            Returns: string
-          }
+      enfileirar_execucao_servidor: {
+        Args: {
+          p_agendado_para?: string
+          p_payload?: Json
+          p_rodada?: number
+          p_slot?: string
+          p_tipo: string
+        }
+        Returns: string
+      }
       extract_cnj_from_text: { Args: { p_text: string }; Returns: string }
       find_processo_id_by_numero: { Args: { _numero: string }; Returns: string }
       gerar_numero_remessa_benner: { Args: never; Returns: string }
