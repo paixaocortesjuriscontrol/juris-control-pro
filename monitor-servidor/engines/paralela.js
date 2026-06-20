@@ -590,9 +590,15 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     }
     if (exists) {
       stats.duplicatas++;
+      if (execucaoId) {
+        await sb.from("publicacoes_djen_servidor_execucoes").upsert(
+          { publicacao_id: exists.id, execucao_id: execucaoId, tipo_engine: "paralela" },
+          { onConflict: "publicacao_id,execucao_id", ignoreDuplicates: true }
+        );
+      }
       continue;
     }
-    const { error } = await sb.from("publicacoes_djen_servidor").insert({
+    const { data: inserted, error } = await sb.from("publicacoes_djen_servidor").insert({
       monitoramento_id: mon.id,
       coordenacao_id: coordenacaoId,
       hash_conteudo: hashConteudo,
@@ -605,9 +611,17 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       ...metadata,
       origem: "servidor",
       execucao_id: execucaoId || null,
-    });
+    }).select("id").maybeSingle();
     if (error) stats.descartadas++;
-    else stats.novas++;
+    else {
+      stats.novas++;
+      if (execucaoId && inserted?.id) {
+        await sb.from("publicacoes_djen_servidor_execucoes").upsert(
+          { publicacao_id: inserted.id, execucao_id: execucaoId, tipo_engine: "paralela" },
+          { onConflict: "publicacao_id,execucao_id", ignoreDuplicates: true }
+        );
+      }
+    }
   }
   return stats;
 }
