@@ -17,6 +17,7 @@ type Cfg = {
   ativo: boolean;
   horarios_execucao: string[] | null;
   ultima_execucao: string | null;
+  metadata: Record<string, unknown> | null;
 };
 
 function nowSP(): Date {
@@ -40,6 +41,11 @@ function matchSlot(cfg: Cfg, sp: Date): string | null {
 
 function shouldDispatch(cfg: Cfg, sp: Date): boolean {
   if (!cfg.ativo) return false;
+  // Dias da semana (0=Dom..6=Sáb). Default Seg-Sex se ausente.
+  const dias = Array.isArray((cfg.metadata as any)?.dias_semana)
+    ? ((cfg.metadata as any).dias_semana as number[])
+    : [1, 2, 3, 4, 5];
+  if (!dias.includes(sp.getDay())) return false;
   const last = cfg.ultima_execucao ? new Date(cfg.ultima_execucao) : null;
 
   if (cfg.frequencia === "30min") {
@@ -84,7 +90,7 @@ Deno.serve(async (req) => {
   // 2) Carrega configs ativas
   const { data: cfgs, error } = await sb
     .from("configuracoes_monitoramento_servidor")
-    .select("id, tipo, frequencia, ativo, horarios_execucao, ultima_execucao")
+    .select("id, tipo, frequencia, ativo, horarios_execucao, ultima_execucao, metadata")
     .eq("ativo", true);
 
   if (error) {
