@@ -49,6 +49,10 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
   }
 };
 
+const dateOnlyToUTCFullDayRange = (dateStr: string, isEnd: boolean): string => {
+  return isEnd ? `${dateStr}T23:59:59.999Z` : `${dateStr}T00:00:00Z`;
+};
+
 function normalizarTermo(valor: string | null | undefined): string {
   return String(valor || "").trim();
 }
@@ -308,10 +312,10 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
       const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
+        ? dateOnlyToUTCFullDayRange(filtros.dataDisponibilizacao, false)
         : null;
       const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
+        ? dateOnlyToUTCFullDayRange(filtros.dataDisponibilizacao, true)
         : null;
 
       try {
@@ -399,10 +403,10 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
       const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
+        ? dateOnlyToUTCFullDayRange(filtros.dataDisponibilizacao, false)
         : null;
       const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
+        ? dateOnlyToUTCFullDayRange(filtros.dataDisponibilizacao, true)
         : null;
 
       // Conta per-user via RPC: "não lidas" considera publicacoes_djen_leituras
@@ -416,7 +420,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         try {
           let q = (supabase
             .from('publicacoes_djen_servidor') as any)
-            .select('id, lida, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
+            .select('id, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
             .eq('tipo_publicacao', 'pauta');
           if (di) q = q.gte('created_at', di);
           if (df) q = q.lte('created_at', df);
@@ -446,7 +450,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
               data_publicacao: r.data_publicacao,
               data_disponibilizacao: r.data_disponibilizacao,
               fonte: null,
-              lida: r.lida,
+              lida: false,
               created_at: r.created_at,
               monitoramento_id: null,
               monitoramento_termo: null,
@@ -482,35 +486,85 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         }
       }
 
-      const { data, error } = await (supabase.rpc as any)('get_djen_stats_per_user', {
-        p_coordenacao_id: filtros.coordenacaoId ?? null,
-        p_inicio: di,
-        p_fim: df,
-        p_tipo_origem: filtros.tipoOrigem && filtros.tipoOrigem !== 'descartada' && filtros.tipoOrigem !== 'todos'
-          ? filtros.tipoOrigem
-          : null,
-        p_search_query: filtros.termoBusca || null,
-        p_monitoramento_id: filtros.monitoramentoId || null,
-        p_data_disponibilizacao_inicio: dataDisponibilizacaoInicio,
-        p_data_disponibilizacao_fim: dataDisponibilizacaoFim,
-        p_tribunal: filtros.tribunal || null,
-      }).abortSignal(signal);
+      let q = (supabase
+        .from('publicacoes_djen_servidor') as any)
+        .select('id, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, fonte, created_at, monitoramento_id, tipo_publicacao, coordenacao_id, monitoramento:monitoramentos_djen!inner(tipo, termo_busca, coordenacao_id)', { count: 'exact' })
+        .or('tipo_publicacao.is.null,tipo_publicacao.neq.pauta')
+        .order('created_at', { ascending: false });
+
+      if (di) q = q.gte('created_at', di);
+      if (df) q = q.lte('created_at', df);
+      if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
+      if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
+      if (filtros.coordenacaoId) q = q.eq('coordenacao_id', filtros.coordenacaoId);
+      if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
+      if (filtros.tribunal) q = q.ilike('tribunal', `%${filtros.tribunal}%`);
+      if (filtros.tipoOrigem === 'parte') q = q.eq('monitoramento.tipo', 'parte');
+
+      const { data: rows, error } = await q.limit(20000).abortSignal(signal);
       if (error) {
-        console.error('[stats-header] get_djen_stats_per_user error', error);
+        console.error('[stats-header] publicacoes_djen_servidor error', error);
         return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0, totalUnicas: 0, naoLidasUnicas: 0 };
       }
-      const row = Array.isArray(data) ? data[0] : data;
-      const tT = Number(row?.total_termos ?? 0);
-      const tP = Number(row?.total_processos ?? 0);
-      const nT = Number(row?.nao_lidas_termos ?? 0);
-      const nP = Number(row?.nao_lidas_processos ?? 0);
-      const totalUnicas = Number(row?.total_unicas ?? 0);
-      const naoLidasUnicas = Number(row?.nao_lidas_unicas ?? 0);
-      const totalBruto = Number(row?.total_bruto ?? (tT + tP));
-      const total = totalBruto;
-      const naoLidas = nT + nP;
+
+      let filteredRows = (rows || []) as any[];
+      if (filtros.termoBusca) {
+        const termo = filtros.termoBusca.toLowerCase();
+        const termoDigits = termo.replace(/\D/g, '');
+        filteredRows = filteredRows.filter((pub) => {
+          const matchConteudo = conteudoContemFraseExata(pub.conteudo, filtros.termoBusca!);
+          const matchProcesso = pub.processo_numero?.toLowerCase().includes(termo);
+          const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termo);
+          const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
+            ? (() => { const d = pub.processo_numero.replace(/\D/g, ''); return d.includes(termoDigits) || termoDigits.includes(d); })()
+            : false;
+          return matchConteudo || matchProcesso || matchTermoMonitor || matchProcessoDigits;
+        });
+      }
+
+      const mappedForDedup = filteredRows.map((r) => ({
+        id: r.id,
+        tipo_origem: 'termo' as const,
+        processo_id: null,
+        processo_numero: r.processo_numero,
+        conteudo: r.conteudo,
+        data_publicacao: r.data_publicacao,
+        data_disponibilizacao: r.data_disponibilizacao,
+        fonte: r.fonte,
+        lida: false,
+        created_at: r.created_at,
+        monitoramento_id: r.monitoramento_id,
+        monitoramento_termo: r.monitoramento?.termo_busca ?? null,
+        monitoramento_descricao: null,
+        monitoramento_tipo: r.monitoramento?.tipo ?? null,
+        monitoramento_oab: null,
+        monitoramento_uf: null,
+        coordenacao_id: r.coordenacao_id ?? r.monitoramento?.coordenacao_id ?? null,
+        coordenacao_nome: null,
+        polo_ativo: null,
+        polo_passivo: null,
+        tribunal: r.tribunal ?? null,
+      })) as PublicacaoUnificada[];
+
+      const ids = mappedForDedup.map((r) => r.id);
+      const readSet = new Set<string>();
+      if (ids.length > 0) {
+        const { data: leituras } = await (supabase as any).rpc('get_leituras_publicacoes', { p_ids: ids });
+        (leituras || []).forEach((l: any) => {
+          if (l.usuario_id === user.id) readSet.add(l.publicacao_id);
+        });
+      }
+
+      const total = mappedForDedup.length;
+      const naoLidas = mappedForDedup.filter((r) => !readSet.has(r.id)).length;
+      const totalUnicas = dedupePublicacoesDjen(mappedForDedup).length;
+      const naoLidasUnicas = dedupePublicacoesDjen(mappedForDedup.filter((r) => !readSet.has(r.id))).length;
+      const tT = total;
+      const tP = 0;
+      const nT = naoLidas;
+      const nP = 0;
       const lT = Math.max(0, tT - nT);
-      const lP = Math.max(0, tP - nP);
+      const lP = 0;
       if (readStatus === 'nao_lidas') {
         return { total: naoLidas, naoLidas, totalTermos: nT, totalProcessos: nP, totalUnicas: naoLidasUnicas, naoLidasUnicas };
       }
@@ -554,10 +608,10 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
       const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
+        ? dateOnlyToUTCFullDayRange(filtros.dataDisponibilizacao, false)
         : null;
       const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
-        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
+        ? dateOnlyToUTCFullDayRange(filtros.dataDisponibilizacao, true)
         : null;
 
       const resultados: PublicacaoUnificada[] = [];
@@ -862,7 +916,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         
         // Filtrar por coordenação NO BANCO para performance
         if (filtros.coordenacaoId) {
-          queryTermos = queryTermos.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
+          queryTermos = queryTermos.eq('coordenacao_id', filtros.coordenacaoId);
         }
         if (filtros.monitoramentoId) {
           queryTermos = queryTermos.eq('monitoramento_id', filtros.monitoramentoId);
