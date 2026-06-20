@@ -256,6 +256,28 @@ async function persistMatches(
       novas += inseridas;
       duplicadas += slice.length - inseridas;
     }
+    // Grava junção execução×publicação (somente servidor)
+    if (persistMode === "servidor" && execucaoId) {
+      const hashes = slice.map((r) => r.hash_conteudo as string).filter(Boolean);
+      const monitoramentoIds = Array.from(new Set(slice.map((r) => r.monitoramento_id as string).filter(Boolean)));
+      if (hashes.length > 0 && monitoramentoIds.length > 0) {
+        const { data: ids } = await supabase
+          .from("publicacoes_djen_servidor")
+          .select("id")
+          .in("monitoramento_id", monitoramentoIds)
+          .in("hash_conteudo", hashes);
+        if (ids && ids.length > 0) {
+          const junctionRows = ids.map((p: { id: string }) => ({
+            publicacao_id: p.id,
+            execucao_id: execucaoId,
+            tipo_engine: "pautas",
+          }));
+          await supabase
+            .from("publicacoes_djen_servidor_execucoes")
+            .upsert(junctionRows, { onConflict: "publicacao_id,execucao_id", ignoreDuplicates: true });
+        }
+      }
+    }
   }
   return { novas, duplicadas };
 }

@@ -6900,6 +6900,42 @@ export type Database = {
           },
         ]
       }
+      publicacoes_djen_servidor_execucoes: {
+        Row: {
+          created_at: string
+          execucao_id: string
+          publicacao_id: string
+          tipo_engine: string
+        }
+        Insert: {
+          created_at?: string
+          execucao_id: string
+          publicacao_id: string
+          tipo_engine: string
+        }
+        Update: {
+          created_at?: string
+          execucao_id?: string
+          publicacao_id?: string
+          tipo_engine?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publicacoes_djen_servidor_execucoes_execucao_id_fkey"
+            columns: ["execucao_id"]
+            isOneToOne: false
+            referencedRelation: "execucoes_servidor"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publicacoes_djen_servidor_execucoes_publicacao_id_fkey"
+            columns: ["publicacao_id"]
+            isOneToOne: false
+            referencedRelation: "publicacoes_djen_servidor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       publicacoes_pje: {
         Row: {
           conteudo: string | null

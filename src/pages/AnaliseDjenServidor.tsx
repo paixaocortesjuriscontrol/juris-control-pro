@@ -73,6 +73,8 @@ import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, for
 import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 
 import { usePublicacoesDjenServidorUnificadas, PublicacaoUnificada, FiltroLeituraDjen } from "@/hooks/usePublicacoesDjenServidorUnificadas";
+import { ExecucoesDoDiaCard } from "@/components/djen/ExecucoesDoDiaCard";
+import type { ExecucaoDoDia } from "@/hooks/useExecucoesDoDiaServidor";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -161,6 +163,13 @@ const AnaliseDjenServidor = () => {
   const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>('hoje');
   const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>('nao_lidas');
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
+  // Execução servidor focada: quando definida, mostra apenas as publicações
+  // que apareceram pela 1ª vez nesta execução (vs. execuções anteriores do mesmo dia).
+  const [execucaoFocada, setExecucaoFocada] = useState<ExecucaoDoDia | null>(null);
+  // Limpa execução focada quando muda dia/coordenação (o conjunto de execuções muda)
+  useEffect(() => {
+    setExecucaoFocada(null);
+  }, [dataDisponibilizacao, coordenacaoId]);
   // Toggle para ocultar visualmente publicações duplicadas (mesmo processo +
   // mesmo conteúdo dentro da mesma coordenação). Não altera o banco; apenas
   // filtra a lista renderizada. Preferência persistida em localStorage.
@@ -3558,8 +3567,12 @@ const AnaliseDjenServidor = () => {
     if (ocultarDuplicadas) {
       result = dedupePublicacoesDjen(result);
     }
+    if (execucaoFocada && execucaoFocada.novasIds.length > 0) {
+      const novasSet = new Set(execucaoFocada.novasIds);
+      result = result.filter((pub) => novasSet.has(pub.id));
+    }
     return result;
-  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas, tipoOrigem]);
+  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas, tipoOrigem, execucaoFocada]);
 
   // Quantas publicações foram ocultadas pela deduplicação (para o badge).
   const totalDuplicadasOcultas = useMemo(() => {
@@ -4152,6 +4165,14 @@ const AnaliseDjenServidor = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Diferenças entre execuções servidor do dia (Termos/Pautas) */}
+        <ExecucoesDoDiaCard
+          coordenacaoId={coordenacaoFiltroEfetivo || null}
+          dataDisponibilizacao={dataDisponibilizacaoDebounced || null}
+          execucaoSelecionadaId={execucaoFocada?.id || null}
+          onSelecionarExecucao={setExecucaoFocada}
+        />
 
         {/* Actions - Mobile optimized */}
         <div className="flex flex-wrap gap-1.5 md:gap-2">
