@@ -278,6 +278,21 @@ const extractPartesAndAdvogados = (
     }
   }
 
+  // ── 3c. Formato DJEN "Advogado do(a) <PAPEL>: NOME - UFNNNNN" (sem palavra OAB, UF grudada ao número)
+  if (texto) {
+    const plainText = texto.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    for (const match of plainText.matchAll(
+      /Advogad[oa]s?\s+d[oa]\s*\(\s*[oa]\s*\)\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ]+\s*:\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s\.']+?)\s*-\s*([A-Z]{2})\s*[-–—]?\s*(\d{3,10})(?=\s|$|,|;|\.)/g
+    )) {
+      const nome = (match[1] || "").trim().replace(/\s+(?:Advogad[oa]s?)$/i, "");
+      const uf = (match[2] || "").toUpperCase();
+      const numero = (match[3] || "").trim();
+      if (nome.length >= 4 && uf && numero) {
+        addAdvogado(`${nome} - OAB ${uf}-${numero}`, `${uf}-${numero}`);
+      }
+    }
+  }
+
   // ── 4. Partes de padrões rotulados no texto ───────────────────────────
   if (texto) {
     const plainText = texto.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
