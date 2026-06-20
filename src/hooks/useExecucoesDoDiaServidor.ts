@@ -36,8 +36,8 @@ export function useExecucoesDoDiaServidor(
     staleTime: 30_000,
     queryFn: async (): Promise<ExecucaoDoDia[]> => {
       // 1) Execuções servidor do dia (Termos = paralela, Pautas = pautas)
-      const { data: execs, error: execErr } = await supabase
-        .from("execucoes_servidor")
+      const { data: execs, error: execErr } = await (supabase
+        .from("execucoes_servidor") as any)
         .select("id, tipo, started_at, data_disponibilizacao")
         .eq("data_disponibilizacao", ymd)
         .order("started_at", { ascending: true });
