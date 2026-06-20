@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.enfileirar_execucao_servidor(text, timestamptz, jsonb);
