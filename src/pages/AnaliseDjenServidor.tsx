@@ -166,6 +166,10 @@ const AnaliseDjenServidor = () => {
   // Execução servidor focada: quando definida, mostra apenas as publicações
   // que apareceram pela 1ª vez nesta execução (vs. execuções anteriores do mesmo dia).
   const [execucaoFocada, setExecucaoFocada] = useState<ExecucaoDoDia | null>(null);
+  // Limpa execução focada quando muda dia/coordenação (o conjunto de execuções muda)
+  useEffect(() => {
+    setExecucaoFocada(null);
+  }, [dataDisponibilizacao, coordenacaoId]);
   // Toggle para ocultar visualmente publicações duplicadas (mesmo processo +
   // mesmo conteúdo dentro da mesma coordenação). Não altera o banco; apenas
   // filtra a lista renderizada. Preferência persistida em localStorage.
