@@ -88,8 +88,8 @@ export function Sidebar() {
   const { isAdmin, isAdminOrCoordinator, role } = useUserRole();
   const isAdvogadoTemporario = role === "advogado_temporario";
 
-  // Advogado Temporário (perfil de conferência) vê Análise DJEN, Termos DJEN e Comparar DJEN
-  const allowedForTemporario = new Set(["/analise-djen", "/termos-djen", "/comparar-dj-santander", "/errata-djen"]);
+  // Advogado Temporário (perfil de conferência) vê Análise DJEN e Comparar DJEN
+  const allowedForTemporario = new Set(["/analise-djen", "/comparar-dj-santander", "/errata-djen"]);
 
   const visiblePublicos = isAdvogadoTemporario
     ? menuItemsPublicos.filter((item) => allowedForTemporario.has(item.path))
