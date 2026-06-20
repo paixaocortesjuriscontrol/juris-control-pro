@@ -916,7 +916,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         
         // Filtrar por coordenação NO BANCO para performance
         if (filtros.coordenacaoId) {
-          queryTermos = queryTermos.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
+          queryTermos = queryTermos.eq('coordenacao_id', filtros.coordenacaoId);
         }
         if (filtros.monitoramentoId) {
           queryTermos = queryTermos.eq('monitoramento_id', filtros.monitoramentoId);
