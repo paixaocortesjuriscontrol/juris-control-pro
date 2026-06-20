@@ -32,6 +32,7 @@ import {
 } from "@/hooks/useDjenServidor";
 import { DjenServidorParalelaCard } from "@/components/djen/DjenServidorParalelaCard";
 import { HorariosDoDiaPicker } from "@/components/djen/HorariosDoDiaPicker";
+import { DiasSemanaPicker, DIAS_SEMANA_DEFAULT } from "@/components/djen/DiasSemanaPicker";
 
 const LABELS: Record<string, string> = {
   djen_paralela_servidor: "DJEN Termos",
@@ -117,6 +118,14 @@ function EngineCard({ cfg, onToggle, onConfig }: {
     if (isParalela && proximos.some((h) => horariosDjenNormal.includes(h))) return;
     const atual = JSON.stringify(cfg.horarios_execucao || []);
     if (atual !== JSON.stringify(proximos)) onConfig(cfg.id, { horarios_execucao: proximos });
+  };
+
+  const diasSemana: number[] = Array.isArray((cfg.metadata as any)?.dias_semana)
+    ? ((cfg.metadata as any).dias_semana as number[])
+    : DIAS_SEMANA_DEFAULT;
+  const persistirDiasSemana = (proximos: number[]) => {
+    const meta = { ...((cfg.metadata as Record<string, unknown>) || {}), dias_semana: proximos };
+    onConfig(cfg.id, { metadata: meta });
   };
 
   // Filtros (só Paralela suporta hoje, mas UI presente para consistência)
@@ -207,6 +216,14 @@ function EngineCard({ cfg, onToggle, onConfig }: {
               disabled={ativaAgora}
               conflitos={isParalela ? horariosDjenNormal : []}
               conflitoLabel={isParalela ? "Conflito com DJEN browser" : undefined}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Dias da semana</label>
+            <DiasSemanaPicker
+              value={diasSemana}
+              onChange={persistirDiasSemana}
+              disabled={ativaAgora}
             />
           </div>
         </div>
