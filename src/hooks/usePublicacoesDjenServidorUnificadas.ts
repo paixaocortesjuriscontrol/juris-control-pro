@@ -141,6 +141,38 @@ async function enriquecerPublicacoesComMonitoramento(
   });
 }
 
+type MonitoramentoDjenInfo = {
+  id: string;
+  tipo: string | null;
+  termo_busca: string | null;
+  descricao: string | null;
+  oab: string | null;
+  uf: string | null;
+  coordenacao_id: string | null;
+  coordenacao?: { id: string; nome: string } | null;
+};
+
+async function carregarMonitoramentosDjen(
+  monitoramentoIds: Array<string | null | undefined>,
+  signal?: AbortSignal
+): Promise<Map<string, MonitoramentoDjenInfo>> {
+  const ids = [...new Set(monitoramentoIds.filter(Boolean) as string[])];
+  if (ids.length === 0) return new Map();
+
+  let query = (supabase.from('monitoramentos_djen') as any)
+    .select('id, tipo, termo_busca, descricao, oab, uf, coordenacao_id, coordenacao:coordenacoes(id, nome)')
+    .in('id', ids);
+  if (signal) query = query.abortSignal(signal);
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn('[DJEN Servidor] Falha ao carregar monitoramentos:', error);
+    return new Map();
+  }
+
+  return new Map((data || []).map((m: MonitoramentoDjenInfo) => [m.id, m]));
+}
+
 export interface LeituraUsuario {
   nome: string;
   lida_em: string;
