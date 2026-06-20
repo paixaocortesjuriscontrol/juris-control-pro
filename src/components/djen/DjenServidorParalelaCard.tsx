@@ -118,7 +118,6 @@ export function DjenServidorParalelaCard() {
   const [dataFim, setDataFim] = useState<Date | undefined>();
   const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState("");
   const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState("");
-  const [horario, setHorario] = useState("07:00");
 
   useEffect(() => {
     const hoje = new Date();
@@ -127,9 +126,7 @@ export function DjenServidorParalelaCard() {
     setDataFim((value) => value || hoje);
   }, []);
 
-  useEffect(() => {
-    setHorario(cfg?.horarios_execucao?.[0] || "07:00");
-  }, [cfg?.id, JSON.stringify(cfg?.horarios_execucao || [])]);
+  const diasSemana = ((cfg?.metadata as any)?.dias_semana as number[] | undefined) || DIAS_SEMANA_DEFAULT;
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const coordenacaoFiltroEfetivo = filtroCoordenacaoId || null;
