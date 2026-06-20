@@ -49,10 +49,6 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
   }
 };
 
-const dateOnlyToUTCFullDayRange = (dateStr: string, isEnd: boolean): string => {
-  return isEnd ? `${dateStr}T23:59:59.999Z` : `${dateStr}T00:00:00Z`;
-};
-
 function normalizarTermo(valor: string | null | undefined): string {
   return String(valor || "").trim();
 }
@@ -344,10 +340,10 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
       const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
-        ? dateOnlyToUTCFullDayRange(filtros.dataDisponibilizacao, false)
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
         : null;
       const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
-        ? dateOnlyToUTCFullDayRange(filtros.dataDisponibilizacao, true)
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
         : null;
 
       try {
@@ -435,10 +431,10 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
       const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
-        ? dateOnlyToUTCFullDayRange(filtros.dataDisponibilizacao, false)
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
         : null;
       const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
-        ? dateOnlyToUTCFullDayRange(filtros.dataDisponibilizacao, true)
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
         : null;
 
       // Conta per-user via RPC: "não lidas" considera publicacoes_djen_leituras
@@ -647,10 +643,10 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
       const dataDisponibilizacaoInicio = filtros.dataDisponibilizacao
-        ? dateOnlyToUTCFullDayRange(filtros.dataDisponibilizacao, false)
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, false)
         : null;
       const dataDisponibilizacaoFim = filtros.dataDisponibilizacao
-        ? dateOnlyToUTCFullDayRange(filtros.dataDisponibilizacao, true)
+        ? dateLocalToUTCRange(filtros.dataDisponibilizacao, true)
         : null;
 
       const resultados: PublicacaoUnificada[] = [];
