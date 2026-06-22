@@ -903,7 +903,8 @@ async function run({ sb, payload, log, job }) {
         try {
           const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
           const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots, scanCache, sb);
-          const stats = await persistPublicacoes(sb, pubs, mon, tribunal, dia, job?.id || null);
+          log("paralela.retry_result", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: tipoMon, tribunal, dia, encontrados: pubs.length });
+          const stats = await persistPublicacoes(sb, pubs, { ...mon, tipo: tipoMon, __log: log }, tribunal, dia, job?.id || null);
           totalNovas += stats.novas;
           totalDescartadas += stats.descartadas;
           totalDuplicatas += stats.duplicatas;
