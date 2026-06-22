@@ -1015,14 +1015,6 @@ async function run({ sb, payload, log, job }) {
   };
 
   await Promise.all(slots.map((slot) => worker(slot)));
-  if (!cancelled && !signal.aborted) {
-    log("paralela.resgate_final_partes_start", { monitoramentosParte: lista.filter((m) => mapTipo(m.tipo) === "parte").length, dias: dias.length });
-    const resgateFinal = await executarResgateFinalPartes(sb, lista, dias, job?.id || null, signal, log);
-    totalNovas += resgateFinal.novas;
-    totalDescartadas += resgateFinal.descartadas;
-    totalDuplicatas += resgateFinal.duplicatas;
-    log("paralela.resgate_final_partes_done", resgateFinal);
-  }
   clearInterval(cancelPoll);
   if (cancelled) {
     for (const item of itens) {
