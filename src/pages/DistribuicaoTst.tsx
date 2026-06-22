@@ -19,7 +19,6 @@ import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/Distribuica
 // Importações (Importar Planilha / PDF Certidão / Atualizar Dossiês / Equipe / Situação Envio / Resposta Santander)
 // foram movidas para Admin TST → Importações Distribuição TST.
 import { BennerSimImport } from "@/components/distribuicao-tst/BennerSimImport";
-import { RespostaSantanderImport } from "@/components/distribuicao-tst/RespostaSantanderImport";
 import { CargaBennerFromDb } from "@/components/distribuicao-tst/CargaBennerFromDb";
 import { DossiesNaoLocalizadosButton } from "@/components/distribuicao-tst/DossiesNaoLocalizadosButton";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
