@@ -227,6 +227,15 @@ export function bennerToDistribuicao(b: any): DistribuicaoTst {
     recurso_terceiro: !!b.recurso_terceiro,
     cejusc: !!b.cejusc,
     ic_arquivado: !!b.ic_arquivado,
+    // Campos extras de dados_benner expostos para checagem de pendências
+    // (não fazem parte do "form" da Distribuição mas são lidos em UI/relatórios).
+    risco_descricao: b.risco_descricao ?? null,
+    tem_data_julgamento: b.tem_data_julgamento ?? null,
+    data_julgamento: b.data_julgamento ?? null,
+    horario_julgamento: b.horario_julgamento ?? null,
+    tipo_julgamento: b.tipo_julgamento ?? null,
+    processo_baixado: b.processo_baixado ?? null,
+    chance_exito: b.chance_exito ?? null,
   } as any;
 }
 
