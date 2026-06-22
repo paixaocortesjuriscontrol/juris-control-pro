@@ -487,11 +487,15 @@ export function useComparadorAnalise() {
         hash_conteudo: string;
       };
 
-      const key = (r: Row) =>
-        r.id_djen
-          ? `${r.coordenacao_id || "sem_coord"}|id_djen|${r.id_djen}`
-          : r.dedup_conteudo_key ||
-            `${r.coordenacao_id || "sem_coord"}|legacy|${r.dedup_processo_digits || ""}|${r.dedup_data_ref || ""}|${r.hash_conteudo}`;
+      // Dedup SEMPRE isolada por coordenação. A mesma publicação pode aparecer
+      // em coordenações diferentes (contagem legítima), mas dentro da mesma
+      // coord só conta 1x mesmo quando vários monitoramentos a encontraram.
+      const key = (r: Row) => {
+        const coord = r.coordenacao_id || "sem_coord";
+        if (r.id_djen) return `${coord}|id_djen|${r.id_djen}`;
+        if (r.dedup_conteudo_key) return `${coord}|ck|${r.dedup_conteudo_key}`;
+        return `${coord}|legacy|${r.dedup_processo_digits || ""}|${r.dedup_data_ref || ""}|${r.hash_conteudo}`;
+      };
 
       const groupKey = (r: Row) => {
         const coordId = r.coordenacao_id || "sem_coord";
