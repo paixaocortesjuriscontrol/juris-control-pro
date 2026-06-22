@@ -1372,10 +1372,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Recurso Reclamante" color="bg-[#F9CB9C] !text-black" />
         <div className="p-4 space-y-4">
+          {/* Asterisco condicional: só obrigatório quando o Reclamante figura como Parte Recorrente. */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_reclamante", form.tipo_recurso_reclamante))}>
               <Label className="flex items-center">
-                Tipo de Recurso do Reclamante (C)<ReqMark />
+                Tipo de Recurso do Reclamante (C){recorrenteEnvolveReclamante(form) && <ReqMark />}
                 <JuditBadge show={isJuditFilled(form.tipo_recurso_reclamante)} />
                 <IaBadge field="tipo_recurso_reclamante" value={form.tipo_recurso_reclamante} />
               </Label>
@@ -1393,7 +1394,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               )}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("aparelhamento_reclamante", form.aparelhamento_reclamante))}>
-              <Label className="flex items-center">Aparelhamento (AF/AG)<ReqMark /> <IaBadge field="aparelhamento_reclamante" value={form.aparelhamento_reclamante} /></Label>
+              <Label className="flex items-center">Aparelhamento (AF/AG){recorrenteEnvolveReclamante(form) && <ReqMark />} <IaBadge field="aparelhamento_reclamante" value={form.aparelhamento_reclamante} /></Label>
               <Select value={form.aparelhamento_reclamante || "__none__"} onValueChange={v => set("aparelhamento_reclamante", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1405,14 +1406,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
           </div>
           <div className={cn("space-y-2 p-2 -m-2", fieldClass("materias_recurso_reclamante", form.materias_recurso_reclamante))}>
-            <Label className="flex items-center">Matérias Recurso Reclamante<ReqMark /> <IaBadge field="materias_recurso_reclamante" value={form.materias_recurso_reclamante} /></Label>
+            <Label className="flex items-center">Matérias Recurso Reclamante{recorrenteEnvolveReclamante(form) && <ReqMark />} <IaBadge field="materias_recurso_reclamante" value={form.materias_recurso_reclamante} /></Label>
             <MateriasMultiSelect
               value={form.materias_recurso_reclamante || null}
               onChange={(v) => set("materias_recurso_reclamante", v)}
             />
           </div>
           <div className={cn("space-y-2 p-2 -m-2", fieldClass("chance_exito_reclamante", form.chance_exito_reclamante))}>
-            <Label className="flex items-center">Chance de Êxito (AH)<ReqMark /> <IaBadge field="chance_exito_reclamante" value={form.chance_exito_reclamante} /></Label>
+            <Label className="flex items-center">Chance de Êxito (AH){recorrenteEnvolveReclamante(form) && <ReqMark />} <IaBadge field="chance_exito_reclamante" value={form.chance_exito_reclamante} /></Label>
             <Select value={form.chance_exito_reclamante || "__none__"} onValueChange={v => set("chance_exito_reclamante", v === "__none__" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
@@ -1430,10 +1431,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Recurso Banco" color="bg-[#B6D7A8] !text-black" />
         <div className="p-4 space-y-4">
+          {/* Asterisco condicional: só obrigatório quando a Reclamada (banco) figura como Parte Recorrente. */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_banco", form.tipo_recurso_banco))}>
               <Label className="flex items-center">
-                Tipo de Recurso do Banco (C)<ReqMark />
+                Tipo de Recurso do Banco (C){recorrenteEnvolveBanco(form) && <ReqMark />}
                 <JuditBadge show={isJuditFilled(form.tipo_recurso_banco)} />
                 <IaBadge field="tipo_recurso_banco" value={form.tipo_recurso_banco} />
               </Label>
@@ -1451,7 +1453,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               )}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("aparelhamento_banco", form.aparelhamento_banco))}>
-              <Label className="flex items-center">Aparelhamento (AF/AG)<ReqMark /> <IaBadge field="aparelhamento_banco" value={form.aparelhamento_banco} /></Label>
+              <Label className="flex items-center">Aparelhamento (AF/AG){recorrenteEnvolveBanco(form) && <ReqMark />} <IaBadge field="aparelhamento_banco" value={form.aparelhamento_banco} /></Label>
               <Select value={form.aparelhamento_banco || "__none__"} onValueChange={v => set("aparelhamento_banco", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1463,14 +1465,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
           </div>
           <div className={cn("space-y-2 p-2 -m-2", fieldClass("materias_recurso_banco", form.materias_recurso_banco))}>
-            <Label className="flex items-center">Matérias Recurso do Banco<ReqMark /> <IaBadge field="materias_recurso_banco" value={form.materias_recurso_banco} /></Label>
+            <Label className="flex items-center">Matérias Recurso do Banco{recorrenteEnvolveBanco(form) && <ReqMark />} <IaBadge field="materias_recurso_banco" value={form.materias_recurso_banco} /></Label>
             <MateriasMultiSelect
               value={form.materias_recurso_banco || null}
               onChange={(v) => set("materias_recurso_banco", v)}
             />
           </div>
           <div className={cn("space-y-2 p-2 -m-2", fieldClass("chance_exito_banco", form.chance_exito_banco))}>
-            <Label className="flex items-center">Chance de Êxito (AH)<ReqMark /> <IaBadge field="chance_exito_banco" value={form.chance_exito_banco} /></Label>
+            <Label className="flex items-center">Chance de Êxito (AH){recorrenteEnvolveBanco(form) && <ReqMark />} <IaBadge field="chance_exito_banco" value={form.chance_exito_banco} /></Label>
             <Select value={form.chance_exito_banco || "__none__"} onValueChange={v => set("chance_exito_banco", v === "__none__" ? "" : v)}>
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
@@ -1488,10 +1490,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Recurso de terceiro (*preenchimento IA - não preencher)" color="bg-[#A4C2F4] !text-black" />
         <div className="p-4 space-y-4">
+          {/* Asterisco condicional: só obrigatório quando Parte Recorrente = Terceiro. */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_terceiro", (form as any).tipo_recurso_terceiro))}>
               <Label className="flex items-center">
-                Tipo de Recurso (Terceiro) (C)<ReqMark />
+                Tipo de Recurso (Terceiro) (C){recorrenteEhTerceiro(form) && <ReqMark />}
                 <JuditBadge show={isJuditFilled((form as any).tipo_recurso_terceiro)} />
                 <IaBadge field="tipo_recurso_terceiro" value={(form as any).tipo_recurso_terceiro} />
               </Label>
