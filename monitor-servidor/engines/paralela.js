@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-22-dedup-monitoramento-logs-v2";
+const ENGINE_VERSION = "2026-06-22-id-djen-oficial-coord-dedup-v3";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -156,11 +156,35 @@ function getConteudo(pub) {
 
 function getIdDjen(pub) {
   const obj = rawObj(pub);
-  const explicit = obj?.id_djen ?? pub?.id_djen ?? obj?.numeroComunicacao ?? pub?.numeroComunicacao ?? obj?.numero_comunicacao ?? pub?.numero_comunicacao ?? null;
-  if (explicit !== null && explicit !== undefined) return String(explicit).trim() || null;
-  const v = obj?.id ?? pub?.id ?? null;
-  if (typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)) return null;
-  return v === null || v === undefined ? null : String(v).trim() || null;
+  const isUuid = (v) => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+  // O ID oficial usado pelo browser é `id`/`id_djen` da comunicação.
+  // `numeroComunicacao` é apenas número sequencial interno e gerou a dobra
+  // 1847/645971040 para a mesma publicação. Só usamos como fallback final.
+  const candidates = [
+    obj?.id_djen,
+    pub?.id_djen,
+    obj?.id,
+    pub?.id,
+    obj?.codigoComunicacao,
+    pub?.codigoComunicacao,
+    obj?.codigo_comunicacao,
+    pub?.codigo_comunicacao,
+    obj?.idComunicacao,
+    pub?.idComunicacao,
+    obj?.id_comunicacao,
+    pub?.id_comunicacao,
+    obj?.numeroComunicacao,
+    pub?.numeroComunicacao,
+    obj?.numero_comunicacao,
+    pub?.numero_comunicacao,
+  ];
+  for (const raw of candidates) {
+    if (raw === null || raw === undefined) continue;
+    const value = String(raw).trim();
+    if (!value || isUuid(value)) continue;
+    return value;
+  }
+  return null;
 }
 
 function getDataDisponibilizacao(pub, fallbackDia) {
