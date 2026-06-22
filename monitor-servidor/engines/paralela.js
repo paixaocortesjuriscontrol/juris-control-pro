@@ -511,12 +511,21 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
 // Espelha browser useDjenTermosParalelaEngine.ts:
 // buscarPublicacoesParteJaEncontradasEmOutraCoordenacao
 //
-// Quando o monitoramento é do tipo 'parte', a API pode não devolver a
-// publicação para esta coordenação porque ela já foi capturada por outra
-// coordenação (ex: Santander via advogado OSMAR). Para fechar o gap,
-// olhamos publicacoes_djen_servidor do mesmo dia+tribunal em outras
-// coordenações, filtramos por nome da parte no conteúdo e revalidamos via
-// metadados estruturados / seção Parte(s).
+// Quando o monitoramento é do tipo 'parte', a API PJE Comunica pode não
+// devolver a publicação para esta coordenação porque ela já foi capturada
+// por outra coordenação (ex.: Santander via advogado OSMAR MENDES). Para
+// fechar o gap (paridade com o Browser), olhamos publicacoes_djen_servidor
+// do mesmo dia+tribunal em outras coordenações, filtramos por substring do
+// termo no conteúdo (ilike) e revalidamos.
+//
+// IMPORTANTE: a revalidação NÃO pode exigir partes_json/seção Parte(s),
+// porque no Servidor o conteúdo é o texto bruto da API (sem cabeçalho
+// "Parte(s):") e a publicação pode ter sido gravada a partir de uma busca
+// por advogado — caso em que `partes_json` traz as partes do processo
+// (Santander, autor) e não inclui o nome buscado. Basta o termo aparecer
+// no conteúdo (substring com normalização de acentos/caixa) OU em
+// advogados_json. A publicação é marcada __matchedByNomeParte para que
+// contemTermo aceite e persistPublicacoes grave para a coordenação atual.
 async function resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal) {
   if (mapTipo(mon.tipo) !== "parte" || !mon.coordenacao_id) return [];
   const termosParte = termosDeParte(mon);
@@ -537,6 +546,7 @@ async function resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal) {
       console.warn(`[paralela][${tribunal}] resgate parte falhou para "${termo}":`, error.message);
       continue;
     }
+    const termoNorm = normalize(termo);
     for (const row of data || []) {
       const candidato = {
         id: row.id_djen ?? row.id,
@@ -553,10 +563,27 @@ async function resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal) {
         partes: row.partes_json,
         advogados: row.advogados_json,
       };
-      const casa = termosParte.some((t) =>
+      // Confirmação leve: o ilike acima já garantiu substring bruta no
+      // conteúdo. Aqui confirmamos via normalização (acentos/caixa) e
+      // aceitamos também match em advogados_json (nome ou OAB) — espelha
+      // o caminho do Browser, em que `__matchedByNomeParte` da API basta
+      // para persistir, sem exigir seção Parte(s).
+      const conteudoNorm = normalize(row.conteudo || "");
+      const advsArr = Array.isArray(row.advogados_json)
+        ? row.advogados_json
+        : (typeof row.advogados_json === "string"
+            ? (() => { try { return JSON.parse(row.advogados_json); } catch { return []; } })()
+            : []);
+      const casaAdvogado = Array.isArray(advsArr) && advsArr.some((entry) => {
+        const adv = entry?.advogado || entry;
+        const nomeNorm = normalize(adv?.nome || "");
+        return nomeNorm && termoNorm && (nomeNorm === termoNorm || nomeNorm.includes(termoNorm) || termoNorm.includes(nomeNorm));
+      });
+      const casaConteudo = termoNorm && conteudoNorm.includes(termoNorm);
+      const casaParteEstrut = termosParte.some((t) =>
         validarParteMetadados(candidato, t) || validarParteSecaoPartes(candidato, t),
       );
-      if (!casa) continue;
+      if (!casaConteudo && !casaAdvogado && !casaParteEstrut) continue;
       const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${row.id}`;
       if (resgatadas.has(key)) continue;
       candidato.__matchedByNomeParte = true;
