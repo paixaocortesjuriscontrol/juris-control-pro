@@ -794,7 +794,8 @@ async function run({ sb, payload, log, job }) {
         }
         const slot = slots[0];
         try {
-          const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal);
+          const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
+          const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots);
           if (tipoMon === "parte") {
             try {
               const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal);
@@ -858,7 +859,8 @@ async function run({ sb, payload, log, job }) {
           // do mesmo dia BRT.
           const itemKeyFalha = `paralela|${item.tribunal}|${monId}|${dia}`;
           try {
-            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
+            const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
+            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal, fallbackSlots);
             if (item.tipo === "parte") {
               try {
                 const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, item.tribunal, signal);
