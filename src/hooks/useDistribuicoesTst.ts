@@ -543,6 +543,10 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
         query = query.order("processo", { ascending: true, nullsFirst: false });
       } else if (filters.emAnalise === "sim") {
         query = query.order("em_analise_em", { ascending: true, nullsFirst: false });
+      } else if (!hasActiveFilters(filters)) {
+        query = query
+          .order("data_distribuicao_real", { ascending: false, nullsFirst: false })
+          .order("processo", { ascending: true, nullsFirst: false });
       } else {
         query = query
           .order("updated_at", { ascending: false, nullsFirst: false })
