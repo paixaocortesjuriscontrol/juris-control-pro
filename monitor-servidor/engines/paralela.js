@@ -953,7 +953,9 @@ async function run({ sb, payload, log, job }) {
           try {
             const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
             const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal, fallbackSlots, scanCache, sb);
-            const stats = await persistPublicacoes(sb, pubs, mon, item.tribunal, dia, job?.id || null);
+            log("paralela.termo_result", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length });
+            const stats = await persistPublicacoes(sb, pubs, { ...mon, tipo: item.tipo, __log: log }, item.tribunal, dia, job?.id || null);
+            log("paralela.termo_persist", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length, ...stats });
             item.novas += stats.novas;
             item.descartadas += stats.descartadas;
             item.duplicatas += stats.duplicatas;
