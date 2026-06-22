@@ -38,17 +38,25 @@ export function useExecucoesDoDiaServidor(
       // 1) Execuções servidor do dia (Termos = paralela, Pautas = pautas)
       const { data: execs, error: execErr } = await (supabase
         .from("execucoes_servidor") as any)
-        .select("id, tipo, started_at, data_disponibilizacao")
-        .eq("data_disponibilizacao", ymd)
-        .order("started_at", { ascending: true });
+        .select("id, tipo, iniciado_em, resultado, status")
+        .gte("iniciado_em", `${ymd}T00:00:00`)
+        .lte("iniciado_em", `${ymd}T23:59:59`)
+        .eq("status", "concluido")
+        .order("iniciado_em", { ascending: true });
 
       if (execErr) {
         console.error("[execucoes-do-dia] erro execucoes_servidor", execErr);
         return [];
       }
       if (!execs || execs.length === 0) return [];
+      // Filtra execuções cuja dataInicio do resultado bate com ymd (quando disponível).
+      const execsDoDia = execs.filter((e: any) => {
+        const di = e?.resultado?.dataInicio as string | undefined;
+        return !di || di === ymd;
+      });
+      if (execsDoDia.length === 0) return [];
 
-      const execIds = execs.map((e: any) => e.id);
+      const execIds = execsDoDia.map((e: any) => e.id);
 
       // 2) Junção publicação×execução (limitada às execuções do dia),
       //    com join na publicação para aplicar coordenação e obter
@@ -87,13 +95,13 @@ export function useExecucoesDoDiaServidor(
       }
 
       // 4) Monta resultado em ordem cronológica
-      return execs.map((e: any, idx: number): ExecucaoDoDia => {
+      return execsDoDia.map((e: any, idx: number): ExecucaoDoDia => {
         const tipoRaw = String(e.tipo || "").toLowerCase();
         const tipoEngine: "paralela" | "pautas" = tipoRaw.includes("pauta") ? "pautas" : "paralela";
         const novasIds = novasByExec.get(e.id) || [];
         return {
           id: e.id,
-          started_at: e.started_at,
+          started_at: e.iniciado_em,
           tipo: e.tipo,
           tipoEngine,
           totalVistas: totalsByExec.get(e.id) || 0,
