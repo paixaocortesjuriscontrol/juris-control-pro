@@ -899,10 +899,119 @@ export default function DistribuicaoTst() {
     }
   };
 
+  /**
+   * Gera relatório XLSX dos campos obrigatórios em aberto, respeitando os
+   * filtros aplicados (ou apenas os selecionados, se houver seleção).
+   * Spec: KELLEN/2026-06 — ver `src/utils/distribuicaoTstPendencias.ts`.
+   */
+  const handleGerarRelatorioPendencias = async () => {
+    setPendenciasRelRunning(true);
+    try {
+      let ids: string[];
+      if (selectedIds.size > 0) {
+        ids = Array.from(selectedIds);
+      } else {
+        toast.info("Buscando distribuições filtradas...");
+        ids = await fetchAllDistribuicaoTstIds(debouncedFilters);
+      }
+      if (ids.length === 0) {
+        toast.info("Nenhuma distribuição encontrada com os filtros atuais.");
+        return;
+      }
+
+      // Carrega os campos obrigatórios em lotes
+      const PAGE = 500;
+      const linhas: any[] = [];
+      const colsExtras = Array.from(
+        new Set([
+          "id",
+          ...COLUNAS_SELECT_PENDENCIAS,
+        ]),
+      );
+      const selectCols = colsExtras.join(", ");
+      for (let i = 0; i < ids.length; i += PAGE) {
+        const batch = ids.slice(i, i + PAGE);
+        const { data, error } = await supabase
+          .from("dados_benner" as any)
+          .select(selectCols)
+          .in("id", batch);
+        if (error) throw error;
+        ((data as any[]) || []).forEach((r) => linhas.push(r));
+      }
+
+      // Monta planilha — uma linha por processo
+      const XLSX = await import("xlsx");
+      const aoa: any[][] = [];
+      aoa.push(["Relatório de Pendências - Distribuição TST"]);
+      aoa.push([
+        "Processo",
+        "Dossiê",
+        "Equipe",
+        "Total de Pendências",
+        "Campos não preenchidos",
+      ]);
+      let totalComPend = 0;
+      for (const r of linhas) {
+        const pend = getPendencias(r);
+        if (pend.length === 0) continue;
+        totalComPend++;
+        aoa.push([
+          r.processo || "",
+          r.dossie || "",
+          r.equipe || "",
+          pend.length,
+          pend.map((p) => p.label).join("; "),
+        ]);
+      }
+      if (totalComPend === 0) {
+        toast.success(
+          `Tudo certo! Nenhuma pendência nos ${linhas.length} processo(s) verificados.`,
+        );
+        return;
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws["!cols"] = [
+        { wch: 28 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 10 },
+        { wch: 90 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Pendências");
+      const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+      const blob = new Blob([buf], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const ts = new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-")
+        .slice(0, 16);
+      a.href = url;
+      a.download = `Pendencias_Distribuicao_TST_${ts}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(
+        `Planilha gerada: ${totalComPend} processo(s) com pendências de ${linhas.length} verificados.`,
+      );
+    } catch (err: any) {
+      toast.error(
+        "Erro ao gerar relatório de pendências: " +
+          (err?.message || String(err)),
+      );
+    } finally {
+      setPendenciasRelRunning(false);
+    }
+  };
+
   // Gerar carga Benner respeitando os filtros aplicados na lista
   const handleGerarCarga = async () => {
     setCargaLoading(true);
-    void 0;
     try {
       let ids: string[];
       if (selectedIds.size > 0) {
