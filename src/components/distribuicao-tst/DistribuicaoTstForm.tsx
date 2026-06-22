@@ -1193,22 +1193,22 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               <Input type="date" value={form.data_distribuicao_planilha || ""} onChange={e => set("data_distribuicao_planilha", e.target.value || null)} />
             </div>
             <div className="space-y-2">
-              <Label>Data Distribuição Real (D)</Label>
+              <Label>Data Distribuição Real (D)<ReqMark /></Label>
               <Input type="date" value={form.data_distribuicao_real || ""} onChange={e => set("data_distribuicao_real", e.target.value || null)} />
               <p className="text-[10px] text-muted-foreground">Preenchida via Judit ou manualmente</p>
             </div>
             <div className="space-y-2">
-              <Label>Número do Processo</Label>
+              <Label>Número do Processo<ReqMark /></Label>
               <Input value={form.processo_numero || ""} onChange={e => set("processo_numero", e.target.value)} placeholder="0000000-00.0000.0.00.0000" />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Dossiê (A)</Label>
+              <Label>Dossiê (A)<ReqMark /></Label>
               <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Tribunal (B)</Label>
+              <Label>Tribunal (B)<ReqMark /></Label>
               <Select
                 value={(form as any).tribunal || "TST"}
                 onValueChange={v => set("tribunal", v)}
@@ -1224,7 +1224,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Equipe</Label>
+              <Label>Equipe<ReqMark /></Label>
               <Select value={String(form.equipe || "").trim() || "__none__"} onValueChange={v => set("equipe", v === "__none__" ? null : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1238,7 +1238,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Reclamante</Label>
+              <Label>Reclamante<ReqMark /></Label>
               <Textarea
                 value={form.reclamante || ""}
                 onChange={e => set("reclamante", e.target.value || null)}
@@ -1247,7 +1247,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               />
             </div>
             <div className="space-y-2">
-              <Label>Reclamada</Label>
+              <Label>Reclamada<ReqMark /></Label>
               <Textarea
                 value={form.reclamada || ""}
                 onChange={e => set("reclamada", e.target.value || null)}
