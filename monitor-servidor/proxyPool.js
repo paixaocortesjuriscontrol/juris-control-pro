@@ -4,7 +4,11 @@ const ws = require("ws");
 
 const OFFLINE_MS = 60_000;
 const COOLDOWN_429_MS = 30_000;
-const PROXY_REQUEST_TIMEOUT_MS = Math.max(10_000, Number(process.env.DJEN_PROXY_TIMEOUT_MS || 60_000));
+// Timeout por requisição alinhado ao Browser (src/utils/pjeComunicaClient.ts):
+// 90s, suficiente para tribunais lentos (TJES/TJMT/TJPI/TJMA) que ocasionalmente
+// devolvem páginas tarde demais. Antes era 60s e o Servidor podia abortar antes
+// do Browser, gerando capturas a menor.
+const PROXY_REQUEST_TIMEOUT_MS = Math.max(10_000, Number(process.env.DJEN_PROXY_TIMEOUT_MS || 90_000));
 const HEALTH_TIMEOUT_MS = 5_000;
 
 let cache = { fetchedAt: 0, slots: [] };

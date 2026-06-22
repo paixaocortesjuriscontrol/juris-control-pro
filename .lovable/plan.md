@@ -1,45 +1,120 @@
-## Problema
+## Objetivo
 
-A função `isPautaDeJulgamento` em `src/pages/AnaliseDjen.tsx` (linha 1429) classifica como pauta qualquer publicação que contenha a expressão "Pauta de Julgamento" em qualquer ponto do texto. Acórdãos do TST frequentemente citam essa expressão dentro do dispositivo (ex.: "determinar a reautuação do processo e a publicação de nova pauta de julgamento (RITST, art. 122)"), e por isso são tratados como pauta — o resumo sai errado.
+Fazer o **DJEN Servidor** usar as mesmas regras do **DJEN Browser** para busca por `parte`, mantendo cada coordenação independente e permitindo que a mesma publicação apareça em coordenações diferentes.
 
-O mesmo critério frouxo existe no backend em `supabase/functions/resumir-publicacoes/markdown.ts` (`isPautaDeJulgamentoMd`), usado pela rota híbrida de IA.
+## Diagnóstico do caso Dr. Thomás
 
-## Solução
+No comparador de 22/06/2026, a diferença é:
 
-Endurecer a detecção exigindo marcadores estruturais de pauta e descartando claramente quando o texto for um acórdão/decisão.
+- Coordenação Dr. Thomás, tipo `parte`
+- Browser: 29
+- Servidor: 21
+- Diferença: 8 publicações só no Browser
 
-### Regras novas para `isPautaDeJulgamento` (frontend) e `isPautaDeJulgamentoMd` (backend)
+As 8 publicações são do monitoramento `OSMAR MENDES PAIXAO CORTES`:
 
-1. **Exclusão prioritária (acórdão / decisão monocrática):** se o conteúdo limpo contém qualquer um dos marcadores abaixo, NÃO é pauta, mesmo que apareça "Pauta de Julgamento" no meio do texto:
-   - `A\s*C\s*Ó\s*R\s*D\s*Ã\s*O` (cabeçalho "A C Ó R D Ã O" típico de acórdão TST)
-   - `\bACORDAM\s+os\s+Ministros` / `\bACORDAM\s+as?\s+(Turma|Desembargadora|Desembargadores)`
-   - `\bISTO\s+POSTO\b`
-   - `Embargos\s+de\s+declara[çc][ãa]o\s+acolhidos`
-   - `\bRelator[(:]` seguido de voto (`V\s*O\s*T\s*O`)
-   - `\bDECIS[ÃA]O\s+MONOCR[ÁA]TICA\b`
+```text
+645932808  TJPI  0838957-27.2023.8.18.0140
+645932816  TJPI  0838957-27.2023.8.18.0140
+646312966  TJES  5012683-41.2026.8.08.0012
+646516555  TJES  5012342-52.2025.8.08.0011
+646699403  TJMT  1001435-62.2026.8.11.0013
+646699409  TJMT  1001435-62.2026.8.11.0013
+646839217  TJMA  0860621-68.2023.8.10.0001
+647332027  TJES  5028025-62.2022.8.08.0035
+```
 
-2. **Confirmação positiva de pauta** (precisa de pelo menos UMA destas):
-   - Cabeçalho explícito: `^(?:\s*)?PAUTA\s+DE\s+JULGAMENTO` ou `Aditamento\s+[àa]\s+Pauta` aparecendo nos primeiros ~500 caracteres limpos do conteúdo, OU
-   - Combinação atual `Sessão (Ordinária|Extraordinária|Virtual|Presencial)` + `sessão (virtual|presencial)` (mantida), OU
-   - `\bCEJUSC\b` (mantida — audiências de conciliação)
+O Browser não depende de existir publicação em outra coordenação. Ele faz a busca do monitoramento da coordenação usando `nomeParte`, marca o resultado como `__matchedByNomeParte`, e grava usando chave com `coordenacao_id`. Assim, cada coordenação é independente.
 
-3. Remover o match isolado de "Pauta de Julgamento" em qualquer posição do texto (causa do falso positivo).
+## Diferenças reais encontradas
 
-### Arquivos a alterar
+### 1. Fallback obrigatório para Direto no Browser
 
-- `src/pages/AnaliseDjen.tsx` — substituir o corpo de `isPautaDeJulgamento` (linhas 1428-1436) pelas regras acima. Não tocar em `extractTrechoPauta`, `resumirTrechoPauta` nem nos fluxos de PDF/DOC — só a detecção precisa mudar.
-- `supabase/functions/resumir-publicacoes/markdown.ts` — espelhar o ajuste em `isPautaDeJulgamentoMd` (mantém os dois lados em sincronia, conforme o cabeçalho do arquivo já alerta).
+No Browser, quando `tipo='parte'` roda por uma VPS e a VPS retorna vazio sem erro, ele faz uma validação obrigatória no caminho **Direto**:
 
-### Validação
+- `src/hooks/useDjenTermosParalelaEngine.ts:1321-1329`
 
-- Caso reportado (processo `0000986-45.2023.5.13.0006`, acórdão de EDCiv-RR da 5ª Turma com "publicação de nova pauta de julgamento" no dispositivo): passa a ser tratado como publicação normal — o resumo seguirá a rota padrão (IA / trecho final), não a rota de pauta.
-- Pautas reais (cabeçalho "PAUTA DE JULGAMENTO" no topo, "Aditamento à Pauta", "Sessão Virtual"/"Sessão Presencial", CEJUSC) continuam sendo detectadas.
+No Servidor, `buscarTermo` só repete a mesma chamada uma vez na mesma VPS:
 
-### Memória
+- `monitor-servidor/engines/paralela.js:464-473`
 
-Atualizar `mem://features/monitoring/djen-analysis-pdf-summary-ia.md` (ou criar um arquivo dedicado) registrando que a detecção de pauta agora exige marcador estrutural no topo e descarta automaticamente acórdãos, para não regredir.
+Essa é a diferença mais provável para as 8 ausências: o Browser recupera quando a VPS retorna vazio/intermitente; o Servidor não tem equivalente.
 
-## Fora de escopo
+### 2. Paginação do Servidor para cedo demais em páginas vazias
 
-- Mudanças no comportamento do resumo de pautas reais (texto determinístico, fallback IA, formato do PDF/DOC).
-- Alterações na classificação `TEMAS_IRR / PAUTA / CEJUSC / DISTRIBUICOES / PRAZOS` da IA — é outro fluxo.
+No Browser, `buscarPjeComunicaPaginado` com `continueUntilEmpty` encerra quando vem uma página vazia:
+
+- `src/utils/pjeComunicaClient.ts:850-861`
+
+No Servidor, a paginação já foi alterada para exigir duas páginas vazias seguidas:
+
+- `monitor-servidor/engines/paralela.js:413-416`
+
+Essa diferença não explica “menos no Servidor” diretamente, mas significa que as regras não estão exatamente iguais.
+
+### 3. Timeout do Servidor menor que o Browser
+
+O Browser usa timeout de 90s por requisição:
+
+- `src/utils/pjeComunicaClient.ts:438-456`
+
+O Servidor usa `DJEN_PROXY_TIMEOUT_MS` com padrão de 60s:
+
+- `monitor-servidor/proxyPool.js:7`
+
+Em tribunais lentos, isso pode fazer o Servidor falhar ou voltar vazio antes do Browser.
+
+### 4. O resgate por outra coordenação não é a regra principal do Browser
+
+O Browser possui `buscarPublicacoesParteJaEncontradasEmOutraCoordenacao`, mas ela lê somente a própria tabela do Browser (`publicacoes_djen`) e é complementar:
+
+- `src/hooks/useDjenTermosParalelaEngine.ts:869-918`
+
+Não vou criar leitura do Servidor na tabela do Browser, nem qualquer leitura cruzada nova. A correção será na busca normal do Servidor, para ele não depender de outras coordenações.
+
+## Implementação proposta
+
+Alterar apenas o código do **DJEN Servidor** para espelhar as regras do Browser.
+
+### Arquivo 1: `monitor-servidor/engines/paralela.js`
+
+1. Ajustar `buscarTermo` para `tipo='parte'`:
+   - continuar usando somente `nomeParte`;
+   - nunca enviar `texto`/`palavraChave` junto;
+   - manter `__matchedByNomeParte = true` nos itens retornados;
+   - manter a repetição após vazio, como o Browser faz;
+   - adicionar equivalente servidor do fallback obrigatório do Browser: se a VPS retornar vazio para `parte`, tentar outra rota do próprio pool/consulta, sem consultar tabela do Browser.
+
+2. Deixar claro no código que a regra é:
+   - coordenação independente;
+   - dedup por `coordenacao_id + id_djen`;
+   - a mesma publicação pode ser gravada em coordenações diferentes.
+
+3. Não adicionar leitura em `publicacoes_djen`.
+
+### Arquivo 2: `monitor-servidor/proxyPool.js`
+
+1. Igualar o timeout padrão do proxy ao Browser:
+   - de 60s para 90s.
+
+## O que não será feito
+
+- Não ler `publicacoes_djen` no Servidor.
+- Não usar publicação de outra coordenação como fonte de verdade.
+- Não alterar schema do banco.
+- Não alterar o comparador.
+- Não mudar regra de validação de `parte` além do comportamento já existente no Browser.
+
+## Validação
+
+Depois da alteração:
+
+1. Rodar DJEN Servidor para `Coordenação Dr. Thomás` no dia `2026-06-22`.
+2. Conferir se os 8 `id_djen` acima aparecem em `publicacoes_djen_servidor` com `coordenacao_id` da Coordenação Dr. Thomás.
+3. Rodar o comparador para o mesmo dia.
+4. Resultado esperado:
+
+```text
+Coordenação Dr. Thomás | parte | servidor 29 | browser 29 | só browser 0
+```
+

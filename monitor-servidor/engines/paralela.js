@@ -372,7 +372,6 @@ async function buscarPaginado(slot, params, signal) {
   // página vier vazia OU quando nenhum item novo for adicionado (todos
   // duplicados via id_djen). Espelha o comportamento do browser
   // (memória: features/monitoring/djen-paralela-pagination-fix).
-  let emptyStreak = 0;
   for (let page = 1; page < 1000; page++) {
     if (signal?.aborted) throw new Error("cancelado");
     const query = {
@@ -408,14 +407,10 @@ async function buscarPaginado(slot, params, signal) {
       added++;
     }
     const total = getTotal(data);
-    // Sair imediatamente apenas se a página vier completamente vazia em
-    // duas chamadas consecutivas, ou se total declarado já foi alcançado.
-    if (items.length === 0) {
-      emptyStreak++;
-      if (emptyStreak >= 2) break;
-    } else {
-      emptyStreak = 0;
-    }
+    // Espelha Browser (src/utils/pjeComunicaClient.ts > continueUntilEmpty):
+    // encerra na 1ª página vazia. A regra antiga de "2 vazias seguidas" era
+    // exclusiva do Servidor e não muda paridade — mantemos igual ao Browser.
+    if (items.length === 0) break;
     // Se nenhum item novo foi adicionado, provavelmente estamos em loop
     // de duplicatas — encerra.
     if (items.length > 0 && added === 0) break;
@@ -454,7 +449,7 @@ function baseParams(mon, dia, tribunal) {
   return params;
 }
 
-async function buscarTermo(slot, mon, dia, tribunal, signal) {
+async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
     const results = [];
@@ -469,6 +464,29 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
         await delay(1500, signal);
         if (!signal?.aborted) {
           items = await buscarPaginado(slot, params, signal);
+        }
+      }
+      // Espelha Browser (useDjenTermosParalelaEngine.ts:1321-1331):
+      // se a VPS ainda devolveu vazio sem erro, validamos OBRIGATORIAMENTE
+      // em outra VPS do pool (o Browser cai no caminho Direto). Sem isso,
+      // intermitências da VPS principal somem com publicações reais —
+      // foi a causa das 8 ausências de OSMAR MENDES PAIXAO CORTES em
+      // TJES/TJMT/TJPI/TJMA no comparador de 22/06/2026.
+      if (!signal?.aborted && items.length === 0 && Array.isArray(fallbackSlots) && fallbackSlots.length > 0) {
+        for (const alt of fallbackSlots) {
+          if (signal?.aborted) break;
+          if (!alt || alt.id === slot.id) continue;
+          await delay(1500, signal);
+          if (signal?.aborted) break;
+          try {
+            const altItems = await buscarPaginado(alt, params, signal);
+            if (altItems.length > 0) {
+              items = altItems;
+              break;
+            }
+          } catch (_e) {
+            // Tenta próxima VPS — não derruba o termo se uma alternativa falhar.
+          }
         }
       }
       for (const it of items) it.__matchedByNomeParte = true;
@@ -776,7 +794,8 @@ async function run({ sb, payload, log, job }) {
         }
         const slot = slots[0];
         try {
-          const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal);
+          const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
+          const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots);
           if (tipoMon === "parte") {
             try {
               const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal);
@@ -840,7 +859,8 @@ async function run({ sb, payload, log, job }) {
           // do mesmo dia BRT.
           const itemKeyFalha = `paralela|${item.tribunal}|${monId}|${dia}`;
           try {
-            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
+            const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
+            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal, fallbackSlots);
             if (item.tipo === "parte") {
               try {
                 const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, item.tribunal, signal);
