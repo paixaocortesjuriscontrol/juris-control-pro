@@ -293,6 +293,15 @@ function contemTermo(conteudo, mon, pub) {
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
     if (pub?.__matchedByNomeParte) return true;
+    if (pub?.__matchedByParteAdvogadoFallback) {
+      if (validarAdvogadoMetadados(pub, null, mon.termo_busca)) return true;
+      const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
+      if (contemFrase(textoNorm, normalize(mon.termo_busca))) return true;
+      for (const t of mon.termos_or || []) {
+        if (validarAdvogadoMetadados(pub, null, String(t))) return true;
+        if (contemFrase(textoNorm, normalize(String(t)))) return true;
+      }
+    }
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
     if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const t of mon.termos_or || []) {
@@ -491,6 +500,31 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
       }
       for (const it of items) it.__matchedByNomeParte = true;
       results.push(...items);
+      const paramsAdvogado = { ...baseParams(mon, dia, tribunal), nomeAdvogado: normalizeForApi(nomeParte) };
+      let advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
+      if (!signal?.aborted && advogadoItems.length === 0) {
+        await delay(1500, signal);
+        if (!signal?.aborted) advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
+      }
+      if (!signal?.aborted && advogadoItems.length === 0 && Array.isArray(fallbackSlots) && fallbackSlots.length > 0) {
+        for (const alt of fallbackSlots) {
+          if (signal?.aborted) break;
+          if (!alt || alt.id === slot.id) continue;
+          await delay(1500, signal);
+          if (signal?.aborted) break;
+          try {
+            const altItems = await buscarPaginado(alt, paramsAdvogado, signal);
+            if (altItems.length > 0) {
+              advogadoItems = altItems;
+              break;
+            }
+          } catch (_e) {
+            // Tenta próxima VPS — não derruba o termo se uma alternativa falhar.
+          }
+        }
+      }
+      for (const it of advogadoItems) it.__matchedByParteAdvogadoFallback = true;
+      results.push(...advogadoItems);
       if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
     }
     return results;
