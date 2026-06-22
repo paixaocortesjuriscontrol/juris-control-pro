@@ -543,7 +543,7 @@ function baseParams(mon, dia, tribunal) {
   return params;
 }
 
-async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scanCache) {
+async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scanCache, sb) {
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
     const results = [];
@@ -619,6 +619,8 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
       results.push(...advogadoItems);
       if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
     }
+    const jaEncontradas = await buscarPublicacoesParteServidorJaEncontradas(sb, mon, dia, tribunal);
+    results.push(...jaEncontradas);
     return results;
   }
   const params = baseParams(mon, dia, tribunal);
