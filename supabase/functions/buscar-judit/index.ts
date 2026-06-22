@@ -579,10 +579,27 @@ serve(async (req) => {
     // pelo person_type da instância 1 (origem). Quando não houver origem disponível,
     // usamos a heurística pelo próprio person_type da instância selecionada.
     const origemRdParties: any = rawCollector.cache_lookup
-      || (rawCollector.crawler?.page_data || [])
+      ? (Array.isArray(rawCollector.cache_lookup?.parties) && rawCollector.cache_lookup.parties.length > 0
+          ? rawCollector.cache_lookup
+          : null)
+      : null;
+    // Fallback: se cache_lookup não tem parties úteis, procura qualquer outra
+    // instância no crawler.page_data (tipicamente a instância 1 / origem) que
+    // tenha partes com person_type RECLAMANTE/RECLAMADO/AUTOR/RÉU.
+    const origemRdFallback: any = origemRdParties
+      ? null
+      : (rawCollector.crawler?.page_data || [])
           .map((it: any) => it?.response_data)
-          .find((rd: any) => rd && rd !== rdSelecionada);
-    const origemPartiesArr: any[] = Array.isArray(origemRdParties?.parties) ? origemRdParties.parties : [];
+          .find((rd: any) => {
+            if (!rd || rd === rdSelecionada) return false;
+            const arr = Array.isArray(rd?.parties) ? rd.parties : [];
+            return arr.some((p: any) =>
+              /RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE|RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID/
+                .test(String(p?.person_type || "").toUpperCase())
+            );
+          });
+    const origemEfetiva = origemRdParties || origemRdFallback;
+    const origemPartiesArr: any[] = Array.isArray(origemEfetiva?.parties) ? origemEfetiva.parties : [];
     const ativosOrigem: string[] = [];
     const passivosOrigem: string[] = [];
     const seenOr = new Set<string>();
@@ -595,8 +612,16 @@ serve(async (req) => {
         const doc = String(p?.main_document || "").replace(/\D/g, "");
         const k = `${doc || nome.toUpperCase()}`;
         if (seenOr.has(k)) continue;
+        // person_types da origem (1ª instância)
         if (/RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE/.test(pt)) { ativosOrigem.push(nome); seenOr.add(k); }
         else if (/RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID/.test(pt)) { passivosOrigem.push(nome); seenOr.add(k); }
+        // person_types de instância recursal (TST/TRT): AGRAVANTE/RECORRENTE/EMBARGANTE
+        // mapeiam para o polo ATIVO da relação processual (quem recorre = autor do recurso)
+        // e AGRAVADO/RECORRIDO/EMBARGADO para o passivo. Isso é o melhor que dá quando
+        // não temos a 1ª instância disponível — depois o "override Santander" recoloca
+        // o Banco no passivo se necessário, mas o RICARDO (passivo aqui) vira reclamante.
+        else if (/AGRAVANTE|RECORRENTE|EMBARGANTE/.test(pt)) { ativosOrigem.push(nome); seenOr.add(k); }
+        else if (/AGRAVAD|RECORRID|EMBARGAD/.test(pt)) { passivosOrigem.push(nome); seenOr.add(k); }
       }
     };
     collectByPersonType(origemPartiesArr);
@@ -651,13 +676,58 @@ serve(async (req) => {
     const litisconsorcio = tstActiveCount > 1;
     const requerRevisaoPolo = origemAusente && (litisconsorcio || (foiTst && santanderNomes.length === 0));
 
-    // Último fallback: usa polo ACTIVE/PASSIVE da instância selecionada (já com Santander corrigido)
-    const reclamanteFinal = ativosLimpos.length
-      ? ativosLimpos.join(" / ")
-      : (poloAtivoLimpo || null);
-    const reclamadaFinal = passivosComSantander.length
-      ? passivosComSantander.join(" / ")
-      : (poloPassivoComSantander || null);
+    // Helper: preferir nome COMPLETO da instância selecionada quando origem trouxe
+    // nome abreviado/iniciais ("R. L. S." em vez de "RICARDO DE LIMA SILVA") ou
+    // ocultado ("PARTE OCULTADA NOS TERMOS DA RES. 121 DO CNJ"). Casamos pelo CPF/CNPJ.
+    const nomeAbreviadoOuOculto = (n: string) => {
+      if (!n) return true;
+      if (/PARTE\s+OCULTADA/i.test(n)) return true;
+      // "R. L. S." (iniciais com ponto): comprimento curto E só tokens de 1 letra
+      const tokens = n.replace(/\./g, "").trim().split(/\s+/).filter(Boolean);
+      const todosCurtos = tokens.length > 0 && tokens.every((t) => t.length <= 2);
+      if (todosCurtos) return true;
+      return false;
+    };
+    const mapDocNomeCompleto = new Map<string, string>();
+    for (const p of todasPartes) {
+      const tipo = String(p?.person_type || "").toUpperCase();
+      if (tipo === "ADVOGADO") continue;
+      const doc = String(p?.main_document || "").replace(/\D/g, "");
+      const nome = String(p?.name || "").trim();
+      if (doc && nome && !nomeAbreviadoOuOculto(nome)) mapDocNomeCompleto.set(doc, nome);
+    }
+    const completarNome = (nome: string) => {
+      if (!nomeAbreviadoOuOculto(nome)) return nome;
+      // procura nas origemPartiesArr o doc desse nome abreviado
+      const matchOrigem = origemPartiesArr.find((p) => String(p?.name || "").trim() === nome);
+      const doc = matchOrigem ? String(matchOrigem?.main_document || "").replace(/\D/g, "") : "";
+      if (doc && mapDocNomeCompleto.has(doc)) return mapDocNomeCompleto.get(doc)!;
+      return nome;
+    };
+    const completarLista = (arr: string[]) => arr.map(completarNome);
+    const passivosSemSantander = removerSantander(passivosOrigem);
+    const ativosLimposFull = completarLista(ativosLimpos);
+    const passivosSemSantanderFull = completarLista(passivosSemSantander);
+    const passivosComSantanderFull = completarLista(passivosComSantander);
+
+    // Cenário "Banco recorre" (clássico TST): o BANCO entra como AGRAVANTE (ativo) e
+    // o RECLAMANTE original (autor da ação trabalhista) fica como AGRAVADO (passivo).
+    // Depois do override Santander, o Banco volta pro passivo; quem sobra em
+    // passivosOrigem sem ser Santander É o reclamante original.
+    let reclamanteFinal: string | null;
+    let reclamadaFinal: string | null;
+    if (ativosLimposFull.length === 0 && santanderNomes.length > 0 && passivosSemSantanderFull.length > 0) {
+      // Banco recorrendo: passivo (não-Santander) sobe para reclamante; Santander vai pro passivo.
+      reclamanteFinal = passivosSemSantanderFull.join(" / ");
+      reclamadaFinal = santanderNomes.join(" / ");
+    } else {
+      reclamanteFinal = ativosLimposFull.length
+        ? ativosLimposFull.join(" / ")
+        : (poloAtivoLimpo || null);
+      reclamadaFinal = passivosComSantanderFull.length
+        ? passivosComSantanderFull.join(" / ")
+        : (poloPassivoComSantander || null);
+    }
 
     // Data de distribuição = data em que o processo chegou no órgão atual (instância
     // selecionada). Quando temos a instância TST, isto corresponde à data em que o
