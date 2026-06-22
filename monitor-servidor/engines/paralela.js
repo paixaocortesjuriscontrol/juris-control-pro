@@ -173,10 +173,6 @@ function getIdDjen(pub) {
     pub?.idComunicacao,
     obj?.id_comunicacao,
     pub?.id_comunicacao,
-    obj?.numeroComunicacao,
-    pub?.numeroComunicacao,
-    obj?.numero_comunicacao,
-    pub?.numero_comunicacao,
   ];
   for (const raw of candidates) {
     if (raw === null || raw === undefined) continue;
