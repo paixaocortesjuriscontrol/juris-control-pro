@@ -11,6 +11,7 @@ import {
   Scale,
   ShieldCheck,
   FileText,
+  Upload as UploadIcon,
 } from "lucide-react";
 
 const tools = [
@@ -23,6 +24,7 @@ const tools = [
   { label: "Pautas TST", path: "/pautas-tst", icon: Scale, description: "Gerenciar pautas de julgamento do TST." },
   { label: "Classificação TST", path: "/classificacao-tst", icon: ShieldCheck, description: "Classificar processos do TST." },
   { label: "Corrigir Planilha", path: "/corrigir-planilha", icon: FileText, description: "Higienizar e corrigir planilhas." },
+  { label: "Importações Distribuição TST", path: "/admin-tst/importacoes-distribuicao", icon: UploadIcon, description: "Cargas e atualizações em massa da Distribuição TST (planilhas e PDFs) com layout documentado." },
 ];
 
 export default function AdminTst() {
