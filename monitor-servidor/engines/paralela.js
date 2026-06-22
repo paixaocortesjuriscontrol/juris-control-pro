@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-22-dedup-monitoramento-logs-v2";
+const ENGINE_VERSION = "2026-06-22-id-djen-oficial-coord-dedup-v3";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -156,11 +156,35 @@ function getConteudo(pub) {
 
 function getIdDjen(pub) {
   const obj = rawObj(pub);
-  const explicit = obj?.id_djen ?? pub?.id_djen ?? obj?.numeroComunicacao ?? pub?.numeroComunicacao ?? obj?.numero_comunicacao ?? pub?.numero_comunicacao ?? null;
-  if (explicit !== null && explicit !== undefined) return String(explicit).trim() || null;
-  const v = obj?.id ?? pub?.id ?? null;
-  if (typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)) return null;
-  return v === null || v === undefined ? null : String(v).trim() || null;
+  const isUuid = (v) => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+  // O ID oficial usado pelo browser é `id`/`id_djen` da comunicação.
+  // `numeroComunicacao` é apenas número sequencial interno e gerou a dobra
+  // 1847/645971040 para a mesma publicação. Só usamos como fallback final.
+  const candidates = [
+    obj?.id_djen,
+    pub?.id_djen,
+    obj?.id,
+    pub?.id,
+    obj?.codigoComunicacao,
+    pub?.codigoComunicacao,
+    obj?.codigo_comunicacao,
+    pub?.codigo_comunicacao,
+    obj?.idComunicacao,
+    pub?.idComunicacao,
+    obj?.id_comunicacao,
+    pub?.id_comunicacao,
+    obj?.numeroComunicacao,
+    pub?.numeroComunicacao,
+    obj?.numero_comunicacao,
+    pub?.numero_comunicacao,
+  ];
+  for (const raw of candidates) {
+    if (raw === null || raw === undefined) continue;
+    const value = String(raw).trim();
+    if (!value || isUuid(value)) continue;
+    return value;
+  }
+  return null;
 }
 
 function getDataDisponibilizacao(pub, fallbackDia) {
@@ -679,15 +703,17 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     }
     let exists = null;
     let existsReason = null;
-    if (idDjen) {
-      const { data } = await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("monitoramento_id", mon.id).eq("id_djen", idDjen).maybeSingle();
+    if (idDjen && coordenacaoId) {
+      const { data } = await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("coordenacao_id", coordenacaoId).eq("id_djen", idDjen).maybeSingle();
       exists = data || null;
-      if (exists) existsReason = "same_monitoramento_id_djen";
+      if (exists) existsReason = "same_coordenacao_id_djen";
     }
     if (!exists) {
-      const { data } = await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("monitoramento_id", mon.id).eq("hash_conteudo", hashConteudo).maybeSingle();
+      let existingQuery = sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("hash_conteudo", hashConteudo);
+      existingQuery = coordenacaoId ? existingQuery.eq("coordenacao_id", coordenacaoId) : existingQuery.eq("monitoramento_id", mon.id);
+      const { data } = await existingQuery.maybeSingle();
       exists = data || null;
-      if (exists) existsReason = "same_monitoramento_hash";
+      if (exists) existsReason = coordenacaoId ? "same_coordenacao_hash" : "same_monitoramento_hash";
     }
     if (exists) {
       stats.duplicatas++;
@@ -700,7 +726,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       }
       continue;
     }
-    const { data: inserted, error } = await sb.from("publicacoes_djen_servidor").insert({
+    const insertRow = {
       monitoramento_id: mon.id,
       coordenacao_id: coordenacaoId,
       hash_conteudo: hashConteudo,
@@ -713,17 +739,21 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       ...metadata,
       origem: "servidor",
       execucao_id: execucaoId || null,
-    }).select("id").maybeSingle();
+    };
+    const insertQuery = idDjen && coordenacaoId
+      ? sb.from("publicacoes_djen_servidor").upsert(insertRow, { onConflict: "coordenacao_id,id_djen", ignoreDuplicates: true }).select("id")
+      : sb.from("publicacoes_djen_servidor").insert(insertRow).select("id");
+    const { data: insertedRows, error } = await insertQuery;
+    const inserted = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
     if (error) {
       const msg = String(error.message || "");
       const isConflict = error.code === "23505" || msg.includes("duplicate key");
       if (isConflict) {
-        const { data: conflictRows } = await sb
-          .from("publicacoes_djen_servidor")
-          .select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo, tribunal, data_disponibilizacao")
-          .eq("monitoramento_id", mon.id)
-          .eq("hash_conteudo", hashConteudo)
-          .limit(5);
+        let conflictQuery = sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo, tribunal, data_disponibilizacao");
+        conflictQuery = idDjen && coordenacaoId
+          ? conflictQuery.eq("coordenacao_id", coordenacaoId).eq("id_djen", idDjen)
+          : conflictQuery.eq("monitoramento_id", mon.id).eq("hash_conteudo", hashConteudo);
+        const { data: conflictRows } = await conflictQuery.limit(5);
         if (conflictRows && conflictRows.length > 0) {
           stats.duplicatas++;
           logDebug?.("paralela.duplicata_constraint_confirmada", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, constraint: error.details || msg, conflictRows });
@@ -735,6 +765,9 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
         stats.descartadas++;
         logDebug?.("paralela.insert_error", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, code: error.code, message: msg, details: error.details });
       }
+    } else if (!inserted?.id) {
+      stats.duplicatas++;
+      logDebug?.("paralela.upsert_ignorado", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo });
     } else {
       stats.novas++;
       logDebug?.("paralela.nova_inserida", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, publicacaoId: inserted?.id || null });
