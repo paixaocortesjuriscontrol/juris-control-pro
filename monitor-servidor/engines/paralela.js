@@ -749,12 +749,11 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       const msg = String(error.message || "");
       const isConflict = error.code === "23505" || msg.includes("duplicate key");
       if (isConflict) {
-        const { data: conflictRows } = await sb
-          .from("publicacoes_djen_servidor")
-          .select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo, tribunal, data_disponibilizacao")
-          .eq("monitoramento_id", mon.id)
-          .eq("hash_conteudo", hashConteudo)
-          .limit(5);
+        let conflictQuery = sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo, tribunal, data_disponibilizacao");
+        conflictQuery = idDjen && coordenacaoId
+          ? conflictQuery.eq("coordenacao_id", coordenacaoId).eq("id_djen", idDjen)
+          : conflictQuery.eq("monitoramento_id", mon.id).eq("hash_conteudo", hashConteudo);
+        const { data: conflictRows } = await conflictQuery.limit(5);
         if (conflictRows && conflictRows.length > 0) {
           stats.duplicatas++;
           logDebug?.("paralela.duplicata_constraint_confirmada", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, constraint: error.details || msg, conflictRows });
@@ -766,6 +765,9 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
         stats.descartadas++;
         logDebug?.("paralela.insert_error", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, code: error.code, message: msg, details: error.details });
       }
+    } else if (!inserted?.id) {
+      stats.duplicatas++;
+      logDebug?.("paralela.upsert_ignorado", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo });
     } else {
       stats.novas++;
       logDebug?.("paralela.nova_inserida", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, publicacaoId: inserted?.id || null });
