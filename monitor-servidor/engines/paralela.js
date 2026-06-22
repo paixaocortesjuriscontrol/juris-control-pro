@@ -531,23 +531,10 @@ async function resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal) {
   const termosParte = termosDeParte(mon);
   if (termosParte.length === 0) return [];
   const resgatadas = new Map();
-  for (const termo of termosParte) {
-    if (signal?.aborted) break;
-    const { data, error } = await sb
-      .from("publicacoes_djen_servidor")
-      .select("id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id")
-      .eq("tribunal", tribunal)
-      .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
-      .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
-      .neq("coordenacao_id", mon.coordenacao_id)
-      .ilike("conteudo", `%${termo}%`)
-      .limit(200);
-    if (error) {
-      console.warn(`[paralela][${tribunal}] resgate parte falhou para "${termo}":`, error.message);
-      continue;
-    }
-    const termoNorm = normalize(termo);
-    for (const row of data || []) {
+  const selectCols = "id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id";
+
+  const addRows = (rows, termosParteLocal, termoNorm, origem) => {
+    for (const row of rows || []) {
       const candidato = {
         id: row.id_djen ?? row.id,
         id_djen: row.id_djen,
@@ -563,11 +550,6 @@ async function resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal) {
         partes: row.partes_json,
         advogados: row.advogados_json,
       };
-      // Confirmação leve: o ilike acima já garantiu substring bruta no
-      // conteúdo. Aqui confirmamos via normalização (acentos/caixa) e
-      // aceitamos também match em advogados_json (nome ou OAB) — espelha
-      // o caminho do Browser, em que `__matchedByNomeParte` da API basta
-      // para persistir, sem exigir seção Parte(s).
       const conteudoNorm = normalize(row.conteudo || "");
       const advsArr = Array.isArray(row.advogados_json)
         ? row.advogados_json
@@ -580,15 +562,55 @@ async function resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal) {
         return nomeNorm && termoNorm && (nomeNorm === termoNorm || nomeNorm.includes(termoNorm) || termoNorm.includes(nomeNorm));
       });
       const casaConteudo = termoNorm && conteudoNorm.includes(termoNorm);
-      const casaParteEstrut = termosParte.some((t) =>
+      const casaParteEstrut = termosParteLocal.some((t) =>
         validarParteMetadados(candidato, t) || validarParteSecaoPartes(candidato, t),
       );
       if (!casaConteudo && !casaAdvogado && !casaParteEstrut) continue;
-      const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${row.id}`;
+      const key = row.id_djen ? `id_djen:${row.id_djen}` : `${origem}:${row.id}`;
       if (resgatadas.has(key)) continue;
       candidato.__matchedByNomeParte = true;
       candidato.__resgatadaDeOutraCoordenacao = row.coordenacao_id;
+      candidato.__resgatadaDeOutraFonte = origem;
       resgatadas.set(key, candidato);
+    }
+  };
+
+  for (const termo of termosParte) {
+    if (signal?.aborted) break;
+    const termoNorm = normalize(termo);
+    const { data, error } = await sb
+      .from("publicacoes_djen_servidor")
+      .select(selectCols)
+      .eq("tribunal", tribunal)
+      .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
+      .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
+      .neq("coordenacao_id", mon.coordenacao_id)
+      .ilike("conteudo", `%${termo}%`)
+      .limit(200);
+    if (error) {
+      console.warn(`[paralela][${tribunal}] resgate parte falhou para "${termo}":`, error.message);
+      continue;
+    }
+    addRows(data, termosParte, termoNorm, "servidor");
+
+    // Paridade com o Browser: se a publicação já foi capturada apenas na tabela
+    // do Browser (publicacoes_djen), o Servidor também precisa resgatá-la para a
+    // coordenação atual. Antes o resgate olhava só publicacoes_djen_servidor, e
+    // as buscas por parte continuavam ficando com "Só Browser".
+    const { data: dataBrowser, error: errorBrowser } = await sb
+      .from("publicacoes_djen")
+      .select(selectCols)
+      .eq("status", "encontrada")
+      .eq("tribunal", tribunal)
+      .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
+      .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
+      .neq("coordenacao_id", mon.coordenacao_id)
+      .ilike("conteudo", `%${termo}%`)
+      .limit(200);
+    if (errorBrowser) {
+      console.warn(`[paralela][${tribunal}] resgate browser parte falhou para "${termo}":`, errorBrowser.message);
+    } else {
+      addRows(dataBrowser, termosParte, termoNorm, "browser");
     }
   }
   if (resgatadas.size > 0) {
