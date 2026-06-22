@@ -85,6 +85,87 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIn
   const [indexedNow, setIndexedNow] = useState<Set<string>>(new Set());
   const [processing, setProcessing] = useState(false);
   const [stage, setStage] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const safeFileName = (raw: string) =>
+    raw
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9._-]+/g, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "") || `arquivo_${Date.now()}.pdf`;
+
+  const resolverProcessoId = async (): Promise<string | null> => {
+    if (processoId) return processoId;
+    if (!processoNumero) return null;
+    const { data } = await supabase.rpc(
+      "find_processo_id_by_numero" as any,
+      { _numero: processoNumero.trim() },
+    );
+    return (data as string) || null;
+  };
+
+  const onUploadFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      const pid = await resolverProcessoId();
+      if (!pid) {
+        toast.error("Salve o registro antes de enviar anexos.");
+        return;
+      }
+      const { data: authData } = await supabase.auth.getUser();
+      const uid = authData?.user?.id || null;
+      const hoje = new Date().toISOString().slice(0, 10);
+      let okCount = 0;
+      const erros: string[] = [];
+      for (const file of Array.from(files)) {
+        try {
+          const safe = safeFileName(file.name);
+          const ts = Date.now();
+          const storagePath = `${pid}/uploads/${ts}_${safe}`;
+          const { error: upErr } = await supabase.storage
+            .from("documentos_processos")
+            .upload(storagePath, file, { upsert: false, contentType: file.type || "application/pdf" });
+          if (upErr) throw upErr;
+          const ext = (file.name.split(".").pop() || "").toLowerCase();
+          const attachmentId = `upload_${ts}_${Math.random().toString(36).slice(2, 8)}`;
+          const { error: insErr } = await supabase
+            .from("judit_anexos" as any)
+            .insert({
+              processo_numero: processoNumero,
+              processo_id: pid,
+              cnj: processoNumero,
+              attachment_id: attachmentId,
+              step_id: attachmentId,
+              attachment_name: file.name,
+              attachment_date: hoje,
+              extension: ext || "pdf",
+              storage_path: storagePath,
+              status: "done",
+              texto_indexado: false,
+              created_by: uid,
+              raw_attachment: { origem: "upload_advogado", uploaded_at: new Date().toISOString() } as any,
+            } as any);
+          if (insErr) throw insErr;
+          okCount++;
+        } catch (e: any) {
+          erros.push(`${file.name}: ${e?.message || "falha"}`);
+        }
+      }
+      if (okCount > 0) {
+        toast.success(`${okCount} anexo(s) enviado(s).`);
+        await onIndexacaoAtualizada?.();
+      }
+      if (erros.length > 0) {
+        toast.error("Falhas no envio", { description: erros.slice(0, 3).join(" | "), duration: 10000 });
+      }
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
 
   const uniqueAttachments = useMemo(() => dedupeJuditAttachments(attachments || []), [JSON.stringify(attachments)]);
   const uidOf = (a: Attachment) => getJuditAttachmentDedupKey(a as any);
