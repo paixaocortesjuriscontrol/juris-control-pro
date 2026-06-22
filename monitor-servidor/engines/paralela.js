@@ -849,11 +849,12 @@ async function run({ sb, payload, log, job }) {
             try {
               const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal);
               if (resgatadas.length > 0) {
-                const seenIds = new Set(pubs.map((x) => getIdDjen(x)).filter(Boolean));
+                const idxById = new Map(pubs.map((x, idx) => [getIdDjen(x), idx]).filter(([id]) => Boolean(id)));
                 for (const r of resgatadas) {
                   const id = getIdDjen(r);
-                  if (id && seenIds.has(id)) continue;
-                  pubs.push(r);
+                  const existingIdx = id ? idxById.get(id) : undefined;
+                  if (existingIdx !== undefined) pubs[existingIdx] = r;
+                  else pubs.push(r);
                 }
               }
             } catch (e) {
@@ -914,11 +915,12 @@ async function run({ sb, payload, log, job }) {
               try {
                 const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, item.tribunal, signal);
                 if (resgatadas.length > 0) {
-                  const seenIds = new Set(pubs.map((p) => getIdDjen(p)).filter(Boolean));
+                  const idxById = new Map(pubs.map((p, idx) => [getIdDjen(p), idx]).filter(([id]) => Boolean(id)));
                   for (const r of resgatadas) {
                     const id = getIdDjen(r);
-                    if (id && seenIds.has(id)) continue;
-                    pubs.push(r);
+                    const existingIdx = id ? idxById.get(id) : undefined;
+                    if (existingIdx !== undefined) pubs[existingIdx] = r;
+                    else pubs.push(r);
                   }
                 }
               } catch (e) {
