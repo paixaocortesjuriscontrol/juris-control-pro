@@ -2530,6 +2530,38 @@ export default function DistribuicaoTst() {
                       <XCircle className="w-4 h-4 text-muted-foreground/40" />
                     )}
                   </TableCell>
+                  {mostrarPendencias && (() => {
+                    const pend = getPendencias(d);
+                    return (
+                      <TableCell className="align-middle min-w-[260px]" onClick={e => e.stopPropagation()}>
+                        {pend.length === 0 ? (
+                          <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 text-[10px]">
+                            Sem pendências
+                          </Badge>
+                        ) : (
+                          <div className="flex flex-wrap gap-1 max-w-[420px]" title={pendenciasResumo(d)}>
+                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                              {pend.length} pendência{pend.length > 1 ? "s" : ""}
+                            </Badge>
+                            {pend.slice(0, 6).map((p) => (
+                              <Badge
+                                key={p.key}
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 border-red-300 text-red-700"
+                              >
+                                {p.label}
+                              </Badge>
+                            ))}
+                            {pend.length > 6 && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-300 text-red-700">
+                                +{pend.length - 6}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
+                    );
+                  })()}
                   {isAdminOrCoordinator && (
                     <TableCell onClick={e => e.stopPropagation()}>
                       <div className="flex gap-1">
