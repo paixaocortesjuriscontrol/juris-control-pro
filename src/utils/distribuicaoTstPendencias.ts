@@ -29,6 +29,36 @@ const eq = (v: any, ...alvos: string[]) => {
   return alvos.some((a) => s === a.toUpperCase());
 };
 
+/** Helpers de leitura case-insensitive para o campo "Parte Recorrente". */
+const parteRec = (row: any): string =>
+  String(row?.parte_recorrente ?? row?.recorrente ?? "").trim().toUpperCase();
+
+/** A parte recorrente envolve Reclamante? (também aceita "Reclamante e Reclamada") */
+export const recorrenteEnvolveReclamante = (row: any): boolean => {
+  const p = parteRec(row);
+  return p.includes("RECLAMANTE");
+};
+
+/** A parte recorrente envolve Reclamada/Banco? */
+export const recorrenteEnvolveBanco = (row: any): boolean => {
+  const p = parteRec(row);
+  // "Reclamada" ou "Reclamante e Reclamada"
+  return /RECLAMAD/.test(p);
+};
+
+/** A parte recorrente é Terceiro? */
+export const recorrenteEhTerceiro = (row: any): boolean => {
+  return parteRec(row) === "TERCEIRO";
+};
+
+/** Mídia Negativa marcada como SIM? */
+export const midiaNegativaSim = (row: any): boolean =>
+  eq(row?.midia_negativa, "SIM", "S");
+
+/** Tem data de julgamento marcada como SIM? */
+export const temDataJulgamentoSim = (row: any): boolean =>
+  eq(row?.tem_data_julgamento, "S", "SIM");
+
 /** Igual a vazio: null / undefined / string vazia / só espaços. Booleans contam como preenchidos. */
 export function isEmpty(v: any): boolean {
   if (v === null || v === undefined) return true;
@@ -53,20 +83,22 @@ export const CAMPOS_OBRIGATORIOS: CampoObrigatorio[] = [
   { key: "turma", label: "Turma (E)", quadrinho: "II. Relator e Turma" },
   { key: "recorrente", aliases: ["parte_recorrente"], label: "Parte Recorrente (AA)", quadrinho: "II. Relator e Turma" },
 
-  // Quadrinho III – Recurso do Reclamante (todos)
-  { key: "tipo_recurso_reclamante", label: "Tipo de Recurso do Reclamante (C)", quadrinho: "III. Recurso do Reclamante" },
-  { key: "aparelhamento_reclamante", label: "Aparelhamento Reclamante (AF/AG)", quadrinho: "III. Recurso do Reclamante" },
-  { key: "materias_recurso_reclamante", label: "Matérias Recurso Reclamante", quadrinho: "III. Recurso do Reclamante" },
-  { key: "chance_exito_reclamante", label: "Chance de Êxito Reclamante (AH)", quadrinho: "III. Recurso do Reclamante" },
+  // Quadrinho III – Recurso do Reclamante
+  // Só cobrados quando o Reclamante figura como Parte Recorrente.
+  { key: "tipo_recurso_reclamante", label: "Tipo de Recurso do Reclamante (C)", quadrinho: "III. Recurso do Reclamante", requiredWhen: recorrenteEnvolveReclamante },
+  { key: "aparelhamento_reclamante", label: "Aparelhamento Reclamante (AF/AG)", quadrinho: "III. Recurso do Reclamante", requiredWhen: recorrenteEnvolveReclamante },
+  { key: "materias_recurso_reclamante", label: "Matérias Recurso Reclamante", quadrinho: "III. Recurso do Reclamante", requiredWhen: recorrenteEnvolveReclamante },
+  { key: "chance_exito_reclamante", label: "Chance de Êxito Reclamante (AH)", quadrinho: "III. Recurso do Reclamante", requiredWhen: recorrenteEnvolveReclamante },
 
-  // Quadrinho IV – Recurso do Reclamado/Banco (todos)
-  { key: "tipo_recurso_banco", label: "Tipo de Recurso do Banco (C)", quadrinho: "IV. Recurso do Banco" },
-  { key: "aparelhamento_banco", label: "Aparelhamento Banco (AF/AG)", quadrinho: "IV. Recurso do Banco" },
-  { key: "materias_recurso_banco", label: "Matérias Recurso do Banco", quadrinho: "IV. Recurso do Banco" },
-  { key: "chance_exito_banco", label: "Chance de Êxito Banco (AH)", quadrinho: "IV. Recurso do Banco" },
+  // Quadrinho IV – Recurso do Reclamado/Banco
+  // Só cobrados quando a Reclamada (banco) figura como Parte Recorrente.
+  { key: "tipo_recurso_banco", label: "Tipo de Recurso do Banco (C)", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
+  { key: "aparelhamento_banco", label: "Aparelhamento Banco (AF/AG)", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
+  { key: "materias_recurso_banco", label: "Matérias Recurso do Banco", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
+  { key: "chance_exito_banco", label: "Chance de Êxito Banco (AH)", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
 
-  // Quadrinho V – Recurso Terceiro
-  { key: "tipo_recurso_terceiro", label: "Tipo de Recurso (Terceiro) (C)", quadrinho: "V. Recurso Terceiro" },
+  // Quadrinho V – Recurso Terceiro (só quando Parte Recorrente = Terceiro)
+  { key: "tipo_recurso_terceiro", label: "Tipo de Recurso (Terceiro) (C)", quadrinho: "V. Recurso Terceiro", requiredWhen: recorrenteEhTerceiro },
 
   // Quadrinho VI – Análise
   { key: "honra", label: "Matéria de Honra (O)", quadrinho: "VI. Análise" },
@@ -78,7 +110,7 @@ export const CAMPOS_OBRIGATORIOS: CampoObrigatorio[] = [
     label: "Risco (descrição) (I)",
     quadrinho: "VI. Análise",
     // Cobrado apenas quando há Mídia Negativa = SIM.
-    requiredWhen: (row) => eq(row?.midia_negativa, "SIM", "S"),
+    requiredWhen: midiaNegativaSim,
   },
   { key: "recurso_terceiros", label: "Recurso de Terceiros", quadrinho: "VI. Análise" },
   { key: "decisao_quarteirizado", label: "Decisão - Análise do Quarteirizado (G)", quadrinho: "VI. Análise" },
@@ -90,19 +122,19 @@ export const CAMPOS_OBRIGATORIOS: CampoObrigatorio[] = [
     key: "data_julgamento",
     label: "Data Julgamento (L)",
     quadrinho: "VII. Julgamento",
-    requiredWhen: (row) => eq(row?.tem_data_julgamento, "S", "SIM"),
+    requiredWhen: temDataJulgamentoSim,
   },
   {
     key: "horario_julgamento",
     label: "Horário (M)",
     quadrinho: "VII. Julgamento",
-    requiredWhen: (row) => eq(row?.tem_data_julgamento, "S", "SIM"),
+    requiredWhen: temDataJulgamentoSim,
   },
   {
     key: "tipo_julgamento",
     label: "Tipo Julgamento (N)",
     quadrinho: "VII. Julgamento",
-    requiredWhen: (row) => eq(row?.tem_data_julgamento, "S", "SIM"),
+    requiredWhen: temDataJulgamentoSim,
   },
 
   // Quadrinho VIII – Fechamento
