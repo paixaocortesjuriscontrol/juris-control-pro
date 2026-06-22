@@ -569,7 +569,7 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
           }
         }
       }
-      if (!signal?.aborted && partePareceAdvogado(mon)) {
+      if (!signal?.aborted && partePareceAdvogado(mon) && items.length === 0 && advogadoItems.length === 0) {
         const scanItems = await buscarTribunalDiaCompleto(slot, dia, tribunal, signal, fallbackSlots, scanCache);
         const scanMatches = scanItems.filter((it) => textoCompletoContemTermoParte(it, getConteudo(it), mon));
         for (const it of scanMatches) it.__matchedByParteAdvogadoFallback = true;
