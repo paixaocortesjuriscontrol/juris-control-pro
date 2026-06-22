@@ -372,7 +372,6 @@ async function buscarPaginado(slot, params, signal) {
   // página vier vazia OU quando nenhum item novo for adicionado (todos
   // duplicados via id_djen). Espelha o comportamento do browser
   // (memória: features/monitoring/djen-paralela-pagination-fix).
-  let emptyStreak = 0;
   for (let page = 1; page < 1000; page++) {
     if (signal?.aborted) throw new Error("cancelado");
     const query = {
