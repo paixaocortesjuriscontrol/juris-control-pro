@@ -51,6 +51,11 @@ import { BulkTagAction } from "@/components/distribuicao-tst/BulkTagAction";
 import { useQuery } from "@tanstack/react-query";
 import { gerarManualDistribuicaoTst } from "@/utils/gerarManualDistribuicaoTst";
 import {
+  getPendencias,
+  pendenciasResumo,
+  COLUNAS_SELECT_PENDENCIAS,
+} from "@/utils/distribuicaoTstPendencias";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -236,6 +241,12 @@ export default function DistribuicaoTst() {
   });
   // Novo filtro: apenas processos com mais de um responsável.
   const [filtroMultiResp, setFiltroMultiResp] = useState<boolean>(false);
+
+  // ===== Verificar Pendências =====
+  // Quando ligado, exibe uma coluna extra na tabela mostrando os campos
+  // obrigatórios (vide spec da advogada) ainda em aberto.
+  const [mostrarPendencias, setMostrarPendencias] = useState<boolean>(false);
+  const [pendenciasRelRunning, setPendenciasRelRunning] = useState(false);
 
   // IDs base por TAG (intersecção). undefined = sem restrição por TAG.
   const idsAllowedFromTagFilter = filtroTagId === "todas" || filtroTagId === "__sem__"
@@ -888,6 +899,116 @@ export default function DistribuicaoTst() {
     }
   };
 
+  /**
+   * Gera relatório XLSX dos campos obrigatórios em aberto, respeitando os
+   * filtros aplicados (ou apenas os selecionados, se houver seleção).
+   * Spec: KELLEN/2026-06 — ver `src/utils/distribuicaoTstPendencias.ts`.
+   */
+  const handleGerarRelatorioPendencias = async () => {
+    setPendenciasRelRunning(true);
+    try {
+      let ids: string[];
+      if (selectedIds.size > 0) {
+        ids = Array.from(selectedIds);
+      } else {
+        toast.info("Buscando distribuições filtradas...");
+        ids = await fetchAllDistribuicaoTstIds(debouncedFilters);
+      }
+      if (ids.length === 0) {
+        toast.info("Nenhuma distribuição encontrada com os filtros atuais.");
+        return;
+      }
+
+      // Carrega os campos obrigatórios em lotes
+      const PAGE = 500;
+      const linhas: any[] = [];
+      const colsExtras = Array.from(
+        new Set([
+          "id",
+          ...COLUNAS_SELECT_PENDENCIAS,
+        ]),
+      );
+      const selectCols = colsExtras.join(", ");
+      for (let i = 0; i < ids.length; i += PAGE) {
+        const batch = ids.slice(i, i + PAGE);
+        const { data, error } = await supabase
+          .from("dados_benner" as any)
+          .select(selectCols)
+          .in("id", batch);
+        if (error) throw error;
+        ((data as any[]) || []).forEach((r) => linhas.push(r));
+      }
+
+      // Monta planilha — uma linha por processo
+      const XLSX = await import("xlsx");
+      const aoa: any[][] = [];
+      aoa.push(["Relatório de Pendências - Distribuição TST"]);
+      aoa.push([
+        "Processo",
+        "Dossiê",
+        "Equipe",
+        "Total de Pendências",
+        "Campos não preenchidos",
+      ]);
+      let totalComPend = 0;
+      for (const r of linhas) {
+        const pend = getPendencias(r);
+        if (pend.length === 0) continue;
+        totalComPend++;
+        aoa.push([
+          r.processo || "",
+          r.dossie || "",
+          r.equipe || "",
+          pend.length,
+          pend.map((p) => p.label).join("; "),
+        ]);
+      }
+      if (totalComPend === 0) {
+        toast.success(
+          `Tudo certo! Nenhuma pendência nos ${linhas.length} processo(s) verificados.`,
+        );
+        return;
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws["!cols"] = [
+        { wch: 28 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 10 },
+        { wch: 90 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Pendências");
+      const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+      const blob = new Blob([buf], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const ts = new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-")
+        .slice(0, 16);
+      a.href = url;
+      a.download = `Pendencias_Distribuicao_TST_${ts}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(
+        `Planilha gerada: ${totalComPend} processo(s) com pendências de ${linhas.length} verificados.`,
+      );
+    } catch (err: any) {
+      toast.error(
+        "Erro ao gerar relatório de pendências: " +
+          (err?.message || String(err)),
+      );
+    } finally {
+      setPendenciasRelRunning(false);
+    }
+  };
+
   // Gerar carga Benner respeitando os filtros aplicados na lista
   const handleGerarCarga = async () => {
     setCargaLoading(true);
@@ -1454,6 +1575,37 @@ export default function DistribuicaoTst() {
               )}
               <BennerSimImport onUpdated={handleRefresh} />
               <DossiesNaoLocalizadosButton filters={debouncedFilters} selectedIds={selectedIds} />
+              <Button
+                variant={mostrarPendencias ? "default" : "outline"}
+                onClick={() => setMostrarPendencias((v) => !v)}
+                title="Mostra uma coluna na lista com os campos obrigatórios ainda não preenchidos em cada processo (spec da advogada Kellen)."
+                className={
+                  mostrarPendencias
+                    ? "bg-red-600 hover:bg-red-700 text-white"
+                    : "border-red-300 text-red-700 hover:bg-red-50"
+                }
+              >
+                <CheckCircle className="w-4 h-4 mr-2" />
+                {mostrarPendencias ? "Ocultar Pendências" : "Verificar Pendências"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleGerarRelatorioPendencias}
+                disabled={pendenciasRelRunning}
+                title="Gera um Excel listando todos os processos com campos obrigatórios em aberto, respeitando os filtros (ou apenas os selecionados)."
+                className="border-red-300 text-red-700 hover:bg-red-50"
+              >
+                {pendenciasRelRunning ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                )}
+                {pendenciasRelRunning
+                  ? "Gerando..."
+                  : selectedIds.size > 0
+                    ? `Relatório Pendências (${selectedIds.size})`
+                    : "Relatório Pendências"}
+              </Button>
               <Button variant="secondary" onClick={handleGerarCarga} disabled={cargaLoading}>
                 {cargaLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
                 {cargaLoading
@@ -2100,14 +2252,21 @@ export default function DistribuicaoTst() {
                     </button>
                   </TableHead>
                 ))}
+                {mostrarPendencias && (
+                  <TableHead className="min-w-[260px]">
+                    <span className="inline-flex items-center gap-1 text-red-700">
+                      Pendências
+                    </span>
+                  </TableHead>
+                )}
                 {isAdminOrCoordinator && <TableHead className="w-28">Ações</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={isAdminOrCoordinator ? 9 : 8} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={(isAdminOrCoordinator ? 9 : 8) + (mostrarPendencias ? 1 : 0)} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={isAdminOrCoordinator ? 9 : 8} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={(isAdminOrCoordinator ? 9 : 8) + (mostrarPendencias ? 1 : 0)} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
               ) : dadosOrdenados.map(d => {
                 const isPresidencia = (d.turma || "").toLowerCase().includes("presid");
                 const relatorClass = isPresidencia
@@ -2371,6 +2530,38 @@ export default function DistribuicaoTst() {
                       <XCircle className="w-4 h-4 text-muted-foreground/40" />
                     )}
                   </TableCell>
+                  {mostrarPendencias && (() => {
+                    const pend = getPendencias(d);
+                    return (
+                      <TableCell className="align-middle min-w-[260px]" onClick={e => e.stopPropagation()}>
+                        {pend.length === 0 ? (
+                          <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 text-[10px]">
+                            Sem pendências
+                          </Badge>
+                        ) : (
+                          <div className="flex flex-wrap gap-1 max-w-[420px]" title={pendenciasResumo(d)}>
+                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                              {pend.length} pendência{pend.length > 1 ? "s" : ""}
+                            </Badge>
+                            {pend.slice(0, 6).map((p) => (
+                              <Badge
+                                key={p.key}
+                                variant="outline"
+                                className="text-[10px] px-1.5 py-0 border-red-300 text-red-700"
+                              >
+                                {p.label}
+                              </Badge>
+                            ))}
+                            {pend.length > 6 && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-300 text-red-700">
+                                +{pend.length - 6}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </TableCell>
+                    );
+                  })()}
                   {isAdminOrCoordinator && (
                     <TableCell onClick={e => e.stopPropagation()}>
                       <div className="flex gap-1">
