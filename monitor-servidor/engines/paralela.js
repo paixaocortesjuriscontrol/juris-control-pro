@@ -155,7 +155,10 @@ function getConteudo(pub) {
 
 function getIdDjen(pub) {
   const obj = rawObj(pub);
-  const v = obj?.id ?? pub?.id ?? pub?.id_djen ?? pub?.numeroComunicacao ?? pub?.numero_comunicacao ?? null;
+  const explicit = obj?.id_djen ?? pub?.id_djen ?? obj?.numeroComunicacao ?? pub?.numeroComunicacao ?? obj?.numero_comunicacao ?? pub?.numero_comunicacao ?? null;
+  if (explicit !== null && explicit !== undefined) return String(explicit).trim() || null;
+  const v = obj?.id ?? pub?.id ?? null;
+  if (typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)) return null;
   return v === null || v === undefined ? null : String(v).trim() || null;
 }
 
@@ -641,12 +644,26 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
 async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
   const tribunaisMon = Array.isArray(mon.tribunais) ? expandirTribunais(mon.tribunais) : [];
+  const logDebug = typeof mon.__log === "function" ? mon.__log : null;
+  const seenRunKeys = new Set();
   for (const pub of pubs) {
     const conteudo = getConteudo(pub);
     const metadata = metadataFromRaw(pub);
+    const idDjen = getIdDjen(pub);
+    const dataDisponibilizacao = getDataDisponibilizacao(pub, dia);
+    const processoNumero = extractProcesso(pub, conteudo);
+    const hashConteudo = generatePublicacaoHash(conteudo, dataDisponibilizacao, processoNumero, idDjen);
+    const coordenacaoId = mon.coordenacao_id || null;
+    const runKey = idDjen ? `id_djen:${idDjen}` : `hash:${hashConteudo}`;
+    if (seenRunKeys.has(runKey)) {
+      logDebug?.("paralela.dedup_runtime", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, origem: pub?.__matchedByServidorCorpus ? "servidor_corpus" : "api" });
+      continue;
+    }
+    seenRunKeys.add(runKey);
     // Filtro por tribunais permitidos no monitoramento (espelha browser)
     if (tribunaisMon.length > 0 && !tribunaisMon.includes(tribunal)) {
       stats.descartadas++;
+      logDebug?.("paralela.descartada_tribunal", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo });
       continue;
     }
     if (
@@ -656,26 +673,24 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       !condicaoConcomitanteAtendida(pub, mon, conteudo)
     ) {
       stats.descartadas++;
+      logDebug?.("paralela.descartada_filtro", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, temConteudo: !!conteudo, termo: mon.termo_busca, tipo: mon.tipo });
       continue;
     }
-    const idDjen = getIdDjen(pub);
-    const dataDisponibilizacao = getDataDisponibilizacao(pub, dia);
-    const processoNumero = extractProcesso(pub, conteudo);
-    const hashConteudo = generatePublicacaoHash(conteudo, dataDisponibilizacao, processoNumero, idDjen);
-    const coordenacaoId = mon.coordenacao_id || null;
     let exists = null;
-    if (idDjen && coordenacaoId) {
-      const { data } = await sb.from("publicacoes_djen_servidor").select("id").eq("coordenacao_id", coordenacaoId).eq("id_djen", idDjen).maybeSingle();
+    let existsReason = null;
+    if (idDjen) {
+      const { data } = await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("monitoramento_id", mon.id).eq("id_djen", idDjen).maybeSingle();
       exists = data || null;
+      if (exists) existsReason = "same_monitoramento_id_djen";
     }
-    if (!exists && !idDjen) {
-      const { data } = coordenacaoId
-        ? await sb.from("publicacoes_djen_servidor").select("id").eq("coordenacao_id", coordenacaoId).eq("hash_conteudo", hashConteudo).maybeSingle()
-        : await sb.from("publicacoes_djen_servidor").select("id").eq("monitoramento_id", mon.id).eq("hash_conteudo", hashConteudo).maybeSingle();
+    if (!exists) {
+      const { data } = await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("monitoramento_id", mon.id).eq("hash_conteudo", hashConteudo).maybeSingle();
       exists = data || null;
+      if (exists) existsReason = "same_monitoramento_hash";
     }
     if (exists) {
       stats.duplicatas++;
+      logDebug?.("paralela.duplicata_existente", { reason: existsReason, monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, existing });
       if (execucaoId) {
         await sb.from("publicacoes_djen_servidor_execucoes").upsert(
           { publicacao_id: exists.id, execucao_id: execucaoId, tipo_engine: "paralela" },
@@ -701,10 +716,27 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     if (error) {
       const msg = String(error.message || "");
       const isConflict = error.code === "23505" || msg.includes("duplicate key");
-      if (isConflict) stats.duplicatas++;
-      else stats.descartadas++;
+      if (isConflict) {
+        const { data: conflictRows } = await sb
+          .from("publicacoes_djen_servidor")
+          .select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo, tribunal, data_disponibilizacao")
+          .eq("monitoramento_id", mon.id)
+          .eq("hash_conteudo", hashConteudo)
+          .limit(5);
+        if (conflictRows && conflictRows.length > 0) {
+          stats.duplicatas++;
+          logDebug?.("paralela.duplicata_constraint_confirmada", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, constraint: error.details || msg, conflictRows });
+        } else {
+          stats.descartadas++;
+          logDebug?.("paralela.insert_conflict_sem_linha_visivel", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, code: error.code, message: msg, details: error.details });
+        }
+      } else {
+        stats.descartadas++;
+        logDebug?.("paralela.insert_error", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, code: error.code, message: msg, details: error.details });
+      }
     } else {
       stats.novas++;
+      logDebug?.("paralela.nova_inserida", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, publicacaoId: inserted?.id || null });
       if (execucaoId && inserted?.id) {
         await sb.from("publicacoes_djen_servidor_execucoes").upsert(
           { publicacao_id: inserted.id, execucao_id: execucaoId, tipo_engine: "paralela" },
@@ -869,7 +901,8 @@ async function run({ sb, payload, log, job }) {
         try {
           const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
           const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots, scanCache, sb);
-          const stats = await persistPublicacoes(sb, pubs, mon, tribunal, dia, job?.id || null);
+          log("paralela.retry_result", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: tipoMon, tribunal, dia, encontrados: pubs.length });
+          const stats = await persistPublicacoes(sb, pubs, { ...mon, tipo: tipoMon, __log: log }, tribunal, dia, job?.id || null);
           totalNovas += stats.novas;
           totalDescartadas += stats.descartadas;
           totalDuplicatas += stats.duplicatas;
@@ -919,7 +952,9 @@ async function run({ sb, payload, log, job }) {
           try {
             const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
             const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal, fallbackSlots, scanCache, sb);
-            const stats = await persistPublicacoes(sb, pubs, mon, item.tribunal, dia, job?.id || null);
+            log("paralela.termo_result", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length });
+            const stats = await persistPublicacoes(sb, pubs, { ...mon, tipo: item.tipo, __log: log }, item.tribunal, dia, job?.id || null);
+            log("paralela.termo_persist", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length, ...stats });
             item.novas += stats.novas;
             item.descartadas += stats.descartadas;
             item.duplicatas += stats.duplicatas;
