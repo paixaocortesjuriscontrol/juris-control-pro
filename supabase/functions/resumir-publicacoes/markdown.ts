@@ -91,9 +91,31 @@ const PROC_HEADER_RE = /^(?:Processo\s+N[ºo°]|AIRR-|RR-|AgInt-|ED-|RRAg-|AIRRA
 
 export function isPautaDeJulgamentoMd(md: string): boolean {
   if (!md) return false;
-  return /Pauta\s+de\s+Julgamento/i.test(md) ||
-    /Aditamento\s+[àa]\s+Pauta/i.test(md) ||
-    /Sess[aã]o\s+(Ordin[áa]ria|Extraordin[áa]ria|Virtual|Presencial)/i.test(md);
+
+  // 1) Exclusão prioritária: acórdão / decisão monocrática.
+  //    Evita falso positivo quando o texto cita "publicação de nova pauta
+  //    de julgamento" dentro do dispositivo de um acórdão.
+  const ehAcordaoOuDecisao =
+    /A\s*C\s*Ó\s*R\s*D\s*Ã\s*O/i.test(md) ||
+    /\bACORDAM\s+os\s+Ministros/i.test(md) ||
+    /\bACORDAM\s+as?\s+(Turma|Desembargadora|Desembargadores)/i.test(md) ||
+    /\bISTO\s+POSTO\b/i.test(md) ||
+    /Embargos\s+de\s+declara[çc][ãa]o\s+acolhidos/i.test(md) ||
+    /\bDECIS[ÃA]O\s+MONOCR[ÁA]TICA\b/i.test(md) ||
+    (/\bRelator[:(]/i.test(md) && /\bV\s*O\s*T\s*O\b/i.test(md));
+  if (ehAcordaoOuDecisao) return false;
+
+  // 2) Confirmação positiva — exige marcador estrutural.
+  const cabecalho = md.slice(0, 500);
+  const temCabecalhoPauta =
+    /(^|\s)PAUTA\s+DE\s+JULGAMENTO/i.test(cabecalho) ||
+    /Aditamento\s+[àa]\s+Pauta/i.test(cabecalho);
+  const temSessao =
+    /\bSess[aã]o\s+(Ordin[áa]ria|Extraordin[áa]ria|Virtual|Presencial)/i.test(md) &&
+    /\bsess[aã]o\s+(virtual|presencial)/i.test(md);
+  const temCejusc = /\bCEJUSC\b/i.test(md);
+
+  return temCabecalhoPauta || temSessao || temCejusc;
 }
 
 export interface BlocoPauta {
