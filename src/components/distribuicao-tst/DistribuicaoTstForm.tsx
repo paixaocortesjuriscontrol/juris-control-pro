@@ -23,6 +23,13 @@ import { persistirPartesJudit } from "@/lib/juditDistribuicaoTst";
 const ReqMark = () => (
   <span className="text-red-600 font-bold ml-0.5" title="Campo obrigatório" aria-label="obrigatório">*</span>
 );
+
+/** Compara case-insensitive contra uma lista de alvos. Usado para
+ *  condicionar asteriscos de obrigatoriedade (ex.: Mídia Negativa = SIM). */
+const eq = (v: any, ...alvos: string[]) => {
+  const s = String(v ?? "").trim().toUpperCase();
+  return alvos.some((a) => s === a.toUpperCase());
+};
 const OPCOES_RECURSO_NORM = [
   "Agravo de Instrumento em Recurso de Revista",
   "Recurso de Revista com Agravo",
