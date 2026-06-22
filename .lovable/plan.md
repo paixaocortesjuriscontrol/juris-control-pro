@@ -1,38 +1,60 @@
-## Diagnóstico
+## Objetivo
 
-A advogada está certa — depois que a aba "Dados Benner" foi removida e o formulário unificado na aba "Distribuição TST", o botão **Judit** preenche corretamente os campos na tela, mas só grava em **`distribuicoes_tst_legacy`**. A tabela **`dados_benner`** (de onde a planilha Benner / Carga Benner / relatórios leem `relator`, `turma`, `dossie`, `reclamante`, `reclamada`, `recorrente`, `tipo_recurso*`, `situacao_processo`, `processo_baixado`) NÃO recebe mais esses valores.
+Corrigir o comparador/pipeline DJEN Servidor com uma regra simples:
 
-Hoje:
-- `DistribuicaoTstForm.handleSave` só envia ao `onSaveBennerExtra` os campos da lista `BENNER_EXTRA_FIELDS` (apenas análise/risco/julgamento/resultado).
-- Os campos preenchidos pela Judit em `apply("relator", …)`, `apply("turma", …)`, etc. ficam apenas no `form` (Distribuição) e nunca chegam ao `dados_benner`.
+1. A mesma publicação pode aparecer em coordenações diferentes.
+2. Dentro da mesma coordenação, se a publicação já foi encontrada por qualquer termo, ela é duplicada e deve contar/gravar apenas uma vez.
+3. Uma coordenação nunca interfere na outra.
+4. Não tornar `id_djen` obrigatório: quando for nulo, usar a chave de deduplicação existente (`dedup_conteudo_key` ou fallback atual).
 
-Caso testado (`0011464-08.2022.5.15.0034 / 07.02.033.0003391925/22`): `dados_benner.relator` e `dados_benner.turma` aparecem populados porque foram gravados antes da unificação. Em processos novos pós-unificação, o Benner fica vazio mesmo a Judit tendo respondido corretamente.
+## Correção
 
-## O que mudar
+### 1. Ajustar a deduplicação do comparador
 
-Em `src/components/distribuicao-tst/DistribuicaoTstForm.tsx`:
+No comparador, trocar a chave para ser sempre isolada por coordenação:
 
-1. Adicionar uma constante `BENNER_MIRROR_FIELDS` com os campos que existem nas DUAS tabelas e que devem ser espelhados no `dados_benner` quando alterados na aba unificada:
-   - `relator`, `turma`, `dossie`, `reclamante`, `reclamada`, `recorrente`, `parte_recorrente`, `tipo_recurso`, `tipo_recurso_reclamante`, `tipo_recurso_banco`, `tipo_recurso_terceiro`, `situacao_processo`, `processo_baixado`, `data_distribuicao_real`, `data_transito_julgado`.
+```text
+coordenação + id_djen, quando id_djen existir
+coordenação + dedup_conteudo_key, quando id_djen for nulo
+coordenação + processo/data/hash, fallback legado
+```
 
-2. Após a aplicação dos dados da Judit (logo depois do bloco `apply(...)` em ~linha 945), espelhar para `bennerExtra`/`bennerDirtyRef` todo campo da lista que tiver valor — usando o mesmo `setExtra` lógico (marca como dirty para entrar no diff).
+Isso garante:
+- mesma publicação em coordenações diferentes conta para cada coordenação;
+- mesma publicação encontrada por vários termos dentro da mesma coordenação conta uma vez só;
+- `id_djen` nulo não quebra nada.
 
-3. Estender `set()` (a função genérica de edição manual do form) para que, quando o campo editado pertencer a `BENNER_MIRROR_FIELDS`, também propague para `bennerExtra` + `bennerDirtyRef` — assim edições manuais (não-Judit) também sincronizam.
+### 2. Ajustar a gravação do DJEN Servidor
 
-4. No `buildBennerDiff` (≈ linha 1104), nada muda na estrutura — basta que esses campos passem a entrar em `bennerDirtyRef`. O diff continua enviando apenas o que mudou e o pre-check de `extraLoaded` evita race.
+No ponto onde o servidor grava em `publicacoes_djen_servidor`, antes de inserir:
 
-5. Adicionar `BENNER_MIRROR_FIELDS` ao `buildBennerExtra` para que o snapshot inicial inclua esses valores; assim o diff de "voltou ao original" funciona certo.
+- agrupar resultados por coordenação;
+- dentro de cada coordenação, deduplicar pela chave acima;
+- gravar somente uma linha por publicação dentro daquela coordenação;
+- se houver vários termos/monitoramentos que encontraram a mesma publicação, manter um `monitoramento_id` representativo, sem multiplicar linhas.
 
-## Validação
+### 3. Não criar regra global entre coordenações
 
-- Abrir um processo TST novo, clicar **Buscar Judit** → conferir que `dados_benner.relator/turma/dossie/tipo_recurso*` ficam preenchidos com o mesmo valor que aparece na tela.
-- Editar manualmente um desses campos na aba Distribuição TST e salvar → conferir que o `dados_benner` reflete a alteração.
-- Para o processo `0011464-08.2022.5.15.0034`, reclicar Judit e confirmar nos dois `SELECT` (distribuicoes_tst_legacy e dados_benner).
+Não será criado bloqueio global por `id_djen`.
 
-## Detalhes técnicos
+O sistema deve permitir:
 
-- Arquivo único alterado: `src/components/distribuicao-tst/DistribuicaoTstForm.tsx`.
-- Sem migração SQL (as colunas já existem em ambas as tabelas).
-- Sem mudança no edge function `buscar-judit` — ele já devolve os campos corretos (validado in-loco).
-- `handleSaveBennerLocal` em `DistribuicaoTstDetail.tsx` segue intocado: ele recebe um `patch` mais rico, simplesmente atualiza por `id` na `dados_benner`.
-- Nenhum efeito na aba "Dados Benner" (já era somente conferência / read-only).
+```text
+Coordenação A + id_djen 123 = permitido
+Coordenação B + id_djen 123 = permitido
+Coordenação A + id_djen 123 novamente = duplicado
+```
+
+### 4. Limpar/ignorar duplicados atuais no relatório
+
+Para a análise atual, o comparador deve ignorar duplicados já existentes dentro da mesma coordenação, sem apagar dados automaticamente.
+
+Depois disso, se necessário, podemos fazer uma limpeza controlada dos duplicados históricos, mas não é obrigatório para corrigir a tela.
+
+## Resultado esperado
+
+O comparador DJEN Servidor x Browser passa a mostrar o total correto por coordenação:
+
+- servidor pode continuar maior que browser quando ele encontrou a mesma publicação em coordenações diferentes;
+- mas não deve inflar os números por múltiplos termos/monitoramentos dentro da mesma coordenação;
+- coordenações permanecem totalmente isoladas.
