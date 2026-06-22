@@ -2252,6 +2252,13 @@ export default function DistribuicaoTst() {
                     </button>
                   </TableHead>
                 ))}
+                {mostrarPendencias && (
+                  <TableHead className="min-w-[260px]">
+                    <span className="inline-flex items-center gap-1 text-red-700">
+                      Pendências
+                    </span>
+                  </TableHead>
+                )}
                 {isAdminOrCoordinator && <TableHead className="w-28">Ações</TableHead>}
               </TableRow>
             </TableHeader>
