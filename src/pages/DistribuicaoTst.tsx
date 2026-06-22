@@ -1564,7 +1564,6 @@ export default function DistribuicaoTst() {
                   {arquivarSelRunning ? "Arquivando..." : `Arquivar selecionados (${selectedIds.size})`}
                 </Button>
               )}
-              <BennerSimImport onUpdated={handleRefresh} />
               <DossiesNaoLocalizadosButton filters={debouncedFilters} selectedIds={selectedIds} />
               <Button
                 variant={mostrarPendencias ? "default" : "outline"}
