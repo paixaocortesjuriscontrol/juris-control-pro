@@ -75,14 +75,18 @@ export function DossieUpdateImport({ onUpdated }: Props) {
       const numeros = [...dossieMap.keys()];
       let updated = 0;
       let notFound = 0;
-      const totalBatches = Math.ceil(numeros.length / 500);
+      const LOOKUP_BATCH = 1000;
+      const UPDATE_CONCURRENCY = 8;
+      const LOOKUP_CONCURRENCY = 4;
+      const totalBatches = Math.ceil(numeros.length / LOOKUP_BATCH);
+      let doneBatches = 0;
 
-      for (let i = 0; i < numeros.length; i += 500) {
-        const batchIdx = Math.floor(i / 500) + 1;
-        setProgress(Math.round((batchIdx / totalBatches) * 100));
-        setStatusText(`Atualizando lote ${batchIdx}/${totalBatches} · ${updated} atualizados`);
+      const lookupBatches: string[][] = [];
+      for (let i = 0; i < numeros.length; i += LOOKUP_BATCH) {
+        lookupBatches.push(numeros.slice(i, i + LOOKUP_BATCH));
+      }
 
-        const batch = numeros.slice(i, i + 500);
+      const processBatch = async (batch: string[]) => {
         const { data } = await supabase
           .from("dados_benner" as any)
           .select("id, processo")
@@ -90,7 +94,7 @@ export function DossieUpdateImport({ onUpdated }: Props) {
 
         if (!data || (data as any[]).length === 0) {
           notFound += batch.length;
-          continue;
+          return;
         }
 
         const found = new Set((data as any[]).map((r: any) => r.processo));
@@ -104,13 +108,31 @@ export function DossieUpdateImport({ onUpdated }: Props) {
           byDossie.get(newDossie)!.push(row.id);
         }
 
-        for (const [dossie, ids] of byDossie) {
-          const { error } = await supabase
-            .from("dados_benner" as any)
-            .update({ dossie } as any)
-            .in("id", ids);
-          if (!error) updated += ids.length;
+        const entries = [...byDossie.entries()];
+        for (let i = 0; i < entries.length; i += UPDATE_CONCURRENCY) {
+          const slice = entries.slice(i, i + UPDATE_CONCURRENCY);
+          await Promise.all(
+            slice.map(async ([dossie, ids]) => {
+              const { error } = await supabase
+                .from("dados_benner" as any)
+                .update({ dossie } as any)
+                .in("id", ids);
+              if (!error) updated += ids.length;
+            })
+          );
         }
+      };
+
+      for (let i = 0; i < lookupBatches.length; i += LOOKUP_CONCURRENCY) {
+        const slice = lookupBatches.slice(i, i + LOOKUP_CONCURRENCY);
+        await Promise.all(
+          slice.map(async (batch) => {
+            await processBatch(batch);
+            doneBatches += 1;
+            setProgress(Math.round((doneBatches / totalBatches) * 100));
+            setStatusText(`Lote ${doneBatches}/${totalBatches} · ${updated} atualizados`);
+          })
+        );
       }
 
       setProgress(100);
