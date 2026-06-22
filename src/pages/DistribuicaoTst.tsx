@@ -1524,11 +1524,7 @@ export default function DistribuicaoTst() {
                     ? `Relatório PDF Partes (${selectedIds.size})`
                     : "Relatório PDF Partes"}
               </Button>
-              <CertidaoPdfImport onImported={handleRefresh} />
-              <DistribuicaoTstImport onImported={handleRefresh} />
-              <DossieUpdateImport onUpdated={handleRefresh} />
-              <EquipeUpdateImport onUpdated={handleRefresh} />
-              {isAdmin && <SituacaoEnvioUpdateImport onUpdated={handleRefresh} />}
+              {/* Botões de importação movidos para Admin TST → Importações Distribuição TST */}
               <Link to="/dados-benner">
                 <Button variant="outline">
                   <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
