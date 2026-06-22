@@ -768,22 +768,6 @@ async function run({ sb, payload, log, job }) {
         try {
           const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
           const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots);
-          if (tipoMon === "parte") {
-            try {
-              const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal);
-              if (resgatadas.length > 0) {
-                const idxById = new Map(pubs.map((x, idx) => [getIdDjen(x), idx]).filter(([id]) => Boolean(id)));
-                for (const r of resgatadas) {
-                  const id = getIdDjen(r);
-                  const existingIdx = id ? idxById.get(id) : undefined;
-                  if (existingIdx !== undefined) pubs[existingIdx] = r;
-                  else pubs.push(r);
-                }
-              }
-            } catch (e) {
-              log("paralela.retry_resgate_error", { tribunal, monId, e: String(e?.message || e).slice(0, 300) });
-            }
-          }
           const stats = await persistPublicacoes(sb, pubs, mon, tribunal, dia, job?.id || null);
           totalNovas += stats.novas;
           totalDescartadas += stats.descartadas;
@@ -834,22 +818,6 @@ async function run({ sb, payload, log, job }) {
           try {
             const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
             const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal, fallbackSlots);
-            if (item.tipo === "parte") {
-              try {
-                const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, item.tribunal, signal);
-                if (resgatadas.length > 0) {
-                  const idxById = new Map(pubs.map((p, idx) => [getIdDjen(p), idx]).filter(([id]) => Boolean(id)));
-                  for (const r of resgatadas) {
-                    const id = getIdDjen(r);
-                    const existingIdx = id ? idxById.get(id) : undefined;
-                    if (existingIdx !== undefined) pubs[existingIdx] = r;
-                    else pubs.push(r);
-                  }
-                }
-              } catch (e) {
-                log("paralela.resgate_parte_error", { tribunal: item.tribunal, monId, e: String(e?.message || e).slice(0, 300) });
-              }
-            }
             const stats = await persistPublicacoes(sb, pubs, mon, item.tribunal, dia, job?.id || null);
             item.novas += stats.novas;
             item.descartadas += stats.descartadas;
