@@ -692,6 +692,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     }
     if (exists) {
       stats.duplicatas++;
+      logDebug?.("paralela.duplicata_existente", { reason: existsReason, monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, existing });
       if (execucaoId) {
         await sb.from("publicacoes_djen_servidor_execucoes").upsert(
           { publicacao_id: exists.id, execucao_id: execucaoId, tipo_engine: "paralela" },
@@ -717,10 +718,27 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     if (error) {
       const msg = String(error.message || "");
       const isConflict = error.code === "23505" || msg.includes("duplicate key");
-      if (isConflict) stats.duplicatas++;
-      else stats.descartadas++;
+      if (isConflict) {
+        const { data: conflictRows } = await sb
+          .from("publicacoes_djen_servidor")
+          .select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo, tribunal, data_disponibilizacao")
+          .eq("monitoramento_id", mon.id)
+          .eq("hash_conteudo", hashConteudo)
+          .limit(5);
+        if (conflictRows && conflictRows.length > 0) {
+          stats.duplicatas++;
+          logDebug?.("paralela.duplicata_constraint_confirmada", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, constraint: error.details || msg, conflictRows });
+        } else {
+          stats.descartadas++;
+          logDebug?.("paralela.insert_conflict_sem_linha_visivel", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, code: error.code, message: msg, details: error.details });
+        }
+      } else {
+        stats.descartadas++;
+        logDebug?.("paralela.insert_error", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, code: error.code, message: msg, details: error.details });
+      }
     } else {
       stats.novas++;
+      logDebug?.("paralela.nova_inserida", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, publicacaoId: inserted?.id || null });
       if (execucaoId && inserted?.id) {
         await sb.from("publicacoes_djen_servidor_execucoes").upsert(
           { publicacao_id: inserted.id, execucao_id: execucaoId, tipo_engine: "paralela" },
