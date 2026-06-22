@@ -678,17 +678,15 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     }
     let exists = null;
     let existsReason = null;
-    if (idDjen && coordenacaoId) {
-      const { data } = await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("coordenacao_id", coordenacaoId).eq("id_djen", idDjen).maybeSingle();
+    if (idDjen) {
+      const { data } = await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("monitoramento_id", mon.id).eq("id_djen", idDjen).maybeSingle();
       exists = data || null;
-      if (exists) existsReason = "same_coordenacao_id_djen";
+      if (exists) existsReason = "same_monitoramento_id_djen";
     }
-    if (!exists && !idDjen) {
-      const { data } = coordenacaoId
-        ? await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("coordenacao_id", coordenacaoId).eq("hash_conteudo", hashConteudo).maybeSingle()
-        : await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("monitoramento_id", mon.id).eq("hash_conteudo", hashConteudo).maybeSingle();
+    if (!exists) {
+      const { data } = await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("monitoramento_id", mon.id).eq("hash_conteudo", hashConteudo).maybeSingle();
       exists = data || null;
-      if (exists) existsReason = coordenacaoId ? "same_coordenacao_hash_no_id_djen" : "same_monitoramento_hash_no_id_djen";
+      if (exists) existsReason = "same_monitoramento_hash";
     }
     if (exists) {
       stats.duplicatas++;
