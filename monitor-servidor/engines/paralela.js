@@ -515,8 +515,8 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
 // devolver a publicação para esta coordenação porque ela já foi capturada
 // por outra coordenação (ex.: Santander via advogado OSMAR MENDES). Para
 // fechar o gap (paridade com o Browser), olhamos publicacoes_djen_servidor
-// do mesmo dia+tribunal em outras coordenações, filtramos por substring do
-// termo no conteúdo (ilike) e revalidamos.
+// E publicacoes_djen do mesmo dia+tribunal em outras coordenações, filtramos
+// por substring do termo no conteúdo (ilike) e revalidamos.
 //
 // IMPORTANTE: a revalidação NÃO pode exigir partes_json/seção Parte(s),
 // porque no Servidor o conteúdo é o texto bruto da API (sem cabeçalho
