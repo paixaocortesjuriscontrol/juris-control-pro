@@ -185,6 +185,7 @@ function App() {
               <Route path="/corrigir-planilha" element={<ProtectedRoute><CorrigirPlanilha /></ProtectedRoute>} />
               <Route path="/ia-responde" element={<AdminRoute><IaResponde /></AdminRoute>} />
               <Route path="/admin-tst" element={<ProtectedRoute><AdminTst /></ProtectedRoute>} />
+              <Route path="/admin-tst/importacoes-distribuicao" element={<ProtectedRoute><AdminTstImportacoes /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>
