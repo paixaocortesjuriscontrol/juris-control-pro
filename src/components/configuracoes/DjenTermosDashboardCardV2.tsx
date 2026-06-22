@@ -895,7 +895,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
       executar(inicioExec, fimExec, { turbo: turboMode, ...filtros });
     }
     onAfterMutation();
-  }, [canResume, executar, executarHibrido, getDataYmd, dataInicio, dataFim, onAfterMutation, turboMode, hybridMode, backgroundOnly, indexMode, dataIndexYmd, indexStatus, filtroCoordenacaoId, filtroMonitoramentoId]);
+  }, [canResume, executar, executarHibrido, getDataYmd, dataInicio, dataFim, onAfterMutation, turboMode, hybridMode, backgroundOnly, indexMode, dataIndexYmd, indexStatus, filtroCoordenacaoId, filtroMonitoramentoId, filtroTipo, monitoramentosFiltrados]);
 
   const handleIndexarDiario = useCallback(async () => {
     const dataYmd = getDataYmd(dataIndice) || getDataYmd(new Date());
@@ -930,7 +930,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     };
     retomar({ turbo: turboMode, ...filtros });
     onAfterMutation();
-  }, [retomar, onAfterMutation, turboMode, backgroundOnly, indexMode, filtroCoordenacaoId, filtroMonitoramentoId]);
+  }, [retomar, onAfterMutation, turboMode, backgroundOnly, indexMode, filtroCoordenacaoId, filtroMonitoramentoId, filtroTipo, monitoramentosFiltrados]);
 
   const handleNovaExecucao = useCallback(() => {
     setShowResumeDialog(false);
@@ -962,7 +962,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
       executar(inicioExec, fimExec, { turbo: turboMode, ...filtros });
     }
     onAfterMutation();
-  }, [executar, executarHibrido, getDataYmd, dataInicio, dataFim, onAfterMutation, turboMode, hybridMode, backgroundOnly, indexMode, dataIndexYmd, indexStatus, filtroCoordenacaoId, filtroMonitoramentoId]);
+  }, [executar, executarHibrido, getDataYmd, dataInicio, dataFim, onAfterMutation, turboMode, hybridMode, backgroundOnly, indexMode, dataIndexYmd, indexStatus, filtroCoordenacaoId, filtroMonitoramentoId, filtroTipo, monitoramentosFiltrados]);
 
   const handleCancelar = useCallback(() => {
     if (hybridMode) {
