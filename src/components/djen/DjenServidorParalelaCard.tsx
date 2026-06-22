@@ -118,6 +118,7 @@ export function DjenServidorParalelaCard() {
   const [dataFim, setDataFim] = useState<Date | undefined>();
   const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState("");
   const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState<string>("");
 
   useEffect(() => {
     const hoje = new Date();
@@ -151,6 +152,14 @@ export function DjenServidorParalelaCard() {
   useEffect(() => {
     if (!filtroCoordenacaoId) setFiltroMonitoramentoId("");
   }, [filtroCoordenacaoId]);
+
+  useEffect(() => {
+    setFiltroMonitoramentoId("");
+  }, [filtroTipo]);
+
+  const monitoramentosFiltrados = filtroTipo
+    ? monitoramentos.filter((m) => (m.tipo || "") === filtroTipo)
+    : monitoramentos;
 
   const exec = live.data;
   const execStatus = exec?.status || "idle";
@@ -203,9 +212,13 @@ export function DjenServidorParalelaCard() {
       dataFim: ymd(dataFim),
     };
     if (filtroCoordenacaoId) payload.coordenacaoId = filtroCoordenacaoId;
-    if (filtroMonitoramentoId) payload.monitoramentoIds = [filtroMonitoramentoId];
+    if (filtroMonitoramentoId) {
+      payload.monitoramentoIds = [filtroMonitoramentoId];
+    } else if (filtroTipo && monitoramentosFiltrados.length > 0) {
+      payload.monitoramentoIds = monitoramentosFiltrados.map((m) => m.id);
+    }
     enfileirar.mutate({ tipo: "djen_paralela_servidor", payload });
-  }, [dataInicio, dataFim, enfileirar, filtroCoordenacaoId, filtroMonitoramentoId]);
+  }, [dataInicio, dataFim, enfileirar, filtroCoordenacaoId, filtroMonitoramentoId, filtroTipo, monitoramentosFiltrados]);
 
   const handleForcarParada = useCallback(() => {
     if (exec?.id && isRunning) cancelar.mutate(exec.id);
@@ -215,6 +228,7 @@ export function DjenServidorParalelaCard() {
   const handleLimparFiltro = useCallback(async () => {
     setFiltroCoordenacaoId("");
     setFiltroMonitoramentoId("");
+    setFiltroTipo("");
     await queryClient.invalidateQueries({ queryKey: ["djen-servidor"] });
     toast.success("Filtro limpo");
   }, [queryClient]);
