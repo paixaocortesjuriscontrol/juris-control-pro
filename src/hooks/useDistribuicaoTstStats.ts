@@ -57,6 +57,11 @@ const ZERO: DistribuicaoTstStats = {
 export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
   const [stats, setStats] = useState<DistribuicaoTstStats>(ZERO);
   const [loading, setLoading] = useState(false);
+  // Flag para diferenciar "ainda não carregou" de "carregou e veio vazio".
+  // Em caso de erro transitório (auth refresh, timeout de rede, etc.) NÃO
+  // zeramos os cards — mantemos o último valor válido para evitar o flash
+  // de "0" reportado pela Kellen.
+  const [loadedOnce, setLoadedOnce] = useState(false);
 
   const filtersKey = JSON.stringify(filters);
 
@@ -68,12 +73,14 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
         { filters: filters as any }
       );
       if (error) {
-        setStats(ZERO);
+        // Erro de RPC: não sobrescreve com zeros. Mantém último valor válido.
+        console.warn("[useDistribuicaoTstStats] RPC falhou, mantendo valores anteriores:", error);
         return;
       }
       const row: any = Array.isArray(data) ? data[0] : data;
       if (!row) {
-        setStats(ZERO);
+        // Resposta sem linhas: só zera na primeira carga; depois mantém.
+        if (!loadedOnce) setStats(ZERO);
         return;
       }
       setStats({
@@ -101,11 +108,14 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
         semEquipe: Number(row.sem_equipe) || 0,
         aFazer: Number(row.a_fazer) || 0,
       });
+      setLoadedOnce(true);
+    } catch (err) {
+      console.warn("[useDistribuicaoTstStats] exceção, mantendo valores anteriores:", err);
     } finally {
       setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersKey]);
+  }, [filtersKey, loadedOnce]);
 
   useEffect(() => { fetchStats(); }, [fetchStats]);
 
