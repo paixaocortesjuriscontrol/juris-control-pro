@@ -2516,7 +2516,7 @@ export type Database = {
           },
         ]
       }
-      distribuicoes_tst_legacy: {
+      distribuicoes_tst_arquivada_2026_06: {
         Row: {
           aba_origem: string | null
           aparelhamento_banco: string | null
