@@ -707,37 +707,6 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
   return stats;
 }
 
-async function executarResgateFinalPartes(sb, monitoramentos, dias, execucaoId, signal, log) {
-  const totals = { novas: 0, descartadas: 0, duplicatas: 0 };
-  const partes = (monitoramentos || []).filter((m) => mapTipo(m.tipo) === "parte");
-  if (partes.length === 0) return totals;
-
-  for (const mon of partes) {
-    if (signal?.aborted) break;
-    for (const tribunal of expandirTribunais(mon.tribunais)) {
-      if (signal?.aborted) break;
-      for (const dia of dias) {
-        if (signal?.aborted) break;
-        try {
-          const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal);
-          if (resgatadas.length === 0) continue;
-          const stats = await persistPublicacoes(sb, resgatadas, mon, tribunal, dia, execucaoId);
-          totals.novas += stats.novas;
-          totals.descartadas += stats.descartadas;
-          totals.duplicatas += stats.duplicatas;
-          if (stats.novas > 0) {
-            log("paralela.resgate_final_partes_ok", { tribunal, dia, monId: mon.id, novas: stats.novas, duplicatas: stats.duplicatas });
-          }
-        } catch (e) {
-          log("paralela.resgate_final_partes_error", { tribunal, dia, monId: mon.id, e: String(e?.message || e).slice(0, 300) });
-        }
-      }
-    }
-  }
-
-  return totals;
-}
-
 async function run({ sb, payload, log, job }) {
   const dataInicio = payload?.dataInicio || payload?.diarioYmd || ymdToday();
   const dataFim = payload?.dataFim || payload?.diarioYmd || dataInicio;
