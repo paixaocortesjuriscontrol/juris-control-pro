@@ -1046,7 +1046,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
         <CardContent className="space-y-4">
           {/* Filtros: Coordenação e Termos — SEMPRE visíveis no topo (disabled quando rodando) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Coordenação</label>
               <select
@@ -1063,6 +1063,23 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
             </div>
             {coordenacaoFiltroEfetivo && (
               <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Tipo</label>
+                <select
+                  className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+                  value={filtroTipo}
+                  onChange={(e) => setFiltroTipo(e.target.value)}
+                  disabled={effectiveIsRunning}
+                >
+                  <option value="">Todos</option>
+                  <option value="advogado">Advogado</option>
+                  <option value="palavra-chave">Palavra-chave</option>
+                  <option value="processo">Processo</option>
+                  <option value="parte">Parte</option>
+                </select>
+              </div>
+            )}
+            {coordenacaoFiltroEfetivo && (
+              <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">Termo</label>
                 <select
                   className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
@@ -1071,7 +1088,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                   disabled={effectiveIsRunning}
                 >
                   <option value="">Todos</option>
-                  {monitoramentos.map((m) => (
+                  {monitoramentosFiltrados.map((m) => (
                     <option key={m.id} value={m.id}>
                       {formatMonitoramentoLabel(m)}
                     </option>
