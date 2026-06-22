@@ -118,6 +118,7 @@ export function DjenServidorParalelaCard() {
   const [dataFim, setDataFim] = useState<Date | undefined>();
   const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState("");
   const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState<string>("");
 
   useEffect(() => {
     const hoje = new Date();
@@ -151,6 +152,14 @@ export function DjenServidorParalelaCard() {
   useEffect(() => {
     if (!filtroCoordenacaoId) setFiltroMonitoramentoId("");
   }, [filtroCoordenacaoId]);
+
+  useEffect(() => {
+    setFiltroMonitoramentoId("");
+  }, [filtroTipo]);
+
+  const monitoramentosFiltrados = filtroTipo
+    ? monitoramentos.filter((m) => (m.tipo || "") === filtroTipo)
+    : monitoramentos;
 
   const exec = live.data;
   const execStatus = exec?.status || "idle";
@@ -203,9 +212,13 @@ export function DjenServidorParalelaCard() {
       dataFim: ymd(dataFim),
     };
     if (filtroCoordenacaoId) payload.coordenacaoId = filtroCoordenacaoId;
-    if (filtroMonitoramentoId) payload.monitoramentoIds = [filtroMonitoramentoId];
+    if (filtroMonitoramentoId) {
+      payload.monitoramentoIds = [filtroMonitoramentoId];
+    } else if (filtroTipo && monitoramentosFiltrados.length > 0) {
+      payload.monitoramentoIds = monitoramentosFiltrados.map((m) => m.id);
+    }
     enfileirar.mutate({ tipo: "djen_paralela_servidor", payload });
-  }, [dataInicio, dataFim, enfileirar, filtroCoordenacaoId, filtroMonitoramentoId]);
+  }, [dataInicio, dataFim, enfileirar, filtroCoordenacaoId, filtroMonitoramentoId, filtroTipo, monitoramentosFiltrados]);
 
   const handleForcarParada = useCallback(() => {
     if (exec?.id && isRunning) cancelar.mutate(exec.id);
@@ -215,6 +228,7 @@ export function DjenServidorParalelaCard() {
   const handleLimparFiltro = useCallback(async () => {
     setFiltroCoordenacaoId("");
     setFiltroMonitoramentoId("");
+    setFiltroTipo("");
     await queryClient.invalidateQueries({ queryKey: ["djen-servidor"] });
     toast.success("Filtro limpo");
   }, [queryClient]);
@@ -286,7 +300,7 @@ export function DjenServidorParalelaCard() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Coordenação</label>
             <select
@@ -301,6 +315,23 @@ export function DjenServidorParalelaCard() {
           </div>
           {coordenacaoFiltroEfetivo && (
             <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Tipo</label>
+              <select
+                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+                value={filtroTipo}
+                onChange={(e) => setFiltroTipo(e.target.value)}
+                disabled={isRunning}
+              >
+                <option value="">Todos</option>
+                <option value="advogado">Advogado</option>
+                <option value="palavra-chave">Palavra-chave</option>
+                <option value="processo">Processo</option>
+                <option value="parte">Parte</option>
+              </select>
+            </div>
+          )}
+          {coordenacaoFiltroEfetivo && (
+            <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Termo</label>
               <select
                 className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
@@ -309,7 +340,7 @@ export function DjenServidorParalelaCard() {
                 disabled={isRunning}
               >
                 <option value="">Todos</option>
-                {monitoramentos.map((m) => <option key={m.id} value={m.id}>{formatMonitoramentoLabel(m)}</option>)}
+                {monitoramentosFiltrados.map((m) => <option key={m.id} value={m.id}>{formatMonitoramentoLabel(m)}</option>)}
               </select>
             </div>
           )}
