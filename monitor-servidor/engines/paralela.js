@@ -159,7 +159,7 @@ function getIdDjen(pub) {
   const isUuid = (v) => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
   // O ID oficial usado pelo browser é `id`/`id_djen` da comunicação.
   // `numeroComunicacao` é apenas número sequencial interno e gerou a dobra
-  // 1847/645971040 para a mesma publicação. Só usamos como fallback final.
+  // 1847/645971040 para a mesma publicação; por isso não entra na chave.
   const candidates = [
     obj?.id_djen,
     pub?.id_djen,
