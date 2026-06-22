@@ -551,7 +551,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             <Button
               variant="outline"
               size="sm"
-              onClick={() => runJudit(isAdmin && comAnexos, false)}
+              onClick={() => runJudit(comAnexos, false)}
               disabled={buscandoJudit || !processoNumero}
               className="w-full border-emerald-500 text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
               title="Usa cache do dia quando disponível (mais rápido)"
@@ -564,15 +564,14 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => runJudit(isAdmin && comAnexos, true)}
+              onClick={() => runJudit(comAnexos, true)}
               disabled={buscandoJudit || !processoNumero}
               title="Ignora cache e força nova consulta na Judit (mais lento)"
               className="w-full text-xs text-muted-foreground hover:text-foreground"
             >
               Forçar atualização
             </Button>
-            {isAdmin && (
-              <label
+            <label
                 className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none pt-1"
                 title="Inclui a lista de documentos/anexos do processo (consulta mais cara)."
               >
@@ -583,7 +582,6 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                 />
                 Com anexos
               </label>
-            )}
           </div>
         </aside>
 
