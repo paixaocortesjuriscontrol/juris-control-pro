@@ -654,8 +654,12 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       origem: "servidor",
       execucao_id: execucaoId || null,
     }).select("id").maybeSingle();
-    if (error) stats.descartadas++;
-    else {
+    if (error) {
+      const msg = String(error.message || "");
+      const isConflict = error.code === "23505" || msg.includes("duplicate key");
+      if (isConflict) stats.duplicatas++;
+      else stats.descartadas++;
+    } else {
       stats.novas++;
       if (execucaoId && inserted?.id) {
         await sb.from("publicacoes_djen_servidor_execucoes").upsert(
