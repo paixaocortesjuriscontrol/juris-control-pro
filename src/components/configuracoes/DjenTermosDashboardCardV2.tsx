@@ -885,7 +885,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
     const filtros = {
       coordenacaoId: filtroCoordenacaoId || undefined,
-      monitoramentoIds: filtroMonitoramentoId ? [filtroMonitoramentoId] : undefined,
+      monitoramentoIds: filtroMonitoramentoId ? [filtroMonitoramentoId] : (filtroTipo && monitoramentosFiltrados.length > 0 ? monitoramentosFiltrados.map((m) => m.id) : undefined),
     };
     if (backgroundOnly) {
       await executarHibrido(inicioExec, fimExec, { backgroundOnly: true, indexMode, ...filtros });
@@ -926,7 +926,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     }
     const filtros = {
       coordenacaoId: filtroCoordenacaoId || undefined,
-      monitoramentoIds: filtroMonitoramentoId ? [filtroMonitoramentoId] : undefined,
+      monitoramentoIds: filtroMonitoramentoId ? [filtroMonitoramentoId] : (filtroTipo && monitoramentosFiltrados.length > 0 ? monitoramentosFiltrados.map((m) => m.id) : undefined),
     };
     retomar({ turbo: turboMode, ...filtros });
     onAfterMutation();
@@ -952,7 +952,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
     const fimExec = indexMode === 'indexado' ? dataIndexYmd : getDataYmd(dataFim);
     const filtros = {
       coordenacaoId: filtroCoordenacaoId || undefined,
-      monitoramentoIds: filtroMonitoramentoId ? [filtroMonitoramentoId] : undefined,
+      monitoramentoIds: filtroMonitoramentoId ? [filtroMonitoramentoId] : (filtroTipo && monitoramentosFiltrados.length > 0 ? monitoramentosFiltrados.map((m) => m.id) : undefined),
     };
     if (backgroundOnly) {
       executarHibrido(inicioExec, fimExec, { backgroundOnly: true, indexMode, ...filtros });
@@ -1135,7 +1135,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
                           if (dataInicio && dataFim) {
                             const filtros = {
                               coordenacaoId: filtroCoordenacaoId || undefined,
-                              monitoramentoIds: filtroMonitoramentoId ? [filtroMonitoramentoId] : undefined,
+                              monitoramentoIds: filtroMonitoramentoId ? [filtroMonitoramentoId] : (filtroTipo && monitoramentosFiltrados.length > 0 ? monitoramentosFiltrados.map((m) => m.id) : undefined),
                             };
                             executar(getDataYmd(dataInicio), getDataYmd(dataFim), { turbo: turboMode, ...filtros });
                           }
