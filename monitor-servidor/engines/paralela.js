@@ -308,6 +308,46 @@ function textoCompletoContemTermoParte(pub, conteudo, mon) {
   });
 }
 
+async function buscarPublicacoesParteServidorJaEncontradas(sb, mon, dia, tribunal) {
+  if (!sb || mapTipo(mon.tipo) !== "parte" || !mon.coordenacao_id) return [];
+  const resgatadas = new Map();
+  for (const rawTermo of termosDeParte(mon)) {
+    const termoBusca = termoParteParaBusca(rawTermo);
+    if (!termoBusca) continue;
+    const { data, error } = await sb
+      .from("publicacoes_djen_servidor")
+      .select("id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id")
+      .eq("tribunal", tribunal)
+      .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
+      .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
+      .neq("coordenacao_id", mon.coordenacao_id)
+      .ilike("conteudo", `%${termoBusca}%`)
+      .limit(500);
+    if (error) continue;
+    for (const row of data || []) {
+      const candidato = {
+        ...row,
+        id: row.id_djen || row.id,
+        texto: row.conteudo,
+        dataDisponibilizacao: row.data_disponibilizacao,
+        dataPublicacao: row.data_publicacao,
+        siglaTribunal: row.tribunal,
+        numeroProcesso: row.processo_numero,
+        advogados: row.advogados_json,
+        destinatarioadvogados: row.advogados_json,
+        partes: row.partes_json,
+        destinatarios: row.partes_json,
+        __matchedByNomeParte: true,
+        __matchedByServidorCorpus: true,
+      };
+      if (!textoCompletoContemTermoParte(candidato, row.conteudo, { ...mon, termo_busca: termoBusca, termos_or: [] })) continue;
+      const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${row.id}`;
+      resgatadas.set(key, candidato);
+    }
+  }
+  return Array.from(resgatadas.values());
+}
+
 async function buscarTribunalDiaCompleto(slot, dia, tribunal, signal, fallbackSlots, scanCache) {
   const key = `${dia}|${tribunal}`;
   if (scanCache?.has(key)) return scanCache.get(key);
