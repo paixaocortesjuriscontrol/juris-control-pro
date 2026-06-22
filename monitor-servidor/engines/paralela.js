@@ -293,6 +293,15 @@ function contemTermo(conteudo, mon, pub) {
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
     if (pub?.__matchedByNomeParte) return true;
+    if (pub?.__matchedByParteAdvogadoFallback) {
+      if (validarAdvogadoMetadados(pub, null, mon.termo_busca)) return true;
+      const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
+      if (contemFrase(textoNorm, normalize(mon.termo_busca))) return true;
+      for (const t of mon.termos_or || []) {
+        if (validarAdvogadoMetadados(pub, null, String(t))) return true;
+        if (contemFrase(textoNorm, normalize(String(t)))) return true;
+      }
+    }
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
     if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const t of mon.termos_or || []) {
@@ -491,6 +500,31 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
       }
       for (const it of items) it.__matchedByNomeParte = true;
       results.push(...items);
+      const paramsAdvogado = { ...baseParams(mon, dia, tribunal), nomeAdvogado: normalizeForApi(nomeParte) };
+      let advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
+      if (!signal?.aborted && advogadoItems.length === 0) {
+        await delay(1500, signal);
+        if (!signal?.aborted) advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
+      }
+      if (!signal?.aborted && advogadoItems.length === 0 && Array.isArray(fallbackSlots) && fallbackSlots.length > 0) {
+        for (const alt of fallbackSlots) {
+          if (signal?.aborted) break;
+          if (!alt || alt.id === slot.id) continue;
+          await delay(1500, signal);
+          if (signal?.aborted) break;
+          try {
+            const altItems = await buscarPaginado(alt, paramsAdvogado, signal);
+            if (altItems.length > 0) {
+              advogadoItems = altItems;
+              break;
+            }
+          } catch (_e) {
+            // Tenta próxima VPS — não derruba o termo se uma alternativa falhar.
+          }
+        }
+      }
+      for (const it of advogadoItems) it.__matchedByParteAdvogadoFallback = true;
+      results.push(...advogadoItems);
       if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
     }
     return results;
@@ -506,97 +540,6 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
     }
   }
   return items;
-}
-
-// Espelha browser useDjenTermosParalelaEngine.ts:
-// buscarPublicacoesParteJaEncontradasEmOutraCoordenacao
-//
-// Quando o monitoramento é do tipo 'parte', a API PJE Comunica pode não
-// devolver a publicação para esta coordenação porque ela já foi capturada
-// por outra coordenação (ex.: Santander via advogado OSMAR MENDES). Para
-// fechar o gap, olhamos APENAS publicacoes_djen_servidor do mesmo dia+
-// tribunal em outras coordenações, filtramos por substring do termo no
-// conteúdo (ilike) e revalidamos. NUNCA ler publicacoes_djen (Browser).
-//
-// IMPORTANTE: a revalidação NÃO pode exigir partes_json/seção Parte(s),
-// porque no Servidor o conteúdo é o texto bruto da API (sem cabeçalho
-// "Parte(s):") e a publicação pode ter sido gravada a partir de uma busca
-// por advogado — caso em que `partes_json` traz as partes do processo
-// (Santander, autor) e não inclui o nome buscado. Basta o termo aparecer
-// no conteúdo (substring com normalização de acentos/caixa) OU em
-// advogados_json. A publicação é marcada __matchedByNomeParte para que
-// contemTermo aceite e persistPublicacoes grave para a coordenação atual.
-async function resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal) {
-  if (mapTipo(mon.tipo) !== "parte" || !mon.coordenacao_id) return [];
-  const termosParte = termosDeParte(mon);
-  if (termosParte.length === 0) return [];
-  const resgatadas = new Map();
-  const selectCols = "id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id";
-
-  const addRows = (rows, termosParteLocal, termoNorm, origem) => {
-    for (const row of rows || []) {
-      const candidato = {
-        id: row.id_djen ?? row.id,
-        id_djen: row.id_djen,
-        conteudo: row.conteudo,
-        texto: row.conteudo,
-        dataDisponibilizacao: row.data_disponibilizacao,
-        dataPublicacao: row.data_publicacao,
-        siglaTribunal: row.tribunal,
-        numeroProcesso: row.processo_numero,
-        orgao: row.orgao,
-        tipoComunicacao: row.tipo_comunicacao,
-        meio: row.meio,
-        partes: row.partes_json,
-        advogados: row.advogados_json,
-      };
-      const conteudoNorm = normalize(row.conteudo || "");
-      const advsArr = Array.isArray(row.advogados_json)
-        ? row.advogados_json
-        : (typeof row.advogados_json === "string"
-            ? (() => { try { return JSON.parse(row.advogados_json); } catch { return []; } })()
-            : []);
-      const casaAdvogado = Array.isArray(advsArr) && advsArr.some((entry) => {
-        const adv = entry?.advogado || entry;
-        const nomeNorm = normalize(adv?.nome || "");
-        return nomeNorm && termoNorm && (nomeNorm === termoNorm || nomeNorm.includes(termoNorm) || termoNorm.includes(nomeNorm));
-      });
-      const casaConteudo = termoNorm && conteudoNorm.includes(termoNorm);
-      const casaParteEstrut = termosParteLocal.some((t) =>
-        validarParteMetadados(candidato, t) || validarParteSecaoPartes(candidato, t),
-      );
-      if (!casaConteudo && !casaAdvogado && !casaParteEstrut) continue;
-      const key = row.id_djen ? `id_djen:${row.id_djen}` : `${origem}:${row.id}`;
-      if (resgatadas.has(key)) continue;
-      candidato.__matchedByNomeParte = true;
-      candidato.__resgatadaDeOutraCoordenacao = row.coordenacao_id;
-      candidato.__resgatadaDeOutraFonte = origem;
-      resgatadas.set(key, candidato);
-    }
-  };
-
-  for (const termo of termosParte) {
-    if (signal?.aborted) break;
-    const termoNorm = normalize(termo);
-    const { data, error } = await sb
-      .from("publicacoes_djen_servidor")
-      .select(selectCols)
-      .eq("tribunal", tribunal)
-      .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
-      .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
-      .neq("coordenacao_id", mon.coordenacao_id)
-      .ilike("conteudo", `%${termo}%`)
-      .limit(200);
-    if (error) {
-      console.warn(`[paralela][${tribunal}] resgate parte falhou para "${termo}":`, error.message);
-      continue;
-    }
-    addRows(data, termosParte, termoNorm, "servidor");
-  }
-  if (resgatadas.size > 0) {
-    console.log(`[paralela][${tribunal}] resgate parte ${mon.termo_busca}: ${resgatadas.size} publicação(ões) recuperada(s) de outra coordenação`);
-  }
-  return Array.from(resgatadas.values());
 }
 
 async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
@@ -671,37 +614,6 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     }
   }
   return stats;
-}
-
-async function executarResgateFinalPartes(sb, monitoramentos, dias, execucaoId, signal, log) {
-  const totals = { novas: 0, descartadas: 0, duplicatas: 0 };
-  const partes = (monitoramentos || []).filter((m) => mapTipo(m.tipo) === "parte");
-  if (partes.length === 0) return totals;
-
-  for (const mon of partes) {
-    if (signal?.aborted) break;
-    for (const tribunal of expandirTribunais(mon.tribunais)) {
-      if (signal?.aborted) break;
-      for (const dia of dias) {
-        if (signal?.aborted) break;
-        try {
-          const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal);
-          if (resgatadas.length === 0) continue;
-          const stats = await persistPublicacoes(sb, resgatadas, mon, tribunal, dia, execucaoId);
-          totals.novas += stats.novas;
-          totals.descartadas += stats.descartadas;
-          totals.duplicatas += stats.duplicatas;
-          if (stats.novas > 0) {
-            log("paralela.resgate_final_partes_ok", { tribunal, dia, monId: mon.id, novas: stats.novas, duplicatas: stats.duplicatas });
-          }
-        } catch (e) {
-          log("paralela.resgate_final_partes_error", { tribunal, dia, monId: mon.id, e: String(e?.message || e).slice(0, 300) });
-        }
-      }
-    }
-  }
-
-  return totals;
 }
 
 async function run({ sb, payload, log, job }) {
@@ -856,22 +768,6 @@ async function run({ sb, payload, log, job }) {
         try {
           const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
           const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots);
-          if (tipoMon === "parte") {
-            try {
-              const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal);
-              if (resgatadas.length > 0) {
-                const idxById = new Map(pubs.map((x, idx) => [getIdDjen(x), idx]).filter(([id]) => Boolean(id)));
-                for (const r of resgatadas) {
-                  const id = getIdDjen(r);
-                  const existingIdx = id ? idxById.get(id) : undefined;
-                  if (existingIdx !== undefined) pubs[existingIdx] = r;
-                  else pubs.push(r);
-                }
-              }
-            } catch (e) {
-              log("paralela.retry_resgate_error", { tribunal, monId, e: String(e?.message || e).slice(0, 300) });
-            }
-          }
           const stats = await persistPublicacoes(sb, pubs, mon, tribunal, dia, job?.id || null);
           totalNovas += stats.novas;
           totalDescartadas += stats.descartadas;
@@ -922,22 +818,6 @@ async function run({ sb, payload, log, job }) {
           try {
             const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
             const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal, fallbackSlots);
-            if (item.tipo === "parte") {
-              try {
-                const resgatadas = await resgatarParteDeOutraCoordenacao(sb, mon, dia, item.tribunal, signal);
-                if (resgatadas.length > 0) {
-                  const idxById = new Map(pubs.map((p, idx) => [getIdDjen(p), idx]).filter(([id]) => Boolean(id)));
-                  for (const r of resgatadas) {
-                    const id = getIdDjen(r);
-                    const existingIdx = id ? idxById.get(id) : undefined;
-                    if (existingIdx !== undefined) pubs[existingIdx] = r;
-                    else pubs.push(r);
-                  }
-                }
-              } catch (e) {
-                log("paralela.resgate_parte_error", { tribunal: item.tribunal, monId, e: String(e?.message || e).slice(0, 300) });
-              }
-            }
             const stats = await persistPublicacoes(sb, pubs, mon, item.tribunal, dia, job?.id || null);
             item.novas += stats.novas;
             item.descartadas += stats.descartadas;
@@ -1012,14 +892,6 @@ async function run({ sb, payload, log, job }) {
   };
 
   await Promise.all(slots.map((slot) => worker(slot)));
-  if (!cancelled && !signal.aborted) {
-    log("paralela.resgate_final_partes_start", { monitoramentosParte: lista.filter((m) => mapTipo(m.tipo) === "parte").length, dias: dias.length });
-    const resgateFinal = await executarResgateFinalPartes(sb, lista, dias, job?.id || null, signal, log);
-    totalNovas += resgateFinal.novas;
-    totalDescartadas += resgateFinal.descartadas;
-    totalDuplicatas += resgateFinal.duplicatas;
-    log("paralela.resgate_final_partes_done", resgateFinal);
-  }
   clearInterval(cancelPoll);
   if (cancelled) {
     for (const item of itens) {
