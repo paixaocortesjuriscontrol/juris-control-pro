@@ -1882,7 +1882,7 @@ export default function DistribuicaoTst() {
             >
               <CheckCircle2 className="w-3 h-3 mr-1" /> Finalizar Análise{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </Button>
-            {isAdmin && <RespostaSantanderImport onUpdated={handleRefresh} />}
+            {/* Resposta Santander movido para Admin TST → Importações Distribuição TST */}
             {isAdminOrCoordinator && (
               <BulkTagAction
                 selectedIds={Array.from(selectedIds)}
