@@ -561,10 +561,36 @@ async function processPublicationFromIndex(
     insertRow.execucao_id = persistMode.execucaoServidorId ?? null;
   }
 
-  const { data: publicacao, error: insertError } = await supabase.from(targetTable).insert(insertRow).select('id').single();
+  // Upsert isolado por coordenação: a mesma publicação pode existir em outra
+  // coordenação, mas dentro da mesma coord não duplicamos por monitor diferente.
+  // Os índices uq_pub_djen_servidor_coord_id_djen e uq_pub_djen_servidor_coord_conteudo_key
+  // garantem isso a nível de banco e protegem contra race conditions entre workers.
+  let onConflictCols: string | undefined;
+  if (persistMode.servidor && coordenacaoId) {
+    if (idDjen) onConflictCols = 'coordenacao_id,id_djen';
+    else if ((insertRow as any).dedup_conteudo_key) onConflictCols = 'coordenacao_id,dedup_conteudo_key';
+  }
+
+  const insertQuery = onConflictCols
+    ? supabase.from(targetTable).upsert(insertRow, { onConflict: onConflictCols, ignoreDuplicates: true }).select('id')
+    : supabase.from(targetTable).insert(insertRow).select('id');
+
+  const { data: publicacao, error: insertError } = await insertQuery;
 
   if (insertError) {
+    // 23505 = unique_violation (corrida entre workers — tratada como duplicata)
+    const code = (insertError as any).code;
+    if (code === '23505') {
+      stats.duplicatas++;
+      return;
+    }
     console.error(`Insert error:`, insertError);
+    return;
+  }
+
+  if (!publicacao || (Array.isArray(publicacao) && publicacao.length === 0)) {
+    // Upsert ignorou (já existia) — conta como duplicata, não como nova.
+    stats.duplicatas++;
     return;
   }
 
