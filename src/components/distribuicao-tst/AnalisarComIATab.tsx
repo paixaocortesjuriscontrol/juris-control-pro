@@ -435,9 +435,38 @@ export function AnalisarComIATab({ processoNumero, processoId, attachments, onIn
           )}
         </div>
 
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="text-xs text-muted-foreground">
+            Anexos disponíveis para análise: documentos retornados pela Judit + arquivos enviados do computador.
+          </div>
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,.pdf"
+              multiple
+              className="hidden"
+              onChange={(e) => onUploadFiles(e.target.files)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || processing}
+            >
+              {uploading ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Enviando…</>
+              ) : (
+                <><Upload className="w-4 h-4 mr-2" /> Enviar anexos do computador</>
+              )}
+            </Button>
+          </div>
+        </div>
+
         {uniqueAttachments.length === 0 ? (
           <div className="border border-dashed rounded-md p-4 text-sm text-muted-foreground text-center">
-            Nenhum anexo carregado. Use o botão <strong>Buscar Judit (com anexos)</strong> na lateral para carregar os documentos do processo.
+            Nenhum anexo carregado. Use <strong>Buscar Judit (com anexos)</strong> na lateral ou <strong>Enviar anexos do computador</strong> acima.
           </div>
         ) : (
           <>
