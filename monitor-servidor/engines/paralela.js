@@ -514,9 +514,9 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
 // Quando o monitoramento é do tipo 'parte', a API PJE Comunica pode não
 // devolver a publicação para esta coordenação porque ela já foi capturada
 // por outra coordenação (ex.: Santander via advogado OSMAR MENDES). Para
-// fechar o gap (paridade com o Browser), olhamos publicacoes_djen_servidor
-// E publicacoes_djen do mesmo dia+tribunal em outras coordenações, filtramos
-// por substring do termo no conteúdo (ilike) e revalidamos.
+// fechar o gap, olhamos APENAS publicacoes_djen_servidor do mesmo dia+
+// tribunal em outras coordenações, filtramos por substring do termo no
+// conteúdo (ilike) e revalidamos. NUNCA ler publicacoes_djen (Browser).
 //
 // IMPORTANTE: a revalidação NÃO pode exigir partes_json/seção Parte(s),
 // porque no Servidor o conteúdo é o texto bruto da API (sem cabeçalho
@@ -592,26 +592,6 @@ async function resgatarParteDeOutraCoordenacao(sb, mon, dia, tribunal, signal) {
       continue;
     }
     addRows(data, termosParte, termoNorm, "servidor");
-
-    // Paridade com o Browser: se a publicação já foi capturada apenas na tabela
-    // do Browser (publicacoes_djen), o Servidor também precisa resgatá-la para a
-    // coordenação atual. Antes o resgate olhava só publicacoes_djen_servidor, e
-    // as buscas por parte continuavam ficando com "Só Browser".
-    const { data: dataBrowser, error: errorBrowser } = await sb
-      .from("publicacoes_djen")
-      .select(selectCols)
-      .eq("status", "encontrada")
-      .eq("tribunal", tribunal)
-      .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
-      .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
-      .neq("coordenacao_id", mon.coordenacao_id)
-      .ilike("conteudo", `%${termo}%`)
-      .limit(200);
-    if (errorBrowser) {
-      console.warn(`[paralela][${tribunal}] resgate browser parte falhou para "${termo}":`, errorBrowser.message);
-    } else {
-      addRows(dataBrowser, termosParte, termoNorm, "browser");
-    }
   }
   if (resgatadas.size > 0) {
     console.log(`[paralela][${tribunal}] resgate parte ${mon.termo_busca}: ${resgatadas.size} publicação(ões) recuperada(s) de outra coordenação`);
