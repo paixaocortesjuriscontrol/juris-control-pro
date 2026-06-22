@@ -866,7 +866,7 @@ async function run({ sb, payload, log, job }) {
         const slot = slots[0];
         try {
           const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
-          const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots, scanCache);
+          const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots, scanCache, sb);
           const stats = await persistPublicacoes(sb, pubs, mon, tribunal, dia, job?.id || null);
           totalNovas += stats.novas;
           totalDescartadas += stats.descartadas;
@@ -916,7 +916,7 @@ async function run({ sb, payload, log, job }) {
           const itemKeyFalha = `paralela|${item.tribunal}|${monId}|${dia}`;
           try {
             const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
-            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal, fallbackSlots, scanCache);
+            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal, fallbackSlots, scanCache, sb);
             const stats = await persistPublicacoes(sb, pubs, mon, item.tribunal, dia, job?.id || null);
             item.novas += stats.novas;
             item.descartadas += stats.descartadas;
