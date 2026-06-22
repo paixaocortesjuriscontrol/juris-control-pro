@@ -1429,10 +1429,32 @@ const AnaliseDjen = () => {
   const isPautaDeJulgamento = (conteudo?: string | null): boolean => {
     if (!conteudo) return false;
     const txt = decodeHtmlEntities(String(conteudo).replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ");
-    return /Pauta\s+de\s+Julgamento/i.test(txt) ||
-      /\bCEJUSC\b/i.test(txt) ||
-      (/\bSess[aã]o\s+(Ordin[áa]ria|Extraordin[áa]ria|Virtual|Presencial)/i.test(txt) &&
-        /\bsess[aã]o\s+(virtual|presencial)/i.test(txt));
+
+    // 1) Exclusão prioritária: acórdão / decisão monocrática.
+    //    Acórdãos do TST frequentemente citam "publicação de nova pauta de
+    //    julgamento (RITST, art. 122)" dentro do dispositivo — não é pauta.
+    const ehAcordaoOuDecisao =
+      /A\s*C\s*Ó\s*R\s*D\s*Ã\s*O/i.test(txt) ||
+      /\bACORDAM\s+os\s+Ministros/i.test(txt) ||
+      /\bACORDAM\s+as?\s+(Turma|Desembargadora|Desembargadores)/i.test(txt) ||
+      /\bISTO\s+POSTO\b/i.test(txt) ||
+      /Embargos\s+de\s+declara[çc][ãa]o\s+acolhidos/i.test(txt) ||
+      /\bDECIS[ÃA]O\s+MONOCR[ÁA]TICA\b/i.test(txt) ||
+      (/\bRelator[:(]/i.test(txt) && /\bV\s*O\s*T\s*O\b/i.test(txt));
+    if (ehAcordaoOuDecisao) return false;
+
+    // 2) Confirmação positiva — exige marcador estrutural, não basta a frase
+    //    "Pauta de Julgamento" aparecer em qualquer ponto do texto.
+    const cabecalho = txt.slice(0, 500);
+    const temCabecalhoPauta =
+      /(^|\s)PAUTA\s+DE\s+JULGAMENTO/i.test(cabecalho) ||
+      /Aditamento\s+[àa]\s+Pauta/i.test(cabecalho);
+    const temSessao =
+      /\bSess[aã]o\s+(Ordin[áa]ria|Extraordin[áa]ria|Virtual|Presencial)/i.test(txt) &&
+      /\bsess[aã]o\s+(virtual|presencial)/i.test(txt);
+    const temCejusc = /\bCEJUSC\b/i.test(txt);
+
+    return temCabecalhoPauta || temSessao || temCejusc;
   };
 
   // Para pautas, retorna apenas o cabeçalho da sessão e o bloco do processo atual.
