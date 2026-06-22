@@ -1,56 +1,38 @@
-## Diagnóstico atual
+## Diagnóstico
 
-Pelo comparador anexado:
+A advogada está certa — depois que a aba "Dados Benner" foi removida e o formulário unificado na aba "Distribuição TST", o botão **Judit** preenche corretamente os campos na tela, mas só grava em **`distribuicoes_tst_legacy`**. A tabela **`dados_benner`** (de onde a planilha Benner / Carga Benner / relatórios leem `relator`, `turma`, `dossie`, `reclamante`, `reclamada`, `recorrente`, `tipo_recurso*`, `situacao_processo`, `processo_baixado`) NÃO recebe mais esses valores.
 
-- Dr. Thomás / `parte`: Servidor 21, Browser 23
-- Em comum: 17
-- Só Browser: 6
-- Só Servidor: 4
+Hoje:
+- `DistribuicaoTstForm.handleSave` só envia ao `onSaveBennerExtra` os campos da lista `BENNER_EXTRA_FIELDS` (apenas análise/risco/julgamento/resultado).
+- Os campos preenchidos pela Judit em `apply("relator", …)`, `apply("turma", …)`, etc. ficam apenas no `form` (Distribuição) e nunca chegam ao `dados_benner`.
 
-Consulta no banco mostrou que as 6 publicações “só Browser” da coordenação Dr. Thomás já existem no `publicacoes_djen_servidor`, mas gravadas na Coordenação Santander Cível:
+Caso testado (`0011464-08.2022.5.15.0034 / 07.02.033.0003391925/22`): `dados_benner.relator` e `dados_benner.turma` aparecem populados porque foram gravados antes da unificação. Em processos novos pós-unificação, o Benner fica vazio mesmo a Judit tendo respondido corretamente.
 
-```text
-645932816  TJPI  0838957-27.2023.8.18.0140
-646312966  TJES  5012683-41.2026.8.08.0012
-646516555  TJES  5012342-52.2025.8.08.0011
-646699403  TJMT  1001435-62.2026.8.11.0013
-646839217  TJMA  0860621-68.2023.8.10.0001
-647332027  TJES  5028025-62.2022.8.08.0035
-```
+## O que mudar
 
-Ou seja: a busca do Servidor encontrou as publicações, mas a regra de “resgate de parte encontrada em outra coordenação” não está trazendo para Dr. Thomás como o Browser faz.
+Em `src/components/distribuicao-tst/DistribuicaoTstForm.tsx`:
 
-## Causa provável
+1. Adicionar uma constante `BENNER_MIRROR_FIELDS` com os campos que existem nas DUAS tabelas e que devem ser espelhados no `dados_benner` quando alterados na aba unificada:
+   - `relator`, `turma`, `dossie`, `reclamante`, `reclamada`, `recorrente`, `parte_recorrente`, `tipo_recurso`, `tipo_recurso_reclamante`, `tipo_recurso_banco`, `tipo_recurso_terceiro`, `situacao_processo`, `processo_baixado`, `data_distribuicao_real`, `data_transito_julgado`.
 
-No Browser, o resgate lê `publicacoes_djen`, onde o conteúdo é salvo no formato DJEN-like/enriquecido, incluindo seção `Parte(s)` e metadados. A validação `validarParteMetadados` / `validarParteSecaoPartes` consegue confirmar a parte.
+2. Após a aplicação dos dados da Judit (logo depois do bloco `apply(...)` em ~linha 945), espelhar para `bennerExtra`/`bennerDirtyRef` todo campo da lista que tiver valor — usando o mesmo `setExtra` lógico (marca como dirty para entrar no diff).
 
-No Servidor, o resgate lê `publicacoes_djen_servidor`, mas o conteúdo salvo é o texto bruto da API. Para essas 6, o termo OSMAR aparece como advogado no corpo, enquanto a parte estruturada é Santander. Como o resgate exige casar em partes estruturadas ou seção `Parte(s)`, ele descarta essas publicações ao tentar copiar para Dr. Thomás.
+3. Estender `set()` (a função genérica de edição manual do form) para que, quando o campo editado pertencer a `BENNER_MIRROR_FIELDS`, também propague para `bennerExtra` + `bennerDirtyRef` — assim edições manuais (não-Judit) também sincronizam.
 
-## Plano de correção
+4. No `buildBennerDiff` (≈ linha 1104), nada muda na estrutura — basta que esses campos passem a entrar em `bennerDirtyRef`. O diff continua enviando apenas o que mudou e o pre-check de `extraLoaded` evita race.
 
-Alterar somente `monitor-servidor/engines/paralela.js`.
+5. Adicionar `BENNER_MIRROR_FIELDS` ao `buildBennerExtra` para que o snapshot inicial inclua esses valores; assim o diff de "voltou ao original" funciona certo.
 
-1. Manter a busca normal por `parte` exatamente como está:
-   - usar só `nomeParte`;
-   - não enviar `palavraChave`;
-   - manter retry/fallback por VPS já implementado.
+## Validação
 
-2. Corrigir apenas o resgate entre coordenações do Servidor para espelhar o Browser no contexto do Servidor:
-   - quando uma publicação já encontrada em outra coordenação tiver o mesmo `id_djen`/tribunal/dia e o termo constar no conteúdo, marcar como `__matchedByNomeParte` e permitir gravar também na coordenação atual;
-   - não depender da validação por `partes_json`, porque no Servidor a publicação pode ter sido salva a partir de monitoramento `advogado`, e as partes estruturadas não contêm o advogado buscado;
-   - manter a chave com `coordenacao_id + id_djen`, permitindo a mesma publicação em coordenações diferentes.
+- Abrir um processo TST novo, clicar **Buscar Judit** → conferir que `dados_benner.relator/turma/dossie/tipo_recurso*` ficam preenchidos com o mesmo valor que aparece na tela.
+- Editar manualmente um desses campos na aba Distribuição TST e salvar → conferir que o `dados_benner` reflete a alteração.
+- Para o processo `0011464-08.2022.5.15.0034`, reclicar Judit e confirmar nos dois `SELECT` (distribuicoes_tst_legacy e dados_benner).
 
-3. Remover/ajustar comentários que dizem que o resgate precisa validar somente seção `Parte(s)` no Servidor, pois isso é justamente o que impede a paridade neste caso.
+## Detalhes técnicos
 
-4. Não fazer:
-   - nenhuma leitura em tabela do Browser;
-   - nenhuma migração/schema;
-   - nenhuma alteração no comparador;
-   - nenhuma alteração no frontend.
-
-## Validação após aplicar
-
-1. Executar novamente DJEN Servidor para Coordenação Dr. Thomás em 2026-06-22.
-2. Conferir se os 6 `id_djen` acima aparecem também em `publicacoes_djen_servidor` com `coordenacao_id` de Dr. Thomás.
-3. Rodar o comparador novamente.
-4. Esperado para `parte`: reduzir “só Browser” de 6 para 0 ou próximo disso, mantendo independência por coordenação.
+- Arquivo único alterado: `src/components/distribuicao-tst/DistribuicaoTstForm.tsx`.
+- Sem migração SQL (as colunas já existem em ambas as tabelas).
+- Sem mudança no edge function `buscar-judit` — ele já devolve os campos corretos (validado in-loco).
+- `handleSaveBennerLocal` em `DistribuicaoTstDetail.tsx` segue intocado: ele recebe um `patch` mais rico, simplesmente atualiza por `id` na `dados_benner`.
+- Nenhum efeito na aba "Dados Benner" (já era somente conferência / read-only).
