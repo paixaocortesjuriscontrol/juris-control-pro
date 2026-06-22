@@ -41,25 +41,27 @@ export function EquipeUpdateImport({ onUpdated }: Props) {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
 
-      // Lê coluna B (dossiê) e coluna L (equipe) de TODAS as abas.
-      // Cabeçalho geralmente está na linha 1.
+      // Layout esperado: coluna A = Processo, coluna B = Dossiê, coluna C = Equipe.
+      // A chave de atualização é o Dossiê (col B). Processo é apenas informativo.
+      // Lê TODAS as abas. Cabeçalho geralmente está na linha 1.
       const equipePorDossie = new Map<string, string>();
       for (const sheetName of wb.SheetNames) {
         const ws = wb.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
-        // detecta linha de cabeçalho procurando "Dossi" na col B ou "Equipe" na col L
+        // detecta linha de cabeçalho procurando "Processo" na col A, "Dossi" na col B ou "Equipe" na col C
         let headerIdx = 0;
         for (let i = 0; i < Math.min(json.length, 10); i++) {
           const r = json[i] || [];
+          const a = norm(r[0]).toLowerCase();
           const b = norm(r[1]).toLowerCase();
-          const l = norm(r[11]).toLowerCase();
-          if (b.includes("dossi") || l.includes("equipe")) { headerIdx = i; break; }
+          const c = norm(r[2]).toLowerCase();
+          if (a.includes("processo") || b.includes("dossi") || c.includes("equipe")) { headerIdx = i; break; }
         }
         for (let i = headerIdx + 1; i < json.length; i++) {
           const r = json[i];
           if (!r) continue;
           const dossie = norm(r[1]);
-          const equipeRaw = norm(r[11]);
+          const equipeRaw = norm(r[2]);
           if (!dossie || !equipeRaw) continue;
           const equipe = stripPrefix(equipeRaw);
           if (equipe) equipePorDossie.set(dossie, equipe);
@@ -67,7 +69,7 @@ export function EquipeUpdateImport({ onUpdated }: Props) {
       }
 
       if (equipePorDossie.size === 0) {
-        toast.warning("Nenhum dossiê/equipe encontrado na planilha (Col B / Col L)");
+        toast.warning("Nenhum dossiê/equipe encontrado na planilha (Col B = Dossiê / Col C = Equipe)");
         setImporting(false);
         if (fileRef.current) fileRef.current.value = "";
         return;
