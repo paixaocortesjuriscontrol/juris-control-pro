@@ -752,6 +752,7 @@ async function run({ sb, payload, log, job }) {
   };
   const slots = await loadPool(sb);
   if (slots.length === 0) throw new Error("Nenhuma VPS ativa em djen_proxy_pool. O DJEN Servidor não roda sem VPS.");
+  const scanCache = new Map();
   const cancelPoll = setInterval(async () => {
     if (!cancelled && await isCancelled().catch(() => false)) {
       cancelled = true;
@@ -819,7 +820,7 @@ async function run({ sb, payload, log, job }) {
         const slot = slots[0];
         try {
           const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
-          const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots);
+          const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots, scanCache);
           const stats = await persistPublicacoes(sb, pubs, mon, tribunal, dia, job?.id || null);
           totalNovas += stats.novas;
           totalDescartadas += stats.descartadas;
@@ -869,7 +870,7 @@ async function run({ sb, payload, log, job }) {
           const itemKeyFalha = `paralela|${item.tribunal}|${monId}|${dia}`;
           try {
             const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
-            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal, fallbackSlots);
+            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal, fallbackSlots, scanCache);
             const stats = await persistPublicacoes(sb, pubs, mon, item.tribunal, dia, job?.id || null);
             item.novas += stats.novas;
             item.descartadas += stats.descartadas;
