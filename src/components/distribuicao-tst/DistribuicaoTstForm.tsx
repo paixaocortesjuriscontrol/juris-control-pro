@@ -18,6 +18,11 @@ import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMulti
 import { MultiTipoRecurso } from "@/components/distribuicao-tst/MultiTipoRecurso";
 import { RelatorTurmaCombo } from "@/components/distribuicao-tst/RelatorTurmaCombo";
 import { persistirPartesJudit } from "@/lib/juditDistribuicaoTst";
+import {
+  recorrenteEnvolveReclamante,
+  recorrenteEnvolveBanco,
+  recorrenteEhTerceiro,
+} from "@/utils/distribuicaoTstPendencias";
 
 /** Asterisco vermelho indicando campo obrigatório (vide spec da advogada). */
 const ReqMark = () => (
