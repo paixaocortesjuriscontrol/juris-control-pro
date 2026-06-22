@@ -408,14 +408,10 @@ async function buscarPaginado(slot, params, signal) {
       added++;
     }
     const total = getTotal(data);
-    // Sair imediatamente apenas se a página vier completamente vazia em
-    // duas chamadas consecutivas, ou se total declarado já foi alcançado.
-    if (items.length === 0) {
-      emptyStreak++;
-      if (emptyStreak >= 2) break;
-    } else {
-      emptyStreak = 0;
-    }
+    // Espelha Browser (src/utils/pjeComunicaClient.ts > continueUntilEmpty):
+    // encerra na 1ª página vazia. A regra antiga de "2 vazias seguidas" era
+    // exclusiva do Servidor e não muda paridade — mantemos igual ao Browser.
+    if (items.length === 0) break;
     // Se nenhum item novo foi adicionado, provavelmente estamos em loop
     // de duplicatas — encerra.
     if (items.length > 0 && added === 0) break;
