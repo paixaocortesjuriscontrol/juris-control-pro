@@ -16,13 +16,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/DistribuicaoTstDetail";
-import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
-import { CertidaoPdfImport } from "@/components/distribuicao-tst/CertidaoPdfImport";
-import { DossieUpdateImport } from "@/components/distribuicao-tst/DossieUpdateImport";
-import { EquipeUpdateImport } from "@/components/distribuicao-tst/EquipeUpdateImport";
-import { SituacaoEnvioUpdateImport } from "@/components/distribuicao-tst/SituacaoEnvioUpdateImport";
+// Importações (Importar Planilha / PDF Certidão / Atualizar Dossiês / Equipe / Situação Envio / Resposta Santander)
+// foram movidas para Admin TST → Importações Distribuição TST.
 import { BennerSimImport } from "@/components/distribuicao-tst/BennerSimImport";
-import { RespostaSantanderImport } from "@/components/distribuicao-tst/RespostaSantanderImport";
 import { CargaBennerFromDb } from "@/components/distribuicao-tst/CargaBennerFromDb";
 import { DossiesNaoLocalizadosButton } from "@/components/distribuicao-tst/DossiesNaoLocalizadosButton";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
@@ -1527,11 +1523,7 @@ export default function DistribuicaoTst() {
                     ? `Relatório PDF Partes (${selectedIds.size})`
                     : "Relatório PDF Partes"}
               </Button>
-              <CertidaoPdfImport onImported={handleRefresh} />
-              <DistribuicaoTstImport onImported={handleRefresh} />
-              <DossieUpdateImport onUpdated={handleRefresh} />
-              <EquipeUpdateImport onUpdated={handleRefresh} />
-              {isAdmin && <SituacaoEnvioUpdateImport onUpdated={handleRefresh} />}
+              {/* Botões de importação movidos para Admin TST → Importações Distribuição TST */}
               <Link to="/dados-benner">
                 <Button variant="outline">
                   <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
@@ -1889,7 +1881,7 @@ export default function DistribuicaoTst() {
             >
               <CheckCircle2 className="w-3 h-3 mr-1" /> Finalizar Análise{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </Button>
-            {isAdmin && <RespostaSantanderImport onUpdated={handleRefresh} />}
+            {/* Resposta Santander movido para Admin TST → Importações Distribuição TST */}
             {isAdminOrCoordinator && (
               <BulkTagAction
                 selectedIds={Array.from(selectedIds)}

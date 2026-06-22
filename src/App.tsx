@@ -79,6 +79,7 @@ import MateriasBenner from "./pages/MateriasBenner";
 import ClassificacaoTst from "./pages/ClassificacaoTst";
 import IaResponde from "./pages/IaResponde";
 import AdminTst from "./pages/AdminTst";
+import AdminTstImportacoes from "./pages/AdminTstImportacoes";
 import DjenLocal from "./pages/DjenLocal";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 
@@ -184,6 +185,7 @@ function App() {
               <Route path="/corrigir-planilha" element={<ProtectedRoute><CorrigirPlanilha /></ProtectedRoute>} />
               <Route path="/ia-responde" element={<AdminRoute><IaResponde /></AdminRoute>} />
               <Route path="/admin-tst" element={<ProtectedRoute><AdminTst /></ProtectedRoute>} />
+              <Route path="/admin-tst/importacoes-distribuicao" element={<ProtectedRoute><AdminTstImportacoes /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>
