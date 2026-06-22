@@ -155,7 +155,10 @@ function getConteudo(pub) {
 
 function getIdDjen(pub) {
   const obj = rawObj(pub);
-  const v = obj?.id ?? pub?.id ?? pub?.id_djen ?? pub?.numeroComunicacao ?? pub?.numero_comunicacao ?? null;
+  const explicit = obj?.id_djen ?? pub?.id_djen ?? obj?.numeroComunicacao ?? pub?.numeroComunicacao ?? obj?.numero_comunicacao ?? pub?.numero_comunicacao ?? null;
+  if (explicit !== null && explicit !== undefined) return String(explicit).trim() || null;
+  const v = obj?.id ?? pub?.id ?? null;
+  if (typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)) return null;
   return v === null || v === undefined ? null : String(v).trim() || null;
 }
 
