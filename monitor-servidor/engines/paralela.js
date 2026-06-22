@@ -703,15 +703,17 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     }
     let exists = null;
     let existsReason = null;
-    if (idDjen) {
-      const { data } = await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("monitoramento_id", mon.id).eq("id_djen", idDjen).maybeSingle();
+    if (idDjen && coordenacaoId) {
+      const { data } = await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("coordenacao_id", coordenacaoId).eq("id_djen", idDjen).maybeSingle();
       exists = data || null;
-      if (exists) existsReason = "same_monitoramento_id_djen";
+      if (exists) existsReason = "same_coordenacao_id_djen";
     }
     if (!exists) {
-      const { data } = await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("monitoramento_id", mon.id).eq("hash_conteudo", hashConteudo).maybeSingle();
+      let existingQuery = sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("hash_conteudo", hashConteudo);
+      existingQuery = coordenacaoId ? existingQuery.eq("coordenacao_id", coordenacaoId) : existingQuery.eq("monitoramento_id", mon.id);
+      const { data } = await existingQuery.maybeSingle();
       exists = data || null;
-      if (exists) existsReason = "same_monitoramento_hash";
+      if (exists) existsReason = coordenacaoId ? "same_coordenacao_hash" : "same_monitoramento_hash";
     }
     if (exists) {
       stats.duplicatas++;
@@ -724,7 +726,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       }
       continue;
     }
-    const { data: inserted, error } = await sb.from("publicacoes_djen_servidor").insert({
+    const insertRow = {
       monitoramento_id: mon.id,
       coordenacao_id: coordenacaoId,
       hash_conteudo: hashConteudo,
@@ -737,7 +739,12 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       ...metadata,
       origem: "servidor",
       execucao_id: execucaoId || null,
-    }).select("id").maybeSingle();
+    };
+    const insertQuery = idDjen && coordenacaoId
+      ? sb.from("publicacoes_djen_servidor").upsert(insertRow, { onConflict: "coordenacao_id,id_djen", ignoreDuplicates: true }).select("id")
+      : sb.from("publicacoes_djen_servidor").insert(insertRow).select("id");
+    const { data: insertedRows, error } = await insertQuery;
+    const inserted = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
     if (error) {
       const msg = String(error.message || "");
       const isConflict = error.code === "23505" || msg.includes("duplicate key");
