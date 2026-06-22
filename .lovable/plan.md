@@ -1,88 +1,45 @@
-## Objetivo
+## Problema
 
-Na tela **Análise DJEN Servidor**, marcar e mostrar as publicações que apareceram em execuções **posteriores** do mesmo dia (mesma `data_disponibilizacao`), comparando execuções consecutivas. Kurier fora.
+A função `isPautaDeJulgamento` em `src/pages/AnaliseDjen.tsx` (linha 1429) classifica como pauta qualquer publicação que contenha a expressão "Pauta de Julgamento" em qualquer ponto do texto. Acórdãos do TST frequentemente citam essa expressão dentro do dispositivo (ex.: "determinar a reautuação do processo e a publicação de nova pauta de julgamento (RITST, art. 122)"), e por isso são tratados como pauta — o resumo sai errado.
 
-## Modelo de dados
+O mesmo critério frouxo existe no backend em `supabase/functions/resumir-publicacoes/markdown.ts` (`isPautaDeJulgamentoMd`), usado pela rota híbrida de IA.
 
-### Nova tabela `publicacoes_djen_servidor_execucoes` (junção)
+## Solução
 
-Registra **toda vez** que uma execução "viu" uma publicação — inclusive quando ela já existia (duplicata). Sem isso, não há como dizer "a execução das 12:00 também viu as 140 da execução das 7:00".
+Endurecer a detecção exigindo marcadores estruturais de pauta e descartando claramente quando o texto for um acórdão/decisão.
 
-Colunas:
-- `publicacao_id uuid` → FK `publicacoes_djen_servidor(id)` ON DELETE CASCADE
-- `execucao_id uuid` → FK `execucoes_servidor(id)` ON DELETE CASCADE
-- `tipo_engine text` (`paralela` | `pautas`)
-- `created_at timestamptz default now()`
-- PK composta `(publicacao_id, execucao_id)`
-- Índices: `(execucao_id)` e `(publicacao_id)`
+### Regras novas para `isPautaDeJulgamento` (frontend) e `isPautaDeJulgamentoMd` (backend)
 
-RLS / GRANTs:
-- `GRANT SELECT` para `authenticated`
-- `GRANT ALL` para `service_role`
-- Policy SELECT: `authenticated` lê tudo (mesma postura da `publicacoes_djen_servidor`)
-- Sem policies de escrita — só `service_role` (edge functions) escreve
+1. **Exclusão prioritária (acórdão / decisão monocrática):** se o conteúdo limpo contém qualquer um dos marcadores abaixo, NÃO é pauta, mesmo que apareça "Pauta de Julgamento" no meio do texto:
+   - `A\s*C\s*Ó\s*R\s*D\s*Ã\s*O` (cabeçalho "A C Ó R D Ã O" típico de acórdão TST)
+   - `\bACORDAM\s+os\s+Ministros` / `\bACORDAM\s+as?\s+(Turma|Desembargadora|Desembargadores)`
+   - `\bISTO\s+POSTO\b`
+   - `Embargos\s+de\s+declara[çc][ãa]o\s+acolhidos`
+   - `\bRelator[(:]` seguido de voto (`V\s*O\s*T\s*O`)
+   - `\bDECIS[ÃA]O\s+MONOCR[ÁA]TICA\b`
 
-## Mudanças nas engines (gravar na junção)
+2. **Confirmação positiva de pauta** (precisa de pelo menos UMA destas):
+   - Cabeçalho explícito: `^(?:\s*)?PAUTA\s+DE\s+JULGAMENTO` ou `Aditamento\s+[àa]\s+Pauta` aparecendo nos primeiros ~500 caracteres limpos do conteúdo, OU
+   - Combinação atual `Sessão (Ordinária|Extraordinária|Virtual|Presencial)` + `sessão (virtual|presencial)` (mantida), OU
+   - `\bCEJUSC\b` (mantida — audiências de conciliação)
 
-### 1. `monitor-servidor/engines/paralela.js` (Termos servidor)
-Logo após o INSERT bem-sucedido **e** no caminho "já existe / duplicata" (quando obtemos o `publicacao_id` da linha existente), fazer:
-```js
-await supabase.from('publicacoes_djen_servidor_execucoes')
-  .upsert({ publicacao_id, execucao_id: execucaoId, tipo_engine: 'paralela' },
-          { onConflict: 'publicacao_id,execucao_id', ignoreDuplicates: true });
-```
+3. Remover o match isolado de "Pauta de Julgamento" em qualquer posição do texto (causa do falso positivo).
 
-### 2. `supabase/functions/executar-djet-pautas-agendado` (Pautas servidor)
-Depois do upsert em `publicacoes_djen_servidor`, recuperar os ids (via `select`/`returning`) e inserir em lote na junção com `tipo_engine='pautas'`, `onConflict` ignorado.
+### Arquivos a alterar
 
-### 3. Kurier
-Não alterar.
+- `src/pages/AnaliseDjen.tsx` — substituir o corpo de `isPautaDeJulgamento` (linhas 1428-1436) pelas regras acima. Não tocar em `extractTrechoPauta`, `resumirTrechoPauta` nem nos fluxos de PDF/DOC — só a detecção precisa mudar.
+- `supabase/functions/resumir-publicacoes/markdown.ts` — espelhar o ajuste em `isPautaDeJulgamentoMd` (mantém os dois lados em sincronia, conforme o cabeçalho do arquivo já alerta).
 
-## Backfill (opcional, mas recomendado para histórico recente)
+### Validação
 
-Migration única: copiar `(id, execucao_id, 'paralela')` de `publicacoes_djen_servidor` onde `execucao_id IS NOT NULL` para a junção. Isso garante que execuções antigas tenham pelo menos o registro "vista pela primeira vez". Sem dados de "vista de novo", mas suficiente para a tela funcionar daí em diante.
+- Caso reportado (processo `0000986-45.2023.5.13.0006`, acórdão de EDCiv-RR da 5ª Turma com "publicação de nova pauta de julgamento" no dispositivo): passa a ser tratado como publicação normal — o resumo seguirá a rota padrão (IA / trecho final), não a rota de pauta.
+- Pautas reais (cabeçalho "PAUTA DE JULGAMENTO" no topo, "Aditamento à Pauta", "Sessão Virtual"/"Sessão Presencial", CEJUSC) continuam sendo detectadas.
 
-## UI — `src/pages/AnaliseDjenServidor.tsx` + hook
+### Memória
 
-### Card "Execuções do dia" (novo)
-Aparece quando há mais de uma execução servidor para a `data_disponibilizacao` filtrada (ou hoje, quando nada filtrado), respeitando o filtro de coordenação já ativo na tela.
-
-Para cada execução do dia, em ordem cronológica:
-- Horário (HH:MM) + tipo (Termos / Pautas)
-- Total de publicações vistas naquela execução (`count` na junção, com join na publicação para aplicar filtros de coordenação)
-- **Novas vs. execução anterior do mesmo dia**: publicações cujo `publicacao_id` aparece nesta execução **e não aparece** em nenhuma execução anterior do mesmo `data_disponibilizacao` (e mesmo escopo de filtros).
-  - Ex.: 7:00 → 140 vistas, 140 novas. 12:00 → 149 vistas, **9 novas**.
-- Badge clicável "Ver X novas" filtra a lista principal para esse subconjunto.
-
-### Marcação visual na lista principal
-Cada linha de publicação ganha uma pílula discreta quando ela é "nova em execução posterior" (ou seja, a primeira execução que a viu **não é** a primeira execução do dia): `Nova na execução HH:MM`. Tooltip mostra de quais execuções ela veio.
-
-### Hook `usePublicacoesDjenServidorUnificadas`
-- Aceitar filtros opcionais: `execucaoId` (limita à junção dessa execução) e `apenasNovasNaExecucao` (limita às que não aparecem em execução anterior do mesmo dia).
-- Trazer, junto com cada publicação, a lista de `execucao_ids` em que ela apareceu (para tooltip e marcação).
-
-## Cálculo de "novas vs. anterior" (definição precisa)
-
-Para a execução `E` com `data_disponibilizacao = D`:
-```text
-novas(E) = { p | (p, E) ∈ junção
-             AND NÃO EXISTE E' tal que
-                 (p, E') ∈ junção
-                 AND execucoes_servidor(E').data_disponibilizacao = D
-                 AND execucoes_servidor(E').started_at < execucoes_servidor(E).started_at }
-```
-Implementado via subquery `NOT EXISTS` no servidor — não no cliente.
+Atualizar `mem://features/monitoring/djen-analysis-pdf-summary-ia.md` (ou criar um arquivo dedicado) registrando que a detecção de pauta agora exige marcador estrutural no topo e descarta automaticamente acórdãos, para não regredir.
 
 ## Fora de escopo
-- Kurier.
-- Mudanças em `AnaliseDjen.tsx` (browser) e em `usePublicacoesDjenUnificadas`.
-- Comparação entre dias diferentes (só consecutivas do mesmo dia).
 
-## Arquivos
-
-- migration: criar tabela `publicacoes_djen_servidor_execucoes` + GRANTs + RLS + índices + backfill.
-- editar: `monitor-servidor/engines/paralela.js` (upsert na junção em ambos os caminhos).
-- editar: `supabase/functions/executar-djet-pautas-agendado/index.ts` (insert em lote na junção).
-- editar: `src/hooks/usePublicacoesDjenServidorUnificadas.ts` (filtros `execucaoId` / `apenasNovasNaExecucao` + execucao_ids por publicação).
-- novo: `src/components/djen/ExecucoesDoDiaCard.tsx`.
-- editar: `src/pages/AnaliseDjenServidor.tsx` (montar o card + pílula nas linhas).
+- Mudanças no comportamento do resumo de pautas reais (texto determinístico, fallback IA, formato do PDF/DOC).
+- Alterações na classificação `TEMAS_IRR / PAUTA / CEJUSC / DISTRIBUICOES / PRAZOS` da IA — é outro fluxo.
