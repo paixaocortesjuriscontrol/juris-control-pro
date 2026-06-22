@@ -1575,37 +1575,6 @@ export default function DistribuicaoTst() {
               </Button>
             </>
           )}
-          <Button
-            variant={mostrarPendencias ? "default" : "outline"}
-            onClick={() => setMostrarPendencias((v) => !v)}
-            title="Mostra uma coluna na lista com os campos obrigatórios ainda não preenchidos em cada processo (spec da advogada Kellen)."
-            className={
-              mostrarPendencias
-                ? "bg-red-600 hover:bg-red-700 text-white"
-                : "border-red-300 text-red-700 hover:bg-red-50"
-            }
-          >
-            <CheckCircle className="w-4 h-4 mr-2" />
-            {mostrarPendencias ? "Ocultar Pendências" : "Verificar Pendências"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleGerarRelatorioPendencias}
-            disabled={pendenciasRelRunning}
-            title="Gera um Excel listando todos os processos com campos obrigatórios em aberto, respeitando os filtros (ou apenas os selecionados)."
-            className="border-red-300 text-red-700 hover:bg-red-50"
-          >
-            {pendenciasRelRunning ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <FileSpreadsheet className="w-4 h-4 mr-2" />
-            )}
-            {pendenciasRelRunning
-              ? "Gerando..."
-              : selectedIds.size > 0
-                ? `Relatório Pendências (${selectedIds.size})`
-                : "Relatório Pendências"}
-          </Button>
         </div>
 
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
@@ -1878,6 +1847,39 @@ export default function DistribuicaoTst() {
               title="Remove a marca 'Em análise' dos registros selecionados"
             >
               <CheckCircle2 className="w-3 h-3 mr-1" /> Finalizar Análise{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
+            <Button
+              variant={mostrarPendencias ? "default" : "outline"}
+              size="sm"
+              onClick={() => setMostrarPendencias((v) => !v)}
+              title="Mostra uma coluna na lista com os campos obrigatórios ainda não preenchidos em cada processo (spec da advogada Kellen)."
+              className={
+                mostrarPendencias
+                  ? "h-8 text-xs bg-red-600 hover:bg-red-700 text-white"
+                  : "h-8 text-xs border-red-300 text-red-700 hover:bg-red-50"
+              }
+            >
+              <CheckCircle className="w-3 h-3 mr-1" />
+              {mostrarPendencias ? "Ocultar Pendências" : "Verificar Pendências"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGerarRelatorioPendencias}
+              disabled={pendenciasRelRunning}
+              title="Gera um Excel listando todos os processos com campos obrigatórios em aberto, respeitando os filtros (ou apenas os selecionados)."
+              className="h-8 text-xs border-red-300 text-red-700 hover:bg-red-50"
+            >
+              {pendenciasRelRunning ? (
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="w-3 h-3 mr-1" />
+              )}
+              {pendenciasRelRunning
+                ? "Gerando..."
+                : selectedIds.size > 0
+                  ? `Relatório Pendências (${selectedIds.size})`
+                  : "Relatório Pendências"}
             </Button>
             {/* Resposta Santander movido para Admin TST → Importações Distribuição TST */}
             {isAdminOrCoordinator && (
