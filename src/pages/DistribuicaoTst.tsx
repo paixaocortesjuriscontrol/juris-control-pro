@@ -901,7 +901,6 @@ export default function DistribuicaoTst() {
 
   // Gerar carga Benner respeitando os filtros aplicados na lista
   const handleGerarCarga = async () => {
-    void 0;
     setCargaLoading(true);
     try {
       let ids: string[];
