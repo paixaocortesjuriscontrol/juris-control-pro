@@ -166,6 +166,7 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
 
   const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState<string>('');
   const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState<string>('');
+  const [filtroTipo, setFiltroTipo] = useState<string>('');
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const coordenacaoFiltroEfetivo = filtroCoordenacaoId || null;
@@ -205,6 +206,20 @@ export function DjenTermosDashboardCard({ stats, onAfterMutation }: Props) {
   useEffect(() => {
     if (!filtroCoordenacaoId) setFiltroMonitoramentoId('');
   }, [filtroCoordenacaoId]);
+
+  useEffect(() => {
+    if (!filtroCoordenacaoId) setFiltroTipo('');
+  }, [filtroCoordenacaoId]);
+
+  const monitoramentosFiltrados = filtroTipo
+    ? monitoramentos.filter((m) => (m.tipo || '') === filtroTipo)
+    : monitoramentos;
+
+  useEffect(() => {
+    if (filtroMonitoramentoId && !monitoramentosFiltrados.some((m) => m.id === filtroMonitoramentoId)) {
+      setFiltroMonitoramentoId('');
+    }
+  }, [filtroTipo, monitoramentosFiltrados, filtroMonitoramentoId]);
 
   const { data: liveConfig } = useQuery({
     queryKey: ['djen-config-live'],
