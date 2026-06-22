@@ -147,6 +147,7 @@ export function gerarManualDistribuicaoTst() {
     "10. Kanban de Delegação",
     "11. Carga Benner e Relatórios PDF",
     "12. Dicas de preenchimento e boas práticas",
+    "13. Layout detalhado das planilhas (referência completa)",
   ]);
 
   doc.addPage(); y = margin; drawPageHeader();
@@ -358,6 +359,172 @@ export function gerarManualDistribuicaoTst() {
     "Para dossiês com '/', o sistema sempre aceita - não tente normalizar manualmente.",
     "Datas em planilhas devem ser DD/MM/AAAA - exportações já saem nesse padrão.",
   ]);
+
+  // 13 - Capítulo novo: layout detalhado de cada planilha lida pela tela
+  doc.addPage(); y = margin; drawPageHeader();
+  sectionTitle("13. Layout detalhado das planilhas (referência completa)");
+  paragraph(
+    "Este capítulo descreve, para cada botão da tela que lê uma planilha, o formato esperado do arquivo: " +
+    "abas processadas, como o cabeçalho é localizado, quais colunas são obrigatórias e qual é o comportamento " +
+    "após a leitura. Use como referência ao montar planilhas novas ou diagnosticar uma importação que não traz dados."
+  );
+  tip("Em todos os botões, o sistema aceita .xlsx e .xls. Datas devem estar em DD/MM/AAAA ou como data nativa do Excel.");
+
+  // 13.1
+  subTitle("13.1 Importar (Excel) - Planilha mestre de Distribuição TST");
+  paragraph(
+    "Lê TODAS as abas do arquivo. O cabeçalho é detectado nas 10 primeiras linhas de cada aba procurando uma " +
+    "célula que contenha 'Número' + 'Processo' OU 'Dossiê'. A partir do cabeçalho encontrado, o sistema usa " +
+    "POSIÇÕES FIXAS de coluna (A a AB) - a ordem importa."
+  );
+  table(
+    [["Coluna (Excel)", "Índice", "Campo", "Obs."]],
+    [
+      ["A", "0", "Data da distribuição", "DD/MM/AAAA ou Date nativo"],
+      ["B", "1", "Número do processo (CNJ)", "Obrigatório, ≥ 7 caracteres"],
+      ["C", "2", "Dossiê", "Identificador Benner"],
+      ["D", "3", "Equipe", "Texto livre"],
+      ["E", "4", "Reclamante (polo ativo)", ""],
+      ["F", "5", "Reclamada (polo passivo)", ""],
+      ["G", "6", "Relator (nome)", ""],
+      ["H", "7", "Posicionamento do Relator", "'positivo' / 'negativo'"],
+      ["I", "8", "Turma (nome)", ""],
+      ["J", "9", "Posicionamento da Turma", "'positivo' / 'negativo'"],
+      ["K", "10", "Recorrente", ""],
+      ["L", "11", "Tipo recurso reclamante", ""],
+      ["M", "12", "Matérias recurso reclamante", ""],
+      ["N", "13", "Aparelhamento reclamante", ""],
+      ["O", "14", "Chance êxito reclamante", ""],
+      ["P", "15", "Tipo recurso banco", ""],
+      ["Q", "16", "Matérias recurso banco", ""],
+      ["R", "17", "Aparelhamento banco", ""],
+      ["S", "18", "Chance êxito banco", ""],
+      ["T", "19", "Honra", ""],
+      ["U", "20", "Tema", ""],
+      ["V", "21", "Execução", ""],
+      ["W", "22", "Mídia negativa", ""],
+      ["X", "23", "Decisão quarteirizado", ""],
+      ["Y", "24", "Recurso de terceiros", ""],
+      ["Z", "25", "Trânsito em julgado", "S/SIM/X/TRUE = true"],
+      ["AA", "26", "Benner atualizado", "S/SIM/X/TRUE = true"],
+      ["AB", "27", "Responsável (advogado)", "Apelido/nome - resolvido na coord. Dra. Renata"],
+    ]
+  );
+  bullets([
+    "Nome da aba é gravado em 'aba_origem' - serve depois para filtrar lotes.",
+    "Cada linha vira um registro em dados_benner; duplicados (mesmo processo) ficam marcados com ic_duplicado=true.",
+    "Processos novos são criados em 'processos'; existentes têm Dossiê, Relator e Turma atualizados.",
+    "Registros antigos com judit_preenchido=true são preservados; demais são substituídos pela nova carga.",
+  ]);
+
+  // 13.2
+  subTitle("13.2 Atualizar Dossiês");
+  paragraph("Lê apenas a PRIMEIRA aba. Cabeçalho detectado nas 10 primeiras linhas por NOME (qualquer ordem/posição).");
+  table(
+    [["Cabeçalho aceito (case-insensitive)", "Significado", "Obrigatório"]],
+    [
+      ["Contém 'dossi' (ex.: 'Nº Do Dossiê', 'Dossiê')", "Novo dossiê", "Sim"],
+      ["'Número' ou 'Numero'", "Número do processo (CNJ)", "Sim"],
+    ]
+  );
+  bullets([
+    "Linhas só são consideradas se Processo tiver ≥ 7 caracteres E Dossiê estiver preenchido.",
+    "Atualiza dados_benner.dossie em lotes de 500. NÃO cria registros novos - processos não encontrados são contados como 'não encontrados'.",
+  ]);
+
+  // 13.3
+  subTitle("13.3 Atualizar Equipe");
+  paragraph(
+    "Lê TODAS as abas. Usa POSIÇÕES FIXAS (não detecta cabeçalho por nome): coluna B = Dossiê, coluna L = Equipe. " +
+    "O cabeçalho é localizado nas 10 primeiras linhas só para pular linhas de título."
+  );
+  table(
+    [["Coluna", "Índice", "Campo"]],
+    [
+      ["B", "1", "Dossiê (chave de busca em dados_benner.dossie)"],
+      ["L", "11", "Equipe / nome do advogado responsável"],
+    ]
+  );
+  bullets([
+    "O prefixo 'Jurídico Trabalhista - ' é removido automaticamente do nome da equipe.",
+    "Linhas em branco (sem Dossiê OU sem Equipe) são ignoradas.",
+    "Faz UPDATE em lotes de 500 por dossiê.",
+  ]);
+
+  // 13.4
+  subTitle("13.4 Benner SIM");
+  paragraph(
+    "Lê TODAS as abas. Detecta cabeçalho por NOME nas 10 primeiras linhas. NÃO existe coluna 'Benner SIM/NÃO' " +
+    "na planilha - o sistema apenas usa a lista de processos para MARCAR benner_sim=true em todos os registros encontrados."
+  );
+  table(
+    [["Cabeçalho aceito", "Significado", "Obrigatório"]],
+    [
+      ["'Número do Processo' / 'Número' / 'Nº Processo' / 'N. Processo'", "Processo (CNJ)", "Sim"],
+      ["'Dossiê' / 'Dossie'", "Dossiê Benner", "Sim"],
+      ["Contém 'Data' + 'Distrib'", "Data de distribuição", "Não"],
+      ["Contém 'Reclamante'", "Polo ativo", "Não"],
+    ]
+  );
+  bullets([
+    "Processos repetidos na planilha são deduplicados; preserva a linha que tem Dossiê preenchido.",
+    "Cria registros novos em dados_benner caso o processo não exista; existentes são apenas marcados.",
+  ]);
+
+  // 13.5
+  subTitle("13.5 Atualizar Situação Envio Carga (apenas admin)");
+  paragraph("Lê apenas a PRIMEIRA aba. Detecta cabeçalho por NOME nas 10 primeiras linhas.");
+  table(
+    [["Cabeçalho aceito", "Significado", "Obrigatório"]],
+    [
+      ["'Processo' (exato)", "Número do processo (CNJ)", "Sim"],
+      ["Contém 'Tipo' + 'Carga' OU 'Situa' + 'Envio'", "Código/descrição da situação", "Sim"],
+      ["'Dossiê' / 'Dossie' / começa com 'dossi'", "Dossiê", "Não (usado p/ desambiguação)"],
+    ]
+  );
+  bullets([
+    "A coluna de situação aceita o código da lista cadastrada em Configurações > Situações Envio Carga.",
+    "Códigos não cadastrados são contados em 'sem código' e ignorados (o admin precisa cadastrá-los antes).",
+    "Processos não encontrados em 'processos' são listados no resumo final.",
+  ]);
+
+  // 13.6
+  subTitle("13.6 Resposta Santander (importar respostas)");
+  paragraph(
+    "Lê TODAS as abas. Cabeçalho detectado por NOME (qualquer ordem). Aceita ~30 colunas opcionais; apenas " +
+    "Processo e Dossiê são chaves obrigatórias. Algumas colunas posicionais são fixas (B, C, N, P)."
+  );
+  table(
+    [["Grupo", "Cabeçalhos aceitos (contém)", "Obs."]],
+    [
+      ["Chaves", "'Processo', 'Número do Processo', 'Nº Processo'", "Obrigatório"],
+      ["Dossiê", "'Dossiê' / 'Dossie' (também posição B fixa)", "Obrigatório"],
+      ["Centralizador", "'Centralizador' (posição C fixa)", "Aceita vazio, '0' ou contendo 'Paixão'"],
+      ["Local", "'Comarca', 'Juízo', 'UF' / 'Estado'", "Opcional"],
+      ["Classificação", "'Objeto', 'Assunto', 'Categoria', 'Subcategoria'", "Opcional"],
+      ["Turma / Relator", "'Turma' / 'Turma TST', 'Relator' / 'Ministro Relator'", "Texto"],
+      ["Data distribuição", "Contém 'Data' + 'Distribui'", "DD/MM/AAAA"],
+      ["Posicionamento Turma", "'Turma' + ('favorável'/'positivo' OU 'desfavorável'/'negativo')", "Booleano"],
+      ["Posicionamento Relator", "'Relator' + ('favorável'/'positivo' OU 'desfavorável'/'negativo')", "Booleano"],
+      ["Aparelhamento", "'bem aparelhado' / 'mal aparelhado'", "Booleano"],
+      ["Chance de êxito", "'Chance' + 'êxito' + (S) ou (N)", "Booleano"],
+      ["Resultado", "'Sem transcendência', 'Conhecido e provido', 'Não conhecido' etc.", "Booleano por coluna"],
+      ["Ganhamos / Perdemos", "'Ganhamos', 'Perdemos'", "Booleano"],
+      ["Tipo recurso (posição N)", "Texto do recurso, distribuído por col P", "Posicional"],
+      ["Parte do recurso (posição P)", "Contém 'Reclamante' / 'Reclamada' para classificar N", "Posicional"],
+    ]
+  );
+  bullets([
+    "Linhas com centralizador diferente de vazio/'0'/'Paixão' são ignoradas.",
+    "O tipo de recurso 'incidente de superação e revisão dos precedentes' é descartado.",
+    "O tipo de recurso da col N é jogado em 'banco' OU 'reclamante' de acordo com o texto da col P.",
+  ]);
+
+  tip(
+    "Diferença importante: 'Importar (Excel)', 'Atualizar Equipe' e 'Benner SIM' leem TODAS as abas; " +
+    "'Atualizar Dossiês' e 'Atualizar Situação Envio' leem só a PRIMEIRA. Quando precisar consolidar várias abas, "+
+    "use os primeiros."
+  );
 
   // Rodapé final
   ensureSpace(20);
