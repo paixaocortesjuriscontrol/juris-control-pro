@@ -756,7 +756,7 @@ async function run({ sb, payload, log, job }) {
   const monitoramentoIdsFiltro = Array.isArray(payload?.monitoramentoIds) && payload.monitoramentoIds.length > 0 ? payload.monitoramentoIds : null;
   const dias = expandirDias(dataInicio, dataFim);
 
-  log("paralela.start", { dataInicio, dataFim, dias: dias.length, coordenacaoId, monitoramentoIdsFiltro });
+  log("paralela.start", { engineVersion: ENGINE_VERSION, dataInicio, dataFim, dias: dias.length, coordenacaoId, monitoramentoIdsFiltro });
 
   let q = sb.from("monitoramentos_djen").select("id, descricao, termo_busca, termos_or, tipo, oab, uf, coordenacao_id, tribunais, exclusoes, condicao_concomitante").eq("ativo", true);
   if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
