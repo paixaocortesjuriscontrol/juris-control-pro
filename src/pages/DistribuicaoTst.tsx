@@ -51,6 +51,11 @@ import { BulkTagAction } from "@/components/distribuicao-tst/BulkTagAction";
 import { useQuery } from "@tanstack/react-query";
 import { gerarManualDistribuicaoTst } from "@/utils/gerarManualDistribuicaoTst";
 import {
+  getPendencias,
+  pendenciasResumo,
+  COLUNAS_SELECT_PENDENCIAS,
+} from "@/utils/distribuicaoTstPendencias";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -236,6 +241,12 @@ export default function DistribuicaoTst() {
   });
   // Novo filtro: apenas processos com mais de um responsável.
   const [filtroMultiResp, setFiltroMultiResp] = useState<boolean>(false);
+
+  // ===== Verificar Pendências =====
+  // Quando ligado, exibe uma coluna extra na tabela mostrando os campos
+  // obrigatórios (vide spec da advogada) ainda em aberto.
+  const [mostrarPendencias, setMostrarPendencias] = useState<boolean>(false);
+  const [pendenciasRelRunning, setPendenciasRelRunning] = useState(false);
 
   // IDs base por TAG (intersecção). undefined = sem restrição por TAG.
   const idsAllowedFromTagFilter = filtroTagId === "todas" || filtroTagId === "__sem__"
