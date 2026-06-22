@@ -503,13 +503,14 @@ function baseParams(mon, dia, tribunal) {
   return params;
 }
 
-async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
+async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scanCache) {
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
     const results = [];
     for (const nomeParte of termosDeParte(mon)) {
       if (signal?.aborted) throw new Error("cancelado");
-      const params = { ...baseParams(mon, dia, tribunal), nomeParte };
+      const termoBusca = termoParteParaBusca(nomeParte);
+      const params = { ...baseParams(mon, dia, tribunal), nomeParte: termoBusca };
       let items = await buscarPaginado(slot, params, signal);
       // Espelha Browser (useDjenTermosParalelaEngine.ts:1311-1320):
       // a API PJE Comunica devolve listagem vazia intermitentemente sem
@@ -545,7 +546,7 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
       }
       for (const it of items) it.__matchedByNomeParte = true;
       results.push(...items);
-      const paramsAdvogado = { ...baseParams(mon, dia, tribunal), nomeAdvogado: normalizeForApi(nomeParte) };
+      const paramsAdvogado = { ...baseParams(mon, dia, tribunal), nomeAdvogado: normalizeForApi(termoBusca) };
       let advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
       if (!signal?.aborted && advogadoItems.length === 0) {
         await delay(1500, signal);
@@ -567,6 +568,12 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
             // Tenta próxima VPS — não derruba o termo se uma alternativa falhar.
           }
         }
+      }
+      if (!signal?.aborted && partePareceAdvogado(mon)) {
+        const scanItems = await buscarTribunalDiaCompleto(slot, dia, tribunal, signal, fallbackSlots, scanCache);
+        const scanMatches = scanItems.filter((it) => textoCompletoContemTermoParte(it, getConteudo(it), mon));
+        for (const it of scanMatches) it.__matchedByParteAdvogadoFallback = true;
+        results.push(...scanMatches);
       }
       for (const it of advogadoItems) it.__matchedByParteAdvogadoFallback = true;
       results.push(...advogadoItems);
