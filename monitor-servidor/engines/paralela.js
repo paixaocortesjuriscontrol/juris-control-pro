@@ -5,6 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
+const ENGINE_VERSION = "2026-06-22-dedup-monitoramento-logs-v2";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -755,7 +756,7 @@ async function run({ sb, payload, log, job }) {
   const monitoramentoIdsFiltro = Array.isArray(payload?.monitoramentoIds) && payload.monitoramentoIds.length > 0 ? payload.monitoramentoIds : null;
   const dias = expandirDias(dataInicio, dataFim);
 
-  log("paralela.start", { dataInicio, dataFim, dias: dias.length, coordenacaoId, monitoramentoIdsFiltro });
+  log("paralela.start", { engineVersion: ENGINE_VERSION, dataInicio, dataFim, dias: dias.length, coordenacaoId, monitoramentoIdsFiltro });
 
   let q = sb.from("monitoramentos_djen").select("id, descricao, termo_busca, termos_or, tipo, oab, uf, coordenacao_id, tribunais, exclusoes, condicao_concomitante").eq("ativo", true);
   if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
