@@ -285,6 +285,51 @@ function parsearTermoOr(raw) {
   return clean ? { nome: clean } : null;
 }
 
+function termoParteParaBusca(raw) {
+  const parsed = parsearTermoOr(raw);
+  return String(parsed?.nome || raw || "").trim();
+}
+
+function partePareceAdvogado(mon) {
+  if (mapTipo(mon.tipo) !== "parte") return false;
+  if (String(mon.oab || "").replace(/\D/g, "").length >= 3) return true;
+  return (mon.termos_or || []).some((t) => {
+    const parsed = parsearTermoOr(t);
+    return parsed?.oabDigits && parsed.oabDigits.length >= 3 && parsed?.nome;
+  });
+}
+
+function textoCompletoContemTermoParte(pub, conteudo, mon) {
+  const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
+  if (!textoNorm) return false;
+  return termosDeParte(mon).some((raw) => {
+    const termoNorm = normalize(termoParteParaBusca(raw));
+    return termoNorm && contemFrase(textoNorm, termoNorm);
+  });
+}
+
+async function buscarTribunalDiaCompleto(slot, dia, tribunal, signal, fallbackSlots, scanCache) {
+  const key = `${dia}|${tribunal}`;
+  if (scanCache?.has(key)) return scanCache.get(key);
+  const params = {
+    siglaTribunal: tribunal,
+    dataDisponibilizacaoInicio: dia,
+    dataDisponibilizacaoFim: dia,
+  };
+  let items = [];
+  const slots = [slot, ...(Array.isArray(fallbackSlots) ? fallbackSlots : [])].filter(Boolean);
+  for (const currentSlot of slots) {
+    try {
+      items = await buscarPaginado(currentSlot, params, signal);
+      if (items.length > 0) break;
+    } catch (_e) {
+      // Tenta a próxima VPS. A varredura é uma proteção extra, não deve derrubar o monitoramento.
+    }
+  }
+  scanCache?.set(key, items);
+  return items;
+}
+
 function contemTermo(conteudo, mon, pub) {
   // Espelha src/hooks/useDjenTermosParalelaEngine.ts > validarTermo (estrito):
   // - 'parte': SÓ casa em metadados estruturados ou na seção Parte(s).
