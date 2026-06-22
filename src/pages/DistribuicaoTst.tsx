@@ -16,11 +16,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/DistribuicaoTstDetail";
-import { DistribuicaoTstImport } from "@/components/distribuicao-tst/DistribuicaoTstImport";
-import { CertidaoPdfImport } from "@/components/distribuicao-tst/CertidaoPdfImport";
-import { DossieUpdateImport } from "@/components/distribuicao-tst/DossieUpdateImport";
-import { EquipeUpdateImport } from "@/components/distribuicao-tst/EquipeUpdateImport";
-import { SituacaoEnvioUpdateImport } from "@/components/distribuicao-tst/SituacaoEnvioUpdateImport";
+// Importações (Importar Planilha / PDF Certidão / Atualizar Dossiês / Equipe / Situação Envio / Resposta Santander)
+// foram movidas para Admin TST → Importações Distribuição TST.
 import { BennerSimImport } from "@/components/distribuicao-tst/BennerSimImport";
 import { RespostaSantanderImport } from "@/components/distribuicao-tst/RespostaSantanderImport";
 import { CargaBennerFromDb } from "@/components/distribuicao-tst/CargaBennerFromDb";
