@@ -309,11 +309,12 @@ export function gerarManualDistribuicaoTst() {
   table(
     [["Coluna", "Uso"]],
     [
-      ["Processo OU Dossiê", "Chave de busca"],
-      ["E-mail do advogado", "Deve existir cadastrado em Profiles"],
+      ["A - Processo", "Informativo (CNJ, com ou sem máscara)"],
+      ["B - Dossiê", "Chave de busca em dados_benner.dossie"],
+      ["C - Equipe", "Nome da equipe/advogado responsável"],
     ]
   );
-  tip("Múltiplos e-mails podem ser separados por ';' para delegar vários responsáveis.");
+  tip("O prefixo 'Jurídico Trabalhista - ' é removido automaticamente do nome da equipe.");
 
   subTitle("9.4 Benner SIM (conferência)");
   table(
@@ -435,14 +436,16 @@ export function gerarManualDistribuicaoTst() {
   // 13.3
   subTitle("13.3 Atualizar Equipe");
   paragraph(
-    "Lê TODAS as abas. Usa POSIÇÕES FIXAS (não detecta cabeçalho por nome): coluna B = Dossiê, coluna L = Equipe. " +
-    "O cabeçalho é localizado nas 10 primeiras linhas só para pular linhas de título."
+    "Lê TODAS as abas. Usa POSIÇÕES FIXAS (não detecta cabeçalho por nome): coluna A = Processo, " +
+    "coluna B = Dossiê (chave) e coluna C = Equipe. O cabeçalho é localizado nas 10 primeiras linhas " +
+    "apenas para pular linhas de título."
   );
   table(
     [["Coluna", "Índice", "Campo"]],
     [
+      ["A", "0", "Processo (CNJ) - informativo, não é usado como chave"],
       ["B", "1", "Dossiê (chave de busca em dados_benner.dossie)"],
-      ["L", "11", "Equipe / nome do advogado responsável"],
+      ["C", "2", "Equipe / nome do advogado responsável"],
     ]
   );
   bullets([
