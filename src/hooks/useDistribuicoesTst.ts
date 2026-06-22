@@ -446,6 +446,39 @@ export async function fetchAllDistribuicaoTstIds(
   return Array.from(new Set(all));
 }
 
+function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
+  if (filters.processo) return true;
+  if (filters.dossie) return true;
+  if (filters.turma) return true;
+  if (filters.relator) return true;
+  if (filters.parte) return true;
+  if (filters.nomeParte) return true;
+  if (filters.aba_origem && filters.aba_origem !== "todas") return true;
+  if (filters.benner && filters.benner !== "todos") return true;
+  if (filters.dossieStatus && filters.dossieStatus !== "todos") return true;
+  if (filters.processoStatus && filters.processoStatus !== "todos") return true;
+  if (filters.judit && filters.judit !== "todos") return true;
+  if (filters.erroJudit && filters.erroJudit !== "todos") return true;
+  if (filters.situacaoProcesso && filters.situacaoProcesso !== "todos") return true;
+  if (filters.subidaMassa && filters.subidaMassa !== "todos") return true;
+  if (filters.mesAno && filters.mesAno !== "todos") return true;
+  if (filters.dataInicio) return true;
+  if (filters.dataFim) return true;
+  if (filters.responsavelIds && filters.responsavelIds.length > 0) return true;
+  if (filters.semTurma) return true;
+  if (filters.status && filters.status !== "todos") return true;
+  if (filters.emAnalise && filters.emAnalise !== "todos") return true;
+  if (filters.problemaJudit && filters.problemaJudit !== "todos") return true;
+  if (filters.duplicado && filters.duplicado !== "todos") return true;
+  if (filters.centralizador && filters.centralizador !== "todos") return true;
+  if (filters.fonteImportacao && filters.fonteImportacao !== "todas") return true;
+  if (filters.provasDigitais && filters.provasDigitais !== "todos") return true;
+  if (filters.situacaoEnvioCargaId && filters.situacaoEnvioCargaId !== "todas") return true;
+  if (filters.equipe && filters.equipe !== "todos") return true;
+  if (filters.idsAllowed && filters.idsAllowed.length > 0) return true;
+  return false;
+}
+
 export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, stickyId?: string | null) {
   const [dados, setDados] = useState<DistribuicaoTst[]>([]);
   const [responsaveisMap, setResponsaveisMap] = useState<Map<string, { id: string; nome: string }[]>>(new Map());
@@ -510,6 +543,10 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
         query = query.order("processo", { ascending: true, nullsFirst: false });
       } else if (filters.emAnalise === "sim") {
         query = query.order("em_analise_em", { ascending: true, nullsFirst: false });
+      } else if (!hasActiveFilters(filters)) {
+        query = query
+          .order("data_distribuicao_real", { ascending: false, nullsFirst: false })
+          .order("processo", { ascending: true, nullsFirst: false });
       } else {
         query = query
           .order("updated_at", { ascending: false, nullsFirst: false })
