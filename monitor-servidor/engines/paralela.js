@@ -285,6 +285,51 @@ function parsearTermoOr(raw) {
   return clean ? { nome: clean } : null;
 }
 
+function termoParteParaBusca(raw) {
+  const parsed = parsearTermoOr(raw);
+  return String(parsed?.nome || raw || "").trim();
+}
+
+function partePareceAdvogado(mon) {
+  if (mapTipo(mon.tipo) !== "parte") return false;
+  if (String(mon.oab || "").replace(/\D/g, "").length >= 3) return true;
+  return (mon.termos_or || []).some((t) => {
+    const parsed = parsearTermoOr(t);
+    return parsed?.oabDigits && parsed.oabDigits.length >= 3 && parsed?.nome;
+  });
+}
+
+function textoCompletoContemTermoParte(pub, conteudo, mon) {
+  const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
+  if (!textoNorm) return false;
+  return termosDeParte(mon).some((raw) => {
+    const termoNorm = normalize(termoParteParaBusca(raw));
+    return termoNorm && contemFrase(textoNorm, termoNorm);
+  });
+}
+
+async function buscarTribunalDiaCompleto(slot, dia, tribunal, signal, fallbackSlots, scanCache) {
+  const key = `${dia}|${tribunal}`;
+  if (scanCache?.has(key)) return scanCache.get(key);
+  const params = {
+    siglaTribunal: tribunal,
+    dataDisponibilizacaoInicio: dia,
+    dataDisponibilizacaoFim: dia,
+  };
+  let items = [];
+  const slots = [slot, ...(Array.isArray(fallbackSlots) ? fallbackSlots : [])].filter(Boolean);
+  for (const currentSlot of slots) {
+    try {
+      items = await buscarPaginado(currentSlot, params, signal);
+      if (items.length > 0) break;
+    } catch (_e) {
+      // Tenta a próxima VPS. A varredura é uma proteção extra, não deve derrubar o monitoramento.
+    }
+  }
+  scanCache?.set(key, items);
+  return items;
+}
+
 function contemTermo(conteudo, mon, pub) {
   // Espelha src/hooks/useDjenTermosParalelaEngine.ts > validarTermo (estrito):
   // - 'parte': SÓ casa em metadados estruturados ou na seção Parte(s).
@@ -458,13 +503,14 @@ function baseParams(mon, dia, tribunal) {
   return params;
 }
 
-async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
+async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scanCache) {
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
     const results = [];
     for (const nomeParte of termosDeParte(mon)) {
       if (signal?.aborted) throw new Error("cancelado");
-      const params = { ...baseParams(mon, dia, tribunal), nomeParte };
+      const termoBusca = termoParteParaBusca(nomeParte);
+      const params = { ...baseParams(mon, dia, tribunal), nomeParte: termoBusca };
       let items = await buscarPaginado(slot, params, signal);
       // Espelha Browser (useDjenTermosParalelaEngine.ts:1311-1320):
       // a API PJE Comunica devolve listagem vazia intermitentemente sem
@@ -500,7 +546,7 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
       }
       for (const it of items) it.__matchedByNomeParte = true;
       results.push(...items);
-      const paramsAdvogado = { ...baseParams(mon, dia, tribunal), nomeAdvogado: normalizeForApi(nomeParte) };
+      const paramsAdvogado = { ...baseParams(mon, dia, tribunal), nomeAdvogado: normalizeForApi(termoBusca) };
       let advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
       if (!signal?.aborted && advogadoItems.length === 0) {
         await delay(1500, signal);
@@ -522,6 +568,12 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
             // Tenta próxima VPS — não derruba o termo se uma alternativa falhar.
           }
         }
+      }
+      if (!signal?.aborted && partePareceAdvogado(mon) && items.length === 0 && advogadoItems.length === 0) {
+        const scanItems = await buscarTribunalDiaCompleto(slot, dia, tribunal, signal, fallbackSlots, scanCache);
+        const scanMatches = scanItems.filter((it) => textoCompletoContemTermoParte(it, getConteudo(it), mon));
+        for (const it of scanMatches) it.__matchedByParteAdvogadoFallback = true;
+        results.push(...scanMatches);
       }
       for (const it of advogadoItems) it.__matchedByParteAdvogadoFallback = true;
       results.push(...advogadoItems);
@@ -602,8 +654,12 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       origem: "servidor",
       execucao_id: execucaoId || null,
     }).select("id").maybeSingle();
-    if (error) stats.descartadas++;
-    else {
+    if (error) {
+      const msg = String(error.message || "");
+      const isConflict = error.code === "23505" || msg.includes("duplicate key");
+      if (isConflict) stats.duplicatas++;
+      else stats.descartadas++;
+    } else {
       stats.novas++;
       if (execucaoId && inserted?.id) {
         await sb.from("publicacoes_djen_servidor_execucoes").upsert(
@@ -700,6 +756,7 @@ async function run({ sb, payload, log, job }) {
   };
   const slots = await loadPool(sb);
   if (slots.length === 0) throw new Error("Nenhuma VPS ativa em djen_proxy_pool. O DJEN Servidor não roda sem VPS.");
+  const scanCache = new Map();
   const cancelPoll = setInterval(async () => {
     if (!cancelled && await isCancelled().catch(() => false)) {
       cancelled = true;
@@ -767,7 +824,7 @@ async function run({ sb, payload, log, job }) {
         const slot = slots[0];
         try {
           const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
-          const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots);
+          const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots, scanCache);
           const stats = await persistPublicacoes(sb, pubs, mon, tribunal, dia, job?.id || null);
           totalNovas += stats.novas;
           totalDescartadas += stats.descartadas;
@@ -817,7 +874,7 @@ async function run({ sb, payload, log, job }) {
           const itemKeyFalha = `paralela|${item.tribunal}|${monId}|${dia}`;
           try {
             const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
-            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal, fallbackSlots);
+            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal, fallbackSlots, scanCache);
             const stats = await persistPublicacoes(sb, pubs, mon, item.tribunal, dia, job?.id || null);
             item.novas += stats.novas;
             item.descartadas += stats.descartadas;
