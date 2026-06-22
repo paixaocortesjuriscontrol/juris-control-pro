@@ -449,7 +449,7 @@ function baseParams(mon, dia, tribunal) {
   return params;
 }
 
-async function buscarTermo(slot, mon, dia, tribunal, signal) {
+async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots) {
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
     const results = [];
@@ -464,6 +464,29 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
         await delay(1500, signal);
         if (!signal?.aborted) {
           items = await buscarPaginado(slot, params, signal);
+        }
+      }
+      // Espelha Browser (useDjenTermosParalelaEngine.ts:1321-1331):
+      // se a VPS ainda devolveu vazio sem erro, validamos OBRIGATORIAMENTE
+      // em outra VPS do pool (o Browser cai no caminho Direto). Sem isso,
+      // intermitências da VPS principal somem com publicações reais —
+      // foi a causa das 8 ausências de OSMAR MENDES PAIXAO CORTES em
+      // TJES/TJMT/TJPI/TJMA no comparador de 22/06/2026.
+      if (!signal?.aborted && items.length === 0 && Array.isArray(fallbackSlots) && fallbackSlots.length > 0) {
+        for (const alt of fallbackSlots) {
+          if (signal?.aborted) break;
+          if (!alt || alt.id === slot.id) continue;
+          await delay(1500, signal);
+          if (signal?.aborted) break;
+          try {
+            const altItems = await buscarPaginado(alt, params, signal);
+            if (altItems.length > 0) {
+              items = altItems;
+              break;
+            }
+          } catch (_e) {
+            // Tenta próxima VPS — não derruba o termo se uma alternativa falhar.
+          }
         }
       }
       for (const it of items) it.__matchedByNomeParte = true;
