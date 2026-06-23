@@ -1006,16 +1006,15 @@ async function run({ sb, payload, log, job }) {
   await flushProgresso(true);
   log("paralela.pool", { vias: slots.length, totalItens: itens.length, bandas: { tst: band0.length, superiores: band1.length, outros: band2.length, processo: band3.length } });
 
-  // === RETRY: refila falhas pendentes do mesmo dia BRT ===
-  // Reprocessa (tribunal, monitoramento, dia) que falharam em execuções
-  // anteriores antes de varrer a fila principal. Itens com tentativas >= 5
-  // viram 'abandonado' automaticamente em recordFalha.
+  // === RETRY: refila falhas pendentes do mesmo dia BRT como units extras ===
+  // Em vez do loop serial bloqueante de 1 VPS, injeta cada falha pendente
+  // como uma unit sintética na banda correspondente, para que TODAS as VPS
+  // do pool consumam retries e novas units em paralelo.
   try {
     const pendentes = await lerFalhasPendentes(sb, TIPO_ENGINE);
     if (pendentes.length > 0) {
-      log("paralela.retry_pendentes", { qtd: pendentes.length });
+      log("paralela.retry_pendentes_injetadas", { qtd: pendentes.length });
       for (const f of pendentes) {
-        if (cancelled || signal.aborted) break;
         const p = f.payload || {};
         const tribunal = p.tribunal;
         const monId = p.monitoramentoId;
@@ -1023,31 +1022,31 @@ async function run({ sb, payload, log, job }) {
         const tipoMon = p.tipo;
         const mon = monId ? monsPorId.get(monId) : null;
         if (!tribunal || !mon || !dia || !tipoMon) {
-          await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key);
+          await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key).catch(() => {});
           continue;
         }
-        const slot = slots[0];
-        try {
-          const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
-          const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots, scanCache, sb);
-          log("paralela.retry_result", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: tipoMon, tribunal, dia, encontrados: pubs.length });
-          const stats = await persistPublicacoes(sb, pubs, { ...mon, tipo: tipoMon, __log: log }, tribunal, dia, job?.id || null);
-          totalNovas += stats.novas;
-          totalDescartadas += stats.descartadas;
-          totalDuplicatas += stats.duplicatas;
-          await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key);
-          log("paralela.retry_ok", { tribunal, monId, dia, novas: stats.novas });
-        } catch (e) {
-          await recordFalha(sb, {
-            tipo: TIPO_ENGINE,
-            execucaoId: job?.id || null,
-            itemKey: f.item_key,
-            payload: p,
-            erro: e?.message || e,
-          });
-          log("paralela.retry_fail", { tribunal, monId, dia, e: String(e?.message || e).slice(0, 300) });
-        }
-        if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
+        const syntheticItem = {
+          id: `retry|${tribunal}|${monId}|${dia}`,
+          label: `RETRY ${mon.descricao || mon.termo_busca || tribunal}`,
+          tribunal,
+          tipo: tipoMon,
+          monitoramentoIds: [monId],
+          status: "pendente",
+          current: 0,
+          total: 1,
+          mensagem: "Aguardando VPS (retry)...",
+          novas: 0, descartadas: 0, duplicatas: 0,
+          erro: null, via: null,
+          __retry: true,
+          __retryItemKey: f.item_key,
+          __overrideDias: [dia],
+        };
+        itens.push(syntheticItem);
+        const unit = { item: syntheticItem, monIds: [monId] };
+        if (tribunal === "TST" && MAIN_TIPOS.includes(tipoMon)) { unit.band = 0; band0.push(unit); }
+        else if ((tribunal === "STF" || tribunal === "STJ") && MAIN_TIPOS.includes(tipoMon)) { unit.band = 1; band1.push(unit); }
+        else if (tipoMon === "processo") { unit.band = 3; band3.push(unit); }
+        else { unit.band = 2; band2.push(unit); }
       }
     }
   } catch (e) {
@@ -1060,11 +1059,12 @@ async function run({ sb, payload, log, job }) {
     item.via = { id: slot.id, label: slot.label || slot.url };
     item.mensagem = `${item.tribunal}: processando via ${item.via.label}`;
     await flushProgresso();
+    const diasEfetivos = Array.isArray(item.__overrideDias) && item.__overrideDias.length > 0 ? item.__overrideDias : dias;
     try {
       for (const monId of unit.monIds) {
         const mon = monsPorId.get(monId);
         if (!mon) continue;
-        for (const dia of dias) {
+        for (const dia of diasEfetivos) {
           if (cancelled || signal.aborted || (await isCancelled())) {
             cancelled = true;
             abortController.abort();
@@ -1089,6 +1089,9 @@ async function run({ sb, payload, log, job }) {
             item.duplicatas += stats.duplicatas;
             // se havia falha pendente p/ este par, marca como resolvido
             await marcarFalhaResolvida(sb, TIPO_ENGINE, itemKeyFalha).catch(() => {});
+            if (item.__retry && item.__retryItemKey) {
+              await marcarFalhaResolvida(sb, TIPO_ENGINE, item.__retryItemKey).catch(() => {});
+            }
           } catch (e) {
             if (cancelled || signal.aborted || String(e?.message || e).includes("cancel")) throw e;
             await recordFalha(sb, {
@@ -1105,7 +1108,6 @@ async function run({ sb, payload, log, job }) {
           }
           item.current += 1;
           await flushProgresso();
-          if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
         }
       }
       const teveFalhaParcial = !!item.erro;
@@ -1152,6 +1154,10 @@ async function run({ sb, payload, log, job }) {
       inBand[unit.band]++;
       try { await processUnit(unit, slot); }
       finally { inBand[unit.band]--; }
+      // Paridade com browser: delay_between_terms aplicado ENTRE units
+      // consumidas por uma mesma VPS (não dentro da unit). Mantém o
+      // espaçamento contra a API PJE Comunica sem serializar (mon, dia).
+      if (TERM_DELAY_MS > 0 && !cancelled) await delay(TERM_DELAY_MS, signal);
     }
     log("paralela.worker_done", { via: slot.label || slot.url });
   };
