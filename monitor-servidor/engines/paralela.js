@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-23-manual-skip-checkpoint";
+const ENGINE_VERSION = "2026-06-24-browser-parity";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -20,6 +20,9 @@ const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 2
 const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 1800));
 const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
 const ENABLE_PARTE_ADVOGADO_FALLBACK = String(process.env.PARALELA_PARTE_ADVOGADO_FALLBACK || "false").toLowerCase() === "true";
+// Paridade com browser: o browser NÃO faz "resgate" de partes via corpus do servidor.
+// Mantemos como flag desligada por padrão. Liga só se PARALELA_PARTE_RESCUE_CORPUS=true.
+const ENABLE_PARTE_RESCUE_CORPUS = String(process.env.PARALELA_PARTE_RESCUE_CORPUS || "false").toLowerCase() === "true";
 
 const delay = (ms, signal) => new Promise((resolve) => {
   if (!ms || ms <= 0 || signal?.aborted) return resolve();
@@ -606,26 +609,20 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
           items = await buscarPaginado(slot, params, signal);
         }
       }
-      // Espelha Browser (useDjenTermosParalelaEngine.ts:1321-1331):
-      // se a VPS ainda devolveu vazio sem erro, validamos OBRIGATORIAMENTE
-      // em outra VPS do pool (o Browser cai no caminho Direto). Sem isso,
-      // intermitências da VPS principal somem com publicações reais —
-      // foi a causa das 8 ausências de OSMAR MENDES PAIXAO CORTES em
-      // TJES/TJMT/TJPI/TJMA no comparador de 22/06/2026.
+      // Espelha Browser: 1 único retry em VPS alternativa, APENAS para tipo "parte"
+      // (caso documentado das ausências de OSMAR MENDES PAIXÃO CÔRTES em
+      // TJES/TJMT/TJPI/TJMA no comparador de 22/06/2026). Browser não percorre
+      // todas as VPS — fazer isso aqui adicionava ~9s por (mon, dia, tribunal)
+      // sem ganho em advogado/palavra-chave.
       if (!signal?.aborted && items.length === 0 && Array.isArray(fallbackSlots) && fallbackSlots.length > 0) {
-        for (const alt of fallbackSlots) {
-          if (signal?.aborted) break;
-          if (!alt || alt.id === slot.id) continue;
+        const alt = fallbackSlots.find((s) => s && s.id !== slot.id);
+        if (alt) {
           await delay(1500, signal);
-          if (signal?.aborted) break;
-          try {
-            const altItems = await buscarPaginado(alt, params, signal);
-            if (altItems.length > 0) {
-              items = altItems;
-              break;
-            }
-          } catch (_e) {
-            // Tenta próxima VPS — não derruba o termo se uma alternativa falhar.
+          if (!signal?.aborted) {
+            try {
+              const altItems = await buscarPaginado(alt, params, signal);
+              if (altItems.length > 0) items = altItems;
+            } catch (_e) { /* swallow */ }
           }
         }
       }
@@ -646,8 +643,10 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
       results.push(...advogadoItems);
       if (PARTE_OR_DELAY_MS > 0) await delay(PARTE_OR_DELAY_MS, signal);
     }
-    const jaEncontradas = await buscarPublicacoesParteServidorJaEncontradas(sb, mon, dia, tribunal);
-    results.push(...jaEncontradas);
+      if (ENABLE_PARTE_RESCUE_CORPUS) {
+        const jaEncontradas = await buscarPublicacoesParteServidorJaEncontradas(sb, mon, dia, tribunal);
+        results.push(...jaEncontradas);
+      }
     return results;
   }
   const params = baseParams(mon, dia, tribunal);
@@ -804,8 +803,10 @@ async function run({ sb, payload, log, job }) {
   for (const m of lista) {
     const tipo = mapTipo(m.tipo);
     for (const tribunal of expandirTribunais(m.tribunais)) {
-      const splitTst = tribunal === "TST" && tipo !== "processo";
-      const key = splitTst ? `${tipo}|${tribunal}|${m.id}` : `${tipo}|${tribunal}`;
+      // Paridade com browser (useDjenTermosParalelaEngine.ts): 1 unit por
+      // (tipo, tribunal, monitoramento). Garante paralelismo real entre as VPS
+      // do pool em vez de serializar N monitoramentos numa única VPS.
+      const key = tipo === "processo" ? `${tipo}|${tribunal}` : `${tipo}|${tribunal}|${m.id}`;
       if (!grouped.has(key)) grouped.set(key, { id: key, tipo, tribunal, monitoramentos: [] });
       grouped.get(key).monitoramentos.push(m);
     }
@@ -956,26 +957,24 @@ async function run({ sb, payload, log, job }) {
     } catch (_) { /* swallow: heartbeat best-effort */ }
   }, 30_000);
 
-  const byKey = new Map(itens.map((i) => [i.id, i]));
-  const band0 = [];
-  const band1 = [];
-  const band2 = [];
-  const band3 = [];
+  // Agora cada item é (tipo, tribunal, monitoramento). Distribui em 4 bandas
+  // por prioridade de tribunal/tipo. Iterar `itens` (em vez de `byKey.get`) é
+  // necessário porque as keys passaram a incluir o monId.
+  const band0 = []; // TST principais
+  const band1 = []; // STF/STJ principais
+  const band2 = []; // demais tribunais principais
+  const band3 = []; // processo (qualquer tribunal)
   for (const item of itens) {
     if (item.status === "concluido") continue;
-    if (item.tribunal === "TST" && MAIN_TIPOS.includes(item.tipo)) band0.push({ band: 0, item, monIds: item.monitoramentoIds });
-  }
-  const pushTipoUnits = (fila, band, tribunal) => {
-    for (const tipo of MAIN_TIPOS) {
-      const item = byKey.get(`${tipo}|${tribunal}`);
-      if (item && item.status !== "concluido") fila.push({ band, item, monIds: item.monitoramentoIds });
+    if (item.tipo === "processo") {
+      band3.push({ band: 3, item, monIds: item.monitoramentoIds });
+    } else if (item.tribunal === "TST" && MAIN_TIPOS.includes(item.tipo)) {
+      band0.push({ band: 0, item, monIds: item.monitoramentoIds });
+    } else if ((item.tribunal === "STF" || item.tribunal === "STJ") && MAIN_TIPOS.includes(item.tipo)) {
+      band1.push({ band: 1, item, monIds: item.monitoramentoIds });
+    } else if (MAIN_TIPOS.includes(item.tipo)) {
+      band2.push({ band: 2, item, monIds: item.monitoramentoIds });
     }
-  };
-  for (const tribunal of ["STF", "STJ"]) pushTipoUnits(band1, 1, tribunal);
-  for (const tribunal of TODOS_TRIBUNAIS) if (tribunal !== "TST" && tribunal !== "STF" && tribunal !== "STJ") pushTipoUnits(band2, 2, tribunal);
-  for (const tribunal of TODOS_TRIBUNAIS) {
-    const item = byKey.get(`processo|${tribunal}`);
-    if (item && item.status !== "concluido") band3.push({ band: 3, item, monIds: item.monitoramentoIds });
   }
   const bands = [band0, band1, band2, band3];
 
@@ -1007,16 +1006,15 @@ async function run({ sb, payload, log, job }) {
   await flushProgresso(true);
   log("paralela.pool", { vias: slots.length, totalItens: itens.length, bandas: { tst: band0.length, superiores: band1.length, outros: band2.length, processo: band3.length } });
 
-  // === RETRY: refila falhas pendentes do mesmo dia BRT ===
-  // Reprocessa (tribunal, monitoramento, dia) que falharam em execuções
-  // anteriores antes de varrer a fila principal. Itens com tentativas >= 5
-  // viram 'abandonado' automaticamente em recordFalha.
+  // === RETRY: refila falhas pendentes do mesmo dia BRT como units extras ===
+  // Em vez do loop serial bloqueante de 1 VPS, injeta cada falha pendente
+  // como uma unit sintética na banda correspondente, para que TODAS as VPS
+  // do pool consumam retries e novas units em paralelo.
   try {
     const pendentes = await lerFalhasPendentes(sb, TIPO_ENGINE);
     if (pendentes.length > 0) {
-      log("paralela.retry_pendentes", { qtd: pendentes.length });
+      log("paralela.retry_pendentes_injetadas", { qtd: pendentes.length });
       for (const f of pendentes) {
-        if (cancelled || signal.aborted) break;
         const p = f.payload || {};
         const tribunal = p.tribunal;
         const monId = p.monitoramentoId;
@@ -1024,31 +1022,31 @@ async function run({ sb, payload, log, job }) {
         const tipoMon = p.tipo;
         const mon = monId ? monsPorId.get(monId) : null;
         if (!tribunal || !mon || !dia || !tipoMon) {
-          await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key);
+          await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key).catch(() => {});
           continue;
         }
-        const slot = slots[0];
-        try {
-          const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
-          const pubs = await buscarTermo(slot, { ...mon, tipo: tipoMon }, dia, tribunal, signal, fallbackSlots, scanCache, sb);
-          log("paralela.retry_result", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: tipoMon, tribunal, dia, encontrados: pubs.length });
-          const stats = await persistPublicacoes(sb, pubs, { ...mon, tipo: tipoMon, __log: log }, tribunal, dia, job?.id || null);
-          totalNovas += stats.novas;
-          totalDescartadas += stats.descartadas;
-          totalDuplicatas += stats.duplicatas;
-          await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key);
-          log("paralela.retry_ok", { tribunal, monId, dia, novas: stats.novas });
-        } catch (e) {
-          await recordFalha(sb, {
-            tipo: TIPO_ENGINE,
-            execucaoId: job?.id || null,
-            itemKey: f.item_key,
-            payload: p,
-            erro: e?.message || e,
-          });
-          log("paralela.retry_fail", { tribunal, monId, dia, e: String(e?.message || e).slice(0, 300) });
-        }
-        if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
+        const syntheticItem = {
+          id: `retry|${tribunal}|${monId}|${dia}`,
+          label: `RETRY ${mon.descricao || mon.termo_busca || tribunal}`,
+          tribunal,
+          tipo: tipoMon,
+          monitoramentoIds: [monId],
+          status: "pendente",
+          current: 0,
+          total: 1,
+          mensagem: "Aguardando VPS (retry)...",
+          novas: 0, descartadas: 0, duplicatas: 0,
+          erro: null, via: null,
+          __retry: true,
+          __retryItemKey: f.item_key,
+          __overrideDias: [dia],
+        };
+        itens.push(syntheticItem);
+        const unit = { item: syntheticItem, monIds: [monId] };
+        if (tribunal === "TST" && MAIN_TIPOS.includes(tipoMon)) { unit.band = 0; band0.push(unit); }
+        else if ((tribunal === "STF" || tribunal === "STJ") && MAIN_TIPOS.includes(tipoMon)) { unit.band = 1; band1.push(unit); }
+        else if (tipoMon === "processo") { unit.band = 3; band3.push(unit); }
+        else { unit.band = 2; band2.push(unit); }
       }
     }
   } catch (e) {
@@ -1061,11 +1059,12 @@ async function run({ sb, payload, log, job }) {
     item.via = { id: slot.id, label: slot.label || slot.url };
     item.mensagem = `${item.tribunal}: processando via ${item.via.label}`;
     await flushProgresso();
+    const diasEfetivos = Array.isArray(item.__overrideDias) && item.__overrideDias.length > 0 ? item.__overrideDias : dias;
     try {
       for (const monId of unit.monIds) {
         const mon = monsPorId.get(monId);
         if (!mon) continue;
-        for (const dia of dias) {
+        for (const dia of diasEfetivos) {
           if (cancelled || signal.aborted || (await isCancelled())) {
             cancelled = true;
             abortController.abort();
@@ -1090,6 +1089,9 @@ async function run({ sb, payload, log, job }) {
             item.duplicatas += stats.duplicatas;
             // se havia falha pendente p/ este par, marca como resolvido
             await marcarFalhaResolvida(sb, TIPO_ENGINE, itemKeyFalha).catch(() => {});
+            if (item.__retry && item.__retryItemKey) {
+              await marcarFalhaResolvida(sb, TIPO_ENGINE, item.__retryItemKey).catch(() => {});
+            }
           } catch (e) {
             if (cancelled || signal.aborted || String(e?.message || e).includes("cancel")) throw e;
             await recordFalha(sb, {
@@ -1106,7 +1108,6 @@ async function run({ sb, payload, log, job }) {
           }
           item.current += 1;
           await flushProgresso();
-          if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
         }
       }
       const teveFalhaParcial = !!item.erro;
@@ -1153,6 +1154,10 @@ async function run({ sb, payload, log, job }) {
       inBand[unit.band]++;
       try { await processUnit(unit, slot); }
       finally { inBand[unit.band]--; }
+      // Paridade com browser: delay_between_terms aplicado ENTRE units
+      // consumidas por uma mesma VPS (não dentro da unit). Mantém o
+      // espaçamento contra a API PJE Comunica sem serializar (mon, dia).
+      if (TERM_DELAY_MS > 0 && !cancelled) await delay(TERM_DELAY_MS, signal);
     }
     log("paralela.worker_done", { via: slot.label || slot.url });
   };
