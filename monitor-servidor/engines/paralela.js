@@ -920,6 +920,19 @@ async function run({ sb, payload, log, job }) {
     }
   }, CANCEL_CHECK_MS);
 
+  // Heartbeat independente: garante que o dispatcher (timeout 5min em
+  // reset_jobs_orfaos_servidor) não marque o job como órfão quando um
+  // worker está preso paginando um termo grande do TST (>5min sem
+  // flushProgresso). Atualiza heartbeat_at a cada 30s.
+  const heartbeatTick = setInterval(async () => {
+    if (!job?.id || cancelled) return;
+    try {
+      await sb.from("execucoes_servidor")
+        .update({ heartbeat_at: new Date().toISOString() })
+        .eq("id", job.id);
+    } catch (_) { /* swallow: heartbeat best-effort */ }
+  }, 30_000);
+
   const byKey = new Map(itens.map((i) => [i.id, i]));
   const band0 = [];
   const band1 = [];
@@ -1123,6 +1136,7 @@ async function run({ sb, payload, log, job }) {
 
   await Promise.all(slots.map((slot) => worker(slot)));
   clearInterval(cancelPoll);
+  clearInterval(heartbeatTick);
   if (cancelled) {
     for (const item of itens) {
       if (item.status === "pendente" || item.status === "executando") {
