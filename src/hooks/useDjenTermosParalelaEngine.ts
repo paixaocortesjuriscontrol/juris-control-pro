@@ -1793,7 +1793,11 @@ async function executarLoop(
             ? s.detalhes
             : {};
           await supabase.from('execucoes_agendadas')
-            .update({ status: 'erro', finalizado_em: new Date().toISOString(), detalhes: { ...detalhes, mensagem: 'Erro: execução órfã sem heartbeat recente' } })
+            .update({
+              status: 'cancelado',
+              finalizado_em: new Date().toISOString(),
+              detalhes: { ...detalhes, mensagem: 'Execução interrompida (navegador fechado ou aba inativa por mais de 15 min sem heartbeat)' },
+            })
             .eq('id', s.id);
         }
         if (stale.length !== running.length) {
