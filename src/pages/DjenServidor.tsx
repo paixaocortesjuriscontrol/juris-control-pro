@@ -534,6 +534,7 @@ function ComparadorPanel() {
   const [dataInicio, setDataInicio] = useState(todayYmd(-7));
   const [dataFim, setDataFim] = useState(todayYmd());
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  const [origem, setOrigem] = useState<"todos" | "termos" | "pautas" | "kurier">("todos");
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const analise = useComparadorAnalise();
   const data = analise.data;
@@ -541,7 +542,7 @@ function ComparadorPanel() {
 
   const handleAnalisar = () => {
     if (!dataInicio || !dataFim) return;
-    analise.mutate({ dataInicio, dataFim, coordenacaoId: coordenacaoId || undefined });
+    analise.mutate({ dataInicio, dataFim, coordenacaoId: coordenacaoId || undefined, origem });
   };
 
   const exportarRelatorioCsv = () => {
@@ -618,6 +619,19 @@ function ComparadorPanel() {
               {(coordenacoes as CoordenacaoOption[]).map((c) => (
                 <option key={c.id} value={c.id}>{c.nome}</option>
               ))}
+            </select>
+          </div>
+          <div className="min-w-[180px]">
+            <label className="text-xs text-muted-foreground">Origem</label>
+            <select
+              className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm"
+              value={origem}
+              onChange={(e) => setOrigem(e.target.value as typeof origem)}
+            >
+              <option value="todos">Todos</option>
+              <option value="termos">DJEN Termos</option>
+              <option value="pautas">Pautas</option>
+              <option value="kurier">Kurier</option>
             </select>
           </div>
           <Button onClick={handleAnalisar} disabled={isLoading || !dataInicio || !dataFim}>

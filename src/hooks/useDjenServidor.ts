@@ -412,11 +412,13 @@ export function useComparadorAnalise() {
       dataInicio: string;
       dataFim: string;
       coordenacaoId?: string;
+      origem?: "todos" | "termos" | "pautas" | "kurier";
     }): Promise<ComparadorAnaliseRelatorio> => {
       const baseCols =
-        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao";
+        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, tipo_publicacao";
       const inicioDispoTs = `${opts.dataInicio}T00:00:00Z`;
       const fimDispoTs = `${opts.dataFim}T23:59:59Z`;
+      const origem = opts.origem || "todos";
       let servQ = supabase
         .from("publicacoes_djen_servidor")
         .select(baseCols)
@@ -436,6 +438,22 @@ export function useComparadorAnalise() {
         browQ = browQ.eq("coordenacao_id", opts.coordenacaoId);
       }
 
+      // Filtro por origem aplicado nas duas tabelas DJEN.
+      // - termos: tudo que NÃO é pauta (intimacao + parte + nulos legados)
+      // - pautas: somente tipo_publicacao='pauta'
+      // - kurier: zera as linhas DJEN (kurier vem só do bloco kurier_publicacoes_raw)
+      if (origem === "termos") {
+        servQ = servQ.or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta");
+        browQ = browQ.or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta");
+      } else if (origem === "pautas") {
+        servQ = servQ.eq("tipo_publicacao", "pauta");
+        browQ = browQ.eq("tipo_publicacao", "pauta");
+      } else if (origem === "kurier") {
+        // Não busca DJEN — força resultado vazio mantendo a query válida.
+        servQ = servQ.eq("id_djen", "__NONE__");
+        browQ = browQ.eq("id_djen", "__NONE__");
+      }
+
       // Filtros adicionais (kurier / pautas)
       const inicioTs = `${opts.dataInicio}T00:00:00Z`;
       const fimTs = `${opts.dataFim}T23:59:59Z`;
@@ -452,6 +470,15 @@ export function useComparadorAnalise() {
         .gte("data_julgamento", opts.dataInicio)
         .lte("data_julgamento", opts.dataFim)
         .limit(50000);
+
+      // Quando o usuário escolhe uma origem específica, zeramos os blocos
+      // das outras fontes para evitar números confusos no resumo.
+      if (origem === "termos" || origem === "pautas") {
+        kurierQ = kurierQ.eq("id_kurier", "__NONE__");
+      }
+      if (origem === "termos" || origem === "kurier") {
+        pautasQ = pautasQ.eq("id", "00000000-0000-0000-0000-000000000000");
+      }
 
       const [serv, brow, coords, monits, kurierRes, pautasRes, vincKurier] = await Promise.all([
         servQ,
