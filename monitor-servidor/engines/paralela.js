@@ -899,10 +899,15 @@ async function run({ sb, payload, log, job }) {
   let bandAtual = 0;
   const inBand = [0, 0, 0, 0];
   const pickNext = () => {
-    while (bandAtual < bands.length) {
-      if (bands[bandAtual].length > 0) return bands[bandAtual].shift();
-      if (inBand[bandAtual] > 0) return null;
-      bandAtual++;
+    // Sem trava entre bandas: pega o item da banda de maior prioridade
+    // que ainda tenha itens pendentes. Workers livres não esperam mais
+    // a banda atual drenar antes de avançar (ex.: enquanto 1 VPS roda
+    // os 31 termos do STF, as outras 7 VPS já podem atacar TRTs/TRFs).
+    for (let b = 0; b < bands.length; b++) {
+      if (bands[b].length > 0) {
+        bandAtual = b;
+        return bands[b].shift();
+      }
     }
     return null;
   };
