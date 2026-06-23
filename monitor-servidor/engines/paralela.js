@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-23-checkpoint-union";
+const ENGINE_VERSION = "2026-06-23-checkpoint-created-at";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -858,10 +858,10 @@ async function run({ sb, payload, log, job }) {
   try {
     const { data: anteriores } = await sb
       .from("execucoes_servidor")
-      .select("id, status, payload, progresso, criado_em")
+      .select("id, status, payload, progresso, created_at")
       .eq("tipo", TIPO_ENGINE)
       .in("status", ["cancelado", "erro", "concluido"])
-      .order("criado_em", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(50);
     for (const ant of anteriores || []) {
       if (!isSameRunWindow(ant, runKey, dataInicio, dataFim, coordenacaoId, job?.id)) continue;
