@@ -366,6 +366,13 @@ function contemTermo(conteudo, mon, pub) {
     return false;
   }
   if (tipo === "advogado") {
+    if (pub?.__tstAdvogadoNomeSupplement) {
+      const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
+      const nomeNorm = normalize(mon.termo_busca);
+      const oabDigits = String(mon.oab || "").replace(/\D/g, "");
+      if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
+      if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
+    }
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
     for (const t of mon.termos_or || []) {
       const p = parsearTermoOr(t);
@@ -569,6 +576,7 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
           const key = id ? `id_djen:${id}` : JSON.stringify(it).slice(0, 400);
           if (seen.has(key)) continue;
           seen.add(key);
+          it.__tstAdvogadoNomeSupplement = true;
           items.push(it);
         }
       }
