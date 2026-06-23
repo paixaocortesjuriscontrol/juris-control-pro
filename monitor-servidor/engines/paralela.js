@@ -980,7 +980,36 @@ async function run({ sb, payload, log, job }) {
           // do mesmo dia BRT.
           const itemKeyFalha = `paralela|${item.tribunal}|${monId}|${dia}`;
           try {
-            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
+            let pubs;
+            try {
+              pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
+            } catch (firstErr) {
+              const msg = String(firstErr?.message || firstErr || "");
+              const is5xx = /HTTP\s*5\d\d/.test(msg) || /Falha ao consultar VPS/.test(msg);
+              if (!is5xx || cancelled || signal.aborted) throw firstErr;
+              // Failover entre VPS: o slot atual derruba persistentemente esta
+              // tupla (tribunal, mon, dia). Tenta os demais slots do pool antes
+              // de empurrar para a refila — espelha o fallback do browser que
+              // alterna entre VPS quando uma devolve 5xx.
+              const outrosSlots = slots.filter((s) => s.id !== slot.id);
+              let recovered = null;
+              let lastErr = firstErr;
+              for (const alt of outrosSlots) {
+                if (cancelled || signal.aborted) break;
+                try {
+                  log("paralela.failover_slot", { de: slot.label || slot.url, para: alt.label || alt.url, tribunal: item.tribunal, monId, dia, motivo: msg.slice(0, 160) });
+                  recovered = await buscarTermo(alt, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
+                  item.via = { id: alt.id, label: alt.label || alt.url };
+                  break;
+                } catch (altErr) {
+                  lastErr = altErr;
+                  const altMsg = String(altErr?.message || altErr || "");
+                  if (!/HTTP\s*5\d\d/.test(altMsg) && !/Falha ao consultar VPS/.test(altMsg)) throw altErr;
+                }
+              }
+              if (!recovered) throw lastErr;
+              pubs = recovered;
+            }
             log("paralela.termo_result", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length });
             const stats = await persistPublicacoes(sb, pubs, { ...mon, tipo: item.tipo, __log: log }, item.tribunal, dia, job?.id || null);
             log("paralela.termo_persist", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length, ...stats });
