@@ -504,7 +504,7 @@ function baseParams(mon, dia, tribunal) {
   return params;
 }
 
-async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scanCache, sb) {
+async function buscarTermo(slot, mon, dia, tribunal, signal) {
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
     const results = [];
@@ -522,44 +522,10 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
           items = await buscarPaginado(slot, params, signal);
         }
       }
-      // Espelha Browser: 1 único retry em VPS alternativa, APENAS para tipo "parte"
-      // (caso documentado das ausências de OSMAR MENDES PAIXÃO CÔRTES em
-      // TJES/TJMT/TJPI/TJMA no comparador de 22/06/2026). Browser não percorre
-      // todas as VPS — fazer isso aqui adicionava ~9s por (mon, dia, tribunal)
-      // sem ganho em advogado/palavra-chave.
-      if (!signal?.aborted && items.length === 0 && Array.isArray(fallbackSlots) && fallbackSlots.length > 0) {
-        const alt = fallbackSlots.find((s) => s && s.id !== slot.id);
-        if (alt) {
-          await delay(1500, signal);
-          if (!signal?.aborted) {
-            try {
-              const altItems = await buscarPaginado(alt, params, signal);
-              if (altItems.length > 0) items = altItems;
-            } catch (_e) { /* swallow */ }
-          }
-        }
-      }
       for (const it of items) it.__matchedByNomeParte = true;
       results.push(...items);
-      let advogadoItems = [];
-      if (ENABLE_PARTE_ADVOGADO_FALLBACK) {
-        const paramsAdvogado = { ...baseParams(mon, dia, tribunal), nomeAdvogado: normalizeForApi(termoBusca) };
-        advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
-      }
-      if (ENABLE_PARTE_ADVOGADO_FALLBACK && !signal?.aborted && partePareceAdvogado(mon) && items.length === 0 && advogadoItems.length === 0) {
-        const scanItems = await buscarTribunalDiaCompleto(slot, dia, tribunal, signal, fallbackSlots, scanCache);
-        const scanMatches = scanItems.filter((it) => textoCompletoContemTermoParte(it, getConteudo(it), mon));
-        for (const it of scanMatches) it.__matchedByParteAdvogadoFallback = true;
-        results.push(...scanMatches);
-      }
-      for (const it of advogadoItems) it.__matchedByParteAdvogadoFallback = true;
-      results.push(...advogadoItems);
       if (PARTE_OR_DELAY_MS > 0) await delay(PARTE_OR_DELAY_MS, signal);
     }
-      if (ENABLE_PARTE_RESCUE_CORPUS) {
-        const jaEncontradas = await buscarPublicacoesParteServidorJaEncontradas(sb, mon, dia, tribunal);
-        results.push(...jaEncontradas);
-      }
     return results;
   }
   const params = baseParams(mon, dia, tribunal);
