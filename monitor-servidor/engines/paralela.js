@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-23-manual-skip-checkpoint";
+const ENGINE_VERSION = "2026-06-24-browser-parity";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -20,6 +20,9 @@ const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 2
 const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 1800));
 const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
 const ENABLE_PARTE_ADVOGADO_FALLBACK = String(process.env.PARALELA_PARTE_ADVOGADO_FALLBACK || "false").toLowerCase() === "true";
+// Paridade com browser: o browser NÃO faz "resgate" de partes via corpus do servidor.
+// Mantemos como flag desligada por padrão. Liga só se PARALELA_PARTE_RESCUE_CORPUS=true.
+const ENABLE_PARTE_RESCUE_CORPUS = String(process.env.PARALELA_PARTE_RESCUE_CORPUS || "false").toLowerCase() === "true";
 
 const delay = (ms, signal) => new Promise((resolve) => {
   if (!ms || ms <= 0 || signal?.aborted) return resolve();
