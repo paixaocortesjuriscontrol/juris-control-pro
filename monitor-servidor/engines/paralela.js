@@ -854,6 +854,7 @@ async function run({ sb, payload, log, job }) {
   let checkpointPulados = 0;
   const unidadesConcluidasCheckpoint = new Set();
   const statsCheckpointPorId = new Map();
+  const monitoramentosAtuais = new Set(lista.map((m) => m.id));
   try {
     const { data: anteriores } = await sb
       .from("execucoes_servidor")
@@ -864,9 +865,14 @@ async function run({ sb, payload, log, job }) {
       .limit(50);
     for (const ant of anteriores || []) {
       if (!isSameRunWindow(ant, runKey, dataInicio, dataFim, coordenacaoId, job?.id)) continue;
-      for (const key of ant.progresso?.checkpoint?.unidadesConcluidas || []) unidadesConcluidasCheckpoint.add(String(key));
+      for (const rawKey of ant.progresso?.checkpoint?.unidadesConcluidas || []) {
+        const key = String(rawKey);
+        const monId = key.split("|")[2] || null;
+        if (!monId || monitoramentosAtuais.has(monId)) unidadesConcluidasCheckpoint.add(key);
+      }
       for (const pi of ant.progresso?.itens || []) {
         if (!pi?.id || pi.status !== "concluido") continue;
+        if (pi.monitoramentoIds?.length && !pi.monitoramentoIds.some((id) => monitoramentosAtuais.has(id))) continue;
         unidadesConcluidasCheckpoint.add(String(pi.id));
         if (!statsCheckpointPorId.has(pi.id)) statsCheckpointPorId.set(pi.id, pi);
       }
