@@ -543,6 +543,16 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
 
 async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
+  // Regra simples: monitoramento SEM coordenação não persiste, para evitar
+  // que uma publicação caia em "ninguém" e seja contabilizada como duplicata
+  // (ou pior, atravesse coordenações em queries futuras). O usuário deve
+  // associar o monitoramento a uma coordenação.
+  if (!mon?.coordenacao_id) {
+    const logSemCoord = typeof mon?.__log === "function" ? mon.__log : null;
+    logSemCoord?.("paralela.sem_coordenacao", { monitoramentoId: mon?.id || null, tribunal, dia, total: pubs?.length || 0 });
+    stats.descartadas = pubs?.length || 0;
+    return stats;
+  }
   const tribunaisMon = Array.isArray(mon.tribunais) ? expandirTribunais(mon.tribunais) : [];
   const logDebug = typeof mon.__log === "function" ? mon.__log : null;
   const seenRunKeys = new Set();
