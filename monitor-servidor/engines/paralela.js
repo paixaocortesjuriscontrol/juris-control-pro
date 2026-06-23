@@ -957,26 +957,24 @@ async function run({ sb, payload, log, job }) {
     } catch (_) { /* swallow: heartbeat best-effort */ }
   }, 30_000);
 
-  const byKey = new Map(itens.map((i) => [i.id, i]));
-  const band0 = [];
-  const band1 = [];
-  const band2 = [];
-  const band3 = [];
+  // Agora cada item é (tipo, tribunal, monitoramento). Distribui em 4 bandas
+  // por prioridade de tribunal/tipo. Iterar `itens` (em vez de `byKey.get`) é
+  // necessário porque as keys passaram a incluir o monId.
+  const band0 = []; // TST principais
+  const band1 = []; // STF/STJ principais
+  const band2 = []; // demais tribunais principais
+  const band3 = []; // processo (qualquer tribunal)
   for (const item of itens) {
     if (item.status === "concluido") continue;
-    if (item.tribunal === "TST" && MAIN_TIPOS.includes(item.tipo)) band0.push({ band: 0, item, monIds: item.monitoramentoIds });
-  }
-  const pushTipoUnits = (fila, band, tribunal) => {
-    for (const tipo of MAIN_TIPOS) {
-      const item = byKey.get(`${tipo}|${tribunal}`);
-      if (item && item.status !== "concluido") fila.push({ band, item, monIds: item.monitoramentoIds });
+    if (item.tipo === "processo") {
+      band3.push({ band: 3, item, monIds: item.monitoramentoIds });
+    } else if (item.tribunal === "TST" && MAIN_TIPOS.includes(item.tipo)) {
+      band0.push({ band: 0, item, monIds: item.monitoramentoIds });
+    } else if ((item.tribunal === "STF" || item.tribunal === "STJ") && MAIN_TIPOS.includes(item.tipo)) {
+      band1.push({ band: 1, item, monIds: item.monitoramentoIds });
+    } else if (MAIN_TIPOS.includes(item.tipo)) {
+      band2.push({ band: 2, item, monIds: item.monitoramentoIds });
     }
-  };
-  for (const tribunal of ["STF", "STJ"]) pushTipoUnits(band1, 1, tribunal);
-  for (const tribunal of TODOS_TRIBUNAIS) if (tribunal !== "TST" && tribunal !== "STF" && tribunal !== "STJ") pushTipoUnits(band2, 2, tribunal);
-  for (const tribunal of TODOS_TRIBUNAIS) {
-    const item = byKey.get(`processo|${tribunal}`);
-    if (item && item.status !== "concluido") band3.push({ band: 3, item, monIds: item.monitoramentoIds });
   }
   const bands = [band0, band1, band2, band3];
 
