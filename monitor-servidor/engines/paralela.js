@@ -924,23 +924,32 @@ async function run({ sb, payload, log, job }) {
   const band2 = [];
   const band3 = [];
   for (const item of itens) {
+    if (item.status === "concluido") continue;
     if (item.tribunal === "TST" && MAIN_TIPOS.includes(item.tipo)) band0.push({ band: 0, item, monIds: item.monitoramentoIds });
   }
   const pushTipoUnits = (fila, band, tribunal) => {
     for (const tipo of MAIN_TIPOS) {
       const item = byKey.get(`${tipo}|${tribunal}`);
-      if (item) fila.push({ band, item, monIds: item.monitoramentoIds });
+      if (item && item.status !== "concluido") fila.push({ band, item, monIds: item.monitoramentoIds });
     }
   };
   for (const tribunal of ["STF", "STJ"]) pushTipoUnits(band1, 1, tribunal);
   for (const tribunal of TODOS_TRIBUNAIS) if (tribunal !== "TST" && tribunal !== "STF" && tribunal !== "STJ") pushTipoUnits(band2, 2, tribunal);
   for (const tribunal of TODOS_TRIBUNAIS) {
     const item = byKey.get(`processo|${tribunal}`);
-    if (item) band3.push({ band: 3, item, monIds: item.monitoramentoIds });
+    if (item && item.status !== "concluido") band3.push({ band: 3, item, monIds: item.monitoramentoIds });
   }
   const bands = [band0, band1, band2, band3];
 
+  // Acumula totais já vindos do checkpoint
   let totalNovas = 0, totalDescartadas = 0, totalDuplicatas = 0, totalErros = 0;
+  for (const item of itens) {
+    if (item.status === "concluido") {
+      totalNovas += item.novas;
+      totalDescartadas += item.descartadas;
+      totalDuplicatas += item.duplicatas;
+    }
+  }
   let bandAtual = 0;
   const inBand = [0, 0, 0, 0];
   const pickNext = () => {
