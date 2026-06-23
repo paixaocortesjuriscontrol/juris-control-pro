@@ -1136,6 +1136,7 @@ async function run({ sb, payload, log, job }) {
 
   await Promise.all(slots.map((slot) => worker(slot)));
   clearInterval(cancelPoll);
+  clearInterval(heartbeatTick);
   if (cancelled) {
     for (const item of itens) {
       if (item.status === "pendente" || item.status === "executando") {
