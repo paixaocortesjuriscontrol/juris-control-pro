@@ -566,7 +566,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     const coordenacaoId = mon.coordenacao_id || null;
     const runKey = idDjen ? `id_djen:${idDjen}` : `hash:${hashConteudo}`;
     if (seenRunKeys.has(runKey)) {
-      logDebug?.("paralela.dedup_runtime", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, origem: pub?.__matchedByServidorCorpus ? "servidor_corpus" : "api" });
+      logDebug?.("paralela.dedup_runtime", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo });
       continue;
     }
     seenRunKeys.add(runKey);
@@ -838,7 +838,6 @@ async function run({ sb, payload, log, job }) {
   };
   const slots = await loadPool(sb);
   if (slots.length === 0) throw new Error("Nenhuma VPS ativa em djen_proxy_pool. O DJEN Servidor não roda sem VPS.");
-  const scanCache = new Map();
   const cancelPoll = setInterval(async () => {
     if (!cancelled && await isCancelled().catch(() => false)) {
       cancelled = true;
