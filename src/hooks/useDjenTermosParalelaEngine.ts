@@ -1334,6 +1334,38 @@ async function processarTermoEmTribunal(
       }
     } else {
       await executarBusca(baseParams);
+      // Complemento TST/advogado: no TST, numeroOab+ufOab pode devolver só
+      // parte das comunicações. Para advogado com OAB+UF informados, somamos
+      // uma busca cross-UF por nomeAdvogado (sem OAB/UF), deduplicando por
+      // id_djen via addResults. Espelha monitor-servidor/engines/paralela.js
+      // (ENGINE_VERSION 2026-06-25-tst-advogado-supplement).
+      if (
+        !signal.aborted &&
+        tipo === 'advogado' &&
+        tribunal === 'TST' &&
+        baseParams.oab &&
+        baseParams.uf &&
+        String(baseParams.uf).trim().toUpperCase() !== 'TODAS' &&
+        baseParams.nomeAdvogado
+      ) {
+        await abortableDelay(800, signal);
+        if (!signal.aborted) {
+          const supParams = {
+            tipo: 'advogado',
+            dataInicio: diaYmd,
+            dataFim: diaYmd,
+            pageSize: 50,
+            siglaTribunal: tribunal,
+            nomeAdvogado: baseParams.nomeAdvogado,
+          } as any;
+          try {
+            await executarBusca(supParams, { __tstAdvogadoNomeSupplement: true });
+          } catch (e: any) {
+            if (e?.name === 'AbortError') throw e;
+            console.warn(`[DJEN Paralela][${tribunal}] Supplement TST/advogado falhou:`, e?.message || e);
+          }
+        }
+      }
     }
   } catch (e: any) {
     if (e?.name === 'AbortError') throw e;
