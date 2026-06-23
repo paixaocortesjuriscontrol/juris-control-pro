@@ -176,9 +176,21 @@ export function DjenServidorParalelaCard() {
   const total = progress?.totalItens ?? tracks.length;
   const done = progress?.concluidos ?? tracks.filter((t) => ["concluido", "erro", "cancelado"].includes(t.status)).length;
   const falhas = progress?.falhas ?? tracks.filter((t) => t.status === "erro").length;
-  const novas = tracks.reduce((sum, t) => sum + (t.novas || 0), 0) || Number(exec?.resultado?.novas || 0);
-  const duplicadas = tracks.reduce((sum, t) => sum + (t.duplicatas || 0), 0) || Number(exec?.resultado?.duplicatas || 0);
-  const descartadas = tracks.reduce((sum, t) => sum + (t.descartadas || 0), 0) || Number(exec?.resultado?.descartadas || 0);
+  // Prioriza `resultado.*` desta execução (mesma fonte da Análise DJEN).
+  // A soma dos `tracks` reflete o checkpoint acumulado e inflaria os números
+  // com totais de execuções anteriores ("Já processado (checkpoint)").
+  const resultadoNovas = Number(exec?.resultado?.novas ?? NaN);
+  const resultadoDup = Number(exec?.resultado?.duplicatas ?? NaN);
+  const resultadoDesc = Number(exec?.resultado?.descartadas ?? NaN);
+  const novas = Number.isFinite(resultadoNovas)
+    ? resultadoNovas
+    : tracks.reduce((sum, t) => sum + (t.novas || 0), 0);
+  const duplicadas = Number.isFinite(resultadoDup)
+    ? resultadoDup
+    : tracks.reduce((sum, t) => sum + (t.duplicatas || 0), 0);
+  const descartadas = Number.isFinite(resultadoDesc)
+    ? resultadoDesc
+    : tracks.reduce((sum, t) => sum + (t.descartadas || 0), 0);
   const percentage = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const tempoDecorrido = exec?.iniciado_em
     ? Math.max(0, Math.floor(((exec.finalizado_em ? new Date(exec.finalizado_em).getTime() : nowTick) - new Date(exec.iniciado_em).getTime()) / 1000))
