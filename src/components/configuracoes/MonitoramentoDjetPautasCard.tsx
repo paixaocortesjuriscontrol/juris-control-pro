@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { useDjetPautasParalela } from "@/hooks/useDjetPautasParalela";
 import { useDjetPautasParalelaScheduler } from "@/hooks/useDjetPautasParalelaScheduler";
 import { formatMonitoramentoLabel } from '@/utils/monitoramentoLabel';
+import { HorariosDoDiaPicker } from "@/components/djen/HorariosDoDiaPicker";
 
 const TRACK_COLORS: Record<string, string> = {
   pendente: "bg-muted text-muted-foreground",
@@ -54,7 +55,7 @@ const DIAS_SEMANA = [
 ];
 
 function SchedulerPanel() {
-  const { ativo, horario, horariosPorDia, proximoHorario, start, stop, setHorarioDia } = useDjetPautasParalelaScheduler();
+  const { ativo, horario, horariosPorDia, proximoHorario, start, stop, setHorariosDia } = useDjetPautasParalelaScheduler();
   const wdHoje = new Date().getDay();
 
   return (
@@ -80,34 +81,35 @@ function SchedulerPanel() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2">
+      <p className="text-[11px] text-muted-foreground">
+        Até 3 horários por dia (BRT). Deixe vazio para desativar o dia.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {DIAS_SEMANA.map((d) => {
-          const valor = horariosPorDia[d.idx] || "";
-          const ativoDia = valor.trim() !== "";
+          const valores = Array.isArray(horariosPorDia[d.idx]) ? horariosPorDia[d.idx] : [];
+          const ativoDia = valores.length > 0;
           const isHoje = d.idx === wdHoje;
           return (
             <div
               key={d.idx}
               className={cn(
-                "rounded-md border bg-background px-2 py-2 space-y-1.5",
+                "rounded-md border bg-background px-3 py-2 space-y-2",
                 isHoje && "border-primary/50 ring-1 ring-primary/20"
               )}
             >
               <div className="flex items-center justify-between">
-                <Label className="text-[11px] font-semibold">
-                  {d.label}{isHoje ? " (hoje)" : ""}
+                <Label className="text-xs font-semibold">
+                  {d.full}{isHoje ? " (hoje)" : ""}
                 </Label>
                 <Switch
                   checked={ativoDia}
-                  onCheckedChange={(v) => setHorarioDia(d.idx, v ? (valor || "07:30") : "")}
+                  onCheckedChange={(v) => setHorariosDia(d.idx, v ? (ativoDia ? valores : ["07:30"]) : [])}
                 />
               </div>
-              <Input
-                type="time"
-                value={valor || ""}
+              <HorariosDoDiaPicker
+                value={valores}
+                onChange={(next) => setHorariosDia(d.idx, next)}
                 disabled={!ativoDia}
-                onChange={(e) => setHorarioDia(d.idx, e.target.value)}
-                className="h-7 text-xs"
               />
             </div>
           );
