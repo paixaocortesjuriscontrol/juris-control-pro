@@ -803,8 +803,10 @@ async function run({ sb, payload, log, job }) {
   for (const m of lista) {
     const tipo = mapTipo(m.tipo);
     for (const tribunal of expandirTribunais(m.tribunais)) {
-      const splitTst = tribunal === "TST" && tipo !== "processo";
-      const key = splitTst ? `${tipo}|${tribunal}|${m.id}` : `${tipo}|${tribunal}`;
+      // Paridade com browser (useDjenTermosParalelaEngine.ts): 1 unit por
+      // (tipo, tribunal, monitoramento). Garante paralelismo real entre as VPS
+      // do pool em vez de serializar N monitoramentos numa única VPS.
+      const key = tipo === "processo" ? `${tipo}|${tribunal}` : `${tipo}|${tribunal}|${m.id}`;
       if (!grouped.has(key)) grouped.set(key, { id: key, tipo, tribunal, monitoramentos: [] });
       grouped.get(key).monitoramentos.push(m);
     }
