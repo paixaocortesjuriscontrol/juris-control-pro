@@ -893,7 +893,7 @@ async function run({ sb, payload, log, job }) {
     const now = Date.now();
     if (!force && now - lastFlush < 800) return;
     lastFlush = now;
-    const concluidos = itens.filter((i) => i.status === "concluido" || i.status === "erro" || i.status === "cancelado").length;
+    const concluidos = itens.filter((i) => i.status === "concluido" || i.status === "erro").length;
     const falhas = itens.filter((i) => i.status === "erro").length;
     const executando = itens.filter((i) => i.status === "executando");
     await sb.from("execucoes_servidor").update({
