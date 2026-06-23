@@ -830,6 +830,51 @@ async function run({ sb, payload, log, job }) {
     via: null,
   }));
 
+  // === CHECKPOINT: retomar de execução anterior cancelada/erro ===
+  // Busca a execução mais recente do mesmo tipo com a mesma janela
+  // (dataInicio/dataFim e coordenacaoId) que não tenha concluído.
+  // Itens já concluídos lá são marcados como 'concluido' aqui e
+  // pulados da fila de bandas. Evita refazer tudo após cancelar.
+  let checkpointPulados = 0;
+  try {
+    const { data: anteriores } = await sb
+      .from("execucoes_servidor")
+      .select("id, status, payload, progresso, criado_em")
+      .eq("tipo", TIPO_ENGINE)
+      .in("status", ["cancelado", "erro"])
+      .order("criado_em", { ascending: false })
+      .limit(10);
+    const matchAnterior = (anteriores || []).find((a) => {
+      const p = a.payload || {};
+      const di = p.dataInicio || p.diarioYmd || null;
+      const df = p.dataFim || p.diarioYmd || di;
+      const coord = p.coordenacaoId || null;
+      return di === dataInicio && df === dataFim && coord === coordenacaoId && a.id !== job?.id;
+    });
+    const prevItens = matchAnterior?.progresso?.itens || [];
+    if (prevItens.length > 0) {
+      const concluidosAnt = new Map();
+      for (const pi of prevItens) {
+        if (pi && pi.id && pi.status === "concluido") concluidosAnt.set(pi.id, pi);
+      }
+      for (const item of itens) {
+        const prev = concluidosAnt.get(item.id);
+        if (prev) {
+          item.status = "concluido";
+          item.current = item.total;
+          item.novas = Number(prev.novas) || 0;
+          item.descartadas = Number(prev.descartadas) || 0;
+          item.duplicatas = Number(prev.duplicatas) || 0;
+          item.mensagem = `Já concluído na execução anterior (${matchAnterior.id.slice(0, 8)})`;
+          checkpointPulados++;
+        }
+      }
+      log("paralela.checkpoint_loaded", { execucaoAnterior: matchAnterior.id, pulados: checkpointPulados, total: itens.length });
+    }
+  } catch (e) {
+    log("paralela.checkpoint_error", { e: String(e?.message || e).slice(0, 300) });
+  }
+
   let lastFlush = 0;
   const flushProgresso = async (force = false) => {
     if (!job?.id) return;
