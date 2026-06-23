@@ -35,6 +35,7 @@ import {
   useConfiguracoesServidor,
   useEnfileirarManual,
   useExecucaoServidorAoVivo,
+  useTickAge,
   useWorkersServidor,
   type ProgressoItem,
 } from "@/hooks/useDjenServidor";
@@ -113,6 +114,7 @@ export function DjenServidorParalelaCard() {
   const enfileirar = useEnfileirarManual();
   const cancelar = useCancelarExecucaoServidor();
   const { data: workers = [] } = useWorkersServidor();
+  const nowTick = useTickAge();
 
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
   const [dataFim, setDataFim] = useState<Date | undefined>();
@@ -179,8 +181,9 @@ export function DjenServidorParalelaCard() {
   const descartadas = tracks.reduce((sum, t) => sum + (t.descartadas || 0), 0) || Number(exec?.resultado?.descartadas || 0);
   const percentage = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const tempoDecorrido = exec?.iniciado_em
-    ? Math.max(0, Math.floor(((exec.finalizado_em ? new Date(exec.finalizado_em).getTime() : Date.now()) - new Date(exec.iniciado_em).getTime()) / 1000))
+    ? Math.max(0, Math.floor(((exec.finalizado_em ? new Date(exec.finalizado_em).getTime() : nowTick) - new Date(exec.iniciado_em).getTime()) / 1000))
     : 0;
+  const erroVisivel = exec?.erro && !(isRunning && /^\s*\[reset_orfao\]\s*$/i.test(exec.erro)) ? exec.erro : null;
   const workersServidor = workers.filter((w) => w.worker_id.includes("djen_paralela_servidor") || w.current_tipo === "djen_paralela_servidor");
   const workersBase = workersServidor.length > 0 ? workersServidor : workers;
   const workersOnline = workersBase.filter((w) => Date.now() - new Date(w.heartbeat_at).getTime() < 90_000);
