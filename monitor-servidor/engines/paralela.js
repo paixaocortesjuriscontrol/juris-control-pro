@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-22-id-djen-oficial-coord-dedup-v3";
+const ENGINE_VERSION = "2026-06-23-id-djen-only-dedup";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -697,19 +697,22 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       logDebug?.("paralela.descartada_filtro", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, temConteudo: !!conteudo, termo: mon.termo_busca, tipo: mon.tipo });
       continue;
     }
+    // Regra única de duplicidade do DJEN Servidor:
+    // dentro da MESMA coordenação, o mesmo id_djen só pode existir uma vez.
+    // Sem id_djen ou sem coordenação, sempre inserimos (o banco não tem como
+    // afirmar duplicidade) — duplicatas residuais ficam por conta da unique
+    // index parcial (coordenacao_id, id_djen) WHERE id_djen IS NOT NULL.
     let exists = null;
     let existsReason = null;
     if (idDjen && coordenacaoId) {
-      const { data } = await sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("coordenacao_id", coordenacaoId).eq("id_djen", idDjen).maybeSingle();
+      const { data } = await sb
+        .from("publicacoes_djen_servidor")
+        .select("id")
+        .eq("coordenacao_id", coordenacaoId)
+        .eq("id_djen", idDjen)
+        .maybeSingle();
       exists = data || null;
       if (exists) existsReason = "same_coordenacao_id_djen";
-    }
-    if (!exists) {
-      let existingQuery = sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo").eq("hash_conteudo", hashConteudo);
-      existingQuery = coordenacaoId ? existingQuery.eq("coordenacao_id", coordenacaoId) : existingQuery.eq("monitoramento_id", mon.id);
-      const { data } = await existingQuery.maybeSingle();
-      exists = data || null;
-      if (exists) existsReason = coordenacaoId ? "same_coordenacao_hash" : "same_monitoramento_hash";
     }
     if (exists) {
       stats.duplicatas++;
