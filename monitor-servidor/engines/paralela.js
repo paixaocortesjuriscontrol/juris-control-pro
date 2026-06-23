@@ -631,30 +631,12 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
       }
       for (const it of items) it.__matchedByNomeParte = true;
       results.push(...items);
-      const paramsAdvogado = { ...baseParams(mon, dia, tribunal), nomeAdvogado: normalizeForApi(termoBusca) };
-      let advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
-      if (!signal?.aborted && advogadoItems.length === 0) {
-        await delay(1500, signal);
-        if (!signal?.aborted) advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
+      let advogadoItems = [];
+      if (ENABLE_PARTE_ADVOGADO_FALLBACK) {
+        const paramsAdvogado = { ...baseParams(mon, dia, tribunal), nomeAdvogado: normalizeForApi(termoBusca) };
+        advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
       }
-      if (!signal?.aborted && advogadoItems.length === 0 && Array.isArray(fallbackSlots) && fallbackSlots.length > 0) {
-        for (const alt of fallbackSlots) {
-          if (signal?.aborted) break;
-          if (!alt || alt.id === slot.id) continue;
-          await delay(1500, signal);
-          if (signal?.aborted) break;
-          try {
-            const altItems = await buscarPaginado(alt, paramsAdvogado, signal);
-            if (altItems.length > 0) {
-              advogadoItems = altItems;
-              break;
-            }
-          } catch (_e) {
-            // Tenta próxima VPS — não derruba o termo se uma alternativa falhar.
-          }
-        }
-      }
-      if (!signal?.aborted && partePareceAdvogado(mon) && items.length === 0 && advogadoItems.length === 0) {
+      if (ENABLE_PARTE_ADVOGADO_FALLBACK && !signal?.aborted && partePareceAdvogado(mon) && items.length === 0 && advogadoItems.length === 0) {
         const scanItems = await buscarTribunalDiaCompleto(slot, dia, tribunal, signal, fallbackSlots, scanCache);
         const scanMatches = scanItems.filter((it) => textoCompletoContemTermoParte(it, getConteudo(it), mon));
         for (const it of scanMatches) it.__matchedByParteAdvogadoFallback = true;
@@ -662,7 +644,7 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
       }
       for (const it of advogadoItems) it.__matchedByParteAdvogadoFallback = true;
       results.push(...advogadoItems);
-      if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
+      if (PARTE_OR_DELAY_MS > 0) await delay(PARTE_OR_DELAY_MS, signal);
     }
     const jaEncontradas = await buscarPublicacoesParteServidorJaEncontradas(sb, mon, dia, tribunal);
     results.push(...jaEncontradas);
