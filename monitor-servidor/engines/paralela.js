@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-23-id-djen-only-dedup";
+const ENGINE_VERSION = "2026-06-23-checkpoint-union";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -31,6 +31,20 @@ const delay = (ms, signal) => new Promise((resolve) => {
 
 function mapTipo(tipo) {
   return tipo === "nome" ? "palavra-chave" : (tipo || "palavra-chave");
+}
+
+function runKeyFromPayload(payload, dataInicio, dataFim, coordenacaoId) {
+  return `${dataInicio || payload?.diarioYmd || ""}..${dataFim || payload?.diarioYmd || dataInicio || ""}|coord:${coordenacaoId || "todas"}`;
+}
+
+function isSameRunWindow(exec, runKey, dataInicio, dataFim, coordenacaoId, currentJobId) {
+  if (!exec || exec.id === currentJobId) return false;
+  const p = exec.payload || {};
+  const di = p.dataInicio || p.diarioYmd || null;
+  const df = p.dataFim || p.diarioYmd || di;
+  const coord = p.coordenacaoId || null;
+  const prevRunKey = exec.progresso?.checkpoint?.runKey || runKeyFromPayload(p, di, df, coord);
+  return prevRunKey === runKey || (di === dataInicio && df === dataFim && coord === coordenacaoId);
 }
 
 function normalize(text) {
