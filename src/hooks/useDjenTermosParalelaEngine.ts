@@ -2513,13 +2513,13 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
     if (isStaleRunning) {
       await supabase.from('execucoes_agendadas')
         .update({
-          status: 'erro',
+          status: 'cancelado',
           finalizado_em: new Date().toISOString(),
-          detalhes: { ...det, mensagem: 'Erro: execução órfã sem heartbeat recente' },
+          detalhes: { ...det, mensagem: 'Execução interrompida (navegador fechado ou aba inativa por mais de 15 min sem heartbeat)' },
         })
         .eq('id', data.id);
-      data.status = 'erro';
-      det.mensagem = 'Erro: execução órfã sem heartbeat recente';
+      data.status = 'cancelado';
+      det.mensagem = 'Execução interrompida (navegador fechado ou aba inativa por mais de 15 min sem heartbeat)';
     }
 
     // Não regredir se memória já é mais nova que o snapshot do banco
