@@ -213,6 +213,9 @@ export function DjenServidorParalelaCard() {
     const payload: Record<string, unknown> = {
       dataInicio: ymd(dataInicio),
       dataFim: ymd(dataFim),
+      // Igual ao DJEN Browser: execução manual sempre começa do zero,
+      // ignorando checkpoint de execuções anteriores.
+      resetCheckpoint: true,
     };
     if (filtroCoordenacaoId) payload.coordenacaoId = filtroCoordenacaoId;
     if (filtroMonitoramentoId) {
@@ -237,10 +240,10 @@ export function DjenServidorParalelaCard() {
   }, [queryClient]);
 
   const handleResetTotal = useCallback(async () => {
-    if (!confirm("Reset Total: para a execução ativa e recarrega o acompanhamento. Continuar?")) return;
+    if (!confirm("Reset Total: cancela a execução ativa e limpa o checkpoint. A próxima execução começará do zero. Continuar?")) return;
     if (exec?.id && isRunning) await cancelar.mutateAsync(exec.id);
     await queryClient.invalidateQueries({ queryKey: ["djen-servidor"] });
-    toast.success("Acompanhamento reiniciado");
+    toast.success("Reset feito. Clique em 'Executar agora' para uma nova rodada limpa.");
   }, [cancelar, exec?.id, isRunning, queryClient]);
 
   if (!cfg) {
