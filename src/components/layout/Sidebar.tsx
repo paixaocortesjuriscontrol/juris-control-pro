@@ -57,7 +57,7 @@ const menuItemsPublicos: MenuItem[] = [
   { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle", highlight: true },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
   { icon: ArrowRightLeft, label: "Comparar DJEN", path: "/comparar-dj-santander", highlight: true },
-  { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true, adminOnly: true },
+  { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true, adminOrCoordOnly: true },
   { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true, adminOrCoordOnly: true },
   // Demais itens
