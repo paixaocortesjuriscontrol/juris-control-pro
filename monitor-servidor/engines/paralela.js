@@ -609,26 +609,20 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
           items = await buscarPaginado(slot, params, signal);
         }
       }
-      // Espelha Browser (useDjenTermosParalelaEngine.ts:1321-1331):
-      // se a VPS ainda devolveu vazio sem erro, validamos OBRIGATORIAMENTE
-      // em outra VPS do pool (o Browser cai no caminho Direto). Sem isso,
-      // intermitências da VPS principal somem com publicações reais —
-      // foi a causa das 8 ausências de OSMAR MENDES PAIXAO CORTES em
-      // TJES/TJMT/TJPI/TJMA no comparador de 22/06/2026.
+      // Espelha Browser: 1 único retry em VPS alternativa, APENAS para tipo "parte"
+      // (caso documentado das ausências de OSMAR MENDES PAIXÃO CÔRTES em
+      // TJES/TJMT/TJPI/TJMA no comparador de 22/06/2026). Browser não percorre
+      // todas as VPS — fazer isso aqui adicionava ~9s por (mon, dia, tribunal)
+      // sem ganho em advogado/palavra-chave.
       if (!signal?.aborted && items.length === 0 && Array.isArray(fallbackSlots) && fallbackSlots.length > 0) {
-        for (const alt of fallbackSlots) {
-          if (signal?.aborted) break;
-          if (!alt || alt.id === slot.id) continue;
+        const alt = fallbackSlots.find((s) => s && s.id !== slot.id);
+        if (alt) {
           await delay(1500, signal);
-          if (signal?.aborted) break;
-          try {
-            const altItems = await buscarPaginado(alt, params, signal);
-            if (altItems.length > 0) {
-              items = altItems;
-              break;
-            }
-          } catch (_e) {
-            // Tenta próxima VPS — não derruba o termo se uma alternativa falhar.
+          if (!signal?.aborted) {
+            try {
+              const altItems = await buscarPaginado(alt, params, signal);
+              if (altItems.length > 0) items = altItems;
+            } catch (_e) { /* swallow */ }
           }
         }
       }
@@ -649,8 +643,10 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
       results.push(...advogadoItems);
       if (PARTE_OR_DELAY_MS > 0) await delay(PARTE_OR_DELAY_MS, signal);
     }
-    const jaEncontradas = await buscarPublicacoesParteServidorJaEncontradas(sb, mon, dia, tribunal);
-    results.push(...jaEncontradas);
+      if (ENABLE_PARTE_RESCUE_CORPUS) {
+        const jaEncontradas = await buscarPublicacoesParteServidorJaEncontradas(sb, mon, dia, tribunal);
+        results.push(...jaEncontradas);
+      }
     return results;
   }
   const params = baseParams(mon, dia, tribunal);
