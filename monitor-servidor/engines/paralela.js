@@ -716,7 +716,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     }
     if (exists) {
       stats.duplicatas++;
-      logDebug?.("paralela.duplicata_existente", { reason: existsReason, monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, existing });
+      logDebug?.("paralela.duplicata_existente", { reason: existsReason, monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, existing: exists });
       if (execucaoId) {
         await sb.from("publicacoes_djen_servidor_execucoes").upsert(
           { publicacao_id: exists.id, execucao_id: execucaoId, tipo_engine: "paralela" },
