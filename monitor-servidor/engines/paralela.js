@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-25-regras-simples";
+const ENGINE_VERSION = "2026-06-25-tst-advogado-supplement";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -366,6 +366,13 @@ function contemTermo(conteudo, mon, pub) {
     return false;
   }
   if (tipo === "advogado") {
+    if (pub?.__tstAdvogadoNomeSupplement) {
+      const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
+      const nomeNorm = normalize(mon.termo_busca);
+      const oabDigits = String(mon.oab || "").replace(/\D/g, "");
+      if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
+      if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
+    }
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
     for (const t of mon.termos_or || []) {
       const p = parsearTermoOr(t);
@@ -538,13 +545,12 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
       items = await buscarPaginado(slot, params, signal);
     }
   }
-  // Fallback TST/advogado: TST não reconhece OAB estadual (ex.: SP).
-  // Se a busca foi feita com numeroOab+ufOab e veio vazia, refaz
-  // somente pelo nomeAdvogado (sem UF), espelhando o que o Browser
-  // faz ao buscar advogado cross-UF no TST.
+  // Complemento TST/advogado: no TST, numeroOab+ufOab pode devolver só parte
+  // das comunicações. O browser chegou a capturar os IDs restantes pela rota
+  // cross-UF (nomeAdvogado sem OAB/UF). Portanto, para TST/advogado com
+  // OAB+UF específica, sempre somamos a busca por nome, deduplicando por id_djen.
   if (
     !signal?.aborted &&
-    items.length === 0 &&
     tipo === "advogado" &&
     tribunal === "TST" &&
     params.numeroOab &&
@@ -559,7 +565,21 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
     };
     await delay(800, signal);
     if (!signal?.aborted) {
-      items = await buscarPaginado(slot, fallbackParams, signal);
+      const fallbackItems = await buscarPaginado(slot, fallbackParams, signal);
+      if (fallbackItems.length > 0) {
+        const seen = new Set(items.map((it) => {
+          const id = getIdDjen(it);
+          return id ? `id_djen:${id}` : JSON.stringify(it).slice(0, 400);
+        }));
+        for (const it of fallbackItems) {
+          const id = getIdDjen(it);
+          const key = id ? `id_djen:${id}` : JSON.stringify(it).slice(0, 400);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          it.__tstAdvogadoNomeSupplement = true;
+          items.push(it);
+        }
+      }
     }
   }
   return items;
