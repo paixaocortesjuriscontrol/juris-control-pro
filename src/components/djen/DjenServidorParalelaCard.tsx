@@ -425,7 +425,7 @@ export function DjenServidorParalelaCard() {
               {falhas > 0 && <span>⚠️ Falhas: <strong className="text-destructive">{falhas}</strong></span>}
             </div>
             {progress?.atual?.label && <p className="text-xs text-muted-foreground italic pt-1">Executando: {progress.atual.label}</p>}
-            {exec?.erro && <p className="text-xs text-destructive italic pt-1">{exec.erro}</p>}
+            {erroVisivel && <p className="text-xs text-destructive italic pt-1">{erroVisivel}</p>}
           </div>
         )}
 
