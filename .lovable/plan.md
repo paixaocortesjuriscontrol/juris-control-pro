@@ -1,71 +1,59 @@
 ## Objetivo
-Aplicar no `monitor-servidor/engines/paralela.js` as 4 regras que você descreveu, **eliminando todos os caminhos de fallback** (mesmo os já desligados por flag) que ainda existem no código e poderiam — por engano de variável de ambiente ou por manutenção futura — fazer o Servidor divergir do Browser.
 
-## As 4 regras (fixas no código, sem flag)
+Corrigir as 5 divergências entre DJEN Servidor × Browser, sem quebrar a tela Análise DJEN nem outras telas.
 
-1. **Isolamento por coordenação**  
-   - Toda dedup/lookup usa `coordenacao_id` na cláusula. Uma publicação pode existir em N coordenações; cada uma é independente.  
-   - Remover qualquer query que cruze coordenações.
+## 1) Filtro de "Origem" no Comparador
 
-2. **Termo `parte` → só nas partes**  
-   - Busca somente via `nomeParte` na API.  
-   - Validação apenas em `validarParteMetadados` + `validarParteSecaoPartes` (já é o que o browser faz).  
-   - **Nada de fallback** para `nomeAdvogado`, varredura `buscarTribunalDiaCompleto`, ou resgate por corpus do servidor.
+Na tela do comparador (página de auditoria DJEN Servidor × Browser), adicionar um seletor:
 
-3. **Termo `advogado` → só nos advogados**  
-   - Busca via `numeroOab/ufOab/nomeAdvogado`.  
-   - Validação: metadados `advogados/destinatarioadvogados` (nome exato OU OAB).  
-   - Remover o fallback que aceitava o nome no corpo da publicação (`contemFrase(textoNorm, nomeNorm)`).
+- **Todos** (padrão atual)
+- **DJEN Termos** (apenas `tipo_publicacao` = `intimacao`/`parte` originadas do motor de Termos)
+- **Pautas** (`tipo_publicacao = 'pauta'`)
+- **Kurier** (origem Kurier — flag `fonte` ou `origem_motor`)
 
-4. **Termo `palavra-chave` → só no conteúdo**  
-   - Validação só no campo `conteudo/teor/texto` da publicação (sem concatenar nomes de advogados/destinatários).  
-   - Suporte a `+` (AND) e `termos_or` mantidos, mas apenas dentro do `conteudo`.
+O filtro atua sobre os dois lados (servidor e browser) antes do diff. Isso elimina o ruído das ~371 pautas que só existem no browser hoje.
 
-## Mudanças em `monitor-servidor/engines/paralela.js`
+## 2) Habilitar engine de Pautas no servidor
 
-### A. Apagar código de fallback (não vira flag, some do arquivo)
-- Remover `ENABLE_PARTE_ADVOGADO_FALLBACK` e todo o bloco em `buscarTermo` que faz `paramsAdvogado`, `buscarTribunalDiaCompleto` e marca `__matchedByParteAdvogadoFallback`.
-- Remover `ENABLE_PARTE_RESCUE_CORPUS`, a função `buscarPublicacoesParteServidorJaEncontradas` e a chamada em `buscarTermo`.
-- Remover `buscarTribunalDiaCompleto`, `textoCompletoContemTermoParte`, `partePareceAdvogado` (sem uso após o item acima).
-- Remover o ramo `__matchedByParteAdvogadoFallback` dentro de `contemTermo`.
-- Remover o retry em VPS alternativa (`fallbackSlots.find(...)`) para `parte` — o browser homologado faz só 1 retry na MESMA VPS após 1,5s, e é isso que vamos manter.
+Portar o motor de Pautas DJET (`monitor-servidor/engines/pautas.js` já existe — verificar se está sendo chamado em `monitor-servidor/index.js`). Se já existe mas não roda, ligá-lo no scheduler do servidor com gravação em `publicacoes_djen_servidor` com `tipo_publicacao = 'pauta'`.
 
-### B. Tornar `advogado` estrito a metadados
-Em `contemTermo`, ramo `tipo === "advogado"`:
-- Remover: `if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;`
-- Remover: `if (od.length >= 3 && textoNorm.includes(od)) return true;`
-- Remover as variantes equivalentes dentro do loop `termos_or`.
-- Manter só `validarAdvogadoMetadados(pub, oab/oabDigits, nome)`.
+Se a opção #1 já filtra Pautas no comparador, esta etapa garante que, com filtro "Todos", o servidor tenha paridade.
 
-### C. Tornar `palavra-chave` estrito ao conteúdo
-- Criar helper `getConteudoPuro(pub)` que retorna apenas `obj.conteudo || obj.teor || obj.texto` (sem nomes de advogados/destinatários).
-- No ramo `palavra-chave` (e `nome`) de `contemTermo`, trocar `buildTextoCompleto(pub, conteudo)` por `getConteudoPuro(pub)`.
-- `condicaoConcomitanteAtendida` e `shouldExclude` para `palavra-chave/advogado` também passam a usar `getConteudoPuro` (parte continua usando partes estruturadas).
+## 3) Corrigir paginação
 
-### D. Reforçar isolamento por coordenação na persistência
-- Confirmar que `persistPublicacoes` nunca consulta sem `coordenacao_id` (já é o caso para `id_djen`).
-- Quando não há `coordenacao_id` no monitoramento, logar `paralela.sem_coordenacao` e **não inserir** (evita poluição cruzada). Esses monitoramentos devem ser corrigidos pelo usuário, não silenciosamente misturados.
+Dois pontos:
 
-### E. Bump de versão e log
-- `ENGINE_VERSION = "2026-06-25-regras-simples"`.
-- Log inicial enumera as 4 regras aplicadas, facilitando confirmar no `pm2 logs` que a VPS está rodando a nova versão.
+**a) Servidor — TST/Janaina (bug Item 2):**
+Em `monitor-servidor/engines/paralela.js`, quando a busca por OAB+UF retornar 0 no TST, executar fallback por **nome do advogado** sem UF (mesmo padrão já usado para SANTANDER). Garantir que o tribunal TST seja sempre percorrido para monitoramentos do tipo `advogado`.
 
-## O que NÃO muda
-- Paginação, delays, checkpoint, banimento de unidade, pool de VPS, retry de 1,5s na mesma VPS — tudo idêntico ao que o Browser faz hoje.
-- Schema do banco, edge functions, UI — nenhum arquivo fora de `monitor-servidor/engines/paralela.js` é tocado.
+**b) Browser — `continueUntilEmpty` (regra já memorizada):**
+Verificar `src/utils/pjeComunicaClient.ts` e `pjeComunicaClientFlash.ts`: confirmar que NÃO quebram em `hasMore=false` nem em página curta quando `continueUntilEmpty=true`. Se já corrigido, validar com Bruna GOL/Santander no período relatado.
 
-## Deploy
-Após merge, na VPS Hostinger:
-```
-cd ~/monitor-servidor && git pull && pm2 restart jc-monitor-servidor
-pm2 logs jc-monitor-servidor --lines 50 | grep paralela.start
-```
-Confirmar que aparece `engineVersion: "2026-06-25-regras-simples"`.
+## 4) Normalizar nomes de tribunal (sem quebrar Análise DJEN)
 
-## Por que isso resolve o "varia por coordenação"
-Hoje as únicas diferenças entre Servidor e Browser que sobreviveram são:
-- Variáveis de ambiente que reativam fallbacks por engano numa coordenação e não em outra.
-- Dois retries de VPS extras no `parte` que aumentam o recall do Servidor versus o Browser num tribunal/dia onde a primeira VPS devolveu vazio.
-- Validação de `advogado` no corpo do texto que aceita publicações sem o advogado nos metadados.
+O browser grava `TRT 1_DJEN`, o servidor grava `TRT1`. Em vez de alterar dados históricos (risco para a Análise DJEN e outras telas), normalizar **somente no comparador** (função `normalizeTribunalKey(t)` que remove espaços e sufixo `_DJEN` e compara as duas chaves normalizadas).
 
-Eliminando esses três pontos, a tupla `(tribunal, dia, termo, coordenação)` vai produzir o mesmo conjunto de publicações em qualquer ambiente.
+Para gravações futuras, padronizar a saída do browser para `TRT1` em `src/utils/djenTribunais.ts` (escrita nova já normalizada), mantendo a leitura tolerante a ambas as formas em qualquer tela que filtre por tribunal. Auditar uso de `tribunal` em Análise DJEN, Termos DJEN, Relatórios e telas de monitoramento — onde houver filtro exato, usar comparação normalizada.
+
+## 5) Comparador por `id_djen` (não por tipo)
+
+Refatorar o comparador para considerar duas publicações iguais quando:
+
+- `id_djen` é igual entre servidor e browser, **independente** de `tipo_publicacao`.
+- Fallback (quando `id_djen` ausente): `dedup_processo_digits` + `dedup_data_ref` + `coordenacao_id` (sem `tipo`).
+
+Isso resolve o caso Vanessa (6 publicações marcadas como "só_browser" por terem `tipo=parte` no browser e `tipo=intimacao` no servidor).
+
+## Onde mexer (técnico)
+
+- **Comparador (UI + lógica):** página de auditoria DJEN (provável `src/pages/AuditoriaDjenProcessos.tsx` ou similar — confirmar na implementação) — adicionar seletor de origem + refator do `match` por `id_djen`.
+- **Normalização tribunal:** novo helper em `src/utils/djenTribunais.ts` (`normalizeTribunalKey`); usado no comparador.
+- **Servidor TST/Janaina:** `monitor-servidor/engines/paralela.js` — fallback por nome no TST.
+- **Pautas no servidor:** `monitor-servidor/index.js` — registrar/ativar engine `pautas.js`.
+- **Paginação browser:** validar `src/utils/pjeComunicaClient.ts` e `pjeComunicaClientFlash.ts` (regra `continueUntilEmpty`).
+
+## Garantia de não-regressão
+
+- Nenhum dado em `publicacoes_djen` ou `publicacoes_djen_servidor` será alterado (sem migrations destrutivas).
+- Normalização de tribunal só na escrita nova + comparações tolerantes na leitura.
+- Análise DJEN (`useAnaliseDjen.ts`) continua lendo `tribunal` como está — qualquer filtro novo passa pelo helper normalizado.
