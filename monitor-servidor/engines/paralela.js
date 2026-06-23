@@ -853,7 +853,17 @@ async function run({ sb, payload, log, job }) {
       if (!statsCheckpointPorId.has(pi.id)) statsCheckpointPorId.set(pi.id, pi);
     }
   };
+  // Paridade com DJEN Browser: execução manual sempre começa do zero.
+  // Checkpoint só é usado em execuções agendadas/automáticas ou em
+  // retomadas explícitas (payload.resumeCheckpoint === true).
+  const isManual = !!payload?.manual;
+  const forcarReset = !!payload?.resetCheckpoint;
+  const usarCheckpoint = (!isManual || payload?.resumeCheckpoint === true) && !forcarReset;
+  if (!usarCheckpoint) {
+    log("paralela.checkpoint_skipped", { runKey, motivo: forcarReset ? "resetCheckpoint" : "manual" });
+  }
   try {
+    if (!usarCheckpoint) throw new Error("__skip_checkpoint__");
     const selfRunKey = job?.progresso?.checkpoint?.runKey;
     if (!selfRunKey || selfRunKey === runKey) absorverProgressoCheckpoint(job?.progresso);
 
@@ -881,7 +891,9 @@ async function run({ sb, payload, log, job }) {
     }
     log("paralela.checkpoint_loaded", { runKey, pulados: checkpointPulados, total: itens.length });
   } catch (e) {
-    log("paralela.checkpoint_error", { e: String(e?.message || e).slice(0, 300) });
+    if (String(e?.message) !== "__skip_checkpoint__") {
+      log("paralela.checkpoint_error", { e: String(e?.message || e).slice(0, 300) });
+    }
   }
 
   let lastFlush = 0;
