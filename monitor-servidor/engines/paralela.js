@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-23-id-djen-only-dedup";
+const ENGINE_VERSION = "2026-06-23-checkpoint-union";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -31,6 +31,20 @@ const delay = (ms, signal) => new Promise((resolve) => {
 
 function mapTipo(tipo) {
   return tipo === "nome" ? "palavra-chave" : (tipo || "palavra-chave");
+}
+
+function runKeyFromPayload(payload, dataInicio, dataFim, coordenacaoId) {
+  return `${dataInicio || payload?.diarioYmd || ""}..${dataFim || payload?.diarioYmd || dataInicio || ""}|coord:${coordenacaoId || "todas"}`;
+}
+
+function isSameRunWindow(exec, runKey, dataInicio, dataFim, coordenacaoId, currentJobId) {
+  if (!exec || exec.id === currentJobId) return false;
+  const p = exec.payload || {};
+  const di = p.dataInicio || p.diarioYmd || null;
+  const df = p.dataFim || p.diarioYmd || di;
+  const coord = p.coordenacaoId || null;
+  const prevRunKey = exec.progresso?.checkpoint?.runKey || runKeyFromPayload(p, di, df, coord);
+  return prevRunKey === runKey || (di === dataInicio && df === dataFim && coord === coordenacaoId);
 }
 
 function normalize(text) {
@@ -789,6 +803,7 @@ async function run({ sb, payload, log, job }) {
   const coordenacaoId = payload?.coordenacaoId || null;
   const monitoramentoIdsFiltro = Array.isArray(payload?.monitoramentoIds) && payload.monitoramentoIds.length > 0 ? payload.monitoramentoIds : null;
   const dias = expandirDias(dataInicio, dataFim);
+  const runKey = runKeyFromPayload(payload, dataInicio, dataFim, coordenacaoId);
 
   log("paralela.start", { engineVersion: ENGINE_VERSION, dataInicio, dataFim, dias: dias.length, coordenacaoId, monitoramentoIdsFiltro });
 
@@ -832,47 +847,48 @@ async function run({ sb, payload, log, job }) {
     via: null,
   }));
 
-  // === CHECKPOINT: retomar de execução anterior cancelada/erro ===
-  // Busca a execução mais recente do mesmo tipo com a mesma janela
-  // (dataInicio/dataFim e coordenacaoId) que não tenha concluído.
-  // Itens já concluídos lá são marcados como 'concluido' aqui e
-  // pulados da fila de bandas. Evita refazer tudo após cancelar.
+  // === CHECKPOINT igual ao DJEN browser ===
+  // Em vez de depender só da última execução, faz união de todas as unidades
+  // já concluídas em execuções anteriores da mesma janela. Assim cancelar e
+  // clicar "Executar agora" nunca refaz o que já terminou.
   let checkpointPulados = 0;
+  const unidadesConcluidasCheckpoint = new Set();
+  const statsCheckpointPorId = new Map();
+  const monitoramentosAtuais = new Set(lista.map((m) => m.id));
   try {
     const { data: anteriores } = await sb
       .from("execucoes_servidor")
       .select("id, status, payload, progresso, criado_em")
       .eq("tipo", TIPO_ENGINE)
-      .in("status", ["cancelado", "erro"])
+      .in("status", ["cancelado", "erro", "concluido"])
       .order("criado_em", { ascending: false })
-      .limit(10);
-    const matchAnterior = (anteriores || []).find((a) => {
-      const p = a.payload || {};
-      const di = p.dataInicio || p.diarioYmd || null;
-      const df = p.dataFim || p.diarioYmd || di;
-      const coord = p.coordenacaoId || null;
-      return di === dataInicio && df === dataFim && coord === coordenacaoId && a.id !== job?.id;
-    });
-    const prevItens = matchAnterior?.progresso?.itens || [];
-    if (prevItens.length > 0) {
-      const concluidosAnt = new Map();
-      for (const pi of prevItens) {
-        if (pi && pi.id && pi.status === "concluido") concluidosAnt.set(pi.id, pi);
+      .limit(50);
+    for (const ant of anteriores || []) {
+      if (!isSameRunWindow(ant, runKey, dataInicio, dataFim, coordenacaoId, job?.id)) continue;
+      for (const rawKey of ant.progresso?.checkpoint?.unidadesConcluidas || []) {
+        const key = String(rawKey);
+        const monId = key.split("|")[2] || null;
+        if (!monId || monitoramentosAtuais.has(monId)) unidadesConcluidasCheckpoint.add(key);
       }
-      for (const item of itens) {
-        const prev = concluidosAnt.get(item.id);
-        if (prev) {
-          item.status = "concluido";
-          item.current = item.total;
-          item.novas = Number(prev.novas) || 0;
-          item.descartadas = Number(prev.descartadas) || 0;
-          item.duplicatas = Number(prev.duplicatas) || 0;
-          item.mensagem = `Já concluído na execução anterior (${matchAnterior.id.slice(0, 8)})`;
-          checkpointPulados++;
-        }
+      for (const pi of ant.progresso?.itens || []) {
+        if (!pi?.id || pi.status !== "concluido") continue;
+        if (pi.monitoramentoIds?.length && !pi.monitoramentoIds.some((id) => monitoramentosAtuais.has(id))) continue;
+        unidadesConcluidasCheckpoint.add(String(pi.id));
+        if (!statsCheckpointPorId.has(pi.id)) statsCheckpointPorId.set(pi.id, pi);
       }
-      log("paralela.checkpoint_loaded", { execucaoAnterior: matchAnterior.id, pulados: checkpointPulados, total: itens.length });
     }
+    for (const item of itens) {
+      if (!unidadesConcluidasCheckpoint.has(item.id)) continue;
+      const prev = statsCheckpointPorId.get(item.id);
+      item.status = "concluido";
+      item.current = item.total;
+      item.novas = Number(prev?.novas) || 0;
+      item.descartadas = Number(prev?.descartadas) || 0;
+      item.duplicatas = Number(prev?.duplicatas) || 0;
+      item.mensagem = "Já processado (checkpoint)";
+      checkpointPulados++;
+    }
+    log("paralela.checkpoint_loaded", { runKey, pulados: checkpointPulados, total: itens.length });
   } catch (e) {
     log("paralela.checkpoint_error", { e: String(e?.message || e).slice(0, 300) });
   }
@@ -883,7 +899,7 @@ async function run({ sb, payload, log, job }) {
     const now = Date.now();
     if (!force && now - lastFlush < 800) return;
     lastFlush = now;
-    const concluidos = itens.filter((i) => i.status === "concluido" || i.status === "erro" || i.status === "cancelado").length;
+    const concluidos = itens.filter((i) => i.status === "concluido" || i.status === "erro").length;
     const falhas = itens.filter((i) => i.status === "erro").length;
     const executando = itens.filter((i) => i.status === "executando");
     await sb.from("execucoes_servidor").update({
@@ -894,6 +910,10 @@ async function run({ sb, payload, log, job }) {
         atual: executando[0] ? { id: executando[0].id, label: executando[0].label } : null,
         itens,
         janela: { dataInicio, dataFim },
+        checkpoint: {
+          runKey,
+          unidadesConcluidas: itens.filter((i) => i.status === "concluido").map((i) => i.id),
+        },
         pool_enabled: true,
         vias: executando.map((i) => i.via).filter(Boolean),
       },
