@@ -117,7 +117,6 @@ export const CAMPOS_OBRIGATORIOS: CampoObrigatorio[] = [
   { key: "provas_digitais", label: "Provas Digitais (J)", quadrinho: "VI. Análise" },
 
   // Quadrinho VII – Julgamento
-  { key: "tem_data_julgamento", label: "Data Julgamento? (K)", quadrinho: "VII. Julgamento" },
   {
     key: "data_julgamento",
     label: "Data Julgamento (L)",
