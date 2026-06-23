@@ -345,105 +345,18 @@ function termoParteParaBusca(raw) {
   return String(parsed?.nome || raw || "").trim();
 }
 
-function partePareceAdvogado(mon) {
-  if (mapTipo(mon.tipo) !== "parte") return false;
-  if (String(mon.oab || "").replace(/\D/g, "").length >= 3) return true;
-  return (mon.termos_or || []).some((t) => {
-    const parsed = parsearTermoOr(t);
-    return parsed?.oabDigits && parsed.oabDigits.length >= 3 && parsed?.nome;
-  });
-}
-
-function textoCompletoContemTermoParte(pub, conteudo, mon) {
-  const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
-  if (!textoNorm) return false;
-  return termosDeParte(mon).some((raw) => {
-    const termoNorm = normalize(termoParteParaBusca(raw));
-    return termoNorm && contemFrase(textoNorm, termoNorm);
-  });
-}
-
-async function buscarPublicacoesParteServidorJaEncontradas(sb, mon, dia, tribunal) {
-  if (!sb || mapTipo(mon.tipo) !== "parte" || !mon.coordenacao_id) return [];
-  const resgatadas = new Map();
-  const termosBusca = termosDeParte(mon).map(termoParteParaBusca).filter(Boolean);
-  if (termosBusca.length === 0) return [];
-  for (let from = 0; from < 5000; from += 1000) {
-    const { data, error } = await sb
-      .from("publicacoes_djen_servidor")
-      .select("id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id")
-      .eq("tribunal", tribunal)
-      .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
-      .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
-      .neq("coordenacao_id", mon.coordenacao_id)
-      .order("created_at", { ascending: false })
-      .range(from, from + 999);
-    if (error) continue;
-    if (!data || data.length === 0) break;
-    for (const row of data || []) {
-      const candidato = {
-        ...row,
-        id: row.id_djen || row.id,
-        texto: row.conteudo,
-        dataDisponibilizacao: row.data_disponibilizacao,
-        dataPublicacao: row.data_publicacao,
-        siglaTribunal: row.tribunal,
-        numeroProcesso: row.processo_numero,
-        advogados: row.advogados_json,
-        destinatarioadvogados: row.advogados_json,
-        partes: row.partes_json,
-        destinatarios: row.partes_json,
-        __matchedByNomeParte: true,
-        __matchedByServidorCorpus: true,
-      };
-      if (!termosBusca.some((termoBusca) => textoCompletoContemTermoParte(candidato, row.conteudo, { ...mon, termo_busca: termoBusca, termos_or: [] }))) continue;
-      const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${row.id}`;
-      resgatadas.set(key, candidato);
-    }
-    if (data.length < 1000) break;
-  }
-  return Array.from(resgatadas.values());
-}
-
-async function buscarTribunalDiaCompleto(slot, dia, tribunal, signal, fallbackSlots, scanCache) {
-  const key = `${dia}|${tribunal}`;
-  if (scanCache?.has(key)) return scanCache.get(key);
-  const params = {
-    siglaTribunal: tribunal,
-    dataDisponibilizacaoInicio: dia,
-    dataDisponibilizacaoFim: dia,
-  };
-  let items = [];
-  const slots = [slot, ...(Array.isArray(fallbackSlots) ? fallbackSlots : [])].filter(Boolean);
-  for (const currentSlot of slots) {
-    try {
-      items = await buscarPaginado(currentSlot, params, signal);
-      if (items.length > 0) break;
-    } catch (_e) {
-      // Tenta a próxima VPS. A varredura é uma proteção extra, não deve derrubar o monitoramento.
-    }
-  }
-  scanCache?.set(key, items);
-  return items;
-}
-
 function contemTermo(conteudo, mon, pub) {
-  // Espelha src/hooks/useDjenTermosParalelaEngine.ts > validarTermo (estrito):
-  // - 'parte': SÓ casa em metadados estruturados ou na seção Parte(s).
-  // - 'advogado': metadados estruturados OU nome/oab no texto completo (frase exata).
-  // - 'palavra-chave': frase exata (word-boundary) no texto completo, com suporte a '+'.
+  // Regras simples, sem fallback (alinhadas com o DJEN Browser homologado):
+  // - 'parte'         → casa SOMENTE em metadados estruturados ou na seção
+  //                     Parte(s) da publicação. Nunca olha o corpo do texto.
+  // - 'advogado'      → casa SOMENTE nos metadados de advogados (nome OU OAB).
+  //                     Nunca olha o corpo do texto.
+  // - 'palavra-chave' → casa SOMENTE no conteúdo da publicação (corpo puro,
+  //                     sem concatenar advogados/destinatários).
+  // - 'processo'      → casa por número de processo (somente dígitos).
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
     if (pub?.__matchedByNomeParte) return true;
-    if (pub?.__matchedByParteAdvogadoFallback) {
-      if (validarAdvogadoMetadados(pub, null, mon.termo_busca)) return true;
-      const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
-      if (contemFrase(textoNorm, normalize(mon.termo_busca))) return true;
-      for (const t of mon.termos_or || []) {
-        if (validarAdvogadoMetadados(pub, null, String(t))) return true;
-        if (contemFrase(textoNorm, normalize(String(t)))) return true;
-      }
-    }
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
     if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const t of mon.termos_or || []) {
@@ -452,22 +365,12 @@ function contemTermo(conteudo, mon, pub) {
     }
     return false;
   }
-  const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
   if (tipo === "advogado") {
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
-    const nomeNorm = normalize(mon.termo_busca);
-    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
-    if (mon.oab) {
-      const od = String(mon.oab).replace(/\D/g, "");
-      if (od.length >= 3 && textoNorm.includes(od)) return true;
-    }
     for (const t of mon.termos_or || []) {
       const p = parsearTermoOr(t);
       if (!p) continue;
       if (validarAdvogadoMetadados(pub, p.oabDigits, p.nome)) return true;
-      const nn = normalize(p.nome);
-      if (nn && contemFrase(textoNorm, nn)) return true;
-      if (p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
     }
     return false;
   }
@@ -476,7 +379,8 @@ function contemTermo(conteudo, mon, pub) {
     const pn = String(pub?.numeroProcesso || pub?.numero_processo || pub?.processo_numero || pub?.processo || "").replace(/\D/g, "");
     return pn.includes(nd);
   }
-  // palavra-chave / nome
+  // palavra-chave / nome — SOMENTE no corpo da publicação.
+  const textoNorm = normalize(getConteudoPuro(pub));
   if (contemFraseComAnd(textoNorm, mon.termo_busca)) return true;
   for (const t of mon.termos_or || []) {
     const p = parsearTermoOr(t);
@@ -493,7 +397,7 @@ function condicaoConcomitanteAtendida(pub, mon, conteudo) {
   if (grupos.length === 0) return true;
   const textoNorm = mon.tipo === "parte"
     ? normalize(extrairPartesEstruturadas(pub).join("\n"))
-    : normalize(buildTextoCompleto(pub, conteudo));
+    : normalize(getConteudoPuro(pub));
   if (!textoNorm) return mon.tipo !== "parte";
   return grupos.some((g) => {
     const ts = g.split(",").map((t) => t.trim()).filter(Boolean);
@@ -507,7 +411,7 @@ function shouldExclude(conteudo, mon, pub) {
   if (excs.length === 0) return false;
   const text = mon.tipo === "parte"
     ? normalize(extrairPartesEstruturadas(pub).join("\n"))
-    : normalize(buildTextoCompleto(pub, conteudo));
+    : normalize(getConteudoPuro(pub));
   if (!text) return false;
   return excs.some((e) => {
     const n = normalize(e);
