@@ -855,7 +855,23 @@ async function run({ sb, payload, log, job }) {
   const unidadesConcluidasCheckpoint = new Set();
   const statsCheckpointPorId = new Map();
   const monitoramentosAtuais = new Set(lista.map((m) => m.id));
+  const absorverProgressoCheckpoint = (progresso) => {
+    for (const rawKey of progresso?.checkpoint?.unidadesConcluidas || []) {
+      const key = String(rawKey);
+      const monId = key.split("|")[2] || null;
+      if (!monId || monitoramentosAtuais.has(monId)) unidadesConcluidasCheckpoint.add(key);
+    }
+    for (const pi of progresso?.itens || []) {
+      if (!pi?.id || pi.status !== "concluido") continue;
+      if (pi.monitoramentoIds?.length && !pi.monitoramentoIds.some((id) => monitoramentosAtuais.has(id))) continue;
+      unidadesConcluidasCheckpoint.add(String(pi.id));
+      if (!statsCheckpointPorId.has(pi.id)) statsCheckpointPorId.set(pi.id, pi);
+    }
+  };
   try {
+    const selfRunKey = job?.progresso?.checkpoint?.runKey;
+    if (!selfRunKey || selfRunKey === runKey) absorverProgressoCheckpoint(job?.progresso);
+
     const { data: anteriores } = await sb
       .from("execucoes_servidor")
       .select("id, status, payload, progresso, created_at")
@@ -865,17 +881,7 @@ async function run({ sb, payload, log, job }) {
       .limit(50);
     for (const ant of anteriores || []) {
       if (!isSameRunWindow(ant, runKey, dataInicio, dataFim, coordenacaoId, job?.id)) continue;
-      for (const rawKey of ant.progresso?.checkpoint?.unidadesConcluidas || []) {
-        const key = String(rawKey);
-        const monId = key.split("|")[2] || null;
-        if (!monId || monitoramentosAtuais.has(monId)) unidadesConcluidasCheckpoint.add(key);
-      }
-      for (const pi of ant.progresso?.itens || []) {
-        if (!pi?.id || pi.status !== "concluido") continue;
-        if (pi.monitoramentoIds?.length && !pi.monitoramentoIds.some((id) => monitoramentosAtuais.has(id))) continue;
-        unidadesConcluidasCheckpoint.add(String(pi.id));
-        if (!statsCheckpointPorId.has(pi.id)) statsCheckpointPorId.set(pi.id, pi);
-      }
+      absorverProgressoCheckpoint(ant.progresso);
     }
     for (const item of itens) {
       if (!unidadesConcluidasCheckpoint.has(item.id)) continue;
