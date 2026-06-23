@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-23-checkpoint-created-at";
+const ENGINE_VERSION = "2026-06-23-browser-parity-self-checkpoint";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -13,10 +13,13 @@ const TODOS_TRIBUNAIS = [...TODOS_TRT, "STF", "STJ", "TRF1", "TRF2", "TRF3", "TR
 const TIPO_ORDER = ["parte", "advogado", "palavra-chave", "processo"];
 const MAIN_TIPOS = ["parte", "advogado", "palavra-chave"];
 // Paridade com DJEN Termos Paralela do browser (src/hooks/useDjenTermosParalelaEngine.ts CONFIG):
-//   delay_between_pages: 1800ms, delay_between_terms: 2500ms.
-const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 1800));
+//   paginação default 800ms quando não informado, delay_between_terms 2500ms,
+//   delay_between_termos_or 1800ms. Fallbacks extras ficam desligados por padrão.
+const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 800));
 const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 2500));
+const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 1800));
 const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
+const ENABLE_PARTE_ADVOGADO_FALLBACK = String(process.env.PARALELA_PARTE_ADVOGADO_FALLBACK || "false").toLowerCase() === "true";
 
 const delay = (ms, signal) => new Promise((resolve) => {
   if (!ms || ms <= 0 || signal?.aborted) return resolve();
@@ -628,30 +631,12 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
       }
       for (const it of items) it.__matchedByNomeParte = true;
       results.push(...items);
-      const paramsAdvogado = { ...baseParams(mon, dia, tribunal), nomeAdvogado: normalizeForApi(termoBusca) };
-      let advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
-      if (!signal?.aborted && advogadoItems.length === 0) {
-        await delay(1500, signal);
-        if (!signal?.aborted) advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
+      let advogadoItems = [];
+      if (ENABLE_PARTE_ADVOGADO_FALLBACK) {
+        const paramsAdvogado = { ...baseParams(mon, dia, tribunal), nomeAdvogado: normalizeForApi(termoBusca) };
+        advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
       }
-      if (!signal?.aborted && advogadoItems.length === 0 && Array.isArray(fallbackSlots) && fallbackSlots.length > 0) {
-        for (const alt of fallbackSlots) {
-          if (signal?.aborted) break;
-          if (!alt || alt.id === slot.id) continue;
-          await delay(1500, signal);
-          if (signal?.aborted) break;
-          try {
-            const altItems = await buscarPaginado(alt, paramsAdvogado, signal);
-            if (altItems.length > 0) {
-              advogadoItems = altItems;
-              break;
-            }
-          } catch (_e) {
-            // Tenta próxima VPS — não derruba o termo se uma alternativa falhar.
-          }
-        }
-      }
-      if (!signal?.aborted && partePareceAdvogado(mon) && items.length === 0 && advogadoItems.length === 0) {
+      if (ENABLE_PARTE_ADVOGADO_FALLBACK && !signal?.aborted && partePareceAdvogado(mon) && items.length === 0 && advogadoItems.length === 0) {
         const scanItems = await buscarTribunalDiaCompleto(slot, dia, tribunal, signal, fallbackSlots, scanCache);
         const scanMatches = scanItems.filter((it) => textoCompletoContemTermoParte(it, getConteudo(it), mon));
         for (const it of scanMatches) it.__matchedByParteAdvogadoFallback = true;
@@ -659,7 +644,7 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
       }
       for (const it of advogadoItems) it.__matchedByParteAdvogadoFallback = true;
       results.push(...advogadoItems);
-      if (TERM_DELAY_MS > 0) await delay(TERM_DELAY_MS, signal);
+      if (PARTE_OR_DELAY_MS > 0) await delay(PARTE_OR_DELAY_MS, signal);
     }
     const jaEncontradas = await buscarPublicacoesParteServidorJaEncontradas(sb, mon, dia, tribunal);
     results.push(...jaEncontradas);
@@ -855,7 +840,23 @@ async function run({ sb, payload, log, job }) {
   const unidadesConcluidasCheckpoint = new Set();
   const statsCheckpointPorId = new Map();
   const monitoramentosAtuais = new Set(lista.map((m) => m.id));
+  const absorverProgressoCheckpoint = (progresso) => {
+    for (const rawKey of progresso?.checkpoint?.unidadesConcluidas || []) {
+      const key = String(rawKey);
+      const monId = key.split("|")[2] || null;
+      if (!monId || monitoramentosAtuais.has(monId)) unidadesConcluidasCheckpoint.add(key);
+    }
+    for (const pi of progresso?.itens || []) {
+      if (!pi?.id || pi.status !== "concluido") continue;
+      if (pi.monitoramentoIds?.length && !pi.monitoramentoIds.some((id) => monitoramentosAtuais.has(id))) continue;
+      unidadesConcluidasCheckpoint.add(String(pi.id));
+      if (!statsCheckpointPorId.has(pi.id)) statsCheckpointPorId.set(pi.id, pi);
+    }
+  };
   try {
+    const selfRunKey = job?.progresso?.checkpoint?.runKey;
+    if (!selfRunKey || selfRunKey === runKey) absorverProgressoCheckpoint(job?.progresso);
+
     const { data: anteriores } = await sb
       .from("execucoes_servidor")
       .select("id, status, payload, progresso, created_at")
@@ -865,17 +866,7 @@ async function run({ sb, payload, log, job }) {
       .limit(50);
     for (const ant of anteriores || []) {
       if (!isSameRunWindow(ant, runKey, dataInicio, dataFim, coordenacaoId, job?.id)) continue;
-      for (const rawKey of ant.progresso?.checkpoint?.unidadesConcluidas || []) {
-        const key = String(rawKey);
-        const monId = key.split("|")[2] || null;
-        if (!monId || monitoramentosAtuais.has(monId)) unidadesConcluidasCheckpoint.add(key);
-      }
-      for (const pi of ant.progresso?.itens || []) {
-        if (!pi?.id || pi.status !== "concluido") continue;
-        if (pi.monitoramentoIds?.length && !pi.monitoramentoIds.some((id) => monitoramentosAtuais.has(id))) continue;
-        unidadesConcluidasCheckpoint.add(String(pi.id));
-        if (!statsCheckpointPorId.has(pi.id)) statsCheckpointPorId.set(pi.id, pi);
-      }
+      absorverProgressoCheckpoint(ant.progresso);
     }
     for (const item of itens) {
       if (!unidadesConcluidasCheckpoint.has(item.id)) continue;
