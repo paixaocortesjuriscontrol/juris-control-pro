@@ -678,7 +678,20 @@ async function run({ sb, payload, log, job }) {
   const dias = expandirDias(dataInicio, dataFim);
   const runKey = runKeyFromPayload(payload, dataInicio, dataFim, coordenacaoId);
 
-  log("paralela.start", { engineVersion: ENGINE_VERSION, dataInicio, dataFim, dias: dias.length, coordenacaoId, monitoramentoIdsFiltro });
+  log("paralela.start", {
+    engineVersion: ENGINE_VERSION,
+    dataInicio,
+    dataFim,
+    dias: dias.length,
+    coordenacaoId,
+    monitoramentoIdsFiltro,
+    regras: [
+      "1) coordenacoes independentes; dedup so dentro da mesma coordenacao",
+      "2) parte → somente nas partes (nomeParte + metadados); sem fallback",
+      "3) advogado → somente nos advogados (nome/OAB nos metadados); sem fallback",
+      "4) palavra-chave → somente no conteudo da publicacao",
+    ],
+  });
 
   let q = sb.from("monitoramentos_djen").select("id, descricao, termo_busca, termos_or, tipo, oab, uf, coordenacao_id, tribunais, exclusoes, condicao_concomitante").eq("ativo", true);
   if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
