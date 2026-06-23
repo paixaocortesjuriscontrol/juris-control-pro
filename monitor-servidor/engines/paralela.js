@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-23-browser-parity-self-checkpoint";
+const ENGINE_VERSION = "2026-06-23-manual-skip-checkpoint";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -853,7 +853,17 @@ async function run({ sb, payload, log, job }) {
       if (!statsCheckpointPorId.has(pi.id)) statsCheckpointPorId.set(pi.id, pi);
     }
   };
+  // Paridade com DJEN Browser: execução manual sempre começa do zero.
+  // Checkpoint só é usado em execuções agendadas/automáticas ou em
+  // retomadas explícitas (payload.resumeCheckpoint === true).
+  const isManual = !!payload?.manual;
+  const forcarReset = !!payload?.resetCheckpoint;
+  const usarCheckpoint = (!isManual || payload?.resumeCheckpoint === true) && !forcarReset;
+  if (!usarCheckpoint) {
+    log("paralela.checkpoint_skipped", { runKey, motivo: forcarReset ? "resetCheckpoint" : "manual" });
+  }
   try {
+    if (!usarCheckpoint) throw new Error("__skip_checkpoint__");
     const selfRunKey = job?.progresso?.checkpoint?.runKey;
     if (!selfRunKey || selfRunKey === runKey) absorverProgressoCheckpoint(job?.progresso);
 
@@ -881,7 +891,9 @@ async function run({ sb, payload, log, job }) {
     }
     log("paralela.checkpoint_loaded", { runKey, pulados: checkpointPulados, total: itens.length });
   } catch (e) {
-    log("paralela.checkpoint_error", { e: String(e?.message || e).slice(0, 300) });
+    if (String(e?.message) !== "__skip_checkpoint__") {
+      log("paralela.checkpoint_error", { e: String(e?.message || e).slice(0, 300) });
+    }
   }
 
   let lastFlush = 0;
