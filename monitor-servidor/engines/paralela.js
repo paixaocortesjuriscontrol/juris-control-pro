@@ -538,6 +538,30 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
       items = await buscarPaginado(slot, params, signal);
     }
   }
+  // Fallback TST/advogado: TST não reconhece OAB estadual (ex.: SP).
+  // Se a busca foi feita com numeroOab+ufOab e veio vazia, refaz
+  // somente pelo nomeAdvogado (sem UF), espelhando o que o Browser
+  // faz ao buscar advogado cross-UF no TST.
+  if (
+    !signal?.aborted &&
+    items.length === 0 &&
+    tipo === "advogado" &&
+    tribunal === "TST" &&
+    params.numeroOab &&
+    params.ufOab &&
+    mon.termo_busca
+  ) {
+    const fallbackParams = {
+      siglaTribunal: tribunal,
+      dataDisponibilizacaoInicio: dia,
+      dataDisponibilizacaoFim: dia,
+      nomeAdvogado: normalizeForApi(mon.termo_busca),
+    };
+    await delay(800, signal);
+    if (!signal?.aborted) {
+      items = await buscarPaginado(slot, fallbackParams, signal);
+    }
+  }
   return items;
 }
 
