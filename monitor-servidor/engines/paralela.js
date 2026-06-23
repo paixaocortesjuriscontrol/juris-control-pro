@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-24-browser-parity";
+const ENGINE_VERSION = "2026-06-25-regras-simples";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -19,10 +19,11 @@ const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 8
 const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 2500));
 const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 1800));
 const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
-const ENABLE_PARTE_ADVOGADO_FALLBACK = String(process.env.PARALELA_PARTE_ADVOGADO_FALLBACK || "false").toLowerCase() === "true";
-// Paridade com browser: o browser NÃO faz "resgate" de partes via corpus do servidor.
-// Mantemos como flag desligada por padrão. Liga só se PARALELA_PARTE_RESCUE_CORPUS=true.
-const ENABLE_PARTE_RESCUE_CORPUS = String(process.env.PARALELA_PARTE_RESCUE_CORPUS || "false").toLowerCase() === "true";
+// Regras simples (sem flags): nenhum fallback é executado.
+//  - parte    → só nas partes (nomeParte na API + metadados/seção Parte(s))
+//  - advogado → só nos advogados (nomeAdvogado/numeroOab na API + metadados)
+//  - palavra-chave → só no conteúdo da publicação
+// Cada coordenação é independente; dedup só dentro da mesma coordenação.
 
 const delay = (ms, signal) => new Promise((resolve) => {
   if (!ms || ms <= 0 || signal?.aborted) return resolve();
@@ -174,6 +175,14 @@ function rawObj(pub) {
 function getConteudo(pub) {
   const obj = rawObj(pub);
   return String(obj?.conteudo || obj?.texto || obj?.teor || pub?.conteudo || pub?.texto || pub?.teor || pub?.descricao || "");
+}
+
+// Conteúdo "puro" da publicação — somente o corpo textual, SEM concatenar
+// nomes de advogados/destinatários. Usado para validar palavra-chave e
+// exclusões em palavra-chave/advogado, conforme regra simples definida pelo
+// usuário (palavra-chave só pode casar no corpo da publicação).
+function getConteudoPuro(pub) {
+  return getConteudo(pub);
 }
 
 function getIdDjen(pub) {
@@ -336,105 +345,18 @@ function termoParteParaBusca(raw) {
   return String(parsed?.nome || raw || "").trim();
 }
 
-function partePareceAdvogado(mon) {
-  if (mapTipo(mon.tipo) !== "parte") return false;
-  if (String(mon.oab || "").replace(/\D/g, "").length >= 3) return true;
-  return (mon.termos_or || []).some((t) => {
-    const parsed = parsearTermoOr(t);
-    return parsed?.oabDigits && parsed.oabDigits.length >= 3 && parsed?.nome;
-  });
-}
-
-function textoCompletoContemTermoParte(pub, conteudo, mon) {
-  const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
-  if (!textoNorm) return false;
-  return termosDeParte(mon).some((raw) => {
-    const termoNorm = normalize(termoParteParaBusca(raw));
-    return termoNorm && contemFrase(textoNorm, termoNorm);
-  });
-}
-
-async function buscarPublicacoesParteServidorJaEncontradas(sb, mon, dia, tribunal) {
-  if (!sb || mapTipo(mon.tipo) !== "parte" || !mon.coordenacao_id) return [];
-  const resgatadas = new Map();
-  const termosBusca = termosDeParte(mon).map(termoParteParaBusca).filter(Boolean);
-  if (termosBusca.length === 0) return [];
-  for (let from = 0; from < 5000; from += 1000) {
-    const { data, error } = await sb
-      .from("publicacoes_djen_servidor")
-      .select("id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id")
-      .eq("tribunal", tribunal)
-      .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
-      .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
-      .neq("coordenacao_id", mon.coordenacao_id)
-      .order("created_at", { ascending: false })
-      .range(from, from + 999);
-    if (error) continue;
-    if (!data || data.length === 0) break;
-    for (const row of data || []) {
-      const candidato = {
-        ...row,
-        id: row.id_djen || row.id,
-        texto: row.conteudo,
-        dataDisponibilizacao: row.data_disponibilizacao,
-        dataPublicacao: row.data_publicacao,
-        siglaTribunal: row.tribunal,
-        numeroProcesso: row.processo_numero,
-        advogados: row.advogados_json,
-        destinatarioadvogados: row.advogados_json,
-        partes: row.partes_json,
-        destinatarios: row.partes_json,
-        __matchedByNomeParte: true,
-        __matchedByServidorCorpus: true,
-      };
-      if (!termosBusca.some((termoBusca) => textoCompletoContemTermoParte(candidato, row.conteudo, { ...mon, termo_busca: termoBusca, termos_or: [] }))) continue;
-      const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${row.id}`;
-      resgatadas.set(key, candidato);
-    }
-    if (data.length < 1000) break;
-  }
-  return Array.from(resgatadas.values());
-}
-
-async function buscarTribunalDiaCompleto(slot, dia, tribunal, signal, fallbackSlots, scanCache) {
-  const key = `${dia}|${tribunal}`;
-  if (scanCache?.has(key)) return scanCache.get(key);
-  const params = {
-    siglaTribunal: tribunal,
-    dataDisponibilizacaoInicio: dia,
-    dataDisponibilizacaoFim: dia,
-  };
-  let items = [];
-  const slots = [slot, ...(Array.isArray(fallbackSlots) ? fallbackSlots : [])].filter(Boolean);
-  for (const currentSlot of slots) {
-    try {
-      items = await buscarPaginado(currentSlot, params, signal);
-      if (items.length > 0) break;
-    } catch (_e) {
-      // Tenta a próxima VPS. A varredura é uma proteção extra, não deve derrubar o monitoramento.
-    }
-  }
-  scanCache?.set(key, items);
-  return items;
-}
-
 function contemTermo(conteudo, mon, pub) {
-  // Espelha src/hooks/useDjenTermosParalelaEngine.ts > validarTermo (estrito):
-  // - 'parte': SÓ casa em metadados estruturados ou na seção Parte(s).
-  // - 'advogado': metadados estruturados OU nome/oab no texto completo (frase exata).
-  // - 'palavra-chave': frase exata (word-boundary) no texto completo, com suporte a '+'.
+  // Regras simples, sem fallback (alinhadas com o DJEN Browser homologado):
+  // - 'parte'         → casa SOMENTE em metadados estruturados ou na seção
+  //                     Parte(s) da publicação. Nunca olha o corpo do texto.
+  // - 'advogado'      → casa SOMENTE nos metadados de advogados (nome OU OAB).
+  //                     Nunca olha o corpo do texto.
+  // - 'palavra-chave' → casa SOMENTE no conteúdo da publicação (corpo puro,
+  //                     sem concatenar advogados/destinatários).
+  // - 'processo'      → casa por número de processo (somente dígitos).
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
     if (pub?.__matchedByNomeParte) return true;
-    if (pub?.__matchedByParteAdvogadoFallback) {
-      if (validarAdvogadoMetadados(pub, null, mon.termo_busca)) return true;
-      const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
-      if (contemFrase(textoNorm, normalize(mon.termo_busca))) return true;
-      for (const t of mon.termos_or || []) {
-        if (validarAdvogadoMetadados(pub, null, String(t))) return true;
-        if (contemFrase(textoNorm, normalize(String(t)))) return true;
-      }
-    }
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
     if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const t of mon.termos_or || []) {
@@ -443,22 +365,12 @@ function contemTermo(conteudo, mon, pub) {
     }
     return false;
   }
-  const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
   if (tipo === "advogado") {
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
-    const nomeNorm = normalize(mon.termo_busca);
-    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
-    if (mon.oab) {
-      const od = String(mon.oab).replace(/\D/g, "");
-      if (od.length >= 3 && textoNorm.includes(od)) return true;
-    }
     for (const t of mon.termos_or || []) {
       const p = parsearTermoOr(t);
       if (!p) continue;
       if (validarAdvogadoMetadados(pub, p.oabDigits, p.nome)) return true;
-      const nn = normalize(p.nome);
-      if (nn && contemFrase(textoNorm, nn)) return true;
-      if (p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
     }
     return false;
   }
@@ -467,7 +379,8 @@ function contemTermo(conteudo, mon, pub) {
     const pn = String(pub?.numeroProcesso || pub?.numero_processo || pub?.processo_numero || pub?.processo || "").replace(/\D/g, "");
     return pn.includes(nd);
   }
-  // palavra-chave / nome
+  // palavra-chave / nome — SOMENTE no corpo da publicação.
+  const textoNorm = normalize(getConteudoPuro(pub));
   if (contemFraseComAnd(textoNorm, mon.termo_busca)) return true;
   for (const t of mon.termos_or || []) {
     const p = parsearTermoOr(t);
@@ -484,7 +397,7 @@ function condicaoConcomitanteAtendida(pub, mon, conteudo) {
   if (grupos.length === 0) return true;
   const textoNorm = mon.tipo === "parte"
     ? normalize(extrairPartesEstruturadas(pub).join("\n"))
-    : normalize(buildTextoCompleto(pub, conteudo));
+    : normalize(getConteudoPuro(pub));
   if (!textoNorm) return mon.tipo !== "parte";
   return grupos.some((g) => {
     const ts = g.split(",").map((t) => t.trim()).filter(Boolean);
@@ -498,7 +411,7 @@ function shouldExclude(conteudo, mon, pub) {
   if (excs.length === 0) return false;
   const text = mon.tipo === "parte"
     ? normalize(extrairPartesEstruturadas(pub).join("\n"))
-    : normalize(buildTextoCompleto(pub, conteudo));
+    : normalize(getConteudoPuro(pub));
   if (!text) return false;
   return excs.some((e) => {
     const n = normalize(e);
@@ -591,7 +504,7 @@ function baseParams(mon, dia, tribunal) {
   return params;
 }
 
-async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scanCache, sb) {
+async function buscarTermo(slot, mon, dia, tribunal, signal) {
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
     const results = [];
@@ -609,44 +522,10 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
           items = await buscarPaginado(slot, params, signal);
         }
       }
-      // Espelha Browser: 1 único retry em VPS alternativa, APENAS para tipo "parte"
-      // (caso documentado das ausências de OSMAR MENDES PAIXÃO CÔRTES em
-      // TJES/TJMT/TJPI/TJMA no comparador de 22/06/2026). Browser não percorre
-      // todas as VPS — fazer isso aqui adicionava ~9s por (mon, dia, tribunal)
-      // sem ganho em advogado/palavra-chave.
-      if (!signal?.aborted && items.length === 0 && Array.isArray(fallbackSlots) && fallbackSlots.length > 0) {
-        const alt = fallbackSlots.find((s) => s && s.id !== slot.id);
-        if (alt) {
-          await delay(1500, signal);
-          if (!signal?.aborted) {
-            try {
-              const altItems = await buscarPaginado(alt, params, signal);
-              if (altItems.length > 0) items = altItems;
-            } catch (_e) { /* swallow */ }
-          }
-        }
-      }
       for (const it of items) it.__matchedByNomeParte = true;
       results.push(...items);
-      let advogadoItems = [];
-      if (ENABLE_PARTE_ADVOGADO_FALLBACK) {
-        const paramsAdvogado = { ...baseParams(mon, dia, tribunal), nomeAdvogado: normalizeForApi(termoBusca) };
-        advogadoItems = await buscarPaginado(slot, paramsAdvogado, signal);
-      }
-      if (ENABLE_PARTE_ADVOGADO_FALLBACK && !signal?.aborted && partePareceAdvogado(mon) && items.length === 0 && advogadoItems.length === 0) {
-        const scanItems = await buscarTribunalDiaCompleto(slot, dia, tribunal, signal, fallbackSlots, scanCache);
-        const scanMatches = scanItems.filter((it) => textoCompletoContemTermoParte(it, getConteudo(it), mon));
-        for (const it of scanMatches) it.__matchedByParteAdvogadoFallback = true;
-        results.push(...scanMatches);
-      }
-      for (const it of advogadoItems) it.__matchedByParteAdvogadoFallback = true;
-      results.push(...advogadoItems);
       if (PARTE_OR_DELAY_MS > 0) await delay(PARTE_OR_DELAY_MS, signal);
     }
-      if (ENABLE_PARTE_RESCUE_CORPUS) {
-        const jaEncontradas = await buscarPublicacoesParteServidorJaEncontradas(sb, mon, dia, tribunal);
-        results.push(...jaEncontradas);
-      }
     return results;
   }
   const params = baseParams(mon, dia, tribunal);
@@ -664,6 +543,16 @@ async function buscarTermo(slot, mon, dia, tribunal, signal, fallbackSlots, scan
 
 async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
   const stats = { novas: 0, descartadas: 0, duplicatas: 0 };
+  // Regra simples: monitoramento SEM coordenação não persiste, para evitar
+  // que uma publicação caia em "ninguém" e seja contabilizada como duplicata
+  // (ou pior, atravesse coordenações em queries futuras). O usuário deve
+  // associar o monitoramento a uma coordenação.
+  if (!mon?.coordenacao_id) {
+    const logSemCoord = typeof mon?.__log === "function" ? mon.__log : null;
+    logSemCoord?.("paralela.sem_coordenacao", { monitoramentoId: mon?.id || null, tribunal, dia, total: pubs?.length || 0 });
+    stats.descartadas = pubs?.length || 0;
+    return stats;
+  }
   const tribunaisMon = Array.isArray(mon.tribunais) ? expandirTribunais(mon.tribunais) : [];
   const logDebug = typeof mon.__log === "function" ? mon.__log : null;
   const seenRunKeys = new Set();
@@ -677,7 +566,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     const coordenacaoId = mon.coordenacao_id || null;
     const runKey = idDjen ? `id_djen:${idDjen}` : `hash:${hashConteudo}`;
     if (seenRunKeys.has(runKey)) {
-      logDebug?.("paralela.dedup_runtime", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, origem: pub?.__matchedByServidorCorpus ? "servidor_corpus" : "api" });
+      logDebug?.("paralela.dedup_runtime", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo });
       continue;
     }
     seenRunKeys.add(runKey);
@@ -789,7 +678,20 @@ async function run({ sb, payload, log, job }) {
   const dias = expandirDias(dataInicio, dataFim);
   const runKey = runKeyFromPayload(payload, dataInicio, dataFim, coordenacaoId);
 
-  log("paralela.start", { engineVersion: ENGINE_VERSION, dataInicio, dataFim, dias: dias.length, coordenacaoId, monitoramentoIdsFiltro });
+  log("paralela.start", {
+    engineVersion: ENGINE_VERSION,
+    dataInicio,
+    dataFim,
+    dias: dias.length,
+    coordenacaoId,
+    monitoramentoIdsFiltro,
+    regras: [
+      "1) coordenacoes independentes; dedup so dentro da mesma coordenacao",
+      "2) parte → somente nas partes (nomeParte + metadados); sem fallback",
+      "3) advogado → somente nos advogados (nome/OAB nos metadados); sem fallback",
+      "4) palavra-chave → somente no conteudo da publicacao",
+    ],
+  });
 
   let q = sb.from("monitoramentos_djen").select("id, descricao, termo_busca, termos_or, tipo, oab, uf, coordenacao_id, tribunais, exclusoes, condicao_concomitante").eq("ativo", true);
   if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
@@ -936,7 +838,6 @@ async function run({ sb, payload, log, job }) {
   };
   const slots = await loadPool(sb);
   if (slots.length === 0) throw new Error("Nenhuma VPS ativa em djen_proxy_pool. O DJEN Servidor não roda sem VPS.");
-  const scanCache = new Map();
   const cancelPoll = setInterval(async () => {
     if (!cancelled && await isCancelled().catch(() => false)) {
       cancelled = true;
@@ -1079,8 +980,7 @@ async function run({ sb, payload, log, job }) {
           // do mesmo dia BRT.
           const itemKeyFalha = `paralela|${item.tribunal}|${monId}|${dia}`;
           try {
-            const fallbackSlots = slots.filter((s) => s && s.id !== slot.id);
-            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal, fallbackSlots, scanCache, sb);
+            const pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
             log("paralela.termo_result", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length });
             const stats = await persistPublicacoes(sb, pubs, { ...mon, tipo: item.tipo, __log: log }, item.tribunal, dia, job?.id || null);
             log("paralela.termo_persist", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length, ...stats });

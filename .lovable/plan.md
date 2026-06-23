@@ -1,74 +1,71 @@
 ## Objetivo
+Aplicar no `monitor-servidor/engines/paralela.js` as 4 regras que você descreveu, **eliminando todos os caminhos de fallback** (mesmo os já desligados por flag) que ainda existem no código e poderiam — por engano de variável de ambiente ou por manutenção futura — fazer o Servidor divergir do Browser.
 
-Tornar o `monitor-servidor/engines/paralela.js` idêntico em comportamento de execução ao DJEN Termos Paralela do browser (`src/hooks/useDjenTermosParalelaEngine.ts`). Hoje as duas engines têm a mesma lógica de matching/validação, mas o **paralelismo é diferente** — e é isso que torna o servidor lento.
+## As 4 regras (fixas no código, sem flag)
 
-## Diferenças que sobraram entre Server e Browser
+1. **Isolamento por coordenação**  
+   - Toda dedup/lookup usa `coordenacao_id` na cláusula. Uma publicação pode existir em N coordenações; cada uma é independente.  
+   - Remover qualquer query que cruze coordenações.
 
-| Aspecto | Browser (referência) | Server (hoje) |
-|---|---|---|
-| Granularidade da unit | 1 unit por **(tipo, tribunal, monitoramento)** | 1 unit por **(tipo, tribunal)** agrupando vários monitoramentos. Só TST é dividido. |
-| `delay_between_terms` (2500ms) | Aplicado entre units (absorvido pelo paralelismo) | Aplicado **dentro** da unit, entre cada (mon, dia) — vira tempo morto sequencial |
-| Retry inicial de falhas | Não existe loop bloqueante | Loop serial usando 1 VPS antes da fila principal |
-| Resgate de partes via corpus | Não existe | `buscarPublicacoesParteServidorJaEncontradas` faz query extra de até 5000 linhas por (mon parte, dia, tribunal) |
-| Retry em vazio | 1 retry na mesma VPS (1.5s) | 1 retry na mesma VPS + 1 retry em **cada** VPS de fallback (1.5s cada) |
+2. **Termo `parte` → só nas partes**  
+   - Busca somente via `nomeParte` na API.  
+   - Validação apenas em `validarParteMetadados` + `validarParteSecaoPartes` (já é o que o browser faz).  
+   - **Nada de fallback** para `nomeAdvogado`, varredura `buscarTribunalDiaCompleto`, ou resgate por corpus do servidor.
 
-Browser tem `MAX_CONCURRENCY=5`, `delay_between_terms=2500`, `delay_between_pages=1800`, `delay_between_termos_or=1800`. Server já tem esses valores nos defaults — a divergência é só no **modelo de fila**.
+3. **Termo `advogado` → só nos advogados**  
+   - Busca via `numeroOab/ufOab/nomeAdvogado`.  
+   - Validação: metadados `advogados/destinatarioadvogados` (nome exato OU OAB).  
+   - Remover o fallback que aceitava o nome no corpo da publicação (`contemFrase(textoNorm, nomeNorm)`).
 
-## Alterações necessárias (todas em `monitor-servidor/engines/paralela.js`)
+4. **Termo `palavra-chave` → só no conteúdo**  
+   - Validação só no campo `conteudo/teor/texto` da publicação (sem concatenar nomes de advogados/destinatários).  
+   - Suporte a `+` (AND) e `termos_or` mantidos, mas apenas dentro do `conteudo`.
 
-### 1. Quebrar units por monitoramento — igual browser
+## Mudanças em `monitor-servidor/engines/paralela.js`
 
-Hoje (linha ~807-808):
-```js
-const splitTst = tribunal === "TST" && tipo !== "processo";
-const key = splitTst ? `${tipo}|${tribunal}|${m.id}` : `${tipo}|${tribunal}`;
+### A. Apagar código de fallback (não vira flag, some do arquivo)
+- Remover `ENABLE_PARTE_ADVOGADO_FALLBACK` e todo o bloco em `buscarTermo` que faz `paramsAdvogado`, `buscarTribunalDiaCompleto` e marca `__matchedByParteAdvogadoFallback`.
+- Remover `ENABLE_PARTE_RESCUE_CORPUS`, a função `buscarPublicacoesParteServidorJaEncontradas` e a chamada em `buscarTermo`.
+- Remover `buscarTribunalDiaCompleto`, `textoCompletoContemTermoParte`, `partePareceAdvogado` (sem uso após o item acima).
+- Remover o ramo `__matchedByParteAdvogadoFallback` dentro de `contemTermo`.
+- Remover o retry em VPS alternativa (`fallbackSlots.find(...)`) para `parte` — o browser homologado faz só 1 retry na MESMA VPS após 1,5s, e é isso que vamos manter.
+
+### B. Tornar `advogado` estrito a metadados
+Em `contemTermo`, ramo `tipo === "advogado"`:
+- Remover: `if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;`
+- Remover: `if (od.length >= 3 && textoNorm.includes(od)) return true;`
+- Remover as variantes equivalentes dentro do loop `termos_or`.
+- Manter só `validarAdvogadoMetadados(pub, oab/oabDigits, nome)`.
+
+### C. Tornar `palavra-chave` estrito ao conteúdo
+- Criar helper `getConteudoPuro(pub)` que retorna apenas `obj.conteudo || obj.teor || obj.texto` (sem nomes de advogados/destinatários).
+- No ramo `palavra-chave` (e `nome`) de `contemTermo`, trocar `buildTextoCompleto(pub, conteudo)` por `getConteudoPuro(pub)`.
+- `condicaoConcomitanteAtendida` e `shouldExclude` para `palavra-chave/advogado` também passam a usar `getConteudoPuro` (parte continua usando partes estruturadas).
+
+### D. Reforçar isolamento por coordenação na persistência
+- Confirmar que `persistPublicacoes` nunca consulta sem `coordenacao_id` (já é o caso para `id_djen`).
+- Quando não há `coordenacao_id` no monitoramento, logar `paralela.sem_coordenacao` e **não inserir** (evita poluição cruzada). Esses monitoramentos devem ser corrigidos pelo usuário, não silenciosamente misturados.
+
+### E. Bump de versão e log
+- `ENGINE_VERSION = "2026-06-25-regras-simples"`.
+- Log inicial enumera as 4 regras aplicadas, facilitando confirmar no `pm2 logs` que a VPS está rodando a nova versão.
+
+## O que NÃO muda
+- Paginação, delays, checkpoint, banimento de unidade, pool de VPS, retry de 1,5s na mesma VPS — tudo idêntico ao que o Browser faz hoje.
+- Schema do banco, edge functions, UI — nenhum arquivo fora de `monitor-servidor/engines/paralela.js` é tocado.
+
+## Deploy
+Após merge, na VPS Hostinger:
 ```
-
-Mudar para:
-```js
-const key = tipo === "processo" ? `${tipo}|${tribunal}` : `${tipo}|${tribunal}|${m.id}`;
+cd ~/monitor-servidor && git pull && pm2 restart jc-monitor-servidor
+pm2 logs jc-monitor-servidor --lines 50 | grep paralela.start
 ```
+Confirmar que aparece `engineVersion: "2026-06-25-regras-simples"`.
 
-Cada termo vira uma unit. As 6 VPS do pool consomem em paralelo de verdade, como o browser faz.
+## Por que isso resolve o "varia por coordenação"
+Hoje as únicas diferenças entre Servidor e Browser que sobreviveram são:
+- Variáveis de ambiente que reativam fallbacks por engano numa coordenação e não em outra.
+- Dois retries de VPS extras no `parte` que aumentam o recall do Servidor versus o Browser num tribunal/dia onde a primeira VPS devolveu vazio.
+- Validação de `advogado` no corpo do texto que aceita publicações sem o advogado nos metadados.
 
-### 2. Remover o `TERM_DELAY_MS` interno entre (mon, dia)
-
-Com units de 1 monitoramento só, o loop `for (const monId of unit.monIds)` (linha ~1065) terá sempre 1 iteração. O `await delay(TERM_DELAY_MS)` na linha ~1109 vira inútil dentro da unit. Trocar por delay **entre units consumidas pelo mesmo worker** (já é o comportamento natural quando `pickNext` retorna a próxima unit). Implementação: aplicar `TERM_DELAY_MS` no `worker()` ao final do `processUnit`, não dentro do loop.
-
-### 3. Paralelizar o retry inicial de falhas
-
-Hoje (linhas 1014-1056) o retry roda serial em `slots[0]` antes da fila principal — bloqueia ~90s se há 30 falhas pendentes.
-
-Mudar para: ao montar as bandas, adicionar as falhas pendentes como units extras na **banda correspondente** (band 0 se TST, band 1 se STF/STJ, band 2 se demais). Remover o loop pré-fila. Os workers consomem retry e fila nova em paralelo.
-
-### 4. Desabilitar/condicionar o resgate de partes via corpus
-
-`buscarPublicacoesParteServidorJaEncontradas` (linhas 354-394, chamada na 649) não existe no browser e roda por (mon parte, dia, tribunal). Não é necessário para paridade.
-
-Trocar por flag `PARALELA_PARTE_RESCUE_CORPUS=false` (default) — só roda se o env ligar explicitamente. Browser não tem isso.
-
-### 5. Cortar o retry agressivo em fallback slots
-
-Hoje (linhas 615-631) em busca vazia o engine percorre **todas** as VPS de fallback com 1.5s entre cada.
-
-Browser faz só 1 retry na mesma VPS. Trocar o `for (const alt of fallbackSlots)` por: tenta no máximo **1 VPS alternativa** e só quando o tipo é `parte` (caso documentado nas linhas 609-614 — ausência de OSMAR CORTES). Para `advogado`/`palavra-chave`, vazio = vazio.
-
-## Resultado esperado
-
-- Paralelismo real de 6 VPS em vez de 1-2 efetivo.
-- Sem tempo morto sequencial dentro de units grandes.
-- Sem bloqueio de ~90s no início para retry.
-- Tribunais sem resultado deixam de gastar ~9s cada.
-- Estimativa: 30-45min → 8-12min em coordenações grandes (mesmo perfil do browser).
-
-## Arquivos
-
-- `monitor-servidor/engines/paralela.js` — única alteração.
-- Sem mudança de schema, sem mudança no UI, sem mudança no edge function.
-- Após deploy: `git pull && pm2 restart jc-monitor-servidor` na VPS Hostinger.
-
-## Riscos
-
-- Quebrar units cresce o array `itens` no `progresso`. O throttle de 800ms em `flushProgresso` continua suficiente; payload sobe de ~60 para ~300 entradas, ainda dentro do limite do Postgres jsonb.
-- Cortar retry de fallback em `advogado`/`palavra-chave` segue o browser exatamente — se o browser não perde, o servidor também não perde.
-- Desligar o corpus rescue é seguro porque a regra "1 publicação por (coordenação, id_djen)" já é garantida pelo unique index, e o browser nunca usou esse rescue.
+Eliminando esses três pontos, a tupla `(tribunal, dia, termo, coordenação)` vai produzir o mesmo conjunto de publicações em qualquer ambiente.
