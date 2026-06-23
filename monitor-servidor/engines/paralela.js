@@ -904,6 +904,10 @@ async function run({ sb, payload, log, job }) {
         atual: executando[0] ? { id: executando[0].id, label: executando[0].label } : null,
         itens,
         janela: { dataInicio, dataFim },
+        checkpoint: {
+          runKey,
+          unidadesConcluidas: itens.filter((i) => i.status === "concluido").map((i) => i.id),
+        },
         pool_enabled: true,
         vias: executando.map((i) => i.via).filter(Boolean),
       },
