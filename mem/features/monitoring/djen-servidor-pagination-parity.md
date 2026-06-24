@@ -11,6 +11,8 @@ O motor `monitor-servidor/engines/paralela.js` precisa replicar:
 
 3. **Tipo `advogado`**: validar OAB (>=3 dígitos) e nome no texto completo, e iterar `termos_or` com `parsearTermoOr` (formatos `12345/NOME`, `NOME/12345`, `TJSP - Adv. NOME`).
 
+4. **Suplemento advogado por OAB descoberta**: quando o monitoramento de advogado não tem OAB configurada e a busca por `nomeAdvogado` retorna metadados com `numero_oab`/`uf_oab` do próprio advogado, o Servidor deve fazer uma segunda busca oficial por `numeroOab + ufOab + nomeAdvogado` e mesclar por `id_djen`. Isso corrige casos como TRT8/OSMAR em que a rota por nome não traz as páginas finais, sem consultar `publicacoes_djen`.
+
 Bug histórico: `contemTermo` só verificava `conteudo` cru, causando descartes massivos (ex.: 421 descartadas / 0 novas na Santander Cível em 2026-06-15, enquanto o browser persistia 239).
 
 Memórias relacionadas do browser: `mem/features/monitoring/djen-paralela-pagination-fix.md`, `mem/features/monitoring/djen-pagination-continueuntilempty.md`.
