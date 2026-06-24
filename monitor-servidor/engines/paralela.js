@@ -836,6 +836,43 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
       }
     }
   }
+  // Complemento advogado com OAB + uf=TODAS: a chamada primária (já feita acima
+  // por nomeAdvogado, conforme baseParams) às vezes perde publicações regionais
+  // (ex.: TJMG/OSMAR — id_djen 649843498) que a API devolve quando consultada
+  // com numeroOab + ufOab=TODAS + nomeAdvogado. Soma essa segunda chamada e
+  // mescla por id_djen. A validação posterior (validarAdvogado por metadados)
+  // garante que só entram pubs em que o advogado realmente aparece em
+  // destinatarioadvogados.
+  if (
+    !signal?.aborted &&
+    tipo === "advogado" &&
+    mon.termo_busca &&
+    !params.numeroOab // só quando a primária foi por nome (uf=TODAS sem OAB nos params)
+  ) {
+    const oabConfig = String(mon.oab || "").replace(/\D/g, "");
+    const ufConfig = String(mon.uf || "").trim().toUpperCase();
+    if (oabConfig && ufConfig === "TODAS") {
+      const supplementOabParams = {
+        siglaTribunal: tribunal,
+        dataDisponibilizacaoInicio: dia,
+        dataDisponibilizacaoFim: dia,
+        numeroOab: oabConfig,
+        ufOab: "TODAS",
+        nomeAdvogado: normalizeForApi(mon.termo_busca),
+      };
+      await delay(800, signal);
+      if (!signal?.aborted) {
+        try {
+          const supplementItems = await buscarPaginado(slot, supplementOabParams, signal);
+          if (supplementItems.length > 0) {
+            mesclarItensPorId(items, supplementItems, { __advogadoOabTodasSupplement: true });
+          }
+        } catch (_) {
+          // best-effort
+        }
+      }
+    }
+  }
   return items;
 }
 
