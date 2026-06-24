@@ -547,7 +547,7 @@ function ComparadorPanel() {
 
   const exportarRelatorioCsv = () => {
     if (!data) return;
-    const header1 = "# Comparador DJEN Servidor x Browser (por coordenação e tipo de pesquisa)\n";
+    const header1 = "# Comparador DJEN Servidor x Browser — comparação por publicação (coordenacao + id_djen)\n# Quebra abaixo é diagnóstico secundário por tipo de monitoramento que capturou a publicação\n";
     const cols1 = "coordenacao,tipo_pesquisa,total_servidor,total_browser,em_ambos,so_servidor,so_browser\n";
     const body1 = data.linhas
       .map((l) =>
@@ -571,16 +571,19 @@ function ComparadorPanel() {
       ].join(","))
       .join("\n");
     const totais = `\n\n# Totais\nfonte,total\nDJEN_servidor,${data.porFonte.totais.djenServidor}\nDJEN_browser,${data.porFonte.totais.djenBrowser}\nDJEN_unico,${data.porFonte.totais.djenUnico}\nKurier,${data.porFonte.totais.kurier}\nPautas_TST,${data.porFonte.totais.pautas}\n`;
-    const header3 = "\n\n# Publicações exclusivas por origem (detalhamento)\n";
-    const cols3 = "coordenacao,origem,tipo_pesquisa,tribunal,processo,data_publicacao,id_djen\n";
+    const header3 = "\n\n# Publicações exclusivas por origem (detalhamento auditável)\n";
+    const cols3 = "coordenacao,origem,tipo_pesquisa,termo_busca,monitoramento_id,tribunal,processo,data_publicacao,data_disponibilizacao,id_djen\n";
     const body3 = (data.detalhes || [])
       .map((d) => [
         JSON.stringify(d.coordenacaoNome),
         d.origem,
         d.tipo,
+        JSON.stringify(d.termo_busca || ""),
+        JSON.stringify(d.monitoramento_id || ""),
         JSON.stringify(d.tribunal || ""),
         JSON.stringify(d.processo_numero || ""),
         JSON.stringify(d.data_publicacao || ""),
+        JSON.stringify(d.data_disponibilizacao || ""),
         JSON.stringify(d.id_djen || ""),
       ].join(","))
       .join("\n");
@@ -609,9 +612,9 @@ function ComparadorPanel() {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2"><GitCompare className="h-4 w-4" /> Comparador Servidor × Browser</CardTitle>
         <CardDescription>
-          Escolha o período e clique em <strong>Analisar</strong> para gerar um relatório completo
-          comparando, coordenação a coordenação e por tipo de pesquisa, quantas publicações foram
-          capturadas pelo servidor (VPS) e pelo navegador, e quais são exclusivas de cada origem.
+          A comparação principal é <strong>por publicação</strong> usando a chave <code>coordenação + id_djen</code>.
+          A quebra por <em>tipo de pesquisa</em> (advogado, parte, palavra-chave, processo) é apenas um diagnóstico
+          secundário do monitoramento que capturou a publicação — não altera os totais globais.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -720,10 +723,11 @@ function ComparadorPanel() {
             </div>
 
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
-              <p><strong>Como ler:</strong> cada linha mostra uma combinação de coordenação e tipo de pesquisa (Advogado/OAB, Processo, Palavra-chave, Parte).</p>
+              <p><strong>Como ler:</strong> os cinco cards acima (Total Servidor, Total Browser, Em ambos, Só Servidor, Só Browser) são a comparação <strong>global por publicação</strong> (chave <code>coordenação + id_djen</code>), independente do tipo de pesquisa.</p>
+              <p>A tabela abaixo decompõe esses números pelo tipo do monitoramento que capturou cada publicação, só como diagnóstico — uma mesma publicação aparece em apenas um tipo por lado.</p>
               <p>• <strong>Servidor</strong>: publicações capturadas pelo pipeline da VPS (24/7).</p>
               <p>• <strong>Browser</strong>: publicações capturadas pela execução agendada no navegador.</p>
-              <p>• <strong>Em ambos</strong>: publicações idênticas encontradas pelas duas origens (sem divergência).</p>
+              <p>• <strong>Em ambos</strong>: mesma <code>id_djen</code> encontrada pelas duas origens (sem divergência).</p>
               <p>• <strong>Só Servidor</strong>: o pipeline da VPS encontrou, o navegador não — indica que o servidor está capturando casos extras.</p>
               <p>• <strong>Só Browser</strong>: o navegador encontrou e o servidor não — indica lacuna no pipeline da VPS para revisar.</p>
             </div>

@@ -1,27 +1,41 @@
-Plano para corrigir isso de verdade:
+Você está certo: no primeiro quadro do comparador a comparação deveria ser independente do tipo de termo. Pelo código atual, a chave principal já usa `coordenação + id_djen`, mas há dois pontos que deixam a leitura ambígua e podem gerar confusão:
 
-1. Tratar como bug de regra, não como instabilidade da API.
-   - Conferi a coordenação `Coordenação Dr. Thomás` em `23/06/2026`.
-   - Há diferença real por tipo: o Browser e o Servidor não estão classificando/validando exatamente do mesmo jeito.
-   - Também há casos em que a mesma publicação aparece em um lado por um tipo e no outro lado por outro tipo, o que deixa o comparador confuso.
+1. O quadro principal ainda distribui os totais em buckets por tipo depois da comparação, então o texto “por tipo” aparece misturado com uma comparação que, na prática, deveria ser global por `id_djen`.
+2. O CSV de exclusivas ainda não mostra dados suficientes para auditar rapidamente cada divergência.
 
-2. Igualar as regras de validação entre Browser e Servidor.
-   - `parte`: validar contra partes estruturadas ou seção `Parte(s)`, sem aceitar cegamente tudo que a API devolve por `nomeParte` quando a própria publicação mostra que o nome está em advogado/texto e não em parte.
-   - `advogado`: validar somente em metadados/lista de advogados, sem fallback amplo no corpo da publicação.
-   - `palavra-chave`: validar somente no corpo da publicação, sem concatenar partes/advogados/destinatários.
-   - `termos_or` de parte: o Browser deve limpar termos no formato `310314/NOME`, como o Servidor já faz, antes de mandar para `nomeParte`.
+Conferi a Coordenação Dr. Thomás em 23/06/2026 diretamente no banco, usando apenas `coordenação + id_djen`:
 
-3. Corrigir o reaproveitamento para ser simétrico entre as duas fontes.
-   - Hoje o reaproveitamento consulta principalmente `publicacoes_djen` e não espelha de forma consistente o que já caiu em `publicacoes_djen_servidor`.
-   - Vou fazer Browser e Servidor consultarem as duas bases, validar novamente pela regra do monitoramento e só então persistir na própria origem.
-   - Isso mantém isolamento por coordenação e evita que uma publicação encontrada pelo Servidor fique invisível para o Browser, ou vice-versa.
+```text
+Servidor: 47 id_djen únicos
+Browser: 59 id_djen únicos
+Em ambos: 43
+Só servidor: 4
+Só browser: 16
+```
 
-4. Ajustar o comparador para não mascarar o problema.
-   - Manter a comparação por publicação única, mas adicionar/ajustar a visão por tipo real do monitoramento.
-   - No CSV, incluir `monitoramento_id`, termo, condição concomitante e tipo original para explicar por que algo caiu como `parte`, `advogado` ou `palavra-chave`.
-   - Isso evita conclusões erradas como “Servidor achou a mais por advogado” quando a mesma publicação existe do outro lado, mas em outro tipo.
+Ou seja: a diferença no primeiro quadro é real mesmo sem separar por tipo. Não é só efeito de classificação por `parte`, `palavra-chave` ou `advogado`.
 
-5. Validar especificamente com Dr. Thomás em `23/06/2026`.
-   - Reconsultar os totais por `parte`, `advogado` e `palavra-chave`.
-   - Conferir os exclusivos por `id_djen` e por tipo.
-   - Confirmar que as diferenças restantes sejam somente publicações realmente inexistentes no outro motor, não falha de classificação ou reaproveitamento.
+Plano de ajuste:
+
+1. Separar visualmente o comparador em duas leituras:
+   - “Comparação global por publicação” usando somente `coordenação + id_djen` como chave quando houver `id_djen`.
+   - “Quebra por tipo de monitoramento” apenas como diagnóstico secundário, sem sugerir que o primeiro total depende do tipo.
+
+2. Renomear textos da UI para deixar explícito:
+   - “Total Servidor”, “Total Browser”, “Em ambos”, “Só Servidor”, “Só Browser” = comparação global por publicação DJEN.
+   - Tipo de pesquisa = apenas origem do monitoramento que capturou aquela publicação.
+
+3. Ajustar o CSV para incluir, nas publicações exclusivas:
+   - `id_djen`
+   - `monitoramento_id`
+   - `termo_busca`
+   - `tipo_pesquisa`
+   - `coordenação`
+   - `tribunal`
+   - `processo`
+   - `data_publicacao/data_disponibilizacao`
+   - `origem` (`so_servidor` ou `so_browser`)
+
+4. Opcionalmente adicionar uma tabela curta na tela com “Publicações exclusivas por origem”, para que você não precise abrir o CSV toda vez.
+
+5. Não mexer agora nas regras de busca/validação nem no reaproveitamento. Primeiro vamos deixar o comparador auditável e fiel ao que ele realmente está contando por `id_djen`; depois, se as 16 do Browser e as 4 do Servidor continuarem divergindo, investigamos cada `id_djen` com evidência concreta.

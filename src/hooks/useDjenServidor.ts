@@ -407,7 +407,10 @@ export interface ComparadorAnaliseRelatorio {
     processo_numero: string | null;
     tribunal: string | null;
     data_publicacao: string | null;
+    data_disponibilizacao: string | null;
     id_djen: string | null;
+    monitoramento_id: string | null;
+    termo_busca: string | null;
   }>;
 }
 
@@ -494,7 +497,7 @@ export function useComparadorAnalise() {
         servQ,
         browQ,
         supabase.from("coordenacoes").select("id, nome"),
-        supabase.from("monitoramentos_djen").select("id, tipo, coordenacao_id"),
+        supabase.from("monitoramentos_djen").select("id, tipo, coordenacao_id, termo_busca"),
         kurierQ,
         pautasQ,
         supabase.from("kurier_credencial_coordenacoes").select("credencial_id, coordenacao_id"),
@@ -512,6 +515,9 @@ export function useComparadorAnalise() {
       );
       const monitTipo = new Map<string, string>(
         (monits.data || []).map((m: any) => [m.id, m.tipo]),
+      );
+      const monitTermo = new Map<string, string>(
+        (monits.data || []).map((m: any) => [m.id, m.termo_busca || ""]),
       );
 
       type Row = {
@@ -707,7 +713,10 @@ export function useComparadorAnalise() {
           processo_numero: r.processo_numero || null,
           tribunal: r.tribunal || null,
           data_publicacao: pickDataPub(r),
+          data_disponibilizacao: r.data_disponibilizacao || null,
           id_djen: r.id_djen || null,
+          monitoramento_id: r.monitoramento_id || null,
+          termo_busca: (r.monitoramento_id && monitTermo.get(r.monitoramento_id)) || null,
         });
       }
       for (const [k, r] of bByKey) {
@@ -722,7 +731,10 @@ export function useComparadorAnalise() {
           processo_numero: r.processo_numero || null,
           tribunal: r.tribunal || null,
           data_publicacao: pickDataPub(r),
+          data_disponibilizacao: r.data_disponibilizacao || null,
           id_djen: r.id_djen || null,
+          monitoramento_id: r.monitoramento_id || null,
+          termo_busca: (r.monitoramento_id && monitTermo.get(r.monitoramento_id)) || null,
         });
       }
       detalhes.sort((a, b) => {
