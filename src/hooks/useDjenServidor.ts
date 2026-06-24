@@ -373,6 +373,16 @@ export interface ComparadorAnaliseRelatorio {
   dataInicio: string;
   dataFim: string;
   geradoEm: string;
+  globalLinhas: Array<{
+    coordenacaoId: string;
+    coordenacaoNome: string;
+    totalServidor: number;
+    totalBrowser: number;
+    emAmbos: number;
+    soServidor: number;
+    soBrowser: number;
+    djenUnico: number;
+  }>;
   linhas: ComparadorAnaliseLinha[];
   totais: {
     servidor: number;
@@ -696,6 +706,28 @@ export function useComparadorAnalise() {
         };
       }).sort((a, b) => a.coordenacaoNome.localeCompare(b.coordenacaoNome, "pt-BR"));
 
+      const globalLinhas = Array.from(new Set<string>([
+        ...djenServPorCoord.keys(),
+        ...djenBrowPorCoord.keys(),
+      ])).map((cid) => {
+        const sSet = djenServPorCoord.get(cid) || new Set<string>();
+        const bSet = djenBrowPorCoord.get(cid) || new Set<string>();
+        let emAmbos = 0;
+        for (const k of sSet) if (bSet.has(k)) emAmbos++;
+        const soServidor = sSet.size - emAmbos;
+        const soBrowser = bSet.size - emAmbos;
+        return {
+          coordenacaoId: cid,
+          coordenacaoNome: coordNome.get(cid) || "Sem coordenação",
+          totalServidor: sSet.size,
+          totalBrowser: bSet.size,
+          emAmbos,
+          soServidor,
+          soBrowser,
+          djenUnico: emAmbos + soServidor + soBrowser,
+        };
+      }).sort((a, b) => a.coordenacaoNome.localeCompare(b.coordenacaoNome, "pt-BR"));
+
       const djenUnicoTotal = new Set<string>([...sByKey.keys(), ...bByKey.keys()]).size;
 
       // Detalhamento: publicações exclusivas por origem (para CSV)
@@ -750,6 +782,7 @@ export function useComparadorAnalise() {
         dataInicio: opts.dataInicio,
         dataFim: opts.dataFim,
         geradoEm: new Date().toISOString(),
+        globalLinhas,
         linhas,
         totais: {
           servidor: totServ,
