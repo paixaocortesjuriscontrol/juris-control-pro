@@ -1,47 +1,27 @@
-## Objetivo
+Plano para corrigir isso de verdade:
 
-Incluir, no CSV exportado pelo **Comparador DJEN Servidor × Browser** (`/djen-servidor` → aba Comparador), uma seção detalhada listando, por coordenação, **cada publicação encontrada a mais por origem** (só Servidor vs só Browser) — não apenas os totais.
+1. Tratar como bug de regra, não como instabilidade da API.
+   - Conferi a coordenação `Coordenação Dr. Thomás` em `23/06/2026`.
+   - Há diferença real por tipo: o Browser e o Servidor não estão classificando/validando exatamente do mesmo jeito.
+   - Também há casos em que a mesma publicação aparece em um lado por um tipo e no outro lado por outro tipo, o que deixa o comparador confuso.
 
-## O que muda
+2. Igualar as regras de validação entre Browser e Servidor.
+   - `parte`: validar contra partes estruturadas ou seção `Parte(s)`, sem aceitar cegamente tudo que a API devolve por `nomeParte` quando a própria publicação mostra que o nome está em advogado/texto e não em parte.
+   - `advogado`: validar somente em metadados/lista de advogados, sem fallback amplo no corpo da publicação.
+   - `palavra-chave`: validar somente no corpo da publicação, sem concatenar partes/advogados/destinatários.
+   - `termos_or` de parte: o Browser deve limpar termos no formato `310314/NOME`, como o Servidor já faz, antes de mandar para `nomeParte`.
 
-### 1. `src/hooks/useDjenServidor.ts` — `useComparadorAnalise`
+3. Corrigir o reaproveitamento para ser simétrico entre as duas fontes.
+   - Hoje o reaproveitamento consulta principalmente `publicacoes_djen` e não espelha de forma consistente o que já caiu em `publicacoes_djen_servidor`.
+   - Vou fazer Browser e Servidor consultarem as duas bases, validar novamente pela regra do monitoramento e só então persistir na própria origem.
+   - Isso mantém isolamento por coordenação e evita que uma publicação encontrada pelo Servidor fique invisível para o Browser, ou vice-versa.
 
-- Selecionar campos adicionais nas duas queries (`publicacoes_djen_servidor` e `publicacoes_djen`):
-  `processo_numero, tribunal, data_disponibilizacao, data_publicacao, id_djen` (alguns já vêm; faltam `data_publicacao` e garantir `processo_numero`/`tribunal`).
-- Manter o `Map<key, row>` por origem (já existe via `sByKey`/`bByKey`).
-- Após o cálculo dos buckets, construir uma nova lista `detalhes`:
-  ```
-  Array<{
-    coordenacaoId, coordenacaoNome,
-    tipo,                    // advogado / processo / palavra-chave / parte / sem_monitoramento
-    origem: 'so_servidor' | 'so_browser',
-    processo_numero, tribunal,
-    data_publicacao,         // ou data_disponibilizacao se a primeira for nula
-    id_djen,
-  }>
-  ```
-  Geração: para cada chave em `sByKey` que não está em `bByKey` → `so_servidor`; e vice-versa. Coordenação/tipo vêm do `keyToBucket` já calculado.
-- Adicionar `detalhes` ao tipo `ComparadorAnaliseRelatorio` e ao return.
+4. Ajustar o comparador para não mascarar o problema.
+   - Manter a comparação por publicação única, mas adicionar/ajustar a visão por tipo real do monitoramento.
+   - No CSV, incluir `monitoramento_id`, termo, condição concomitante e tipo original para explicar por que algo caiu como `parte`, `advogado` ou `palavra-chave`.
+   - Isso evita conclusões erradas como “Servidor achou a mais por advogado” quando a mesma publicação existe do outro lado, mas em outro tipo.
 
-### 2. `src/pages/DjenServidor.tsx` — `exportarRelatorioCsv`
-
-- Acrescentar uma terceira seção ao CSV após "Totais":
-  ```
-  # Publicações exclusivas por origem (detalhamento)
-  coordenacao,origem,tipo_pesquisa,tribunal,processo,data_publicacao,id_djen
-  ...
-  ```
-  Ordenado por coordenação → origem → tribunal → processo.
-- Escapar valores com `JSON.stringify` (mesmo padrão usado nas demais seções) para tolerar vírgulas/aspas.
-- Nenhum impacto na UI (tabelas continuam mostrando apenas os agregados; o detalhe vai só para o CSV, como pedido).
-
-### 3. Performance
-
-- Limite atual de 20.000 linhas por query já cobre o intervalo típico. Como `detalhes` reaproveita os `Map`s existentes, o custo adicional é apenas montar o array (O(n)).
-- Sem novas chamadas a Supabase.
-
-## Fora de escopo
-
-- Não alterar a lógica de dedup nem os totais existentes.
-- Não mexer no pipeline servidor/browser (continua a tarefa separada já em andamento).
-- Não criar UI nova; apenas o CSV ganha o detalhamento.
+5. Validar especificamente com Dr. Thomás em `23/06/2026`.
+   - Reconsultar os totais por `parte`, `advogado` e `palavra-chave`.
+   - Conferir os exclusivos por `id_djen` e por tipo.
+   - Confirmar que as diferenças restantes sejam somente publicações realmente inexistentes no outro motor, não falha de classificação ou reaproveitamento.
