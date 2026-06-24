@@ -858,7 +858,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     const conteudo = getConteudo(pub);
     const metadata = metadataFromRaw(pub);
     const idDjen = getIdDjen(pub);
-    const dataDisponibilizacao = getDataDisponibilizacao(pub, dia);
+    const dataDisponibilizacao = normalizarDataDispBrt(getDataDisponibilizacao(pub, dia));
     const processoNumero = extractProcesso(pub, conteudo);
     const hashConteudo = generatePublicacaoHash(conteudo, dataDisponibilizacao, processoNumero, idDjen);
     const coordenacaoId = mon.coordenacao_id || null;
