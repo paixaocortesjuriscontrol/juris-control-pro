@@ -556,10 +556,18 @@ function contemTermo(conteudo, mon, pub) {
       if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
     }
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
+    const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
+    const nomeNorm = normalize(mon.termo_busca);
+    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
+    const oabDigits = String(mon.oab || "").replace(/\D/g, "");
+    if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
     for (const t of mon.termos_or || []) {
       const p = parsearTermoOr(t);
       if (!p) continue;
       if (validarAdvogadoMetadados(pub, p.oabDigits, p.nome)) return true;
+      const nn = normalize(p.nome);
+      if (nn && contemFrase(textoNorm, nn)) return true;
+      if (p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
     }
     return false;
   }
@@ -586,7 +594,9 @@ function condicaoConcomitanteAtendida(pub, mon, conteudo) {
   if (grupos.length === 0) return true;
   const textoNorm = mon.tipo === "parte"
     ? normalize(extrairPartesEstruturadas(pub).join("\n"))
-    : normalize(getConteudoPuro(pub));
+    : mon.tipo === "advogado"
+      ? normalize(buildTextoCompleto(pub, conteudo))
+      : normalize(getConteudoPuro(pub));
   if (!textoNorm) return mon.tipo !== "parte";
   return grupos.some((g) => {
     const ts = g.split(",").map((t) => t.trim()).filter(Boolean);
@@ -600,7 +610,9 @@ function shouldExclude(conteudo, mon, pub) {
   if (excs.length === 0) return false;
   const text = mon.tipo === "parte"
     ? normalize(extrairPartesEstruturadas(pub).join("\n"))
-    : normalize(getConteudoPuro(pub));
+    : mon.tipo === "advogado"
+      ? normalize(buildTextoCompleto(pub, conteudo))
+      : normalize(getConteudoPuro(pub));
   if (!text) return false;
   return excs.some((e) => {
     const n = normalize(e);
