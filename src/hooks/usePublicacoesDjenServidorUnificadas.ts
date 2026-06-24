@@ -1246,7 +1246,13 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
       // NÃO revalidar termo no client: a captura oficial já valida termo principal + termos_or.
       const resultadosFiltrados = await enriquecerPublicacoesComMonitoramento(resultados);
 
-      let deduped = dedupePublicacoesDjen(resultadosFiltrados);
+      // Não deduplicar sempre aqui: o controle "Mostrar somente únicas" é
+      // opcional e vem por `dedupServidor`. Quando a tela foca uma execução
+      // específica ("Ver N"), ela passa `dedupServidor=false` e precisa receber
+      // todas as linhas reais para o total visível bater com o card.
+      let deduped = filtros.dedupServidor === true
+        ? dedupePublicacoesDjen(resultadosFiltrados)
+        : resultadosFiltrados;
 
       // Se estamos filtrando apenas descartadas, garantir que só venham descartadas
       if (filtros.tipoOrigem === 'descartada') {
