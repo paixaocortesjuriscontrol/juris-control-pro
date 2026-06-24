@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-25-empty-cross-slot-retry";
+const ENGINE_VERSION = "2026-06-25-rescue-by-date-tribunal";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -290,6 +290,17 @@ function validarAdvogadoMetadados(pub, oab, nome) {
   const oabDigits = oab ? String(oab).replace(/\D/g, "") : "";
   const nomeNorm = nome ? normalize(nome) : "";
   for (const entry of advs) {
+    // advogados pode vir em 3 formatos:
+    // 1) { advogado: { nome, numero_oab, uf_oab } }  — formato API PJE Comunica
+    // 2) { nome, numero_oab, uf_oab }                — formato planificado
+    // 3) "OSMAR MENDES PAIXAO CORTES - OAB DF15553" — formato persistido em advogados_json
+    if (typeof entry === "string") {
+      const en = normalize(entry);
+      if (!en) continue;
+      if (oabDigits && en.includes(oabDigits)) return true;
+      if (nomeNorm && contemFrase(en, nomeNorm)) return true;
+      continue;
+    }
     const adv = entry?.advogado || entry;
     if (!adv) continue;
     if (oabDigits && adv.numero_oab && String(adv.numero_oab).replace(/\D/g, "") === oabDigits) return true;
@@ -328,61 +339,74 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(sb, mon, dia, tr
   if (!mon?.coordenacao_id) return [];
   const tipo = mapTipo(mon.tipo);
   if (!MAIN_TIPOS.includes(tipo)) return [];
-  const termosBusca = tipo === "parte"
-    ? termosDeParte(mon)
-    : [mon.termo_busca, ...(mon.termos_or || []).map((t) => parsearTermoOr(t)?.nome || String(t || ""))]
-      .map((t) => String(t || "").trim())
-      .filter((t, idx, arr) => t && arr.findIndex((x) => normalize(x) === normalize(t)) === idx);
+  // RESGATE DETERMINÍSTICO (v2): em vez de filtrar com `.or(conteudo.ilike,
+  // advogados_json.ilike, partes_json.ilike)` — que falha em colunas JSONB e
+  // não acha publicações cujo termo aparece só nos metadados estruturados —
+  // buscamos TODAS as publicações daquele tribunal+dia em outras coordenações
+  // (browser E servidor) e validamos em memória com a mesma função do termo.
+  // Em lotes pequenos para não estourar memória nem o limite de 1000 linhas.
+  const termosBuscaParte = tipo === "parte" ? termosDeParte(mon) : [];
   const resgatadas = new Map();
-  for (const termo of termosBusca) {
-    const termoEsc = String(termo).replace(/[%_,()]/g, "");
-    const orFilter = [
-      `conteudo.ilike.%${termoEsc}%`,
-      `advogados_json.ilike.%${termoEsc}%`,
-      `partes_json.ilike.%${termoEsc}%`,
-    ].join(",");
-    const { data, error } = await sb
-      .from("publicacoes_djen")
-      .select("id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id")
-      .eq("status", "encontrada")
-      .eq("tribunal", tribunal)
-      .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
-      .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
-      .neq("coordenacao_id", mon.coordenacao_id)
-      .or(orFilter)
-      .limit(500);
-    if (error) {
-      log?.("paralela.resgate_outra_coord_error", { monitoramentoId: mon.id, tribunal, dia, termo, error: error.message });
-      continue;
+  const BATCH = 1000;
+  const cols = "id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id";
+  const collect = async (table) => {
+    let from = 0;
+    while (true) {
+      let q = sb
+        .from(table)
+        .select(cols)
+        .eq("tribunal", tribunal)
+        .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
+        .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
+        .neq("coordenacao_id", mon.coordenacao_id)
+        .range(from, from + BATCH - 1);
+      if (table === "publicacoes_djen") q = q.eq("status", "encontrada");
+      const { data, error } = await q;
+      if (error) {
+        log?.("paralela.resgate_query_error", { table, monitoramentoId: mon.id, tribunal, dia, error: error.message });
+        return;
+      }
+      const rows = data || [];
+      for (const row of rows) {
+        const candidato = {
+          ...row,
+          id: row.id_djen || row.id,
+          texto: row.conteudo,
+          dataDisponibilizacao: row.data_disponibilizacao,
+          dataPublicacao: row.data_publicacao,
+          siglaTribunal: row.tribunal,
+          numeroProcesso: row.processo_numero,
+          destinatarioadvogados: row.advogados_json,
+          advogados: row.advogados_json,
+          destinatarios: row.partes_json,
+          partes: row.partes_json,
+        };
+        const conteudoCand = getConteudo(candidato);
+        let casa = false;
+        if (tipo === "parte") {
+          casa = termosBuscaParte.some((t) => validarParteMetadados(candidato, t) || validarParteSecaoPartes(candidato, t));
+        } else {
+          casa = contemTermo(conteudoCand, { ...mon, tipo }, candidato);
+        }
+        if (!casa) continue;
+        if (shouldExclude(conteudoCand, { ...mon, tipo }, candidato)) continue;
+        if (!condicaoConcomitanteAtendida(candidato, { ...mon, tipo }, conteudoCand)) continue;
+        const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${table}:${row.id}`;
+        if (resgatadas.has(key)) continue;
+        resgatadas.set(key, {
+          ...candidato,
+          ...(tipo === "parte" ? { __matchedByNomeParte: true } : {}),
+          __resgatadaDeOutraCoordenacao: row.coordenacao_id,
+          __resgatadaDeFonte: table,
+        });
+      }
+      if (rows.length < BATCH) break;
+      from += BATCH;
+      if (from > 10000) break; // sanity
     }
-    for (const row of data || []) {
-      const candidato = {
-        ...row,
-        id: row.id_djen || row.id,
-        texto: row.conteudo,
-        dataDisponibilizacao: row.data_disponibilizacao,
-        dataPublicacao: row.data_publicacao,
-        siglaTribunal: row.tribunal,
-        numeroProcesso: row.processo_numero,
-        destinatarioadvogados: row.advogados_json,
-        advogados: row.advogados_json,
-        destinatarios: row.partes_json,
-        partes: row.partes_json,
-      };
-      const casa = tipo === "parte"
-        ? termosBusca.some((t) => validarParteMetadados(candidato, t) || validarParteSecaoPartes(candidato, t))
-        : contemTermo(getConteudo(candidato), { ...mon, tipo }, candidato);
-      if (!casa) continue;
-      if (shouldExclude(getConteudo(candidato), { ...mon, tipo }, candidato)) continue;
-      if (!condicaoConcomitanteAtendida(candidato, { ...mon, tipo }, getConteudo(candidato))) continue;
-      const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${row.id}`;
-      resgatadas.set(key, {
-        ...candidato,
-        ...(tipo === "parte" ? { __matchedByNomeParte: true } : {}),
-        __resgatadaDeOutraCoordenacao: row.coordenacao_id,
-      });
-    }
-  }
+  };
+  await collect("publicacoes_djen");
+  await collect("publicacoes_djen_servidor");
   return Array.from(resgatadas.values());
 }
 
