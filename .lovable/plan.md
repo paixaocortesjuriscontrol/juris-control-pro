@@ -1,62 +1,80 @@
+
 ## Objetivo
 
-Corrigir 2 causas reais de divergência DJEN Browser × Servidor:
+Permitir marcar processos como **Acompanhamento Especial**, fazendo a Judit consultar diariamente (na frequência definida pelo advogado) os andamentos — e opcionalmente baixar anexos — gerando notificação, tarefa e destaque visual.
 
-1. **Data normalizada em horário Brasília** — Servidor grava `00:00 UTC`, que vira 23/06 21:00 BRT e o comparador joga em outro dia (falso "só_servidor" do `650569963` da Vanessa TST).
-2. **Cobertura de busca por advogado quando `uf=TODAS`** — a chamada única `numeroOab=15553 + ufOab=TODAS + nomeAdvogado=OSMAR` está perdendo publicações regionais que a API devolve quando consultada apenas por `nomeAdvogado`. Caso confirmado: 1 publicação TJMG do processo 5004003-83.2023.8.13.0319 (a que tem OSMAR em `destinatarioadvogados` com OAB MG-164494/DF-15553) ficou de fora da coord Thomás.
+## 1. Banco de dados
 
-**Fora de escopo, conforme alinhamento:**
-- Kurier no Servidor.
-- Validação por conteúdo bruto (campo "Adv ‑ ..."): publicações que só citam o advogado no texto não devem ser capturadas pelo tipo `advogado`. As outras 3 pubs TJMG do mesmo processo permanecem corretamente fora da coord Thomás.
-- Lado Browser.
+Migration adicionando em `public.processos`:
 
----
+- `acompanhamento_especial boolean default false`
+- `acompanhamento_freq_diaria smallint default 1` (1 a 6 — quantas vezes ao dia)
+- `acompanhamento_com_anexos boolean default false`
+- `acompanhamento_ativado_em timestamptz`
+- `acompanhamento_ultima_checagem_em timestamptz`
+- `acompanhamento_ultimo_step_date timestamptz` (para detectar novidades)
 
-## Mudanças
+Nova tabela `public.acompanhamento_especial_eventos` (histórico do que a Judit trouxe de novo):
+- `id`, `processo_id` (FK), `step_id`, `step_date`, `conteudo`, `instancia`, `tribunal`, `anexos_count`, `criou_tarefa_id`, `notificou_em`, `criado_em`.
+- GRANTs para `authenticated` (SELECT) e `service_role` (ALL); RLS por coordenação do processo.
 
-### 1. Normalizar `data_disponibilizacao` para BRT 12:00
-**Arquivo:** `monitor-servidor/engines/paralela.js`
+## 2. Toggle na tela do processo
 
-- Em `persistPublicacoes` e `registrarDescartadaServidor`, gravar `data_disponibilizacao` como `YYYY-MM-DDT12:00:00-03:00` (= `15:00:00Z` em UTC), reaproveitando `nextBusinessDateYmd` para a parte da data.
-- Chave única `(coordenacao_id, id_djen)` não é afetada.
+Em `src/components/processos/` (ao lado de `MonitoramentoToggle`): novo componente `AcompanhamentoEspecialToggle` com:
 
-### 2. Backfill (UPDATE, sem schema)
+- Switch principal "Acompanhamento Especial".
+- Quando ligado, expande: input numérico (1–6) "vezes por dia" + switch "Baixar anexos automaticamente".
+- Salva direto em `processos` com toast de confirmação.
 
-```sql
-UPDATE publicacoes_djen_servidor
-SET data_disponibilizacao = date_trunc('day', data_disponibilizacao AT TIME ZONE 'UTC') + interval '15 hours'
-WHERE data_disponibilizacao >= now() - interval '30 days'
-  AND EXTRACT(HOUR FROM data_disponibilizacao AT TIME ZONE 'UTC') = 0;
+## 3. Edge Function `judit-acompanhamento-especial`
 
-UPDATE publicacoes_djen_descartadas
-SET data_disponibilizacao = date_trunc('day', data_disponibilizacao AT TIME ZONE 'UTC') + interval '15 hours'
-WHERE data_disponibilizacao >= now() - interval '30 days'
-  AND EXTRACT(HOUR FROM data_disponibilizacao AT TIME ZONE 'UTC') = 0;
-```
+Reaproveita o padrão já existente em `judit-processo-interno`:
 
-### 3. Suplemento por nome quando `uf=TODAS` (advogado com OAB)
-**Arquivo:** `monitor-servidor/engines/paralela.js`
+1. Lista processos com `acompanhamento_especial = true` cuja última checagem é mais antiga que `24h / freq`.
+2. Para cada um, chama Judit (`with_attachments` conforme flag do processo).
+3. Compara `steps` retornados contra `acompanhamento_ultimo_step_date`. Só os mais novos são considerados.
+4. Para cada novo step:
+   - Insere em `acompanhamento_especial_eventos`.
+   - Cria notificação em `notificacoes` para o(s) responsável(is) do processo (sino).
+   - Cria tarefa em `tarefas` vinculada ao processo (tipo "Acompanhar andamento") atribuída ao responsável.
+   - Envia e-mail via app emails (template `acompanhamento-especial-novidade`) ao responsável.
+5. Se houve anexos novos e a flag estiver ligada, persiste em `judit_anexos`.
+6. Atualiza `acompanhamento_ultima_checagem_em` e `acompanhamento_ultimo_step_date`.
 
-- Para `tipo=advogado` com `oab` preenchida **e `uf=TODAS`**, além da chamada `numeroOab + ufOab=TODAS + nomeAdvogado`, executar chamada complementar **apenas por `nomeAdvogado`** (sem OAB) e mesclar por `id_djen`.
-- Validação segue exclusivamente via metadados estruturados (`destinatarioadvogados[].advogado.nome` normalizado vs termo normalizado) — **sem ler `conteudo`**.
-- Aplicar `parsearTermoOr` (suporta `310314/OSMAR MENDES PAIXAO CORTES`).
-- Respeitar `delay_between_variants` entre as duas chamadas.
+## 4. Agendamento (pg_cron)
 
-Resultado: a pub TJMG `649843498` (única do processo com OSMAR em `destinatarioadvogados`) passa a ser capturada na coord Thomás. As outras 3 do mesmo processo seguem fora — correto.
+Um único cron rodando de hora em hora chama a edge function. A função decide quais processos processar pela conta `(24 / freq)` desde a última checagem — assim respeita a frequência individual sem precisar de cron por processo.
 
----
+## 5. Exibição no Painel de Controle
 
-## Validação
+Novo card "Acompanhamento Especial — Novidades" em `src/pages/Index.tsx` (Painel) listando os últimos eventos não lidos da coordenação do usuário (top 10 + link "ver tudo"). Cada item: processo, data do andamento, trecho do conteúdo, badge se trouxe anexo, ação "marcar como lido".
 
-Após `git pull` + `pm2 restart jc-monitor-servidor`:
+## 6. Aba "Andamentos" no detalhe do processo
 
-1. **Data:** comparador deixa de listar `650569963` como "só_servidor" para Vanessa TST.
-2. **Cobertura:** re-rodar coord Dr. Thomás → confirmar que **1** id_djen TJMG do processo 5004003-83.2023.8.13.0319 (o que tem OSMAR em `destinatarioadvogados`) aparece em `publicacoes_djen_servidor` com `coordenacao_id` da Thomás.
-3. Diferenças remanescentes esperadas para Thomás: 2 Kurier + 3 TJMG sem OSMAR em metadados (todas legítimas).
+Em `src/components/processos/` (aba de andamentos do processo aberto): seção destacada "Acompanhamento Especial" mostrando os eventos de `acompanhamento_especial_eventos` daquele processo em ordem cronológica, com indicador visual diferenciado dos demais andamentos.
 
----
+## 7. Notificações e tarefas
 
-## Notas
+- **Sino**: insere em `notificacoes` com `tipo = 'acompanhamento_especial'`, link direto pro processo.
+- **Tarefa**: insere em `tarefas` (`tipo` "Acompanhar andamento", prazo +2 dias úteis, responsável = responsável do processo).
+- **E-mail**: template React Email novo `acompanhamento-especial-novidade.tsx` com número do processo, data do andamento, resumo e botão "Abrir processo".
 
-- Memory a atualizar: `mem://logic/djen/publication-date-and-timezone-normalization` (Servidor grava BRT 12:00 = 15:00 UTC) e `mem://features/monitoring/djen-servidor-pagination-parity` (suplemento por nome quando `uf=TODAS` mesmo com OAB).
-- Não consultar `publicacoes_djen` em nenhum ponto (mantém isolamento Browser × Servidor).
+## 8. Custos Judit
+
+Aviso visível ao ligar o toggle: "Cada checagem consome créditos Judit. Frequência alta multiplica o consumo." Anexos = consumo adicional.
+
+## Detalhes técnicos
+
+- Edge function: Deno, `verify_jwt = true`, importa `npm:@supabase/supabase-js@2`, usa `JUDIT_API_KEY` já configurado.
+- Detecção de novidade: `step_date > acompanhamento_ultimo_step_date` (UTC).
+- Idempotência: chave única `(processo_id, step_id)` em `acompanhamento_especial_eventos` evita duplicar notificação se a Judit reenviar o mesmo step.
+- E-mail: idempotency key `acomp-esp-<processo_id>-<step_id>`.
+- Respeita isolamento por coordenação (memória `coordination-data-isolation`).
+- Sem leitura de `publicacoes_djen*` (não relacionado).
+- Tarefa criada respeita `tarefa_responsaveis` (pode ter mais de um).
+
+## Fora de escopo nesta primeira versão
+
+- Marcação em lote na lista de processos (fica para depois, conforme resposta do usuário — só toggle individual agora).
+- Regras automáticas (valor da causa, cliente).
+- Dashboard de consumo Judit por processo (pode ser adicionado depois).
