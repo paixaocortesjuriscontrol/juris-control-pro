@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-25-tst-advogado-supplement";
+const ENGINE_VERSION = "2026-06-25-empty-cross-slot-retry";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -335,6 +335,12 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(sb, mon, dia, tr
       .filter((t, idx, arr) => t && arr.findIndex((x) => normalize(x) === normalize(t)) === idx);
   const resgatadas = new Map();
   for (const termo of termosBusca) {
+    const termoEsc = String(termo).replace(/[%_,()]/g, "");
+    const orFilter = [
+      `conteudo.ilike.%${termoEsc}%`,
+      `advogados_json.ilike.%${termoEsc}%`,
+      `partes_json.ilike.%${termoEsc}%`,
+    ].join(",");
     const { data, error } = await sb
       .from("publicacoes_djen")
       .select("id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id")
@@ -343,8 +349,8 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(sb, mon, dia, tr
       .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
       .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
       .neq("coordenacao_id", mon.coordenacao_id)
-      .ilike("conteudo", `%${termo}%`)
-      .limit(300);
+      .or(orFilter)
+      .limit(500);
     if (error) {
       log?.("paralela.resgate_outra_coord_error", { monitoramentoId: mon.id, tribunal, dia, termo, error: error.message });
       continue;
@@ -1126,6 +1132,38 @@ async function run({ sb, payload, log, job }) {
               }
               if (!recovered) throw lastErr;
               pubs = recovered;
+            }
+            // Failover por "VPS retornou vazio sem erro": espelha o browser,
+            // que repete a busca pela rota direta antes de considerar zero.
+            // No servidor não há rota direta — usamos outra VPS do pool e
+            // deduplicamos por id_djen. Só aplica a tipos principais (parte,
+            // advogado, palavra-chave); 'processo' fica fora porque API tem
+            // resposta determinística.
+            if (
+              !cancelled && !signal.aborted &&
+              MAIN_TIPOS.includes(item.tipo) &&
+              Array.isArray(pubs) && pubs.length === 0 &&
+              slots.length > 1
+            ) {
+              const outros = slots.filter((s) => s.id !== slot.id);
+              for (const alt of outros) {
+                if (cancelled || signal.aborted) break;
+                try {
+                  const altPubs = await buscarTermo(alt, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
+                  if (Array.isArray(altPubs) && altPubs.length > 0) {
+                    log("paralela.empty_cross_slot_rescue", {
+                      execucaoId: job?.id || null, monitoramentoId: mon.id, tribunal: item.tribunal, dia,
+                      slotZero: slot.label || slot.url, slotResgate: alt.label || alt.url, encontrados: altPubs.length,
+                    });
+                    pubs = altPubs;
+                    break;
+                  }
+                } catch (altErr) {
+                  const altMsg = String(altErr?.message || altErr || "");
+                  if (cancelled || signal.aborted) break;
+                  log("paralela.empty_cross_slot_fail", { slot: alt.label || alt.url, tribunal: item.tribunal, dia, e: altMsg.slice(0, 160) });
+                }
+              }
             }
             log("paralela.termo_result", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length });
             const stats = await persistPublicacoes(sb, pubs, { ...mon, tipo: item.tipo, __log: log }, item.tribunal, dia, job?.id || null);

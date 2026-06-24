@@ -421,6 +421,9 @@ export interface ComparadorAnaliseRelatorio {
     id_djen: string | null;
     monitoramento_id: string | null;
     termo_busca: string | null;
+    capturado_em: string | null;
+    execucao_id_servidor: string | null;
+    provavel_causa: string | null;
   }>;
 }
 
@@ -438,7 +441,7 @@ export function useComparadorAnalise() {
       origem?: "todos" | "termos" | "pautas" | "kurier";
     }): Promise<ComparadorAnaliseRelatorio> => {
       const baseCols =
-        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, data_publicacao, tipo_publicacao";
+        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, data_publicacao, tipo_publicacao, created_at";
       const inicioDispoTs = `${opts.dataInicio}T00:00:00Z`;
       const fimDispoTs = `${opts.dataFim}T23:59:59Z`;
       const origem = opts.origem || "todos";
@@ -507,7 +510,7 @@ export function useComparadorAnalise() {
         servQ,
         browQ,
         supabase.from("coordenacoes").select("id, nome"),
-        supabase.from("monitoramentos_djen").select("id, tipo, coordenacao_id, termo_busca"),
+        supabase.from("monitoramentos_djen").select("id, tipo, coordenacao_id, termo_busca, tribunais"),
         kurierQ,
         pautasQ,
         supabase.from("kurier_credencial_coordenacoes").select("credencial_id, coordenacao_id"),
@@ -529,6 +532,78 @@ export function useComparadorAnalise() {
       const monitTermo = new Map<string, string>(
         (monits.data || []).map((m: any) => [m.id, m.termo_busca || ""]),
       );
+      // Tribunais por coordenação: união dos tribunais configurados nos
+      // monitoramentos ativos dessa coordenação. Usado para detectar quando
+      // uma publicação do Browser vem de tribunal que o Servidor não cobriria.
+      const tribunaisPorCoord = new Map<string, Set<string>>();
+      const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
+      const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
+      const expandirTribs = (arr: unknown): string[] => {
+        if (!Array.isArray(arr)) return [];
+        const out: string[] = [];
+        for (const t of arr as string[]) {
+          if (t === "TODOS_CIVEIS") out.push(...TODOS_CIVEIS);
+          else if (t === "TODOS_TRT") out.push(...TODOS_TRT);
+          else if (typeof t === "string" && t.trim()) out.push(t.trim().toUpperCase());
+        }
+        return out;
+      };
+      for (const m of (monits.data || []) as Array<{ coordenacao_id?: string; tribunais?: string[] }>) {
+        const cid = m.coordenacao_id || "sem_coord";
+        let set = tribunaisPorCoord.get(cid);
+        if (!set) { set = new Set(); tribunaisPorCoord.set(cid, set); }
+        for (const t of expandirTribs(m.tribunais)) set.add(t);
+      }
+
+      // Execuções servidor da janela (para causa "sem_execucao" / "antes_da_execucao")
+      let execQ = supabase
+        .from("execucoes_servidor")
+        .select("id, payload, finalizado_em, status, agendado_para")
+        .eq("tipo", "djen_paralela_servidor")
+        .gte("agendado_para", `${opts.dataInicio}T00:00:00Z`)
+        .lte("agendado_para", `${opts.dataFim}T23:59:59Z`)
+        .in("status", ["concluido", "executando"])
+        .limit(2000);
+      const execRes = await execQ;
+      const ultimaExecPorCoordDia = new Map<string, string>(); // key coord|diaYmd -> finalizado_em ISO
+      for (const e of (execRes.data || []) as Array<{ payload: any; finalizado_em: string | null }>) {
+        const p = e.payload || {};
+        const cid = p.coordenacaoId || null;
+        const di = String(p.dataInicio || p.diarioYmd || "").slice(0, 10);
+        const df = String(p.dataFim || p.diarioYmd || di).slice(0, 10);
+        if (!cid || !di) continue;
+        const dias: string[] = [];
+        const start = new Date(`${di}T12:00:00Z`);
+        const end = new Date(`${df || di}T12:00:00Z`);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end >= start) {
+          for (const cur = new Date(start); cur <= end; cur.setUTCDate(cur.getUTCDate() + 1)) {
+            dias.push(cur.toISOString().slice(0, 10));
+          }
+        }
+        for (const dia of dias) {
+          const key = `${cid}|${dia}`;
+          const prev = ultimaExecPorCoordDia.get(key);
+          const fim = e.finalizado_em || "";
+          if (!prev || (fim && fim > prev)) ultimaExecPorCoordDia.set(key, fim);
+        }
+      }
+
+      const provavelCausa = (origem: "so_servidor" | "so_browser", r: Row): string => {
+        const cid = r.coordenacao_id || "sem_coord";
+        if (origem === "so_servidor") return "faltou_no_browser";
+        // so_browser
+        const dia = String(r.data_disponibilizacao || "").slice(0, 10);
+        const tribunaisCoord = tribunaisPorCoord.get(cid);
+        const trib = (r.tribunal || "").toUpperCase();
+        if (tribunaisCoord && tribunaisCoord.size > 0 && trib && !tribunaisCoord.has(trib)) {
+          return "tribunal_fora_do_monitoramento_servidor";
+        }
+        const ultima = ultimaExecPorCoordDia.get(`${cid}|${dia}`);
+        if (!ultima) return "sem_execucao_servidor_para_esta_data";
+        const cap = r.created_at || "";
+        if (cap && cap > ultima) return "browser_capturou_depois_da_ultima_execucao_servidor";
+        return "possivel_proxy_vazio_ou_api_instavel";
+      };
 
       type Row = {
         coordenacao_id?: string | null;
@@ -542,6 +617,7 @@ export function useComparadorAnalise() {
         tribunal?: string | null;
         data_publicacao?: string | null;
         data_disponibilizacao?: string | null;
+        created_at?: string | null;
       };
 
       // Dedup SEMPRE isolada por coordenação. A mesma publicação pode aparecer
@@ -749,6 +825,9 @@ export function useComparadorAnalise() {
           id_djen: r.id_djen || null,
           monitoramento_id: r.monitoramento_id || null,
           termo_busca: (r.monitoramento_id && monitTermo.get(r.monitoramento_id)) || null,
+          capturado_em: r.created_at || null,
+          execucao_id_servidor: null,
+          provavel_causa: provavelCausa("so_servidor", r),
         });
       }
       for (const [k, r] of bByKey) {
@@ -767,6 +846,9 @@ export function useComparadorAnalise() {
           id_djen: r.id_djen || null,
           monitoramento_id: r.monitoramento_id || null,
           termo_busca: (r.monitoramento_id && monitTermo.get(r.monitoramento_id)) || null,
+          capturado_em: r.created_at || null,
+          execucao_id_servidor: null,
+          provavel_causa: provavelCausa("so_browser", r),
         });
       }
       detalhes.sort((a, b) => {
