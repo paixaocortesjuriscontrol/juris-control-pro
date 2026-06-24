@@ -1581,8 +1581,20 @@ export default function DistribuicaoTst() {
               onClick: () => handleCardClick("multiResp"),
             } : null}
             responsavelCard={(() => {
-              const me = user?.id ? responsavelCounts.find(c => c.id === user.id) : null;
-              return { atribuidos: me?.count ?? 0, prontos: me?.pronto ?? 0 };
+              // Quando há exatamente UM responsável selecionado no filtro,
+              // o card reflete esse responsável (útil para o admin trocar e
+              // ver os totais de outra pessoa). Caso contrário, mostra o
+              // usuário logado.
+              const targetId = filtroResponsavelIds.length === 1
+                ? filtroResponsavelIds[0]
+                : user?.id;
+              const alvo = targetId ? responsavelCounts.find(c => c.id === targetId) : null;
+              const nome = alvo?.nome;
+              return {
+                atribuidos: alvo?.count ?? 0,
+                prontos: alvo?.pronto ?? 0,
+                nome: filtroResponsavelIds.length === 1 ? nome : undefined,
+              } as any;
             })()}
             onResponsavelClick={() => {
               if (!user?.id) return;
