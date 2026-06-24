@@ -547,9 +547,24 @@ function ComparadorPanel() {
 
   const exportarRelatorioCsv = () => {
     if (!data) return;
-    const header1 = "# Comparador DJEN Servidor x Browser — comparação por publicação (coordenacao + id_djen)\n# Quebra abaixo é diagnóstico secundário por tipo de monitoramento que capturou a publicação\n";
-    const cols1 = "coordenacao,tipo_pesquisa,total_servidor,total_browser,em_ambos,so_servidor,so_browser\n";
-    const body1 = data.linhas
+    const header1 = "# Comparador DJEN Servidor x Browser — comparação GLOBAL por publicação (coordenacao + id_djen), sem separação por tipo\n";
+    const cols1 = "coordenacao,total_servidor,total_browser,em_ambos,so_servidor,so_browser,djen_unico\n";
+    const body1 = data.globalLinhas
+      .map((l) =>
+        [
+          JSON.stringify(l.coordenacaoNome),
+          l.totalServidor,
+          l.totalBrowser,
+          l.emAmbos,
+          l.soServidor,
+          l.soBrowser,
+          l.djenUnico,
+        ].join(","),
+      )
+      .join("\n");
+    const headerDiag = "\n\n# Quebra por tipo de monitoramento (diagnóstico secundário: tipo que capturou a publicação)\n";
+    const colsDiag = "coordenacao,tipo_pesquisa,total_servidor,total_browser,em_ambos,so_servidor,so_browser\n";
+    const bodyDiag = data.linhas
       .map((l) =>
         [
           JSON.stringify(l.coordenacaoNome),
@@ -588,7 +603,7 @@ function ComparadorPanel() {
       ].join(","))
       .join("\n");
     const blob = new Blob(
-      [header1 + cols1 + body1 + header2 + cols2 + body2 + totais + header3 + cols3 + body3 + "\n"],
+      [header1 + cols1 + body1 + headerDiag + colsDiag + bodyDiag + header2 + cols2 + body2 + totais + header3 + cols3 + body3 + "\n"],
       { type: "text/csv" },
     );
     const url = URL.createObjectURL(blob);
@@ -612,9 +627,9 @@ function ComparadorPanel() {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2"><GitCompare className="h-4 w-4" /> Comparador Servidor × Browser</CardTitle>
         <CardDescription>
-          A comparação principal é <strong>por publicação</strong> usando a chave <code>coordenação + id_djen</code>.
-          A quebra por <em>tipo de pesquisa</em> (advogado, parte, palavra-chave, processo) é apenas um diagnóstico
-          secundário do monitoramento que capturou a publicação — não altera os totais globais.
+          O primeiro quadro e os cards são a comparação <strong>global por publicação</strong>, usando somente
+          <code> coordenação + id_djen</code>, sem separar advogado/parte/palavra-chave. A quebra por tipo é só
+          diagnóstico secundário do monitoramento que capturou a publicação.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -682,6 +697,43 @@ function ComparadorPanel() {
             </div>
 
             <div className="space-y-2">
+              <h3 className="text-sm font-semibold">Comparação global por publicação (coordenação + id_djen)</h3>
+              {data.globalLinhas.length > 0 && (
+                <div className="border rounded-md overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Coordenação</TableHead>
+                        <TableHead className="text-right">Servidor</TableHead>
+                        <TableHead className="text-right">Browser</TableHead>
+                        <TableHead className="text-right">Em ambos</TableHead>
+                        <TableHead className="text-right">Só Servidor</TableHead>
+                        <TableHead className="text-right">Só Browser</TableHead>
+                        <TableHead className="text-right">DJEN único</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.globalLinhas.map((l) => (
+                        <TableRow key={`global-${l.coordenacaoId}`}>
+                          <TableCell className="font-medium">{l.coordenacaoNome}</TableCell>
+                          <TableCell className="text-right">{l.totalServidor}</TableCell>
+                          <TableCell className="text-right">{l.totalBrowser}</TableCell>
+                          <TableCell className="text-right">{l.emAmbos}</TableCell>
+                          <TableCell className="text-right text-emerald-700">{l.soServidor}</TableCell>
+                          <TableCell className="text-right text-amber-700">{l.soBrowser}</TableCell>
+                          <TableCell className="text-right font-medium text-primary">{l.djenUnico}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                Esta é a leitura principal: cada linha conta chaves únicas <code>coordenação + id_djen</code>, independentemente do tipo de termo que encontrou a publicação.
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <h3 className="text-sm font-semibold">Resumo por fonte de busca</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">DJEN (único servidor+browser)</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-primary">{data.porFonte.totais.djenUnico}</CardContent></Card>
@@ -735,40 +787,43 @@ function ComparadorPanel() {
             {data.linhas.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma publicação no período para os critérios selecionados.</p>
             ) : (
-              <div className="border rounded-md overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Coordenação</TableHead>
-                      <TableHead>Tipo de pesquisa</TableHead>
-                      <TableHead className="text-right">Servidor</TableHead>
-                      <TableHead className="text-right">Browser</TableHead>
-                      <TableHead className="text-right">Em ambos</TableHead>
-                      <TableHead className="text-right">Só Servidor</TableHead>
-                      <TableHead className="text-right">Só Browser</TableHead>
-                      <TableHead className="text-right">Diferença</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.linhas.map((l) => {
-                      const diff = l.soServidor - l.soBrowser;
-                      return (
-                        <TableRow key={`${l.coordenacaoId}-${l.tipo}`}>
-                          <TableCell className="font-medium">{l.coordenacaoNome}</TableCell>
-                          <TableCell><Badge variant="outline">{tipoLabel[l.tipo] || l.tipo}</Badge></TableCell>
-                          <TableCell className="text-right">{l.totalServidor}</TableCell>
-                          <TableCell className="text-right">{l.totalBrowser}</TableCell>
-                          <TableCell className="text-right">{l.emAmbos}</TableCell>
-                          <TableCell className="text-right text-emerald-700">{l.soServidor}</TableCell>
-                          <TableCell className="text-right text-amber-700">{l.soBrowser}</TableCell>
-                          <TableCell className={cn("text-right font-medium", diff > 0 ? "text-emerald-700" : diff < 0 ? "text-destructive" : "text-muted-foreground")}>
-                            {diff > 0 ? `+${diff}` : diff}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold">Quebra por tipo de monitoramento (diagnóstico)</h3>
+                <div className="border rounded-md overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Coordenação</TableHead>
+                        <TableHead>Tipo de pesquisa</TableHead>
+                        <TableHead className="text-right">Servidor</TableHead>
+                        <TableHead className="text-right">Browser</TableHead>
+                        <TableHead className="text-right">Em ambos</TableHead>
+                        <TableHead className="text-right">Só Servidor</TableHead>
+                        <TableHead className="text-right">Só Browser</TableHead>
+                        <TableHead className="text-right">Diferença</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.linhas.map((l) => {
+                        const diff = l.soServidor - l.soBrowser;
+                        return (
+                          <TableRow key={`${l.coordenacaoId}-${l.tipo}`}>
+                            <TableCell className="font-medium">{l.coordenacaoNome}</TableCell>
+                            <TableCell><Badge variant="outline">{tipoLabel[l.tipo] || l.tipo}</Badge></TableCell>
+                            <TableCell className="text-right">{l.totalServidor}</TableCell>
+                            <TableCell className="text-right">{l.totalBrowser}</TableCell>
+                            <TableCell className="text-right">{l.emAmbos}</TableCell>
+                            <TableCell className="text-right text-emerald-700">{l.soServidor}</TableCell>
+                            <TableCell className="text-right text-amber-700">{l.soBrowser}</TableCell>
+                            <TableCell className={cn("text-right font-medium", diff > 0 ? "text-emerald-700" : diff < 0 ? "text-destructive" : "text-muted-foreground")}>
+                              {diff > 0 ? `+${diff}` : diff}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             )}
 
