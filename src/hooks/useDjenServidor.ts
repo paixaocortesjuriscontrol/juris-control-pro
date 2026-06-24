@@ -441,7 +441,7 @@ export function useComparadorAnalise() {
       origem?: "todos" | "termos" | "pautas" | "kurier";
     }): Promise<ComparadorAnaliseRelatorio> => {
       const baseCols =
-        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, data_publicacao, tipo_publicacao";
+        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, data_publicacao, tipo_publicacao, created_at";
       const inicioDispoTs = `${opts.dataInicio}T00:00:00Z`;
       const fimDispoTs = `${opts.dataFim}T23:59:59Z`;
       const origem = opts.origem || "todos";
@@ -545,6 +545,7 @@ export function useComparadorAnalise() {
         tribunal?: string | null;
         data_publicacao?: string | null;
         data_disponibilizacao?: string | null;
+        created_at?: string | null;
       };
 
       // Dedup SEMPRE isolada por coordenação. A mesma publicação pode aparecer
