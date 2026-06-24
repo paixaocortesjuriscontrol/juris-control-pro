@@ -421,6 +421,9 @@ export interface ComparadorAnaliseRelatorio {
     id_djen: string | null;
     monitoramento_id: string | null;
     termo_busca: string | null;
+    capturado_em: string | null;
+    execucao_id_servidor: string | null;
+    provavel_causa: string | null;
   }>;
 }
 
