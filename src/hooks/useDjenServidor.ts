@@ -399,6 +399,16 @@ export interface ComparadorAnaliseRelatorio {
       pautas: number | null; // null = não atribuível por coord
     }>;
   };
+  detalhes: Array<{
+    coordenacaoId: string;
+    coordenacaoNome: string;
+    tipo: string;
+    origem: "so_servidor" | "so_browser";
+    processo_numero: string | null;
+    tribunal: string | null;
+    data_publicacao: string | null;
+    id_djen: string | null;
+  }>;
 }
 
 /**
@@ -415,7 +425,7 @@ export function useComparadorAnalise() {
       origem?: "todos" | "termos" | "pautas" | "kurier";
     }): Promise<ComparadorAnaliseRelatorio> => {
       const baseCols =
-        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, tipo_publicacao";
+        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, data_publicacao, tipo_publicacao";
       const inicioDispoTs = `${opts.dataInicio}T00:00:00Z`;
       const fimDispoTs = `${opts.dataFim}T23:59:59Z`;
       const origem = opts.origem || "todos";
@@ -512,6 +522,10 @@ export function useComparadorAnalise() {
         dedup_processo_digits?: string | null;
         dedup_data_ref?: string | null;
         hash_conteudo: string;
+        processo_numero?: string | null;
+        tribunal?: string | null;
+        data_publicacao?: string | null;
+        data_disponibilizacao?: string | null;
       };
 
       // Dedup SEMPRE isolada por coordenação. A mesma publicação pode aparecer
