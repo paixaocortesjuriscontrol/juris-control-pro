@@ -588,22 +588,12 @@ export function useComparadorAnalise() {
         }
       }
 
-      const provavelCausa = (origem: "so_servidor" | "so_browser", r: Row): string => {
-        const cid = r.coordenacao_id || "sem_coord";
-        if (origem === "so_servidor") return "faltou_no_browser";
-        // so_browser
-        const dia = String(r.data_disponibilizacao || "").slice(0, 10);
-        const tribunaisCoord = tribunaisPorCoord.get(cid);
-        const trib = (r.tribunal || "").toUpperCase();
-        if (tribunaisCoord && tribunaisCoord.size > 0 && trib && !tribunaisCoord.has(trib)) {
-          return "tribunal_fora_do_monitoramento_servidor";
-        }
-        const ultima = ultimaExecPorCoordDia.get(`${cid}|${dia}`);
-        if (!ultima) return "sem_execucao_servidor_para_esta_data";
-        const cap = r.created_at || "";
-        if (cap && cap > ultima) return "browser_capturou_depois_da_ultima_execucao_servidor";
-        return "possivel_proxy_vazio_ou_api_instavel";
-      };
+      // Servidor + Browser já capturaram este id_djen em alguma coordenação? Se sim,
+      // e a coord atual não tem, é falha de resgate cross-coord (o dado existe no
+      // banco mas o motor não copiou para a coord). Isso é mais útil que o rótulo
+      // genérico "proxy vazio".
+      const idDjenServidorPorAlgumaCoord = new Set<string>();
+      const idDjenBrowserPorAlgumaCoord = new Set<string>();
 
       type Row = {
         coordenacao_id?: string | null;
@@ -638,6 +628,31 @@ export function useComparadorAnalise() {
 
       const sRows = (serv.data || []) as Row[];
       const bRows = (brow.data || []) as Row[];
+      for (const r of sRows) if (r.id_djen) idDjenServidorPorAlgumaCoord.add(String(r.id_djen));
+      for (const r of bRows) if (r.id_djen) idDjenBrowserPorAlgumaCoord.add(String(r.id_djen));
+
+      const provavelCausa = (origem: "so_servidor" | "so_browser", r: Row): string => {
+        const cid = r.coordenacao_id || "sem_coord";
+        if (origem === "so_servidor") return "faltou_no_browser";
+        // so_browser:
+        const dia = String(r.data_disponibilizacao || "").slice(0, 10);
+        const tribunaisCoord = tribunaisPorCoord.get(cid);
+        const trib = (r.tribunal || "").toUpperCase();
+        if (tribunaisCoord && tribunaisCoord.size > 0 && trib && !tribunaisCoord.has(trib)) {
+          return "tribunal_fora_do_monitoramento_servidor";
+        }
+        const ultima = ultimaExecPorCoordDia.get(`${cid}|${dia}`);
+        if (!ultima) return "sem_execucao_servidor_para_esta_data";
+        const cap = r.created_at || "";
+        if (cap && cap > ultima) return "browser_capturou_depois_da_ultima_execucao_servidor";
+        if (r.id_djen && idDjenServidorPorAlgumaCoord.has(String(r.id_djen))) {
+          return "falha_resgate_cross_coordenacao_servidor_ja_tem_id_em_outra_coord";
+        }
+        if (r.id_djen && idDjenBrowserPorAlgumaCoord.has(String(r.id_djen))) {
+          return "falha_resgate_cross_coordenacao_browser_tem_id_em_outra_coord";
+        }
+        return "possivel_proxy_vazio_ou_api_instavel";
+      };
 
       const sByKey = new Map(sRows.map((r) => [key(r), r] as const));
       const bByKey = new Map(bRows.map((r) => [key(r), r] as const));
