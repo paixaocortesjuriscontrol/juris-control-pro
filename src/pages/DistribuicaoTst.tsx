@@ -379,24 +379,13 @@ export default function DistribuicaoTst() {
   }, [JSON.stringify(debouncedFilters), page]);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
 
-  // Card "A fazer": sempre conta com base no usuário logado para não-admins.
-  // Para admins, respeita o filtro de responsável atual.
-  const aFazerFilters = useMemo(() => {
-    if (isAdmin || !user?.id) return debouncedFilters;
-    return { ...debouncedFilters, responsavelIds: [user.id] };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id]);
-  const { stats: statsAFazer } = useDistribuicaoTstStats(aFazerFilters);
-
-  // Total Geral e Prontos para Enviar (geral): ignoram o filtro de responsável
-  // (mostram sempre o total do escritório para os demais filtros selecionados).
-  const { stats: statsGeral } = useDistribuicaoTstStats(countsFilters);
-  const statsWithGeral = {
-    ...stats,
-    total: statsGeral.total,
-    prontoEnvio: statsGeral.prontoEnvio,
-    aFazer: statsAFazer.aFazer,
-  };
+  // Todos os cards (incluindo Total Geral, Prontos para Enviar e A fazer)
+  // devem refletir o responsável atualmente selecionado no filtro — assim,
+  // se uma advogada trocar o select para ajudar outra colega, os números
+  // mudam para o contexto da pessoa escolhida. Quando nenhum responsável
+  // está selecionado, mostra o total do escritório respeitando os demais
+  // filtros.
+  const statsWithGeral = stats;
 
   // Fetch distinct aba_origem and meses for tabs (lightweight queries)
   const [abas, setAbas] = useState<{ aba: string; count: number }[]>([]);
