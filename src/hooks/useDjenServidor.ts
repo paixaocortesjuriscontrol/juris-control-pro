@@ -407,7 +407,10 @@ export interface ComparadorAnaliseRelatorio {
     processo_numero: string | null;
     tribunal: string | null;
     data_publicacao: string | null;
+    data_disponibilizacao: string | null;
     id_djen: string | null;
+    monitoramento_id: string | null;
+    termo_busca: string | null;
   }>;
 }
 
