@@ -413,6 +413,36 @@ function mesclarItensPorId(destino, extras, mark = {}) {
   return added;
 }
 
+async function registrarDescartadaServidor(sb, pub, mon, tribunal, dia, motivo, execucaoId, logDebug) {
+  const conteudo = getConteudo(pub);
+  const idDjen = getIdDjen(pub);
+  const dataDisponibilizacao = getDataDisponibilizacao(pub, dia);
+  const processoNumero = extractProcesso(pub, conteudo);
+  const hashConteudo = generatePublicacaoHash(`${conteudo}|DESCARTADA:${motivo}`, dataDisponibilizacao, processoNumero, idDjen);
+  const metadata = metadataFromRaw(pub);
+  const row = {
+    monitoramento_id: mon.id,
+    coordenacao_id: mon.coordenacao_id || null,
+    hash_conteudo: hashConteudo,
+    id_djen: idDjen ? `desc:${mon.id}:${idDjen}` : null,
+    conteudo,
+    data_publicacao: nextBusinessDateYmd(dataDisponibilizacao),
+    data_disponibilizacao: dataDisponibilizacao,
+    processo_numero: processoNumero,
+    tribunal,
+    ...metadata,
+    origem: "servidor",
+    fonte: metadata.fonte || "DJEN-PARALELA-DESCARTADA",
+    tipo_publicacao: "descartada",
+    execucao_id: execucaoId || null,
+  };
+  const { error } = await sb.from("publicacoes_djen_servidor").upsert(row, {
+    onConflict: "coordenacao_id,id_djen",
+    ignoreDuplicates: true,
+  });
+  if (error) logDebug?.("paralela.descartada_persist_error", { monitoramentoId: mon.id, tribunal, dia, motivo, idDjen, error: error.message });
+}
+
 function validarParteMetadados(pub, nomeParte) {
   const nomeNorm = normalize(nomeParte);
   if (!nomeNorm) return false;
