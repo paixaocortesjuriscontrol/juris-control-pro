@@ -911,7 +911,8 @@ const AnaliseDjenServidor = () => {
         .from('monitoramentos_djen')
         .select('id, termo_busca, descricao, tipo, oab, uf, tribunais')
         .eq('coordenacao_id', coordenacaoFiltroEfetivo)
-        .eq('ativo', true);
+        .eq('ativo', true)
+        .eq('arquivado', false);
       if (error) throw error;
       const list = (data || []) as { id: string; termo_busca: string; descricao?: string; tipo?: string; oab?: string; uf?: string; tribunais?: string[] | null }[];
       const getLabel = (m: typeof list[0]) =>
