@@ -27,6 +27,7 @@ import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { MonitoramentoToggle } from "./MonitoramentoToggle";
+import { AcompanhamentoEspecialToggle } from "./AcompanhamentoEspecialToggle";
 import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
 import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
 import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
@@ -1217,6 +1218,14 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground">Prioridade DJEN</span>
             <MonitoramentoToggle processoId={processo.id} campo="prioridade_djen" valorInicial={!!(processo as any).prioridade_djen} />
+          </div>
+          <div className="w-full">
+            <AcompanhamentoEspecialToggle
+              processoId={processo.id}
+              acompanhamentoEspecial={!!(processo as any).acompanhamento_especial}
+              frequenciaDiaria={(processo as any).acompanhamento_freq_diaria ?? 1}
+              comAnexos={!!(processo as any).acompanhamento_com_anexos}
+            />
           </div>
         </div>
       )}
