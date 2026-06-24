@@ -414,6 +414,7 @@ function mesclarItensPorId(destino, extras, mark = {}) {
 }
 
 async function registrarDescartadaServidor(sb, pub, mon, tribunal, dia, motivo, execucaoId, logDebug) {
+  if (process.env.DJEN_SERVIDOR_PERSIST_DESCARTADAS !== "true") return;
   const conteudo = getConteudo(pub);
   const idDjen = getIdDjen(pub);
   const dataDisponibilizacao = getDataDisponibilizacao(pub, dia);
