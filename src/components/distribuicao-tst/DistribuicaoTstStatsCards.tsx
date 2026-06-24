@@ -54,15 +54,15 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
   const cards: CardDef[] = [
     // Azuis / Ciano / Teal / Sky
     { key: "total", label: "Total Geral", value: stats.total, className: "from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800", textClass: "text-blue-600 dark:text-blue-400" },
+    { key: "ate2025", label: "Até 2025", value: stats.ate2025, className: "from-sky-50 to-sky-100 dark:from-sky-950/50 dark:to-sky-900/30 border-sky-200 dark:border-sky-800", textClass: "text-sky-600 dark:text-sky-400" },
+    { key: "de2026", label: "2026 em diante", value: stats.de2026, className: "from-violet-50 to-violet-100 dark:from-violet-950/50 dark:to-violet-900/30 border-violet-200 dark:border-violet-800", textClass: "text-violet-600 dark:text-violet-400" },
     { key: "aFazer", label: "A fazer", value: stats.aFazer, className: "from-indigo-50 to-indigo-100 dark:from-indigo-950/50 dark:to-indigo-900/30 border-indigo-300 dark:border-indigo-700", textClass: "text-indigo-700 dark:text-indigo-300" },
     { key: "naoPrecisaFazer", label: "Não precisa fazer", value: stats.naoPrecisaFazer, className: "from-slate-50 to-slate-100 dark:from-slate-950/50 dark:to-slate-900/30 border-slate-300 dark:border-slate-700", textClass: "text-slate-700 dark:text-slate-300" },
     { key: "bennerSim", label: "Benner Enviado / Não", value: stats.bennerSim, className: "from-cyan-50 to-cyan-100 dark:from-cyan-950/50 dark:to-cyan-900/30 border-cyan-200 dark:border-cyan-800", textClass: "text-cyan-600 dark:text-cyan-400" },
     { key: "prontoEnvio", label: "Prontos para Enviar (geral)", value: stats.prontoEnvio, className: "from-teal-50 to-teal-100 dark:from-teal-950/50 dark:to-teal-900/30 border-teal-200 dark:border-teal-800", textClass: "text-teal-600 dark:text-teal-400" },
-    { key: "ate2025", label: "Até 2025", value: stats.ate2025, className: "from-sky-50 to-sky-100 dark:from-sky-950/50 dark:to-sky-900/30 border-sky-200 dark:border-sky-800", textClass: "text-sky-600 dark:text-sky-400" },
     // Roxos / Violeta
     { key: "processosUnicos", label: "Processos Únicos", value: stats.processosUnicos, className: "from-indigo-50 to-indigo-100 dark:from-indigo-950/50 dark:to-indigo-900/30 border-indigo-200 dark:border-indigo-800", textClass: "text-indigo-600 dark:text-indigo-400" },
     { key: "juditPreenchido", label: "Judit Preenchido / Não", value: stats.juditPreenchido, className: "from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/30 border-purple-200 dark:border-purple-800", textClass: "text-purple-600 dark:text-purple-400" },
-    { key: "de2026", label: "2026 em diante", value: stats.de2026, className: "from-violet-50 to-violet-100 dark:from-violet-950/50 dark:to-violet-900/30 border-violet-200 dark:border-violet-800", textClass: "text-violet-600 dark:text-violet-400" },
     // Verdes
     { key: "processosValidos", label: "Processos nº CNJ válidos", value: stats.processosValidos, className: "from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800", textClass: "text-emerald-600 dark:text-emerald-400" },
     { key: "dossiesValidos", label: "Dossiês Válidos", value: stats.dossiesValidos, className: "from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800", textClass: "text-emerald-600 dark:text-emerald-400" },
