@@ -324,6 +324,62 @@ function validarParteSecaoPartes(pub, nomeParte) {
   return secao.split(/\r?\n/).map((l) => normalize(l.trim())).some((ln) => ln.length >= 3 && contemFrase(ln, nomeNorm));
 }
 
+async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(sb, mon, dia, tribunal, log) {
+  if (!mon?.coordenacao_id) return [];
+  const tipo = mapTipo(mon.tipo);
+  if (!MAIN_TIPOS.includes(tipo)) return [];
+  const termosBusca = tipo === "parte"
+    ? termosDeParte(mon)
+    : [mon.termo_busca, ...(mon.termos_or || []).map((t) => parsearTermoOr(t)?.nome || String(t || ""))]
+      .map((t) => String(t || "").trim())
+      .filter((t, idx, arr) => t && arr.findIndex((x) => normalize(x) === normalize(t)) === idx);
+  const resgatadas = new Map();
+  for (const termo of termosBusca) {
+    const { data, error } = await sb
+      .from("publicacoes_djen")
+      .select("id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id")
+      .eq("status", "encontrada")
+      .eq("tribunal", tribunal)
+      .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
+      .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
+      .neq("coordenacao_id", mon.coordenacao_id)
+      .ilike("conteudo", `%${termo}%`)
+      .limit(300);
+    if (error) {
+      log?.("paralela.resgate_outra_coord_error", { monitoramentoId: mon.id, tribunal, dia, termo, error: error.message });
+      continue;
+    }
+    for (const row of data || []) {
+      const candidato = {
+        ...row,
+        id: row.id_djen || row.id,
+        texto: row.conteudo,
+        dataDisponibilizacao: row.data_disponibilizacao,
+        dataPublicacao: row.data_publicacao,
+        siglaTribunal: row.tribunal,
+        numeroProcesso: row.processo_numero,
+        destinatarioadvogados: row.advogados_json,
+        advogados: row.advogados_json,
+        destinatarios: row.partes_json,
+        partes: row.partes_json,
+      };
+      const casa = tipo === "parte"
+        ? termosBusca.some((t) => validarParteMetadados(candidato, t) || validarParteSecaoPartes(candidato, t))
+        : contemTermo(getConteudo(candidato), { ...mon, tipo }, candidato);
+      if (!casa) continue;
+      if (shouldExclude(getConteudo(candidato), { ...mon, tipo }, candidato)) continue;
+      if (!condicaoConcomitanteAtendida(candidato, { ...mon, tipo }, getConteudo(candidato))) continue;
+      const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${row.id}`;
+      resgatadas.set(key, {
+        ...candidato,
+        ...(tipo === "parte" ? { __matchedByNomeParte: true } : {}),
+        __resgatadaDeOutraCoordenacao: row.coordenacao_id,
+      });
+    }
+  }
+  return Array.from(resgatadas.values());
+}
+
 // Parse termos_or no formato "12345/NOME" ou "NOME/12345" ou "TJSP - Adv. NOME"
 function parsearTermoOr(raw) {
   const t = String(raw || "").trim();
@@ -714,6 +770,23 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
   return stats;
 }
 
+async function persistirResgatesOutraCoordenacao(sb, mon, tribunal, dia, execucaoId, log) {
+  const resgatadas = await buscarPublicacoesJaEncontradasEmOutraCoordenacao(sb, mon, dia, tribunal, log);
+  if (resgatadas.length === 0) return { novas: 0, descartadas: 0, duplicatas: 0, resgatadas: 0 };
+  const stats = await persistPublicacoes(sb, resgatadas, { ...mon, __log: log }, tribunal, dia, execucaoId);
+  log?.("paralela.resgate_outra_coord", {
+    execucaoId: execucaoId || null,
+    monitoramentoId: mon.id,
+    coordenacaoId: mon.coordenacao_id || null,
+    tipo: mapTipo(mon.tipo),
+    tribunal,
+    dia,
+    resgatadas: resgatadas.length,
+    ...stats,
+  });
+  return { ...stats, resgatadas: resgatadas.length };
+}
+
 async function run({ sb, payload, log, job }) {
   const dataInicio = payload?.dataInicio || payload?.diarioYmd || ymdToday();
   const dataFim = payload?.dataFim || payload?.diarioYmd || dataInicio;
@@ -1056,6 +1129,17 @@ async function run({ sb, payload, log, job }) {
             }
             log("paralela.termo_result", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length });
             const stats = await persistPublicacoes(sb, pubs, { ...mon, tipo: item.tipo, __log: log }, item.tribunal, dia, job?.id || null);
+            if (item.tipo !== "processo") {
+              const rescueStats = await persistirResgatesOutraCoordenacao(sb, { ...mon, tipo: item.tipo }, item.tribunal, dia, job?.id || null, log).catch((e) => {
+                log("paralela.resgate_outra_coord_falhou", { monitoramentoId: mon.id, tipo: item.tipo, tribunal: item.tribunal, dia, e: String(e?.message || e).slice(0, 300) });
+                return null;
+              });
+              if (rescueStats) {
+                stats.novas += rescueStats.novas;
+                stats.descartadas += rescueStats.descartadas;
+                stats.duplicatas += rescueStats.duplicatas;
+              }
+            }
             log("paralela.termo_persist", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length, ...stats });
             item.novas += stats.novas;
             item.descartadas += stats.descartadas;
