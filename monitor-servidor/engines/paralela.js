@@ -860,6 +860,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     // Filtro por tribunais permitidos no monitoramento (espelha browser)
     if (tribunaisMon.length > 0 && !tribunaisMon.includes(tribunal)) {
       stats.descartadas++;
+      await registrarDescartadaServidor(sb, pub, mon, tribunal, dia, "tribunal_nao_permitido", execucaoId, logDebug);
       logDebug?.("paralela.descartada_tribunal", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo });
       continue;
     }
@@ -870,6 +871,14 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       !condicaoConcomitanteAtendida(pub, mon, conteudo)
     ) {
       stats.descartadas++;
+      const motivo = !conteudo
+        ? "conteudo_vazio"
+        : shouldExclude(conteudo, mon, pub)
+          ? "excluido"
+          : !contemTermo(conteudo, mon, pub)
+            ? "termo_nao_encontrado"
+            : "condicao_concomitante";
+      await registrarDescartadaServidor(sb, pub, mon, tribunal, dia, motivo, execucaoId, logDebug);
       logDebug?.("paralela.descartada_filtro", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, temConteudo: !!conteudo, termo: mon.termo_busca, tipo: mon.tipo });
       continue;
     }
