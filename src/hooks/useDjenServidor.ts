@@ -825,6 +825,9 @@ export function useComparadorAnalise() {
           id_djen: r.id_djen || null,
           monitoramento_id: r.monitoramento_id || null,
           termo_busca: (r.monitoramento_id && monitTermo.get(r.monitoramento_id)) || null,
+          capturado_em: r.created_at || null,
+          execucao_id_servidor: null,
+          provavel_causa: provavelCausa("so_servidor", r),
         });
       }
       for (const [k, r] of bByKey) {
@@ -843,6 +846,9 @@ export function useComparadorAnalise() {
           id_djen: r.id_djen || null,
           monitoramento_id: r.monitoramento_id || null,
           termo_busca: (r.monitoramento_id && monitTermo.get(r.monitoramento_id)) || null,
+          capturado_em: r.created_at || null,
+          execucao_id_servidor: null,
+          provavel_causa: provavelCausa("so_browser", r),
         });
       }
       detalhes.sort((a, b) => {
