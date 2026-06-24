@@ -8255,6 +8255,7 @@ export type Database = {
           dossies_validos: number
           judit_nao_preenchido: number
           judit_preenchido: number
+          nao_precisa_fazer: number
           outros_situacao: number
           problema_judit: number
           processos_ativos: number
