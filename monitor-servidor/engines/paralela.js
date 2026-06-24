@@ -219,6 +219,16 @@ function getDataDisponibilizacao(pub, fallbackDia) {
   return obj?.dataDisponibilizacao || obj?.data_disponibilizacao || obj?.dataDJe || obj?.dtDisponibilizacao || pub?.dataDisponibilizacao || pub?.data_disponibilizacao || fallbackDia;
 }
 
+// Normaliza data_disponibilizacao para BRT 12:00 (= 15:00 UTC) do dia da
+// publicação. Mantém parity com o Browser, que grava o próximo dia útil ao
+// meio-dia. Aqui usamos o próprio dia da disponibilização (não o próximo dia
+// útil) para preservar o "dia DJEN" original — `data_publicacao` (next biz
+// day) já cobre a parte de prazo.
+function normalizarDataDispBrt(dataLike) {
+  const ymd = String(dataLike || ymdToday()).slice(0, 10);
+  return `${ymd}T15:00:00.000Z`;
+}
+
 function nextBusinessDateYmd(dateLike) {
   const d = new Date(`${String(dateLike || ymdToday()).slice(0, 10)}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + 1);
@@ -417,7 +427,7 @@ async function registrarDescartadaServidor(sb, pub, mon, tribunal, dia, motivo, 
   if (process.env.DJEN_SERVIDOR_PERSIST_DESCARTADAS !== "true") return;
   const conteudo = getConteudo(pub);
   const idDjen = getIdDjen(pub);
-  const dataDisponibilizacao = getDataDisponibilizacao(pub, dia);
+  const dataDisponibilizacao = normalizarDataDispBrt(getDataDisponibilizacao(pub, dia));
   const processoNumero = extractProcesso(pub, conteudo);
   const hashConteudo = generatePublicacaoHash(`${conteudo}|DESCARTADA:${motivo}`, dataDisponibilizacao, processoNumero, idDjen);
   const metadata = metadataFromRaw(pub);
@@ -826,6 +836,43 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
       }
     }
   }
+  // Complemento advogado com OAB + uf=TODAS: a chamada primária (já feita acima
+  // por nomeAdvogado, conforme baseParams) às vezes perde publicações regionais
+  // (ex.: TJMG/OSMAR — id_djen 649843498) que a API devolve quando consultada
+  // com numeroOab + ufOab=TODAS + nomeAdvogado. Soma essa segunda chamada e
+  // mescla por id_djen. A validação posterior (validarAdvogado por metadados)
+  // garante que só entram pubs em que o advogado realmente aparece em
+  // destinatarioadvogados.
+  if (
+    !signal?.aborted &&
+    tipo === "advogado" &&
+    mon.termo_busca &&
+    !params.numeroOab // só quando a primária foi por nome (uf=TODAS sem OAB nos params)
+  ) {
+    const oabConfig = String(mon.oab || "").replace(/\D/g, "");
+    const ufConfig = String(mon.uf || "").trim().toUpperCase();
+    if (oabConfig && ufConfig === "TODAS") {
+      const supplementOabParams = {
+        siglaTribunal: tribunal,
+        dataDisponibilizacaoInicio: dia,
+        dataDisponibilizacaoFim: dia,
+        numeroOab: oabConfig,
+        ufOab: "TODAS",
+        nomeAdvogado: normalizeForApi(mon.termo_busca),
+      };
+      await delay(800, signal);
+      if (!signal?.aborted) {
+        try {
+          const supplementItems = await buscarPaginado(slot, supplementOabParams, signal);
+          if (supplementItems.length > 0) {
+            mesclarItensPorId(items, supplementItems, { __advogadoOabTodasSupplement: true });
+          }
+        } catch (_) {
+          // best-effort
+        }
+      }
+    }
+  }
   return items;
 }
 
@@ -848,7 +895,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     const conteudo = getConteudo(pub);
     const metadata = metadataFromRaw(pub);
     const idDjen = getIdDjen(pub);
-    const dataDisponibilizacao = getDataDisponibilizacao(pub, dia);
+    const dataDisponibilizacao = normalizarDataDispBrt(getDataDisponibilizacao(pub, dia));
     const processoNumero = extractProcesso(pub, conteudo);
     const hashConteudo = generatePublicacaoHash(conteudo, dataDisponibilizacao, processoNumero, idDjen);
     const coordenacaoId = mon.coordenacao_id || null;
