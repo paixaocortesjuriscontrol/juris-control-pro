@@ -254,7 +254,7 @@ export function useMonitoramentosDjen(options?: { enabled?: boolean; includeArqu
     mutationFn: async ({ id, arquivado }: { id: string; arquivado: boolean }) => {
       const { data, error } = await supabase
         .from('monitoramentos_djen')
-        .update({ arquivado })
+        .update({ arquivado, ativo: !arquivado })
         .eq('id', id)
         .select('id');
       if (error) throw error;

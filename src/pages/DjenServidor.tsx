@@ -141,7 +141,8 @@ function EngineCard({ cfg, onToggle, onConfig }: {
         .from("monitoramentos_djen")
         .select("id, termo_busca, descricao, tipo, oab, uf")
         .eq("coordenacao_id", coordenacaoId)
-        .eq("ativo", true);
+        .eq("ativo", true)
+        .eq("arquivado", false);
       if (error) throw error;
       return ((data || []) as MonitoramentoOption[]).sort((a, b) =>
         formatMonitoramentoLabel(a).localeCompare(formatMonitoramentoLabel(b), "pt-BR")
