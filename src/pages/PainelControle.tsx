@@ -64,6 +64,8 @@ import TstPrazos from "@/pages/TstPrazos";
 import PainelAudiencias from "@/pages/PainelAudiencias";
 import Notificacoes from "@/pages/Notificacoes";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
+import { AcompanhamentoEspecialEventos } from "@/components/processos/AcompanhamentoEspecialEventos";
+import { Sparkles } from "lucide-react";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
@@ -916,6 +918,15 @@ export default function PainelControle() {
 
         {/* Cards de Resumo — compactos no mobile */}
         <div className="flex-shrink-0 px-3 md:px-6 py-2 md:py-3 border-b border-border bg-card">
+          <details className="mb-2 group" open>
+            <summary className="cursor-pointer flex items-center gap-2 text-xs font-semibold text-amber-700 dark:text-amber-400">
+              <Sparkles className="w-3.5 h-3.5" />
+              Acompanhamento Especial — Novidades
+            </summary>
+            <div className="mt-2 max-h-56 overflow-y-auto pr-2">
+              <AcompanhamentoEspecialEventos limit={10} showProcesso />
+            </div>
+          </details>
           {isLoading ? (
             <div className="flex gap-2">
               {[...Array(6)].map((_, i) => (

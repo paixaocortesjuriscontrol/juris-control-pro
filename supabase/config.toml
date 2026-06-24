@@ -204,3 +204,6 @@ verify_jwt = true
 
 [functions.enviar-remessa-benner]
 verify_jwt = true
+
+[functions.judit-acompanhamento-especial]
+verify_jwt = false

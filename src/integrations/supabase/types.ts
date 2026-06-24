@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      acompanhamento_especial_eventos: {
+        Row: {
+          anexos_count: number
+          conteudo: string | null
+          criado_em: string
+          criou_tarefa_id: string | null
+          id: string
+          instancia: string | null
+          lido_em: string | null
+          notificou_em: string | null
+          processo_id: string
+          step_date: string | null
+          step_id: string | null
+          tribunal: string | null
+        }
+        Insert: {
+          anexos_count?: number
+          conteudo?: string | null
+          criado_em?: string
+          criou_tarefa_id?: string | null
+          id?: string
+          instancia?: string | null
+          lido_em?: string | null
+          notificou_em?: string | null
+          processo_id: string
+          step_date?: string | null
+          step_id?: string | null
+          tribunal?: string | null
+        }
+        Update: {
+          anexos_count?: number
+          conteudo?: string | null
+          criado_em?: string
+          criou_tarefa_id?: string | null
+          id?: string
+          instancia?: string | null
+          lido_em?: string | null
+          notificou_em?: string | null
+          processo_id?: string
+          step_date?: string | null
+          step_id?: string | null
+          tribunal?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acompanhamento_especial_eventos_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alertas_audiencias: {
         Row: {
           audiencia_id: string
@@ -5436,6 +5489,12 @@ export type Database = {
       }
       processos: {
         Row: {
+          acompanhamento_ativado_em: string | null
+          acompanhamento_com_anexos: boolean
+          acompanhamento_especial: boolean
+          acompanhamento_freq_diaria: number
+          acompanhamento_ultima_checagem_em: string | null
+          acompanhamento_ultimo_step_date: string | null
           adicao_baixa: string | null
           advogado_externo: string | null
           advogado_responsavel_id: string | null
@@ -5632,6 +5691,12 @@ export type Database = {
           vara: string | null
         }
         Insert: {
+          acompanhamento_ativado_em?: string | null
+          acompanhamento_com_anexos?: boolean
+          acompanhamento_especial?: boolean
+          acompanhamento_freq_diaria?: number
+          acompanhamento_ultima_checagem_em?: string | null
+          acompanhamento_ultimo_step_date?: string | null
           adicao_baixa?: string | null
           advogado_externo?: string | null
           advogado_responsavel_id?: string | null
@@ -5828,6 +5893,12 @@ export type Database = {
           vara?: string | null
         }
         Update: {
+          acompanhamento_ativado_em?: string | null
+          acompanhamento_com_anexos?: boolean
+          acompanhamento_especial?: boolean
+          acompanhamento_freq_diaria?: number
+          acompanhamento_ultima_checagem_em?: string | null
+          acompanhamento_ultimo_step_date?: string | null
           adicao_baixa?: string | null
           advogado_externo?: string | null
           advogado_responsavel_id?: string | null
