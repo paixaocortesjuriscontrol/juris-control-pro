@@ -335,6 +335,12 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(sb, mon, dia, tr
       .filter((t, idx, arr) => t && arr.findIndex((x) => normalize(x) === normalize(t)) === idx);
   const resgatadas = new Map();
   for (const termo of termosBusca) {
+    const termoEsc = String(termo).replace(/[%_,()]/g, "");
+    const orFilter = [
+      `conteudo.ilike.%${termoEsc}%`,
+      `advogados_json.ilike.%${termoEsc}%`,
+      `partes_json.ilike.%${termoEsc}%`,
+    ].join(",");
     const { data, error } = await sb
       .from("publicacoes_djen")
       .select("id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id")
@@ -343,8 +349,8 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(sb, mon, dia, tr
       .gte("data_disponibilizacao", `${dia}T00:00:00.000Z`)
       .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
       .neq("coordenacao_id", mon.coordenacao_id)
-      .ilike("conteudo", `%${termo}%`)
-      .limit(300);
+      .or(orFilter)
+      .limit(500);
     if (error) {
       log?.("paralela.resgate_outra_coord_error", { monitoramentoId: mon.id, tribunal, dia, termo, error: error.message });
       continue;
