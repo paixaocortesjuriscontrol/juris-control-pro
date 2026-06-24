@@ -4190,7 +4190,17 @@ const AnaliseDjenServidor = () => {
           coordenacaoId={coordenacaoFiltroEfetivo || null}
           dataDisponibilizacao={dataDisponibilizacaoDebounced || null}
           execucaoSelecionadaId={execucaoFocada?.id || null}
-          onSelecionarExecucao={setExecucaoFocada}
+          onSelecionarExecucao={(exec) => {
+            setExecucaoFocada(exec);
+            // Pautas (DJET) vivem em outro slice de dados (`tipoOrigem='djet-pautas'`),
+            // então ao focar uma execução Pautas precisamos trocar a aba para que
+            // as publicações filtradas apareçam de fato na listagem.
+            if (exec?.tipoEngine === 'pautas' && tipoOrigem !== 'djet-pautas') {
+              setTipoOrigem('djet-pautas');
+            } else if (exec?.tipoEngine === 'paralela' && tipoOrigem === 'djet-pautas') {
+              setTipoOrigem('todos');
+            }
+          }}
         />
 
         {/* Actions - Mobile optimized */}
