@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-25-servidor-isolado-no-total-stop";
+const ENGINE_VERSION = "2026-06-25-advogado-oab-supplement-descartadas";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -310,6 +310,107 @@ function validarAdvogadoMetadados(pub, oab, nome) {
     }
   }
   return false;
+}
+
+function nomesAlvoAdvogado(mon) {
+  const nomes = [mon?.termo_busca, ...(mon?.termos_or || []).map((t) => parsearTermoOr(t)?.nome)]
+    .map((n) => String(n || "").trim())
+    .filter(Boolean);
+  const seen = new Set();
+  return nomes.filter((n) => {
+    const key = normalize(n);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function nomeAdvogadoCasa(advNome, mon) {
+  const advNorm = normalize(advNome);
+  if (!advNorm) return false;
+  return nomesAlvoAdvogado(mon).some((nome) => {
+    const alvo = normalize(nome);
+    return alvo && (advNorm === alvo || advNorm.includes(alvo) || alvo.includes(advNorm));
+  });
+}
+
+function parseOabFromString(raw) {
+  const text = normalize(raw);
+  if (!text) return null;
+  let m = text.match(/OAB\s+([A-Z]{2})\s*(\d{3,7})/i);
+  if (m) return { uf: m[1].toUpperCase(), oabDigits: m[2] };
+  m = text.match(/OAB\s+(\d{3,7})\s*([A-Z]{2})/i);
+  if (m) return { uf: m[2].toUpperCase(), oabDigits: m[1] };
+  m = text.match(/\b([A-Z]{2})\s*(\d{3,7})\b/i);
+  if (m) return { uf: m[1].toUpperCase(), oabDigits: m[2] };
+  return null;
+}
+
+function coletarAdvogadosEstruturados(pub) {
+  const obj = rawObj(pub);
+  const out = [];
+  const add = (entry) => {
+    if (!entry) return;
+    if (typeof entry === "string") {
+      const parsed = parseOabFromString(entry);
+      out.push({ nome: entry.replace(/\s*-?\s*OAB\b.*$/i, "").trim(), ...(parsed || {}) });
+      return;
+    }
+    const adv = entry?.advogado || entry;
+    if (!adv || typeof adv !== "object") return;
+    out.push({
+      nome: adv.nome || adv.nomeAdvogado || adv.nome_representante || adv.nomeProcurador || "",
+      oabDigits: String(adv.numero_oab || adv.numeroOab || adv.oab || adv.inscricaoOab || "").replace(/\D/g, ""),
+      uf: String(adv.uf_oab || adv.ufOab || adv.uf || adv.siglaUf || "").trim().toUpperCase(),
+    });
+  };
+  for (const arr of [obj?.destinatarioadvogados, obj?.advogados, pub?.destinatarioadvogados, pub?.advogados]) {
+    if (Array.isArray(arr)) for (const entry of arr) add(entry);
+  }
+  const dest = obj?.destinatarios || pub?.destinatarios;
+  if (Array.isArray(dest)) {
+    for (const d of dest) {
+      if (Array.isArray(d?.advogados)) for (const entry of d.advogados) add(entry);
+      if (d?.nomeAdvogado) add({ nome: d.nomeAdvogado, numeroOab: d.numeroOab, ufOab: d.ufOab });
+    }
+  }
+  return out;
+}
+
+function coletarOabsDoAdvogado(pubs, mon) {
+  const candidatos = new Map();
+  const addCandidate = (oabDigits, uf, nome) => {
+    const od = String(oabDigits || "").replace(/\D/g, "");
+    const u = String(uf || "").trim().toUpperCase();
+    if (od.length < 3 || !/^[A-Z]{2}$/.test(u)) return;
+    const key = `${u}|${od}`;
+    if (!candidatos.has(key)) candidatos.set(key, { oabDigits: od, uf: u, nome: nome || mon.termo_busca });
+  };
+  for (const pub of pubs || []) {
+    for (const adv of coletarAdvogadosEstruturados(pub)) {
+      if (!nomeAdvogadoCasa(adv.nome, mon)) continue;
+      addCandidate(adv.oabDigits, adv.uf, adv.nome);
+    }
+  }
+  return Array.from(candidatos.values()).slice(0, 5);
+}
+
+function mesclarItensPorId(destino, extras, mark = {}) {
+  const seen = new Set((destino || []).map((it) => {
+    const id = getIdDjen(it);
+    return id ? `id_djen:${id}` : JSON.stringify(it).slice(0, 400);
+  }));
+  let added = 0;
+  for (const it of extras || []) {
+    const id = getIdDjen(it);
+    const key = id ? `id_djen:${id}` : JSON.stringify(it).slice(0, 400);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    Object.assign(it, mark);
+    destino.push(it);
+    added++;
+  }
+  return added;
 }
 
 function validarParteMetadados(pub, nomeParte) {
