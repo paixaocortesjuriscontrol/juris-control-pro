@@ -46,9 +46,10 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 };
 
 const TRACK_COLORS: Record<string, string> = {
-  pendente: 'bg-muted text-muted-foreground',
-  executando: 'bg-primary/15 text-primary border-primary/30',
-  concluido: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
+  pendente: 'bg-muted/50 text-muted-foreground border-border',
+  executando: 'bg-[hsl(var(--area-civil))]/15 text-[hsl(var(--area-civil))] border-[hsl(var(--area-civil))]/30',
+  concluido: 'bg-muted/60 text-muted-foreground border-border',
+  concluido_com_resultado: 'bg-[hsl(var(--status-active))]/15 text-[hsl(var(--status-active))] border-[hsl(var(--status-active))]/30',
   erro: 'bg-destructive/15 text-destructive border-destructive/30',
   cancelado: 'bg-amber-500/15 text-amber-700 border-amber-500/30',
 };
@@ -545,7 +546,9 @@ export function MonitoramentoTermosParalelaCard() {
               const pct = track.total > 0
                 ? Math.min(100, Math.round((track.current / track.total) * 100))
                 : 0;
-              const colorClass = TRACK_COLORS[track.status] || TRACK_COLORS.pendente;
+              const hasAchados = (track.novas || 0) > 0 || (track.duplicadas || 0) > 0;
+              const colorKey = track.status === 'concluido' && hasAchados ? 'concluido_com_resultado' : track.status;
+              const colorClass = TRACK_COLORS[colorKey] || TRACK_COLORS.pendente;
               const totalCallsTrack =
                 track.callsDirect +
                 Object.values(track.callsByProxy || {}).reduce((a, b) => a + b, 0);
