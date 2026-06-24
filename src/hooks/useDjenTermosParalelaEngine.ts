@@ -866,16 +866,22 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   return false;
 }
 
-async function buscarPublicacoesParteJaEncontradasEmOutraCoordenacao(
+async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(
   mon: Monitoramento,
   diaYmd: string,
   tribunal: string,
 ): Promise<Record<string, unknown>[]> {
-  if (mon.tipo !== 'parte' || !mon.coordenacao_id) return [];
+  if (!mon.coordenacao_id) return [];
+  if (!['parte', 'advogado', 'palavra-chave', 'nome'].includes(mon.tipo)) return [];
 
   const resgatadas = new Map<string, Record<string, unknown>>();
-  const termosParte = termosDeParte(mon);
-  for (const termo of termosParte) {
+  const termosBusca = mon.tipo === 'parte'
+    ? termosDeParte(mon)
+    : [mon.termo_busca, ...(mon.termos_or || []).map((t) => parsearTermoOr(String(t))?.nome || String(t))]
+      .map((termo) => String(termo || '').trim())
+      .filter((termo, idx, arr) => termo && arr.findIndex((x) => normalizar(x) === normalizar(termo)) === idx);
+
+  for (const termo of termosBusca) {
     const { data, error } = await supabase
       .from('publicacoes_djen')
       .select('id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id')
@@ -901,15 +907,26 @@ async function buscarPublicacoesParteJaEncontradasEmOutraCoordenacao(
         dataPublicacao: row.data_publicacao,
         siglaTribunal: row.tribunal,
         numeroProcesso: row.processo_numero,
+        destinatarioadvogados: row.advogados_json,
+        destinatarios: row.partes_json,
+        partes: row.partes_json,
       };
-      const casaNaSecaoPartes = termosParte.some((t) =>
-        validarParteMetadados(candidato, t) || validarParteSecaoPartes(candidato, t),
-      );
-      if (!casaNaSecaoPartes) continue;
+      const casa = mon.tipo === 'parte'
+        ? termosBusca.some((t) => validarParteMetadados(candidato, t) || validarParteSecaoPartes(candidato, t))
+        : validarTermo(candidato, mon);
+      if (!casa) continue;
+      const exc = mon.tipo === 'parte'
+        ? temExclusaoEmPartes(candidato, mon.exclusoes)
+        : temExclusao(candidato, mon.exclusoes);
+      if (exc) continue;
+      const concomitanteOk = mon.tipo === 'parte'
+        ? condicaoConcomitanteAtendidaEmPartes(candidato, mon.condicao_concomitante)
+        : condicaoConcomitanteAtendida(candidato, mon.condicao_concomitante);
+      if (!concomitanteOk) continue;
       const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${row.id}`;
       resgatadas.set(key, {
         ...candidato,
-        __matchedByNomeParte: true,
+        ...(mon.tipo === 'parte' ? { __matchedByNomeParte: true } : {}),
         __resgatadaDeOutraCoordenacao: row.coordenacao_id,
       });
     }
@@ -1372,11 +1389,11 @@ async function processarTermoEmTribunal(
     ultimoErro = e?.message || 'Falha de busca';
   }
 
-  if (tipo === 'parte' && !signal.aborted) {
-    const resgatadas = await buscarPublicacoesParteJaEncontradasEmOutraCoordenacao(mon, diaYmd, tribunal);
+  if (tipo !== 'processo' && !signal.aborted) {
+    const resgatadas = await buscarPublicacoesJaEncontradasEmOutraCoordenacao(mon, diaYmd, tribunal);
     if (resgatadas.length > 0) {
-      addResults(resgatadas, { __matchedByNomeParte: true, __resgateCoord: true });
-      console.warn(`[DJEN Paralela][${tribunal}] Parte "${mon.termo_busca}": resgatadas ${resgatadas.length} publicação(ões) já encontradas em outra coordenação para gravar nesta coordenação.`);
+      addResults(resgatadas, { ...(tipo === 'parte' ? { __matchedByNomeParte: true } : {}), __resgateCoord: true });
+      console.warn(`[DJEN Paralela][${tribunal}] ${tipo} "${mon.termo_busca}": resgatadas ${resgatadas.length} publicação(ões) já encontradas em outra coordenação para gravar nesta coordenação.`);
     }
   }
 
