@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-25-empty-cross-slot-retry";
+const ENGINE_VERSION = "2026-06-25-rescue-by-date-tribunal";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -290,6 +290,17 @@ function validarAdvogadoMetadados(pub, oab, nome) {
   const oabDigits = oab ? String(oab).replace(/\D/g, "") : "";
   const nomeNorm = nome ? normalize(nome) : "";
   for (const entry of advs) {
+    // advogados pode vir em 3 formatos:
+    // 1) { advogado: { nome, numero_oab, uf_oab } }  — formato API PJE Comunica
+    // 2) { nome, numero_oab, uf_oab }                — formato planificado
+    // 3) "OSMAR MENDES PAIXAO CORTES - OAB DF15553" — formato persistido em advogados_json
+    if (typeof entry === "string") {
+      const en = normalize(entry);
+      if (!en) continue;
+      if (oabDigits && en.includes(oabDigits)) return true;
+      if (nomeNorm && contemFrase(en, nomeNorm)) return true;
+      continue;
+    }
     const adv = entry?.advogado || entry;
     if (!adv) continue;
     if (oabDigits && adv.numero_oab && String(adv.numero_oab).replace(/\D/g, "") === oabDigits) return true;
