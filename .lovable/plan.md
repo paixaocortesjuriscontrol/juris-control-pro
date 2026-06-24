@@ -1,36 +1,62 @@
-Você está certo. Vou corrigir a direção: DJEN Servidor não deve buscar, resgatar, comparar como fonte de verdade, nem copiar dados da tabela `publicacoes_djen`. A estrutura do Servidor deve ser separada e autossuficiente.
+## Objetivo
 
-Plano revisado
+Corrigir 2 causas reais de divergência DJEN Browser × Servidor:
 
-1. Remover mistura com `publicacoes_djen` no motor do DJEN Servidor
-- Em `monitor-servidor/engines/paralela.js`, remover qualquer resgate cross-coordenação que leia `publicacoes_djen`.
-- O resgate do Servidor poderá olhar apenas `publicacoes_djen_servidor`, e somente para reaproveitamento interno entre coordenações do próprio Servidor.
-- Não inserir no Servidor nada que venha da tabela do Browser.
+1. **Data normalizada em horário Brasília** — Servidor grava `00:00 UTC`, que vira 23/06 21:00 BRT e o comparador joga em outro dia (falso "só_servidor" do `650569963` da Vanessa TST).
+2. **Cobertura de busca por advogado quando `uf=TODAS`** — a chamada única `numeroOab=15553 + ufOab=TODAS + nomeAdvogado=OSMAR` está perdendo publicações regionais que a API devolve quando consultada apenas por `nomeAdvogado`. Caso confirmado: 1 publicação TJMG do processo 5004003-83.2023.8.13.0319 (a que tem OSMAR em `destinatarioadvogados` com OAB MG-164494/DF-15553) ficou de fora da coord Thomás.
 
-2. Corrigir o tipo Advogado pela busca real na API/VPS, não por cópia do Browser
-- Para advogado com `uf` contendo lista separada por vírgula, tratar como busca cross-UF por `nomeAdvogado`, sem enviar `numeroOab`/`ufOab` inválidos.
-- Para advogado com OAB e UF única, manter busca por `numeroOab + ufOab + nomeAdvogado`.
-- Garantir que TRT8/OSMAR da Bruna rode pela consulta oficial do PJE Comunica via VPS e seja persistido em `publicacoes_djen_servidor` por mérito próprio.
-- Ajustar validação de advogado para aceitar corretamente os formatos retornados pela API (`destinatarioadvogados[].advogado`) e formatos persistidos no próprio Servidor, mas sem consultar `publicacoes_djen`.
+**Fora de escopo, conforme alinhamento:**
+- Kurier no Servidor.
+- Validação por conteúdo bruto (campo "Adv ‑ ..."): publicações que só citam o advogado no texto não devem ser capturadas pelo tipo `advogado`. As outras 3 pubs TJMG do mesmo processo permanecem corretamente fora da coord Thomás.
+- Lado Browser.
 
-3. Auditar e desfazer pontos que misturam Browser no fluxo do Servidor
-- Procurar no código todos os pontos do DJEN Servidor que referenciam `publicacoes_djen`.
-- Manter `publicacoes_djen` apenas no comparador/diagnóstico visual “Servidor × Browser”, porque esse painel existe justamente para comparar as duas estruturas.
-- Remover do motor, resgate, persistência e contadores qualquer dependência da tabela do Browser.
+---
 
-4. Corrigir descartadas na barra e nos cards
-- Ajustar `DjenServidorParalelaCard.tsx` para somar `descartadas` a partir dos `tracks` vivos quando a execução está em andamento ou quando `resultado.descartadas` vier zerado/incompleto.
-- Exibir descartadas na barra global e nos cards por tribunal mesmo quando não houver novas.
-- Garantir que o backend grave no `progresso` os totais consolidados de `novas`, `duplicatas` e `descartadas`.
+## Mudanças
 
-5. Corrigir cores dos cards por tribunal
-- `executando`: azul.
-- `concluido` com `novas > 0` ou `duplicatas > 0`: verde.
-- `concluido` com `0 novas` e `0 duplicatas`: neutro/cinza.
-- `erro`: vermelho.
-- `cancelado`: amarelo.
+### 1. Normalizar `data_disponibilizacao` para BRT 12:00
+**Arquivo:** `monitor-servidor/engines/paralela.js`
 
-6. Resultado esperado
-- A execução da Bruna deve deixar de depender de qualquer dado do Browser.
-- A diferença das 2 publicações de advogado deve ser tratada pela rota correta: melhorar a consulta/validação do próprio Servidor para que ele encontre os registros na API.
-- A interface deve mostrar descartadas corretamente e não pintar tudo de verde quando não houve achado.
+- Em `persistPublicacoes` e `registrarDescartadaServidor`, gravar `data_disponibilizacao` como `YYYY-MM-DDT12:00:00-03:00` (= `15:00:00Z` em UTC), reaproveitando `nextBusinessDateYmd` para a parte da data.
+- Chave única `(coordenacao_id, id_djen)` não é afetada.
+
+### 2. Backfill (UPDATE, sem schema)
+
+```sql
+UPDATE publicacoes_djen_servidor
+SET data_disponibilizacao = date_trunc('day', data_disponibilizacao AT TIME ZONE 'UTC') + interval '15 hours'
+WHERE data_disponibilizacao >= now() - interval '30 days'
+  AND EXTRACT(HOUR FROM data_disponibilizacao AT TIME ZONE 'UTC') = 0;
+
+UPDATE publicacoes_djen_descartadas
+SET data_disponibilizacao = date_trunc('day', data_disponibilizacao AT TIME ZONE 'UTC') + interval '15 hours'
+WHERE data_disponibilizacao >= now() - interval '30 days'
+  AND EXTRACT(HOUR FROM data_disponibilizacao AT TIME ZONE 'UTC') = 0;
+```
+
+### 3. Suplemento por nome quando `uf=TODAS` (advogado com OAB)
+**Arquivo:** `monitor-servidor/engines/paralela.js`
+
+- Para `tipo=advogado` com `oab` preenchida **e `uf=TODAS`**, além da chamada `numeroOab + ufOab=TODAS + nomeAdvogado`, executar chamada complementar **apenas por `nomeAdvogado`** (sem OAB) e mesclar por `id_djen`.
+- Validação segue exclusivamente via metadados estruturados (`destinatarioadvogados[].advogado.nome` normalizado vs termo normalizado) — **sem ler `conteudo`**.
+- Aplicar `parsearTermoOr` (suporta `310314/OSMAR MENDES PAIXAO CORTES`).
+- Respeitar `delay_between_variants` entre as duas chamadas.
+
+Resultado: a pub TJMG `649843498` (única do processo com OSMAR em `destinatarioadvogados`) passa a ser capturada na coord Thomás. As outras 3 do mesmo processo seguem fora — correto.
+
+---
+
+## Validação
+
+Após `git pull` + `pm2 restart jc-monitor-servidor`:
+
+1. **Data:** comparador deixa de listar `650569963` como "só_servidor" para Vanessa TST.
+2. **Cobertura:** re-rodar coord Dr. Thomás → confirmar que **1** id_djen TJMG do processo 5004003-83.2023.8.13.0319 (o que tem OSMAR em `destinatarioadvogados`) aparece em `publicacoes_djen_servidor` com `coordenacao_id` da Thomás.
+3. Diferenças remanescentes esperadas para Thomás: 2 Kurier + 3 TJMG sem OSMAR em metadados (todas legítimas).
+
+---
+
+## Notas
+
+- Memory a atualizar: `mem://logic/djen/publication-date-and-timezone-normalization` (Servidor grava BRT 12:00 = 15:00 UTC) e `mem://features/monitoring/djen-servidor-pagination-parity` (suplemento por nome quando `uf=TODAS` mesmo com OAB).
+- Não consultar `publicacoes_djen` em nenhum ponto (mantém isolamento Browser × Servidor).
