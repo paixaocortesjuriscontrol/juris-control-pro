@@ -1555,6 +1555,14 @@ export function ProcessoDetalhesCompletos({
                       Atualizar
                     </Button>
                   </div>
+                  {(processo as any)?.acompanhamento_especial && (
+                    <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+                        ✨ Novidades do Acompanhamento Especial
+                      </p>
+                      <AcompanhamentoEspecialEventos processoId={processo.id} limit={10} />
+                    </div>
+                  )}
                   {movimentacoes.length > 0 ? (
                     <div className="space-y-2">
                       {movimentacoes.map((mov: any) => (
