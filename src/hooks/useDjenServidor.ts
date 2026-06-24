@@ -692,6 +692,48 @@ export function useComparadorAnalise() {
 
       const djenUnicoTotal = new Set<string>([...sByKey.keys(), ...bByKey.keys()]).size;
 
+      // Detalhamento: publicações exclusivas por origem (para CSV)
+      const detalhes: ComparadorAnaliseRelatorio["detalhes"] = [];
+      const pickDataPub = (r: Row) => r.data_publicacao || r.data_disponibilizacao || null;
+      for (const [k, r] of sByKey) {
+        if (bByKey.has(k)) continue;
+        const meta = keyToBucket.get(k);
+        const cid = meta?.coordenacaoId || (r.coordenacao_id || "sem_coord");
+        detalhes.push({
+          coordenacaoId: cid,
+          coordenacaoNome: coordNome.get(cid) || "Sem coordenação",
+          tipo: meta?.tipo || "sem_monitoramento",
+          origem: "so_servidor",
+          processo_numero: r.processo_numero || null,
+          tribunal: r.tribunal || null,
+          data_publicacao: pickDataPub(r),
+          id_djen: r.id_djen || null,
+        });
+      }
+      for (const [k, r] of bByKey) {
+        if (sByKey.has(k)) continue;
+        const meta = keyToBucket.get(k);
+        const cid = meta?.coordenacaoId || (r.coordenacao_id || "sem_coord");
+        detalhes.push({
+          coordenacaoId: cid,
+          coordenacaoNome: coordNome.get(cid) || "Sem coordenação",
+          tipo: meta?.tipo || "sem_monitoramento",
+          origem: "so_browser",
+          processo_numero: r.processo_numero || null,
+          tribunal: r.tribunal || null,
+          data_publicacao: pickDataPub(r),
+          id_djen: r.id_djen || null,
+        });
+      }
+      detalhes.sort((a, b) => {
+        const c = a.coordenacaoNome.localeCompare(b.coordenacaoNome, "pt-BR");
+        if (c !== 0) return c;
+        if (a.origem !== b.origem) return a.origem.localeCompare(b.origem);
+        const t = (a.tribunal || "").localeCompare(b.tribunal || "", "pt-BR");
+        if (t !== 0) return t;
+        return (a.processo_numero || "").localeCompare(b.processo_numero || "");
+      });
+
       return {
         dataInicio: opts.dataInicio,
         dataFim: opts.dataFim,
@@ -714,6 +756,7 @@ export function useComparadorAnalise() {
           },
           linhas: fonteLinhas,
         },
+        detalhes,
       };
     },
   });
