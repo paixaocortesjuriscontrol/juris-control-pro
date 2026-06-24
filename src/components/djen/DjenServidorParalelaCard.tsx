@@ -55,17 +55,17 @@ type MonitoramentoOption = {
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   idle: { label: "Aguardando", color: "text-muted-foreground", bg: "bg-muted/50" },
   pendente: { label: "Aguardando", color: "text-amber-700", bg: "bg-amber-500/10" },
-  executando: { label: "Executando", color: "text-primary", bg: "bg-primary/10" },
-  concluido: { label: "Concluído", color: "text-emerald-700", bg: "bg-emerald-500/10" },
+  executando: { label: "Executando", color: "text-[hsl(var(--area-civil))]", bg: "bg-[hsl(var(--area-civil))]/10" },
+  concluido: { label: "Concluído", color: "text-muted-foreground", bg: "bg-muted/50" },
   cancelado: { label: "Cancelado", color: "text-amber-700", bg: "bg-amber-500/10" },
   erro: { label: "Erro", color: "text-destructive", bg: "bg-destructive/10" },
 };
 
 const TRACK_COLORS: Record<string, string> = {
-  pendente: "bg-muted text-muted-foreground",
-  executando: "bg-blue-500/15 text-blue-700 border-blue-500/30",
-  concluido: "bg-muted text-muted-foreground border-border",
-  concluido_com_resultado: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
+  pendente: "bg-muted/50 text-muted-foreground border-border",
+  executando: "bg-[hsl(var(--area-civil))]/15 text-[hsl(var(--area-civil))] border-[hsl(var(--area-civil))]/30",
+  concluido: "bg-muted/60 text-muted-foreground border-border",
+  concluido_com_resultado: "bg-[hsl(var(--status-active))]/15 text-[hsl(var(--status-active))] border-[hsl(var(--status-active))]/30",
   erro: "bg-destructive/15 text-destructive border-destructive/30",
   cancelado: "bg-amber-500/15 text-amber-700 border-amber-500/30",
 };
@@ -182,20 +182,23 @@ export function DjenServidorParalelaCard() {
   // resultado, usamos a soma — assim descartadas/duplicadas aparecem certo
   // mesmo quando o backend gravou `resultado.descartadas = 0` por falha de
   // consolidação.
-  const sumNovas = tracks.reduce((sum, t) => sum + (t.novas || 0), 0);
-  const sumDup = tracks.reduce((sum, t) => sum + (t.duplicatas || 0), 0);
-  const sumDesc = tracks.reduce((sum, t) => sum + (t.descartadas || 0), 0);
+  const sumNovas = tracks.reduce((sum, t) => sum + (Number(t.novas) || 0), 0);
+  const sumDup = tracks.reduce((sum, t) => sum + (Number(t.duplicatas) || 0), 0);
+  const sumDesc = tracks.reduce((sum, t) => sum + (Number(t.descartadas) || 0), 0);
   const resultadoNovas = Number(exec?.resultado?.novas ?? NaN);
   const resultadoDup = Number(exec?.resultado?.duplicatas ?? NaN);
   const resultadoDesc = Number(exec?.resultado?.descartadas ?? NaN);
+  const progressoNovas = Number(progress?.novas ?? NaN);
+  const progressoDup = Number(progress?.duplicatas ?? NaN);
+  const progressoDesc = Number(progress?.descartadas ?? NaN);
   const novas = isRunning
-    ? sumNovas
+    ? Math.max(sumNovas, Number.isFinite(progressoNovas) ? progressoNovas : 0)
     : Math.max(sumNovas, Number.isFinite(resultadoNovas) ? resultadoNovas : 0);
   const duplicadas = isRunning
-    ? sumDup
+    ? Math.max(sumDup, Number.isFinite(progressoDup) ? progressoDup : 0)
     : Math.max(sumDup, Number.isFinite(resultadoDup) ? resultadoDup : 0);
   const descartadas = isRunning
-    ? sumDesc
+    ? Math.max(sumDesc, Number.isFinite(progressoDesc) ? progressoDesc : 0)
     : Math.max(sumDesc, Number.isFinite(resultadoDesc) ? resultadoDesc : 0);
   const percentage = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const tempoDecorrido = exec?.iniciado_em

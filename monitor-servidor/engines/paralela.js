@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-25-servidor-isolado";
+const ENGINE_VERSION = "2026-06-25-servidor-isolado-no-total-stop";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -549,15 +549,15 @@ async function buscarPaginado(slot, params, signal) {
       all.push(item);
       added++;
     }
-    const total = getTotal(data);
     // Espelha Browser (src/utils/pjeComunicaClient.ts > continueUntilEmpty):
-    // encerra na 1ª página vazia. A regra antiga de "2 vazias seguidas" era
-    // exclusiva do Servidor e não muda paridade — mantemos igual ao Browser.
+    // encerra só na 1ª página vazia ou quando a página não adiciona nenhum ID
+    // novo. NÃO usamos totalElements/count para parar: a API do PJE Comunica
+    // pode informar total menor que o real em buscas de advogado (caso TRT8 / OSMAR),
+    // e isso cortava páginas finais que o Browser continuava lendo.
     if (items.length === 0) break;
     // Se nenhum item novo foi adicionado, provavelmente estamos em loop
     // de duplicatas — encerra.
     if (items.length > 0 && added === 0) break;
-    if (typeof total === "number" && total > 0 && all.length >= total) break;
     if (PAGE_DELAY_MS > 0) await delay(PAGE_DELAY_MS, signal);
   }
   return all;
@@ -950,11 +950,20 @@ async function run({ sb, payload, log, job }) {
     const concluidos = itens.filter((i) => i.status === "concluido" || i.status === "erro").length;
     const falhas = itens.filter((i) => i.status === "erro").length;
     const executando = itens.filter((i) => i.status === "executando");
+    const totais = itens.reduce((acc, i) => {
+      acc.novas += Number(i.novas) || 0;
+      acc.duplicatas += Number(i.duplicatas) || 0;
+      acc.descartadas += Number(i.descartadas) || 0;
+      return acc;
+    }, { novas: 0, duplicatas: 0, descartadas: 0 });
     await sb.from("execucoes_servidor").update({
       progresso: {
         totalItens: itens.length,
         concluidos,
         falhas,
+        novas: totais.novas,
+        duplicatas: totais.duplicatas,
+        descartadas: totais.descartadas,
         atual: executando[0] ? { id: executando[0].id, label: executando[0].label } : null,
         itens,
         janela: { dataInicio, dataFim },

@@ -42,17 +42,18 @@ const LABELS: Record<string, string> = {
 
 const STATUS_HEADER: Record<string, { label: string; color: string; bg: string }> = {
   pendente: { label: "Aguardando", color: "text-amber-700", bg: "bg-amber-500/10" },
-  executando: { label: "Executando", color: "text-primary", bg: "bg-primary/10" },
-  concluido: { label: "Concluído", color: "text-emerald-700", bg: "bg-emerald-500/10" },
+  executando: { label: "Executando", color: "text-[hsl(var(--area-civil))]", bg: "bg-[hsl(var(--area-civil))]/10" },
+  concluido: { label: "Concluído", color: "text-muted-foreground", bg: "bg-muted/50" },
   cancelado: { label: "Cancelado", color: "text-amber-700", bg: "bg-amber-500/10" },
   erro: { label: "Erro", color: "text-destructive", bg: "bg-destructive/10" },
   idle: { label: "Ocioso", color: "text-muted-foreground", bg: "bg-muted/50" },
 };
 
 const ITEM_STATUS: Record<string, string> = {
-  pendente: "bg-muted text-muted-foreground",
-  executando: "bg-primary/15 text-primary border-primary/30",
-  concluido: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
+  pendente: "bg-muted/50 text-muted-foreground border-border",
+  executando: "bg-[hsl(var(--area-civil))]/15 text-[hsl(var(--area-civil))] border-[hsl(var(--area-civil))]/30",
+  concluido: "bg-muted/60 text-muted-foreground border-border",
+  concluido_com_resultado: "bg-[hsl(var(--status-active))]/15 text-[hsl(var(--status-active))] border-[hsl(var(--status-active))]/30",
   erro: "bg-destructive/15 text-destructive border-destructive/30",
   cancelado: "bg-amber-500/15 text-amber-700 border-amber-500/30",
 };
@@ -161,6 +162,12 @@ function EngineCard({ cfg, onToggle, onConfig }: {
   const falhas = progresso?.falhas ?? 0;
   const pct = total > 0 ? Math.floor((done / total) * 100) : 0;
   const itens: ProgressoItem[] = progresso?.itens || [];
+  const sumNovas = itens.reduce((sum, it) => sum + (Number(it.novas) || 0), 0);
+  const sumDup = itens.reduce((sum, it) => sum + (Number(it.duplicatas) || 0), 0);
+  const sumDesc = itens.reduce((sum, it) => sum + (Number(it.descartadas) || 0), 0);
+  const novasProgresso = Math.max(sumNovas, Number(progresso?.novas) || 0, Number(exec?.resultado?.novas) || 0);
+  const duplicadasProgresso = Math.max(sumDup, Number(progresso?.duplicatas) || 0, Number(exec?.resultado?.duplicatas) || 0);
+  const descartadasProgresso = Math.max(sumDesc, Number(progresso?.descartadas) || 0, Number(exec?.resultado?.descartadas) || 0);
 
   const handleRun = () => {
     if (!dataInicio || !dataFim) return;
@@ -331,6 +338,11 @@ function EngineCard({ cfg, onToggle, onConfig }: {
               <span className="font-medium">{pct}%</span>
             </div>
             <Progress value={pct} className="h-2" />
+            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+              <span>✅ Novas: <strong className="text-[hsl(var(--status-active))]">{novasProgresso}</strong></span>
+              <span>♻️ Duplicadas: <strong>{duplicadasProgresso}</strong></span>
+              <span>❌ Descartadas: <strong>{descartadasProgresso}</strong></span>
+            </div>
             {progresso?.atual && (
               <p className="text-xs text-muted-foreground truncate">
                 <Loader2 className="h-3 w-3 animate-spin inline mr-1" />
@@ -341,7 +353,13 @@ function EngineCard({ cfg, onToggle, onConfig }: {
               <div className="max-h-48 overflow-y-auto space-y-1 mt-2 pr-1">
                 {itens.slice().reverse().slice(0, 50).map((it) => (
                   <div key={it.id} className="flex items-center gap-2 text-xs">
-                    <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", ITEM_STATUS[it.status])}>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] px-1.5 py-0",
+                        ITEM_STATUS[it.status === "concluido" && ((it.novas || 0) > 0 || (it.duplicatas || 0) > 0) ? "concluido_com_resultado" : it.status]
+                      )}
+                    >
                       {it.status}
                     </Badge>
                     <span className="truncate flex-1" title={it.label}>{it.label}</span>

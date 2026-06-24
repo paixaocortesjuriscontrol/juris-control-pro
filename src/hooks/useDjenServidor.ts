@@ -51,6 +51,9 @@ export interface ProgressoExecucao {
   totalItens?: number;
   concluidos?: number;
   falhas?: number;
+  novas?: number;
+  duplicatas?: number;
+  descartadas?: number;
   atual?: { id: string; label: string } | null;
   itens?: ProgressoItem[];
   janela?: { dataInicio: string; dataFim: string };
