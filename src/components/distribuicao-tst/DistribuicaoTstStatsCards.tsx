@@ -34,7 +34,7 @@ interface Props {
   activeKey?: StatsCardKey | null;
   onCardClick?: (key: StatsCardKey) => void;
   /** Totais do responsável logado, exibido logo após o card "Total de Processos". */
-  responsavelCard?: { atribuidos: number; prontos: number } | null;
+  responsavelCard?: { atribuidos: number; prontos: number; nome?: string } | null;
   /** Callback ao clicar no card "Total por responsável" — filtra a lista
    *  para mostrar apenas os Prontos do responsável logado. */
   onResponsavelClick?: () => void;
@@ -257,7 +257,7 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
               >
                 <CardContent className="p-2">
                   <p className="text-[8px] md:text-[10px] font-medium truncate leading-tight text-amber-700 dark:text-amber-400">
-                    Total por responsável
+                    {responsavelCard.nome ? `Total · ${responsavelCard.nome}` : "Total por responsável"}
                   </p>
                   <div className="flex items-baseline gap-2 mt-0.5 flex-wrap">
                     <span className="flex items-baseline gap-1">
