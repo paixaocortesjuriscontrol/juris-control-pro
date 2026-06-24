@@ -739,6 +739,36 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
       items = await buscarPaginado(slot, params, signal);
     }
   }
+  // Advogado sem OAB configurada: a busca ampla por `nomeAdvogado` às vezes
+  // retorna só o primeiro bloco de comunicações do PJE. Quando os primeiros
+  // resultados trazem metadados do próprio advogado (nome + OAB/UF), fazemos
+  // uma segunda passada oficial por `numeroOab + ufOab + nomeAdvogado`, sem
+  // tocar em `publicacoes_djen`. Isso recupera casos como TRT8/OSMAR em que a
+  // API não entrega as páginas finais pela rota de nome, mas entrega pela OAB.
+  if (!signal?.aborted && tipo === "advogado" && items.length > 0) {
+    const oabsSupplement = coletarOabsDoAdvogado(items, mon);
+    for (const adv of oabsSupplement) {
+      if (signal?.aborted) break;
+      const alreadyPrimary = params.numeroOab === adv.oabDigits && params.ufOab === adv.uf;
+      if (alreadyPrimary) continue;
+      const supplementParams = {
+        siglaTribunal: tribunal,
+        dataDisponibilizacaoInicio: dia,
+        dataDisponibilizacaoFim: dia,
+        numeroOab: adv.oabDigits,
+        ufOab: adv.uf,
+        nomeAdvogado: normalizeForApi(adv.nome || mon.termo_busca),
+      };
+      await delay(500, signal);
+      if (signal?.aborted) break;
+      try {
+        const supplementItems = await buscarPaginado(slot, supplementParams, signal);
+        mesclarItensPorId(items, supplementItems, { __advogadoOabSupplement: true });
+      } catch (_) {
+        // suplemento é best-effort; a busca principal já foi feita.
+      }
+    }
+  }
   // Complemento TST/advogado: no TST, numeroOab+ufOab pode devolver só parte
   // das comunicações. O browser chegou a capturar os IDs restantes pela rota
   // cross-UF (nomeAdvogado sem OAB/UF). Portanto, para TST/advogado com
@@ -761,18 +791,7 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
     if (!signal?.aborted) {
       const fallbackItems = await buscarPaginado(slot, fallbackParams, signal);
       if (fallbackItems.length > 0) {
-        const seen = new Set(items.map((it) => {
-          const id = getIdDjen(it);
-          return id ? `id_djen:${id}` : JSON.stringify(it).slice(0, 400);
-        }));
-        for (const it of fallbackItems) {
-          const id = getIdDjen(it);
-          const key = id ? `id_djen:${id}` : JSON.stringify(it).slice(0, 400);
-          if (seen.has(key)) continue;
-          seen.add(key);
-          it.__tstAdvogadoNomeSupplement = true;
-          items.push(it);
-        }
+        mesclarItensPorId(items, fallbackItems, { __tstAdvogadoNomeSupplement: true });
       }
     }
   }
