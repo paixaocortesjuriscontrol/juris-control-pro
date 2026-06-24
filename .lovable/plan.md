@@ -1,46 +1,36 @@
-Você tem razão em reclamar: a execução terminou com 178/178, mas para os 7 IDs faltantes o Servidor não fez o que deveria. Eu conferi o banco agora:
+Você está certo. Vou corrigir a direção: DJEN Servidor não deve buscar, resgatar, comparar como fonte de verdade, nem copiar dados da tabela `publicacoes_djen`. A estrutura do Servidor deve ser separada e autossuficiente.
 
-- Bruna ainda está em Servidor 293 x Browser 300.
-- Os 7 faltantes são exatamente:
-  - `parte` / TRT10 / CPC CONSTRUCOES E PROCESSOS CIENTIFICOS LTDA: `649413249`, `649413230`, `649206090`, `649206116`, `649206058`
-  - `advogado` / TRT8 / OSMAR MENDES PAIXAO CORTES: `648892330`, `648892247`
-- O mais importante: esses mesmos IDs já existem em outra coordenação (`Dr. Thomás` para CPC e `Santander Trabalhista` para OSMAR). Então isso não precisa depender de nova consulta instável à API/PJE/VPS. O Servidor deveria reaproveitar esses registros e gravar também na coordenação da Bruna.
-- A falha concreta está no resgate cross-coordenação: ele usa filtro SQL textual (`conteudo/advogados_json/partes_json ilike termo`) antes de validar. Como `advogados_json` e `partes_json` estão em JSON e o texto pode vir com acento/formatação diferente, registros existentes deixam de entrar no candidato do resgate. Por isso os itens CPC/OSMAR não foram recuperados mesmo já estando no banco.
-- O contador de descartadas fica 0 porque o Servidor só conta descartes vindos de publicações retornadas pela API. Quando a API/VPS retorna zero, não há item para descartar; e quando a busca falha antes do filtro, também não há persistência/auditoria de descartada. Vou corrigir o contador para refletir descartes reais de validação/resgate e mostrar isso por item.
+Plano revisado
 
-Plano de correção:
+1. Remover mistura com `publicacoes_djen` no motor do DJEN Servidor
+- Em `monitor-servidor/engines/paralela.js`, remover qualquer resgate cross-coordenação que leia `publicacoes_djen`.
+- O resgate do Servidor poderá olhar apenas `publicacoes_djen_servidor`, e somente para reaproveitamento interno entre coordenações do próprio Servidor.
+- Não inserir no Servidor nada que venha da tabela do Browser.
 
-1. Substituir o resgate cross-coordenação por resgate determinístico por data + tribunal
-   - Em `monitor-servidor/engines/paralela.js`, parar de depender de `.or(conteudo.ilike, advogados_json.ilike, partes_json.ilike)` para achar candidatos.
-   - Buscar publicações já encontradas em outras coordenações pelo mesmo `tribunal` + `data_disponibilizacao`, em páginas/lotes controlados.
-   - Depois aplicar em memória a mesma validação do termo (`parte`, `advogado`, `palavra-chave`, exclusões e condição concomitante).
-   - Assim, se a publicação já existe no banco por outra coordenação, o Servidor grava a cópia na coordenação atual mesmo que a API/VPS venha vazia.
+2. Corrigir o tipo Advogado pela busca real na API/VPS, não por cópia do Browser
+- Para advogado com `uf` contendo lista separada por vírgula, tratar como busca cross-UF por `nomeAdvogado`, sem enviar `numeroOab`/`ufOab` inválidos.
+- Para advogado com OAB e UF única, manter busca por `numeroOab + ufOab + nomeAdvogado`.
+- Garantir que TRT8/OSMAR da Bruna rode pela consulta oficial do PJE Comunica via VPS e seja persistido em `publicacoes_djen_servidor` por mérito próprio.
+- Ajustar validação de advogado para aceitar corretamente os formatos retornados pela API (`destinatarioadvogados[].advogado`) e formatos persistidos no próprio Servidor, mas sem consultar `publicacoes_djen`.
 
-2. Corrigir validação de metadados JSON no Servidor
-   - Ajustar `validarAdvogadoMetadados` para aceitar também `advogados_json` persistido como array de strings, exemplo: `"OSMAR MENDES PAIXAO CORTES - OAB DF15553"`.
-   - Ajustar `validarParteMetadados`/extração de partes para continuar aceitando arrays de strings como `"[Reclamado] CPC CONSTRUCOES..."`.
-   - Garantir normalização sem acento, para `CPC CONSTRUÇÕES` casar com `CPC CONSTRUCOES`.
+3. Auditar e desfazer pontos que misturam Browser no fluxo do Servidor
+- Procurar no código todos os pontos do DJEN Servidor que referenciam `publicacoes_djen`.
+- Manter `publicacoes_djen` apenas no comparador/diagnóstico visual “Servidor × Browser”, porque esse painel existe justamente para comparar as duas estruturas.
+- Remover do motor, resgate, persistência e contadores qualquer dependência da tabela do Browser.
 
-3. Criar etapa de “resgate final” por id_djen faltante dentro da mesma janela
-   - Depois de cada termo/dia/tribunal, se a API retornou zero ou não trouxe todos, consultar publicações do Browser/outras coordenações daquele dia/tribunal que validam o termo.
-   - Inserir as que ainda não existem em `publicacoes_djen_servidor` para a coordenação atual, deduplicando por `coordenacao_id + id_djen`.
-   - Isso deve recuperar exatamente os 7 da Bruna e também os casos do Dr. Thomás quando já houver base capturada em outra coordenação.
+4. Corrigir descartadas na barra e nos cards
+- Ajustar `DjenServidorParalelaCard.tsx` para somar `descartadas` a partir dos `tracks` vivos quando a execução está em andamento ou quando `resultado.descartadas` vier zerado/incompleto.
+- Exibir descartadas na barra global e nos cards por tribunal mesmo quando não houver novas.
+- Garantir que o backend grave no `progresso` os totais consolidados de `novas`, `duplicatas` e `descartadas`.
 
-4. Consertar contador/auditoria de descartadas
-   - Separar contagem de:
-     - retornadas pela API;
-     - descartadas por filtro/termo/exclusão/condição;
-     - resgatadas de outra coordenação;
-     - duplicadas por já existirem na mesma coordenação.
-   - Atualizar `item.descartadas` e mensagem final para não ficar `Descartadas: 0` quando houve candidatos analisados e descartados.
-   - No painel, mostrar também descartadas mesmo quando `novas = 0`, não só `+novas`.
+5. Corrigir cores dos cards por tribunal
+- `executando`: azul.
+- `concluido` com `novas > 0` ou `duplicatas > 0`: verde.
+- `concluido` com `0 novas` e `0 duplicatas`: neutro/cinza.
+- `erro`: vermelho.
+- `cancelado`: amarelo.
 
-5. Melhorar o comparador para apontar a causa real
-   - Quando `so_browser` tiver o mesmo `id_djen` em outra coordenação/Servidor, marcar como `falha_resgate_cross_coordenacao` em vez de `possivel_proxy_vazio_ou_api_instavel`.
-   - Incluir `execucao_id_servidor` no CSV, que já existe no tipo mas não foi exportado.
-
-6. Validação imediata após aplicar
-   - Consultar no banco os 7 IDs faltantes antes/depois.
-   - Confirmar que, após nova execução da Bruna, o comparador fica 300 x 300 ou que qualquer divergência restante aparece com causa técnica específica e não genérica.
-
-Observação operacional: como a correção principal é no `monitor-servidor/engines/paralela.js`, depois de aprovada/implementada ela ainda precisa ser atualizada na VPS/PM2 para a próxima execução usar o novo motor.
+6. Resultado esperado
+- A execução da Bruna deve deixar de depender de qualquer dado do Browser.
+- A diferença das 2 publicações de advogado deve ser tratada pela rota correta: melhorar a consulta/validação do próprio Servidor para que ele encontre os registros na API.
+- A interface deve mostrar descartadas corretamente e não pintar tudo de verde quando não houve achado.
