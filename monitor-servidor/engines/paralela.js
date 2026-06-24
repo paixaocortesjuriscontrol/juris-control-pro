@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-25-servidor-isolado-no-total-stop";
+const ENGINE_VERSION = "2026-06-25-advogado-oab-supplement-descartadas";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -312,6 +312,138 @@ function validarAdvogadoMetadados(pub, oab, nome) {
   return false;
 }
 
+function nomesAlvoAdvogado(mon) {
+  const nomes = [mon?.termo_busca, ...(mon?.termos_or || []).map((t) => parsearTermoOr(t)?.nome)]
+    .map((n) => String(n || "").trim())
+    .filter(Boolean);
+  const seen = new Set();
+  return nomes.filter((n) => {
+    const key = normalize(n);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function nomeAdvogadoCasa(advNome, mon) {
+  const advNorm = normalize(advNome);
+  if (!advNorm) return false;
+  return nomesAlvoAdvogado(mon).some((nome) => {
+    const alvo = normalize(nome);
+    return alvo && (advNorm === alvo || advNorm.includes(alvo) || alvo.includes(advNorm));
+  });
+}
+
+function parseOabFromString(raw) {
+  const text = normalize(raw);
+  if (!text) return null;
+  let m = text.match(/OAB\s+([A-Z]{2})\s*(\d{3,7})/i);
+  if (m) return { uf: m[1].toUpperCase(), oabDigits: m[2] };
+  m = text.match(/OAB\s+(\d{3,7})\s*([A-Z]{2})/i);
+  if (m) return { uf: m[2].toUpperCase(), oabDigits: m[1] };
+  m = text.match(/\b([A-Z]{2})\s*(\d{3,7})\b/i);
+  if (m) return { uf: m[1].toUpperCase(), oabDigits: m[2] };
+  return null;
+}
+
+function coletarAdvogadosEstruturados(pub) {
+  const obj = rawObj(pub);
+  const out = [];
+  const add = (entry) => {
+    if (!entry) return;
+    if (typeof entry === "string") {
+      const parsed = parseOabFromString(entry);
+      out.push({ nome: entry.replace(/\s*-?\s*OAB\b.*$/i, "").trim(), ...(parsed || {}) });
+      return;
+    }
+    const adv = entry?.advogado || entry;
+    if (!adv || typeof adv !== "object") return;
+    out.push({
+      nome: adv.nome || adv.nomeAdvogado || adv.nome_representante || adv.nomeProcurador || "",
+      oabDigits: String(adv.numero_oab || adv.numeroOab || adv.oab || adv.inscricaoOab || "").replace(/\D/g, ""),
+      uf: String(adv.uf_oab || adv.ufOab || adv.uf || adv.siglaUf || "").trim().toUpperCase(),
+    });
+  };
+  for (const arr of [obj?.destinatarioadvogados, obj?.advogados, pub?.destinatarioadvogados, pub?.advogados]) {
+    if (Array.isArray(arr)) for (const entry of arr) add(entry);
+  }
+  const dest = obj?.destinatarios || pub?.destinatarios;
+  if (Array.isArray(dest)) {
+    for (const d of dest) {
+      if (Array.isArray(d?.advogados)) for (const entry of d.advogados) add(entry);
+      if (d?.nomeAdvogado) add({ nome: d.nomeAdvogado, numeroOab: d.numeroOab, ufOab: d.ufOab });
+    }
+  }
+  return out;
+}
+
+function coletarOabsDoAdvogado(pubs, mon) {
+  const candidatos = new Map();
+  const addCandidate = (oabDigits, uf, nome) => {
+    const od = String(oabDigits || "").replace(/\D/g, "");
+    const u = String(uf || "").trim().toUpperCase();
+    if (od.length < 3 || !/^[A-Z]{2}$/.test(u)) return;
+    const key = `${u}|${od}`;
+    if (!candidatos.has(key)) candidatos.set(key, { oabDigits: od, uf: u, nome: nome || mon.termo_busca });
+  };
+  for (const pub of pubs || []) {
+    for (const adv of coletarAdvogadosEstruturados(pub)) {
+      if (!nomeAdvogadoCasa(adv.nome, mon)) continue;
+      addCandidate(adv.oabDigits, adv.uf, adv.nome);
+    }
+  }
+  return Array.from(candidatos.values()).slice(0, 5);
+}
+
+function mesclarItensPorId(destino, extras, mark = {}) {
+  const seen = new Set((destino || []).map((it) => {
+    const id = getIdDjen(it);
+    return id ? `id_djen:${id}` : JSON.stringify(it).slice(0, 400);
+  }));
+  let added = 0;
+  for (const it of extras || []) {
+    const id = getIdDjen(it);
+    const key = id ? `id_djen:${id}` : JSON.stringify(it).slice(0, 400);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    Object.assign(it, mark);
+    destino.push(it);
+    added++;
+  }
+  return added;
+}
+
+async function registrarDescartadaServidor(sb, pub, mon, tribunal, dia, motivo, execucaoId, logDebug) {
+  if (process.env.DJEN_SERVIDOR_PERSIST_DESCARTADAS !== "true") return;
+  const conteudo = getConteudo(pub);
+  const idDjen = getIdDjen(pub);
+  const dataDisponibilizacao = getDataDisponibilizacao(pub, dia);
+  const processoNumero = extractProcesso(pub, conteudo);
+  const hashConteudo = generatePublicacaoHash(`${conteudo}|DESCARTADA:${motivo}`, dataDisponibilizacao, processoNumero, idDjen);
+  const metadata = metadataFromRaw(pub);
+  const row = {
+    monitoramento_id: mon.id,
+    coordenacao_id: mon.coordenacao_id || null,
+    hash_conteudo: hashConteudo,
+    id_djen: idDjen ? `desc:${mon.id}:${idDjen}` : null,
+    conteudo,
+    data_publicacao: nextBusinessDateYmd(dataDisponibilizacao),
+    data_disponibilizacao: dataDisponibilizacao,
+    processo_numero: processoNumero,
+    tribunal,
+    ...metadata,
+    origem: "servidor",
+    fonte: metadata.fonte || "DJEN-PARALELA-DESCARTADA",
+    tipo_publicacao: "descartada",
+    execucao_id: execucaoId || null,
+  };
+  const { error } = await sb.from("publicacoes_djen_servidor").upsert(row, {
+    onConflict: "coordenacao_id,id_djen",
+    ignoreDuplicates: true,
+  });
+  if (error) logDebug?.("paralela.descartada_persist_error", { monitoramentoId: mon.id, tribunal, dia, motivo, idDjen, error: error.message });
+}
+
 function validarParteMetadados(pub, nomeParte) {
   const nomeNorm = normalize(nomeParte);
   if (!nomeNorm) return false;
@@ -455,10 +587,18 @@ function contemTermo(conteudo, mon, pub) {
       if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
     }
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
+    const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
+    const nomeNorm = normalize(mon.termo_busca);
+    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
+    const oabDigits = String(mon.oab || "").replace(/\D/g, "");
+    if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
     for (const t of mon.termos_or || []) {
       const p = parsearTermoOr(t);
       if (!p) continue;
       if (validarAdvogadoMetadados(pub, p.oabDigits, p.nome)) return true;
+      const nn = normalize(p.nome);
+      if (nn && contemFrase(textoNorm, nn)) return true;
+      if (p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
     }
     return false;
   }
@@ -485,7 +625,9 @@ function condicaoConcomitanteAtendida(pub, mon, conteudo) {
   if (grupos.length === 0) return true;
   const textoNorm = mon.tipo === "parte"
     ? normalize(extrairPartesEstruturadas(pub).join("\n"))
-    : normalize(getConteudoPuro(pub));
+    : mon.tipo === "advogado"
+      ? normalize(buildTextoCompleto(pub, conteudo))
+      : normalize(getConteudoPuro(pub));
   if (!textoNorm) return mon.tipo !== "parte";
   return grupos.some((g) => {
     const ts = g.split(",").map((t) => t.trim()).filter(Boolean);
@@ -499,7 +641,9 @@ function shouldExclude(conteudo, mon, pub) {
   if (excs.length === 0) return false;
   const text = mon.tipo === "parte"
     ? normalize(extrairPartesEstruturadas(pub).join("\n"))
-    : normalize(getConteudoPuro(pub));
+    : mon.tipo === "advogado"
+      ? normalize(buildTextoCompleto(pub, conteudo))
+      : normalize(getConteudoPuro(pub));
   if (!text) return false;
   return excs.some((e) => {
     const n = normalize(e);
@@ -626,6 +770,36 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
       items = await buscarPaginado(slot, params, signal);
     }
   }
+  // Advogado sem OAB configurada: a busca ampla por `nomeAdvogado` às vezes
+  // retorna só o primeiro bloco de comunicações do PJE. Quando os primeiros
+  // resultados trazem metadados do próprio advogado (nome + OAB/UF), fazemos
+  // uma segunda passada oficial por `numeroOab + ufOab + nomeAdvogado`, sem
+  // tocar em `publicacoes_djen`. Isso recupera casos como TRT8/OSMAR em que a
+  // API não entrega as páginas finais pela rota de nome, mas entrega pela OAB.
+  if (!signal?.aborted && tipo === "advogado" && items.length > 0) {
+    const oabsSupplement = coletarOabsDoAdvogado(items, mon);
+    for (const adv of oabsSupplement) {
+      if (signal?.aborted) break;
+      const alreadyPrimary = params.numeroOab === adv.oabDigits && params.ufOab === adv.uf;
+      if (alreadyPrimary) continue;
+      const supplementParams = {
+        siglaTribunal: tribunal,
+        dataDisponibilizacaoInicio: dia,
+        dataDisponibilizacaoFim: dia,
+        numeroOab: adv.oabDigits,
+        ufOab: adv.uf,
+        nomeAdvogado: normalizeForApi(adv.nome || mon.termo_busca),
+      };
+      await delay(500, signal);
+      if (signal?.aborted) break;
+      try {
+        const supplementItems = await buscarPaginado(slot, supplementParams, signal);
+        mesclarItensPorId(items, supplementItems, { __advogadoOabSupplement: true });
+      } catch (_) {
+        // suplemento é best-effort; a busca principal já foi feita.
+      }
+    }
+  }
   // Complemento TST/advogado: no TST, numeroOab+ufOab pode devolver só parte
   // das comunicações. O browser chegou a capturar os IDs restantes pela rota
   // cross-UF (nomeAdvogado sem OAB/UF). Portanto, para TST/advogado com
@@ -648,18 +822,7 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
     if (!signal?.aborted) {
       const fallbackItems = await buscarPaginado(slot, fallbackParams, signal);
       if (fallbackItems.length > 0) {
-        const seen = new Set(items.map((it) => {
-          const id = getIdDjen(it);
-          return id ? `id_djen:${id}` : JSON.stringify(it).slice(0, 400);
-        }));
-        for (const it of fallbackItems) {
-          const id = getIdDjen(it);
-          const key = id ? `id_djen:${id}` : JSON.stringify(it).slice(0, 400);
-          if (seen.has(key)) continue;
-          seen.add(key);
-          it.__tstAdvogadoNomeSupplement = true;
-          items.push(it);
-        }
+        mesclarItensPorId(items, fallbackItems, { __tstAdvogadoNomeSupplement: true });
       }
     }
   }
@@ -691,6 +854,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     const coordenacaoId = mon.coordenacao_id || null;
     const runKey = idDjen ? `id_djen:${idDjen}` : `hash:${hashConteudo}`;
     if (seenRunKeys.has(runKey)) {
+      stats.duplicatas++;
       logDebug?.("paralela.dedup_runtime", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo });
       continue;
     }
@@ -698,6 +862,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     // Filtro por tribunais permitidos no monitoramento (espelha browser)
     if (tribunaisMon.length > 0 && !tribunaisMon.includes(tribunal)) {
       stats.descartadas++;
+      await registrarDescartadaServidor(sb, pub, mon, tribunal, dia, "tribunal_nao_permitido", execucaoId, logDebug);
       logDebug?.("paralela.descartada_tribunal", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo });
       continue;
     }
@@ -708,6 +873,14 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       !condicaoConcomitanteAtendida(pub, mon, conteudo)
     ) {
       stats.descartadas++;
+      const motivo = !conteudo
+        ? "conteudo_vazio"
+        : shouldExclude(conteudo, mon, pub)
+          ? "excluido"
+          : !contemTermo(conteudo, mon, pub)
+            ? "termo_nao_encontrado"
+            : "condicao_concomitante";
+      await registrarDescartadaServidor(sb, pub, mon, tribunal, dia, motivo, execucaoId, logDebug);
       logDebug?.("paralela.descartada_filtro", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, temConteudo: !!conteudo, termo: mon.termo_busca, tipo: mon.tipo });
       continue;
     }
