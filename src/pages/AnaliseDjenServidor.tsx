@@ -457,7 +457,7 @@ const AnaliseDjenServidor = () => {
     // por (coordenação, conteúdo) no servidor. Default false: traz tudo.
     dedupServidor: execucaoFocada ? false : ocultarDuplicadas,
     apenasNaoLidas: execucaoFocada ? false : apenasNaoLidas,
-    readStatus: execucaoFocada ? 'all' : readStatus,
+    readStatus: execucaoFocada ? 'todas' : readStatus,
     apenasHoje: execucaoFocada ? false : apenasHojeEfetivo,
     // 'todos' e 'normal' passam undefined para buscar termos e processos
     // datajud é tratado separadamente. 'kurier' filtra no client pela fonte.
