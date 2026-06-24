@@ -447,18 +447,18 @@ const AnaliseDjenServidor = () => {
   } = usePublicacoesDjenServidorUnificadas({
     coordenacaoId: coordenacaoFiltroEfetivo,
     // Data Disponibilização filtra por data_disponibilizacao no banco; não pode virar filtro de created_at/captura.
-    dataInicio: apenasHojeEfetivo ? undefined : (dataInicioDebounced || undefined),
-    dataFim: apenasHojeEfetivo ? undefined : (dataFimDebounced || undefined),
-    dataDisponibilizacao: dataDisponibilizacaoDebounced || undefined,
-    termoBusca: termoBuscaDebounced || undefined,
-    monitoramentoId: monitoramentoId || undefined,
-    tribunal: tribunalFiltro || undefined,
+    dataInicio: execucaoFocada ? undefined : (apenasHojeEfetivo ? undefined : (dataInicioDebounced || undefined)),
+    dataFim: execucaoFocada ? undefined : (apenasHojeEfetivo ? undefined : (dataFimDebounced || undefined)),
+    dataDisponibilizacao: execucaoFocada ? undefined : (dataDisponibilizacaoDebounced || undefined),
+    termoBusca: execucaoFocada ? undefined : (termoBuscaDebounced || undefined),
+    monitoramentoId: execucaoFocada ? undefined : (monitoramentoId || undefined),
+    tribunal: execucaoFocada ? undefined : (tribunalFiltro || undefined),
     // Quando o usuário clica em "Mostrar somente únicas", aplica DISTINCT ON
     // por (coordenação, conteúdo) no servidor. Default false: traz tudo.
-    dedupServidor: ocultarDuplicadas,
-    apenasNaoLidas,
-    readStatus,
-    apenasHoje: apenasHojeEfetivo,
+    dedupServidor: execucaoFocada ? false : ocultarDuplicadas,
+    apenasNaoLidas: execucaoFocada ? false : apenasNaoLidas,
+    readStatus: execucaoFocada ? 'todas' : readStatus,
+    apenasHoje: execucaoFocada ? false : apenasHojeEfetivo,
     // 'todos' e 'normal' passam undefined para buscar termos e processos
     // datajud é tratado separadamente. 'kurier' filtra no client pela fonte.
     tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud' || tipoOrigem === 'kurier') ? undefined : tipoOrigem as any,
