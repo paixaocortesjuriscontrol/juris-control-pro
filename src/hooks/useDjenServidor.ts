@@ -280,9 +280,14 @@ export function useExecucaoServidorAoVivo(tipo: string) {
         .select("*")
         .eq("tipo", tipo)
         .order("created_at", { ascending: false })
-        .limit(1);
+        .limit(10);
       if (error) throw error;
-      return (data?.[0] as ExecucaoServidor | undefined) || null;
+      const execucoes = (data || []) as ExecucaoServidor[];
+      return execucoes.find((e) => e.status === "executando")
+        || execucoes.find((e) => e.status === "pendente" && e.progresso)
+        || execucoes.find((e) => e.status === "pendente")
+        || execucoes[0]
+        || null;
     },
     refetchInterval: 10_000,
   });
