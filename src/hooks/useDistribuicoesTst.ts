@@ -381,6 +381,10 @@ export async function fetchAllDistribuicaoTstIds(
         .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
         .or("segredo_justica.is.null,segredo_justica.eq.false")
         .or("status.is.null,status.neq.pronto_envio");
+    } else if (filters.situacaoProcesso === "nao_precisa_fazer") {
+      query = query.or(
+        "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true"
+      );
     }
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
@@ -597,6 +601,10 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
         .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
         .or("segredo_justica.is.null,segredo_justica.eq.false")
         .or("status.is.null,status.neq.pronto_envio");
+    } else if (filters.situacaoProcesso === "nao_precisa_fazer") {
+      query = query.or(
+        "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true"
+      );
     }
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
@@ -957,6 +965,10 @@ export async function fetchMesesDataRealFiltered(
         .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
         .or("segredo_justica.is.null,segredo_justica.eq.false")
         .or("status.is.null,status.neq.pronto_envio");
+    } else if (f.situacaoProcesso === "nao_precisa_fazer") {
+      query = query.or(
+        "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true"
+      );
     }
     if (f.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (f.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
