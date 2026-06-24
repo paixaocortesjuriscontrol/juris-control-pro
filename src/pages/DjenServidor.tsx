@@ -612,9 +612,9 @@ function ComparadorPanel() {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2"><GitCompare className="h-4 w-4" /> Comparador Servidor × Browser</CardTitle>
         <CardDescription>
-          Escolha o período e clique em <strong>Analisar</strong> para gerar um relatório completo
-          comparando, coordenação a coordenação e por tipo de pesquisa, quantas publicações foram
-          capturadas pelo servidor (VPS) e pelo navegador, e quais são exclusivas de cada origem.
+          A comparação principal é <strong>por publicação</strong> usando a chave <code>coordenação + id_djen</code>.
+          A quebra por <em>tipo de pesquisa</em> (advogado, parte, palavra-chave, processo) é apenas um diagnóstico
+          secundário do monitoramento que capturou a publicação — não altera os totais globais.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
