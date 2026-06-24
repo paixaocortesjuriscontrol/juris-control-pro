@@ -3583,12 +3583,15 @@ const AnaliseDjenServidor = () => {
         return re.test(t);
       });
     }
-    if (ocultarDuplicadas) {
-      result = dedupePublicacoesDjen(result);
-    }
+    // Quando uma execução está focada, filtramos por novasIds ANTES da
+    // deduplicação para que o número de itens visíveis bata com o card
+    // "N novas vs anterior". Só então aplicamos dedupe (se ligado).
     if (execucaoFocada && execucaoFocada.novasIds.length > 0) {
       const novasSet = new Set(execucaoFocada.novasIds);
       result = result.filter((pub) => novasSet.has(pub.id));
+    }
+    if (ocultarDuplicadas && !execucaoFocada) {
+      result = dedupePublicacoesDjen(result);
     }
     return result;
   }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas, tipoOrigem, execucaoFocada]);
