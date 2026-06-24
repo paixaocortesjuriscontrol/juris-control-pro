@@ -587,11 +587,12 @@ function ComparadorPanel() {
       .join("\n");
     const totais = `\n\n# Totais\nfonte,total\nDJEN_servidor,${data.porFonte.totais.djenServidor}\nDJEN_browser,${data.porFonte.totais.djenBrowser}\nDJEN_unico,${data.porFonte.totais.djenUnico}\nKurier,${data.porFonte.totais.kurier}\nPautas_TST,${data.porFonte.totais.pautas}\n`;
     const header3 = "\n\n# Publicações exclusivas por origem (detalhamento auditável)\n";
-    const cols3 = "coordenacao,origem,tipo_pesquisa,termo_busca,monitoramento_id,tribunal,processo,data_publicacao,data_disponibilizacao,id_djen\n";
+    const cols3 = "coordenacao,origem,provavel_causa,tipo_pesquisa,termo_busca,monitoramento_id,tribunal,processo,data_publicacao,data_disponibilizacao,id_djen,capturado_em\n";
     const body3 = (data.detalhes || [])
       .map((d) => [
         JSON.stringify(d.coordenacaoNome),
         d.origem,
+        d.provavel_causa || "",
         d.tipo,
         JSON.stringify(d.termo_busca || ""),
         JSON.stringify(d.monitoramento_id || ""),
@@ -600,6 +601,7 @@ function ComparadorPanel() {
         JSON.stringify(d.data_publicacao || ""),
         JSON.stringify(d.data_disponibilizacao || ""),
         JSON.stringify(d.id_djen || ""),
+        JSON.stringify(d.capturado_em || ""),
       ].join(","))
       .join("\n");
     const blob = new Blob(
