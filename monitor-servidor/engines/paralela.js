@@ -854,6 +854,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     const coordenacaoId = mon.coordenacao_id || null;
     const runKey = idDjen ? `id_djen:${idDjen}` : `hash:${hashConteudo}`;
     if (seenRunKeys.has(runKey)) {
+      stats.duplicatas++;
       logDebug?.("paralela.dedup_runtime", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo });
       continue;
     }
