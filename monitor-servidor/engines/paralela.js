@@ -219,6 +219,16 @@ function getDataDisponibilizacao(pub, fallbackDia) {
   return obj?.dataDisponibilizacao || obj?.data_disponibilizacao || obj?.dataDJe || obj?.dtDisponibilizacao || pub?.dataDisponibilizacao || pub?.data_disponibilizacao || fallbackDia;
 }
 
+// Normaliza data_disponibilizacao para BRT 12:00 (= 15:00 UTC) do dia da
+// publicação. Mantém parity com o Browser, que grava o próximo dia útil ao
+// meio-dia. Aqui usamos o próprio dia da disponibilização (não o próximo dia
+// útil) para preservar o "dia DJEN" original — `data_publicacao` (next biz
+// day) já cobre a parte de prazo.
+function normalizarDataDispBrt(dataLike) {
+  const ymd = String(dataLike || ymdToday()).slice(0, 10);
+  return `${ymd}T15:00:00.000Z`;
+}
+
 function nextBusinessDateYmd(dateLike) {
   const d = new Date(`${String(dateLike || ymdToday()).slice(0, 10)}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + 1);
