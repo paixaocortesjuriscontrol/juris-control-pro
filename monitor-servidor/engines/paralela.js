@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-25-rescue-by-date-tribunal";
+const ENGINE_VERSION = "2026-06-25-servidor-isolado";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -339,12 +339,9 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(sb, mon, dia, tr
   if (!mon?.coordenacao_id) return [];
   const tipo = mapTipo(mon.tipo);
   if (!MAIN_TIPOS.includes(tipo)) return [];
-  // RESGATE DETERMINÍSTICO (v2): em vez de filtrar com `.or(conteudo.ilike,
-  // advogados_json.ilike, partes_json.ilike)` — que falha em colunas JSONB e
-  // não acha publicações cujo termo aparece só nos metadados estruturados —
-  // buscamos TODAS as publicações daquele tribunal+dia em outras coordenações
-  // (browser E servidor) e validamos em memória com a mesma função do termo.
-  // Em lotes pequenos para não estourar memória nem o limite de 1000 linhas.
+  // RESGATE ISOLADO (v3): o DJEN Servidor é uma estrutura separada e NÃO pode
+  // ler de `publicacoes_djen` (Browser). Aqui só reaproveitamos entre
+  // coordenações DO PRÓPRIO Servidor, lendo apenas `publicacoes_djen_servidor`.
   const termosBuscaParte = tipo === "parte" ? termosDeParte(mon) : [];
   const resgatadas = new Map();
   const BATCH = 1000;
@@ -360,7 +357,6 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(sb, mon, dia, tr
         .lte("data_disponibilizacao", `${dia}T23:59:59.999Z`)
         .neq("coordenacao_id", mon.coordenacao_id)
         .range(from, from + BATCH - 1);
-      if (table === "publicacoes_djen") q = q.eq("status", "encontrada");
       const { data, error } = await q;
       if (error) {
         log?.("paralela.resgate_query_error", { table, monitoramentoId: mon.id, tribunal, dia, error: error.message });
@@ -405,7 +401,6 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(sb, mon, dia, tr
       if (from > 10000) break; // sanity
     }
   };
-  await collect("publicacoes_djen");
   await collect("publicacoes_djen_servidor");
   return Array.from(resgatadas.values());
 }

@@ -63,8 +63,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
 
 const TRACK_COLORS: Record<string, string> = {
   pendente: "bg-muted text-muted-foreground",
-  executando: "bg-primary/15 text-primary border-primary/30",
-  concluido: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
+  executando: "bg-blue-500/15 text-blue-700 border-blue-500/30",
+  concluido: "bg-muted text-muted-foreground border-border",
+  concluido_com_resultado: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30",
   erro: "bg-destructive/15 text-destructive border-destructive/30",
   cancelado: "bg-amber-500/15 text-amber-700 border-amber-500/30",
 };
@@ -176,21 +177,26 @@ export function DjenServidorParalelaCard() {
   const total = progress?.totalItens ?? tracks.length;
   const done = progress?.concluidos ?? tracks.filter((t) => ["concluido", "erro", "cancelado"].includes(t.status)).length;
   const falhas = progress?.falhas ?? tracks.filter((t) => t.status === "erro").length;
-  // Prioriza `resultado.*` desta execução (mesma fonte da Análise DJEN).
-  // A soma dos `tracks` reflete o checkpoint acumulado e inflaria os números
-  // com totais de execuções anteriores ("Já processado (checkpoint)").
+  // Durante a execução, sempre somar dos tracks ao vivo (resultado só fica
+  // disponível ao final). Mesmo no fim, se a soma dos tracks for maior que o
+  // resultado, usamos a soma — assim descartadas/duplicadas aparecem certo
+  // mesmo quando o backend gravou `resultado.descartadas = 0` por falha de
+  // consolidação.
+  const sumNovas = tracks.reduce((sum, t) => sum + (t.novas || 0), 0);
+  const sumDup = tracks.reduce((sum, t) => sum + (t.duplicatas || 0), 0);
+  const sumDesc = tracks.reduce((sum, t) => sum + (t.descartadas || 0), 0);
   const resultadoNovas = Number(exec?.resultado?.novas ?? NaN);
   const resultadoDup = Number(exec?.resultado?.duplicatas ?? NaN);
   const resultadoDesc = Number(exec?.resultado?.descartadas ?? NaN);
-  const novas = Number.isFinite(resultadoNovas)
-    ? resultadoNovas
-    : tracks.reduce((sum, t) => sum + (t.novas || 0), 0);
-  const duplicadas = Number.isFinite(resultadoDup)
-    ? resultadoDup
-    : tracks.reduce((sum, t) => sum + (t.duplicatas || 0), 0);
-  const descartadas = Number.isFinite(resultadoDesc)
-    ? resultadoDesc
-    : tracks.reduce((sum, t) => sum + (t.descartadas || 0), 0);
+  const novas = isRunning
+    ? sumNovas
+    : Math.max(sumNovas, Number.isFinite(resultadoNovas) ? resultadoNovas : 0);
+  const duplicadas = isRunning
+    ? sumDup
+    : Math.max(sumDup, Number.isFinite(resultadoDup) ? resultadoDup : 0);
+  const descartadas = isRunning
+    ? sumDesc
+    : Math.max(sumDesc, Number.isFinite(resultadoDesc) ? resultadoDesc : 0);
   const percentage = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const tempoDecorrido = exec?.iniciado_em
     ? Math.max(0, Math.floor(((exec.finalizado_em ? new Date(exec.finalizado_em).getTime() : nowTick) - new Date(exec.iniciado_em).getTime()) / 1000))
@@ -492,7 +498,11 @@ export function DjenServidorParalelaCard() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
               {tracks.map((track) => {
                 const pct = statusPct(track);
-                const colorClass = TRACK_COLORS[track.status] || TRACK_COLORS.pendente;
+                const hasAchados = (track.novas || 0) > 0 || (track.duplicatas || 0) > 0;
+                const colorKey = track.status === "concluido" && hasAchados
+                  ? "concluido_com_resultado"
+                  : track.status;
+                const colorClass = TRACK_COLORS[colorKey] || TRACK_COLORS.pendente;
                 return (
                   <div key={track.id} className={cn("border rounded-md p-2 space-y-1", colorClass)}>
                     <div className="flex items-center justify-between gap-2 flex-wrap">
