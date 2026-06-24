@@ -547,7 +547,7 @@ function ComparadorPanel() {
 
   const exportarRelatorioCsv = () => {
     if (!data) return;
-    const header1 = "# Comparador DJEN Servidor x Browser (por coordenação e tipo de pesquisa)\n";
+    const header1 = "# Comparador DJEN Servidor x Browser — comparação por publicação (coordenacao + id_djen)\n# Quebra abaixo é diagnóstico secundário por tipo de monitoramento que capturou a publicação\n";
     const cols1 = "coordenacao,tipo_pesquisa,total_servidor,total_browser,em_ambos,so_servidor,so_browser\n";
     const body1 = data.linhas
       .map((l) =>
@@ -571,16 +571,19 @@ function ComparadorPanel() {
       ].join(","))
       .join("\n");
     const totais = `\n\n# Totais\nfonte,total\nDJEN_servidor,${data.porFonte.totais.djenServidor}\nDJEN_browser,${data.porFonte.totais.djenBrowser}\nDJEN_unico,${data.porFonte.totais.djenUnico}\nKurier,${data.porFonte.totais.kurier}\nPautas_TST,${data.porFonte.totais.pautas}\n`;
-    const header3 = "\n\n# Publicações exclusivas por origem (detalhamento)\n";
-    const cols3 = "coordenacao,origem,tipo_pesquisa,tribunal,processo,data_publicacao,id_djen\n";
+    const header3 = "\n\n# Publicações exclusivas por origem (detalhamento auditável)\n";
+    const cols3 = "coordenacao,origem,tipo_pesquisa,termo_busca,monitoramento_id,tribunal,processo,data_publicacao,data_disponibilizacao,id_djen\n";
     const body3 = (data.detalhes || [])
       .map((d) => [
         JSON.stringify(d.coordenacaoNome),
         d.origem,
         d.tipo,
+        JSON.stringify(d.termo_busca || ""),
+        JSON.stringify(d.monitoramento_id || ""),
         JSON.stringify(d.tribunal || ""),
         JSON.stringify(d.processo_numero || ""),
         JSON.stringify(d.data_publicacao || ""),
+        JSON.stringify(d.data_disponibilizacao || ""),
         JSON.stringify(d.id_djen || ""),
       ].join(","))
       .join("\n");
