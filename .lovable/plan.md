@@ -1,59 +1,47 @@
 ## Objetivo
 
-Corrigir as 5 divergências entre DJEN Servidor × Browser, sem quebrar a tela Análise DJEN nem outras telas.
+Incluir, no CSV exportado pelo **Comparador DJEN Servidor × Browser** (`/djen-servidor` → aba Comparador), uma seção detalhada listando, por coordenação, **cada publicação encontrada a mais por origem** (só Servidor vs só Browser) — não apenas os totais.
 
-## 1) Filtro de "Origem" no Comparador
+## O que muda
 
-Na tela do comparador (página de auditoria DJEN Servidor × Browser), adicionar um seletor:
+### 1. `src/hooks/useDjenServidor.ts` — `useComparadorAnalise`
 
-- **Todos** (padrão atual)
-- **DJEN Termos** (apenas `tipo_publicacao` = `intimacao`/`parte` originadas do motor de Termos)
-- **Pautas** (`tipo_publicacao = 'pauta'`)
-- **Kurier** (origem Kurier — flag `fonte` ou `origem_motor`)
+- Selecionar campos adicionais nas duas queries (`publicacoes_djen_servidor` e `publicacoes_djen`):
+  `processo_numero, tribunal, data_disponibilizacao, data_publicacao, id_djen` (alguns já vêm; faltam `data_publicacao` e garantir `processo_numero`/`tribunal`).
+- Manter o `Map<key, row>` por origem (já existe via `sByKey`/`bByKey`).
+- Após o cálculo dos buckets, construir uma nova lista `detalhes`:
+  ```
+  Array<{
+    coordenacaoId, coordenacaoNome,
+    tipo,                    // advogado / processo / palavra-chave / parte / sem_monitoramento
+    origem: 'so_servidor' | 'so_browser',
+    processo_numero, tribunal,
+    data_publicacao,         // ou data_disponibilizacao se a primeira for nula
+    id_djen,
+  }>
+  ```
+  Geração: para cada chave em `sByKey` que não está em `bByKey` → `so_servidor`; e vice-versa. Coordenação/tipo vêm do `keyToBucket` já calculado.
+- Adicionar `detalhes` ao tipo `ComparadorAnaliseRelatorio` e ao return.
 
-O filtro atua sobre os dois lados (servidor e browser) antes do diff. Isso elimina o ruído das ~371 pautas que só existem no browser hoje.
+### 2. `src/pages/DjenServidor.tsx` — `exportarRelatorioCsv`
 
-## 2) Habilitar engine de Pautas no servidor
+- Acrescentar uma terceira seção ao CSV após "Totais":
+  ```
+  # Publicações exclusivas por origem (detalhamento)
+  coordenacao,origem,tipo_pesquisa,tribunal,processo,data_publicacao,id_djen
+  ...
+  ```
+  Ordenado por coordenação → origem → tribunal → processo.
+- Escapar valores com `JSON.stringify` (mesmo padrão usado nas demais seções) para tolerar vírgulas/aspas.
+- Nenhum impacto na UI (tabelas continuam mostrando apenas os agregados; o detalhe vai só para o CSV, como pedido).
 
-Portar o motor de Pautas DJET (`monitor-servidor/engines/pautas.js` já existe — verificar se está sendo chamado em `monitor-servidor/index.js`). Se já existe mas não roda, ligá-lo no scheduler do servidor com gravação em `publicacoes_djen_servidor` com `tipo_publicacao = 'pauta'`.
+### 3. Performance
 
-Se a opção #1 já filtra Pautas no comparador, esta etapa garante que, com filtro "Todos", o servidor tenha paridade.
+- Limite atual de 20.000 linhas por query já cobre o intervalo típico. Como `detalhes` reaproveita os `Map`s existentes, o custo adicional é apenas montar o array (O(n)).
+- Sem novas chamadas a Supabase.
 
-## 3) Corrigir paginação
+## Fora de escopo
 
-Dois pontos:
-
-**a) Servidor — TST/Janaina (bug Item 2):**
-Em `monitor-servidor/engines/paralela.js`, quando a busca por OAB+UF retornar 0 no TST, executar fallback por **nome do advogado** sem UF (mesmo padrão já usado para SANTANDER). Garantir que o tribunal TST seja sempre percorrido para monitoramentos do tipo `advogado`.
-
-**b) Browser — `continueUntilEmpty` (regra já memorizada):**
-Verificar `src/utils/pjeComunicaClient.ts` e `pjeComunicaClientFlash.ts`: confirmar que NÃO quebram em `hasMore=false` nem em página curta quando `continueUntilEmpty=true`. Se já corrigido, validar com Bruna GOL/Santander no período relatado.
-
-## 4) Normalizar nomes de tribunal (sem quebrar Análise DJEN)
-
-O browser grava `TRT 1_DJEN`, o servidor grava `TRT1`. Em vez de alterar dados históricos (risco para a Análise DJEN e outras telas), normalizar **somente no comparador** (função `normalizeTribunalKey(t)` que remove espaços e sufixo `_DJEN` e compara as duas chaves normalizadas).
-
-Para gravações futuras, padronizar a saída do browser para `TRT1` em `src/utils/djenTribunais.ts` (escrita nova já normalizada), mantendo a leitura tolerante a ambas as formas em qualquer tela que filtre por tribunal. Auditar uso de `tribunal` em Análise DJEN, Termos DJEN, Relatórios e telas de monitoramento — onde houver filtro exato, usar comparação normalizada.
-
-## 5) Comparador por `id_djen` (não por tipo)
-
-Refatorar o comparador para considerar duas publicações iguais quando:
-
-- `id_djen` é igual entre servidor e browser, **independente** de `tipo_publicacao`.
-- Fallback (quando `id_djen` ausente): `dedup_processo_digits` + `dedup_data_ref` + `coordenacao_id` (sem `tipo`).
-
-Isso resolve o caso Vanessa (6 publicações marcadas como "só_browser" por terem `tipo=parte` no browser e `tipo=intimacao` no servidor).
-
-## Onde mexer (técnico)
-
-- **Comparador (UI + lógica):** página de auditoria DJEN (provável `src/pages/AuditoriaDjenProcessos.tsx` ou similar — confirmar na implementação) — adicionar seletor de origem + refator do `match` por `id_djen`.
-- **Normalização tribunal:** novo helper em `src/utils/djenTribunais.ts` (`normalizeTribunalKey`); usado no comparador.
-- **Servidor TST/Janaina:** `monitor-servidor/engines/paralela.js` — fallback por nome no TST.
-- **Pautas no servidor:** `monitor-servidor/index.js` — registrar/ativar engine `pautas.js`.
-- **Paginação browser:** validar `src/utils/pjeComunicaClient.ts` e `pjeComunicaClientFlash.ts` (regra `continueUntilEmpty`).
-
-## Garantia de não-regressão
-
-- Nenhum dado em `publicacoes_djen` ou `publicacoes_djen_servidor` será alterado (sem migrations destrutivas).
-- Normalização de tribunal só na escrita nova + comparações tolerantes na leitura.
-- Análise DJEN (`useAnaliseDjen.ts`) continua lendo `tribunal` como está — qualquer filtro novo passa pelo helper normalizado.
+- Não alterar a lógica de dedup nem os totais existentes.
+- Não mexer no pipeline servidor/browser (continua a tarefa separada já em andamento).
+- Não criar UI nova; apenas o CSV ganha o detalhamento.
