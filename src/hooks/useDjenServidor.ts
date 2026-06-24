@@ -399,6 +399,16 @@ export interface ComparadorAnaliseRelatorio {
       pautas: number | null; // null = não atribuível por coord
     }>;
   };
+  detalhes: Array<{
+    coordenacaoId: string;
+    coordenacaoNome: string;
+    tipo: string;
+    origem: "so_servidor" | "so_browser";
+    processo_numero: string | null;
+    tribunal: string | null;
+    data_publicacao: string | null;
+    id_djen: string | null;
+  }>;
 }
 
 /**
@@ -415,7 +425,7 @@ export function useComparadorAnalise() {
       origem?: "todos" | "termos" | "pautas" | "kurier";
     }): Promise<ComparadorAnaliseRelatorio> => {
       const baseCols =
-        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, tipo_publicacao";
+        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, data_publicacao, tipo_publicacao";
       const inicioDispoTs = `${opts.dataInicio}T00:00:00Z`;
       const fimDispoTs = `${opts.dataFim}T23:59:59Z`;
       const origem = opts.origem || "todos";
@@ -512,6 +522,10 @@ export function useComparadorAnalise() {
         dedup_processo_digits?: string | null;
         dedup_data_ref?: string | null;
         hash_conteudo: string;
+        processo_numero?: string | null;
+        tribunal?: string | null;
+        data_publicacao?: string | null;
+        data_disponibilizacao?: string | null;
       };
 
       // Dedup SEMPRE isolada por coordenação. A mesma publicação pode aparecer
@@ -678,6 +692,48 @@ export function useComparadorAnalise() {
 
       const djenUnicoTotal = new Set<string>([...sByKey.keys(), ...bByKey.keys()]).size;
 
+      // Detalhamento: publicações exclusivas por origem (para CSV)
+      const detalhes: ComparadorAnaliseRelatorio["detalhes"] = [];
+      const pickDataPub = (r: Row) => r.data_publicacao || r.data_disponibilizacao || null;
+      for (const [k, r] of sByKey) {
+        if (bByKey.has(k)) continue;
+        const meta = keyToBucket.get(k);
+        const cid = meta?.coordenacaoId || (r.coordenacao_id || "sem_coord");
+        detalhes.push({
+          coordenacaoId: cid,
+          coordenacaoNome: coordNome.get(cid) || "Sem coordenação",
+          tipo: meta?.tipo || "sem_monitoramento",
+          origem: "so_servidor",
+          processo_numero: r.processo_numero || null,
+          tribunal: r.tribunal || null,
+          data_publicacao: pickDataPub(r),
+          id_djen: r.id_djen || null,
+        });
+      }
+      for (const [k, r] of bByKey) {
+        if (sByKey.has(k)) continue;
+        const meta = keyToBucket.get(k);
+        const cid = meta?.coordenacaoId || (r.coordenacao_id || "sem_coord");
+        detalhes.push({
+          coordenacaoId: cid,
+          coordenacaoNome: coordNome.get(cid) || "Sem coordenação",
+          tipo: meta?.tipo || "sem_monitoramento",
+          origem: "so_browser",
+          processo_numero: r.processo_numero || null,
+          tribunal: r.tribunal || null,
+          data_publicacao: pickDataPub(r),
+          id_djen: r.id_djen || null,
+        });
+      }
+      detalhes.sort((a, b) => {
+        const c = a.coordenacaoNome.localeCompare(b.coordenacaoNome, "pt-BR");
+        if (c !== 0) return c;
+        if (a.origem !== b.origem) return a.origem.localeCompare(b.origem);
+        const t = (a.tribunal || "").localeCompare(b.tribunal || "", "pt-BR");
+        if (t !== 0) return t;
+        return (a.processo_numero || "").localeCompare(b.processo_numero || "");
+      });
+
       return {
         dataInicio: opts.dataInicio,
         dataFim: opts.dataFim,
@@ -700,6 +756,7 @@ export function useComparadorAnalise() {
           },
           linhas: fonteLinhas,
         },
+        detalhes,
       };
     },
   });

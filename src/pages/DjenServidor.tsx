@@ -571,7 +571,23 @@ function ComparadorPanel() {
       ].join(","))
       .join("\n");
     const totais = `\n\n# Totais\nfonte,total\nDJEN_servidor,${data.porFonte.totais.djenServidor}\nDJEN_browser,${data.porFonte.totais.djenBrowser}\nDJEN_unico,${data.porFonte.totais.djenUnico}\nKurier,${data.porFonte.totais.kurier}\nPautas_TST,${data.porFonte.totais.pautas}\n`;
-    const blob = new Blob([header1 + cols1 + body1 + header2 + cols2 + body2 + totais], { type: "text/csv" });
+    const header3 = "\n\n# Publicações exclusivas por origem (detalhamento)\n";
+    const cols3 = "coordenacao,origem,tipo_pesquisa,tribunal,processo,data_publicacao,id_djen\n";
+    const body3 = (data.detalhes || [])
+      .map((d) => [
+        JSON.stringify(d.coordenacaoNome),
+        d.origem,
+        d.tipo,
+        JSON.stringify(d.tribunal || ""),
+        JSON.stringify(d.processo_numero || ""),
+        JSON.stringify(d.data_publicacao || ""),
+        JSON.stringify(d.id_djen || ""),
+      ].join(","))
+      .join("\n");
+    const blob = new Blob(
+      [header1 + cols1 + body1 + header2 + cols2 + body2 + totais + header3 + cols3 + body3 + "\n"],
+      { type: "text/csv" },
+    );
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
