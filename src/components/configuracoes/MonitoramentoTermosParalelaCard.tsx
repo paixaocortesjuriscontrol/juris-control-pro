@@ -142,6 +142,7 @@ export function MonitoramentoTermosParalelaCard() {
   // Filtros: Coordenação e Termos (igual ao Pro)
   const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState<string>('');
   const [filtroMonitoramentoId, setFiltroMonitoramentoId] = useState<string>('');
+  const [filtroTipo, setFiltroTipo] = useState<string>('');
 
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const coordenacaoFiltroEfetivo = filtroCoordenacaoId || null;
@@ -168,14 +169,22 @@ export function MonitoramentoTermosParalelaCard() {
     if (!filtroCoordenacaoId) setFiltroMonitoramentoId('');
   }, [filtroCoordenacaoId]);
 
+  useEffect(() => {
+    setFiltroMonitoramentoId('');
+  }, [filtroTipo]);
+
+  const monitoramentosFiltrados = filtroTipo
+    ? monitoramentos.filter((m) => (m.tipo || '') === filtroTipo)
+    : monitoramentos;
+
   const getFilterParams = useCallback(() => ({
     coordenacaoId: filtroCoordenacaoId || undefined,
     monitoramentoIds: filtroMonitoramentoId
       ? [filtroMonitoramentoId]
-      : (filtroCoordenacaoId && monitoramentos.length > 0
-          ? monitoramentos.map((m) => m.id)
+      : (filtroCoordenacaoId && monitoramentosFiltrados.length > 0 && (filtroTipo || monitoramentos.length > 0)
+          ? monitoramentosFiltrados.map((m) => m.id)
           : undefined),
-  }), [filtroCoordenacaoId, filtroMonitoramentoId, monitoramentos]);
+  }), [filtroCoordenacaoId, filtroMonitoramentoId, filtroTipo, monitoramentos, monitoramentosFiltrados]);
 
   // Estatísticas vivas do pool (para o painel de roteamento)
   const [poolStats, setPoolStats] = useState(() => getDjenProxyPoolStats());
@@ -322,7 +331,7 @@ export function MonitoramentoTermosParalelaCard() {
         <SchedulerParalelaPanel />
 
         {/* Filtros: Coordenação e Termos */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Coordenação</label>
             <select
@@ -339,6 +348,23 @@ export function MonitoramentoTermosParalelaCard() {
           </div>
           {coordenacaoFiltroEfetivo && (
             <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Tipo</label>
+              <select
+                className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
+                value={filtroTipo}
+                onChange={(e) => setFiltroTipo(e.target.value)}
+                disabled={isRunning}
+              >
+                <option value="">Todos</option>
+                <option value="advogado">Advogado</option>
+                <option value="palavra-chave">Palavra-chave</option>
+                <option value="processo">Processo</option>
+                <option value="parte">Parte</option>
+              </select>
+            </div>
+          )}
+          {coordenacaoFiltroEfetivo && (
+            <div className="space-y-1">
               <label className="text-xs text-muted-foreground">Termo</label>
               <select
                 className="w-full h-9 px-3 rounded-md border border-input bg-background text-sm disabled:opacity-70"
@@ -347,7 +373,7 @@ export function MonitoramentoTermosParalelaCard() {
                 disabled={isRunning}
               >
                 <option value="">Todos</option>
-                {monitoramentos.map((m) => (
+                {monitoramentosFiltrados.map((m) => (
                   <option key={m.id} value={m.id}>
                     {formatMonitoramentoLabel(m)}
                   </option>
