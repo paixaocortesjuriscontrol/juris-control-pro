@@ -1019,6 +1019,16 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         if (situacao) apply("situacao_processo", situacao);
         const baixado = (data.processo_baixado || "").toString().toUpperCase();
         if (baixado) next.processo_baixado = baixado;
+        // Estes dois campos aparecem no bloco unificado "Fechamento" (estado
+        // bennerExtra). Sem marcá-los como dirty ali, o auto-save da Judit
+        // atualizava só o estado invisível do form e não persistia no banco.
+        if (situacao || baixado) {
+          const extraPatch: Record<string, any> = {};
+          if (situacao) extraPatch.situacao_processo = situacao;
+          if (baixado) extraPatch.processo_baixado = baixado;
+          setBennerExtra((prev) => ({ ...prev, ...extraPatch }));
+          for (const k of Object.keys(extraPatch)) bennerDirtyRef.current.add(k);
+        }
         const juditAtivo = /ativ|active|em\s*curso|em\s*tramita|andamento/i.test(situacao) || baixado === "N";
         const ehTransito = !juditAtivo && (/arquivad|baixad|tr[âa]nsito/i.test(situacao) || baixado === "S");
         if (juditAtivo) {
