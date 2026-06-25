@@ -23,13 +23,17 @@ const RESPONSES_URL = `${JUDIT_BASE}/responses`;
 const LAWSUITS_BASE = "https://lawsuits.production.judit.io/lawsuits";
 
 const POLL_INTERVAL_MS = 1000;
+// Primeiros polls em ritmo agressivo — a Judit costuma devolver o resultado
+// em 2–4s quando o processo já está no cache interno deles.
+const POLL_FAST_INTERVAL_MS = 400;
+const POLL_FAST_ATTEMPTS = 5;
 // Crawler do TST normalmente leva 8–25s; o cap antigo de 20s estava cortando
 // antes da Judit completar.
 const POLL_TIMEOUT_MS = 60_000;
-// Cache padrão de 1 dia — buscas repetidas no mesmo processo no mesmo dia
-// voltam quase instantâneas. Quando precisa ignorar o cache, passar
-// `force_refresh: true` no body (envia cache_ttl_in_days=0).
-const CACHE_TTL_DAYS_DEFAULT = 1;
+// Cache padrão de 3 dias — buscas repetidas no mesmo processo voltam quase
+// instantâneas. Quando precisa ignorar o cache, passar `force_refresh: true`
+// no body (envia cache_ttl_in_days=0).
+const CACHE_TTL_DAYS_DEFAULT = 3;
 
 // ---------- Helpers ---------------------------------------------------------
 
@@ -248,7 +252,9 @@ async function juditPollar(apiKey: string, requestId: string): Promise<any | nul
   let ultima: any = null;
   let backoff429 = 3000;
   let attempts429 = 0;
+  let attempt = 0;
   while (Date.now() < deadline) {
+    attempt++;
     try {
       const url = new URL(RESPONSES_URL);
       url.searchParams.set("request_id", requestId);
@@ -272,7 +278,7 @@ async function juditPollar(apiKey: string, requestId: string): Promise<any | nul
     } catch (e) {
       console.error("polling:", e);
     }
-    await sleep(POLL_INTERVAL_MS);
+    await sleep(attempt <= POLL_FAST_ATTEMPTS ? POLL_FAST_INTERVAL_MS : POLL_INTERVAL_MS);
   }
   return ultima;
 }
