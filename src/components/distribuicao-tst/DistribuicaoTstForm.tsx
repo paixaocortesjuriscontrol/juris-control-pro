@@ -424,6 +424,37 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   }, [dado?.id]);
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
 
+  const isCampoJuditPersistido = (field: string, value: any) =>
+    !!(dado as any)?.judit_preenchido &&
+    !!(value !== null && value !== undefined && String(value).trim() !== "");
+
+  const camposJuditVisiveis = [
+    "data_distribuicao_real",
+    "reclamante",
+    "reclamada",
+    "relator",
+    "relator_favorabilidade",
+    "turma",
+    "turma_favorabilidade",
+    "parte_recorrente",
+    "tipo_recurso_reclamante",
+    "tipo_recurso_banco",
+    "tipo_recurso_terceiro",
+    "transito_julgado",
+  ] as const;
+
+  const contarCamposJuditVisiveis = (state: any, fields: Set<string>) => {
+    let count = 0;
+    for (const field of camposJuditVisiveis) {
+      const value = state?.[field];
+      const hasVisibleValue =
+        typeof value === "boolean" ||
+        (value !== null && value !== undefined && String(value).trim() !== "");
+      if (fields.has(field) && hasVisibleValue) count++;
+    }
+    return count;
+  };
+
   // ============================================================
   // Campos exclusivos da tabela `dados_benner` (unificados nesta aba).
   // Carregados de `bennerDado` e persistidos via `onSaveBennerExtra`.
@@ -513,11 +544,16 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     setBennerExtra((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Destaque verde "Judit" quando o registro foi preenchido pela Judit e o campo tem valor.
-  const isJuditFilled = (value: any) =>
-    (!!dado?.judit_preenchido || juditSessionFields.size > 0) && !!(value && String(value).trim());
-  const juditClass = (value: any) =>
-    isJuditFilled(value)
+  // Destaque verde "Judit" somente nos campos preenchidos nesta consulta (ou
+  // já marcados no registro), evitando pintar campos manuais só pelo flag geral.
+  const isJuditFilled = (field: string, value: any) => {
+    const hasVisibleValue =
+      typeof value === "boolean" ||
+      (value !== null && value !== undefined && String(value).trim() !== "");
+    return hasVisibleValue && (juditSessionFields.has(field) || isCampoJuditPersistido(field, value));
+  };
+  const juditClass = (field: string, value: any) =>
+    isJuditFilled(field, value)
       ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 rounded-md transition-all"
       : "";
   const JuditBadge = ({ show }: { show: boolean }) =>
@@ -534,7 +570,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       ? "ring-2 ring-sky-500 bg-sky-50 dark:bg-sky-950/30 rounded-md transition-all"
       : "";
   const fieldClass = (field: string, value: any) =>
-    iaClass(field, value) || juditClass(value);
+    iaClass(field, value) || juditClass(field, value);
   const IaBadge = ({ field, value }: { field: string; value: any }) =>
     isIaFilled(field, value) ? (
       <Badge variant="outline" className="ml-2 text-[10px] px-1 py-0 h-4 font-normal border-sky-500 text-sky-600 dark:text-sky-400">
