@@ -818,6 +818,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         return;
       }
 
+      if ((data as any)?._judit_meta?.respondido_do_cache === true) {
+        toast.success("Judit (cache) — atualizando em segundo plano");
+      }
+
       if (comAnexosArg) {
         const atts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : [];
         // Persiste no Supabase (judit_anexos) para sobreviver a reload/nova busca.
