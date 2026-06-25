@@ -515,6 +515,16 @@ function extrairOrgaoERelator(rd: any): { orgao: string | null; relator: string 
     const m = orgao.match(/(\d+)\s*[ªºa]?\s*turma/i);
     if (m) turma = `${m[1]}ª Turma`;
   }
+
+  // Processo ainda em triagem/Vice-Presidência do TST: o órgão é "Presidência",
+  // "Vice-Presidência" ou "Gabinete da Presidência" (sem nome de ministro
+  // específico). Nesses casos a Judit devolve o Presidente do TST como ocupante
+  // padrão do gabinete — NÃO é o relator definitivo, então não preenchemos
+  // relator nem turma para não poluir o cadastro.
+  if (orgao && /presid[eê]ncia/i.test(orgao) && !/Gabinete\s+d[ao]\s+Ministr[ao]\s+/i.test(orgao)) {
+    relator = null;
+    turma = null;
+  }
   return { orgao, relator, turma };
 }
 
@@ -870,7 +880,10 @@ serve(async (req) => {
         .map((p) => String(p?.name || "").trim())
         .filter(Boolean)
     )];
-    const recorrente = recorrentes.length ? recorrentes.join(", ") : (poloAtivo || null);
+    // Recorrente: SÓ usa partes com person_type RECORRENTE/AGRAVANTE/EMBARGANTE.
+    // Não cai mais em fallback de `poloAtivo`, que poderia salvar strings
+    // poluídas como "Ativo: FULANO / Passivo: SANTANDER" no campo dropdown.
+    const recorrente = recorrentes.length ? recorrentes.join(", ") : null;
 
     // Tipo de recurso por parte: cruza person_type da instância TST com o
     // person_type da instância 1 (RECLAMANTE/RECLAMADO). Quem é RECORRENTE no TST
