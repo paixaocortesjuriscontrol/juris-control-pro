@@ -426,6 +426,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
   const isCampoJuditPersistido = (field: string, value: any) =>
     !!(dado as any)?.judit_preenchido &&
+    juditSessionFields.size === 0 &&
     !!(value !== null && value !== undefined && String(value).trim() !== "");
 
   // Campos que a tela identifica explicitamente com o badge "Judit".
