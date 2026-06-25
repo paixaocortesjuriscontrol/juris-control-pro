@@ -1350,7 +1350,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator", form.relator))}>
-              <Label className="flex items-center">Relator (F)<ReqMark /> <JuditBadge show={isJuditFilled(form.relator)} /><IaBadge field="relator" value={form.relator} /></Label>
+              <Label className="flex items-center">Relator (F)<ReqMark /> <JuditBadge show={isJuditFilled("relator", form.relator)} /><IaBadge field="relator" value={form.relator} /></Label>
               <RelatorTurmaCombo tipo="relator" value={form.relator} onChange={(v) => set("relator", v)} />
               {(() => {
                 const r = classificarRelatorDB(form.relator as any, relatoresTst);
@@ -1367,7 +1367,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               })()}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator_favorabilidade", form.relator_favorabilidade))}>
-              <Label className="flex items-center">Relator (+ ou -) (AD/AE) <JuditBadge show={isJuditFilled(form.relator_favorabilidade)} /><IaBadge field="relator_favorabilidade" value={form.relator_favorabilidade} /></Label>
+              <Label className="flex items-center">Relator (+ ou -) (AD/AE) <JuditBadge show={isJuditFilled("relator_favorabilidade", form.relator_favorabilidade)} /><IaBadge field="relator_favorabilidade" value={form.relator_favorabilidade} /></Label>
               <Select value={form.relator_favorabilidade || "__none__"} onValueChange={v => set("relator_favorabilidade", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1380,7 +1380,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma", form.turma))}>
-              <Label className="flex items-center">Turma (E)<ReqMark /> <JuditBadge show={isJuditFilled(form.turma)} /><IaBadge field="turma" value={form.turma} /></Label>
+              <Label className="flex items-center">Turma (E)<ReqMark /> <JuditBadge show={isJuditFilled("turma", form.turma)} /><IaBadge field="turma" value={form.turma} /></Label>
               <RelatorTurmaCombo tipo="turma" value={form.turma} onChange={(v) => set("turma", v)} />
               {(() => {
                 const c = classificarTurmaDB(form.turma as any, turmasTst);
@@ -1392,7 +1392,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               })()}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma_favorabilidade", form.turma_favorabilidade))}>
-              <Label className="flex items-center">Turma (+ ou -) (AB/AC) <JuditBadge show={isJuditFilled(form.turma_favorabilidade)} /><IaBadge field="turma_favorabilidade" value={form.turma_favorabilidade} /></Label>
+              <Label className="flex items-center">Turma (+ ou -) (AB/AC) <JuditBadge show={isJuditFilled("turma_favorabilidade", form.turma_favorabilidade)} /><IaBadge field="turma_favorabilidade" value={form.turma_favorabilidade} /></Label>
               <Select value={form.turma_favorabilidade || "__none__"} onValueChange={v => set("turma_favorabilidade", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1403,7 +1403,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("parte_recorrente", form.parte_recorrente))}>
-              <Label className="flex items-center">Parte Recorrente (AA)<ReqMark /> <JuditBadge show={isJuditFilled(form.parte_recorrente)} /><IaBadge field="parte_recorrente" value={form.parte_recorrente} /></Label>
+              <Label className="flex items-center">Parte Recorrente (AA)<ReqMark /> <JuditBadge show={isJuditFilled("parte_recorrente", form.parte_recorrente)} /><IaBadge field="parte_recorrente" value={form.parte_recorrente} /></Label>
               <Select value={form.parte_recorrente || "__none__"} onValueChange={v => set("parte_recorrente", v === "__none__" ? null : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1428,7 +1428,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_reclamante", form.tipo_recurso_reclamante))}>
               <Label className="flex items-center">
                 Tipo de Recurso do Reclamante (C){recorrenteEnvolveReclamante(form) && <ReqMark />}
-                <JuditBadge show={isJuditFilled(form.tipo_recurso_reclamante)} />
+                <JuditBadge show={isJuditFilled("tipo_recurso_reclamante", form.tipo_recurso_reclamante)} />
                 <IaBadge field="tipo_recurso_reclamante" value={form.tipo_recurso_reclamante} />
               </Label>
               <MultiTipoRecurso
@@ -1487,7 +1487,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_banco", form.tipo_recurso_banco))}>
               <Label className="flex items-center">
                 Tipo de Recurso do Banco (C){recorrenteEnvolveBanco(form) && <ReqMark />}
-                <JuditBadge show={isJuditFilled(form.tipo_recurso_banco)} />
+                <JuditBadge show={isJuditFilled("tipo_recurso_banco", form.tipo_recurso_banco)} />
                 <IaBadge field="tipo_recurso_banco" value={form.tipo_recurso_banco} />
               </Label>
               <MultiTipoRecurso
@@ -1546,7 +1546,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_terceiro", (form as any).tipo_recurso_terceiro))}>
               <Label className="flex items-center">
                 Tipo de Recurso (Terceiro) (C){recorrenteEhTerceiro(form) && <ReqMark />}
-                <JuditBadge show={isJuditFilled((form as any).tipo_recurso_terceiro)} />
+                <JuditBadge show={isJuditFilled("tipo_recurso_terceiro", (form as any).tipo_recurso_terceiro)} />
                 <IaBadge field="tipo_recurso_terceiro" value={(form as any).tipo_recurso_terceiro} />
               </Label>
               <MultiTipoRecurso
