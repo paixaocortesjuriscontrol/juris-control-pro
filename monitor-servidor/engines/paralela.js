@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-25-advogado-oab-supplement-descartadas";
+const ENGINE_VERSION = "2026-06-25-pagination-streaks";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -664,11 +664,16 @@ function shouldExclude(conteudo, mon, pub) {
 async function buscarPaginado(slot, params, signal) {
   const all = [];
   const seen = new Set();
-  // continueUntilEmpty: a API PJE Comunica frequentemente retorna páginas
-  // curtas (< 50) ou hasMore=false no meio do stream. Só paramos quando a
-  // página vier vazia OU quando nenhum item novo for adicionado (todos
-  // duplicados via id_djen). Espelha o comportamento do browser
-  // (memória: features/monitoring/djen-paralela-pagination-fix).
+  // Para tolerar instabilidade da API PJE Comunica (páginas vazias / só
+  // duplicados / erros HTTP intermitentes no meio do stream), só encerramos
+  // depois de N ocorrências CONSECUTIVAS. Qualquer página com item novo
+  // zera os contadores. Espelha src/utils/pjeComunicaClient.ts.
+  const EMPTY_PAGE_STREAK_LIMIT = 2;
+  const NO_NEW_ITEMS_STREAK_LIMIT = 3;
+  const CONSECUTIVE_FAILED_PAGES_LIMIT = 3;
+  let emptyStreak = 0;
+  let noNewStreak = 0;
+  let failedStreak = 0;
   for (let page = 1; page < 1000; page++) {
     if (signal?.aborted) throw new Error("cancelado");
     const query = {
@@ -689,9 +694,19 @@ async function buscarPaginado(slot, params, signal) {
       if (out && out.status !== 429 && out.status < 500) break;
       await delay(out?.status === 429 ? 8000 * (attempt + 1) : 3000 * (attempt + 1), signal);
     }
-    if (!out) throw lastErr || new Error("Falha ao consultar VPS DJEN");
-    if (out.status === 404) break;
-    if (out.status < 200 || out.status >= 300) throw new Error(`HTTP ${out.status}`);
+    if (!out || out.status === 404 || out.status < 200 || out.status >= 300) {
+      // Falha de página isolada não deve abortar toda a busca: a API PJE
+      // Comunica frequentemente erra páginas no meio e volta a responder.
+      failedStreak += 1;
+      if (failedStreak >= CONSECUTIVE_FAILED_PAGES_LIMIT) {
+        if (!out) throw lastErr || new Error("Falha ao consultar VPS DJEN");
+        if (out.status === 404) break;
+        throw new Error(`HTTP ${out.status}`);
+      }
+      if (PAGE_DELAY_MS > 0) await delay(PAGE_DELAY_MS, signal);
+      continue;
+    }
+    failedStreak = 0;
     const data = typeof out.body === "string" ? JSON.parse(out.body) : out.body;
     const items = extractItems(data);
     let added = 0;
@@ -703,15 +718,19 @@ async function buscarPaginado(slot, params, signal) {
       all.push(item);
       added++;
     }
-    // Espelha Browser (src/utils/pjeComunicaClient.ts > continueUntilEmpty):
-    // encerra só na 1ª página vazia ou quando a página não adiciona nenhum ID
-    // novo. NÃO usamos totalElements/count para parar: a API do PJE Comunica
-    // pode informar total menor que o real em buscas de advogado (caso TRT8 / OSMAR),
-    // e isso cortava páginas finais que o Browser continuava lendo.
-    if (items.length === 0) break;
-    // Se nenhum item novo foi adicionado, provavelmente estamos em loop
-    // de duplicatas — encerra.
-    if (items.length > 0 && added === 0) break;
+    // Encerramento por streaks (tolera vazio/duplicado intermitente).
+    // NÃO usamos totalElements/count para parar — a API mente.
+    if (items.length === 0) {
+      emptyStreak += 1;
+      if (emptyStreak >= EMPTY_PAGE_STREAK_LIMIT) break;
+    } else if (added === 0) {
+      emptyStreak = 0;
+      noNewStreak += 1;
+      if (noNewStreak >= NO_NEW_ITEMS_STREAK_LIMIT) break;
+    } else {
+      emptyStreak = 0;
+      noNewStreak = 0;
+    }
     if (PAGE_DELAY_MS > 0) await delay(PAGE_DELAY_MS, signal);
   }
   return all;
