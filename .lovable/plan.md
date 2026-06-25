@@ -1,80 +1,56 @@
+## Problema
 
-## Objetivo
+Hoje a paginação `continueUntilEmpty` (tanto no Browser `src/utils/pjeComunicaClient.ts` quanto no Servidor `monitor-servidor/engines/paralela.js`) encerra a varredura cedo demais em três situações em que a API PJE Comunica é instável:
 
-Permitir marcar processos como **Acompanhamento Especial**, fazendo a Judit consultar diariamente (na frequência definida pelo advogado) os andamentos — e opcionalmente baixar anexos — gerando notificação, tarefa e destaque visual.
+1. **1 página vazia** → encerra (mas a API às vezes devolve 1 página vazia "no meio" do stream e volta a trazer itens na próxima).
+2. **1 página inteira só de duplicados (`added === 0`)** → encerra (mas a API repete páginas anteriores quando troca de partição interna e depois volta a paginar adiante).
+3. **Erro HTTP após N retries** → `break` imediato no Browser (no Servidor lança), perdendo as próximas páginas que poderiam vir OK.
 
-## 1. Banco de dados
+Resultado: dias com discrepâncias pontuais (Vanessa TST, Santander Cível, OSMAR/TRT8) por causa de páginas finais não lidas.
 
-Migration adicionando em `public.processos`:
+## Mudança
 
-- `acompanhamento_especial boolean default false`
-- `acompanhamento_freq_diaria smallint default 1` (1 a 6 — quantas vezes ao dia)
-- `acompanhamento_com_anexos boolean default false`
-- `acompanhamento_ativado_em timestamptz`
-- `acompanhamento_ultima_checagem_em timestamptz`
-- `acompanhamento_ultimo_step_date timestamptz` (para detectar novidades)
+Trocar os critérios "parar na 1ª ocorrência" por **"parar só depois de N ocorrências consecutivas"**, mantendo o teto duro (`maxPages = 1000`) e o anti-loop. Aplicar exatamente a mesma lógica nos dois motores.
 
-Nova tabela `public.acompanhamento_especial_eventos` (histórico do que a Judit trouxe de novo):
-- `id`, `processo_id` (FK), `step_id`, `step_date`, `conteudo`, `instancia`, `tribunal`, `anexos_count`, `criou_tarefa_id`, `notificou_em`, `criado_em`.
-- GRANTs para `authenticated` (SELECT) e `service_role` (ALL); RLS por coordenação do processo.
+### Novos limiares (constantes nomeadas)
 
-## 2. Toggle na tela do processo
+- `EMPTY_PAGE_STREAK_LIMIT = 2` → só encerra após **2 páginas vazias consecutivas**.
+- `NO_NEW_ITEMS_STREAK_LIMIT = 3` → só encerra após **3 páginas consecutivas sem nenhum id_djen novo**.
+- `CONSECUTIVE_FAILED_PAGES_LIMIT = 3` → só encerra após **3 falhas HTTP consecutivas** (depois dos retries internos da página).
+- `MAX_PAGES_HARD_CAP = 1000` (mantém o teto atual; só guard-rail).
 
-Em `src/components/processos/` (ao lado de `MonitoramentoToggle`): novo componente `AcompanhamentoEspecialToggle` com:
+Qualquer página que volte a trazer item novo zera todos os contadores de streak.
 
-- Switch principal "Acompanhamento Especial".
-- Quando ligado, expande: input numérico (1–6) "vezes por dia" + switch "Baixar anexos automaticamente".
-- Salva direto em `processos` com toast de confirmação.
+### Comportamento por evento
 
-## 3. Edge Function `judit-acompanhamento-especial`
+| Evento na página `p` | Hoje | Depois |
+|---|---|---|
+| `items.length === 0` | break imediato | `emptyStreak++`; break só quando `emptyStreak >= 2` |
+| `items.length > 0` mas `addedOnPage === 0` | break imediato | `noNewStreak++`; break só quando `noNewStreak >= 3` |
+| Página com novos itens | continua | zera `emptyStreak` e `noNewStreak`; continua |
+| Erro HTTP/timeout após retries da página | break (Browser) / throw (Servidor) | conta `failedStreak++`, pula a página, segue; break só quando `failedStreak >= 3`; resposta marcada `partial=true` com `failedPages` ≥ 1 |
+| `p >= MAX_PAGES_HARD_CAP` | break (truncated) | igual |
 
-Reaproveita o padrão já existente em `judit-processo-interno`:
+### Arquivos
 
-1. Lista processos com `acompanhamento_especial = true` cuja última checagem é mais antiga que `24h / freq`.
-2. Para cada um, chama Judit (`with_attachments` conforme flag do processo).
-3. Compara `steps` retornados contra `acompanhamento_ultimo_step_date`. Só os mais novos são considerados.
-4. Para cada novo step:
-   - Insere em `acompanhamento_especial_eventos`.
-   - Cria notificação em `notificacoes` para o(s) responsável(is) do processo (sino).
-   - Cria tarefa em `tarefas` vinculada ao processo (tipo "Acompanhar andamento") atribuída ao responsável.
-   - Envia e-mail via app emails (template `acompanhamento-especial-novidade`) ao responsável.
-5. Se houve anexos novos e a flag estiver ligada, persiste em `judit_anexos`.
-6. Atualiza `acompanhamento_ultima_checagem_em` e `acompanhamento_ultimo_step_date`.
+- `src/utils/pjeComunicaClient.ts` — função `buscarPjeComunicaPaginado` (loop em `~828-881`): substituir os `break` por contadores de streak; manter `continueUntilEmpty` como única política (o ramo `else` legado fica como está, intocado).
+- `monitor-servidor/engines/paralela.js` — função `buscarPaginado` (`~664-718`): mesmas regras; quando exceder `CONSECUTIVE_FAILED_PAGES_LIMIT` ou esgotar retries, retornar o que tiver acumulado em vez de `throw` (caller já agrega `descartadas/incluidas`). Bumpar `ENGINE_VERSION` para marcar o roll-out.
 
-## 4. Agendamento (pg_cron)
+### Garantias
 
-Um único cron rodando de hora em hora chama a edge function. A função decide quais processos processar pela conta `(24 / freq)` desde a última checagem — assim respeita a frequência individual sem precisar de cron por processo.
+- **Não muda regra de validação** de termo/parte/advogado/conteúdo — só a varredura.
+- **Não muda dedup** por `id_djen`.
+- **Não muda VPS pool / cooldown / 429 backoff** — só consome o resultado dos retries existentes.
+- Mantém cancelamento responsivo (`AbortSignal` continua sendo respeitado no `delay`/`abortableSleep`).
+- Hard cap de 1000 páginas e tempo total preservados (não há risco de loop infinito por causa do streak de "vazio" e "sem novos").
 
-## 5. Exibição no Painel de Controle
+### Validação após deploy
 
-Novo card "Acompanhamento Especial — Novidades" em `src/pages/Index.tsx` (Painel) listando os últimos eventos não lidos da coordenação do usuário (top 10 + link "ver tudo"). Cada item: processo, data do andamento, trecho do conteúdo, badge se trouxe anexo, ação "marcar como lido".
+1. Re-executar coordenações que vinham com diferença (Vanessa TST, Santander Cível, Bruna GOL) e comparar Servidor × Browser.
+2. Conferir `pagesFetched` e `failedPages` no log para confirmar que páginas extras estão sendo lidas (espera-se `pagesFetched` igual ou maior do que hoje).
+3. Conferir tempo total por coordenação — esperado +5% a +15% no pior caso (poucas páginas extras), aceitável dado o PAGE_DELAY de 800ms.
 
-## 6. Aba "Andamentos" no detalhe do processo
+### Fora de escopo
 
-Em `src/components/processos/` (aba de andamentos do processo aberto): seção destacada "Acompanhamento Especial" mostrando os eventos de `acompanhamento_especial_eventos` daquele processo em ordem cronológica, com indicador visual diferenciado dos demais andamentos.
-
-## 7. Notificações e tarefas
-
-- **Sino**: insere em `notificacoes` com `tipo = 'acompanhamento_especial'`, link direto pro processo.
-- **Tarefa**: insere em `tarefas` (`tipo` "Acompanhar andamento", prazo +2 dias úteis, responsável = responsável do processo).
-- **E-mail**: template React Email novo `acompanhamento-especial-novidade.tsx` com número do processo, data do andamento, resumo e botão "Abrir processo".
-
-## 8. Custos Judit
-
-Aviso visível ao ligar o toggle: "Cada checagem consome créditos Judit. Frequência alta multiplica o consumo." Anexos = consumo adicional.
-
-## Detalhes técnicos
-
-- Edge function: Deno, `verify_jwt = true`, importa `npm:@supabase/supabase-js@2`, usa `JUDIT_API_KEY` já configurado.
-- Detecção de novidade: `step_date > acompanhamento_ultimo_step_date` (UTC).
-- Idempotência: chave única `(processo_id, step_id)` em `acompanhamento_especial_eventos` evita duplicar notificação se a Judit reenviar o mesmo step.
-- E-mail: idempotency key `acomp-esp-<processo_id>-<step_id>`.
-- Respeita isolamento por coordenação (memória `coordination-data-isolation`).
-- Sem leitura de `publicacoes_djen*` (não relacionado).
-- Tarefa criada respeita `tarefa_responsaveis` (pode ter mais de um).
-
-## Fora de escopo nesta primeira versão
-
-- Marcação em lote na lista de processos (fica para depois, conforme resposta do usuário — só toggle individual agora).
-- Regras automáticas (valor da causa, cliente).
-- Dashboard de consumo Judit por processo (pode ser adicionado depois).
+- Não alterar engines Kurier / DJEN Pro / Flash / STF (não usam `continueUntilEmpty`).
+- Não alterar a edge function `monitorar-djen` (fetch-djen.ts) — só os dois motores ativos hoje.
