@@ -992,6 +992,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         };
         apply("dossie", data.dossie);
         apply("data_distribuicao_real", data.data_distribuicao);
+        // Tribunal — quando a Judit confirma a instância, marca o campo como
+        // preenchido pela Judit para receber o destaque verde no formulário.
+        // Antes ficava sem badge na sessão atual (só aparecia depois de salvar
+        // e reabrir o registro via `isCampoJuditPersistido`).
+        apply("tribunal", data.tribunal);
         apply("relator", data.relator);
         apply("turma", data.turma);
         // Classificação automática (Turma / Relator) com base no cadastro TST
