@@ -755,6 +755,16 @@ export async function buscarPjeComunicaPaginado(
   let failedPages = 0;
   let lastError: string | null = null;
 
+  // Limiares de "parar só após N ocorrências consecutivas" para tolerar
+  // instabilidade da API PJE Comunica (página vazia/duplicada/erro intermitente
+  // no meio do stream). Qualquer página com item novo zera os contadores.
+  const EMPTY_PAGE_STREAK_LIMIT = 2;
+  const NO_NEW_ITEMS_STREAK_LIMIT = 3;
+  const CONSECUTIVE_FAILED_PAGES_LIMIT = 3;
+  let emptyStreak = 0;
+  let noNewStreak = 0;
+  let failedStreak = 0;
+
   // Helper para fetch com retry e backoff exponencial
   const fetchWithRetry = async (page: number): Promise<PjeComunicaResponse> => {
     let lastErr: any = null;
@@ -850,14 +860,27 @@ export async function buscarPjeComunicaPaginado(
       // continueUntilEmpty: a API PJE Comunica é conhecida por retornar páginas
       // CURTAS no meio do stream e/ou hasMore=false indevidamente em buscas
       // amplas (ex.: SANTANDER no TST, OSMAR/CARLOS JOSÉ no TRT10). Nesse modo
-      // NÃO encerramos em página curta nem em hasMore=false — só paramos quando
-      // a página vier completamente vazia OU não trouxer nenhum item NOVO
-      // (anti-loop). Espelha o motor do servidor (monitor-servidor/engines/paralela.js).
+      // NÃO encerramos em página curta nem em hasMore=false. Para tolerar
+      // páginas vazias/repetidas intermitentes, só paramos após N ocorrências
+      // CONSECUTIVAS — qualquer página com item novo zera os contadores.
       if (continueUntilEmpty) {
-        if (resp.items.length === 0) break;
-        if (addedOnPage === 0) {
-          console.warn(`[PJE Comunica] Página ${p} repetida/sem novos itens; encerrando paginação para evitar loop infinito.`);
-          break;
+        failedStreak = 0;
+        if (resp.items.length === 0) {
+          emptyStreak += 1;
+          if (emptyStreak >= EMPTY_PAGE_STREAK_LIMIT) {
+            console.log(`[PJE Comunica] ${emptyStreak} páginas vazias consecutivas (p=${p}); encerrando.`);
+            break;
+          }
+        } else if (addedOnPage === 0) {
+          emptyStreak = 0;
+          noNewStreak += 1;
+          if (noNewStreak >= NO_NEW_ITEMS_STREAK_LIMIT) {
+            console.warn(`[PJE Comunica] ${noNewStreak} páginas consecutivas sem itens novos (p=${p}); encerrando.`);
+            break;
+          }
+        } else {
+          emptyStreak = 0;
+          noNewStreak = 0;
         }
       } else {
         if (resp.items.length === 0) break;
@@ -872,10 +895,20 @@ export async function buscarPjeComunicaPaginado(
     } catch (e: any) {
       // Se foi cancelado, parar imediatamente
       if (e?.name === 'AbortError') throw e;
-      // Para outros erros, logar e continuar para próxima página
+      // Para outros erros: contar a falha mas tentar próximas páginas. A API
+      // PJE Comunica frequentemente erra páginas isoladas e volta a responder.
+      // Só encerramos após CONSECUTIVE_FAILED_PAGES_LIMIT falhas seguidas.
       failedPages += 1;
+      failedStreak += 1;
       lastError = String(e?.message ?? 'Falha ao buscar página');
-      console.warn(`[PJE Comunica] Falha na página ${p} após retries:`, e?.message);
+      console.warn(`[PJE Comunica] Falha na página ${p} após retries (${failedStreak}/${CONSECUTIVE_FAILED_PAGES_LIMIT}):`, e?.message);
+      if (continueUntilEmpty && failedStreak < CONSECUTIVE_FAILED_PAGES_LIMIT) {
+        if (delayMs > 0) {
+          await abortableSleep(delayMs, options?.signal);
+        }
+        continue;
+      }
+      truncated = true;
       break;
     }
   }
