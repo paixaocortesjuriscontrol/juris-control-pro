@@ -23,13 +23,17 @@ const RESPONSES_URL = `${JUDIT_BASE}/responses`;
 const LAWSUITS_BASE = "https://lawsuits.production.judit.io/lawsuits";
 
 const POLL_INTERVAL_MS = 1000;
+// Primeiros polls em ritmo agressivo — a Judit costuma devolver o resultado
+// em 2–4s quando o processo já está no cache interno deles.
+const POLL_FAST_INTERVAL_MS = 400;
+const POLL_FAST_ATTEMPTS = 5;
 // Crawler do TST normalmente leva 8–25s; o cap antigo de 20s estava cortando
 // antes da Judit completar.
 const POLL_TIMEOUT_MS = 60_000;
-// Cache padrão de 1 dia — buscas repetidas no mesmo processo no mesmo dia
-// voltam quase instantâneas. Quando precisa ignorar o cache, passar
-// `force_refresh: true` no body (envia cache_ttl_in_days=0).
-const CACHE_TTL_DAYS_DEFAULT = 1;
+// Cache padrão de 3 dias — buscas repetidas no mesmo processo voltam quase
+// instantâneas. Quando precisa ignorar o cache, passar `force_refresh: true`
+// no body (envia cache_ttl_in_days=0).
+const CACHE_TTL_DAYS_DEFAULT = 3;
 
 // ---------- Helpers ---------------------------------------------------------
 
@@ -248,7 +252,9 @@ async function juditPollar(apiKey: string, requestId: string): Promise<any | nul
   let ultima: any = null;
   let backoff429 = 3000;
   let attempts429 = 0;
+  let attempt = 0;
   while (Date.now() < deadline) {
+    attempt++;
     try {
       const url = new URL(RESPONSES_URL);
       url.searchParams.set("request_id", requestId);
@@ -272,36 +278,33 @@ async function juditPollar(apiKey: string, requestId: string): Promise<any | nul
     } catch (e) {
       console.error("polling:", e);
     }
-    await sleep(POLL_INTERVAL_MS);
+    await sleep(attempt <= POLL_FAST_ATTEMPTS ? POLL_FAST_INTERVAL_MS : POLL_INTERVAL_MS);
   }
   return ultima;
 }
 
 // Seleciona a instância TST entre as várias retornadas pelo crawler.
+const TST_CLASSES = new Set([
+  "RR", "AIRR", "ED-RR", "EDRR", "AGR-RR", "AGR", "E-RR", "ERR", "ARR", "AIRE", "ED-AIRR",
+]);
+function isTstRd(rd: any): boolean {
+  if (!rd) return false;
+  const src = String(rd?.crawler?.source_name || "").toUpperCase();
+  if (/\bTST\b/.test(src)) return true;
+  const court = String(rd?.courts?.[0]?.name || "").toLowerCase();
+  if (/^gabinete\s+d[ao]\s+ministr[ao]\b/.test(court)) return true;
+  const clsCode = String(rd?.classifications?.[0]?.code || "").toUpperCase();
+  if (TST_CLASSES.has(clsCode)) return true;
+  if (String(rd?.tribunal_acronym || "").toUpperCase() === "TST") return true;
+  return false;
+}
 function selecionarTst(pageData: any[]): { rd: any; foiTst: boolean } | null {
   if (!Array.isArray(pageData) || !pageData.length) return null;
   const rds = pageData
     .map((it) => it?.response_data)
     .filter((rd) => rd && typeof rd === "object");
   if (!rds.length) return null;
-  // A Judit NÃO marca instância TST via tribunal_acronym (continua TRT da origem).
-  // Identificadores reais de TST, em ordem de confiança:
-  //   1) crawler.source_name contém " TST "  (ex.: "PJE - TRT - TST - Lawsuit - Auth - 3 instance")
-  //   2) courts[0].name começa com "Gabinete do Ministro" (relatores do TST)
-  //   3) classifications[0].code é uma classe típica do TST (RR, AIRR, ED-RR, AgR, E-RR, ARR…)
-  const TST_CLASSES = new Set([
-    "RR", "AIRR", "ED-RR", "EDRR", "AGR-RR", "AGR", "E-RR", "ERR", "ARR", "AIRE", "ED-AIRR",
-  ]);
-  const isTst = (rd: any) => {
-    const src = String(rd?.crawler?.source_name || "").toUpperCase();
-    if (/\bTST\b/.test(src)) return true;
-    const court = String(rd?.courts?.[0]?.name || "").toLowerCase();
-    if (/^gabinete\s+d[ao]\s+ministr[ao]\b/.test(court)) return true;
-    const clsCode = String(rd?.classifications?.[0]?.code || "").toUpperCase();
-    if (TST_CLASSES.has(clsCode)) return true;
-    return false;
-  };
-  const tst = rds.find(isTst);
+  const tst = rds.find(isTstRd);
   if (tst) return { rd: tst, foiTst: true };
   // Sem TST: pega a maior instância (mais steps) como aproximação.
   rds.sort((a, b) => (b?.steps?.length || 0) - (a?.steps?.length || 0));
@@ -518,28 +521,49 @@ serve(async (req) => {
       console.log(`[buscar-judit] cache hit (tribunal=${cached?.tribunal_acronym})`);
     }
 
-    // 2) Crawler async — sempre dispara para garantir TST e dados frescos
+    // 2) Cache-first: se o cache já é utilizável, responde imediato e dispara
+    //    o crawler em background para atualizar o cache da próxima vez.
     let rdSelecionada: any = null;
     let foiTst = false;
+    let respondidoDoCache = false;
 
-    const reqId = await juditCriarRequestComOpcoes(apiKey, cnj, comAnexos, cacheTtlDays);
-    if (reqId) {
-      const envelope = await juditPollar(apiKey, reqId);
-      if (envelope) {
-        const pageData = envelope.page_data || [];
-        rawCollector.crawler = {
-          request_id: reqId,
-          request_status: envelope.request_status,
-          page: envelope.page,
-          all_count: envelope.all_count,
-          page_count: envelope.page_count,
-          all_pages_count: envelope.all_pages_count,
-          page_data: pageData,
-        };
-        const sel = selecionarTst(pageData);
-        if (sel) {
-          rdSelecionada = sel.rd;
-          foiTst = sel.foiTst;
+    const cacheUsavel =
+      cached &&
+      !comAnexos &&
+      !forceRefresh &&
+      (Array.isArray(cached?.parties) && cached.parties.length > 0 ||
+        Array.isArray(cached?.steps) && cached.steps.length > 0) &&
+      (tribunalHint !== "TST" || isTstRd(cached));
+
+    if (cacheUsavel) {
+      rdSelecionada = cached;
+      foiTst = isTstRd(cached);
+      respondidoDoCache = true;
+      // Refresh em background — não aguarda
+      juditCriarRequestComOpcoes(apiKey, cnj, false, CACHE_TTL_DAYS_DEFAULT)
+        .catch((e) => console.warn("[buscar-judit] bg refresh falhou:", (e as Error).message));
+      console.log(`[buscar-judit] cache-first instant response (foiTst=${foiTst})`);
+    } else {
+      // 2b) Crawler async — espera resultado
+      const reqId = await juditCriarRequestComOpcoes(apiKey, cnj, comAnexos, cacheTtlDays);
+      if (reqId) {
+        const envelope = await juditPollar(apiKey, reqId);
+        if (envelope) {
+          const pageData = envelope.page_data || [];
+          rawCollector.crawler = {
+            request_id: reqId,
+            request_status: envelope.request_status,
+            page: envelope.page,
+            all_count: envelope.all_count,
+            page_count: envelope.page_count,
+            all_pages_count: envelope.all_pages_count,
+            page_data: pageData,
+          };
+          const sel = selecionarTst(pageData);
+          if (sel) {
+            rdSelecionada = sel.rd;
+            foiTst = sel.foiTst;
+          }
         }
       }
     }
@@ -863,13 +887,16 @@ serve(async (req) => {
 
       // Auditoria — exibida na aba Análise Judit:
       _judit_meta: {
-        fonte: foiTst ? "crawler_tst" : (rdSelecionada ? "fallback_outra_instancia" : "vazio"),
+        fonte: respondidoDoCache
+          ? "cache_instant"
+          : (foiTst ? "crawler_tst" : (rdSelecionada ? "fallback_outra_instancia" : "vazio")),
         tribunal_selecionado: rdSelecionada?.tribunal_acronym || null,
         instance_selecionada: rdSelecionada?.instance || null,
         com_anexos: comAnexos,
         force_refresh: forceRefresh,
         cache_ttl_days: cacheTtlDays,
         elapsed_ms: Date.now() - t0,
+        respondido_do_cache: respondidoDoCache,
         santander_detectado: santanderNomes,
         origem_disponivel: !origemAusente,
         litisconsorcio_ativo_tst: litisconsorcio,
