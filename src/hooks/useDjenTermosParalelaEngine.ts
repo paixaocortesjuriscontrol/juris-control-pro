@@ -1351,6 +1351,32 @@ async function processarTermoEmTribunal(
       }
     } else {
       await executarBusca(baseParams);
+      // Complemento advogado com OAB + UF=TODAS: a rota oficial cross-UF por
+      // `nomeAdvogado` pode omitir comunicações que a API devolve quando recebe
+      // também `numeroOab + ufOab=TODAS`. O Servidor já usa esta segunda passada;
+      // aqui somamos a mesma busca no Browser, sem misturar tabelas, e a validação
+      // por metadados do advogado continua filtrando falsos positivos.
+      if (
+        !signal.aborted &&
+        tipo === 'advogado' &&
+        baseParams.oab &&
+        String(baseParams.uf || '').trim().toUpperCase() === 'TODAS' &&
+        baseParams.nomeAdvogado
+      ) {
+        await abortableDelay(800, signal);
+        if (!signal.aborted) {
+          const supParams = {
+            ...baseParams,
+            forcarNumeroOabTodas: true,
+          } as any;
+          try {
+            await executarBusca(supParams, { __advogadoOabTodasSupplement: true });
+          } catch (e: any) {
+            if (e?.name === 'AbortError') throw e;
+            console.warn(`[DJEN Paralela][${tribunal}] Supplement OAB/TODAS falhou:`, e?.message || e);
+          }
+        }
+      }
       // Complemento TST/advogado: no TST, numeroOab+ufOab pode devolver só
       // parte das comunicações. Para advogado com OAB+UF informados, somamos
       // uma busca cross-UF por nomeAdvogado (sem OAB/UF), deduplicando por
