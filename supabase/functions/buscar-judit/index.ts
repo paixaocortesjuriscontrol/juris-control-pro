@@ -887,13 +887,16 @@ serve(async (req) => {
 
       // Auditoria — exibida na aba Análise Judit:
       _judit_meta: {
-        fonte: foiTst ? "crawler_tst" : (rdSelecionada ? "fallback_outra_instancia" : "vazio"),
+        fonte: respondidoDoCache
+          ? "cache_instant"
+          : (foiTst ? "crawler_tst" : (rdSelecionada ? "fallback_outra_instancia" : "vazio")),
         tribunal_selecionado: rdSelecionada?.tribunal_acronym || null,
         instance_selecionada: rdSelecionada?.instance || null,
         com_anexos: comAnexos,
         force_refresh: forceRefresh,
         cache_ttl_days: cacheTtlDays,
         elapsed_ms: Date.now() - t0,
+        respondido_do_cache: respondidoDoCache,
         santander_detectado: santanderNomes,
         origem_disponivel: !origemAusente,
         litisconsorcio_ativo_tst: litisconsorcio,
