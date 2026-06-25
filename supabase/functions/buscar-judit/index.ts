@@ -284,30 +284,27 @@ async function juditPollar(apiKey: string, requestId: string): Promise<any | nul
 }
 
 // Seleciona a instância TST entre as várias retornadas pelo crawler.
+const TST_CLASSES = new Set([
+  "RR", "AIRR", "ED-RR", "EDRR", "AGR-RR", "AGR", "E-RR", "ERR", "ARR", "AIRE", "ED-AIRR",
+]);
+function isTstRd(rd: any): boolean {
+  if (!rd) return false;
+  const src = String(rd?.crawler?.source_name || "").toUpperCase();
+  if (/\bTST\b/.test(src)) return true;
+  const court = String(rd?.courts?.[0]?.name || "").toLowerCase();
+  if (/^gabinete\s+d[ao]\s+ministr[ao]\b/.test(court)) return true;
+  const clsCode = String(rd?.classifications?.[0]?.code || "").toUpperCase();
+  if (TST_CLASSES.has(clsCode)) return true;
+  if (String(rd?.tribunal_acronym || "").toUpperCase() === "TST") return true;
+  return false;
+}
 function selecionarTst(pageData: any[]): { rd: any; foiTst: boolean } | null {
   if (!Array.isArray(pageData) || !pageData.length) return null;
   const rds = pageData
     .map((it) => it?.response_data)
     .filter((rd) => rd && typeof rd === "object");
   if (!rds.length) return null;
-  // A Judit NÃO marca instância TST via tribunal_acronym (continua TRT da origem).
-  // Identificadores reais de TST, em ordem de confiança:
-  //   1) crawler.source_name contém " TST "  (ex.: "PJE - TRT - TST - Lawsuit - Auth - 3 instance")
-  //   2) courts[0].name começa com "Gabinete do Ministro" (relatores do TST)
-  //   3) classifications[0].code é uma classe típica do TST (RR, AIRR, ED-RR, AgR, E-RR, ARR…)
-  const TST_CLASSES = new Set([
-    "RR", "AIRR", "ED-RR", "EDRR", "AGR-RR", "AGR", "E-RR", "ERR", "ARR", "AIRE", "ED-AIRR",
-  ]);
-  const isTst = (rd: any) => {
-    const src = String(rd?.crawler?.source_name || "").toUpperCase();
-    if (/\bTST\b/.test(src)) return true;
-    const court = String(rd?.courts?.[0]?.name || "").toLowerCase();
-    if (/^gabinete\s+d[ao]\s+ministr[ao]\b/.test(court)) return true;
-    const clsCode = String(rd?.classifications?.[0]?.code || "").toUpperCase();
-    if (TST_CLASSES.has(clsCode)) return true;
-    return false;
-  };
-  const tst = rds.find(isTst);
+  const tst = rds.find(isTstRd);
   if (tst) return { rd: tst, foiTst: true };
   // Sem TST: pega a maior instância (mais steps) como aproximação.
   rds.sort((a, b) => (b?.steps?.length || 0) - (a?.steps?.length || 0));
