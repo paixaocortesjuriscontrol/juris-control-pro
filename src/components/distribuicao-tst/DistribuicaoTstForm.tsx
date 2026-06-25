@@ -930,12 +930,23 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             filled.add(field);
           }
         };
-        // Para Tipo de Recurso, a Judit é fonte ÚNICA: quando não confirma,
-        // o valor antigo é APAGADO (sem fallback DataJud / classe da capa).
+        // Para Tipo de Recurso, a Judit é fonte ÚNICA — mas só APAGA o valor
+        // antigo quando ela efetivamente consultou a instância TST. Se o
+        // processo não tem TST (ex.: só TRT), preservamos o valor existente
+        // (que pode ter vindo da planilha) em vez de zerar.
+        const juditConfirmouTst =
+          ((data as any)?._judit_meta?.tribunal_selecionado || "")
+            .toString()
+            .toUpperCase() === "TST";
         const applyJuditOnly = (field: string, novo: any) => {
-          const val = hasValue(novo) ? novo : null;
-          next[field] = val;
-          if (val) filled.add(field); else filled.delete(field);
+          if (hasValue(novo)) {
+            next[field] = novo;
+            filled.add(field);
+          } else if (juditConfirmouTst) {
+            next[field] = null;
+            filled.delete(field);
+          }
+          // sem TST e sem valor novo: preserva o que já estava
         };
         apply("dossie", data.dossie);
         apply("data_distribuicao_real", data.data_distribuicao);
