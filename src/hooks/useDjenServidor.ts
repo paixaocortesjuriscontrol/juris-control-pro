@@ -389,6 +389,8 @@ export interface ComparadorAnaliseRelatorio {
     emAmbos: number;
     soServidor: number;
     soBrowser: number;
+    duplicadasServidor: number;
+    duplicadasBrowser: number;
     djenUnico: number;
   }>;
   linhas: ComparadorAnaliseLinha[];
@@ -398,6 +400,8 @@ export interface ComparadorAnaliseRelatorio {
     emAmbos: number;
     soServidor: number;
     soBrowser: number;
+    duplicadasServidor: number;
+    duplicadasBrowser: number;
   };
   porFonte: {
     totais: {
@@ -432,6 +436,22 @@ export interface ComparadorAnaliseRelatorio {
     capturado_em: string | null;
     execucao_id_servidor: string | null;
     provavel_causa: string | null;
+  }>;
+  detalhesDuplicadas: Array<{
+    coordenacaoId: string;
+    coordenacaoNome: string;
+    origem: "servidor" | "browser";
+    tipo: string;
+    key: string;
+    id_djen: string | null;
+    total_registros: number;
+    duplicadas: number;
+    processo_numero: string | null;
+    tribunal: string | null;
+    data_publicacao: string | null;
+    data_disponibilizacao: string | null;
+    monitoramento_ids: string[];
+    termos_busca: string[];
   }>;
 }
 
@@ -662,8 +682,55 @@ export function useComparadorAnalise() {
         return "possivel_proxy_vazio_ou_api_instavel";
       };
 
-      const sByKey = new Map(sRows.map((r) => [key(r), r] as const));
-      const bByKey = new Map(bRows.map((r) => [key(r), r] as const));
+      const groupRowsByKey = (rows: Row[]) => {
+        const map = new Map<string, Row[]>();
+        for (const r of rows) {
+          const k = key(r);
+          const arr = map.get(k) || [];
+          arr.push(r);
+          map.set(k, arr);
+        }
+        return map;
+      };
+      const sRowsByKey = groupRowsByKey(sRows);
+      const bRowsByKey = groupRowsByKey(bRows);
+      const sByKey = new Map(Array.from(sRowsByKey.entries()).map(([k, rows]) => [k, rows[0]] as const));
+      const bByKey = new Map(Array.from(bRowsByKey.entries()).map(([k, rows]) => [k, rows[0]] as const));
+
+      const duplicadasPorCoordServidor = new Map<string, number>();
+      const duplicadasPorCoordBrowser = new Map<string, number>();
+      const detalhesDuplicadas: ComparadorAnaliseRelatorio["detalhesDuplicadas"] = [];
+      const pickDataPub = (r: Row) => r.data_publicacao || r.data_disponibilizacao || null;
+      const registrarDuplicadas = (origemDup: "servidor" | "browser", groupedRows: Map<string, Row[]>) => {
+        for (const [k, rows] of groupedRows) {
+          if (rows.length <= 1) continue;
+          const first = rows[0];
+          const cid = rowCoord(first);
+          const dupCount = rows.length - 1;
+          const targetMap = origemDup === "servidor" ? duplicadasPorCoordServidor : duplicadasPorCoordBrowser;
+          targetMap.set(cid, (targetMap.get(cid) || 0) + dupCount);
+          const monitoramentoIds = Array.from(new Set(rows.map((r) => r.monitoramento_id || "").filter(Boolean)));
+          const termosBusca = Array.from(new Set(monitoramentoIds.map((id) => monitTermo.get(id) || "").filter(Boolean)));
+          detalhesDuplicadas.push({
+            coordenacaoId: cid,
+            coordenacaoNome: coordNome.get(cid) || "Sem coordenação",
+            origem: origemDup,
+            tipo: rowTipo(first),
+            key: k,
+            id_djen: first.id_djen || null,
+            total_registros: rows.length,
+            duplicadas: dupCount,
+            processo_numero: first.processo_numero || null,
+            tribunal: first.tribunal || null,
+            data_publicacao: pickDataPub(first),
+            data_disponibilizacao: first.data_disponibilizacao || null,
+            monitoramento_ids: monitoramentoIds,
+            termos_busca: termosBusca,
+          });
+        }
+      };
+      registrarDuplicadas("servidor", sRowsByKey);
+      registrarDuplicadas("browser", bRowsByKey);
 
       type Bucket = {
         coordenacaoId: string;
@@ -808,6 +875,8 @@ export function useComparadorAnalise() {
       const globalLinhas = Array.from(new Set<string>([
         ...djenServPorCoord.keys(),
         ...djenBrowPorCoord.keys(),
+        ...duplicadasPorCoordServidor.keys(),
+        ...duplicadasPorCoordBrowser.keys(),
       ])).map((cid) => {
         const sSet = djenServPorCoord.get(cid) || new Set<string>();
         const bSet = djenBrowPorCoord.get(cid) || new Set<string>();
@@ -823,15 +892,17 @@ export function useComparadorAnalise() {
           emAmbos,
           soServidor,
           soBrowser,
+          duplicadasServidor: duplicadasPorCoordServidor.get(cid) || 0,
+          duplicadasBrowser: duplicadasPorCoordBrowser.get(cid) || 0,
           djenUnico: emAmbos + soServidor + soBrowser,
         };
       }).sort((a, b) => a.coordenacaoNome.localeCompare(b.coordenacaoNome, "pt-BR"));
 
       const djenUnicoTotal = new Set<string>([...sByKey.keys(), ...bByKey.keys()]).size;
+      const sumMap = (m: Map<string, number>) => Array.from(m.values()).reduce((sum, n) => sum + n, 0);
 
       // Detalhamento: publicações exclusivas por origem (para CSV)
       const detalhes: ComparadorAnaliseRelatorio["detalhes"] = [];
-      const pickDataPub = (r: Row) => r.data_publicacao || r.data_disponibilizacao || null;
       for (const [k, r] of sByKey) {
         if (bByKey.has(k)) continue;
         const meta = keyToBucket.get(k);
@@ -882,6 +953,12 @@ export function useComparadorAnalise() {
         if (t !== 0) return t;
         return (a.processo_numero || "").localeCompare(b.processo_numero || "");
       });
+      detalhesDuplicadas.sort((a, b) => {
+        const c = a.coordenacaoNome.localeCompare(b.coordenacaoNome, "pt-BR");
+        if (c !== 0) return c;
+        if (a.origem !== b.origem) return a.origem.localeCompare(b.origem);
+        return (a.id_djen || a.key).localeCompare(b.id_djen || b.key, "pt-BR");
+      });
 
       return {
         dataInicio: opts.dataInicio,
@@ -895,6 +972,8 @@ export function useComparadorAnalise() {
           emAmbos: totAmbos,
           soServidor: totSoServ,
           soBrowser: totSoBrow,
+          duplicadasServidor: sumMap(duplicadasPorCoordServidor),
+          duplicadasBrowser: sumMap(duplicadasPorCoordBrowser),
         },
         porFonte: {
           totais: {
@@ -907,6 +986,7 @@ export function useComparadorAnalise() {
           linhas: fonteLinhas,
         },
         detalhes,
+        detalhesDuplicadas,
       };
     },
   });
