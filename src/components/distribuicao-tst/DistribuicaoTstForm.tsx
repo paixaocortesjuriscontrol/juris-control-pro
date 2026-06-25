@@ -428,10 +428,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     !!(dado as any)?.judit_preenchido &&
     !!(value !== null && value !== undefined && String(value).trim() !== "");
 
+  // Campos que a tela identifica explicitamente com o badge "Judit".
+  // O toast deve contar estes campos, não campos técnicos/ocultos nem campos
+  // preenchidos pela Judit mas sem indicação visual no formulário.
   const camposJuditVisiveis = [
-    "data_distribuicao_real",
-    "reclamante",
-    "reclamada",
     "relator",
     "relator_favorabilidade",
     "turma",
@@ -440,7 +440,6 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     "tipo_recurso_reclamante",
     "tipo_recurso_banco",
     "tipo_recurso_terceiro",
-    "transito_julgado",
   ] as const;
 
   const contarCamposJuditVisiveis = (state: any, fields: Set<string>) => {
