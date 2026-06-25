@@ -266,7 +266,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
    * Quando `comAnexos = true`, também persiste os anexos em `judit_anexos`
    * para que a aba "Anexos Judit" exiba a lista com o botão de IA.
    */
-  const handleSyncJudit = async (comAnexos: boolean = false) => {
+  const handleSyncJudit = async (comAnexos: boolean = false, forceRefresh: boolean = false) => {
     if (!processo?.numero) {
       toast.warning("Processo sem número CNJ cadastrado.");
       return;
@@ -284,7 +284,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           numero_processo: numeroLimpo,
           tribunal: "TST",
           com_anexos: comAnexos,
-          force_refresh: true,
+          force_refresh: forceRefresh || comAnexos,
         },
       });
       if (error) throw error;
