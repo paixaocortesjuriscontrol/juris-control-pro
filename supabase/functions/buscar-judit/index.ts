@@ -115,7 +115,7 @@ async function juditCache(apiKey: string, cnj: string): Promise<any | null> {
   }
 }
 
-async function juditAppCache(cnj: string): Promise<any | null> {
+async function juditAppCache(cnj: string, tribunalHint: string | null = null): Promise<any | null> {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -140,6 +140,16 @@ async function juditAppCache(cnj: string): Promise<any | null> {
       const raw = (row as any)?.raw_response;
       if (!raw || raw?.error) continue;
       if (raw?._judit_meta?.com_anexos === true) continue;
+      // Quando a tela pede TST, o cache local NÃO pode devolver uma resposta
+      // antiga de TRT/1ª instância. Isso foi a causa de formulários que
+      // pareciam “não preencher”: a função respondia rápido, mas com dados que
+      // não eram da instância TST. Só aceitamos app-cache se a própria resposta
+      // já foi normalizada como TST/crawler_tst.
+      if (tribunalHint === "TST") {
+        const rawTribunal = String(raw?.tribunal || "").toUpperCase();
+        const fonte = String(raw?._judit_meta?.fonte || "").toLowerCase();
+        if (rawTribunal !== "TST" && fonte !== "crawler_tst") continue;
+      }
       // Rejeita respostas anteriores que vieram sem nenhum dado útil — senão
       // o app-cache trava o processo em "tudo null" para sempre.
       const temAlgo = !!(
@@ -558,7 +568,7 @@ serve(async (req) => {
     // recentemente, não chama a Judit de novo. Isso evita pagar 40–60s em
     // processos cujo lookup direto da Judit ainda não está aquecido.
     if (!comAnexos && !forceRefresh) {
-      const appCached = await juditAppCache(cnj);
+      const appCached = await juditAppCache(cnj, tribunalHint);
       if (appCached) {
         const bodyCached: any = stripAttachments(appCached);
         bodyCached._judit_meta = {
@@ -620,7 +630,9 @@ serve(async (req) => {
       !comAnexos &&
       !forceRefresh &&
       (Array.isArray(cached?.parties) && cached.parties.length > 0) &&
-      (isTstRd(cached) || cachedTemSinal);
+      (tribunalHint === "TST"
+        ? isTstRd(cached)
+        : (isTstRd(cached) || cachedTemSinal));
 
     if (cacheUsavel) {
       rdSelecionada = cached;

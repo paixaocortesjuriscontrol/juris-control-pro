@@ -957,6 +957,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
       const filled = new Set<string>(juditSessionFields);
       const hasValue = (value: any) => value !== null && value !== undefined && String(value).trim() !== "";
+      let juditBennerPatch: Record<string, any> | null = null;
       const nextForm: DistribuicaoTstInsert = (() => {
         const next: any = { ...form };
         const apply = (field: string, novo: any) => {
@@ -1019,6 +1020,17 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         if (situacao) apply("situacao_processo", situacao);
         const baixado = (data.processo_baixado || "").toString().toUpperCase();
         if (baixado) next.processo_baixado = baixado;
+        // Estes dois campos aparecem no bloco unificado "Fechamento" (estado
+        // bennerExtra). Sem marcá-los como dirty ali, o auto-save da Judit
+        // atualizava só o estado invisível do form e não persistia no banco.
+        if (situacao || baixado) {
+          const extraPatch: Record<string, any> = {};
+          if (situacao) extraPatch.situacao_processo = situacao;
+          if (baixado) extraPatch.processo_baixado = baixado;
+          juditBennerPatch = extraPatch;
+          setBennerExtra((prev) => ({ ...prev, ...extraPatch }));
+          for (const k of Object.keys(extraPatch)) bennerDirtyRef.current.add(k);
+        }
         const juditAtivo = /ativ|active|em\s*curso|em\s*tramita|andamento/i.test(situacao) || baixado === "N";
         const ehTransito = !juditAtivo && (/arquivad|baixad|tr[âa]nsito/i.test(situacao) || baixado === "S");
         if (juditAtivo) {
@@ -1053,6 +1065,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             : "Judit atualizou dados. Salvando automaticamente...",
         );
         try {
+          const extraTargetId = (bennerDadoRef.current as any)?.id || activeRecordIdRef.current || dado?.id;
+          if (onSaveBennerExtra && extraTargetId && juditBennerPatch) {
+            await onSaveBennerExtra(juditBennerPatch, extraTargetId);
+          }
           const payload: DistribuicaoTstInsert = {
             ...nextForm,
             judit_preenchido: true,
