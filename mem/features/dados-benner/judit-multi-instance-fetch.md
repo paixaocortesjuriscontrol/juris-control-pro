@@ -21,3 +21,14 @@ processo_baixado="N".
 `recorrente` deriva de `tipo_recurso_*` confirmado pela Judit:
 só banco→"Banco"; só reclamante→"Reclamante"; ambos→"Ambos"; nenhum→
 fallback poloAtivo. Mais preciso que polo ativo da capa.
+
+Performance: `buscar-judit` é cache-first. Quando o lookup `GET
+/lawsuits/:cnj` devolve `parties`/`steps` válidos (e bate com `tribunal_hint`
+TST quando aplicável), responde imediato com `_judit_meta.fonte =
+"cache_instant"` e dispara o crawler async em background (fire-and-forget)
+só para atualizar o cache da Judit para a próxima consulta. TTL padrão é 3
+dias. `force_refresh: true` ou `com_anexos: true` sempre forçam o caminho
+síncrono com TTL=0. Frontend (`DistribuicaoTstForm`, `ProcessoVisaoGeralForm`,
+`DistribuicaoTstDetail`) só envia `force_refresh: true` quando o usuário
+clica explicitamente em "Forçar atualização" — chamadas normais aproveitam
+o cache e retornam em <2s.
