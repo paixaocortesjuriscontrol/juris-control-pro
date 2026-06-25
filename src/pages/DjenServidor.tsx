@@ -567,7 +567,7 @@ function ComparadorPanel() {
   const exportarRelatorioCsv = () => {
     if (!data) return;
     const header1 = "# Comparador DJEN Servidor x Browser — comparação GLOBAL por publicação (coordenacao + id_djen), sem separação por tipo\n";
-    const cols1 = "coordenacao,total_servidor,total_browser,em_ambos,so_servidor,so_browser,djen_unico\n";
+    const cols1 = "coordenacao,total_servidor,total_browser,em_ambos,so_servidor,so_browser,duplicadas_servidor,duplicadas_browser,djen_unico\n";
     const body1 = data.globalLinhas
       .map((l) =>
         [
