@@ -957,6 +957,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
       const filled = new Set<string>(juditSessionFields);
       const hasValue = (value: any) => value !== null && value !== undefined && String(value).trim() !== "";
+      let juditBennerPatch: Record<string, any> | null = null;
       const nextForm: DistribuicaoTstInsert = (() => {
         const next: any = { ...form };
         const apply = (field: string, novo: any) => {
@@ -1026,6 +1027,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           const extraPatch: Record<string, any> = {};
           if (situacao) extraPatch.situacao_processo = situacao;
           if (baixado) extraPatch.processo_baixado = baixado;
+          juditBennerPatch = extraPatch;
           setBennerExtra((prev) => ({ ...prev, ...extraPatch }));
           for (const k of Object.keys(extraPatch)) bennerDirtyRef.current.add(k);
         }
@@ -1063,6 +1065,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             : "Judit atualizou dados. Salvando automaticamente...",
         );
         try {
+          const extraTargetId = (bennerDadoRef.current as any)?.id || activeRecordIdRef.current || dado?.id;
+          if (onSaveBennerExtra && extraTargetId && juditBennerPatch) {
+            await onSaveBennerExtra(juditBennerPatch, extraTargetId);
+          }
           const payload: DistribuicaoTstInsert = {
             ...nextForm,
             judit_preenchido: true,
