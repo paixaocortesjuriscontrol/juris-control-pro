@@ -424,6 +424,38 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   }, [dado?.id]);
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
 
+  // Campos que a tela identifica explicitamente com o badge "Judit".
+  // O toast deve contar estes campos, não campos técnicos/ocultos nem campos
+  // preenchidos pela Judit mas sem indicação visual no formulário.
+  const camposJuditVisiveis = [
+    "relator",
+    "relator_favorabilidade",
+    "turma",
+    "turma_favorabilidade",
+    "parte_recorrente",
+    "tipo_recurso_reclamante",
+    "tipo_recurso_banco",
+    "tipo_recurso_terceiro",
+  ] as const;
+
+  const isCampoJuditPersistido = (field: string, value: any) =>
+    !!(dado as any)?.judit_preenchido &&
+    juditSessionFields.size === 0 &&
+    (camposJuditVisiveis as readonly string[]).includes(field) &&
+    !!(value !== null && value !== undefined && String(value).trim() !== "");
+
+  const contarCamposJuditVisiveis = (state: any, fields: Set<string>) => {
+    let count = 0;
+    for (const field of camposJuditVisiveis) {
+      const value = state?.[field];
+      const hasVisibleValue =
+        typeof value === "boolean" ||
+        (value !== null && value !== undefined && String(value).trim() !== "");
+      if (fields.has(field) && hasVisibleValue) count++;
+    }
+    return count;
+  };
+
   // ============================================================
   // Campos exclusivos da tabela `dados_benner` (unificados nesta aba).
   // Carregados de `bennerDado` e persistidos via `onSaveBennerExtra`.
@@ -513,11 +545,16 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     setBennerExtra((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Destaque verde "Judit" quando o registro foi preenchido pela Judit e o campo tem valor.
-  const isJuditFilled = (value: any) =>
-    (!!dado?.judit_preenchido || juditSessionFields.size > 0) && !!(value && String(value).trim());
-  const juditClass = (value: any) =>
-    isJuditFilled(value)
+  // Destaque verde "Judit" somente nos campos preenchidos nesta consulta (ou
+  // já marcados no registro), evitando pintar campos manuais só pelo flag geral.
+  const isJuditFilled = (field: string, value: any) => {
+    const hasVisibleValue =
+      typeof value === "boolean" ||
+      (value !== null && value !== undefined && String(value).trim() !== "");
+    return hasVisibleValue && (juditSessionFields.has(field) || isCampoJuditPersistido(field, value));
+  };
+  const juditClass = (field: string, value: any) =>
+    isJuditFilled(field, value)
       ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 rounded-md transition-all"
       : "";
   const JuditBadge = ({ show }: { show: boolean }) =>
@@ -534,7 +571,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       ? "ring-2 ring-sky-500 bg-sky-50 dark:bg-sky-950/30 rounded-md transition-all"
       : "";
   const fieldClass = (field: string, value: any) =>
-    iaClass(field, value) || juditClass(value);
+    iaClass(field, value) || juditClass(field, value);
   const IaBadge = ({ field, value }: { field: string; value: any }) =>
     isIaFilled(field, value) ? (
       <Badge variant="outline" className="ml-2 text-[10px] px-1 py-0 h-4 font-normal border-sky-500 text-sky-600 dark:text-sky-400">
@@ -1008,9 +1045,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         !data.tipo_recurso && !data.tipo_recurso_reclamante && !data.tipo_recurso_banco;
       setTipoRecursoJuditVazio(semRecurso && (meta?.fonte_tipo_recurso === "nenhuma" || semRecurso));
 
-      const preenchidos = filled.size;
-      if (preenchidos > 0) {
-        toast.success(`Judit preencheu ${preenchidos} campo(s). Salvando automaticamente...`);
+      const preenchidos = contarCamposJuditVisiveis(nextForm, filled);
+      if (filled.size > 0) {
+        toast.success(
+          preenchidos > 0
+            ? `Judit preencheu ${preenchidos} campo(s). Salvando automaticamente...`
+            : "Judit atualizou dados. Salvando automaticamente...",
+        );
         try {
           const payload: DistribuicaoTstInsert = {
             ...nextForm,
@@ -1314,7 +1355,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         <div className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator", form.relator))}>
-              <Label className="flex items-center">Relator (F)<ReqMark /> <JuditBadge show={isJuditFilled(form.relator)} /><IaBadge field="relator" value={form.relator} /></Label>
+              <Label className="flex items-center">Relator (F)<ReqMark /> <JuditBadge show={isJuditFilled("relator", form.relator)} /><IaBadge field="relator" value={form.relator} /></Label>
               <RelatorTurmaCombo tipo="relator" value={form.relator} onChange={(v) => set("relator", v)} />
               {(() => {
                 const r = classificarRelatorDB(form.relator as any, relatoresTst);
@@ -1331,7 +1372,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               })()}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("relator_favorabilidade", form.relator_favorabilidade))}>
-              <Label className="flex items-center">Relator (+ ou -) (AD/AE) <JuditBadge show={isJuditFilled(form.relator_favorabilidade)} /><IaBadge field="relator_favorabilidade" value={form.relator_favorabilidade} /></Label>
+              <Label className="flex items-center">Relator (+ ou -) (AD/AE) <JuditBadge show={isJuditFilled("relator_favorabilidade", form.relator_favorabilidade)} /><IaBadge field="relator_favorabilidade" value={form.relator_favorabilidade} /></Label>
               <Select value={form.relator_favorabilidade || "__none__"} onValueChange={v => set("relator_favorabilidade", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1344,7 +1385,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma", form.turma))}>
-              <Label className="flex items-center">Turma (E)<ReqMark /> <JuditBadge show={isJuditFilled(form.turma)} /><IaBadge field="turma" value={form.turma} /></Label>
+              <Label className="flex items-center">Turma (E)<ReqMark /> <JuditBadge show={isJuditFilled("turma", form.turma)} /><IaBadge field="turma" value={form.turma} /></Label>
               <RelatorTurmaCombo tipo="turma" value={form.turma} onChange={(v) => set("turma", v)} />
               {(() => {
                 const c = classificarTurmaDB(form.turma as any, turmasTst);
@@ -1356,7 +1397,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               })()}
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("turma_favorabilidade", form.turma_favorabilidade))}>
-              <Label className="flex items-center">Turma (+ ou -) (AB/AC) <JuditBadge show={isJuditFilled(form.turma_favorabilidade)} /><IaBadge field="turma_favorabilidade" value={form.turma_favorabilidade} /></Label>
+              <Label className="flex items-center">Turma (+ ou -) (AB/AC) <JuditBadge show={isJuditFilled("turma_favorabilidade", form.turma_favorabilidade)} /><IaBadge field="turma_favorabilidade" value={form.turma_favorabilidade} /></Label>
               <Select value={form.turma_favorabilidade || "__none__"} onValueChange={v => set("turma_favorabilidade", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1367,7 +1408,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("parte_recorrente", form.parte_recorrente))}>
-              <Label className="flex items-center">Parte Recorrente (AA)<ReqMark /> <JuditBadge show={isJuditFilled(form.parte_recorrente)} /><IaBadge field="parte_recorrente" value={form.parte_recorrente} /></Label>
+              <Label className="flex items-center">Parte Recorrente (AA)<ReqMark /> <JuditBadge show={isJuditFilled("parte_recorrente", form.parte_recorrente)} /><IaBadge field="parte_recorrente" value={form.parte_recorrente} /></Label>
               <Select value={form.parte_recorrente || "__none__"} onValueChange={v => set("parte_recorrente", v === "__none__" ? null : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
@@ -1392,7 +1433,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_reclamante", form.tipo_recurso_reclamante))}>
               <Label className="flex items-center">
                 Tipo de Recurso do Reclamante (C){recorrenteEnvolveReclamante(form) && <ReqMark />}
-                <JuditBadge show={isJuditFilled(form.tipo_recurso_reclamante)} />
+                <JuditBadge show={isJuditFilled("tipo_recurso_reclamante", form.tipo_recurso_reclamante)} />
                 <IaBadge field="tipo_recurso_reclamante" value={form.tipo_recurso_reclamante} />
               </Label>
               <MultiTipoRecurso
@@ -1451,7 +1492,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_banco", form.tipo_recurso_banco))}>
               <Label className="flex items-center">
                 Tipo de Recurso do Banco (C){recorrenteEnvolveBanco(form) && <ReqMark />}
-                <JuditBadge show={isJuditFilled(form.tipo_recurso_banco)} />
+                <JuditBadge show={isJuditFilled("tipo_recurso_banco", form.tipo_recurso_banco)} />
                 <IaBadge field="tipo_recurso_banco" value={form.tipo_recurso_banco} />
               </Label>
               <MultiTipoRecurso
@@ -1510,7 +1551,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tipo_recurso_terceiro", (form as any).tipo_recurso_terceiro))}>
               <Label className="flex items-center">
                 Tipo de Recurso (Terceiro) (C){recorrenteEhTerceiro(form) && <ReqMark />}
-                <JuditBadge show={isJuditFilled((form as any).tipo_recurso_terceiro)} />
+                <JuditBadge show={isJuditFilled("tipo_recurso_terceiro", (form as any).tipo_recurso_terceiro)} />
                 <IaBadge field="tipo_recurso_terceiro" value={(form as any).tipo_recurso_terceiro} />
               </Label>
               <MultiTipoRecurso
