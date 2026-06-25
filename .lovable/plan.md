@@ -1,61 +1,42 @@
+# Análise: processos com "Erro Judit"
 
-# Acelerar consulta Judit (`buscar-judit`)
+7 casos com `problema_judit = true` e `erro_judit = true` marcados pelas advogadas (Lienne 2, Paula 2, Tatiana 1, Kellen 1, Osmar 1).
 
-Hoje toda consulta Judit espera o crawler async terminar (8–60s), mesmo quando já existe cache fresco. A advogada está vendo "Aguardando 63s" porque o frontend bloqueia até o crawler completar. As otimizações abaixo eliminam o bloqueio quando há cache utilizável.
+## Padrões identificados nos comentários
 
-## Mudanças
+### 1. `recorrente` salvo como string composta "Ativo:.../Passivo:..." (BUG)
+- `0001408-40.2024.5.22.0101` (Paula) → `recorrente = "Ativo: MARIA JOANA... / Passivo: BANCO SANTANDER..."`
+- `0000418-91.2024.5.09.0010` (Lienne — "Colocou Reclamada no campo do Reclamante") → `recorrente = "Ativo: MARCIA..., BANCO SANTANDER..."`
 
-### 1. Modo "cache first, crawler em background" (default sem anexos)
-Em `supabase/functions/buscar-judit/index.ts`:
+O campo deveria conter só **Reclamante** / **Reclamada** / **Ambos**. O mapeamento atual despeja o nome bruto quando não consegue resolver o polo.
 
-- Se o lookup de cache da Judit retorna `response_data` válido (com `parties`/`steps`/`courts`) **e** o `tribunal_acronym` é compatível com o `tribunal_hint` (ou contém indício TST quando hint=TST), responder imediatamente com o resultado derivado do cache.
-- Disparar o crawler async (POST `/requests`) **sem aguardar** o polling — apenas registrar o `request_id` para auditoria. Próxima consulta no dia seguinte já pega o cache atualizado.
-- Quando o cache não tem instância TST e o hint pede TST, mantém o fluxo atual (espera crawler).
+### 2. Polo Reclamante↔Reclamada trocado (BUG de classificação)
+- `0001211-74.2024.5.13.0024` (Lienne — "Judit errou Reclamante")
+- `1001367-54.2024.5.02.0023` (Paula — "problema com nome do relator e parte recorrente")
 
-Resultado esperado: consultas repetidas no mesmo processo passam de 8–60s para <2s.
+### 3. Relator/Turma padrão "Luiz Philippe Vieira de Mello Filho" / "PRESIDÊNCIA"
+Aparece em 4 dos 7 casos. **Não é erro da Judit** — processos ainda em triagem/Vice-Presidência do TST. A Judit devolve o Presidente como ocupante temporário e o sistema persiste como relator final.
 
-### 2. Aumentar TTL do cache Judit
-- `CACHE_TTL_DAYS_DEFAULT`: 1 → 3 dias para consultas normais (sem anexos).
-- Anexos e `force_refresh` continuam com TTL=0 (recrawl obrigatório).
+## O que vou corrigir
 
-### 3. Polling mais agressivo no início
-Quando precisar de fato esperar o crawler:
-- Primeiros 5 polls a cada 400ms (a Judit costuma responder em 2–4s quando o processo já está em cache interno deles).
-- Depois mantém 1s até o `POLL_TIMEOUT_MS`.
+### Código
 
-### 4. Botão "Forçar atualização" no UI
-Hoje o usuário só consegue forçar recrawl marcando "Com anexos". Em `src/components/processos/ProcessoVisaoGeralForm.tsx` (e no card mostrado no print) trocar/adicionar um pequeno link **"Forçar atualização"** que chama `buscar-judit` com `force_refresh: true`. Assim o caminho rápido vira o padrão e o usuário só paga o custo do crawler quando realmente quer dados frescos.
+**`supabase/functions/buscar-judit/index.ts`**
+1. **Saneamento de `recorrente`/`parte_recorrente_origem`**: se o valor não casar com `^(Reclamante|Reclamada|Ambos)$`, descartar (não persistir lixo).
+2. **Classificação robusta de polo**: comparar nome devolvido pela Judit com `partes_ativas`/`partes_passivas` do lawsuit. Sem match seguro → deixar nulo.
+3. **Detectar Vice-Presidência/triagem**: quando órgão for `Presidência`/`Vice-Presidência`/`Gabinete da Presidência` **e** judge for o Presidente do TST, **não preencher** `relator`/`turma` e marcar `situacao_processo = "Em Vice-Presidência (aguardando distribuição)"`.
 
-### 5. Feedback de progresso mais honesto
-Em `ProcessoVisaoGeralForm.tsx` e `DistribuicaoTstDetail.tsx`, quando a resposta vem do cache (novo campo `_judit_meta.fonte = "cache_instant"`), mostrar toast "Judit (cache) — atualização em segundo plano" em vez do contador. Quando precisar mesmo aguardar, manter o contador atual mas com texto "Crawler Judit pode levar até 60s…".
+**`src/components/distribuicao-tst/DistribuicaoTstForm.tsx`**
+- Whitelist no auto-save para `recorrente`/`relator`/`turma` recusar valores que violem as regras acima (defesa em profundidade).
 
-## Detalhes técnicos
+### Dados — correção dos 7 registros existentes
 
-### Resposta cache-only (novo branch antes do `juditCriarRequestComOpcoes`)
-```ts
-// Pseudocódigo
-const cached = await juditCache(apiKey, cnj);
-const cacheUsavel =
-  cached &&
-  !comAnexos &&
-  !forceRefresh &&
-  (!tribunalHint || tribunalHint !== "TST" || isTstRd(cached));
+Para os 7 IDs:
+- Limpar **apenas** `recorrente`, `parte_recorrente_origem`, `relator`, `turma` quando contiverem os padrões inválidos descritos acima.
+- **Preservar** `observacao_advogado` inteiro (comentários das advogadas ficam como estão).
+- **Manter** `problema_judit = true` e `erro_judit = true` — os processos continuam marcados como "Erro Judit" para revisão da advogada.
+- **Não** re-disparar Judit automaticamente — a advogada decide quando reprocessar pelo botão "Forçar atualização".
 
-if (cacheUsavel) {
-  // dispara crawler em background, ignora resultado
-  juditCriarRequestComOpcoes(apiKey, cnj, false, CACHE_TTL_DAYS_DEFAULT).catch(() => {});
-  rdSelecionada = cached;
-  foiTst = isTstRd(cached);
-  // pula direto para a extração + retorno (resto do handler inalterado)
-}
-```
-
-`isTstRd` reaproveita a heurística já existente em `selecionarTst` (source_name TST, Gabinete do Ministro, classe RR/AIRR/etc).
-
-### Memória
-Atualizar `mem://features/dados-benner/judit-multi-instance-fetch.md` registrando o novo modo cache-first + TTL=3d para evitar regressão.
-
-## Fora de escopo
-- Não mexer em `consultar-processo-judit` (worker noturno) — esse pode continuar sempre forçando crawler.
-- Não mexer no fluxo "Com anexos" — continua síncrono porque o usuário pediu explicitamente.
-- Não mexer no `baixar-autos-judit` (download de PDFs).
+## Fora do escopo
+- 12 registros com `problema_judit=true` e `erro_judit=false` (revisão de matérias, não defeito Judit) ficam intactos.
+- Nenhuma alteração de schema.
