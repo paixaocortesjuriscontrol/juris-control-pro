@@ -1046,8 +1046,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       setTipoRecursoJuditVazio(semRecurso && (meta?.fonte_tipo_recurso === "nenhuma" || semRecurso));
 
       const preenchidos = contarCamposJuditVisiveis(nextForm, filled);
-      if (preenchidos > 0) {
-        toast.success(`Judit preencheu ${preenchidos} campo(s). Salvando automaticamente...`);
+      if (filled.size > 0) {
+        toast.success(
+          preenchidos > 0
+            ? `Judit preencheu ${preenchidos} campo(s). Salvando automaticamente...`
+            : "Judit atualizou dados. Salvando automaticamente...",
+        );
         try {
           const payload: DistribuicaoTstInsert = {
             ...nextForm,
