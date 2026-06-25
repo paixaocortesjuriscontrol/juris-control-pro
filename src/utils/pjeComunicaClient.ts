@@ -19,6 +19,8 @@ export interface PjeComunicaSearchParams {
   uf?: string;
   /** Nome do advogado (quando a busca por OAB não retorna resultados). */
   nomeAdvogado?: string;
+  /** Suplemento controlado: permite testar numeroOab + ufOab=TODAS quando a rota por nome omite resultados. */
+  forcarNumeroOabTodas?: boolean;
   /** Nome da parte (polo ativo/passivo) - usado quando tipo='parte' */
   nomeParte?: string;
   palavraChave?: string;
@@ -311,6 +313,7 @@ export async function buscarPjeComunicaNoBrowser(
     oab: params.oab,
     uf: params.uf,
     nomeAdvogado: params.nomeAdvogado,
+    forcarNumeroOabTodas: params.forcarNumeroOabTodas,
     nomeParte: params.nomeParte,
     siglaTribunal: params.siglaTribunal,
     dataInicio: params.dataInicio,
@@ -363,7 +366,16 @@ export async function buscarPjeComunicaNoBrowser(
     const ufUnica = uf && !uf.includes(",");
     const ufValida = ufUnica && uf !== "TODAS" && uf !== "UNDEFINED";
 
-    if (ufValida && oab) {
+    if (params.forcarNumeroOabTodas && uf === "TODAS" && oab && nomeAdvogado) {
+      // Suplemento explícito: algumas respostas cross-UF por nomeAdvogado omitem
+      // publicações que a própria API devolve com numeroOab + ufOab=TODAS.
+      // Não usar como rota primária para preservar o comportamento oficial;
+      // apenas somar em segunda passada e validar por metadados depois.
+      qp.set("numeroOab", oab);
+      qp.set("ufOab", "TODAS");
+      qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado.trim()));
+      console.log(`[PJE Comunica] Suplemento UF=TODAS → numeroOab=${oab}, ufOab=TODAS, nomeAdvogado=${normalizeAccents(nomeAdvogado)}`);
+    } else if (ufValida && oab) {
       // UF específica: busca por OAB/UF + nomeAdvogado para cobertura máxima
       qp.set("numeroOab", oab);
       qp.set("ufOab", uf);
@@ -663,6 +675,7 @@ export async function buscarPjeComunicaNoBrowser(
           oab: params.oab,
           uf: params.uf,
           nomeAdvogado: nomeAdvogado || undefined,
+          forcarNumeroOabTodas: params.forcarNumeroOabTodas,
           numeroProcesso: params.numeroProcesso,
           siglaTribunal: params.siglaTribunal,
           dataInicio: params.dataInicio,

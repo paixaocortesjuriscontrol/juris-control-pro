@@ -1351,6 +1351,68 @@ async function processarTermoEmTribunal(
       }
     } else {
       await executarBusca(baseParams);
+      // Complemento advogado com OAB + UF=TODAS: a rota oficial cross-UF por
+      // `nomeAdvogado` pode omitir comunicações que a API devolve quando recebe
+      // também `numeroOab + ufOab=TODAS`. O Servidor já usa esta segunda passada;
+      // aqui somamos a mesma busca no Browser, sem misturar tabelas, e a validação
+      // por metadados do advogado continua filtrando falsos positivos.
+      if (
+        !signal.aborted &&
+        tipo === 'advogado' &&
+        baseParams.oab &&
+        String(baseParams.uf || '').trim().toUpperCase() === 'TODAS' &&
+        baseParams.nomeAdvogado
+      ) {
+        await abortableDelay(800, signal);
+        if (!signal.aborted) {
+          const supParams = {
+            ...baseParams,
+            forcarNumeroOabTodas: true,
+          } as any;
+          try {
+            await executarBusca(supParams, { __advogadoOabTodasSupplement: true });
+          } catch (e: any) {
+            if (e?.name === 'AbortError') throw e;
+            console.warn(`[DJEN Paralela][${tribunal}] Supplement OAB/TODAS falhou:`, e?.message || e);
+          }
+        }
+      }
+      if (!signal.aborted && tipo === 'advogado' && mon.termos_or?.length) {
+        for (const termoOr of mon.termos_or) {
+          if (signal.aborted) break;
+          const parsed = parsearTermoOr(String(termoOr));
+          if (!parsed?.nome) continue;
+          const mesmoNome = normalizar(parsed.nome) === normalizar(mon.termo_busca || '');
+          const mesmaOab = parsed.oabDigits && baseParams.oab && String(parsed.oabDigits) === String(baseParams.oab);
+          if (mesmoNome && (!parsed.oabDigits || mesmaOab)) continue;
+          const termoParams = {
+            ...baseParams,
+            nomeAdvogado: parsed.nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(),
+            oab: parsed.oabDigits || undefined,
+          } as any;
+          await abortableDelay(CONFIG.delay_between_termos_or, signal);
+          if (signal.aborted) break;
+          try {
+            await executarBusca(termoParams, { __termoOrAdvogado: String(termoOr) });
+            if (
+              !signal.aborted &&
+              termoParams.oab &&
+              String(termoParams.uf || '').trim().toUpperCase() === 'TODAS'
+            ) {
+              await abortableDelay(800, signal);
+              if (!signal.aborted) {
+                await executarBusca(
+                  { ...termoParams, forcarNumeroOabTodas: true },
+                  { __termoOrAdvogado: String(termoOr), __advogadoOabTodasSupplement: true },
+                );
+              }
+            }
+          } catch (e: any) {
+            if (e?.name === 'AbortError') throw e;
+            console.warn(`[DJEN Paralela][${tribunal}] Termo OR advogado "${termoOr}" falhou:`, e?.message || e);
+          }
+        }
+      }
       // Complemento TST/advogado: no TST, numeroOab+ufOab pode devolver só
       // parte das comunicações. Para advogado com OAB+UF informados, somamos
       // uma busca cross-UF por nomeAdvogado (sem OAB/UF), deduplicando por
