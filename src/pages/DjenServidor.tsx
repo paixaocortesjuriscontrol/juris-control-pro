@@ -577,6 +577,8 @@ function ComparadorPanel() {
           l.emAmbos,
           l.soServidor,
           l.soBrowser,
+          l.duplicadasServidor,
+          l.duplicadasBrowser,
           l.djenUnico,
         ].join(","),
       )
@@ -623,8 +625,26 @@ function ComparadorPanel() {
         JSON.stringify(d.capturado_em || ""),
       ].join(","))
       .join("\n");
+    const header4 = "\n\n# Publicações duplicadas por origem (mesma coordenação + id_djen com mais de um registro)\n";
+    const cols4 = "coordenacao,origem,tipo_pesquisa,tribunal,processo,data_publicacao,data_disponibilizacao,id_djen,total_registros,duplicadas,termos_busca,monitoramento_ids\n";
+    const body4 = (data.detalhesDuplicadas || [])
+      .map((d) => [
+        JSON.stringify(d.coordenacaoNome),
+        d.origem,
+        d.tipo,
+        JSON.stringify(d.tribunal || ""),
+        JSON.stringify(d.processo_numero || ""),
+        JSON.stringify(d.data_publicacao || ""),
+        JSON.stringify(d.data_disponibilizacao || ""),
+        JSON.stringify(d.id_djen || ""),
+        d.total_registros,
+        d.duplicadas,
+        JSON.stringify(d.termos_busca.join(" | ")),
+        JSON.stringify(d.monitoramento_ids.join(" | ")),
+      ].join(","))
+      .join("\n");
     const blob = new Blob(
-      [header1 + cols1 + body1 + headerDiag + colsDiag + bodyDiag + header2 + cols2 + body2 + totais + header3 + cols3 + body3 + "\n"],
+      [header1 + cols1 + body1 + headerDiag + colsDiag + bodyDiag + header2 + cols2 + body2 + totais + header3 + cols3 + body3 + header4 + cols4 + body4 + "\n"],
       { type: "text/csv" },
     );
     const url = URL.createObjectURL(blob);
@@ -709,12 +729,14 @@ function ComparadorPanel() {
         )}
         {data && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
               <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total Servidor</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.totais.servidor}</CardContent></Card>
               <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total Browser</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.totais.browser}</CardContent></Card>
               <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Em ambos</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.totais.emAmbos}</CardContent></Card>
               <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Só Servidor</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-emerald-700">{data.totais.soServidor}</CardContent></Card>
               <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Só Browser</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-amber-700">{data.totais.soBrowser}</CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Duplicadas Servidor</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-muted-foreground">{data.totais.duplicadasServidor}</CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Duplicadas Browser</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-muted-foreground">{data.totais.duplicadasBrowser}</CardContent></Card>
             </div>
 
             <div className="space-y-2">
@@ -730,6 +752,8 @@ function ComparadorPanel() {
                         <TableHead className="text-right">Em ambos</TableHead>
                         <TableHead className="text-right">Só Servidor</TableHead>
                         <TableHead className="text-right">Só Browser</TableHead>
+                        <TableHead className="text-right">Dup. Servidor</TableHead>
+                        <TableHead className="text-right">Dup. Browser</TableHead>
                         <TableHead className="text-right">DJEN único</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -742,6 +766,8 @@ function ComparadorPanel() {
                           <TableCell className="text-right">{l.emAmbos}</TableCell>
                           <TableCell className="text-right text-emerald-700">{l.soServidor}</TableCell>
                           <TableCell className="text-right text-amber-700">{l.soBrowser}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{l.duplicadasServidor}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{l.duplicadasBrowser}</TableCell>
                           <TableCell className="text-right font-medium text-primary">{l.djenUnico}</TableCell>
                         </TableRow>
                       ))}
