@@ -9,6 +9,7 @@
 // AnaliseJuditTab) preservado nos nomes principais.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { derivarTurmaDoRelator } from "../_shared/extrair-relator.ts";
 
 const corsHeaders = {
@@ -110,6 +111,40 @@ async function juditCache(apiKey: string, cnj: string): Promise<any | null> {
     if (!rd.steps?.length && !rd.parties?.length && !rd.courts?.length) return null;
     return rd;
   } catch {
+    return null;
+  }
+}
+
+async function juditAppCache(cnj: string): Promise<any | null> {
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!supabaseUrl || !serviceKey) return null;
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const cutoff = new Date(Date.now() - CACHE_TTL_DAYS_DEFAULT * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await admin
+      .from("judit_logs")
+      .select("raw_response, created_at")
+      .eq("processo_numero", cnj)
+      .eq("status", "sucesso")
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    if (error) {
+      console.warn("[buscar-judit] app cache falhou:", error.message);
+      return null;
+    }
+    for (const row of data || []) {
+      const raw = (row as any)?.raw_response;
+      if (!raw || raw?.error) continue;
+      if (raw?._judit_meta?.com_anexos === true) continue;
+      return raw;
+    }
+    return null;
+  } catch (e) {
+    console.warn("[buscar-judit] app cache erro:", (e as Error).message);
     return null;
   }
 }
@@ -509,6 +544,29 @@ serve(async (req) => {
     }, 200);
     const cnj = `${digitosCnj.slice(0, 7)}-${digitosCnj.slice(7, 9)}.${digitosCnj.slice(9, 13)}.${digitosCnj.slice(13, 14)}.${digitosCnj.slice(14, 16)}.${digitosCnj.slice(16, 20)}`;
     console.log(`[buscar-judit] cnj normalizado=${cnj}`);
+
+    // 0) Cache local do app: se este processo já foi consultado com sucesso
+    // recentemente, não chama a Judit de novo. Isso evita pagar 40–60s em
+    // processos cujo lookup direto da Judit ainda não está aquecido.
+    if (!comAnexos && !forceRefresh) {
+      const appCached = await juditAppCache(cnj);
+      if (appCached) {
+        const bodyCached: any = stripAttachments(appCached);
+        bodyCached._judit_meta = {
+          ...(bodyCached._judit_meta || {}),
+          fonte: "app_cache_instant",
+          respondido_do_cache: true,
+          app_cache: true,
+          com_anexos: false,
+          force_refresh: false,
+          elapsed_ms: Date.now() - t0,
+        };
+        bodyCached.attachments = null;
+        console.log(`[buscar-judit] app-cache instant response cnj=${cnj}`);
+        return json(bodyCached, 200);
+      }
+    }
+
     const rawCollector: { cache_lookup: any; crawler: any } = {
       cache_lookup: null,
       crawler: null,
