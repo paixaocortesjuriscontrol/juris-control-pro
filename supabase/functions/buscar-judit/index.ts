@@ -527,13 +527,18 @@ serve(async (req) => {
     let foiTst = false;
     let respondidoDoCache = false;
 
+    // Cache-first: se o cache tem qualquer dado útil, devolve na hora.
+    // Antes exigíamos `isTstRd(cached)` quando tribunalHint=TST — mas processos
+    // que NÃO têm instância TST (ex.: 0000385-38.2024.5.23.0002, só TRT23)
+    // nunca satisfaziam isso e pagavam 30-60s de crawler a cada clique. Agora
+    // aceitamos o cache mesmo sem TST e disparamos refresh em background; se
+    // surgir TST depois, o próximo clique já vê.
     const cacheUsavel =
       cached &&
       !comAnexos &&
       !forceRefresh &&
-      (Array.isArray(cached?.parties) && cached.parties.length > 0 ||
-        Array.isArray(cached?.steps) && cached.steps.length > 0) &&
-      (tribunalHint !== "TST" || isTstRd(cached));
+      ((Array.isArray(cached?.parties) && cached.parties.length > 0) ||
+        (Array.isArray(cached?.steps) && cached.steps.length > 0));
 
     if (cacheUsavel) {
       rdSelecionada = cached;
