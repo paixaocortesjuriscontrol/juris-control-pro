@@ -428,6 +428,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   // O toast deve contar estes campos, não campos técnicos/ocultos nem campos
   // preenchidos pela Judit mas sem indicação visual no formulário.
   const camposJuditVisiveis = [
+    "data_distribuicao_real",
+    "tribunal",
+    "reclamante",
+    "reclamada",
     "relator",
     "relator_favorabilidade",
     "turma",
@@ -1276,8 +1280,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               <Label>Data Distribuição Planilha (D)</Label>
               <Input type="date" value={form.data_distribuicao_planilha || ""} onChange={e => set("data_distribuicao_planilha", e.target.value || null)} />
             </div>
-            <div className="space-y-2">
-              <Label>Data Distribuição Real (D)<ReqMark /></Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("data_distribuicao_real", form.data_distribuicao_real))}>
+              <Label className="flex items-center">Data Distribuição Real (D)<ReqMark /> <JuditBadge show={isJuditFilled("data_distribuicao_real", form.data_distribuicao_real)} /></Label>
               <Input type="date" value={form.data_distribuicao_real || ""} onChange={e => set("data_distribuicao_real", e.target.value || null)} />
               <p className="text-[10px] text-muted-foreground">Preenchida via Judit ou manualmente</p>
             </div>
@@ -1291,8 +1295,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               <Label>Dossiê (A)<ReqMark /></Label>
               <Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Tribunal (B)<ReqMark /></Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("tribunal", (form as any).tribunal))}>
+              <Label className="flex items-center">Tribunal (B)<ReqMark /> <JuditBadge show={isJuditFilled("tribunal", (form as any).tribunal)} /></Label>
               <Select
                 value={(form as any).tribunal || "TST"}
                 onValueChange={v => set("tribunal", v)}
@@ -1321,8 +1325,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Reclamante<ReqMark /></Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("reclamante", form.reclamante))}>
+              <Label className="flex items-center">Reclamante<ReqMark /> <JuditBadge show={isJuditFilled("reclamante", form.reclamante)} /></Label>
               <Textarea
                 value={form.reclamante || ""}
                 onChange={e => set("reclamante", e.target.value || null)}
@@ -1330,8 +1334,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 className="min-h-[76px] resize-y"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Reclamada<ReqMark /></Label>
+            <div className={cn("space-y-2 p-2 -m-2", fieldClass("reclamada", form.reclamada))}>
+              <Label className="flex items-center">Reclamada<ReqMark /> <JuditBadge show={isJuditFilled("reclamada", form.reclamada)} /></Label>
               <Textarea
                 value={form.reclamada || ""}
                 onChange={e => set("reclamada", e.target.value || null)}
