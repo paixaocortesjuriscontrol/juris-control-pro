@@ -521,28 +521,49 @@ serve(async (req) => {
       console.log(`[buscar-judit] cache hit (tribunal=${cached?.tribunal_acronym})`);
     }
 
-    // 2) Crawler async — sempre dispara para garantir TST e dados frescos
+    // 2) Cache-first: se o cache já é utilizável, responde imediato e dispara
+    //    o crawler em background para atualizar o cache da próxima vez.
     let rdSelecionada: any = null;
     let foiTst = false;
+    let respondidoDoCache = false;
 
-    const reqId = await juditCriarRequestComOpcoes(apiKey, cnj, comAnexos, cacheTtlDays);
-    if (reqId) {
-      const envelope = await juditPollar(apiKey, reqId);
-      if (envelope) {
-        const pageData = envelope.page_data || [];
-        rawCollector.crawler = {
-          request_id: reqId,
-          request_status: envelope.request_status,
-          page: envelope.page,
-          all_count: envelope.all_count,
-          page_count: envelope.page_count,
-          all_pages_count: envelope.all_pages_count,
-          page_data: pageData,
-        };
-        const sel = selecionarTst(pageData);
-        if (sel) {
-          rdSelecionada = sel.rd;
-          foiTst = sel.foiTst;
+    const cacheUsavel =
+      cached &&
+      !comAnexos &&
+      !forceRefresh &&
+      (Array.isArray(cached?.parties) && cached.parties.length > 0 ||
+        Array.isArray(cached?.steps) && cached.steps.length > 0) &&
+      (tribunalHint !== "TST" || isTstRd(cached));
+
+    if (cacheUsavel) {
+      rdSelecionada = cached;
+      foiTst = isTstRd(cached);
+      respondidoDoCache = true;
+      // Refresh em background — não aguarda
+      juditCriarRequestComOpcoes(apiKey, cnj, false, CACHE_TTL_DAYS_DEFAULT)
+        .catch((e) => console.warn("[buscar-judit] bg refresh falhou:", (e as Error).message));
+      console.log(`[buscar-judit] cache-first instant response (foiTst=${foiTst})`);
+    } else {
+      // 2b) Crawler async — espera resultado
+      const reqId = await juditCriarRequestComOpcoes(apiKey, cnj, comAnexos, cacheTtlDays);
+      if (reqId) {
+        const envelope = await juditPollar(apiKey, reqId);
+        if (envelope) {
+          const pageData = envelope.page_data || [];
+          rawCollector.crawler = {
+            request_id: reqId,
+            request_status: envelope.request_status,
+            page: envelope.page,
+            all_count: envelope.all_count,
+            page_count: envelope.page_count,
+            all_pages_count: envelope.all_pages_count,
+            page_data: pageData,
+          };
+          const sel = selecionarTst(pageData);
+          if (sel) {
+            rdSelecionada = sel.rd;
+            foiTst = sel.foiTst;
+          }
         }
       }
     }
