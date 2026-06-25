@@ -424,12 +424,6 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   }, [dado?.id]);
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
 
-  const isCampoJuditPersistido = (field: string, value: any) =>
-    !!(dado as any)?.judit_preenchido &&
-    juditSessionFields.size === 0 &&
-    (camposJuditVisiveis as readonly string[]).includes(field) &&
-    !!(value !== null && value !== undefined && String(value).trim() !== "");
-
   // Campos que a tela identifica explicitamente com o badge "Judit".
   // O toast deve contar estes campos, não campos técnicos/ocultos nem campos
   // preenchidos pela Judit mas sem indicação visual no formulário.
@@ -443,6 +437,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     "tipo_recurso_banco",
     "tipo_recurso_terceiro",
   ] as const;
+
+  const isCampoJuditPersistido = (field: string, value: any) =>
+    !!(dado as any)?.judit_preenchido &&
+    juditSessionFields.size === 0 &&
+    (camposJuditVisiveis as readonly string[]).includes(field) &&
+    !!(value !== null && value !== undefined && String(value).trim() !== "");
 
   const contarCamposJuditVisiveis = (state: any, fields: Set<string>) => {
     let count = 0;
