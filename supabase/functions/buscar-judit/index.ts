@@ -140,6 +140,15 @@ async function juditAppCache(cnj: string): Promise<any | null> {
       const raw = (row as any)?.raw_response;
       if (!raw || raw?.error) continue;
       if (raw?._judit_meta?.com_anexos === true) continue;
+      // Rejeita respostas anteriores que vieram sem nenhum dado útil — senão
+      // o app-cache trava o processo em "tudo null" para sempre.
+      const temAlgo = !!(
+        raw?.relator || raw?.turma || raw?.tipo_recurso ||
+        raw?.tipo_recurso_reclamante || raw?.tipo_recurso_banco ||
+        raw?.reclamante || raw?.reclamada ||
+        (Array.isArray(raw?.parties_detail) && raw.parties_detail.length > 0)
+      );
+      if (!temAlgo) continue;
       return raw;
     }
     return null;
