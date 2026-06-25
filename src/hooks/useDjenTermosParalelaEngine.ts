@@ -882,46 +882,22 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(
       .filter((termo, idx, arr) => termo && arr.findIndex((x) => normalizar(x) === normalizar(termo)) === idx);
 
   for (const termo of termosBusca) {
-    const [browserRes, servidorRes] = await Promise.all([
-      supabase
-        .from('publicacoes_djen')
-        .select('id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id')
-        .eq('status', 'encontrada')
-        .eq('tribunal', tribunal)
-        .gte('data_disponibilizacao', `${diaYmd}T00:00:00.000Z`)
-        .lte('data_disponibilizacao', `${diaYmd}T23:59:59.999Z`)
-        .neq('coordenacao_id', mon.coordenacao_id)
-        .ilike('conteudo', `%${termo}%`)
-        .limit(200),
-      // Resgate cross-source: também consulta a tabela do Servidor.
-      // O Servidor roda mais cedo (cron) e captura publicações que a API
-      // do PJE Comunica às vezes deixa de devolver no horário do Browser.
-      // Esse SELECT é a única leitura autorizada do Browser na tabela do
-      // Servidor; o Servidor continua isolado e nunca lê/escreve em
-      // publicacoes_djen.
-      supabase
-        .from('publicacoes_djen_servidor')
-        .select('id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id')
-        .eq('tribunal', tribunal)
-        .gte('data_disponibilizacao', `${diaYmd}T00:00:00.000Z`)
-        .lte('data_disponibilizacao', `${diaYmd}T23:59:59.999Z`)
-        .ilike('conteudo', `%${termo}%`)
-        .limit(200),
-    ]);
+    const browserRes = await supabase
+      .from('publicacoes_djen')
+      .select('id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id')
+      .eq('status', 'encontrada')
+      .eq('tribunal', tribunal)
+      .gte('data_disponibilizacao', `${diaYmd}T00:00:00.000Z`)
+      .lte('data_disponibilizacao', `${diaYmd}T23:59:59.999Z`)
+      .neq('coordenacao_id', mon.coordenacao_id)
+      .ilike('conteudo', `%${termo}%`)
+      .limit(200);
 
     if (browserRes.error) {
       console.warn(`[DJEN Paralela][${tribunal}] Falha ao resgatar (browser) para "${termo}":`, browserRes.error.message);
     }
-    if (servidorRes.error) {
-      console.warn(`[DJEN Paralela][${tribunal}] Falha ao resgatar (servidor) para "${termo}":`, servidorRes.error.message);
-    }
 
-    const merged = [
-      ...((browserRes.data || []) as any[]),
-      ...((servidorRes.data || []) as any[]),
-    ];
-
-    for (const row of merged) {
+    for (const row of ((browserRes.data || []) as any[])) {
       const candidato = {
         ...row,
         id: row.id_djen ?? row.id,
