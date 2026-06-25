@@ -697,6 +697,10 @@ export function useComparadorAnalise() {
       const sByKey = new Map(Array.from(sRowsByKey.entries()).map(([k, rows]) => [k, rows[0]] as const));
       const bByKey = new Map(Array.from(bRowsByKey.entries()).map(([k, rows]) => [k, rows[0]] as const));
 
+      const rowTipo = (r: Row) =>
+        (r.monitoramento_id && monitTipo.get(r.monitoramento_id)) || "sem_monitoramento";
+      const rowCoord = (r: Row) => r.coordenacao_id || "sem_coord";
+
       const duplicadasPorCoordServidor = new Map<string, number>();
       const duplicadasPorCoordBrowser = new Map<string, number>();
       const detalhesDuplicadas: ComparadorAnaliseRelatorio["detalhesDuplicadas"] = [];
@@ -744,9 +748,6 @@ export function useComparadorAnalise() {
       // browser. Isso evita que a mesma publicação (mesmo id_djen) seja
       // contada em buckets diferentes (advogado x parte) em cada lado.
       const keyToBucket = new Map<string, { coordenacaoId: string; tipo: string }>();
-      const rowTipo = (r: Row) =>
-        (r.monitoramento_id && monitTipo.get(r.monitoramento_id)) || "sem_monitoramento";
-      const rowCoord = (r: Row) => r.coordenacao_id || "sem_coord";
       for (const r of sRows) {
         const k = key(r);
         if (!keyToBucket.has(k)) keyToBucket.set(k, { coordenacaoId: rowCoord(r), tipo: rowTipo(r) });
