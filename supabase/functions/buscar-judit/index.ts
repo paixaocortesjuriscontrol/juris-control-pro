@@ -140,6 +140,15 @@ async function juditAppCache(cnj: string): Promise<any | null> {
       const raw = (row as any)?.raw_response;
       if (!raw || raw?.error) continue;
       if (raw?._judit_meta?.com_anexos === true) continue;
+      // Rejeita respostas anteriores que vieram sem nenhum dado útil — senão
+      // o app-cache trava o processo em "tudo null" para sempre.
+      const temAlgo = !!(
+        raw?.relator || raw?.turma || raw?.tipo_recurso ||
+        raw?.tipo_recurso_reclamante || raw?.tipo_recurso_banco ||
+        raw?.reclamante || raw?.reclamada ||
+        (Array.isArray(raw?.parties_detail) && raw.parties_detail.length > 0)
+      );
+      if (!temAlgo) continue;
       return raw;
     }
     return null;
@@ -591,12 +600,27 @@ serve(async (req) => {
     // nunca satisfaziam isso e pagavam 30-60s de crawler a cada clique. Agora
     // aceitamos o cache mesmo sem TST e disparamos refresh em background; se
     // surgir TST depois, o próximo clique já vê.
+    // Cache-first SÓ quando o cache tem dados realmente úteis para preencher
+    // o formulário. Antes bastava ter `parties` ou `steps`, mas isso fazia o
+    // app responder instantaneamente com tudo null (ex.: 1001703-15.2023.5.02.0081,
+    // cuja cache TRT2 não traz classe/relator/órgão). Agora exigimos pelo menos
+    // um sinal extraível (classe OU relator OU órgão OU steps suficientes),
+    // OU que seja a instância TST quando o cliente pediu TST.
+    const cachedClasse = extrairClasse(cached || {});
+    const cachedOrgaoRel = extrairOrgaoERelator(cached || {});
+    const cachedTemSinal = !!(
+      cachedClasse ||
+      cachedOrgaoRel?.relator ||
+      cachedOrgaoRel?.turma ||
+      cachedOrgaoRel?.orgao ||
+      (Array.isArray(cached?.steps) && cached.steps.length >= 5)
+    );
     const cacheUsavel =
       cached &&
       !comAnexos &&
       !forceRefresh &&
-      ((Array.isArray(cached?.parties) && cached.parties.length > 0) ||
-        (Array.isArray(cached?.steps) && cached.steps.length > 0));
+      (Array.isArray(cached?.parties) && cached.parties.length > 0) &&
+      (isTstRd(cached) || cachedTemSinal);
 
     if (cacheUsavel) {
       rdSelecionada = cached;
