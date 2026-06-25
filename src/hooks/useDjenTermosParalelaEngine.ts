@@ -2254,11 +2254,14 @@ async function executarLoop(
     const emProcessamentoPorBand = [0, 0, 0, 0];
 
     const pickNextUnit = (): WorkUnit | null => {
-      while (bandAtual < bands.length) {
-        const fila = bands[bandAtual];
-        if (fila.length > 0) return fila.shift()!;
-        if (emProcessamentoPorBand[bandAtual] > 0) return null; // aguardar drenar
-        bandAtual++;
+      // Sem trava entre bandas: pega a unidade da banda de maior prioridade
+      // que tiver itens. Workers ociosos não ficam aguardando bandas anteriores
+      // drenarem (espelha monitor-servidor/engines/paralela.js).
+      for (let b = 0; b < bands.length; b++) {
+        if (bands[b].length > 0) {
+          bandAtual = b; // apenas para label/progresso
+          return bands[b].shift()!;
+        }
       }
       return null;
     };
@@ -2272,7 +2275,7 @@ async function executarLoop(
       while (!signal.aborted) {
         const unit = pickNextUnit();
         if (!unit) {
-          if (bandAtual < bands.length && emProcessamentoPorBand[bandAtual] > 0) {
+          if (emProcessamentoPorBand.some((n) => n > 0)) {
             await new Promise((r) => setTimeout(r, 500));
             continue;
           }
