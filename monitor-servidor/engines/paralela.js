@@ -299,6 +299,10 @@ function validarAdvogadoMetadados(pub, oab, nome) {
   if (!Array.isArray(advs) || advs.length === 0) return false;
   const oabDigits = oab ? String(oab).replace(/\D/g, "") : "";
   const nomeNorm = nome ? normalize(nome) : "";
+  // Nome só vale com >=3 tokens. Evita falsos positivos com nomes curtos
+  // como "CARLOS JOSE" casando "CARLOS JOSE ESTEVES ...".
+  const nomeTokens = nomeNorm ? nomeNorm.split(/\s+/).filter(Boolean) : [];
+  const nomeValido = nomeTokens.length >= 3 ? nomeNorm : "";
   for (const entry of advs) {
     // advogados pode vir em 3 formatos:
     // 1) { advogado: { nome, numero_oab, uf_oab } }  — formato API PJE Comunica
@@ -308,15 +312,16 @@ function validarAdvogadoMetadados(pub, oab, nome) {
       const en = normalize(entry);
       if (!en) continue;
       if (oabDigits && en.includes(oabDigits)) return true;
-      if (nomeNorm && contemFrase(en, nomeNorm)) return true;
+      if (nomeValido && contemFrase(en, nomeValido)) return true;
       continue;
     }
     const adv = entry?.advogado || entry;
     if (!adv) continue;
     if (oabDigits && adv.numero_oab && String(adv.numero_oab).replace(/\D/g, "") === oabDigits) return true;
-    if (nomeNorm && adv.nome) {
+    if (nomeValido && adv.nome) {
       const an = normalize(adv.nome);
-      if (an === nomeNorm || an.includes(nomeNorm) || nomeNorm.includes(an)) return true;
+      // Encontrado precisa CONTER o nome buscado como frase completa. Nunca o inverso.
+      if (contemFrase(an, nomeValido)) return true;
     }
   }
   return false;
@@ -340,7 +345,10 @@ function nomeAdvogadoCasa(advNome, mon) {
   if (!advNorm) return false;
   return nomesAlvoAdvogado(mon).some((nome) => {
     const alvo = normalize(nome);
-    return alvo && (advNorm === alvo || advNorm.includes(alvo) || alvo.includes(advNorm));
+    if (!alvo) return false;
+    const tokens = alvo.split(/\s+/).filter(Boolean);
+    if (tokens.length < 3) return false;
+    return contemFrase(advNorm, alvo);
   });
 }
 
