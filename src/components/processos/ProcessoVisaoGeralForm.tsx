@@ -459,7 +459,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
    * `processos_partes`. O preenchimento do formulário só acontece quando o
    * usuário clicar em "Preencher formulário" dentro da Análise Judit.
    */
-  const handleFetchJuditOnly = async (comAnexos: boolean = false) => {
+  const handleFetchJuditOnly = async (comAnexos: boolean = false, forceRefresh: boolean = false) => {
     if (!processo?.numero) {
       toast.warning("Processo sem número CNJ cadastrado.");
       return;
@@ -473,11 +473,16 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           numero_processo: numeroLimpo,
           tribunal: "TST",
           com_anexos: comAnexos,
-          force_refresh: true,
+          force_refresh: forceRefresh || comAnexos,
         },
       });
       if (error) throw error;
       if (data?.error) { toast.error(data.error); return; }
+
+      const veioDoCache = (data as any)?._judit_meta?.respondido_do_cache === true;
+      if (veioDoCache) {
+        toast.success("Judit (cache) — atualizando em segundo plano");
+      }
 
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData?.user?.id || null;
