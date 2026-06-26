@@ -1358,100 +1358,79 @@ async function processarTermoEmTribunal(
         await abortableDelay(CONFIG.delay_between_termos_or, signal);
       }
     } else {
-      await executarBusca(baseParams);
-      // Complemento advogado com OAB + UF=TODAS: a rota oficial cross-UF por
-      // `nomeAdvogado` pode omitir comunicações que a API devolve quando recebe
-      // também `numeroOab + ufOab=TODAS`. O Servidor já usa esta segunda passada;
-      // aqui somamos a mesma busca no Browser, sem misturar tabelas, e a validação
-      // por metadados do advogado continua filtrando falsos positivos.
-      if (
-        !signal.aborted &&
-        tipo === 'advogado' &&
-        baseParams.oab &&
-        String(baseParams.uf || '').trim().toUpperCase() === 'TODAS' &&
-        baseParams.nomeAdvogado
-      ) {
-        await abortableDelay(800, signal);
-        if (!signal.aborted) {
-          const supParams = {
-            ...baseParams,
-            forcarNumeroOabTodas: true,
-          } as any;
-          try {
-            await executarBusca(supParams, { __advogadoOabTodasSupplement: true });
-          } catch (e: any) {
-            if (e?.name === 'AbortError') throw e;
-            console.warn(`[DJEN Paralela][${tribunal}] Supplement OAB/TODAS falhou:`, e?.message || e);
-          }
-        }
-      }
-      if (!signal.aborted && tipo === 'advogado' && mon.termos_or?.length) {
-        for (const termoOr of mon.termos_or) {
-          if (signal.aborted) break;
-          const parsed = parsearTermoOr(String(termoOr));
-          if (!parsed?.nome) continue;
-          const mesmoNome = normalizar(parsed.nome) === normalizar(mon.termo_busca || '');
-          const mesmaOab = parsed.oabDigits && baseParams.oab && String(parsed.oabDigits) === String(baseParams.oab);
-          if (mesmoNome && (!parsed.oabDigits || mesmaOab)) continue;
-          const termoParams = {
-            ...baseParams,
-            nomeAdvogado: parsed.nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(),
-            oab: parsed.oabDigits || undefined,
-          } as any;
-          await abortableDelay(CONFIG.delay_between_termos_or, signal);
-          if (signal.aborted) break;
-          try {
-            await executarBusca(termoParams, { __termoOrAdvogado: String(termoOr) });
-            if (
-              !signal.aborted &&
-              termoParams.oab &&
-              String(termoParams.uf || '').trim().toUpperCase() === 'TODAS'
-            ) {
-              await abortableDelay(800, signal);
-              if (!signal.aborted) {
-                await executarBusca(
-                  { ...termoParams, forcarNumeroOabTodas: true },
-                  { __termoOrAdvogado: String(termoOr), __advogadoOabTodasSupplement: true },
-                );
-              }
-            }
-          } catch (e: any) {
-            if (e?.name === 'AbortError') throw e;
-            console.warn(`[DJEN Paralela][${tribunal}] Termo OR advogado "${termoOr}" falhou:`, e?.message || e);
-          }
-        }
-      }
-      // Complemento TST/advogado: no TST, numeroOab+ufOab pode devolver só
-      // parte das comunicações. Para advogado com OAB+UF informados, somamos
-      // uma busca cross-UF por nomeAdvogado (sem OAB/UF), deduplicando por
-      // id_djen via addResults. Espelha monitor-servidor/engines/paralela.js
-      // (ENGINE_VERSION 2026-06-25-tst-advogado-supplement).
-      if (
-        !signal.aborted &&
-        tipo === 'advogado' &&
-        tribunal === 'TST' &&
-        baseParams.oab &&
-        baseParams.uf &&
-        String(baseParams.uf).trim().toUpperCase() !== 'TODAS' &&
-        baseParams.nomeAdvogado
-      ) {
-        await abortableDelay(800, signal);
-        if (!signal.aborted) {
-          const supParams = {
+      // Helper: busca por advogado com regra nova (nome primário, OAB fallback).
+      const buscarAdvogado = async (
+        nomeRaw: string | undefined,
+        oabRaw: string | undefined,
+        ufRaw: string | undefined,
+        matchMeta: Record<string, any> = {},
+      ) => {
+        const nome = nomeRaw?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim() || '';
+        const oab = oabRaw ? String(oabRaw).replace(/\D/g, '') : '';
+        const uf = String(ufRaw || '').trim().toUpperCase();
+        let respPrincipal: any = null;
+        if (nome) {
+          const paramsNome = {
             tipo: 'advogado',
             dataInicio: diaYmd,
             dataFim: diaYmd,
             pageSize: 50,
             siglaTribunal: tribunal,
-            nomeAdvogado: baseParams.nomeAdvogado,
+            nomeAdvogado: nome,
           } as any;
-          try {
-            await executarBusca(supParams, { __tstAdvogadoNomeSupplement: true });
-          } catch (e: any) {
-            if (e?.name === 'AbortError') throw e;
-            console.warn(`[DJEN Paralela][${tribunal}] Supplement TST/advogado falhou:`, e?.message || e);
+          respPrincipal = await executarBusca(paramsNome, matchMeta);
+        }
+        // Fallback OAB: somente se a busca por nome veio vazia E temos OAB+UF
+        // específica (UF=TODAS não é aceita pela API com numeroOab sozinho).
+        const veioVazio = !respPrincipal || (respPrincipal.items?.length || 0) === 0;
+        if (
+          !signal.aborted &&
+          veioVazio &&
+          oab && oab.length >= 3 &&
+          uf && uf !== 'TODAS' && /^[A-Z]{2}$/.test(uf)
+        ) {
+          await abortableDelay(800, signal);
+          if (!signal.aborted) {
+            const paramsOab = {
+              tipo: 'advogado',
+              dataInicio: diaYmd,
+              dataFim: diaYmd,
+              pageSize: 50,
+              siglaTribunal: tribunal,
+              oab,
+              uf,
+            } as any;
+            try {
+              await executarBusca(paramsOab, { ...matchMeta, __advogadoOabFallback: true });
+            } catch (e: any) {
+              if (e?.name === 'AbortError') throw e;
+              console.warn(`[DJEN Paralela][${tribunal}] Fallback OAB advogado falhou:`, e?.message || e);
+            }
           }
         }
+      };
+
+      if (tipo === 'advogado') {
+        await buscarAdvogado(mon.termo_busca, mon.oab, mon.uf);
+        if (!signal.aborted && mon.termos_or?.length) {
+          for (const termoOr of mon.termos_or) {
+            if (signal.aborted) break;
+            const parsed = parsearTermoOr(String(termoOr));
+            if (!parsed?.nome) continue;
+            const mesmoNome = normalizar(parsed.nome) === normalizar(mon.termo_busca || '');
+            if (mesmoNome) continue;
+            await abortableDelay(CONFIG.delay_between_termos_or, signal);
+            if (signal.aborted) break;
+            try {
+              await buscarAdvogado(parsed.nome, parsed.oabDigits, mon.uf, { __termoOrAdvogado: String(termoOr) });
+            } catch (e: any) {
+              if (e?.name === 'AbortError') throw e;
+              console.warn(`[DJEN Paralela][${tribunal}] Termo OR advogado "${termoOr}" falhou:`, e?.message || e);
+            }
+          }
+        }
+      } else {
+        await executarBusca(baseParams);
       }
     }
   } catch (e: any) {
