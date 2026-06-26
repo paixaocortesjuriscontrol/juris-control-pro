@@ -701,10 +701,11 @@ function condicaoConcomitanteAtendida(pub, mon, conteudo) {
   if (!cond) return true;
   const grupos = String(cond).split("|").map((g) => g.trim()).filter(Boolean);
   if (grupos.length === 0) return true;
+  const tipo = mapTipo(mon?.tipo);
   const textoNorm = mon.tipo === "parte"
-    ? normalize(extrairPartesEstruturadas(pub).join("\n"))
+    ? normalize([...extrairPartesEstruturadas(pub), ...extrairSecoesPartesTexto(pub)].join("\n"))
     : normalize(buildTextoCompleto(pub, conteudo));
-  if (!textoNorm) return mon.tipo !== "parte";
+  if (!textoNorm) return tipo !== "parte";
   return grupos.some((g) => {
     const ts = g.split(",").map((t) => t.trim()).filter(Boolean);
     if (ts.length === 0) return true;
@@ -715,8 +716,9 @@ function condicaoConcomitanteAtendida(pub, mon, conteudo) {
 function shouldExclude(conteudo, mon, pub) {
   const excs = Array.isArray(mon.exclusoes) ? mon.exclusoes : [];
   if (excs.length === 0) return false;
-  const text = mon.tipo === "parte"
-    ? normalize(extrairPartesEstruturadas(pub).join("\n"))
+  const tipo = mapTipo(mon?.tipo);
+  const text = tipo === "parte"
+    ? normalize([...extrairPartesEstruturadas(pub), ...extrairSecoesPartesTexto(pub)].join("\n"))
     : normalize(buildTextoCompleto(pub, conteudo));
   if (!text) return false;
   return excs.some((e) => {
