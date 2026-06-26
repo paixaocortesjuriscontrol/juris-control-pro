@@ -299,10 +299,7 @@ function validarAdvogadoMetadados(pub, oab, nome) {
   if (!Array.isArray(advs) || advs.length === 0) return false;
   const oabDigits = oab ? String(oab).replace(/\D/g, "") : "";
   const nomeNorm = nome ? normalize(nome) : "";
-  // Nome só vale com >=3 tokens. Evita falsos positivos com nomes curtos
-  // como "CARLOS JOSE" casando "CARLOS JOSE ESTEVES ...".
-  const nomeTokens = nomeNorm ? nomeNorm.split(/\s+/).filter(Boolean) : [];
-  const nomeValido = nomeTokens.length >= 3 ? nomeNorm : "";
+  const oabFallbackAtivo = pub?.__advogadoOabFallback === true;
   for (const entry of advs) {
     // advogados pode vir em 3 formatos:
     // 1) { advogado: { nome, numero_oab, uf_oab } }  — formato API PJE Comunica
@@ -311,17 +308,16 @@ function validarAdvogadoMetadados(pub, oab, nome) {
     if (typeof entry === "string") {
       const en = normalize(entry);
       if (!en) continue;
-      if (oabDigits && en.includes(oabDigits)) return true;
-      if (nomeValido && contemFrase(en, nomeValido)) return true;
+      if (oabFallbackAtivo && oabDigits && en.includes(oabDigits)) return true;
+      if (nomeNorm && contemFrase(en, nomeNorm)) return true;
       continue;
     }
     const adv = entry?.advogado || entry;
     if (!adv) continue;
-    if (oabDigits && adv.numero_oab && String(adv.numero_oab).replace(/\D/g, "") === oabDigits) return true;
-    if (nomeValido && adv.nome) {
+    if (oabFallbackAtivo && oabDigits && adv.numero_oab && String(adv.numero_oab).replace(/\D/g, "") === oabDigits) return true;
+    if (nomeNorm && adv.nome) {
       const an = normalize(adv.nome);
-      // Encontrado precisa CONTER o nome buscado como frase completa. Nunca o inverso.
-      if (contemFrase(an, nomeValido)) return true;
+      if (contemFrase(an, nomeNorm)) return true;
     }
   }
   return false;
@@ -346,8 +342,6 @@ function nomeAdvogadoCasa(advNome, mon) {
   return nomesAlvoAdvogado(mon).some((nome) => {
     const alvo = normalize(nome);
     if (!alvo) return false;
-    const tokens = alvo.split(/\s+/).filter(Boolean);
-    if (tokens.length < 3) return false;
     return contemFrase(advNorm, alvo);
   });
 }
@@ -597,29 +591,21 @@ function contemTermo(conteudo, mon, pub) {
     return false;
   }
   if (tipo === "advogado") {
-    if (pub?.__tstAdvogadoNomeSupplement) {
-      const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
-      const nomeNorm = normalize(mon.termo_busca);
-      const oabDigits = String(mon.oab || "").replace(/\D/g, "");
-      const tk = nomeNorm ? nomeNorm.split(/\s+/).filter(Boolean) : [];
-      if (tk.length >= 3 && contemFrase(textoNorm, nomeNorm)) return true;
-      if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
-    }
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
     const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
     const nomeNorm = normalize(mon.termo_busca);
-    const tk2 = nomeNorm ? nomeNorm.split(/\s+/).filter(Boolean) : [];
-    if (tk2.length >= 3 && contemFrase(textoNorm, nomeNorm)) return true;
-    const oabDigits = String(mon.oab || "").replace(/\D/g, "");
-    if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
+    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
+    if (pub?.__advogadoOabFallback) {
+      const oabDigits = String(mon.oab || "").replace(/\D/g, "");
+      if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
+    }
     for (const t of mon.termos_or || []) {
       const p = parsearTermoOr(t);
       if (!p) continue;
       if (validarAdvogadoMetadados(pub, p.oabDigits, p.nome)) return true;
       const nn = normalize(p.nome);
-      const tk3 = nn ? nn.split(/\s+/).filter(Boolean) : [];
-      if (tk3.length >= 3 && contemFrase(textoNorm, nn)) return true;
-      if (p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
+      if (nn && contemFrase(textoNorm, nn)) return true;
+      if (pub?.__advogadoOabFallback && p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
     }
     return false;
   }
@@ -755,17 +741,18 @@ function baseParams(mon, dia, tribunal) {
     dataDisponibilizacaoFim: dia,
   };
   if (tipo === "advogado") {
-    const oab = String(mon.oab || "").replace(/\D/g, "");
-    const uf = String(mon.uf || "").trim().toUpperCase();
-    const ufValida = uf && !uf.includes(",") && uf !== "TODAS" && uf !== "UNDEFINED";
-    if (ufValida && oab) {
-      params.numeroOab = oab;
-      params.ufOab = uf;
-      if (mon.termo_busca) params.nomeAdvogado = normalizeForApi(mon.termo_busca);
-    } else if (mon.termo_busca) {
+    // Regra nova: primária SOMENTE por nomeAdvogado. OAB vira fallback feito
+    // em buscarTermo quando a primária retornar 0 (uma única chamada extra).
+    if (mon.termo_busca) {
       params.nomeAdvogado = normalizeForApi(mon.termo_busca);
-    } else if (oab) {
-      params.numeroOab = oab;
+    } else {
+      const oab = String(mon.oab || "").replace(/\D/g, "");
+      const uf = String(mon.uf || "").trim().toUpperCase();
+      const ufValida = uf && !uf.includes(",") && uf !== "TODAS" && uf !== "UNDEFINED";
+      if (oab && ufValida) {
+        params.numeroOab = oab;
+        params.ufOab = uf;
+      }
     }
   } else if (tipo === "processo") {
     params.numeroProcesso = String(mon.termo_busca || "").replace(/\D/g, "");
@@ -810,93 +797,55 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
       items = await buscarPaginado(slot, params, signal);
     }
   }
-  // Advogado sem OAB configurada: a busca ampla por `nomeAdvogado` às vezes
-  // retorna só o primeiro bloco de comunicações do PJE. Quando os primeiros
-  // resultados trazem metadados do próprio advogado (nome + OAB/UF), fazemos
-  // uma segunda passada oficial por `numeroOab + ufOab + nomeAdvogado`, sem
-  // tocar em `publicacoes_djen`. Isso recupera casos como TRT8/OSMAR em que a
-  // API não entrega as páginas finais pela rota de nome, mas entrega pela OAB.
-  if (!signal?.aborted && tipo === "advogado" && items.length > 0) {
-    const oabsSupplement = coletarOabsDoAdvogado(items, mon);
-    for (const adv of oabsSupplement) {
-      if (signal?.aborted) break;
-      const alreadyPrimary = params.numeroOab === adv.oabDigits && params.ufOab === adv.uf;
-      if (alreadyPrimary) continue;
-      const supplementParams = {
-        siglaTribunal: tribunal,
-        dataDisponibilizacaoInicio: dia,
-        dataDisponibilizacaoFim: dia,
-        numeroOab: adv.oabDigits,
-        ufOab: adv.uf,
-        nomeAdvogado: normalizeForApi(adv.nome || mon.termo_busca),
-      };
-      await delay(500, signal);
-      if (signal?.aborted) break;
-      try {
-        const supplementItems = await buscarPaginado(slot, supplementParams, signal);
-        mesclarItensPorId(items, supplementItems, { __advogadoOabSupplement: true });
-      } catch (_) {
-        // suplemento é best-effort; a busca principal já foi feita.
-      }
-    }
-  }
-  // Complemento TST/advogado: no TST, numeroOab+ufOab pode devolver só parte
-  // das comunicações. O browser chegou a capturar os IDs restantes pela rota
-  // cross-UF (nomeAdvogado sem OAB/UF). Portanto, para TST/advogado com
-  // OAB+UF específica, sempre somamos a busca por nome, deduplicando por id_djen.
-  if (
-    !signal?.aborted &&
-    tipo === "advogado" &&
-    tribunal === "TST" &&
-    params.numeroOab &&
-    params.ufOab &&
-    mon.termo_busca
-  ) {
-    const fallbackParams = {
+  // Regra nova: fallback OAB. Se a busca primária por nomeAdvogado veio vazia
+  // E temos OAB + UF específica, fazemos UMA segunda chamada por OAB+UF e
+  // marcamos cada item com __advogadoOabFallback para que a validação posterior
+  // aceite o match por número de OAB (que, fora do fallback, é ignorado).
+  const tentarFallbackOab = async (nomeRaw, oabRaw, ufRaw, prevItems) => {
+    if (signal?.aborted) return prevItems;
+    if (prevItems.length > 0) return prevItems;
+    const oab = String(oabRaw || "").replace(/\D/g, "");
+    const uf = String(ufRaw || "").trim().toUpperCase();
+    if (!oab || oab.length < 3) return prevItems;
+    if (!uf || uf === "TODAS" || !/^[A-Z]{2}$/.test(uf)) return prevItems;
+    const paramsFallback = {
       siglaTribunal: tribunal,
       dataDisponibilizacaoInicio: dia,
       dataDisponibilizacaoFim: dia,
-      nomeAdvogado: normalizeForApi(mon.termo_busca),
+      numeroOab: oab,
+      ufOab: uf,
     };
     await delay(800, signal);
-    if (!signal?.aborted) {
-      const fallbackItems = await buscarPaginado(slot, fallbackParams, signal);
-      if (fallbackItems.length > 0) {
-        mesclarItensPorId(items, fallbackItems, { __tstAdvogadoNomeSupplement: true });
-      }
+    if (signal?.aborted) return prevItems;
+    try {
+      const fallbackItems = await buscarPaginado(slot, paramsFallback, signal);
+      for (const it of fallbackItems) it.__advogadoOabFallback = true;
+      return fallbackItems;
+    } catch (_) {
+      return prevItems;
     }
-  }
-  // Complemento advogado com OAB + uf=TODAS: a chamada primária (já feita acima
-  // por nomeAdvogado, conforme baseParams) às vezes perde publicações regionais
-  // (ex.: TJMG/OSMAR — id_djen 649843498) que a API devolve quando consultada
-  // com numeroOab + ufOab=TODAS + nomeAdvogado. Soma essa segunda chamada e
-  // mescla por id_djen. A validação posterior (validarAdvogado por metadados)
-  // garante que só entram pubs em que o advogado realmente aparece em
-  // destinatarioadvogados.
-  if (
-    !signal?.aborted &&
-    tipo === "advogado" &&
-    mon.termo_busca &&
-    !params.numeroOab // só quando a primária foi por nome (uf=TODAS sem OAB nos params)
-  ) {
-    const oabConfig = String(mon.oab || "").replace(/\D/g, "");
-    const ufConfig = String(mon.uf || "").trim().toUpperCase();
-    if (oabConfig && ufConfig === "TODAS") {
-      const supplementOabParams = {
-        siglaTribunal: tribunal,
-        dataDisponibilizacaoInicio: dia,
-        dataDisponibilizacaoFim: dia,
-        numeroOab: oabConfig,
-        ufOab: "TODAS",
-        nomeAdvogado: normalizeForApi(mon.termo_busca),
-      };
-      await delay(800, signal);
-      if (!signal?.aborted) {
+  };
+  if (!signal?.aborted && tipo === "advogado") {
+    items = await tentarFallbackOab(mon.termo_busca, mon.oab, mon.uf, items);
+    // Iterar termos_or como buscas separadas (nome primário, OAB fallback).
+    if (Array.isArray(mon.termos_or) && mon.termos_or.length > 0) {
+      for (const termoOr of mon.termos_or) {
+        if (signal?.aborted) break;
+        const parsed = parsearTermoOr(String(termoOr));
+        if (!parsed?.nome) continue;
+        if (normalize(parsed.nome) === normalize(mon.termo_busca || "")) continue;
+        const paramsOr = {
+          siglaTribunal: tribunal,
+          dataDisponibilizacaoInicio: dia,
+          dataDisponibilizacaoFim: dia,
+          nomeAdvogado: normalizeForApi(parsed.nome),
+        };
+        await delay(500, signal);
+        if (signal?.aborted) break;
         try {
-          const supplementItems = await buscarPaginado(slot, supplementOabParams, signal);
-          if (supplementItems.length > 0) {
-            mesclarItensPorId(items, supplementItems, { __advogadoOabTodasSupplement: true });
-          }
+          let orItems = await buscarPaginado(slot, paramsOr, signal);
+          orItems = await tentarFallbackOab(parsed.nome, parsed.oabDigits, mon.uf, orItems);
+          mesclarItensPorId(items, orItems, { __termoOrAdvogado: String(termoOr) });
         } catch (_) {
           // best-effort
         }
