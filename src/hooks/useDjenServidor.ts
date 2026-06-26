@@ -639,27 +639,20 @@ export function useComparadorAnalise() {
         created_at?: string | null;
       };
 
-      // CHAVE DE CLUSTER LÓGICO (dedup ANTES de comparar):
-      // O PJE Comunica frequentemente emite vários id_djen distintos para o
-      // MESMO ato processual (mesmo processo + mesma data). Comparar por
-      // id_djen puro inflaciona as diferenças (ex.: Servidor=7 ids vs
-      // Browser=1 id do mesmo processo gerava "faltou 6", quando na prática
-      // é 1 publicação lógica = 1 publicação lógica).
-      //
-      // Por isso a chave usada na comparação é:
-      //   coord | processo_digits | data_ref (YYYY-MM-DD)
-      // NÃO incluímos hash/conteudo porque as duas tabelas
-      // (publicacoes_djen e publicacoes_djen_servidor) usam normalizações
-      // diferentes — o mesmo id_djen gera hash_conteudo distinto entre elas,
-      // o que zerava em_ambos. Colapsar por processo+dia é exatamente o que
-      // o usuário pediu: múltiplos id_djen do mesmo ato no mesmo dia contam
-      // como 1 publicação lógica. Sem processo_digits caímos para id_djen.
+      // CHAVE PRINCIPAL DO COMPARADOR:
+      // A comparação precisa ser por coordenação + id_djen, deduplicando
+      // registros repetidos ANTES de comparar. Não usamos processo/data como
+      // chave principal porque o Servidor pode receber processo vazio ou
+      // processo formatado/extrado diferente do Browser para o mesmo id_djen;
+      // isso estava criando pares falsos "só_servidor" + "só_browser".
+      // Processo/data/hash ficam apenas como fallback para registros legados
+      // sem id_djen.
       const key = (r: Row) => {
         const coord = r.coordenacao_id || "sem_coord";
+        if (r.id_djen) return `${coord}|id_djen|${r.id_djen}`;
         const proc = (r.dedup_processo_digits || "").trim();
         const dia = (r.dedup_data_ref || (r.data_disponibilizacao || "").slice(0, 10) || "").trim();
         if (proc && dia) return `${coord}|cluster|${proc}|${dia}`;
-        if (r.id_djen) return `${coord}|id_djen|${r.id_djen}`;
         if (r.dedup_conteudo_key) return `${coord}|ck|${r.dedup_conteudo_key}`;
         return `${coord}|legacy|${proc}|${dia}|${r.hash_conteudo}`;
       };
