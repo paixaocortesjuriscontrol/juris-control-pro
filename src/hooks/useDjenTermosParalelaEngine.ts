@@ -1503,6 +1503,18 @@ async function processarTermoEmTribunal(
             nomeAdvogado: nome,
           } as any;
           respPrincipal = await executarBusca(paramsNome, matchMeta);
+          // A API PJE Comunica também pode devolver vazio intermitente em uma
+          // busca específica de advogado (principal ou termos_or). Antes do
+          // fallback por OAB, refazemos a mesma busca por nome uma vez, igual
+          // ao Servidor, para não perder um termo OR quando outro termo já
+          // trouxe resultado e impediu o retry global no fim da função.
+          if (!signal.aborted && (respPrincipal.items?.length || 0) === 0) {
+            await abortableDelay(1500, signal);
+            if (!signal.aborted) {
+              console.warn(`[DJEN Paralela][${tribunal}] Advogado "${nome}": 0 resultados na 1ª passada — refazendo busca por nome.`);
+              respPrincipal = await executarBusca(paramsNome, matchMeta);
+            }
+          }
         }
         // Fallback OAB: somente se a busca por nome veio vazia E temos OAB+UF
         // específica (UF=TODAS não é aceita pela API com numeroOab sozinho).
