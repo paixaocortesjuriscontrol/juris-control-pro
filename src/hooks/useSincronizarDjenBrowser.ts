@@ -134,20 +134,6 @@ function conteudoContemTermo(conteudo: string, termo: string, tipo: string, oab?
   return contemFraseExata(conteudoNorm, termoNorm);
 }
 
-// Gera chave de conteúdo usada apenas dentro do escopo da coordenação.
-function generateScopedHash(conteudo: string, dataDisponibilizacao: string): string {
-  const normalized = (conteudo || '')
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase()
-    .slice(0, 300);
-  
-  const dataKey = (dataDisponibilizacao || '').slice(0, 10);
-  return `${dataKey}|${normalized}`;
-}
-
 // Gera hash de conteúdo simples (para a coluna hash_conteudo)
 function generateContentHash(conteudo: string, data: string): string {
   const str = (conteudo || '').slice(0, 500) + (data || '');
@@ -373,27 +359,23 @@ async function inserirPublicacoes(
       const hashConteudo = generateContentHash(conteudo, dataDisponibilizacao);
       const idDjenRaw = pub.id ?? pub.id_djen ?? pub.codigoComunicacao ?? pub.numeroComunicacao ?? null;
       const idDjen = idDjenRaw == null ? null : String(idDjenRaw).trim() || null;
-      const scopedHash = idDjen ? `id_djen:${idDjen}` : generateScopedHash(conteudo, dataDisponibilizacao);
-
-      // Escopo de dedup POR COORDENAÇÃO (cada coordenação recebe sua própria cópia).
-      // Fallback para o monitoramento quando não houver coordenação vinculada.
-      const escopoDedup = monitoramento.coordenacao_id
-        ? `coord:${monitoramento.coordenacao_id}`
-        : `mon:${monitoramento.id}`;
-
       const numeroProcesso = pub.numeroProcesso || pub.processo || pub.Processo || pub.numero_processo || null;
-      let existingQuery: any = idDjen
-        ? supabase.from('publicacoes_djen').select('id, processo_numero').eq('id_djen', idDjen)
-        : supabase.from('publicacoes_djen_global_hash').select('id, publicacao_id').eq('escopo_dedup', escopoDedup).eq('hash_global', scopedHash);
-      existingQuery = idDjen
-        ? (monitoramento.coordenacao_id ? existingQuery.eq('coordenacao_id', monitoramento.coordenacao_id) : existingQuery.is('coordenacao_id', null))
-        : existingQuery;
-      existingQuery = existingQuery.maybeSingle();
-      const { data: existing } = await existingQuery;
+      let existing: { id: string; processo_numero: string | null } | null = null;
+      if (idDjen) {
+        let existingQuery: any = supabase
+          .from('publicacoes_djen')
+          .select('id, processo_numero')
+          .eq('id_djen', idDjen);
+        existingQuery = monitoramento.coordenacao_id
+          ? existingQuery.eq('coordenacao_id', monitoramento.coordenacao_id)
+          : existingQuery.is('coordenacao_id', null);
+        const { data } = await existingQuery.maybeSingle();
+        existing = data;
+      }
 
       if (existing) {
-        const publicacaoId = idDjen ? existing.id : existing.publicacao_id;
-        if (numeroProcesso && publicacaoId && (idDjen ? !existing.processo_numero : true)) {
+        const publicacaoId = existing.id;
+        if (numeroProcesso && publicacaoId && !existing.processo_numero) {
           await supabase
             .from('publicacoes_djen')
             .update({ processo_numero: numeroProcesso })
@@ -423,20 +405,6 @@ async function inserirPublicacoes(
       
       if (!error && inserted) {
         novas++;
-        
-        // Registrar chave no escopo da coordenação para evitar duplicatas só dentro dela.
-        try {
-          await supabase
-            .from('publicacoes_djen_global_hash')
-            .insert({
-              hash_global: scopedHash,
-              primeiro_monitoramento_id: monitoramento.id,
-              publicacao_id: inserted.id,
-              escopo_dedup: escopoDedup,
-            });
-        } catch {
-          // Ignorar erros de duplicata
-        }
       } else if (error) {
         // Pode ser duplicata por constraint, ignorar
         if (!error.message?.includes('duplicate')) {

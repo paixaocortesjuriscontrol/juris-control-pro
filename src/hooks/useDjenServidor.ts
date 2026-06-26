@@ -339,13 +339,11 @@ export function useComparadorPublicacoes(opts: { dataInicio: string; dataFim: st
       const key = (r: {
         coordenacao_id?: string | null;
         id_djen?: string | null;
-        dedup_conteudo_key?: string | null;
-        dedup_processo_digits?: string | null;
-        dedup_data_ref?: string | null;
         hash_conteudo: string;
-      }) => r.id_djen
-        ? `${r.coordenacao_id || "sem_coord"}|id_djen|${r.id_djen}`
-        : (r.dedup_conteudo_key || `${r.coordenacao_id || "sem_coord"}|legacy|${r.dedup_processo_digits || ""}|${r.dedup_data_ref || ""}|${r.hash_conteudo}`);
+      }) => {
+        const coord = r.coordenacao_id || "sem_coord";
+        return r.id_djen ? `${coord}|id_djen|${r.id_djen}` : `${coord}|sem-id|${r.hash_conteudo}`;
+      };
 
       const sSet = new Map(serv.data!.map((r) => [key(r), r]));
       const bSet = new Map(brow.data!.map((r) => [key(r), r]));
@@ -695,22 +693,12 @@ export function useComparadorAnalise() {
         created_at?: string | null;
       };
 
-      // CHAVE PRINCIPAL DO COMPARADOR:
-      // A comparação precisa ser por coordenação + id_djen, deduplicando
-      // registros repetidos ANTES de comparar. Não usamos processo/data como
-      // chave principal porque o Servidor pode receber processo vazio ou
-      // processo formatado/extrado diferente do Browser para o mesmo id_djen;
-      // isso estava criando pares falsos "só_servidor" + "só_browser".
-      // Processo/data/hash ficam apenas como fallback para registros legados
-      // sem id_djen.
+      // CHAVE PRINCIPAL DO COMPARADOR: somente coordenação + id_djen.
+      // Processo/data/conteúdo/hash não são critério de igualdade DJEN.
       const key = (r: Row) => {
         const coord = r.coordenacao_id || "sem_coord";
         if (r.id_djen) return `${coord}|id_djen|${r.id_djen}`;
-        const proc = (r.dedup_processo_digits || "").trim();
-        const dia = (r.dedup_data_ref || (r.data_disponibilizacao || "").slice(0, 10) || "").trim();
-        if (proc && dia) return `${coord}|cluster|${proc}|${dia}`;
-        if (r.dedup_conteudo_key) return `${coord}|ck|${r.dedup_conteudo_key}`;
-        return `${coord}|legacy|${proc}|${dia}|${r.hash_conteudo}`;
+        return `${coord}|sem-id|${r.hash_conteudo}|${r.created_at || ""}`;
       };
 
       const groupKey = (r: Row) => {
