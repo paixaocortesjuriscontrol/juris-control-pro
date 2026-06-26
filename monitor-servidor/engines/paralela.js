@@ -797,93 +797,55 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
       items = await buscarPaginado(slot, params, signal);
     }
   }
-  // Advogado sem OAB configurada: a busca ampla por `nomeAdvogado` às vezes
-  // retorna só o primeiro bloco de comunicações do PJE. Quando os primeiros
-  // resultados trazem metadados do próprio advogado (nome + OAB/UF), fazemos
-  // uma segunda passada oficial por `numeroOab + ufOab + nomeAdvogado`, sem
-  // tocar em `publicacoes_djen`. Isso recupera casos como TRT8/OSMAR em que a
-  // API não entrega as páginas finais pela rota de nome, mas entrega pela OAB.
-  if (!signal?.aborted && tipo === "advogado" && items.length > 0) {
-    const oabsSupplement = coletarOabsDoAdvogado(items, mon);
-    for (const adv of oabsSupplement) {
-      if (signal?.aborted) break;
-      const alreadyPrimary = params.numeroOab === adv.oabDigits && params.ufOab === adv.uf;
-      if (alreadyPrimary) continue;
-      const supplementParams = {
-        siglaTribunal: tribunal,
-        dataDisponibilizacaoInicio: dia,
-        dataDisponibilizacaoFim: dia,
-        numeroOab: adv.oabDigits,
-        ufOab: adv.uf,
-        nomeAdvogado: normalizeForApi(adv.nome || mon.termo_busca),
-      };
-      await delay(500, signal);
-      if (signal?.aborted) break;
-      try {
-        const supplementItems = await buscarPaginado(slot, supplementParams, signal);
-        mesclarItensPorId(items, supplementItems, { __advogadoOabSupplement: true });
-      } catch (_) {
-        // suplemento é best-effort; a busca principal já foi feita.
-      }
-    }
-  }
-  // Complemento TST/advogado: no TST, numeroOab+ufOab pode devolver só parte
-  // das comunicações. O browser chegou a capturar os IDs restantes pela rota
-  // cross-UF (nomeAdvogado sem OAB/UF). Portanto, para TST/advogado com
-  // OAB+UF específica, sempre somamos a busca por nome, deduplicando por id_djen.
-  if (
-    !signal?.aborted &&
-    tipo === "advogado" &&
-    tribunal === "TST" &&
-    params.numeroOab &&
-    params.ufOab &&
-    mon.termo_busca
-  ) {
-    const fallbackParams = {
+  // Regra nova: fallback OAB. Se a busca primária por nomeAdvogado veio vazia
+  // E temos OAB + UF específica, fazemos UMA segunda chamada por OAB+UF e
+  // marcamos cada item com __advogadoOabFallback para que a validação posterior
+  // aceite o match por número de OAB (que, fora do fallback, é ignorado).
+  const tentarFallbackOab = async (nomeRaw, oabRaw, ufRaw, prevItems) => {
+    if (signal?.aborted) return prevItems;
+    if (prevItems.length > 0) return prevItems;
+    const oab = String(oabRaw || "").replace(/\D/g, "");
+    const uf = String(ufRaw || "").trim().toUpperCase();
+    if (!oab || oab.length < 3) return prevItems;
+    if (!uf || uf === "TODAS" || !/^[A-Z]{2}$/.test(uf)) return prevItems;
+    const paramsFallback = {
       siglaTribunal: tribunal,
       dataDisponibilizacaoInicio: dia,
       dataDisponibilizacaoFim: dia,
-      nomeAdvogado: normalizeForApi(mon.termo_busca),
+      numeroOab: oab,
+      ufOab: uf,
     };
     await delay(800, signal);
-    if (!signal?.aborted) {
-      const fallbackItems = await buscarPaginado(slot, fallbackParams, signal);
-      if (fallbackItems.length > 0) {
-        mesclarItensPorId(items, fallbackItems, { __tstAdvogadoNomeSupplement: true });
-      }
+    if (signal?.aborted) return prevItems;
+    try {
+      const fallbackItems = await buscarPaginado(slot, paramsFallback, signal);
+      for (const it of fallbackItems) it.__advogadoOabFallback = true;
+      return fallbackItems;
+    } catch (_) {
+      return prevItems;
     }
-  }
-  // Complemento advogado com OAB + uf=TODAS: a chamada primária (já feita acima
-  // por nomeAdvogado, conforme baseParams) às vezes perde publicações regionais
-  // (ex.: TJMG/OSMAR — id_djen 649843498) que a API devolve quando consultada
-  // com numeroOab + ufOab=TODAS + nomeAdvogado. Soma essa segunda chamada e
-  // mescla por id_djen. A validação posterior (validarAdvogado por metadados)
-  // garante que só entram pubs em que o advogado realmente aparece em
-  // destinatarioadvogados.
-  if (
-    !signal?.aborted &&
-    tipo === "advogado" &&
-    mon.termo_busca &&
-    !params.numeroOab // só quando a primária foi por nome (uf=TODAS sem OAB nos params)
-  ) {
-    const oabConfig = String(mon.oab || "").replace(/\D/g, "");
-    const ufConfig = String(mon.uf || "").trim().toUpperCase();
-    if (oabConfig && ufConfig === "TODAS") {
-      const supplementOabParams = {
-        siglaTribunal: tribunal,
-        dataDisponibilizacaoInicio: dia,
-        dataDisponibilizacaoFim: dia,
-        numeroOab: oabConfig,
-        ufOab: "TODAS",
-        nomeAdvogado: normalizeForApi(mon.termo_busca),
-      };
-      await delay(800, signal);
-      if (!signal?.aborted) {
+  };
+  if (!signal?.aborted && tipo === "advogado") {
+    items = await tentarFallbackOab(mon.termo_busca, mon.oab, mon.uf, items);
+    // Iterar termos_or como buscas separadas (nome primário, OAB fallback).
+    if (Array.isArray(mon.termos_or) && mon.termos_or.length > 0) {
+      for (const termoOr of mon.termos_or) {
+        if (signal?.aborted) break;
+        const parsed = parsearTermoOr(String(termoOr));
+        if (!parsed?.nome) continue;
+        if (normalize(parsed.nome) === normalize(mon.termo_busca || "")) continue;
+        const paramsOr = {
+          siglaTribunal: tribunal,
+          dataDisponibilizacaoInicio: dia,
+          dataDisponibilizacaoFim: dia,
+          nomeAdvogado: normalizeForApi(parsed.nome),
+        };
+        await delay(500, signal);
+        if (signal?.aborted) break;
         try {
-          const supplementItems = await buscarPaginado(slot, supplementOabParams, signal);
-          if (supplementItems.length > 0) {
-            mesclarItensPorId(items, supplementItems, { __advogadoOabTodasSupplement: true });
-          }
+          let orItems = await buscarPaginado(slot, paramsOr, signal);
+          orItems = await tentarFallbackOab(parsed.nome, parsed.oabDigits, mon.uf, orItems);
+          mesclarItensPorId(items, orItems, { __termoOrAdvogado: String(termoOr) });
         } catch (_) {
           // best-effort
         }
