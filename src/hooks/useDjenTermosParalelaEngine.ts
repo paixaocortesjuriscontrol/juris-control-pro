@@ -314,12 +314,9 @@ function updateProgress(partial: Partial<DjenTermosParalelaProgress>) {
     if (typeof partial.tempoDecorrido === 'number') {
       next.tempoDecorrido = Math.max(prev.tempoDecorrido || 0, partial.tempoDecorrido);
     }
-    if (typeof partial.percentage === 'number') {
-      next.percentage = Math.max(prev.percentage || 0, partial.percentage);
-    }
-    if (typeof partial.tribunaisConcluidos === 'number') {
-      next.tribunaisConcluidos = Math.max(prev.tribunaisConcluidos || 0, partial.tribunaisConcluidos);
-    }
+    // percentage e tribunaisConcluidos devem refletir o estado atual; não
+    // usar Math.max — isso travava a barra em 100% quando um snapshot antigo
+    // contaminava o estado.
   }
   state.progress = next;
   state.lastUpdatedAt = Date.now();
@@ -362,14 +359,13 @@ function updateTrack(tribunal: string, tipo: WorkerTipo, partial: Partial<TrackP
     ? Math.max(state.progress.tempoDecorrido || 0, tempoComputado)
     : tempoComputado;
   // Progresso baseado em tracks (tribunais×tipo) concluídos, que é a mesma
-  // métrica exibida no header "X/Y tribunais". Evita saltos bruscos quando
-  // várias unidades pequenas (mons individuais) terminam de uma só vez.
-  const percentageComputado = tracks.length > 0
+  // métrica exibida no header "X/Y tribunais". Sempre reflete o estado real
+  // — NÃO usar Math.max com o valor anterior, senão um snapshot remoto
+  // contaminado por execução anterior trava a barra em 100% enquanto o
+  // header continua mostrando 250/354.
+  const percentage = tracks.length > 0
     ? Math.min(100, Math.max(0, Math.round((concluidos / tracks.length) * 100)))
     : 0;
-  const percentage = state.progress.status === 'executando'
-    ? Math.max(state.progress.percentage || 0, percentageComputado)
-    : percentageComputado;
   state.progress = {
     ...state.progress,
     tracks,
@@ -2727,9 +2723,16 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       novas: Math.max(Number(det.novas || 0), aggregateFromTracks.novas, registrosEncontrados),
       duplicadas: Math.max(Number(det.duplicadas || 0), aggregateFromTracks.duplicadas),
       descartadas: Math.max(Number(det.descartadas || 0), aggregateFromTracks.descartadas, registrosProcessados),
-      percentage: finalStatus === 'executando'
-        ? Math.max(Math.min(100, Math.max(0, Number(det.percentage || 0))), percentageFromTracks, Number(state.progress.percentage || 0))
-        : Math.max(Math.min(100, Math.max(0, Number(det.percentage || 0))), percentageFromTracks),
+      percentage: (() => {
+        // Preferir o cálculo a partir dos tracks concluídos (alinhado ao
+        // header "X/Y tribunais"). Cair para det.percentage só se não houver
+        // tracks. Nunca usar Math.max com o estado anterior — isso travava
+        // a barra em 100% após o estado ficar contaminado.
+        if (tracks.length > 0) {
+          return Math.min(100, Math.max(0, Math.round((aggregateFromTracks.concluidos / tracks.length) * 100)));
+        }
+        return Math.min(100, Math.max(0, Number(det.percentage || 0)));
+      })(),
       mensagem: String(det.mensagem || `Última execução agendada — ${finalStatus}`),
       tempoDecorrido,
       iniciadoEm: data.iniciado_em ?? det.iniciadoEm ?? null,
