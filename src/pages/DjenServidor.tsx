@@ -566,7 +566,7 @@ function ComparadorPanel() {
 
   const exportarRelatorioCsv = () => {
     if (!data) return;
-    const header1 = "# Comparador DJEN Servidor x Browser — comparação por coordenação + id_djen. Dedup aplicada ANTES de comparar: registros repetidos do mesmo id_djen contam como 1.\n";
+    const header1 = "# Comparador DJEN Servidor x Browser — comparação independente por coordenação + id_djen. A mesma publicação em coordenações diferentes conta separadamente; dedup só remove repetição dentro da mesma coordenação.\n";
     const cols1 = "coordenacao,total_servidor,total_browser,em_ambos,so_servidor,so_browser,duplicadas_servidor,duplicadas_browser,djen_unico\n";
     const body1 = data.globalLinhas
       .map((l) =>
@@ -669,7 +669,7 @@ function ComparadorPanel() {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2"><GitCompare className="h-4 w-4" /> Comparador Servidor × Browser</CardTitle>
         <CardDescription>
-          O primeiro quadro e os cards são a comparação <strong>global por publicação</strong>, usando somente
+          O primeiro quadro e os cards são a comparação <strong>independente por coordenação</strong>, usando somente
           <code> coordenação + id_djen</code>, sem separar advogado/parte/palavra-chave. A quebra por tipo é só
           diagnóstico secundário do monitoramento que capturou a publicação.
         </CardDescription>
@@ -741,7 +741,7 @@ function ComparadorPanel() {
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold">Comparação global por publicação (coordenação + id_djen)</h3>
+              <h3 className="text-sm font-semibold">Comparação por coordenação + id_djen</h3>
               {data.globalLinhas.length > 0 && (
                 <div className="border rounded-md overflow-x-auto">
                   <Table>
@@ -777,7 +777,7 @@ function ComparadorPanel() {
                 </div>
               )}
               <p className="text-[11px] text-muted-foreground">
-                Esta é a leitura principal: cada linha conta chaves únicas <code>coordenação + id_djen</code>, independentemente do tipo de termo que encontrou a publicação.
+                Esta é a leitura principal: cada linha conta chaves únicas <code>coordenação + id_djen</code>; a mesma publicação em coordenações diferentes é contada separadamente.
               </p>
             </div>
 
@@ -823,7 +823,7 @@ function ComparadorPanel() {
             </div>
 
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
-              <p><strong>Como ler:</strong> os cinco cards acima (Total Servidor, Total Browser, Em ambos, Só Servidor, Só Browser) são a comparação <strong>global por publicação</strong> (chave <code>coordenação + id_djen</code>), independente do tipo de pesquisa.</p>
+              <p><strong>Como ler:</strong> os cinco cards acima (Total Servidor, Total Browser, Em ambos, Só Servidor, Só Browser) são a comparação <strong>por coordenação</strong> (chave <code>coordenação + id_djen</code>), independente do tipo de pesquisa.</p>
               <p>A tabela abaixo decompõe esses números pelo tipo do monitoramento que capturou cada publicação, só como diagnóstico — uma mesma publicação aparece em apenas um tipo por lado.</p>
               <p>• <strong>Servidor</strong>: publicações capturadas pelo pipeline da VPS (24/7).</p>
               <p>• <strong>Browser</strong>: publicações capturadas pela execução agendada no navegador.</p>
