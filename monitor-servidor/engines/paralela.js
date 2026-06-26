@@ -741,17 +741,18 @@ function baseParams(mon, dia, tribunal) {
     dataDisponibilizacaoFim: dia,
   };
   if (tipo === "advogado") {
-    const oab = String(mon.oab || "").replace(/\D/g, "");
-    const uf = String(mon.uf || "").trim().toUpperCase();
-    const ufValida = uf && !uf.includes(",") && uf !== "TODAS" && uf !== "UNDEFINED";
-    if (ufValida && oab) {
-      params.numeroOab = oab;
-      params.ufOab = uf;
-      if (mon.termo_busca) params.nomeAdvogado = normalizeForApi(mon.termo_busca);
-    } else if (mon.termo_busca) {
+    // Regra nova: primária SOMENTE por nomeAdvogado. OAB vira fallback feito
+    // em buscarTermo quando a primária retornar 0 (uma única chamada extra).
+    if (mon.termo_busca) {
       params.nomeAdvogado = normalizeForApi(mon.termo_busca);
-    } else if (oab) {
-      params.numeroOab = oab;
+    } else {
+      const oab = String(mon.oab || "").replace(/\D/g, "");
+      const uf = String(mon.uf || "").trim().toUpperCase();
+      const ufValida = uf && !uf.includes(",") && uf !== "TODAS" && uf !== "UNDEFINED";
+      if (oab && ufValida) {
+        params.numeroOab = oab;
+        params.ufOab = uf;
+      }
     }
   } else if (tipo === "processo") {
     params.numeroProcesso = String(mon.termo_busca || "").replace(/\D/g, "");
