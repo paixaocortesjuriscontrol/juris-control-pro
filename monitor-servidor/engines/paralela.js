@@ -255,6 +255,68 @@ function metadataFromRaw(pub) {
   };
 }
 
+function parseArrayLike(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  }
+  return [];
+}
+
+function getTextoPublicacao(pub) {
+  const obj = rawObj(pub);
+  return String(obj?.texto || obj?.conteudo || obj?.teor || pub?.texto || pub?.conteudo || pub?.teor || "");
+}
+
+function extrairSecaoRotulada(texto, headerRe, stopRe, maxLen = 2500) {
+  const source = String(texto || "");
+  const header = source.match(headerRe);
+  if (!header || header.index === undefined) return "";
+  const start = header.index + header[0].length;
+  const after = source.slice(start, start + maxLen);
+  const stop = after.search(stopRe);
+  return (stop >= 0 ? after.slice(0, stop) : after).trim();
+}
+
+function extrairSecaoAdvogadosTexto(pub) {
+  return extrairSecaoRotulada(
+    getTextoPublicacao(pub),
+    /\bAdvogados?\s*(?:\(\s*s\s*\))?\s*:?\s*/i,
+    /(?:^|\n)\s*(?:Parte\s*\(\s*s\s*\)|Destinat[áa]rio(?:\(a\))?|Órgão|Data\s+de\s+disponibiliza|Tipo\s+de\s+comunica|Meio|Processo|Inteiro\s+teor)\s*:?|\bPolo\s+(?:ativo|passivo)\b/i,
+    1800
+  );
+}
+
+function extrairSecoesPartesTexto(pub) {
+  const texto = getTextoPublicacao(pub);
+  if (!texto) return [];
+  const headers = [
+    /\bParte\s*\(\s*s\s*\)\s*:?\s*/ig,
+    /\bPolo\s+ativo\s*:?\s*/ig,
+    /\bPolo\s+passivo\s*:?\s*/ig,
+    /\bDestinat[áa]rio(?:\(a\))?\s*:?\s*/ig,
+  ];
+  const stopRe = /(?:^|\n)\s*(?:Advogados?\s*(?:\(\s*s\s*\))?|Órgão|Data\s+de\s+disponibiliza|Tipo\s+de\s+comunica|Meio|Processo|Inteiro\s+teor)\s*:?|\bPolo\s+(?:ativo|passivo)\b/i;
+  const out = [];
+  for (const re of headers) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(texto)) !== null) {
+      const start = m.index + m[0].length;
+      const after = texto.slice(start, start + 1800);
+      const stop = after.search(stopRe);
+      const secao = (stop >= 0 ? after.slice(0, stop) : after).trim();
+      if (secao) out.push(secao);
+    }
+  }
+  return out;
+}
+
 function buildTextoCompleto(pub, conteudo) {
   const obj = rawObj(pub);
   const partes = [String(conteudo || "")];
@@ -274,47 +336,41 @@ function buildTextoCompleto(pub, conteudo) {
 function extrairPartesEstruturadas(pub) {
   const obj = rawObj(pub);
   const out = [];
+  const seen = new Set();
   const add = (raw) => {
     if (!raw) return;
     const s = typeof raw === "string"
       ? raw
       : (raw?.nome || raw?.nomeParte || raw?.parte || raw?.nomeDestinatario || raw?.destinatarioNome || "");
     if (!s) return;
-    for (const n of String(s).split(/\s*,\s*|\s*;\s*/).map((x) => x.trim()).filter(Boolean)) out.push(n);
+    for (const n of String(s).split(/\s*,\s*|\s*;\s*/).map((x) => x.trim()).filter(Boolean)) {
+      const key = normalize(n);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(n);
+    }
   };
   const dest = obj?.destinatarios || pub?.destinatarios;
-  if (Array.isArray(dest)) for (const d of dest) add(d);
+  for (const d of parseArrayLike(dest)) add(d);
   add(obj?.poloAtivo || obj?.polo_ativo || pub?.poloAtivo || pub?.polo_ativo);
   add(obj?.poloPassivo || obj?.polo_passivo || pub?.poloPassivo || pub?.polo_passivo);
   add(obj?.nomeDestinatario || obj?.destinatarioNome || obj?.destinatario_nome || pub?.nomeDestinatario || pub?.destinatarioNome || pub?.destinatario_nome);
   const pjson = obj?.partes || obj?.partes_json || pub?.partes || pub?.partes_json;
-  const arr = typeof pjson === "string" ? (() => { try { return JSON.parse(pjson); } catch { return []; } })() : pjson;
-  if (Array.isArray(arr)) for (const p of arr) add(p);
+  for (const p of parseArrayLike(pjson)) add(p);
+  for (const secao of extrairSecoesPartesTexto(pub)) {
+    for (const linha of secao.split(/\r?\n|;/).map((x) => x.trim()).filter(Boolean)) add(linha.replace(/^[-•\s]+/, "").trim());
+  }
   return out;
 }
 
 function validarAdvogadoMetadados(pub, oab, nome) {
-  const obj = rawObj(pub);
-  const advs = obj?.destinatarioadvogados || obj?.advogados || pub?.destinatarioadvogados || pub?.advogados;
-  if (!Array.isArray(advs) || advs.length === 0) return false;
+  const advs = coletarAdvogadosEstruturados(pub);
+  if (advs.length === 0) return false;
   const oabDigits = oab ? String(oab).replace(/\D/g, "") : "";
   const nomeNorm = nome ? normalize(nome) : "";
   const oabFallbackAtivo = pub?.__advogadoOabFallback === true;
-  for (const entry of advs) {
-    // advogados pode vir em 3 formatos:
-    // 1) { advogado: { nome, numero_oab, uf_oab } }  — formato API PJE Comunica
-    // 2) { nome, numero_oab, uf_oab }                — formato planificado
-    // 3) "OSMAR MENDES PAIXAO CORTES - OAB DF15553" — formato persistido em advogados_json
-    if (typeof entry === "string") {
-      const en = normalize(entry);
-      if (!en) continue;
-      if (oabFallbackAtivo && oabDigits && en.includes(oabDigits)) return true;
-      if (nomeNorm && contemFrase(en, nomeNorm)) return true;
-      continue;
-    }
-    const adv = entry?.advogado || entry;
-    if (!adv) continue;
-    if (oabFallbackAtivo && oabDigits && adv.numero_oab && String(adv.numero_oab).replace(/\D/g, "") === oabDigits) return true;
+  for (const adv of advs) {
+    if (oabFallbackAtivo && oabDigits && String(adv.oabDigits || adv.numero_oab || "").replace(/\D/g, "") === oabDigits) return true;
     if (nomeNorm && adv.nome) {
       const an = normalize(adv.nome);
       if (contemFrase(an, nomeNorm)) return true;
@@ -361,32 +417,56 @@ function parseOabFromString(raw) {
 function coletarAdvogadosEstruturados(pub) {
   const obj = rawObj(pub);
   const out = [];
+  const seen = new Set();
   const add = (entry) => {
     if (!entry) return;
+    let item = entry;
     if (typeof entry === "string") {
       const parsed = parseOabFromString(entry);
-      out.push({ nome: entry.replace(/\s*-?\s*OAB\b.*$/i, "").trim(), ...(parsed || {}) });
-      return;
+      item = { nome: entry.replace(/\s*-?\s*OAB\b.*$/i, "").trim(), ...(parsed || {}) };
+    } else {
+      const adv = entry?.advogado || entry;
+      if (!adv || typeof adv !== "object") return;
+      item = {
+        nome: adv.nome || adv.nomeAdvogado || adv.nome_representante || adv.nomeRepresentante || adv.nomeProcurador || "",
+        oabDigits: String(adv.numero_oab || adv.numeroOab || adv.oab || adv.inscricaoOab || "").replace(/\D/g, ""),
+        uf: String(adv.uf_oab || adv.ufOab || adv.uf || adv.siglaUf || "").trim().toUpperCase(),
+      };
     }
-    const adv = entry?.advogado || entry;
-    if (!adv || typeof adv !== "object") return;
-    out.push({
-      nome: adv.nome || adv.nomeAdvogado || adv.nome_representante || adv.nomeProcurador || "",
-      oabDigits: String(adv.numero_oab || adv.numeroOab || adv.oab || adv.inscricaoOab || "").replace(/\D/g, ""),
-      uf: String(adv.uf_oab || adv.ufOab || adv.uf || adv.siglaUf || "").trim().toUpperCase(),
-    });
+    const nome = String(item.nome || "").trim();
+    if (!nome) return;
+    const key = normalize(`${nome}|${item.uf || item.uf_oab || ""}|${item.oabDigits || item.numero_oab || ""}`);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(item);
   };
-  for (const arr of [obj?.destinatarioadvogados, obj?.advogados, pub?.destinatarioadvogados, pub?.advogados]) {
-    if (Array.isArray(arr)) for (const entry of arr) add(entry);
+  for (const root of [pub, obj]) {
+    for (const arr of [root?.destinatarioadvogados, root?.advogados, root?.representantes, root?.procuradores, root?.advogados_json]) {
+      for (const entry of parseArrayLike(arr)) add(entry);
+    }
   }
   const dest = obj?.destinatarios || pub?.destinatarios;
   if (Array.isArray(dest)) {
     for (const d of dest) {
-      if (Array.isArray(d?.advogados)) for (const entry of d.advogados) add(entry);
+      for (const entry of parseArrayLike(d?.advogados)) add(entry);
+      for (const entry of parseArrayLike(d?.representantes)) add(entry);
+      for (const entry of parseArrayLike(d?.procuradores)) add(entry);
       if (d?.nomeAdvogado) add({ nome: d.nomeAdvogado, numeroOab: d.numeroOab, ufOab: d.ufOab });
     }
   }
   return out;
+}
+
+function validarAdvogadoSecaoAdvogados(pub, oab, nome) {
+  const secaoNorm = normalize(extrairSecaoAdvogadosTexto(pub));
+  if (!secaoNorm) return false;
+  const nomeNorm = nome ? normalize(nome) : "";
+  if (nomeNorm && contemFrase(secaoNorm, nomeNorm)) return true;
+  if (pub?.__advogadoOabFallback && oab) {
+    const oabDigits = String(oab || "").replace(/\D/g, "");
+    if (oabDigits.length >= 3 && secaoNorm.includes(oabDigits)) return true;
+  }
+  return false;
 }
 
 function coletarOabsDoAdvogado(pubs, mon) {
@@ -467,16 +547,12 @@ function validarParteMetadados(pub, nomeParte) {
 }
 
 function validarParteSecaoPartes(pub, nomeParte) {
-  const obj = rawObj(pub);
-  const texto = String(obj?.texto || obj?.conteudo || obj?.teor || pub?.texto || pub?.conteudo || pub?.teor || "");
   const nomeNorm = normalize(nomeParte);
-  if (!texto || !nomeNorm) return false;
-  const header = texto.match(/\bParte\s*\(\s*s\s*\)\s*:?\s*/i);
-  if (!header || header.index === undefined) return false;
-  const after = texto.slice(header.index + header[0].length, header.index + header[0].length + 2500);
-  const advIdx = after.search(/(?:^|\n)\s*Advogados?\s*(?:\(\s*s\s*\))?\s*:?/i);
-  const secao = advIdx >= 0 ? after.slice(0, advIdx) : after;
-  return secao.split(/\r?\n/).map((l) => normalize(l.trim())).some((ln) => ln.length >= 3 && contemFrase(ln, nomeNorm));
+  if (!nomeNorm) return false;
+  return extrairSecoesPartesTexto(pub).some((secao) => {
+    const secaoNorm = normalize(secao);
+    return secaoNorm.length >= 3 && contemFrase(secaoNorm, nomeNorm);
+  });
 }
 
 async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(sb, mon, dia, tribunal, log) {
