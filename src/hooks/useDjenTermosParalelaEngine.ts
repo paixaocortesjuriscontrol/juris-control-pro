@@ -840,9 +840,8 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   if (tipo === 'advogado') {
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
     const nomeNorm = normalizar(mon.termo_busca);
-    const nomeTokens = nomeNorm ? nomeNorm.split(/\s+/).filter(Boolean) : [];
-    if (nomeTokens.length >= 3 && contemFrase(textoNorm, nomeNorm)) return true;
-    if (mon.oab) {
+    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
+    if (pub?.__advogadoOabFallback && mon.oab) {
       const od = String(mon.oab).replace(/\D/g, '');
       if (od.length >= 3 && textoNorm.includes(od)) return true;
     }
@@ -852,9 +851,8 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
         if (!p) continue;
         if (validarAdvogadoMetadados(pub, p.oabDigits, p.nome)) return true;
         const nn = normalizar(p.nome);
-        const tk = nn ? nn.split(/\s+/).filter(Boolean) : [];
-        if (tk.length >= 3 && contemFrase(textoNorm, nn)) return true;
-        if (p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
+        if (nn && contemFrase(textoNorm, nn)) return true;
+        if (pub?.__advogadoOabFallback && p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
       }
     }
     return false;
