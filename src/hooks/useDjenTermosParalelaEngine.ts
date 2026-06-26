@@ -628,21 +628,22 @@ function validarAdvogadoMetadados(pub: any, oab?: string, nome?: string): boolea
   if (!Array.isArray(advs) || advs.length === 0) return false;
   const oabDigits = oab ? String(oab).replace(/\D/g, '') : '';
   const nomeNorm = nome ? normalizar(nome) : '';
-  // Nome só é válido se tiver no mínimo 3 tokens. Nomes curtos (ex.: "CARLOS JOSE")
-  // não podem ser usados para casar advogados — geram falsos positivos por homônimo.
-  const nomeTokens = nomeNorm ? nomeNorm.split(/\s+/).filter(Boolean) : [];
-  const nomeValido = nomeTokens.length >= 3 ? nomeNorm : '';
+  // Regra única: o nome buscado precisa aparecer como FRASE CONTÍGUA (na ordem,
+  // com fronteira de palavra) dentro do nome encontrado nos metadados. Sem
+  // limite de tokens — se o nome configurado for curto, a advogada descarta
+  // hom\u00f4nimos manualmente. Já a OAB só vale como prova quando a publicação
+  // veio do fallback OAB (pub.__advogadoOabFallback), evitando matches por
+  // OAB de outro advogado em consultas feitas por nome.
+  const oabFallbackAtivo = pub?.__advogadoOabFallback === true;
   for (const entry of advs) {
     const adv = entry?.advogado || entry;
     if (!adv) continue;
-    if (oabDigits && adv.numero_oab) {
+    if (oabFallbackAtivo && oabDigits && adv.numero_oab) {
       if (String(adv.numero_oab).replace(/\D/g, '') === oabDigits) return true;
     }
-    if (nomeValido && adv.nome) {
+    if (nomeNorm && adv.nome) {
       const advNorm = normalizar(adv.nome);
-      // O nome do advogado encontrado precisa CONTER o nome buscado como frase
-      // completa (na ordem, com fronteira de palavra). Nunca o inverso.
-      if (contemFrase(advNorm, nomeValido)) return true;
+      if (contemFrase(advNorm, nomeNorm)) return true;
     }
   }
   return false;
