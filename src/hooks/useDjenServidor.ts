@@ -444,6 +444,7 @@ export interface ComparadorAnaliseRelatorio {
     tipo: string;
     key: string;
     id_djen: string | null;
+    ids_djen: string[];
     total_registros: number;
     duplicadas: number;
     processo_numero: string | null;
