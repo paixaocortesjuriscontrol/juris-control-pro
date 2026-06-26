@@ -652,12 +652,20 @@ function extrairSecaoRotulada(texto: string, headerRe: RegExp, stopRe: RegExp, m
 }
 
 function extrairSecaoAdvogadosTexto(pub: any): string {
-  return extrairSecaoRotulada(
-    getTextoPublicacao(pub),
-    /\bAdvogados?\s*(?:\(\s*s\s*\))?\s*:?\s*/i,
-    /(?:^|\n)\s*(?:Parte\s*\(\s*s\s*\)|Destinat[áa]rio(?:\(a\))?|Órgão|Data\s+de\s+disponibiliza|Tipo\s+de\s+comunica|Meio|Processo|Inteiro\s+teor)\s*:?|\bPolo\s+(?:ativo|passivo)\b/i,
-    1800,
-  );
+  const texto = getTextoPublicacao(pub);
+  if (!texto) return '';
+  const headerRe = /\bAdvogados?\s*(?:\(\s*s\s*\))?\s*:?\s*/ig;
+  const stopRe = /\b(?:Parte\s*\(\s*s\s*\)|Destinat[áa]rio(?:\(a\))?|Órgão|Data\s+de\s+disponibiliza|Tipo\s+de\s+comunica|Meio|Processo|Inteiro\s+teor)\s*:?|\bPolo\s+(?:ativo|passivo)\b/i;
+  const out: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = headerRe.exec(texto)) !== null) {
+    const start = m.index + m[0].length;
+    const after = texto.slice(start, start + 1800);
+    const stop = after.search(stopRe);
+    const section = (stop >= 0 ? after.slice(0, stop) : after).trim();
+    if (section) out.push(section);
+  }
+  return out.join('\n');
 }
 
 function extrairSecoesPartesTexto(pub: any): string[] {
@@ -669,7 +677,7 @@ function extrairSecoesPartesTexto(pub: any): string[] {
     /\bPolo\s+passivo\s*:?\s*/ig,
     /\bDestinat[áa]rio(?:\(a\))?\s*:?\s*/ig,
   ];
-  const stopRe = /(?:^|\n)\s*(?:Advogados?\s*(?:\(\s*s\s*\))?|Órgão|Data\s+de\s+disponibiliza|Tipo\s+de\s+comunica|Meio|Processo|Inteiro\s+teor)\s*:?|\bPolo\s+(?:ativo|passivo)\b/i;
+  const stopRe = /\bAdvogados?\s*(?:\(\s*s\s*\))?\s*:?|(?:^|\n)\s*(?:Órgão|Data\s+de\s+disponibiliza|Tipo\s+de\s+comunica|Meio|Processo|Inteiro\s+teor)\s*:?|\bPolo\s+(?:ativo|passivo)\b/i;
   const out: string[] = [];
   for (const re of headers) {
     re.lastIndex = 0;
