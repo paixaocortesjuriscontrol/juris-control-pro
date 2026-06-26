@@ -617,12 +617,10 @@ export function useComparadorAnalise() {
         }
       }
 
-      // Servidor + Browser já capturaram este id_djen em alguma coordenação? Se sim,
-      // e a coord atual não tem, é falha de resgate cross-coord (o dado existe no
-      // banco mas o motor não copiou para a coord). Isso é mais útil que o rótulo
-      // genérico "proxy vazio".
-      const idDjenServidorPorAlgumaCoord = new Set<string>();
-      const idDjenBrowserPorAlgumaCoord = new Set<string>();
+      // Regra obrigatória: coordenações são independentes. A mesma publicação
+      // pode (e deve) existir em mais de uma coordenação. Portanto o comparador
+      // NUNCA considera id_djen existente em outra coordenação como match,
+      // duplicata válida ou justificativa de diferença.
 
       type Row = {
         coordenacao_id?: string | null;
@@ -665,21 +663,10 @@ export function useComparadorAnalise() {
 
       const sRows = (serv.data || []) as Row[];
       const bRows = (brow.data || []) as Row[];
-      for (const r of sRows) if (r.id_djen) idDjenServidorPorAlgumaCoord.add(String(r.id_djen));
-      for (const r of bRows) if (r.id_djen) idDjenBrowserPorAlgumaCoord.add(String(r.id_djen));
 
       const provavelCausa = (origem: "so_servidor" | "so_browser", r: Row): string => {
         const cid = r.coordenacao_id || "sem_coord";
         if (origem === "so_servidor") {
-          // Caso muito comum: o Browser tem dedup GLOBAL por id_djen
-          // (publicacoes_djen_global_hash). Quando duas coordenações monitoram
-          // o mesmo advogado/OAB, a primeira que captura "trava" a publicação
-          // e as demais não recebem cópia. O Servidor, ao contrário, grava
-          // uma cópia por coordenação. Por isso aparece como "só servidor"
-          // na coord X — mas o mesmo id_djen está no Browser em outra coord.
-          if (r.id_djen && idDjenBrowserPorAlgumaCoord.has(String(r.id_djen))) {
-            return "browser_atribuiu_a_outra_coord_dedup_global";
-          }
           return "faltou_no_browser";
         }
         // so_browser:
@@ -693,12 +680,6 @@ export function useComparadorAnalise() {
         if (!ultima) return "sem_execucao_servidor_para_esta_data";
         const cap = r.created_at || "";
         if (cap && cap > ultima) return "browser_capturou_depois_da_ultima_execucao_servidor";
-        if (r.id_djen && idDjenServidorPorAlgumaCoord.has(String(r.id_djen))) {
-          return "falha_resgate_cross_coordenacao_servidor_ja_tem_id_em_outra_coord";
-        }
-        if (r.id_djen && idDjenBrowserPorAlgumaCoord.has(String(r.id_djen))) {
-          return "falha_resgate_cross_coordenacao_browser_tem_id_em_outra_coord";
-        }
         return "possivel_proxy_vazio_ou_api_instavel";
       };
 
