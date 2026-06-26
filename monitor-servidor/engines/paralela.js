@@ -273,16 +273,6 @@ function getTextoPublicacao(pub) {
   return String(obj?.texto || obj?.conteudo || obj?.teor || pub?.texto || pub?.conteudo || pub?.teor || "");
 }
 
-function extrairSecaoRotulada(texto, headerRe, stopRe, maxLen = 2500) {
-  const source = String(texto || "");
-  const header = source.match(headerRe);
-  if (!header || header.index === undefined) return "";
-  const start = header.index + header[0].length;
-  const after = source.slice(start, start + maxLen);
-  const stop = after.search(stopRe);
-  return (stop >= 0 ? after.slice(0, stop) : after).trim();
-}
-
 function extrairSecaoAdvogadosTexto(pub) {
   const texto = getTextoPublicacao(pub);
   if (!texto) return "";
