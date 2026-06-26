@@ -246,12 +246,16 @@ function extractProcesso(pub, conteudo) {
 
 function metadataFromRaw(pub) {
   const obj = rawObj(pub);
+  const partesRaw = obj?.partes || obj?.destinatarios || null;
+  const advogadosRaw = obj?.advogados || obj?.destinatarioadvogados || null;
+  const partesExtraidas = partesRaw ? null : extrairPartesEstruturadas(pub);
+  const advogadosExtraidos = advogadosRaw ? null : extrairAdvogadosParaPersistencia(pub);
   return {
     orgao: obj?.orgao || obj?.nomeOrgao || null,
     tipo_comunicacao: obj?.tipoComunicacao || obj?.tipo || obj?.tipo_comunicacao || null,
     meio: obj?.meio || null,
-    partes_json: obj?.partes || obj?.destinatarios || null,
-    advogados_json: obj?.advogados || obj?.destinatarioadvogados || null,
+    partes_json: partesRaw || (partesExtraidas?.length ? partesExtraidas : null),
+    advogados_json: advogadosRaw || (advogadosExtraidos?.length ? advogadosExtraidos : null),
   };
 }
 
@@ -465,6 +469,32 @@ function validarAdvogadoSecaoAdvogados(pub, oab, nome) {
     if (oabDigits.length >= 3 && secaoNorm.includes(oabDigits)) return true;
   }
   return false;
+}
+
+function extrairAdvogadosParaPersistencia(pub) {
+  const out = [];
+  const seen = new Set();
+  const add = (nome, oabDigits, uf) => {
+    const nomeTrim = String(nome || "").trim();
+    if (!nomeTrim) return;
+    const od = String(oabDigits || "").replace(/\D/g, "");
+    const u = String(uf || "").trim().toUpperCase();
+    const key = normalize(`${nomeTrim}|${u}|${od}`);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(od ? `${nomeTrim} - OAB ${u}${od}` : nomeTrim);
+  };
+  for (const adv of coletarAdvogadosEstruturados(pub)) {
+    add(adv.nome, adv.oabDigits || adv.numero_oab, adv.uf || adv.uf_oab);
+  }
+  const secao = extrairSecaoAdvogadosTexto(pub);
+  if (secao) {
+    for (const linha of secao.split(/\r?\n|;/).map((x) => x.trim()).filter(Boolean)) {
+      const cleaned = linha.replace(/^[-•\s]+/, "").trim();
+      if (cleaned.length >= 3) add(cleaned);
+    }
+  }
+  return out;
 }
 
 function coletarOabsDoAdvogado(pubs, mon) {
