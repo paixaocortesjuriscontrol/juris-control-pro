@@ -304,6 +304,12 @@ Deno.serve(async (req: Request) => {
     const data_inicio = data_inicio_body ?? hojeYmd;
     const data_fim = data_fim_body ?? hojeYmd;
     const modo_personalizado = body.modo_personalizado === true;
+    // Execução do dia (DJEN Local). Quando informada, gravamos `execucao_id` em
+    // cada publicação inserida e registramos a junção em
+    // `publicacoes_djen_execucoes` para a tela "Análise DJEN" mostrar as
+    // diferenças entre execuções do mesmo dia.
+    const execucao_id_local: string | undefined =
+      typeof body.execucao_id === "string" && body.execucao_id ? body.execucao_id : undefined;
     // Modo backfill: em vez de consultar a fila Kurier, reprocessa payloads
     // já gravados em kurier_publicacoes_raw com um determinado motivo_descarte.
     // Útil para recuperar itens que foram confirmados na Kurier (saíram da fila)
@@ -787,6 +793,7 @@ Deno.serve(async (req: Request) => {
             data_publicacao: toIsoDate(dataPub) ?? null,
             tipo_publicacao: "intimacao",
             kurier_login: cred.login ?? null,
+            execucao_id: execucao_id_local ?? null,
           };
 
           if (matched) {
