@@ -591,29 +591,21 @@ function contemTermo(conteudo, mon, pub) {
     return false;
   }
   if (tipo === "advogado") {
-    if (pub?.__tstAdvogadoNomeSupplement) {
-      const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
-      const nomeNorm = normalize(mon.termo_busca);
-      const oabDigits = String(mon.oab || "").replace(/\D/g, "");
-      const tk = nomeNorm ? nomeNorm.split(/\s+/).filter(Boolean) : [];
-      if (tk.length >= 3 && contemFrase(textoNorm, nomeNorm)) return true;
-      if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
-    }
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
     const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
     const nomeNorm = normalize(mon.termo_busca);
-    const tk2 = nomeNorm ? nomeNorm.split(/\s+/).filter(Boolean) : [];
-    if (tk2.length >= 3 && contemFrase(textoNorm, nomeNorm)) return true;
-    const oabDigits = String(mon.oab || "").replace(/\D/g, "");
-    if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
+    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
+    if (pub?.__advogadoOabFallback) {
+      const oabDigits = String(mon.oab || "").replace(/\D/g, "");
+      if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
+    }
     for (const t of mon.termos_or || []) {
       const p = parsearTermoOr(t);
       if (!p) continue;
       if (validarAdvogadoMetadados(pub, p.oabDigits, p.nome)) return true;
       const nn = normalize(p.nome);
-      const tk3 = nn ? nn.split(/\s+/).filter(Boolean) : [];
-      if (tk3.length >= 3 && contemFrase(textoNorm, nn)) return true;
-      if (p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
+      if (nn && contemFrase(textoNorm, nn)) return true;
+      if (pub?.__advogadoOabFallback && p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
     }
     return false;
   }
