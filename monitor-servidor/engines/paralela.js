@@ -497,24 +497,6 @@ function extrairAdvogadosParaPersistencia(pub) {
   return out;
 }
 
-function coletarOabsDoAdvogado(pubs, mon) {
-  const candidatos = new Map();
-  const addCandidate = (oabDigits, uf, nome) => {
-    const od = String(oabDigits || "").replace(/\D/g, "");
-    const u = String(uf || "").trim().toUpperCase();
-    if (od.length < 3 || !/^[A-Z]{2}$/.test(u)) return;
-    const key = `${u}|${od}`;
-    if (!candidatos.has(key)) candidatos.set(key, { oabDigits: od, uf: u, nome: nome || mon.termo_busca });
-  };
-  for (const pub of pubs || []) {
-    for (const adv of coletarAdvogadosEstruturados(pub)) {
-      if (!nomeAdvogadoCasa(adv.nome, mon)) continue;
-      addCandidate(adv.oabDigits, adv.uf, adv.nome);
-    }
-  }
-  return Array.from(candidatos.values()).slice(0, 5);
-}
-
 function mesclarItensPorId(destino, extras, mark = {}) {
   const seen = new Set((destino || []).map((it) => {
     const id = getIdDjen(it);
@@ -710,8 +692,9 @@ function contemTermo(conteudo, mon, pub) {
     const pn = String(pub?.numeroProcesso || pub?.numero_processo || pub?.processo_numero || pub?.processo || "").replace(/\D/g, "");
     return pn.includes(nd);
   }
-  // palavra-chave / nome — SOMENTE no corpo da publicação.
-  const textoNorm = normalize(getConteudoPuro(pub));
+  // palavra-chave / nome — texto completo (corpo + advogados + destinatários
+  // + partes), espelhando o Browser (useDjenTermosParalelaEngine.ts).
+  const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
   if (contemFraseComAnd(textoNorm, mon.termo_busca)) return true;
   for (const t of mon.termos_or || []) {
     const p = parsearTermoOr(t);
@@ -728,9 +711,7 @@ function condicaoConcomitanteAtendida(pub, mon, conteudo) {
   if (grupos.length === 0) return true;
   const textoNorm = mon.tipo === "parte"
     ? normalize(extrairPartesEstruturadas(pub).join("\n"))
-    : mon.tipo === "advogado"
-      ? normalize(buildTextoCompleto(pub, conteudo))
-      : normalize(getConteudoPuro(pub));
+    : normalize(buildTextoCompleto(pub, conteudo));
   if (!textoNorm) return mon.tipo !== "parte";
   return grupos.some((g) => {
     const ts = g.split(",").map((t) => t.trim()).filter(Boolean);
@@ -744,9 +725,7 @@ function shouldExclude(conteudo, mon, pub) {
   if (excs.length === 0) return false;
   const text = mon.tipo === "parte"
     ? normalize(extrairPartesEstruturadas(pub).join("\n"))
-    : mon.tipo === "advogado"
-      ? normalize(buildTextoCompleto(pub, conteudo))
-      : normalize(getConteudoPuro(pub));
+    : normalize(buildTextoCompleto(pub, conteudo));
   if (!text) return false;
   return excs.some((e) => {
     const n = normalize(e);
@@ -870,9 +849,10 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
       let items = await buscarPaginado(slot, params, signal);
       // Espelha Browser (useDjenTermosParalelaEngine.ts:1311-1320):
       // a API PJE Comunica devolve listagem vazia intermitentemente sem
-      // erro HTTP. Refaz a MESMA chamada uma única vez após 1.5s.
+      // erro HTTP. Refaz a MESMA chamada uma única vez após 600ms (paridade
+      // com o Browser).
       if (!signal?.aborted && items.length === 0) {
-        await delay(1500, signal);
+        await delay(600, signal);
         if (!signal?.aborted) {
           items = await buscarPaginado(slot, params, signal);
         }
@@ -886,9 +866,10 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
   const params = baseParams(mon, dia, tribunal);
   let items = await buscarPaginado(slot, params, signal);
   // Espelha Browser (useDjenTermosParalelaEngine.ts:1354-1383):
-  // se 1ª passada veio vazia, espera 1.5s e refaz a MESMA chamada uma vez.
+  // se 1ª passada veio vazia, espera 600ms e refaz a MESMA chamada uma vez
+  // (paridade com o Browser).
   if (!signal?.aborted && items.length === 0 && tipo !== "processo") {
-    await delay(1500, signal);
+    await delay(600, signal);
     if (!signal?.aborted) {
       items = await buscarPaginado(slot, params, signal);
     }
@@ -936,7 +917,7 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
           dataDisponibilizacaoFim: dia,
           nomeAdvogado: normalizeForApi(parsed.nome),
         };
-        await delay(500, signal);
+        await delay(1800, signal);
         if (signal?.aborted) break;
         try {
           let orItems = await buscarPaginado(slot, paramsOr, signal);
