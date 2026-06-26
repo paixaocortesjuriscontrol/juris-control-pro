@@ -4184,6 +4184,14 @@ const AnaliseDjen = () => {
           </CardContent>
         </Card>
 
+        {/* Diferenças entre execuções locais do dia (Termos/Kurier/Processos) */}
+        <ExecucoesDoDiaLocalCard
+          coordenacaoId={coordenacaoFiltroEfetivo || null}
+          dataDisponibilizacao={dataDisponibilizacaoDebounced || null}
+          execucaoSelecionadaId={execucaoFocada?.id || null}
+          onSelecionarExecucao={(exec) => setExecucaoFocada(exec)}
+        />
+
         {/* Actions - Mobile optimized */}
         <div className="flex flex-wrap gap-1.5 md:gap-2">
           <Button
