@@ -822,16 +822,22 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   const tipo = mon.tipo;
   if (tipo === 'parte') {
     // REGRA: tipo='parte' SÓ casa em metadados estruturados ou na seção Parte(s).
-    // Nunca valida no corpo/teor geral da publicação.
-    // Se a própria API do PJe retornou a publicação para `nomeParte=<termo>`,
-    // consideramos a parte validada mesmo quando o payload não traz destinatarios/
-    // poloAtivo/poloPassivo completos (comum no TST).
-    if (pub?.__matchedByNomeParte) return true;
+    // Nunca valida no corpo/teor geral.
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
     if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const t of (mon.termos_or || [])) {
       if (validarParteMetadados(pub, String(t))) return true;
       if (validarParteSecaoPartes(pub, String(t))) return true;
+    }
+    // Fallback restrito (somente quando o payload realmente não traz NENHUM dado
+    // de parte — caso típico do TST). Se há partes estruturadas ou seção Parte(s)
+    // presente, NÃO confiar no filtro da API — o `nomeParte` do PJe também
+    // bate em advogados/órgãos e gera falsos positivos.
+    if (pub?.__matchedByNomeParte) {
+      const temPartesEstruturadas = extrairPartesDeCamposEstruturados(pub).length > 0;
+      const textoCompleto = String(pub?.texto || pub?.conteudo || pub?.teor || '');
+      const temSecaoPartes = /\bParte\s*\(\s*s\s*\)\s*:?/i.test(textoCompleto);
+      if (!temPartesEstruturadas && !temSecaoPartes) return true;
     }
     return false;
   }
