@@ -362,14 +362,13 @@ function updateTrack(tribunal: string, tipo: WorkerTipo, partial: Partial<TrackP
     ? Math.max(state.progress.tempoDecorrido || 0, tempoComputado)
     : tempoComputado;
   // Progresso baseado em tracks (tribunais×tipo) concluídos, que é a mesma
-  // métrica exibida no header "X/Y tribunais". Evita saltos bruscos quando
-  // várias unidades pequenas (mons individuais) terminam de uma só vez.
-  const percentageComputado = tracks.length > 0
+  // métrica exibida no header "X/Y tribunais". Sempre reflete o estado real
+  // — NÃO usar Math.max com o valor anterior, senão um snapshot remoto
+  // contaminado por execução anterior trava a barra em 100% enquanto o
+  // header continua mostrando 250/354.
+  const percentage = tracks.length > 0
     ? Math.min(100, Math.max(0, Math.round((concluidos / tracks.length) * 100)))
     : 0;
-  const percentage = state.progress.status === 'executando'
-    ? Math.max(state.progress.percentage || 0, percentageComputado)
-    : percentageComputado;
   state.progress = {
     ...state.progress,
     tracks,
