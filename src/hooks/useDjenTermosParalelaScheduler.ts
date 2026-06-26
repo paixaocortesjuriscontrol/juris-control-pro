@@ -19,16 +19,33 @@ export interface DjenTermosParalelaSchedulerStatus {
   ativo: boolean;
   proximoHorario: string | null;
   ultimaExecucao: string | null;
-  horario: string;
+  /** Horários BRT (HH:MM), até 3 slots. */
+  horarios: string[];
+  /** Dias da semana ativos (0=Dom, 1=Seg, …, 6=Sáb). */
+  diasSemana: number[];
 }
 
 let schedulerInstance: DjenTermosParalelaScheduler | null = null;
 const subscribersSet: Set<(status: DjenTermosParalelaSchedulerStatus) => void> = new Set();
 
+const DEFAULT_DIAS_SEMANA = [1, 2, 3, 4, 5];
+const MAX_SLOTS = 3;
+
+function normalizarHorarios(input: unknown): string[] {
+  const arr = Array.isArray(input) ? input : [];
+  const ok = arr
+    .map((v) => String(v ?? '').trim())
+    .filter((v) => /^([01]?\d|2[0-3]):[0-5]\d$/.test(v))
+    .map((v) => {
+      const [h, m] = v.split(':');
+      return `${h.padStart(2, '0')}:${m.padStart(2, '0')}`;
+    });
+  return Array.from(new Set(ok)).sort().slice(0, MAX_SLOTS);
+}
+
 class DjenTermosParalelaScheduler {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private isRunning = false;
-  private lastRunDate: string | null = null;
   private lastCheckTime = 0;
   private lastToastTime = 0;
   private dbConfigId: string | null = null;
@@ -36,17 +53,15 @@ class DjenTermosParalelaScheduler {
   private dbLoadPromise: Promise<void>;
 
   private readonly INTERVAL_MS = 30000;
-  // Default: 5h da manhã BRT
-  private targetHour = 5;
-  private targetMinute = 0;
+  // Default: 5h BRT
+  private horarios: string[] = ['05:00'];
+  private diasSemana: number[] = [...DEFAULT_DIAS_SEMANA];
   // Janela máxima após o horário alvo em que ainda é permitido disparar
   // automaticamente (em minutos). Fora dessa janela, esperamos o próximo dia.
-  // Evita que abrir o navegador horas depois reinicie a busca sozinha.
   private readonly TARGET_WINDOW_MINUTES = 30;
   private readonly TOAST_COOLDOWN_MS = 60000;
 
   constructor() {
-    this.loadLastRunDate();
     this.dbLoadPromise = this.loadFromDb();
   }
 
@@ -66,13 +81,14 @@ class DjenTermosParalelaScheduler {
 
       if (data) {
         this.dbConfigId = data.id;
-        const horarios = data.horarios_execucao as string[] | null;
-        if (horarios && horarios.length > 0) {
-          const [h, m] = horarios[0].split(':').map(Number);
-          if (!isNaN(h) && !isNaN(m)) {
-            this.targetHour = h;
-            this.targetMinute = m;
-          }
+        const horarios = normalizarHorarios(data.horarios_execucao);
+        if (horarios.length > 0) this.horarios = horarios;
+        const meta = (data.metadata as any) || {};
+        if (Array.isArray(meta.dias_semana) && meta.dias_semana.length > 0) {
+          this.diasSemana = meta.dias_semana
+            .map((n: any) => Number(n))
+            .filter((n: number) => Number.isInteger(n) && n >= 0 && n <= 6);
+          if (this.diasSemana.length === 0) this.diasSemana = [...DEFAULT_DIAS_SEMANA];
         }
         if (data.ativo && !this.isRunning) {
           this.startInternal();
@@ -88,14 +104,22 @@ class DjenTermosParalelaScheduler {
   private async saveToDb() {
     await this.dbLoadPromise;
     try {
-      const horarioStr = `${String(this.targetHour).padStart(2, '0')}:${String(this.targetMinute).padStart(2, '0')}`;
-
       if (this.dbConfigId) {
+        const { data: existing } = await supabase
+          .from('configuracoes_monitoramento')
+          .select('metadata')
+          .eq('id', this.dbConfigId)
+          .maybeSingle();
+        const meta = {
+          ...((existing?.metadata as any) || {}),
+          dias_semana: this.diasSemana,
+        };
         const { error } = await supabase
           .from('configuracoes_monitoramento')
           .update({
             ativo: this.isRunning,
-            horarios_execucao: [horarioStr],
+            horarios_execucao: this.horarios,
+            metadata: meta,
             updated_at: new Date().toISOString(),
           })
           .eq('id', this.dbConfigId);
@@ -108,8 +132,9 @@ class DjenTermosParalelaScheduler {
           .insert({
             tipo: 'djen_paralela',
             ativo: this.isRunning,
-            horarios_execucao: [horarioStr],
+            horarios_execucao: this.horarios,
             frequencia: 'diario',
+            metadata: { dias_semana: this.diasSemana },
           })
           .select('id')
           .single();
@@ -124,10 +149,23 @@ class DjenTermosParalelaScheduler {
     }
   }
 
-  private loadLastRunDate() {
-    const key = `djen-paralela-scheduler-last-run-${this.getTodayYmd()}`;
-    const stored = localStorage.getItem(key);
-    this.lastRunDate = stored ? this.getTodayYmd() : null;
+  private slotRanKey(ymd: string, slot: string): string {
+    return `djen-paralela-scheduler-last-run-${ymd}-${slot}`;
+  }
+
+  private slotJaRodou(ymd: string, slot: string): boolean {
+    return !!localStorage.getItem(this.slotRanKey(ymd, slot));
+  }
+
+  private marcarSlotRodado(ymd: string, slot: string) {
+    localStorage.setItem(this.slotRanKey(ymd, slot), String(Date.now()));
+  }
+
+  private getDayOfWeekBrt(): number {
+    // 0=Dom..6=Sáb
+    const s = new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', weekday: 'short' });
+    const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+    return map[s.slice(0, 3)] ?? new Date().getDay();
   }
 
   private getTodayYmd(): string {
@@ -147,14 +185,20 @@ class DjenTermosParalelaScheduler {
     return { hour: h === 24 ? 0 : h, minute: m };
   }
 
-  private shouldRunToday(): boolean {
+  /** Retorna o slot HH:MM que deve disparar agora (janela aberta + não rodou hoje), ou null. */
+  private slotPendente(): string | null {
+    if (!this.diasSemana.includes(this.getDayOfWeekBrt())) return null;
     const { hour, minute } = this.getBrtHourMinute();
     const nowMinutes = hour * 60 + minute;
-    const targetMinutes = this.targetHour * 60 + this.targetMinute;
-    // Só dispara DENTRO da janela [target, target + TARGET_WINDOW_MINUTES].
-    // Antes do alvo: aguarda. Depois da janela: aguarda o próximo dia
-    // (evita que abrir o navegador 4h depois do horário inicie a busca sozinha).
-    return nowMinutes >= targetMinutes && nowMinutes <= targetMinutes + this.TARGET_WINDOW_MINUTES;
+    const ymd = this.getTodayYmd();
+    for (const slot of this.horarios) {
+      const [h, m] = slot.split(':').map(Number);
+      const target = h * 60 + m;
+      if (nowMinutes >= target && nowMinutes <= target + this.TARGET_WINDOW_MINUTES) {
+        if (!this.slotJaRodou(ymd, slot)) return slot;
+      }
+    }
+    return null;
   }
 
   private async checkAndRun() {
@@ -162,10 +206,9 @@ class DjenTermosParalelaScheduler {
     if (now - this.lastCheckTime < 10000) return;
     this.lastCheckTime = now;
 
-    if (!this.shouldRunToday()) return;
-
+    const slot = this.slotPendente();
+    if (!slot) return;
     const todayYmd = this.getTodayYmd();
-    if (this.lastRunDate === todayYmd) return;
 
     if (isDjenTermosParalelaRunning()) {
       this.showToast('DJEN Termos Paralela já está em execução', 'info');
@@ -175,12 +218,12 @@ class DjenTermosParalelaScheduler {
     try {
       // Considera apenas execuções iniciadas a partir do horário alvo (BRT)
       // para que execuções manuais feitas antes do horário não bloqueiem o agendamento.
-      // BRT = UTC-3 → ex: 05:00 BRT = 08:00 UTC
-      const targetUtcHour = (this.targetHour + 3) % 24;
-      const dayOffset = this.targetHour + 3 >= 24 ? 1 : 0;
+      const [sh, sm] = slot.split(':').map(Number);
+      const targetUtcHour = (sh + 3) % 24;
+      const dayOffset = sh + 3 >= 24 ? 1 : 0;
       const targetDate = new Date(`${todayYmd}T00:00:00.000Z`);
       targetDate.setUTCDate(targetDate.getUTCDate() + dayOffset);
-      targetDate.setUTCHours(targetUtcHour, this.targetMinute, 0, 0);
+      targetDate.setUTCHours(targetUtcHour, sm, 0, 0);
       const targetStartIso = targetDate.toISOString();
       const { data, error } = await supabase
         .from('execucoes_agendadas')
@@ -220,9 +263,7 @@ class DjenTermosParalelaScheduler {
           if (exec.status === 'executando') {
             this.showToast('DJEN Termos Paralela já está em execução no banco', 'info');
           } else {
-            this.lastRunDate = todayYmd;
-            const key = `djen-paralela-scheduler-last-run-${todayYmd}`;
-            localStorage.setItem(key, String(Date.now()));
+            this.marcarSlotRodado(todayYmd, slot);
             this.notifySubscribers();
           }
           return;
@@ -234,13 +275,11 @@ class DjenTermosParalelaScheduler {
     }
 
     // Marcar antes de iniciar para evitar re-execuções
-    this.lastRunDate = todayYmd;
-    const key = `djen-paralela-scheduler-last-run-${todayYmd}`;
-    localStorage.setItem(key, String(Date.now()));
+    this.marcarSlotRodado(todayYmd, slot);
     this.notifySubscribers();
 
     try {
-      this.showToast('Iniciando DJEN Termos Paralela agendado...', 'info');
+      this.showToast(`Iniciando DJEN Termos Paralela agendado (${slot})...`, 'info');
       executarDjenTermosParalela(todayYmd, todayYmd, false);
 
       if (this.dbConfigId) {
@@ -277,7 +316,6 @@ class DjenTermosParalelaScheduler {
   private startInternal() {
     if (this.isRunning) return;
     this.isRunning = true;
-    this.loadLastRunDate();
     setTimeout(() => this.checkAndRun(), 2000);
     this.intervalId = setInterval(() => {
       this.checkAndRun();
@@ -303,30 +341,48 @@ class DjenTermosParalelaScheduler {
 
   getStatus(): DjenTermosParalelaSchedulerStatus {
     let proximoHorario: string | null = null;
-    const timeStr = `${String(this.targetHour).padStart(2, '0')}:${String(this.targetMinute).padStart(2, '0')}`;
-
-    if (this.isRunning) {
-      const todayYmd = this.getTodayYmd();
-      if (this.lastRunDate === todayYmd) {
-        proximoHorario = `Amanhã às ${timeStr}`;
-      } else if (this.shouldRunToday()) {
+    if (this.isRunning && this.horarios.length > 0) {
+      const ymd = this.getTodayYmd();
+      const { hour, minute } = this.getBrtHourMinute();
+      const nowMinutes = hour * 60 + minute;
+      // Próximo slot hoje que ainda não rodou e cuja janela não passou
+      let restantes = this.horarios
+        .filter((slot) => {
+          if (this.slotJaRodou(ymd, slot)) return false;
+          const [h, m] = slot.split(':').map(Number);
+          const target = h * 60 + m;
+          return nowMinutes <= target + this.TARGET_WINDOW_MINUTES;
+        })
+        .sort();
+      const diaOk = this.diasSemana.includes(this.getDayOfWeekBrt());
+      if (diaOk && this.slotPendente()) {
         proximoHorario = 'Em breve (aguardando)';
+      } else if (diaOk && restantes.length > 0) {
+        proximoHorario = `Hoje às ${restantes[0]}`;
       } else {
-        proximoHorario = `Hoje às ${timeStr}`;
+        proximoHorario = `Amanhã às ${this.horarios[0]}`;
       }
     }
 
     return {
       ativo: this.isRunning,
       proximoHorario,
-      ultimaExecucao: this.lastRunDate,
-      horario: timeStr,
+      ultimaExecucao: null,
+      horarios: [...this.horarios],
+      diasSemana: [...this.diasSemana],
     };
   }
 
-  setTime(hour: number, minute: number) {
-    this.targetHour = hour;
-    this.targetMinute = minute;
+  setHorarios(horarios: string[]) {
+    const norm = normalizarHorarios(horarios);
+    this.horarios = norm.length > 0 ? norm : ['05:00'];
+    this.saveToDb();
+    this.notifySubscribers();
+  }
+
+  setDiasSemana(dias: number[]) {
+    const ok = Array.from(new Set(dias.filter((n) => Number.isInteger(n) && n >= 0 && n <= 6))).sort();
+    this.diasSemana = ok.length > 0 ? ok : [...DEFAULT_DIAS_SEMANA];
     this.saveToDb();
     this.notifySubscribers();
   }
@@ -357,7 +413,8 @@ export function useDjenTermosParalelaScheduler() {
     ...status,
     start: () => getScheduler().start(),
     stop: () => getScheduler().stop(),
-    setTime: (h: number, m: number) => getScheduler().setTime(h, m),
+    setHorarios: (h: string[]) => getScheduler().setHorarios(h),
+    setDiasSemana: (d: number[]) => getScheduler().setDiasSemana(d),
   };
 }
 

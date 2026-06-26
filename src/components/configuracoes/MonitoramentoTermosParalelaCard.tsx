@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils";
 import { useDjenTermosParalela } from "@/hooks/useDjenTermosParalela";
 import { useDjenTermosParalelaScheduler } from "@/hooks/useDjenTermosParalelaScheduler";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
+import { HorariosDoDiaPicker } from "@/components/djen/HorariosDoDiaPicker";
+import { DiasSemanaPicker, DIAS_SEMANA_DEFAULT } from "@/components/djen/DiasSemanaPicker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -64,7 +66,7 @@ function formatDuration(seconds: number): string {
 // Sub-componentes do agendador (isolados para suas próprias subscriptions)
 // ----------------------------------------------------------------------------
 function SchedulerParalelaPanel() {
-  const { ativo, horario, proximoHorario, start, stop, setTime } =
+  const { ativo, horarios, diasSemana, proximoHorario, start, stop, setHorarios, setDiasSemana } =
     useDjenTermosParalelaScheduler();
 
   return (
@@ -78,36 +80,37 @@ function SchedulerParalelaPanel() {
           {ativo ? "Ativo" : "Inativo"}
         </Badge>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
-          <Label htmlFor="djen-paralela-scheduler-toggle" className="text-sm font-medium">
-            Ativar agendamento
-          </Label>
-          <Switch
-            id="djen-paralela-scheduler-toggle"
-            checked={ativo}
-            onCheckedChange={(checked) => {
-              if (checked) { start(); toast.success('Agendamento Paralela ativado'); }
-              else { stop(); toast.info('Agendamento Paralela desativado'); }
-            }}
-          />
-        </div>
-        <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2">
-          <Label className="text-sm font-medium whitespace-nowrap">Horário (BRT)</Label>
-          <Input
-            type="time"
-            value={horario}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val) {
-                const [h, m] = val.split(':').map(Number);
-                setTime(h, m);
-                toast.success(`Horário alterado para ${val}`);
-              }
-            }}
-            className="w-28 h-8"
-          />
-        </div>
+      <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+        <Label htmlFor="djen-paralela-scheduler-toggle" className="text-sm font-medium">
+          Ativar agendamento
+        </Label>
+        <Switch
+          id="djen-paralela-scheduler-toggle"
+          checked={ativo}
+          onCheckedChange={(checked) => {
+            if (checked) { start(); toast.success('Agendamento Paralela ativado'); }
+            else { stop(); toast.info('Agendamento Paralela desativado'); }
+          }}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Horários BRT (até 3 por dia)</Label>
+        <HorariosDoDiaPicker
+          value={horarios}
+          onChange={(next) => {
+            setHorarios(next);
+            toast.success(next.length > 0 ? `Horários: ${next.join(', ')}` : 'Horários limpos');
+          }}
+          disabled={!ativo}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Dias da semana</Label>
+        <DiasSemanaPicker
+          value={diasSemana?.length ? diasSemana : DIAS_SEMANA_DEFAULT}
+          onChange={(dias) => setDiasSemana(dias)}
+          disabled={!ativo}
+        />
       </div>
       {ativo && proximoHorario && (
         <div className="flex items-center gap-2 rounded-md bg-background p-2 border">
