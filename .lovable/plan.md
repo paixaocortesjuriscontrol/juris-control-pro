@@ -1,32 +1,71 @@
-## Problema
+## Plano corrigido: regra simples e separada
 
-A tela **Análise DJEN (Local)** não exibe o card "Execuções do dia" porque a tabela de junção `publicacoes_djen_execucoes` foi criada **sem foreign keys**. O hook `useExecucoesDoDiaLocal` faz um embed PostgREST (`publicacao:publicacoes_djen!inner(...)`) que devolve erro `PGRST200`:
+Você está certo: a regra deve ser literal e sem atalhos.
 
-> Could not find a relationship between 'publicacoes_djen_execucoes' and 'publicacoes_djen'…
-
-Confirmado por chamada direta ao REST. Sem FKs o hook nunca retorna linhas, então o card "se esconde" silenciosamente (componente só renderiza com `execs.length >= 2`). Os dados existem (967 vínculos hoje em 3 execuções), só falta o relacionamento declarado.
-
-Por contraste, o equivalente do servidor (`publicacoes_djen_servidor_execucoes`) tem as FKs corretas e por isso o card aparece lá.
-
-## Correção
-
-Migration única adicionando as duas FKs faltantes (mesmo padrão da versão servidor):
-
-```sql
-ALTER TABLE public.publicacoes_djen_execucoes
-  ADD CONSTRAINT publicacoes_djen_execucoes_publicacao_fk
-  FOREIGN KEY (publicacao_id) REFERENCES public.publicacoes_djen(id) ON DELETE CASCADE;
-
-ALTER TABLE public.publicacoes_djen_execucoes
-  ADD CONSTRAINT publicacoes_djen_execucoes_execucao_fk
-  FOREIGN KEY (execucao_id) REFERENCES public.execucoes_agendadas(id) ON DELETE CASCADE;
-
-CREATE INDEX IF NOT EXISTS idx_pde_execucao_id ON public.publicacoes_djen_execucoes(execucao_id);
-CREATE INDEX IF NOT EXISTS idx_pde_publicacao_id ON public.publicacoes_djen_execucoes(publicacao_id);
+```text
+Busca por PARTE     => só valida em Parte(s) / destinatários / polos.
+Busca por ADVOGADO  => só valida em Advogado(s) / destinatarioadvogados / seção de advogados.
 ```
 
-Após a migration o PostgREST passa a reconhecer o embed e o `useExecucoesDoDiaLocal` devolve as execuções do dia com `totalVistas` e `novasCount`, fazendo o `ExecucoesDoDiaLocalCard` aparecer na Análise DJEN exatamente como na versão servidor (precisa ter o filtro **Data de Disponibilização** preenchido e 2+ execuções do dia, mesma regra da tela servidor).
+## O que será ajustado
 
-## Sem alterações de UI
+### 1. Remover a confiança cega no filtro `nomeParte` da API
 
-Nenhuma mudança em React — o card e o hook já estão prontos e corretos; só faltava o relacionamento no banco.
+No DJEN Local e no DJEN Servidor, a API pode devolver uma publicação quando o nome aparece como advogado, mesmo numa busca `nomeParte`.
+
+Então:
+
+- `__matchedByNomeParte` não pode mais aprovar sozinho.
+- Para `tipo=parte`, o motor só aceita se o nome estiver em:
+  - `destinatarios[]`
+  - `poloAtivo` / `poloPassivo`
+  - `partes_json`
+  - seção textual `Parte(s)`
+- Não aceitar nome encontrado no corpo geral da publicação.
+- Não aceitar nome encontrado na seção `Advogado(s)`.
+
+### 2. Separar advogado de parte na extração visual
+
+Para a publicação original do anexo:
+
+- `BANCO SANTANDER` e `DIEGO BARBOSA DE LIMA` ficam em **Parte(s)**.
+- `OSMAR MENDES PAIXAO CORTES` e demais nomes da seção ficam em **Advogado(s)**.
+
+Ou seja: ela pode ser válida para busca por **advogado OSMAR**, mas não para busca por **parte OSMAR**.
+
+### 3. Aplicar nos dois motores
+
+Arquivos-alvo:
+
+- `src/hooks/useDjenTermosParalelaEngine.ts` — DJEN Local/Browser.
+- `monitor-servidor/engines/paralela.js` — DJEN Servidor/VPS.
+
+A lógica será a mesma nos dois para evitar nova divergência.
+
+### 4. Corrigir o registro já gravado errado
+
+Para o `id_djen=652018520` / processo `0821575-51.2025.8.20.5004`:
+
+- manter o registro válido capturado por **advogado**;
+- remover ou reclassificar como descartado o registro capturado por **parte OSMAR**, porque OSMAR aparece como advogado, não como parte.
+
+### 5. Não fazer fallback que misture conceitos
+
+Não vou criar fallback que use `Advogado(s)` para validar `tipo=parte`.
+Não vou usar texto geral para salvar publicação de parte.
+Não vou usar resultado da API como prova suficiente quando o tipo for `parte`.
+
+## Resultado esperado
+
+- Busca por parte só encontra publicações em que o nome está nas partes.
+- Busca por advogado só encontra publicações em que o nome está como advogado.
+- Essa publicação do TJRN deixa de entrar no monitoramento `PARTE OSMAR` e continua entrando no monitoramento de `ADVOGADO OSMAR`.
+- Browser e Servidor passam a obedecer a mesma regra objetiva.
+
+## Observação sobre desfazer versão anterior
+
+Se você quiser voltar exatamente para um ponto anterior do projeto, use o histórico do Lovable:
+
+<presentation-actions>
+  <presentation-open-history>View History</presentation-open-history>
+</presentation-actions>
