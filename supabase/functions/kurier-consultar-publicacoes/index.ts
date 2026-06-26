@@ -958,6 +958,34 @@ Deno.serve(async (req: Request) => {
         if (rawErr) console.warn("[kurier] erro insert raw:", rawErr.message);
       }
 
+      // Junção publicação×execução (DJEN Local "Execuções do dia")
+      if (execucao_id_local) {
+        const pubIdsDoLote = Array.from(
+          new Set(
+            (rawRows as any[])
+              .map((r) => r.publicacao_djen_id)
+              .filter((v: any): v is string => !!v),
+          ),
+        );
+        if (pubIdsDoLote.length > 0) {
+          const junctionRows = pubIdsDoLote.map((pid) => ({
+            publicacao_id: pid,
+            execucao_id: execucao_id_local,
+            tipo_engine: "kurier",
+          }));
+          for (let i = 0; i < junctionRows.length; i += 100) {
+            const chunk = junctionRows.slice(i, i + 100);
+            const { error: junErr } = await admin
+              .from("publicacoes_djen_execucoes")
+              .upsert(chunk, {
+                onConflict: "publicacao_id,execucao_id",
+                ignoreDuplicates: true,
+              });
+            if (junErr) console.warn("[kurier] junção execução falhou:", junErr.message);
+          }
+        }
+      }
+
       // Confirma o lote
       if (confirmacoes.length) {
         try {
