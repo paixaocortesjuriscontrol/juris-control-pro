@@ -1050,15 +1050,27 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(
 function extrairAdvogadosEstruturados(pub: any): string[] {
   const result: string[] = [];
   const seen = new Set<string>();
-  if (Array.isArray(pub?.destinatarioadvogados)) {
-    for (const e of pub.destinatarioadvogados) {
-      const adv = e?.advogado || e;
-      if (!adv?.nome) continue;
-      const key = `${adv.nome}|${adv.numero_oab || ''}`.toUpperCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      const oabStr = adv.numero_oab ? ` - OAB ${adv.uf_oab || ''}${adv.numero_oab}` : '';
-      result.push(`${adv.nome}${oabStr}`);
+  const add = (nome: string, numeroOab?: string, ufOab?: string) => {
+    const nomeTrim = String(nome || '').trim();
+    if (!nomeTrim) return;
+    const oabDigits = String(numeroOab || '').replace(/\D/g, '');
+    const uf = String(ufOab || '').trim().toUpperCase();
+    const key = normalizar(`${nomeTrim}|${uf}|${oabDigits}`);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    const oabStr = oabDigits ? ` - OAB ${uf}${oabDigits}` : '';
+    result.push(`${nomeTrim}${oabStr}`);
+  };
+
+  for (const adv of coletarAdvogadosEstruturados(pub)) {
+    add(adv.nome, adv.numero_oab, adv.uf_oab);
+  }
+
+  const secaoAdvogados = extrairSecaoAdvogadosTexto(pub);
+  if (secaoAdvogados) {
+    for (const linha of secaoAdvogados.split(/\r?\n|;/).map((x) => x.trim()).filter(Boolean)) {
+      const cleaned = linha.replace(/^[-•\s]+/, '').trim();
+      if (cleaned.length >= 3) add(cleaned);
     }
   }
   return result;
@@ -1072,6 +1084,15 @@ function extrairPartesEstruturadas(pub: any): string[] {
     if (!key || seen.has(key)) continue;
     seen.add(key);
     result.push(parte);
+  }
+  for (const secao of extrairSecoesPartesTexto(pub)) {
+    for (const linha of secao.split(/\r?\n|;/).map((x) => x.trim()).filter(Boolean)) {
+      const cleaned = linha.replace(/^[-•\s]+/, '').trim();
+      const key = normalizar(cleaned);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      result.push(cleaned);
+    }
   }
   return result;
 }
