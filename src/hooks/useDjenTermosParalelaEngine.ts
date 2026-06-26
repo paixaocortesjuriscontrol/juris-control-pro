@@ -1263,9 +1263,10 @@ async function processarTermoEmTribunal(
   };
 
   if (tipo === 'advogado') {
-    baseParams.oab = mon.oab ? String(mon.oab).replace(/\D/g, '') : undefined;
+    // Regra nova: busca primária SOMENTE por nomeAdvogado (sem OAB/UF).
+    // A OAB fica como fallback (uma única chamada extra) caso a busca por
+    // nome volte vazia. Validação posterior usa frase contígua nos metadados.
     baseParams.nomeAdvogado = mon.termo_busca?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-    baseParams.uf = mon.uf;
   } else if (tipo === 'processo') {
     baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
   } else if (tipo !== 'parte') {
