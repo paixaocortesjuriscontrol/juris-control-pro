@@ -314,12 +314,9 @@ function updateProgress(partial: Partial<DjenTermosParalelaProgress>) {
     if (typeof partial.tempoDecorrido === 'number') {
       next.tempoDecorrido = Math.max(prev.tempoDecorrido || 0, partial.tempoDecorrido);
     }
-    if (typeof partial.percentage === 'number') {
-      next.percentage = Math.max(prev.percentage || 0, partial.percentage);
-    }
-    if (typeof partial.tribunaisConcluidos === 'number') {
-      next.tribunaisConcluidos = Math.max(prev.tribunaisConcluidos || 0, partial.tribunaisConcluidos);
-    }
+    // percentage e tribunaisConcluidos devem refletir o estado atual; não
+    // usar Math.max — isso travava a barra em 100% quando um snapshot antigo
+    // contaminava o estado.
   }
   state.progress = next;
   state.lastUpdatedAt = Date.now();
