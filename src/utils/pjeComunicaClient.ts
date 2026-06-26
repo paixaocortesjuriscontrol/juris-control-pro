@@ -307,6 +307,50 @@ export async function buscarPjeComunicaNoBrowser(
     fallbackToPool?: boolean;
   }
 ): Promise<PjeComunicaResponse> {
+  // ── In-flight dedup: quando N workers disparam a MESMA query (ex.: 6 monitoramentos
+  // do mesmo advogado em TST), compartilham UMA única Promise em vez de baterem
+  // 6 vezes na API. Reduz drasticamente o tempo de "preparar" workers.
+  const dedupKey = JSON.stringify({
+    t: params.tipo,
+    o: String(params.oab || '').replace(/\D/g, ''),
+    u: String(params.uf || '').toUpperCase(),
+    na: String(params.nomeAdvogado || '').trim().toUpperCase(),
+    np: String(params.nomeParte || '').trim().toUpperCase(),
+    nr: String(params.numeroProcesso || '').replace(/\D/g, ''),
+    s: String(params.siglaTribunal || '').toUpperCase(),
+    di: params.dataInicio || '',
+    df: params.dataFim || '',
+    p: params.page ?? 1,
+    ps: params.pageSize ?? 50,
+    fv: options?.forceVia || '',
+  });
+  if (!options?.signal) {
+    const existing = __pjeInflight.get(dedupKey);
+    if (existing) {
+      console.log('[PJE Comunica] ♻️ dedup in-flight:', dedupKey);
+      return existing;
+    }
+  }
+  const exec = _buscarPjeComunicaNoBrowserImpl(params, options);
+  if (!options?.signal) {
+    __pjeInflight.set(dedupKey, exec);
+    exec.finally(() => { __pjeInflight.delete(dedupKey); });
+  }
+  return exec;
+}
+
+const __pjeInflight = new Map<string, Promise<PjeComunicaResponse>>();
+
+async function _buscarPjeComunicaNoBrowserImpl(
+  params: PjeComunicaSearchParams,
+  options?: {
+    signal?: AbortSignal;
+    onPoolVia?: (via: PoolViaInfo) => void;
+    forceVia?: string;
+    fallbackToDirect?: boolean;
+    fallbackToPool?: boolean;
+  }
+): Promise<PjeComunicaResponse> {
   // DEBUG: Log ALL params for troubleshooting
   console.log('[PJE Comunica] 🚀 buscarPjeComunicaNoBrowser params:', {
     tipo: params.tipo,
