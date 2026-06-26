@@ -304,6 +304,12 @@ Deno.serve(async (req: Request) => {
     const data_inicio = data_inicio_body ?? hojeYmd;
     const data_fim = data_fim_body ?? hojeYmd;
     const modo_personalizado = body.modo_personalizado === true;
+    // Execução do dia (DJEN Local). Quando informada, gravamos `execucao_id` em
+    // cada publicação inserida e registramos a junção em
+    // `publicacoes_djen_execucoes` para a tela "Análise DJEN" mostrar as
+    // diferenças entre execuções do mesmo dia.
+    const execucao_id_local: string | undefined =
+      typeof body.execucao_id === "string" && body.execucao_id ? body.execucao_id : undefined;
     // Modo backfill: em vez de consultar a fila Kurier, reprocessa payloads
     // já gravados em kurier_publicacoes_raw com um determinado motivo_descarte.
     // Útil para recuperar itens que foram confirmados na Kurier (saíram da fila)
@@ -787,6 +793,7 @@ Deno.serve(async (req: Request) => {
             data_publicacao: toIsoDate(dataPub) ?? null,
             tipo_publicacao: "intimacao",
             kurier_login: cred.login ?? null,
+            execucao_id: execucao_id_local ?? null,
           };
 
           if (matched) {
@@ -949,6 +956,34 @@ Deno.serve(async (req: Request) => {
           .from("kurier_publicacoes_raw")
           .insert(rawRows);
         if (rawErr) console.warn("[kurier] erro insert raw:", rawErr.message);
+      }
+
+      // Junção publicação×execução (DJEN Local "Execuções do dia")
+      if (execucao_id_local) {
+        const pubIdsDoLote = Array.from(
+          new Set(
+            (rawRows as any[])
+              .map((r) => r.publicacao_djen_id)
+              .filter((v: any): v is string => !!v),
+          ),
+        );
+        if (pubIdsDoLote.length > 0) {
+          const junctionRows = pubIdsDoLote.map((pid) => ({
+            publicacao_id: pid,
+            execucao_id: execucao_id_local,
+            tipo_engine: "kurier",
+          }));
+          for (let i = 0; i < junctionRows.length; i += 100) {
+            const chunk = junctionRows.slice(i, i + 100);
+            const { error: junErr } = await admin
+              .from("publicacoes_djen_execucoes")
+              .upsert(chunk, {
+                onConflict: "publicacao_id,execucao_id",
+                ignoreDuplicates: true,
+              });
+            if (junErr) console.warn("[kurier] junção execução falhou:", junErr.message);
+          }
+        }
       }
 
       // Confirma o lote

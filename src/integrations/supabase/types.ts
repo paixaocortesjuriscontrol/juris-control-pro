@@ -6508,6 +6508,7 @@ export type Database = {
           dedup_head_norm: string | null
           dedup_key: string | null
           dedup_processo_digits: string | null
+          execucao_id: string | null
           fonte: string | null
           hash_conteudo: string
           id: string
@@ -6542,6 +6543,7 @@ export type Database = {
           dedup_head_norm?: string | null
           dedup_key?: string | null
           dedup_processo_digits?: string | null
+          execucao_id?: string | null
           fonte?: string | null
           hash_conteudo: string
           id?: string
@@ -6576,6 +6578,7 @@ export type Database = {
           dedup_head_norm?: string | null
           dedup_key?: string | null
           dedup_processo_digits?: string | null
+          execucao_id?: string | null
           fonte?: string | null
           hash_conteudo?: string
           id?: string
@@ -6711,6 +6714,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      publicacoes_djen_execucoes: {
+        Row: {
+          created_at: string
+          execucao_id: string
+          publicacao_id: string
+          tipo_engine: string
+        }
+        Insert: {
+          created_at?: string
+          execucao_id: string
+          publicacao_id: string
+          tipo_engine: string
+        }
+        Update: {
+          created_at?: string
+          execucao_id?: string
+          publicacao_id?: string
+          tipo_engine?: string
+        }
+        Relationships: []
       }
       publicacoes_djen_global_hash: {
         Row: {

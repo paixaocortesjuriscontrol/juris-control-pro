@@ -1706,6 +1706,11 @@ async function consolidarResultadosTermo(
     });
 
     if (payload.length > 0) {
+      // Marca cada publicação com a execução atual (1ª que viu)
+      const currentExecutionId = state.executionId;
+      if (currentExecutionId) {
+        for (const p of payload as any[]) p.execucao_id = currentExecutionId;
+      }
       // A busca SEMPRE já foi feita. Aqui só persistimos o resultado da comparação
       // pela chave de encontradas; se houver uma duplicada antiga com mesmo hash,
       // reativamos como encontrada em vez de deixar ela bloquear a nova captura.
@@ -1780,6 +1785,40 @@ async function consolidarResultadosTermo(
       }
       novasInseridasEfetivas = efetivamenteEncontradas;
       duplicadasReclassificadas = Math.max(0, hashesPayload.length - efetivamenteEncontradas);
+
+      // Registrar junção publicação×execução (DJEN Local "Execuções do dia")
+      // Busca ids reais por (coordenacao_id, id_djen) — ignora se já existe a junção.
+      if (currentExecutionId) {
+        try {
+          const idsDjenPayload = (payload as any[])
+            .map((p) => p.id_djen)
+            .filter((v): v is string => !!v);
+          if (idsDjenPayload.length > 0) {
+            let q = supabase
+              .from('publicacoes_djen')
+              .select('id')
+              .in('id_djen', idsDjenPayload);
+            q = mon.coordenacao_id
+              ? q.eq('coordenacao_id', mon.coordenacao_id)
+              : q.is('coordenacao_id', null);
+            const { data: pubsIds } = await q;
+            if (pubsIds && pubsIds.length > 0) {
+              const junctionRows = pubsIds.map((r: any) => ({
+                publicacao_id: r.id,
+                execucao_id: currentExecutionId,
+                tipo_engine: 'paralela',
+              }));
+              for (const chunk of chunkArray(junctionRows, 100)) {
+                await (supabase as any)
+                  .from('publicacoes_djen_execucoes')
+                  .upsert(chunk, { onConflict: 'publicacao_id,execucao_id', ignoreDuplicates: true });
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[DJEN Paralela] junção execução falhou (não-crítico):', e);
+        }
+      }
     }
   }
 
