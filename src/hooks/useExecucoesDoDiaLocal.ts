@@ -42,13 +42,19 @@ export function useExecucoesDoDiaLocal(
     enabled,
     staleTime: 30_000,
     queryFn: async (): Promise<ExecucaoLocalDoDia[]> => {
-      // 1) Execuções locais concluídas (ou executando) do dia
+      // 1) Execuções locais do dia em BRT (UTC-3).
+      //    Dia BRT [00:00, 24:00) = UTC [ymd 03:00:00, ymd+1 03:00:00).
+      const startUtc = `${ymd}T03:00:00`;
+      const endDate = new Date(`${ymd}T00:00:00Z`);
+      endDate.setUTCDate(endDate.getUTCDate() + 1);
+      const nextYmd = endDate.toISOString().slice(0, 10);
+      const endUtc = `${nextYmd}T03:00:00`;
       const { data: execs, error: execErr } = await (supabase
         .from("execucoes_agendadas") as any)
         .select("id, tipo, iniciado_em, status")
         .in("tipo", TIPOS_LOCAIS as unknown as string[])
-        .gte("iniciado_em", `${ymd}T00:00:00`)
-        .lte("iniciado_em", `${ymd}T23:59:59`)
+        .gte("iniciado_em", startUtc)
+        .lt("iniciado_em", endUtc)
         .order("iniciado_em", { ascending: true });
 
       if (execErr) {
