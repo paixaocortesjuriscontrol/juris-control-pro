@@ -623,9 +623,135 @@ function parsearTermoOr(raw: string): ParsedTermoOr | null {
   return { nome: clean };
 }
 
+function parseArrayLike(value: any): any[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function getTextoPublicacao(pub: any): string {
+  const obj = pub?.comunicacao && typeof pub.comunicacao === 'object' ? pub.comunicacao : pub;
+  return String(obj?.texto || obj?.conteudo || obj?.teor || pub?.texto || pub?.conteudo || pub?.teor || '');
+}
+
+function extrairSecaoRotulada(texto: string, headerRe: RegExp, stopRe: RegExp, maxLen = 2500): string {
+  const source = String(texto || '');
+  const header = source.match(headerRe);
+  if (!header || header.index === undefined) return '';
+  const start = header.index + header[0].length;
+  const after = source.slice(start, start + maxLen);
+  const stop = after.search(stopRe);
+  return (stop >= 0 ? after.slice(0, stop) : after).trim();
+}
+
+function extrairSecaoAdvogadosTexto(pub: any): string {
+  return extrairSecaoRotulada(
+    getTextoPublicacao(pub),
+    /\bAdvogados?\s*(?:\(\s*s\s*\))?\s*:?\s*/i,
+    /(?:^|\n)\s*(?:Parte\s*\(\s*s\s*\)|Destinat[áa]rio(?:\(a\))?|Órgão|Data\s+de\s+disponibiliza|Tipo\s+de\s+comunica|Meio|Processo|Inteiro\s+teor)\s*:?|\bPolo\s+(?:ativo|passivo)\b/i,
+    1800,
+  );
+}
+
+function extrairSecoesPartesTexto(pub: any): string[] {
+  const texto = getTextoPublicacao(pub);
+  if (!texto) return [];
+  const headers = [
+    /\bParte\s*\(\s*s\s*\)\s*:?\s*/ig,
+    /\bPolo\s+ativo\s*:?\s*/ig,
+    /\bPolo\s+passivo\s*:?\s*/ig,
+    /\bDestinat[áa]rio(?:\(a\))?\s*:?\s*/ig,
+  ];
+  const stopRe = /(?:^|\n)\s*(?:Advogados?\s*(?:\(\s*s\s*\))?|Órgão|Data\s+de\s+disponibiliza|Tipo\s+de\s+comunica|Meio|Processo|Inteiro\s+teor)\s*:?|\bPolo\s+(?:ativo|passivo)\b/i;
+  const out: string[] = [];
+  for (const re of headers) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(texto)) !== null) {
+      const start = m.index + m[0].length;
+      const after = texto.slice(start, start + 1800);
+      const stop = after.search(stopRe);
+      const section = (stop >= 0 ? after.slice(0, stop) : after).trim();
+      if (section) out.push(section);
+    }
+  }
+  return out;
+}
+
+function parseOabFromString(raw: string): { numero_oab?: string; uf_oab?: string } {
+  const text = normalizar(raw);
+  let m = text.match(/OAB\s+([A-Z]{2})\s*(\d{3,7})/i);
+  if (m) return { uf_oab: m[1].toUpperCase(), numero_oab: m[2] };
+  m = text.match(/OAB\s+(\d{3,7})\s*([A-Z]{2})/i);
+  if (m) return { uf_oab: m[2].toUpperCase(), numero_oab: m[1] };
+  m = text.match(/\b([A-Z]{2})\s*(\d{3,7})\b/i);
+  if (m) return { uf_oab: m[1].toUpperCase(), numero_oab: m[2] };
+  return {};
+}
+
+function normalizarAdvogadoEntry(entry: any): { nome: string; numero_oab?: string; uf_oab?: string } | null {
+  if (!entry) return null;
+  if (typeof entry === 'string') {
+    const parsed = parseOabFromString(entry);
+    const nome = entry.replace(/\s*-?\s*OAB\b.*$/i, '').trim();
+    return nome ? { nome, ...parsed } : null;
+  }
+  const adv = entry?.advogado || entry;
+  if (!adv || typeof adv !== 'object') return null;
+  const nome = String(adv.nome || adv.nomeAdvogado || adv.nomeRepresentante || adv.nome_representante || adv.nomeProcurador || '').trim();
+  const numero_oab = String(adv.numero_oab || adv.numeroOab || adv.oab || adv.inscricaoOab || '').replace(/\D/g, '');
+  const uf_oab = String(adv.uf_oab || adv.ufOab || adv.uf || adv.siglaUf || '').trim().toUpperCase();
+  return nome ? { nome, ...(numero_oab ? { numero_oab } : {}), ...(uf_oab ? { uf_oab } : {}) } : null;
+}
+
+function coletarAdvogadosEstruturados(pub: any): Array<{ nome: string; numero_oab?: string; uf_oab?: string }> {
+  const roots = pub?.comunicacao && typeof pub.comunicacao === 'object' ? [pub, pub.comunicacao] : [pub];
+  const result: Array<{ nome: string; numero_oab?: string; uf_oab?: string }> = [];
+  const seen = new Set<string>();
+  const add = (entry: any) => {
+    const adv = normalizarAdvogadoEntry(entry);
+    if (!adv?.nome) return;
+    const key = normalizar(`${adv.nome}|${adv.uf_oab || ''}|${adv.numero_oab || ''}`);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    result.push(adv);
+  };
+  for (const root of roots) {
+    for (const field of ['destinatarioadvogados', 'advogados', 'representantes', 'procuradores', 'advogados_json']) {
+      for (const entry of parseArrayLike(root?.[field])) add(entry);
+    }
+    for (const dest of parseArrayLike(root?.destinatarios)) {
+      for (const field of ['advogados', 'representantes', 'procuradores']) {
+        for (const entry of parseArrayLike(dest?.[field])) add(entry);
+      }
+      if (dest?.nomeAdvogado) add({ nome: dest.nomeAdvogado, numeroOab: dest.numeroOab, ufOab: dest.ufOab });
+    }
+  }
+  return result;
+}
+
+function validarAdvogadoSecaoAdvogados(pub: any, oab?: string, nome?: string): boolean {
+  const secaoNorm = normalizar(extrairSecaoAdvogadosTexto(pub));
+  if (!secaoNorm) return false;
+  const nomeNorm = nome ? normalizar(nome) : '';
+  if (nomeNorm && contemFrase(secaoNorm, nomeNorm)) return true;
+  if (pub?.__advogadoOabFallback && oab) {
+    const oabDigits = String(oab).replace(/\D/g, '');
+    if (oabDigits.length >= 3 && secaoNorm.includes(oabDigits)) return true;
+  }
+  return false;
+}
+
 function validarAdvogadoMetadados(pub: any, oab?: string, nome?: string): boolean {
-  const advs = pub?.destinatarioadvogados;
-  if (!Array.isArray(advs) || advs.length === 0) return false;
+  const advs = coletarAdvogadosEstruturados(pub);
+  if (advs.length === 0) return false;
   const oabDigits = oab ? String(oab).replace(/\D/g, '') : '';
   const nomeNorm = nome ? normalizar(nome) : '';
   // Regra única: o nome buscado precisa aparecer como FRASE CONTÍGUA (na ordem,
@@ -635,9 +761,7 @@ function validarAdvogadoMetadados(pub: any, oab?: string, nome?: string): boolea
   // veio do fallback OAB (pub.__advogadoOabFallback), evitando matches por
   // OAB de outro advogado em consultas feitas por nome.
   const oabFallbackAtivo = pub?.__advogadoOabFallback === true;
-  for (const entry of advs) {
-    const adv = entry?.advogado || entry;
-    if (!adv) continue;
+  for (const adv of advs) {
     if (oabFallbackAtivo && oabDigits && adv.numero_oab) {
       if (String(adv.numero_oab).replace(/\D/g, '') === oabDigits) return true;
     }
@@ -694,21 +818,12 @@ function validarParteMetadados(pub: any, nomeParte: string): boolean {
 }
 
 function validarParteSecaoPartes(pub: any, nomeParte: string): boolean {
-  const texto = String(pub?.texto || pub?.conteudo || pub?.teor || '');
   const nomeNorm = normalizar(nomeParte);
-  if (!texto || !nomeNorm) return false;
-
-  const header = texto.match(/\bParte\s*\(\s*s\s*\)\s*:?\s*/i);
-  if (!header || header.index === undefined) return false;
-
-  const afterHeader = texto.slice(header.index + header[0].length, header.index + header[0].length + 2500);
-  const advogadosIndex = afterHeader.search(/(?:^|\n)\s*Advogados?\s*(?:\(\s*s\s*\))?\s*:?/i);
-  const secaoPartes = advogadosIndex >= 0 ? afterHeader.slice(0, advogadosIndex) : afterHeader;
-
-  return secaoPartes
-    .split(/\r?\n/)
-    .map((linha) => normalizar(linha.trim()))
-    .some((linhaNorm) => linhaNorm.length >= 3 && contemFrase(linhaNorm, nomeNorm));
+  if (!nomeNorm) return false;
+  return extrairSecoesPartesTexto(pub).some((secao) => {
+    const secaoNorm = normalizar(secao);
+    return secaoNorm.length >= 3 && contemFrase(secaoNorm, nomeNorm);
+  });
 }
 
 function extrairPartesDeCamposEstruturados(pub: any): string[] {
@@ -766,7 +881,7 @@ function temExclusao(pub: any, exclusoes?: string[]): string | null {
 }
 
 function textoPartesEstruturadas(pub: any): string {
-  return extrairPartesDeCamposEstruturados(pub).join('\n');
+  return [...extrairPartesDeCamposEstruturados(pub), ...extrairSecoesPartesTexto(pub)].join('\n');
 }
 
 function temExclusaoEmPartes(pub: any, exclusoes?: string[]): string | null {
@@ -829,36 +944,20 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
       if (validarParteMetadados(pub, String(t))) return true;
       if (validarParteSecaoPartes(pub, String(t))) return true;
     }
-    // Fallback restrito (somente quando o payload realmente não traz NENHUM dado
-    // de parte — caso típico do TST). Se há partes estruturadas ou seção Parte(s)
-    // presente, NÃO confiar no filtro da API — o `nomeParte` do PJe também
-    // bate em advogados/órgãos e gera falsos positivos.
-    if (pub?.__matchedByNomeParte) {
-      const temPartesEstruturadas = extrairPartesDeCamposEstruturados(pub).length > 0;
-      const textoCompleto = String(pub?.texto || pub?.conteudo || pub?.teor || '');
-      const temSecaoPartes = /\bParte\s*\(\s*s\s*\)\s*:?/i.test(textoCompleto);
-      if (!temPartesEstruturadas && !temSecaoPartes) return true;
-    }
+    // Nunca confiar apenas no filtro `nomeParte` da API: parte valida só parte.
     return false;
   }
 
   const textoNorm = normalizar(buildTextoCompleto(pub));
   if (tipo === 'advogado') {
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
-    const nomeNorm = normalizar(mon.termo_busca);
-    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
-    if (pub?.__advogadoOabFallback && mon.oab) {
-      const od = String(mon.oab).replace(/\D/g, '');
-      if (od.length >= 3 && textoNorm.includes(od)) return true;
-    }
+    if (validarAdvogadoSecaoAdvogados(pub, mon.oab, mon.termo_busca)) return true;
     if (mon.termos_or?.length) {
       for (const t of mon.termos_or) {
         const p = parsearTermoOr(t);
         if (!p) continue;
         if (validarAdvogadoMetadados(pub, p.oabDigits, p.nome)) return true;
-        const nn = normalizar(p.nome);
-        if (nn && contemFrase(textoNorm, nn)) return true;
-        if (pub?.__advogadoOabFallback && p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
+        if (validarAdvogadoSecaoAdvogados(pub, p.oabDigits, p.nome)) return true;
       }
     }
     return false;
