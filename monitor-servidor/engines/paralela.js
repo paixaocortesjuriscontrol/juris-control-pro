@@ -177,14 +177,6 @@ function getConteudo(pub) {
   return String(obj?.conteudo || obj?.texto || obj?.teor || pub?.conteudo || pub?.texto || pub?.teor || pub?.descricao || "");
 }
 
-// Conteúdo "puro" da publicação — somente o corpo textual, SEM concatenar
-// nomes de advogados/destinatários. Usado para validar palavra-chave e
-// exclusões em palavra-chave/advogado, conforme regra simples definida pelo
-// usuário (palavra-chave só pode casar no corpo da publicação).
-function getConteudoPuro(pub) {
-  return getConteudo(pub);
-}
-
 function getIdDjen(pub) {
   const obj = rawObj(pub);
   const isUuid = (v) => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
