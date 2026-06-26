@@ -83,6 +83,7 @@ let running = false;
 let cancelRequested = false;
 let listeners = new Set<(p: KurierProgress) => void>();
 let runKey: string | null = null;
+let currentExecucaoId: string | null = null;
 
 function emit() {
   for (const l of listeners) l({ ...progress, tracks: progress.tracks.map((t) => ({ ...t })) });
@@ -155,6 +156,7 @@ async function processarCredencial(
           data_inicio: dataInicioYmd || undefined,
           data_fim: dataFimYmd || undefined,
           modo_personalizado: modoPersonalizado,
+          execucao_id: currentExecucaoId || undefined,
         },
       });
       if (error) throw error;
