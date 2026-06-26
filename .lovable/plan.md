@@ -1,71 +1,47 @@
-## Plano corrigido: regra simples e separada
+## Comparador com deduplicação prévia
 
-Você está certo: a regra deve ser literal e sem atalhos.
+Entendi a sua frustração e vi onde o relatório engana. Hoje, em `useComparadorAnalise` (`src/hooks/useDjenServidor.ts`), a chave de comparação é `coordenacao + id_djen`. Quando o PJE gera **7 `id_djen` diferentes para o mesmo processo/data** (caso do TST `0010334-57.2023.5.15.0095` ou TRT24 `0026098-91.2025.5.24.0021`), o Servidor pega 3-7 e o Browser pega 1 — e o comparador grita "faltou 6", quando na prática é **1 publicação lógica vs 1 publicação lógica = empate**.
 
-```text
-Busca por PARTE     => só valida em Parte(s) / destinatários / polos.
-Busca por ADVOGADO  => só valida em Advogado(s) / destinatarioadvogados / seção de advogados.
-```
+A solução é fazer dedup lógica **antes** de comparar, como o `dedupePublicacoesDjen` (`src/utils/djenDedup.ts`) já faz na UI.
 
-## O que será ajustado
+### O que muda em `useComparadorAnalise`
 
-### 1. Remover a confiança cega no filtro `nomeParte` da API
+1. **Nova chave lógica** (igual à dedup visual):
+   ```
+   K = coord | dedup_processo_digits | dedup_data_ref (YYYY-MM-DD) | dedup_conteudo_key (ou hash_conteudo)
+   ```
+   Calculada para Servidor e Browser. Quando `dedup_processo_digits` está vazio (publicações TST sem processo, ex.: id 652316388), cai para `coord | id_djen` para não colapsar coisas distintas.
 
-No DJEN Local e no DJEN Servidor, a API pode devolver uma publicação quando o nome aparece como advogado, mesmo numa busca `nomeParte`.
+2. **Cluster por lado**: agrupar todas as linhas (servidor e browser) por essa chave K. Cada cluster vira **1 publicação lógica**, e guardamos a lista de `id_djen` que pertence ao cluster.
 
-Então:
+3. **Comparação por cluster K**, não mais por `id_djen` solto:
+   - `em_ambos`: cluster existe nos dois lados (mesmo que os `id_djen` sejam diferentes).
+   - `so_servidor` / `so_browser`: cluster existe num lado só.
+   - `total_servidor` / `total_browser`: número de **clusters** (publicações lógicas), não de registros.
 
-- `__matchedByNomeParte` não pode mais aprovar sozinho.
-- Para `tipo=parte`, o motor só aceita se o nome estiver em:
-  - `destinatarios[]`
-  - `poloAtivo` / `poloPassivo`
-  - `partes_json`
-  - seção textual `Parte(s)`
-- Não aceitar nome encontrado no corpo geral da publicação.
-- Não aceitar nome encontrado na seção `Advogado(s)`.
+4. **Coluna nova `duplicadas_por_id_djen`**: para diagnóstico, exporto quantos `id_djen` cada cluster tem em cada lado. Assim você enxerga o caso "Servidor=7 ids / Browser=1 id" como **1 cluster em ambos** + nota "7×1 ids".
 
-### 2. Separar advogado de parte na extração visual
+5. **Detalhe `so_servidor` / `so_browser`** continua listando cada `id_djen` real (com `provavel_causa`), mas só para clusters genuinamente exclusivos.
 
-Para a publicação original do anexo:
+### Resultado esperado para 26/06
 
-- `BANCO SANTANDER` e `DIEGO BARBOSA DE LIMA` ficam em **Parte(s)**.
-- `OSMAR MENDES PAIXAO CORTES` e demais nomes da seção ficam em **Advogado(s)**.
+Aplicando a regra mentalmente ao CSV:
 
-Ou seja: ela pode ser válida para busca por **advogado OSMAR**, mas não para busca por **parte OSMAR**.
+| Coordenação | Hoje (por id_djen) | Pós-dedup (por cluster) |
+|---|---|---|
+| Dr. Thomás | 6 so_serv / 2 so_brow | provavelmente 4 so_serv / 2 so_brow (3 ids do TRT24/0026098 viram 1) |
+| Janaina Catunda | 6 so_serv / 0 | 4 so_serv / 0 (3 ids do TRT24 viram 1) |
+| Vanessa Gomes TST | 1 so_serv / 0 | 1 so_serv / 0 (sem processo, mantém) |
+| Santander Trabalhista | 8 so_serv / 0 | 2 so_serv / 0 (7 ids do TST/0010334 viram 1) |
 
-### 3. Aplicar nos dois motores
+Total de divergências cai de 23 para ~9, e o que sobrar é diferença **real** que vale investigar.
 
-Arquivos-alvo:
+### Implementação
 
-- `src/hooks/useDjenTermosParalelaEngine.ts` — DJEN Local/Browser.
-- `monitor-servidor/engines/paralela.js` — DJEN Servidor/VPS.
+- Arquivo único: `src/hooks/useDjenServidor.ts`, função `useComparadorAnalise` (linhas 463–700+).
+- Trocar `key(r)` (linha 644-649) por `clusterKey(r)` baseado em `dedup_*`.
+- Manter `id_djen` apenas na listagem de detalhes/duplicadas.
+- Atualizar o cabeçalho do CSV (`src/pages/DjenServidor.tsx`) para refletir "total = publicações lógicas (dedup)" e acrescentar coluna `ids_servidor`/`ids_browser` no cluster.
+- Sem mudança no engine, no banco, nem nas execuções.
 
-A lógica será a mesma nos dois para evitar nova divergência.
-
-### 4. Corrigir o registro já gravado errado
-
-Para o `id_djen=652018520` / processo `0821575-51.2025.8.20.5004`:
-
-- manter o registro válido capturado por **advogado**;
-- remover ou reclassificar como descartado o registro capturado por **parte OSMAR**, porque OSMAR aparece como advogado, não como parte.
-
-### 5. Não fazer fallback que misture conceitos
-
-Não vou criar fallback que use `Advogado(s)` para validar `tipo=parte`.
-Não vou usar texto geral para salvar publicação de parte.
-Não vou usar resultado da API como prova suficiente quando o tipo for `parte`.
-
-## Resultado esperado
-
-- Busca por parte só encontra publicações em que o nome está nas partes.
-- Busca por advogado só encontra publicações em que o nome está como advogado.
-- Essa publicação do TJRN deixa de entrar no monitoramento `PARTE OSMAR` e continua entrando no monitoramento de `ADVOGADO OSMAR`.
-- Browser e Servidor passam a obedecer a mesma regra objetiva.
-
-## Observação sobre desfazer versão anterior
-
-Se você quiser voltar exatamente para um ponto anterior do projeto, use o histórico do Lovable:
-
-<presentation-actions>
-  <presentation-open-history>View History</presentation-open-history>
-</presentation-actions>
+Confirma que sigo por aí?
