@@ -6734,7 +6734,22 @@ export type Database = {
           publicacao_id?: string
           tipo_engine?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "publicacoes_djen_execucoes_execucao_fk"
+            columns: ["execucao_id"]
+            isOneToOne: false
+            referencedRelation: "execucoes_agendadas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publicacoes_djen_execucoes_publicacao_fk"
+            columns: ["publicacao_id"]
+            isOneToOne: false
+            referencedRelation: "publicacoes_djen"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       publicacoes_djen_global_hash: {
         Row: {
