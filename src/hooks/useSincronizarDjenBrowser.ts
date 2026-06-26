@@ -134,8 +134,8 @@ function conteudoContemTermo(conteudo: string, termo: string, tipo: string, oab?
   return contemFraseExata(conteudoNorm, termoNorm);
 }
 
-// Gera hash global para deduplicação (igual ao backend)
-function generateGlobalHash(conteudo: string, dataDisponibilizacao: string): string {
+// Gera chave de conteúdo usada apenas dentro do escopo da coordenação.
+function generateScopedHash(conteudo: string, dataDisponibilizacao: string): string {
   const normalized = (conteudo || '')
     .replace(/<[^>]*>/g, ' ')
     .replace(/[^\w\s]/g, ' ')
@@ -373,7 +373,7 @@ async function inserirPublicacoes(
       const hashConteudo = generateContentHash(conteudo, dataDisponibilizacao);
       const idDjenRaw = pub.id ?? pub.id_djen ?? pub.codigoComunicacao ?? pub.numeroComunicacao ?? null;
       const idDjen = idDjenRaw == null ? null : String(idDjenRaw).trim() || null;
-      const globalHash = idDjen ? `id_djen:${idDjen}` : generateGlobalHash(conteudo, dataDisponibilizacao);
+      const scopedHash = idDjen ? `id_djen:${idDjen}` : generateScopedHash(conteudo, dataDisponibilizacao);
 
       // Escopo de dedup POR COORDENAÇÃO (cada coordenação recebe sua própria cópia).
       // Fallback para o monitoramento quando não houver coordenação vinculada.
@@ -384,7 +384,7 @@ async function inserirPublicacoes(
       const numeroProcesso = pub.numeroProcesso || pub.processo || pub.Processo || pub.numero_processo || null;
       let existingQuery: any = idDjen
         ? supabase.from('publicacoes_djen').select('id, processo_numero').eq('id_djen', idDjen)
-        : supabase.from('publicacoes_djen_global_hash').select('id, publicacao_id').eq('escopo_dedup', escopoDedup).eq('hash_global', globalHash);
+        : supabase.from('publicacoes_djen_global_hash').select('id, publicacao_id').eq('escopo_dedup', escopoDedup).eq('hash_global', scopedHash);
       existingQuery = idDjen
         ? (monitoramento.coordenacao_id ? existingQuery.eq('coordenacao_id', monitoramento.coordenacao_id) : existingQuery.is('coordenacao_id', null))
         : existingQuery;
@@ -424,12 +424,12 @@ async function inserirPublicacoes(
       if (!error && inserted) {
         novas++;
         
-        // Registrar hash global para evitar duplicatas futuras
+        // Registrar chave no escopo da coordenação para evitar duplicatas só dentro dela.
         try {
           await supabase
             .from('publicacoes_djen_global_hash')
             .insert({
-              hash_global: globalHash,
+              hash_global: scopedHash,
               primeiro_monitoramento_id: monitoramento.id,
               publicacao_id: inserted.id,
               escopo_dedup: escopoDedup,
