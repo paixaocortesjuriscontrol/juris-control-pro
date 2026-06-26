@@ -1432,38 +1432,11 @@ async function run({ sb, payload, log, job }) {
               if (!recovered) throw lastErr;
               pubs = recovered;
             }
-            // Failover por "VPS retornou vazio sem erro": espelha o browser,
-            // que repete a busca pela rota direta antes de considerar zero.
-            // No servidor não há rota direta — usamos outra VPS do pool e
-            // deduplicamos por id_djen. Só aplica a tipos principais (parte,
-            // advogado, palavra-chave); 'processo' fica fora porque API tem
-            // resposta determinística.
-            if (
-              !cancelled && !signal.aborted &&
-              MAIN_TIPOS.includes(item.tipo) &&
-              Array.isArray(pubs) && pubs.length === 0 &&
-              slots.length > 1
-            ) {
-              const outros = slots.filter((s) => s.id !== slot.id);
-              for (const alt of outros) {
-                if (cancelled || signal.aborted) break;
-                try {
-                  const altPubs = await buscarTermo(alt, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
-                  if (Array.isArray(altPubs) && altPubs.length > 0) {
-                    log("paralela.empty_cross_slot_rescue", {
-                      execucaoId: job?.id || null, monitoramentoId: mon.id, tribunal: item.tribunal, dia,
-                      slotZero: slot.label || slot.url, slotResgate: alt.label || alt.url, encontrados: altPubs.length,
-                    });
-                    pubs = altPubs;
-                    break;
-                  }
-                } catch (altErr) {
-                  const altMsg = String(altErr?.message || altErr || "");
-                  if (cancelled || signal.aborted) break;
-                  log("paralela.empty_cross_slot_fail", { slot: alt.label || alt.url, tribunal: item.tribunal, dia, e: altMsg.slice(0, 160) });
-                }
-              }
-            }
+            // (removido) empty_cross_slot_rescue: refazia a busca em todas as
+            // outras VPS sempre que vinha 0 — situação majoritária — e
+            // multiplicava por 5 o custo da execução. O retry interno de
+            // página vazia (delay 600ms) em buscarTermo já cobre a
+            // instabilidade real da API PJE Comunica.
             log("paralela.termo_result", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length });
             const stats = await persistPublicacoes(sb, pubs, { ...mon, tipo: item.tipo, __log: log }, item.tribunal, dia, job?.id || null);
             log("paralela.termo_persist", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length, ...stats });

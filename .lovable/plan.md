@@ -1,42 +1,45 @@
-# Igualar regras DJEN Servidor ↔ Browser
+# Acelerar DJEN Termos Servidor (travando hoje)
 
-Alinhar `monitor-servidor/engines/paralela.js` ao `src/hooks/useDjenTermosParalelaEngine.ts` em 4 pontos. Sem mexer no Browser.
+## Diagnóstico
 
-## 1. `palavra-chave`/`nome` — validar no texto completo (não só corpo)
+Execução atual (`dd8062bd…`) está há 16+ min com **227/2002 itens concluídos** (~14/min). Worker vivo (heartbeat 5s), nenhum erro — está só processando devagar. Causa identificada em `monitor-servidor/engines/paralela.js`:
 
-Trocar `getConteudoPuro(pub)` por `buildTextoCompleto(pub, conteudo)` nos 3 pontos do tipo `palavra-chave`/`nome` em `paralela.js`:
-- `contemTermo` (L714) — match do termo principal e dos `termos_or`.
-- `condicaoConcomitanteAtendida` (L733).
-- `shouldExclude` (L749).
+### Gargalo principal: "empty cross-slot rescue" (linhas 1441-1466)
 
-Mantém `parte` validando só na seção de partes e `advogado` já usa `buildTextoCompleto`. Resolve descartes em massa quando o termo aparece só em metadados estruturados (destinatários/advogados/partes).
+Quando uma busca **(tribunal × monitoramento × dia)** retorna 0 publicações sem erro HTTP (situação **normal e maioritária** — a maior parte das combinações tribunal/termo/dia não tem nada), o motor agora itera **todas as outras 5 VPS** e refaz a busca paginada inteira em cada uma para confirmar o zero.
 
-## 2. Remover suplemento OAB-descoberta do Servidor (paridade com Browser)
+Custo por item zero: até **5 buscas paginadas extras**, cada uma com:
+- `PAGE_DELAY_MS` = 800 ms entre páginas
+- `PARTE_OR_DELAY_MS` = 1800 ms entre variantes de parte
+- streaks de 2 páginas vazias antes de parar (mínimo ~3 req)
 
-Excluir de `paralela.js` a função `coletarOabsDoAdvogado` (L500-516) e qualquer referência. Como o Browser não tem essa lógica e não vamos adicionar lá agora, o Servidor também não deve ter — fica idêntico ao Browser.
+Resultado: o que era 1 chamada de ~1 s vira ~30-60 s por item zero. Como 6 slots competem por isso simultaneamente, o pool inteiro vive em "rescue" e quase não avança.
 
-## 3. Subir delay entre `termos_or` no advogado (Servidor)
+Isso foi adicionado para casos pontuais em que uma VPS específica devolvia listagem vazia indevidamente, mas o custo virou proibitivo agora que o pool tem 6 VPS.
 
-Em `paralela.js` L939, alterar `ADVOGADO_OR_DELAY_MS`/literal de **500 ms → 1800 ms**, igualando ao Browser (`CONFIG.delay_between_termos_or = 1800`). Evita rajadas de 429 em monitoramentos de advogado com muitos OR.
+## Mudanças propostas
 
-## 4. Retry de página vazia: 600 ms no Servidor
+**Arquivo:** `monitor-servidor/engines/paralela.js`
 
-Em `paralela.js` reduzir o sleep do retry único após resultado vazio de **1500 ms → 600 ms**:
-- `parte` (L875).
-- `advogado` (L891).
+1. **Remover** o bloco `empty_cross_slot_rescue` (linhas 1441-1466). O **5xx failover** (linhas 1408-1434) e o **retry de página vazia** dentro de `buscarTermo` (delay 600 ms e refaz) continuam intactos — eles cobrem a instabilidade real da API sem multiplicar custo.
 
-Igual ao Browser (L1432, L1472).
+2. **Manter** todos os outros comportamentos (paginação `continueUntilEmpty` por streak, validação `buildTextoCompleto`, OAB fallback, delays atuais, `PARTE_OR_DELAY_MS` 1800, `PAGE_DELAY_MS` 800, `TERM_DELAY_MS` 2500). Nenhuma regra de match muda.
 
-## Não mexer
+3. **Não** mexer no Browser, nas tabelas, nem nas demais engines.
 
-- Nomes de params HTTP (`palavraChave` vs `texto`, `oab/uf` vs `numeroOab/ufOab`) — cada cliente HTTP entende os seus.
-- Campo `tipo` no payload — PJE Comunica ignora.
-- `normalizeForApi` strip `/` no Servidor — só afeta termo enviado, não validação.
-- Cross-coord rescue do Servidor (`persistirResgatesOutraCoordenacao`) — alinhado com `mem/constraints/djen-servidor-isolated-from-browser`, lê só `publicacoes_djen_servidor`.
-- Browser — sem alterações.
+## Deploy
 
-## Pós-deploy
+Após o commit, na VPS Hostinger:
+```bash
+cd /opt/jc-monitor-servidor && git pull && pm2 restart jc-monitor-servidor
+```
 
-VPS: `git pull` + `pm2 restart jc-monitor-servidor`.
+## Resultado esperado
 
-Validar com Bruna/GOL e Thomás no Comparador: o Servidor deve passar a achar **igual ou mais** em `palavra-chave`/`nome`; advogado com muitos OR sem 429; tempos de retry menores.
+- Buscas legítimas com 0 resultados voltam a custar ~1 s em vez de ~30-60 s.
+- Throughput sobe de ~14 itens/min para a faixa habitual (~60-80 itens/min com 6 slots).
+- Execução em andamento pode ser cancelada e refeita após o restart, ou deixar terminar.
+
+## Risco
+
+Baixo. O cross-slot rescue era uma proteção contra uma VPS específica devolver vazio indevidamente — caso volte a acontecer pontualmente, o item entra na refila do dia seguinte (mecanismo `recordFalha` continua ativo) e o usuário pode reexecutar.
