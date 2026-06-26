@@ -280,6 +280,29 @@ export async function executarDjenTermosKurier(
       : `Carregando credenciais ativas… (modo fila — disponibilizadas do dia + confirmação automática)`;
   emit();
 
+  // Registra a execução no banco para a tela "Análise DJEN > Execuções do dia"
+  try {
+    const { data: insExec } = await (supabase as any)
+      .from("execucoes_agendadas")
+      .insert({
+        tipo: "djen_kurier",
+        status: "executando",
+        job_name: "DJEN Termos Kurier",
+        iniciado_em: new Date().toISOString(),
+        detalhes: {
+          runKey,
+          coordenacao_id: coordenacaoId ?? null,
+          modo_personalizado: modoPersonalizado,
+          drenar_backlog: drenarBacklog,
+        },
+      })
+      .select("id");
+    currentExecucaoId = insExec?.[0]?.id ?? null;
+  } catch (e) {
+    console.warn("[DJEN Kurier] falha registrar execução:", e);
+    currentExecucaoId = null;
+  }
+
   try {
     let credsQuery = (supabase as any)
       .from("kurier_credenciais")
@@ -361,6 +384,23 @@ export async function executarDjenTermosKurier(
     progress.status = "erro";
     progress.mensagem = `Erro: ${String(e?.message ?? e)}`;
   } finally {
+    // Finaliza execução no banco
+    if (currentExecucaoId) {
+      try {
+        await (supabase as any)
+          .from("execucoes_agendadas")
+          .update({
+            status: progress.status === "concluido" ? "concluido" : progress.status === "erro" ? "erro" : "cancelado",
+            finalizado_em: new Date().toISOString(),
+            registros_encontrados: progress.novas,
+            registros_processados: progress.recebidas,
+          })
+          .eq("id", currentExecucaoId);
+      } catch (e) {
+        console.warn("[DJEN Kurier] falha finalizar execução:", e);
+      }
+      currentExecucaoId = null;
+    }
     running = false;
     cancelRequested = false;
     emit();
