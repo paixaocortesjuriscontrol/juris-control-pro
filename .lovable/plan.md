@@ -1,34 +1,42 @@
-## Causa da lentidão
+# Igualar regras DJEN Servidor ↔ Browser
 
-Nas últimas mudanças adicionei retries "imediatos" para buscas vazias em três lugares diferentes do `src/hooks/useDjenTermosParalelaEngine.ts`, e eles se sobrepõem. Para CADA monitoramento × tribunal × termo OR, hoje rodamos:
+Alinhar `monitor-servidor/engines/paralela.js` ao `src/hooks/useDjenTermosParalelaEngine.ts` em 4 pontos. Sem mexer no Browser.
 
-**Advogado (por termo)**
-1. Busca por nome
-2. Se vazio: `sleep 1500ms` + refaz por nome (linhas 1486-1492)
-3. Se ainda vazio + OAB/UF: `sleep 800ms` + fallback OAB (1503-1521)
-4. **De novo** no final: se `resultados.length === 0` → `sleep 1500ms` + refaz `baseParams` (1555-1584) — redundante com o passo 2
+## 1. `palavra-chave`/`nome` — validar no texto completo (não só corpo)
 
-**Parte (por termo)**
-1. Busca por parte
-2. Se vazio: `sleep 1500ms` + refaz (1435-1444)
-3. Se ainda vazio e veio de VPS: `sleep 1500ms` + refaz no Direto (1445-1455)
+Trocar `getConteudoPuro(pub)` por `buildTextoCompleto(pub, conteudo)` nos 3 pontos do tipo `palavra-chave`/`nome` em `paralela.js`:
+- `contemTermo` (L714) — match do termo principal e dos `termos_or`.
+- `condicaoConcomitanteAtendida` (L733).
+- `shouldExclude` (L749).
 
-Multiplicando por ~30 tribunais e por monitoramentos com vários termos OR (caso típico do TST/TRTs do Dr. Thomás), isso adiciona minutos por execução só em sleeps de retry vazio — exatamente o que o usuário está sentindo agora.
+Mantém `parte` validando só na seção de partes e `advogado` já usa `buildTextoCompleto`. Resolve descartes em massa quando o termo aparece só em metadados estruturados (destinatários/advogados/partes).
 
-## Correção
+## 2. Remover suplemento OAB-descoberta do Servidor (paridade com Browser)
 
-Manter UMA única camada de retry por termo, igual ao Servidor:
+Excluir de `paralela.js` a função `coletarOabsDoAdvogado` (L500-516) e qualquer referência. Como o Browser não tem essa lógica e não vamos adicionar lá agora, o Servidor também não deve ter — fica idêntico ao Browser.
 
-### `src/hooks/useDjenTermosParalelaEngine.ts`
+## 3. Subir delay entre `termos_or` no advogado (Servidor)
 
-1. **Remover** o bloco de retry global no fim de `processarTermoEmTribunal` (linhas 1552-1584). Ele só fazia sentido antes do retry interno em `buscarAdvogado`; hoje é duplicado.
-2. **Reduzir** o delay do retry interno de advogado de 1500ms → 600ms (linha 1487).
-3. **Remover** o retry adicional VPS→Direto para `parte` quando a 1ª passada já fez retry no mesmo via (linhas 1445-1455). Mantemos só o retry simples da linha 1435-1444 (com delay reduzido de 1500ms → 600ms).
+Em `paralela.js` L939, alterar `ADVOGADO_OR_DELAY_MS`/literal de **500 ms → 1800 ms**, igualando ao Browser (`CONFIG.delay_between_termos_or = 1800`). Evita rajadas de 429 em monitoramentos de advogado com muitos OR.
 
-Sem isso, cada termo "vazio" custa hoje 3-4× mais tempo do que precisa. Com o ajuste, mantemos a robustez contra resposta vazia intermitente da API mas voltamos à velocidade anterior.
+## 4. Retry de página vazia: 600 ms no Servidor
 
-Não mexer em: dedup (regra coord+id_djen), validação de metadados, paginação `continueUntilEmpty`, ou no Servidor.
+Em `paralela.js` reduzir o sleep do retry único após resultado vazio de **1500 ms → 600 ms**:
+- `parte` (L875).
+- `advogado` (L891).
 
-## Validação
+Igual ao Browser (L1432, L1472).
 
-Você roda a Paralela novamente (mesma coordenação que está demorando) e compara o tempo total / "tempo decorrido" no card com a execução anterior. Esperado: cair para o patamar de antes.
+## Não mexer
+
+- Nomes de params HTTP (`palavraChave` vs `texto`, `oab/uf` vs `numeroOab/ufOab`) — cada cliente HTTP entende os seus.
+- Campo `tipo` no payload — PJE Comunica ignora.
+- `normalizeForApi` strip `/` no Servidor — só afeta termo enviado, não validação.
+- Cross-coord rescue do Servidor (`persistirResgatesOutraCoordenacao`) — alinhado com `mem/constraints/djen-servidor-isolated-from-browser`, lê só `publicacoes_djen_servidor`.
+- Browser — sem alterações.
+
+## Pós-deploy
+
+VPS: `git pull` + `pm2 restart jc-monitor-servidor`.
+
+Validar com Bruna/GOL e Thomás no Comparador: o Servidor deve passar a achar **igual ou mais** em `palavra-chave`/`nome`; advogado com muitos OR sem 429; tempos de retry menores.
