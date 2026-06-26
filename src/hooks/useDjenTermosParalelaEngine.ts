@@ -1433,23 +1433,12 @@ async function processarTermoEmTribunal(
           { __matchedByNomeParte: true, __nomeParteBusca: termoParte },
         );
         if (!signal.aborted && resp.items.length === 0) {
-          await abortableDelay(1500, signal);
+          await abortableDelay(600, signal);
           if (!signal.aborted) {
             console.warn(`[DJEN Paralela][${tribunal}] Parte "${termoParte}": 0 resultados na 1ª passada — refazendo busca.`);
             resp = await executarBusca(
               paramsParte,
               { __matchedByNomeParte: true, __nomeParteBusca: termoParte },
-            );
-          }
-        }
-        if (!signal.aborted && resp.items.length === 0 && viaId && viaId !== DIRECT_SLOT_ID) {
-          await abortableDelay(1500, signal);
-          if (!signal.aborted) {
-            console.warn(`[DJEN Paralela][${tribunal}] Parte "${termoParte}": VPS retornou vazio sem erro — validando obrigatoriamente no Direto.`);
-            resp = await executarBusca(
-              paramsParte,
-              { __matchedByNomeParte: true, __nomeParteBusca: termoParte },
-              DIRECT_SLOT_ID,
             );
           }
         }
@@ -1484,7 +1473,7 @@ async function processarTermoEmTribunal(
           // ao Servidor, para não perder um termo OR quando outro termo já
           // trouxe resultado e impediu o retry global no fim da função.
           if (!signal.aborted && (respPrincipal.items?.length || 0) === 0) {
-            await abortableDelay(1500, signal);
+            await abortableDelay(600, signal);
             if (!signal.aborted) {
               console.warn(`[DJEN Paralela][${tribunal}] Advogado "${nome}": 0 resultados na 1ª passada — refazendo busca por nome.`);
               respPrincipal = await executarBusca(paramsNome, matchMeta);
@@ -1547,40 +1536,6 @@ async function processarTermoEmTribunal(
   } catch (e: any) {
     if (e?.name === 'AbortError') throw e;
     ultimoErro = e?.message || 'Falha de busca';
-  }
-
-  // Retry automático: a API do PJE Comunica ocasionalmente devolve listagem
-  // vazia (sem 429/5xx) para um termo que tem publicações. Antes de desistir,
-  // refazemos uma única tentativa após pequeno delay.
-  if (tipo !== 'parte' && tipo !== 'processo' && !signal.aborted && resultados.length === 0) {
-    try {
-      await abortableDelay(1500, signal);
-      if (!signal.aborted) {
-        console.warn(`[DJEN Paralela][${tribunal}] ${mon.termo_busca}: 0 resultados na 1ª passada — refazendo busca.`);
-        const respRetry = await buscarPjeComunicaPaginado({ ...baseParams, page: 1 }, {
-          signal,
-          maxPages: null,
-          continueUntilEmpty: true,
-          delayMs: CONFIG.delay_between_pages,
-          maxRetries: CONFIG.max_retries,
-          retryBaseDelay: CONFIG.retry_base_delay,
-          onRateLimit: (waitMs, attempt, page) => {
-            rateLimitHits++;
-            ultimoErro = `HTTP 429 pág. ${page} (tentativa ${attempt})`;
-          },
-          onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via, monIdTrack),
-          forceVia: viaId,
-          fallbackToDirect: viaId === DIRECT_SLOT_ID,
-          fallbackToPool: viaId !== DIRECT_SLOT_ID,
-        });
-        addResults(respRetry.items);
-        if (respRetry.items.length > 0) {
-          console.log(`[DJEN Paralela][${tribunal}] ${mon.termo_busca}: retry recuperou ${respRetry.items.length} item(ns).`);
-        }
-      }
-    } catch (e: any) {
-      if (e?.name === 'AbortError') throw e;
-    }
   }
 
   if (signal.aborted) {
