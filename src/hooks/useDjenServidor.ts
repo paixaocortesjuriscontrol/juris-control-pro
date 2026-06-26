@@ -435,6 +435,9 @@ export interface ComparadorAnaliseRelatorio {
     termo_busca: string | null;
     capturado_em: string | null;
     execucao_id_servidor: string | null;
+    execucao_servidor_status: string | null;
+    execucao_servidor_agendada_para: string | null;
+    execucao_servidor_finalizada_em: string | null;
     provavel_causa: string | null;
   }>;
   detalhesDuplicadas: Array<{
@@ -470,7 +473,7 @@ export function useComparadorAnalise() {
       origem?: "todos" | "termos" | "pautas" | "kurier";
     }): Promise<ComparadorAnaliseRelatorio> => {
       const baseCols =
-        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, data_publicacao, tipo_publicacao, created_at";
+        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, data_publicacao, tipo_publicacao, created_at, execucao_id";
       const inicioDispoTs = `${opts.dataInicio}T00:00:00Z`;
       const fimDispoTs = `${opts.dataFim}T23:59:59Z`;
       const origem = opts.origem || "todos";
@@ -584,38 +587,92 @@ export function useComparadorAnalise() {
         for (const t of expandirTribs(m.tribunais)) set.add(t);
       }
 
-      // Execuções servidor da janela (para causa "sem_execucao" / "antes_da_execucao")
+      const addDaysYmd = (ymd: string, days: number) => {
+        const d = new Date(`${ymd}T12:00:00Z`);
+        if (Number.isNaN(d.getTime())) return ymd;
+        d.setUTCDate(d.getUTCDate() + days);
+        return d.toISOString().slice(0, 10);
+      };
+      const ymdBrt = (iso?: string | null) => {
+        if (!iso) return "";
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
+        return new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/Sao_Paulo",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(d);
+      };
+      const expandDiasYmd = (di: string, df?: string) => {
+        const dias: string[] = [];
+        const start = new Date(`${di}T12:00:00Z`);
+        const end = new Date(`${df || di}T12:00:00Z`);
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return di ? [di] : [];
+        for (const cur = new Date(start); cur <= end; cur.setUTCDate(cur.getUTCDate() + 1)) {
+          dias.push(cur.toISOString().slice(0, 10));
+        }
+        return dias;
+      };
+
+      // Execuções servidor da janela em BRT. Importante: execuções agendadas
+      // saem com payload vazio; nesses casos a data pesquisada é o dia BRT do
+      // agendamento, não dataInicio/dataFim dentro do payload.
       let execQ = supabase
         .from("execucoes_servidor")
         .select("id, payload, finalizado_em, status, agendado_para")
         .eq("tipo", "djen_paralela_servidor")
-        .gte("agendado_para", `${opts.dataInicio}T00:00:00Z`)
-        .lte("agendado_para", `${opts.dataFim}T23:59:59Z`)
-        .in("status", ["concluido", "executando"])
+        .gte("agendado_para", `${addDaysYmd(opts.dataInicio, -1)}T00:00:00Z`)
+        .lte("agendado_para", `${addDaysYmd(opts.dataFim, 2)}T23:59:59Z`)
+        .in("status", ["concluido", "executando", "erro", "cancelado"])
         .limit(2000);
       const execRes = await execQ;
-      const ultimaExecPorCoordDia = new Map<string, string>(); // key coord|diaYmd -> finalizado_em ISO
-      for (const e of (execRes.data || []) as Array<{ payload: any; finalizado_em: string | null }>) {
+      type ExecInfo = {
+        id: string | null;
+        status: string | null;
+        agendado_para: string | null;
+        finalizado_em: string | null;
+        concluida: boolean;
+        executando: boolean;
+        statuses: Set<string>;
+      };
+      const execPorCoordDia = new Map<string, ExecInfo>(); // key coord|diaYmd; coord="*" = execução para todas
+      const registrarExec = (cid: string | null, dia: string, e: { id: string; status: string | null; agendado_para: string | null; finalizado_em: string | null }) => {
+        const keyExec = `${cid || "*"}|${dia}`;
+        const prev = execPorCoordDia.get(keyExec);
+        const status = e.status || null;
+        const concluida = status === "concluido";
+        const executando = status === "executando";
+        const shouldReplace = !prev
+          || (concluida && !prev.concluida)
+          || (concluida === prev.concluida && String(e.finalizado_em || e.agendado_para || "") > String(prev.finalizado_em || prev.agendado_para || ""));
+        const next: ExecInfo = shouldReplace
+          ? {
+              id: e.id || null,
+              status,
+              agendado_para: e.agendado_para || null,
+              finalizado_em: e.finalizado_em || null,
+              concluida,
+              executando,
+              statuses: new Set(prev?.statuses || []),
+            }
+          : { ...prev!, statuses: new Set(prev?.statuses || []) };
+        if (status) next.statuses.add(status);
+        next.executando = next.executando || executando;
+        next.concluida = next.concluida || concluida;
+        execPorCoordDia.set(keyExec, next);
+      };
+      for (const e of (execRes.data || []) as Array<{ id: string; payload: any; finalizado_em: string | null; status: string | null; agendado_para: string | null }>) {
         const p = e.payload || {};
         const cid = p.coordenacaoId || null;
-        const di = String(p.dataInicio || p.diarioYmd || "").slice(0, 10);
+        const fallbackDia = ymdBrt(e.agendado_para || e.finalizado_em);
+        const di = String(p.dataInicio || p.diarioYmd || fallbackDia || "").slice(0, 10);
         const df = String(p.dataFim || p.diarioYmd || di).slice(0, 10);
-        if (!cid || !di) continue;
-        const dias: string[] = [];
-        const start = new Date(`${di}T12:00:00Z`);
-        const end = new Date(`${df || di}T12:00:00Z`);
-        if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && end >= start) {
-          for (const cur = new Date(start); cur <= end; cur.setUTCDate(cur.getUTCDate() + 1)) {
-            dias.push(cur.toISOString().slice(0, 10));
-          }
-        }
-        for (const dia of dias) {
-          const key = `${cid}|${dia}`;
-          const prev = ultimaExecPorCoordDia.get(key);
-          const fim = e.finalizado_em || "";
-          if (!prev || (fim && fim > prev)) ultimaExecPorCoordDia.set(key, fim);
-        }
+        if (!di) continue;
+        for (const dia of expandDiasYmd(di, df)) registrarExec(cid, dia, e);
       }
+      const getExecInfo = (cid: string, dia: string): ExecInfo | null =>
+        execPorCoordDia.get(`${cid}|${dia}`) || execPorCoordDia.get(`*|${dia}`) || null;
 
       // Regra obrigatória: coordenações são independentes. A mesma publicação
       // pode (e deve) existir em mais de uma coordenação. Portanto o comparador
@@ -630,6 +687,7 @@ export function useComparadorAnalise() {
         dedup_processo_digits?: string | null;
         dedup_data_ref?: string | null;
         hash_conteudo: string;
+        execucao_id?: string | null;
         processo_numero?: string | null;
         tribunal?: string | null;
         data_publicacao?: string | null;
@@ -670,17 +728,26 @@ export function useComparadorAnalise() {
           return "faltou_no_browser";
         }
         // so_browser:
-        const dia = String(r.data_disponibilizacao || "").slice(0, 10);
+        const dia = String(r.dedup_data_ref || ymdBrt(r.data_disponibilizacao) || r.data_disponibilizacao || "").slice(0, 10);
         const tribunaisCoord = tribunaisPorCoord.get(cid);
         const trib = (r.tribunal || "").toUpperCase();
         if (tribunaisCoord && tribunaisCoord.size > 0 && trib && !tribunaisCoord.has(trib)) {
           return "tribunal_fora_do_monitoramento_servidor";
         }
-        const ultima = ultimaExecPorCoordDia.get(`${cid}|${dia}`);
-        if (!ultima) return "sem_execucao_servidor_para_esta_data";
+        const execInfo = getExecInfo(cid, dia);
+        if (!execInfo) return "sem_execucao_servidor_para_esta_data";
+        if (!execInfo.concluida && execInfo.executando) return "execucao_servidor_ainda_em_andamento";
+        if (!execInfo.concluida) return `execucao_servidor_sem_conclusao:${Array.from(execInfo.statuses).join("|") || "desconhecido"}`;
+        const ultima = execInfo.finalizado_em || "";
         const cap = r.created_at || "";
         if (cap && cap > ultima) return "browser_capturou_depois_da_ultima_execucao_servidor";
         return "possivel_proxy_vazio_ou_api_instavel";
+      };
+
+      const execInfoForRow = (r: Row) => {
+        const cid = r.coordenacao_id || "sem_coord";
+        const dia = String(r.dedup_data_ref || ymdBrt(r.data_disponibilizacao) || r.data_disponibilizacao || "").slice(0, 10);
+        return getExecInfo(cid, dia);
       };
 
       const groupRowsByKey = (rows: Row[]) => {
@@ -924,7 +991,10 @@ export function useComparadorAnalise() {
           monitoramento_id: r.monitoramento_id || null,
           termo_busca: (r.monitoramento_id && monitTermo.get(r.monitoramento_id)) || null,
           capturado_em: r.created_at || null,
-          execucao_id_servidor: null,
+          execucao_id_servidor: r.execucao_id || null,
+          execucao_servidor_status: null,
+          execucao_servidor_agendada_para: null,
+          execucao_servidor_finalizada_em: null,
           provavel_causa: provavelCausa("so_servidor", r),
         });
       }
@@ -932,6 +1002,7 @@ export function useComparadorAnalise() {
         if (sByKey.has(k)) continue;
         const meta = keyToBucket.get(k);
         const cid = meta?.coordenacaoId || (r.coordenacao_id || "sem_coord");
+        const execInfo = execInfoForRow(r);
         detalhes.push({
           coordenacaoId: cid,
           coordenacaoNome: coordNome.get(cid) || "Sem coordenação",
@@ -945,7 +1016,10 @@ export function useComparadorAnalise() {
           monitoramento_id: r.monitoramento_id || null,
           termo_busca: (r.monitoramento_id && monitTermo.get(r.monitoramento_id)) || null,
           capturado_em: r.created_at || null,
-          execucao_id_servidor: null,
+          execucao_id_servidor: execInfo?.id || null,
+          execucao_servidor_status: execInfo?.status || null,
+          execucao_servidor_agendada_para: execInfo?.agendado_para || null,
+          execucao_servidor_finalizada_em: execInfo?.finalizado_em || null,
           provavel_causa: provavelCausa("so_browser", r),
         });
       }

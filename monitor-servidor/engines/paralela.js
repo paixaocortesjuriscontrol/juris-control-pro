@@ -1493,17 +1493,6 @@ async function run({ sb, payload, log, job }) {
             }
             log("paralela.termo_result", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length });
             const stats = await persistPublicacoes(sb, pubs, { ...mon, tipo: item.tipo, __log: log }, item.tribunal, dia, job?.id || null);
-            if (item.tipo !== "processo") {
-              const rescueStats = await persistirResgatesOutraCoordenacao(sb, { ...mon, tipo: item.tipo }, item.tribunal, dia, job?.id || null, log).catch((e) => {
-                log("paralela.resgate_outra_coord_falhou", { monitoramentoId: mon.id, tipo: item.tipo, tribunal: item.tribunal, dia, e: String(e?.message || e).slice(0, 300) });
-                return null;
-              });
-              if (rescueStats) {
-                stats.novas += rescueStats.novas;
-                stats.descartadas += rescueStats.descartadas;
-                stats.duplicatas += rescueStats.duplicatas;
-              }
-            }
             log("paralela.termo_persist", { execucaoId: job?.id || null, monitoramentoId: mon.id, coordenacaoId: mon.coordenacao_id || null, tipo: item.tipo, tribunal: item.tribunal, dia, encontrados: pubs.length, ...stats });
             item.novas += stats.novas;
             item.descartadas += stats.descartadas;

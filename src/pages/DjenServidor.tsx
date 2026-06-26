@@ -608,7 +608,7 @@ function ComparadorPanel() {
       .join("\n");
     const totais = `\n\n# Totais\nfonte,total\nDJEN_servidor,${data.porFonte.totais.djenServidor}\nDJEN_browser,${data.porFonte.totais.djenBrowser}\nDJEN_unico,${data.porFonte.totais.djenUnico}\nKurier,${data.porFonte.totais.kurier}\nPautas_TST,${data.porFonte.totais.pautas}\n`;
     const header3 = "\n\n# Publicações exclusivas por origem (detalhamento auditável)\n";
-    const cols3 = "coordenacao,origem,provavel_causa,tipo_pesquisa,termo_busca,monitoramento_id,tribunal,processo,data_publicacao,data_disponibilizacao,id_djen,capturado_em\n";
+    const cols3 = "coordenacao,origem,provavel_causa,tipo_pesquisa,termo_busca,monitoramento_id,tribunal,processo,data_publicacao,data_disponibilizacao,id_djen,capturado_em,execucao_id_servidor,execucao_servidor_status,execucao_servidor_agendada_para,execucao_servidor_finalizada_em\n";
     const body3 = (data.detalhes || [])
       .map((d) => [
         JSON.stringify(d.coordenacaoNome),
@@ -623,6 +623,10 @@ function ComparadorPanel() {
         JSON.stringify(d.data_disponibilizacao || ""),
         JSON.stringify(d.id_djen || ""),
         JSON.stringify(d.capturado_em || ""),
+        JSON.stringify(d.execucao_id_servidor || ""),
+        JSON.stringify(d.execucao_servidor_status || ""),
+        JSON.stringify(d.execucao_servidor_agendada_para || ""),
+        JSON.stringify(d.execucao_servidor_finalizada_em || ""),
       ].join(","))
       .join("\n");
     const header4 = "\n\n# Publicações duplicadas por origem (mesma chave de comparação antes de comparar)\n";
