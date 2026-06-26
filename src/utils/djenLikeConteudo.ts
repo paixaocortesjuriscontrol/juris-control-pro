@@ -476,6 +476,11 @@ export function buildDjenLikeConteudo(params: {
     sections.push('Parte(s):\n' + partesEscolhidas.join('\n'));
   }
 
+  const advogadosMeta = extractAdvogadosFromApiMeta(pub);
+  if (advogadosMeta.length > 0 && !/\bAdvogados?\s*(?:\(\s*s\s*\))?\s*:?/i.test(original)) {
+    sections.push('Advogado(s):\n' + advogadosMeta.join('\n'));
+  }
+
   const blocks = [
     headerLines.filter(Boolean).join('\n'),
     sections.filter(Boolean).join('\n\n'),
