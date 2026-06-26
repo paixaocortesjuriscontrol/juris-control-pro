@@ -161,6 +161,9 @@ const AnaliseDjen = () => {
   const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>('hoje');
   const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>('nao_lidas');
   const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
+  // Execução do dia selecionada no card "Execuções do dia" (DJEN Local).
+  // Quando setada, filtra a listagem por novasIds (as publicações vistas pela 1ª vez nesta execução).
+  const [execucaoFocada, setExecucaoFocada] = useState<import("@/hooks/useExecucoesDoDiaLocal").ExecucaoLocalDoDia | null>(null);
   // Toggle para ocultar visualmente publicações duplicadas (mesmo processo +
   // mesmo conteúdo dentro da mesma coordenação). Não altera o banco; apenas
   // filtra a lista renderizada. Preferência persistida em localStorage.
@@ -3578,11 +3581,15 @@ const AnaliseDjen = () => {
         return re.test(t);
       });
     }
+    if (execucaoFocada && execucaoFocada.novasIds.length > 0) {
+      const novasSet = new Set(execucaoFocada.novasIds);
+      result = result.filter(pub => novasSet.has(pub.id));
+    }
     if (ocultarDuplicadas) {
       result = dedupePublicacoesDjen(result);
     }
     return result;
-  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas, tipoOrigem]);
+  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas, tipoOrigem, execucaoFocada]);
 
   // Quantas publicações foram ocultadas pela deduplicação (para o badge).
   const totalDuplicadasOcultas = useMemo(() => {
