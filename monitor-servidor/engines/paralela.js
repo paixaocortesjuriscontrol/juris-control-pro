@@ -663,39 +663,17 @@ function contemTermo(conteudo, mon, pub) {
       if (validarParteMetadados(pub, String(t))) return true;
       if (validarParteSecaoPartes(pub, String(t))) return true;
     }
-    // Fallback restrito: confiar no filtro `nomeParte` da API SOMENTE quando o
-    // payload não traz nenhum dado estruturado de parte nem seção "Parte(s)"
-    // (caso típico do TST). Caso contrário o filtro do PJe gera falsos
-    // positivos (também bate em advogados/órgãos).
-    if (pub?.__matchedByNomeParte) {
-      const temDestinatarios = Array.isArray(pub?.destinatarios) && pub.destinatarios.length > 0;
-      const temPoloAtivo = !!(pub?.poloAtivo || pub?.polo_ativo);
-      const temPoloPassivo = !!(pub?.poloPassivo || pub?.polo_passivo);
-      const temPartes = Array.isArray(pub?.partes) && pub.partes.length > 0;
-      const textoCompleto = String(pub?.texto || pub?.conteudo || pub?.teor || "");
-      const temSecaoPartes = /\bParte\s*\(\s*s\s*\)\s*:?/i.test(textoCompleto);
-      if (!temDestinatarios && !temPoloAtivo && !temPoloPassivo && !temPartes && !temSecaoPartes) {
-        return true;
-      }
-    }
+    // Nunca confiar apenas no filtro `nomeParte` da API: parte valida só parte.
     return false;
   }
   if (tipo === "advogado") {
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
-    const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
-    const nomeNorm = normalize(mon.termo_busca);
-    if (nomeNorm && contemFrase(textoNorm, nomeNorm)) return true;
-    if (pub?.__advogadoOabFallback) {
-      const oabDigits = String(mon.oab || "").replace(/\D/g, "");
-      if (oabDigits.length >= 3 && textoNorm.includes(oabDigits)) return true;
-    }
+    if (validarAdvogadoSecaoAdvogados(pub, mon.oab, mon.termo_busca)) return true;
     for (const t of mon.termos_or || []) {
       const p = parsearTermoOr(t);
       if (!p) continue;
       if (validarAdvogadoMetadados(pub, p.oabDigits, p.nome)) return true;
-      const nn = normalize(p.nome);
-      if (nn && contemFrase(textoNorm, nn)) return true;
-      if (pub?.__advogadoOabFallback && p.oabDigits && p.oabDigits.length >= 3 && textoNorm.includes(p.oabDigits)) return true;
+      if (validarAdvogadoSecaoAdvogados(pub, p.oabDigits, p.nome)) return true;
     }
     return false;
   }
