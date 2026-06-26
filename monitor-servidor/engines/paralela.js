@@ -581,12 +581,26 @@ function contemTermo(conteudo, mon, pub) {
   // - 'processo'      → casa por número de processo (somente dígitos).
   const tipo = mapTipo(mon.tipo);
   if (tipo === "parte") {
-    if (pub?.__matchedByNomeParte) return true;
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
     if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
     for (const t of mon.termos_or || []) {
       if (validarParteMetadados(pub, String(t))) return true;
       if (validarParteSecaoPartes(pub, String(t))) return true;
+    }
+    // Fallback restrito: confiar no filtro `nomeParte` da API SOMENTE quando o
+    // payload não traz nenhum dado estruturado de parte nem seção "Parte(s)"
+    // (caso típico do TST). Caso contrário o filtro do PJe gera falsos
+    // positivos (também bate em advogados/órgãos).
+    if (pub?.__matchedByNomeParte) {
+      const temDestinatarios = Array.isArray(pub?.destinatarios) && pub.destinatarios.length > 0;
+      const temPoloAtivo = !!(pub?.poloAtivo || pub?.polo_ativo);
+      const temPoloPassivo = !!(pub?.poloPassivo || pub?.polo_passivo);
+      const temPartes = Array.isArray(pub?.partes) && pub.partes.length > 0;
+      const textoCompleto = String(pub?.texto || pub?.conteudo || pub?.teor || "");
+      const temSecaoPartes = /\bParte\s*\(\s*s\s*\)\s*:?/i.test(textoCompleto);
+      if (!temDestinatarios && !temPoloAtivo && !temPoloPassivo && !temPartes && !temSecaoPartes) {
+        return true;
+      }
     }
     return false;
   }
