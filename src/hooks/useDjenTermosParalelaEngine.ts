@@ -517,31 +517,6 @@ function extrairDataDisponibilizacaoYmd(item: any): string | null {
   return null;
 }
 
-function normalizarHeadDedup(conteudo: string): string {
-  const semDestinatarios = conteudo.replace(/Destinat[aá]rio\(s\)\s*:[\s\S]*$/i, '');
-  return semDestinatarios
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase()
-    .slice(0, 300);
-}
-
-function montarChaveEncontrada(params: {
-  coordenacaoId?: string | null;
-  processoNumero?: string | null;
-  dataRefYmd: string;
-  conteudo?: string | null;
-  dedupProcessoDigits?: string | null;
-  dedupHeadNorm?: string | null;
-}): string {
-  const coord = params.coordenacaoId ?? 'sem_coord';
-  const proc = params.dedupProcessoDigits ?? String(params.processoNumero ?? '').replace(/\D/g, '');
-  const head = params.dedupHeadNorm ?? normalizarHeadDedup(String(params.conteudo ?? ''));
-  return `${coord}|${proc}|${params.dataRefYmd}|${head}`;
-}
-
 function gerarHash(conteudo: string, data: string, processoNumero?: string): string {
   const proc = (processoNumero || '').replace(/[^0-9]/g, '');
   const key = `${data}|${proc}|${conteudo}`.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 800);
@@ -1680,12 +1655,15 @@ async function consolidarResultadosTermo(
   });
 
   const hashMap = new Map<string, any>();
+  let semIdSeq = 0;
   for (const pub of pubsValidas) {
     const conteudo = pub.texto || pub.conteudo || pub.teor || '';
     const dataDisp = extrairDataDisponibilizacaoYmd(pub) || diaYmd;
     const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo_numero || pub.processo || '';
     const idDjen = extrairIdDjen(pub);
-    const uniqueKey = idDjen ? `id_djen:${idDjen}` : `hash:${gerarHash(conteudo, dataDisp, procNum)}`;
+    // Deduplicação em memória também segue a regra oficial:
+    // só colapsa quando o próprio id_djen é igual. Sem id_djen, preserva linha.
+    const uniqueKey = idDjen ? `id_djen:${idDjen}` : `sem-id:${semIdSeq++}`;
     const hash = gerarHashPublicacao(conteudo, dataDisp, procNum, idDjen);
     if (!hashMap.has(uniqueKey)) hashMap.set(uniqueKey, { ...pub, id_djen: idDjen, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
   }
@@ -1762,7 +1740,6 @@ async function consolidarResultadosTermo(
       }
       // A busca SEMPRE já foi feita. Duplicidade DJEN é somente
       // coordenacao_id + id_djen; hash/conteúdo não bloqueiam comunicação real.
-      const hashesPayload = payload.map((p: any) => p.hash_conteudo).filter(Boolean);
       let inseridosCount = 0;
       for (const lote of chunkArray(payload, 10)) {
         // Sem .select('id'): evita statement timeout com trigger pesado por linha.
@@ -1822,12 +1799,15 @@ async function consolidarResultadosTermo(
       let efetivamenteEncontradas = inseridosCount;
       const idsPayload = (payload as any[]).map((p) => p.id_djen).filter(Boolean);
       if (idsPayload.length > 0) {
-        const { count: encCount } = await supabase
+        let encQuery = supabase
           .from('publicacoes_djen')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'encontrada')
-          .in('id_djen', idsPayload)
-          .eq('coordenacao_id', mon.coordenacao_id ?? null);
+          .in('id_djen', idsPayload);
+        encQuery = mon.coordenacao_id
+          ? encQuery.eq('coordenacao_id', mon.coordenacao_id)
+          : encQuery.is('coordenacao_id', null);
+        const { count: encCount } = await encQuery;
         if (typeof encCount === 'number') efetivamenteEncontradas = encCount;
       }
       novasInseridasEfetivas = efetivamenteEncontradas;

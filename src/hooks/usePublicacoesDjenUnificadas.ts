@@ -214,9 +214,8 @@ export interface FiltrosUnificados {
   /** Filtro por tribunal (sigla, ex.: 'TRT2', 'TST'). Aplicado no servidor. */
   tribunal?: string;
   /**
-   * Quando true, a RPC aplica DISTINCT ON por (coordenacao, dedup_uid) e
-   * devolve só uma publicação por grupo de conteúdo. Default false: mostra
-   * TODAS as publicações (inclusive duplicadas) e o front decide se filtra.
+   * Quando true, a deduplicação usa somente coordenacao_id + id_djen.
+   * Conteúdo/processo/data não são critério de deduplicação DJEN.
    */
   dedupServidor?: boolean;
 }

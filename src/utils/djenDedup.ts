@@ -1,5 +1,14 @@
 import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 
+// Mantido apenas para os fluxos explícitos de exportação "Resumo sem repetição".
+// A deduplicação oficial do DJEN abaixo NÃO usa conteúdo, processo, data nem
+// destinatário: usa somente coordenacao_id + id_djen.
+export const stripDestinatarios = (text: string): string => {
+  const re = /(Destinat[aá]rio|Intimad[ao]|Advogad[ao]|Parte|Reclamante|Reclamad[ao]|Autor|R[eé]u|Requerente|Requerid[ao])\s*\(s\)?\s*:/i;
+  const idx = text.search(re);
+  return idx > 0 ? text.slice(0, idx) : text;
+};
+
 /**
  * Gera uma chave de deduplicação para uma publicação.
  * REGRA DJEN: deduplicação visual usa SOMENTE coordenacao_id + id_djen.

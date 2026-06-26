@@ -405,7 +405,8 @@ async function processPublicationFromIndex(
     return;
   }
 
-  // Deduplicação por hash_conteudo + coordenacao_id (permite mesma pub em coordenações diferentes)
+  // Regra DJEN: não deduplicar por conteúdo/hash. A chave oficial é somente
+  // coordenacao_id + id_djen; conteúdo/processo/data não colapsam publicações.
 
   const processoNumero = extractProcessoNumero(conteudo, pub.processo_numero || pub.numeroProcesso || pub.processo);
 
