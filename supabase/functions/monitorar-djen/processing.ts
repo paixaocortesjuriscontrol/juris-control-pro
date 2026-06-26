@@ -92,7 +92,9 @@ export async function processPublicationFromIndex(
     return;
   }
 
-  // Deduplicação por hash_conteudo + coordenacao_id (permite mesma pub em coordenações diferentes)
+  // Regra DJEN: não deduplicar por conteúdo/hash. Quando houver id_djen,
+  // a chave oficial é coordenação + id_djen; este fluxo indexado legado não
+  // recebe id_djen confiável, então cada captura válida é preservada.
 
   const processoNumero = extractProcessoNumero(conteudo, pub.processo_numero || pub.numeroProcesso || pub.processo);
 
@@ -207,19 +209,6 @@ export async function processPublicationFromIndex(
   }
 
   const coordenacaoId = (monitoramento as any).coordenacao_id ?? null;
-  const existingQuery = supabase
-    .from('publicacoes_djen')
-    .select('id')
-    .eq('hash_conteudo', hashConteudo);
-  const { data: existing } = coordenacaoId
-    ? await existingQuery.eq('coordenacao_id', coordenacaoId).maybeSingle()
-    : await existingQuery.eq('monitoramento_id', monitoramento.id).maybeSingle();
-
-  if (existing) {
-    stats.duplicatas++;
-    tribunalStat.duplicatas++;
-    return;
-  }
 
   const { data: publicacao, error: insertError } = await supabase.from('publicacoes_djen').insert({
     monitoramento_id: monitoramento.id,

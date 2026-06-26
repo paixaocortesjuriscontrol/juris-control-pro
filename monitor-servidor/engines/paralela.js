@@ -974,7 +974,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     const processoNumero = extractProcesso(pub, conteudo);
     const hashConteudo = generatePublicacaoHash(conteudo, dataDisponibilizacao, processoNumero, idDjen);
     const coordenacaoId = mon.coordenacao_id || null;
-    const runKey = idDjen ? `id_djen:${idDjen}` : `hash:${hashConteudo}`;
+    const runKey = idDjen ? `id_djen:${idDjen}` : `row:${Math.random().toString(36).slice(2)}:${hashConteudo}`;
     if (seenRunKeys.has(runKey)) {
       stats.duplicatas++;
       logDebug?.("paralela.dedup_runtime", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo });
@@ -1060,7 +1060,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
         let conflictQuery = sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo, tribunal, data_disponibilizacao");
         conflictQuery = idDjen && coordenacaoId
           ? conflictQuery.eq("coordenacao_id", coordenacaoId).eq("id_djen", idDjen)
-          : conflictQuery.eq("monitoramento_id", mon.id).eq("hash_conteudo", hashConteudo);
+          : conflictQuery.eq("id", "00000000-0000-0000-0000-000000000000");
         const { data: conflictRows } = await conflictQuery.limit(5);
         if (conflictRows && conflictRows.length > 0) {
           stats.duplicatas++;

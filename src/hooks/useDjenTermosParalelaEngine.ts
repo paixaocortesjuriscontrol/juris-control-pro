@@ -517,31 +517,6 @@ function extrairDataDisponibilizacaoYmd(item: any): string | null {
   return null;
 }
 
-function normalizarHeadDedup(conteudo: string): string {
-  const semDestinatarios = conteudo.replace(/Destinat[aá]rio\(s\)\s*:[\s\S]*$/i, '');
-  return semDestinatarios
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/[^\w\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase()
-    .slice(0, 300);
-}
-
-function montarChaveEncontrada(params: {
-  coordenacaoId?: string | null;
-  processoNumero?: string | null;
-  dataRefYmd: string;
-  conteudo?: string | null;
-  dedupProcessoDigits?: string | null;
-  dedupHeadNorm?: string | null;
-}): string {
-  const coord = params.coordenacaoId ?? 'sem_coord';
-  const proc = params.dedupProcessoDigits ?? String(params.processoNumero ?? '').replace(/\D/g, '');
-  const head = params.dedupHeadNorm ?? normalizarHeadDedup(String(params.conteudo ?? ''));
-  return `${coord}|${proc}|${params.dataRefYmd}|${head}`;
-}
-
 function gerarHash(conteudo: string, data: string, processoNumero?: string): string {
   const proc = (processoNumero || '').replace(/[^0-9]/g, '');
   const key = `${data}|${proc}|${conteudo}`.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 800);
@@ -1680,12 +1655,15 @@ async function consolidarResultadosTermo(
   });
 
   const hashMap = new Map<string, any>();
+  let semIdSeq = 0;
   for (const pub of pubsValidas) {
     const conteudo = pub.texto || pub.conteudo || pub.teor || '';
     const dataDisp = extrairDataDisponibilizacaoYmd(pub) || diaYmd;
     const procNum = pub.numeroProcesso || pub.numero_processo || pub.processo_numero || pub.processo || '';
     const idDjen = extrairIdDjen(pub);
-    const uniqueKey = idDjen ? `id_djen:${idDjen}` : `hash:${gerarHash(conteudo, dataDisp, procNum)}`;
+    // Deduplicação em memória também segue a regra oficial:
+    // só colapsa quando o próprio id_djen é igual. Sem id_djen, preserva linha.
+    const uniqueKey = idDjen ? `id_djen:${idDjen}` : `sem-id:${semIdSeq++}`;
     const hash = gerarHashPublicacao(conteudo, dataDisp, procNum, idDjen);
     if (!hashMap.has(uniqueKey)) hashMap.set(uniqueKey, { ...pub, id_djen: idDjen, hash_conteudo: hash, data_disponibilizacao_ymd: dataDisp });
   }
@@ -1697,23 +1675,6 @@ async function consolidarResultadosTermo(
     console.warn(`[DJEN Paralela][${tribunal}] ${mon.termo_busca}: ${foraDoPeriodo} resultado(s) fora de ${diaYmd} ignorados.`);
   }
 
-  const chavesCandidatas = pubsParaDedup.map((p) => {
-    const conteudoOriginal = p.texto || p.conteudo || p.teor || '';
-    const conteudoFormatado = buildDjenLikeConteudo({
-      pub: p,
-      diaYmd,
-      monitoramento: { tipo: mon.tipo, termo: mon.termo_busca, oab: mon.oab, uf: mon.uf },
-      conteudoOriginal,
-    });
-    return montarChaveEncontrada({
-      coordenacaoId: mon.coordenacao_id,
-      processoNumero: p.numeroProcesso || p.numero_processo || p.processo_numero || p.processo || null,
-      dataRefYmd: p.data_disponibilizacao_ymd,
-      conteudo: conteudoFormatado,
-    });
-  });
-
-  const hashesCandidatos = pubsParaDedup.map((p) => String(p.hash_conteudo || '')).filter(Boolean);
   const idsDjenCandidatos = pubsParaDedup.map((p) => extrairIdDjen(p)).filter(Boolean) as string[];
   let idsDjenEncontrados = new Set<string>();
   if (idsDjenCandidatos.length > 0) {
@@ -1729,51 +1690,10 @@ async function consolidarResultadosTermo(
     idsDjenEncontrados = new Set((existentesPorIdDjen || []).map((r: any) => String(r.id_djen || '')));
   }
 
-  let hashesEncontrados = new Set<string>();
-  if (hashesCandidatos.length > 0) {
-    let hashQuery = supabase
-      .from('publicacoes_djen')
-      .select('hash_conteudo')
-      .eq('status', 'encontrada')
-      .in('hash_conteudo', hashesCandidatos);
-    hashQuery = mon.coordenacao_id
-      ? hashQuery.eq('coordenacao_id', mon.coordenacao_id)
-      : hashQuery.is('coordenacao_id', null);
-    const { data: existentesPorHash } = await hashQuery;
-    hashesEncontrados = new Set((existentesPorHash || []).map((r: any) => String(r.hash_conteudo || '')));
-  }
-
-  let chavesEncontradas = new Set<string>();
-  if (chavesCandidatas.length > 0) {
-      const processosDigits = Array.from(new Set(pubsParaDedup.map((p) => String(p.numeroProcesso || p.numero_processo || p.processo_numero || p.processo || '').replace(/\D/g, '')).filter(Boolean)));
-      const datasRef = Array.from(new Set(pubsParaDedup.map((p) => p.data_disponibilizacao_ymd).filter(Boolean)));
-    if (processosDigits.length > 0 && datasRef.length > 0) {
-      let dedupQuery = supabase
-        .from('publicacoes_djen')
-        .select('coordenacao_id, processo_numero, conteudo, data_disponibilizacao, data_publicacao, dedup_processo_digits, dedup_data_ref, dedup_head_norm')
-        .eq('status', 'encontrada')
-        .in('dedup_processo_digits', processosDigits)
-        .in('dedup_data_ref', datasRef);
-      dedupQuery = mon.coordenacao_id
-        ? dedupQuery.eq('coordenacao_id', mon.coordenacao_id)
-        : dedupQuery.is('coordenacao_id', null);
-      const { data: encontradas } = await dedupQuery;
-      chavesEncontradas = new Set((encontradas || []).map((r: any) => montarChaveEncontrada({
-        coordenacaoId: r.coordenacao_id,
-        processoNumero: r.processo_numero,
-        dataRefYmd: String(r.dedup_data_ref || r.data_disponibilizacao || r.data_publicacao || '').slice(0, 10),
-        conteudo: r.conteudo,
-        dedupProcessoDigits: r.dedup_processo_digits,
-        dedupHeadNorm: r.dedup_head_norm,
-      })));
-    }
-  }
-
-  const novas = pubsParaDedup.filter((p, idx) => {
+  const novas = pubsParaDedup.filter((p) => {
     const idDjen = extrairIdDjen(p);
     if (idDjen) return !idsDjenEncontrados.has(idDjen);
-    const hash = String(p.hash_conteudo || '');
-    return !hashesEncontrados.has(hash) && !chavesEncontradas.has(chavesCandidatas[idx]);
+    return true;
   });
   const duplicadasBanco = pubsParaDedup.length - novas.length;
 
@@ -1818,10 +1738,8 @@ async function consolidarResultadosTermo(
       if (currentExecutionId) {
         for (const p of payload as any[]) p.execucao_id = currentExecutionId;
       }
-      // A busca SEMPRE já foi feita. Aqui só persistimos o resultado da comparação
-      // pela chave de encontradas; se houver uma duplicada antiga com mesmo hash,
-      // reativamos como encontrada em vez de deixar ela bloquear a nova captura.
-      const hashesPayload = payload.map((p: any) => p.hash_conteudo).filter(Boolean);
+      // A busca SEMPRE já foi feita. Duplicidade DJEN é somente
+      // coordenacao_id + id_djen; hash/conteúdo não bloqueiam comunicação real.
       let inseridosCount = 0;
       for (const lote of chunkArray(payload, 10)) {
         // Sem .select('id'): evita statement timeout com trigger pesado por linha.
@@ -1877,21 +1795,23 @@ async function consolidarResultadosTermo(
           else if (!oneIsConflict) console.error(`[DJEN Paralela][${tribunal}] insert individual error:`, oneErr);
         }
       }
-      // Releitura confirmatória: o trigger pode reclassificar uma linha como
-      // 'duplicada' depois do INSERT. Contamos como "novas" apenas as que
-      // realmente ficaram com status='encontrada'.
+      // Releitura confirmatória apenas para ids oficiais desta coordenação.
       let efetivamenteEncontradas = inseridosCount;
-      if (hashesPayload.length > 0) {
-        const { count: encCount } = await supabase
+      const idsPayload = (payload as any[]).map((p) => p.id_djen).filter(Boolean);
+      if (idsPayload.length > 0) {
+        let encQuery = supabase
           .from('publicacoes_djen')
           .select('id', { count: 'exact', head: true })
-          .eq('monitoramento_id', mon.id)
           .eq('status', 'encontrada')
-          .in('hash_conteudo', hashesPayload);
+          .in('id_djen', idsPayload);
+        encQuery = mon.coordenacao_id
+          ? encQuery.eq('coordenacao_id', mon.coordenacao_id)
+          : encQuery.is('coordenacao_id', null);
+        const { count: encCount } = await encQuery;
         if (typeof encCount === 'number') efetivamenteEncontradas = encCount;
       }
       novasInseridasEfetivas = efetivamenteEncontradas;
-      duplicadasReclassificadas = Math.max(0, hashesPayload.length - efetivamenteEncontradas);
+      duplicadasReclassificadas = Math.max(0, idsPayload.length - efetivamenteEncontradas);
 
       // Registrar junção publicação×execução (DJEN Local "Execuções do dia")
       // Busca ids reais por (coordenacao_id, id_djen) — ignora se já existe a junção.

@@ -405,7 +405,8 @@ async function processPublicationFromIndex(
     return;
   }
 
-  // Deduplicação por hash_conteudo + coordenacao_id (permite mesma pub em coordenações diferentes)
+  // Regra DJEN: não deduplicar por conteúdo/hash. A chave oficial é somente
+  // coordenacao_id + id_djen; conteúdo/processo/data não colapsam publicações.
 
   const processoNumero = extractProcessoNumero(conteudo, pub.processo_numero || pub.numeroProcesso || pub.processo);
 
@@ -517,7 +518,7 @@ async function processPublicationFromIndex(
   const coordenacaoId = (monitoramento as any).coordenacao_id ?? null;
   const targetTable = persistMode.servidor ? 'publicacoes_djen_servidor' : 'publicacoes_djen';
 
-  // Pré-checagem isolada por fluxo: servidor consulta/grava somente publicacoes_djen_servidor.
+  // Pré-checagem isolada por fluxo: duplicidade DJEN é somente coordenação + id_djen.
   let existing: { id: string } | null = null;
   if (idDjen && coordenacaoId) {
     const { data } = await supabase
@@ -528,17 +529,6 @@ async function processPublicationFromIndex(
       .maybeSingle();
     existing = data ?? null;
   }
-  if (!existing) {
-    const existingQuery = supabase
-      .from(targetTable)
-      .select('id')
-      .eq('hash_conteudo', hashConteudo);
-    const { data } = coordenacaoId
-      ? await existingQuery.eq('coordenacao_id', coordenacaoId).maybeSingle()
-      : await existingQuery.eq('monitoramento_id', monitoramento.id).maybeSingle();
-    existing = data ?? null;
-  }
-
   if (existing) {
     stats.duplicatas++;
     return;
@@ -561,14 +551,11 @@ async function processPublicationFromIndex(
     insertRow.execucao_id = persistMode.execucaoServidorId ?? null;
   }
 
-  // Upsert isolado por coordenação: a mesma publicação pode existir em outra
-  // coordenação, mas dentro da mesma coord não duplicamos por monitor diferente.
-  // Os índices uq_pub_djen_servidor_coord_id_djen e uq_pub_djen_servidor_coord_conteudo_key
-  // garantem isso a nível de banco e protegem contra race conditions entre workers.
+  // Upsert isolado por coordenação + id_djen. Conteúdo/hash nunca colapsam
+  // comunicações DJEN distintas.
   let onConflictCols: string | undefined;
   if (persistMode.servidor && coordenacaoId) {
     if (idDjen) onConflictCols = 'coordenacao_id,id_djen';
-    else if ((insertRow as any).dedup_conteudo_key) onConflictCols = 'coordenacao_id,dedup_conteudo_key';
   }
 
   const insertQuery = onConflictCols
