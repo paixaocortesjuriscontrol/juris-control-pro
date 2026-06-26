@@ -1193,14 +1193,17 @@ async function run({ sb, payload, log, job }) {
       if (!statsCheckpointPorId.has(pi.id)) statsCheckpointPorId.set(pi.id, pi);
     }
   };
-  // Paridade com DJEN Browser: execução manual sempre começa do zero.
-  // Checkpoint só é usado em execuções agendadas/automáticas ou em
-  // retomadas explícitas (payload.resumeCheckpoint === true).
-  const isManual = !!payload?.manual;
+  // Checkpoint só deve ser usado em RETOMADAS explícitas
+  // (payload.resumeCheckpoint === true). Execuções manuais E agendadas
+  // sempre começam do zero — caso contrário, a 2ª/3ª execução do dia
+  // (ex.: 02h, 13h, 21h) cairia inteira em "Já processado (checkpoint)".
   const forcarReset = !!payload?.resetCheckpoint;
-  const usarCheckpoint = (!isManual || payload?.resumeCheckpoint === true) && !forcarReset;
+  const usarCheckpoint = payload?.resumeCheckpoint === true && !forcarReset;
   if (!usarCheckpoint) {
-    log("paralela.checkpoint_skipped", { runKey, motivo: forcarReset ? "resetCheckpoint" : "manual" });
+    log("paralela.checkpoint_skipped", {
+      runKey,
+      motivo: forcarReset ? "resetCheckpoint" : (payload?.manual ? "manual" : "agendado"),
+    });
   }
   try {
     if (!usarCheckpoint) throw new Error("__skip_checkpoint__");
