@@ -566,7 +566,7 @@ function ComparadorPanel() {
 
   const exportarRelatorioCsv = () => {
     if (!data) return;
-    const header1 = "# Comparador DJEN Servidor x Browser — comparação GLOBAL por publicação (coordenacao + id_djen), sem separação por tipo\n";
+    const header1 = "# Comparador DJEN Servidor x Browser — comparação por CLUSTER LÓGICO (coord + processo + data + conteudo). Dedup aplicada ANTES de comparar: múltiplos id_djen do mesmo ato contam como 1.\n";
     const cols1 = "coordenacao,total_servidor,total_browser,em_ambos,so_servidor,so_browser,duplicadas_servidor,duplicadas_browser,djen_unico\n";
     const body1 = data.globalLinhas
       .map((l) =>
@@ -625,8 +625,8 @@ function ComparadorPanel() {
         JSON.stringify(d.capturado_em || ""),
       ].join(","))
       .join("\n");
-    const header4 = "\n\n# Publicações duplicadas por origem (mesma coordenação + id_djen com mais de um registro)\n";
-    const cols4 = "coordenacao,origem,tipo_pesquisa,tribunal,processo,data_publicacao,data_disponibilizacao,id_djen,total_registros,duplicadas,termos_busca,monitoramento_ids\n";
+    const header4 = "\n\n# Publicações duplicadas por origem (mesmo cluster lógico com mais de um id_djen — o PJE emite vários ids para o mesmo ato)\n";
+    const cols4 = "coordenacao,origem,tipo_pesquisa,tribunal,processo,data_publicacao,data_disponibilizacao,id_djen_primeiro,ids_djen_todos,total_registros,duplicadas,termos_busca,monitoramento_ids\n";
     const body4 = (data.detalhesDuplicadas || [])
       .map((d) => [
         JSON.stringify(d.coordenacaoNome),
@@ -637,6 +637,7 @@ function ComparadorPanel() {
         JSON.stringify(d.data_publicacao || ""),
         JSON.stringify(d.data_disponibilizacao || ""),
         JSON.stringify(d.id_djen || ""),
+        JSON.stringify((d.ids_djen || []).join(" | ")),
         d.total_registros,
         d.duplicadas,
         JSON.stringify(d.termos_busca.join(" | ")),

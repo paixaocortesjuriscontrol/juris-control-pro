@@ -444,6 +444,7 @@ export interface ComparadorAnaliseRelatorio {
     tipo: string;
     key: string;
     id_djen: string | null;
+    ids_djen: string[];
     total_registros: number;
     duplicadas: number;
     processo_numero: string | null;
@@ -638,14 +639,26 @@ export function useComparadorAnalise() {
         created_at?: string | null;
       };
 
-      // Dedup SEMPRE isolada por coordenação. A mesma publicação pode aparecer
-      // em coordenações diferentes (contagem legítima), mas dentro da mesma
-      // coord só conta 1x mesmo quando vários monitoramentos a encontraram.
+      // CHAVE DE CLUSTER LÓGICO (dedup ANTES de comparar):
+      // O PJE Comunica frequentemente emite vários id_djen distintos para o
+      // MESMO ato processual (mesmo processo + mesma data). Comparar por
+      // id_djen puro inflaciona as diferenças (ex.: Servidor=7 ids vs
+      // Browser=1 id do mesmo processo gerava "faltou 6", quando na prática
+      // é 1 publicação lógica = 1 publicação lógica).
+      //
+      // Por isso a chave usada na comparação é:
+      //   coord | processo_digits | data_ref (YYYY-MM-DD) | conteudo_key
+      // Quando NÃO há processo_digits (ex.: certidões/pautas TST sem CNJ),
+      // caímos para coord|id_djen para não colapsar publicações distintas.
       const key = (r: Row) => {
         const coord = r.coordenacao_id || "sem_coord";
+        const proc = (r.dedup_processo_digits || "").trim();
+        const dia = (r.dedup_data_ref || (r.data_disponibilizacao || "").slice(0, 10) || "").trim();
+        const conteudo = (r.dedup_conteudo_key || r.hash_conteudo || "").trim();
+        if (proc && dia) return `${coord}|cluster|${proc}|${dia}|${conteudo}`;
         if (r.id_djen) return `${coord}|id_djen|${r.id_djen}`;
         if (r.dedup_conteudo_key) return `${coord}|ck|${r.dedup_conteudo_key}`;
-        return `${coord}|legacy|${r.dedup_processo_digits || ""}|${r.dedup_data_ref || ""}|${r.hash_conteudo}`;
+        return `${coord}|legacy|${proc}|${dia}|${r.hash_conteudo}`;
       };
 
       const groupKey = (r: Row) => {
@@ -715,6 +728,7 @@ export function useComparadorAnalise() {
           targetMap.set(cid, (targetMap.get(cid) || 0) + dupCount);
           const monitoramentoIds = Array.from(new Set(rows.map((r) => r.monitoramento_id || "").filter(Boolean)));
           const termosBusca = Array.from(new Set(monitoramentoIds.map((id) => monitTermo.get(id) || "").filter(Boolean)));
+          const idsDjen = Array.from(new Set(rows.map((r) => r.id_djen || "").filter(Boolean)));
           detalhesDuplicadas.push({
             coordenacaoId: cid,
             coordenacaoNome: coordNome.get(cid) || "Sem coordenação",
@@ -722,6 +736,7 @@ export function useComparadorAnalise() {
             tipo: rowTipo(first),
             key: k,
             id_djen: first.id_djen || null,
+            ids_djen: idsDjen,
             total_registros: rows.length,
             duplicadas: dupCount,
             processo_numero: first.processo_numero || null,
