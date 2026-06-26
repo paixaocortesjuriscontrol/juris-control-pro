@@ -1,47 +1,59 @@
-## Comparador com deduplicação prévia
+## Diagnóstico do CSV enviado
 
-Entendi a sua frustração e vi onde o relatório engana. Hoje, em `useComparadorAnalise` (`src/hooks/useDjenServidor.ts`), a chave de comparação é `coordenacao + id_djen`. Quando o PJE gera **7 `id_djen` diferentes para o mesmo processo/data** (caso do TST `0010334-57.2023.5.15.0095` ou TRT24 `0026098-91.2025.5.24.0021`), o Servidor pega 3-7 e o Browser pega 1 — e o comparador grita "faltou 6", quando na prática é **1 publicação lógica vs 1 publicação lógica = empate**.
+Ainda há 23 diferenças líquidas no relatório:
 
-A solução é fazer dedup lógica **antes** de comparar, como o `dedupePublicacoesDjen` (`src/utils/djenDedup.ts`) já faz na UI.
+- Dr. Thomás: servidor 55 x browser 51, com 6 só no servidor e 2 só no browser.
+- Dra. Janaina: servidor 77 x browser 71, com 6 só no servidor.
+- Dra. Vanessa TST: servidor 84 x browser 83, com 1 só no servidor.
+- Santander Trabalhista: servidor 90 x browser 82, com 8 só no servidor.
 
-### O que muda em `useComparadorAnalise`
+Padrões visíveis:
 
-1. **Nova chave lógica** (igual à dedup visual):
-   ```
-   K = coord | dedup_processo_digits | dedup_data_ref (YYYY-MM-DD) | dedup_conteudo_key (ou hash_conteudo)
-   ```
-   Calculada para Servidor e Browser. Quando `dedup_processo_digits` está vazio (publicações TST sem processo, ex.: id 652316388), cai para `coord | id_djen` para não colapsar coisas distintas.
+1. As diferenças “só servidor” estão concentradas em buscas por advogado, especialmente `OSMAR MENDES PAIXAO CORTES` e `CARLOS JOSE ELIAS JUNIOR`.
+2. Há repetição do mesmo processo com vários `id_djen` no TST/TRT24, o que pode ser legítimo se forem comunicações distintas, mas precisa ficar auditável.
+3. As 2 “só browser” do Dr. Thomás aparecem como `sem_execucao_servidor_para_esta_data`, mas isso pode ser falso diagnóstico se a execução agendada não estiver sendo localizada pela data BRT correta ou se o servidor ainda estiver usando checkpoint antigo.
+4. Encontrei no Browser uma rotina de “resgate em outra coordenação” em `src/hooks/useDjenTermosParalelaEngine.ts` que ainda lê `publicacoes_djen` de outra coordenação. Isso conflita com a regra atual de independência total e pode mascarar divergências.
+5. O Servidor já está isolado do Browser, mas ainda reutiliza publicações de outras coordenações dentro de `publicacoes_djen_servidor`. Isso é aceitável só se for cópia independente e validada, mas deve ficar separado do diagnóstico.
 
-2. **Cluster por lado**: agrupar todas as linhas (servidor e browser) por essa chave K. Cada cluster vira **1 publicação lógica**, e guardamos a lista de `id_djen` que pertence ao cluster.
+## Plano de correção
 
-3. **Comparação por cluster K**, não mais por `id_djen` solto:
-   - `em_ambos`: cluster existe nos dois lados (mesmo que os `id_djen` sejam diferentes).
-   - `so_servidor` / `so_browser`: cluster existe num lado só.
-   - `total_servidor` / `total_browser`: número de **clusters** (publicações lógicas), não de registros.
+1. Remover o resgate cross-coordination do DJEN Browser
+   - Eliminar/desativar `buscarPublicacoesJaEncontradasEmOutraCoordenacao` no Browser.
+   - Garantir que o Browser só grave o que a própria coordenação buscou e validou na API.
+   - Manter deduplicação apenas dentro da própria coordenação.
 
-4. **Coluna nova `duplicadas_por_id_djen`**: para diagnóstico, exporto quantos `id_djen` cada cluster tem em cada lado. Assim você enxerga o caso "Servidor=7 ids / Browser=1 id" como **1 cluster em ambos** + nota "7×1 ids".
+2. Alinhar o retry/fallback Direto do Servidor ao Browser, ou remover do Browser para paridade
+   - Hoje o Browser, em alguns cenários com VPS vazia, valida no Direto; o Servidor usa apenas `djenFetchSlot`.
+   - Vou padronizar a execução para que ambos tenham o mesmo comportamento para página vazia, advogado e parte.
+   - Objetivo: se a API/VPS falhar ou vier vazia, ambos perdem/ganham a mesma coisa.
 
-5. **Detalhe `so_servidor` / `so_browser`** continua listando cada `id_djen` real (com `provavel_causa`), mas só para clusters genuinamente exclusivos.
+3. Corrigir diagnóstico de execução por data BRT no comparador
+   - A causa `sem_execucao_servidor_para_esta_data` será calculada usando o dia DJEN/BRT do payload e não somente `agendado_para` em UTC.
+   - Isso deve evitar marcar como “sem execução” quando houve execução às 02h/13h/21h no Brasil.
 
-### Resultado esperado para 26/06
+4. Adicionar detalhamento real de auditoria no CSV
+   - Para cada divergência, incluir colunas indicando:
+     - se houve execução servidor válida para a coordenação/dia;
+     - status da execução;
+     - horário finalizado;
+     - se veio por busca direta, fallback OAB ou termo OR quando disponível;
+     - se é múltiplo `id_djen` para o mesmo processo/data.
+   - Assim a divergência deixa de ser só número e passa a apontar causa objetiva.
 
-Aplicando a regra mentalmente ao CSV:
+5. Revisar deduplicação do Browser em todos os pontos restantes
+   - Confirmar que `useSincronizarDjenBrowser.ts`, `useDjenTermosParalelaEngine.ts`, `backfill-djen` e `backfill-djen-jina` não travam uma coordenação por causa de outra.
+   - Ajustar qualquer consulta por `id_djen` sem `coordenacao_id`.
 
-| Coordenação | Hoje (por id_djen) | Pós-dedup (por cluster) |
-|---|---|---|
-| Dr. Thomás | 6 so_serv / 2 so_brow | provavelmente 4 so_serv / 2 so_brow (3 ids do TRT24/0026098 viram 1) |
-| Janaina Catunda | 6 so_serv / 0 | 4 so_serv / 0 (3 ids do TRT24 viram 1) |
-| Vanessa Gomes TST | 1 so_serv / 0 | 1 so_serv / 0 (sem processo, mantém) |
-| Santander Trabalhista | 8 so_serv / 0 | 2 so_serv / 0 (7 ids do TST/0010334 viram 1) |
+6. Manter Servidor e Browser separados
+   - Não copiar nada de `publicacoes_djen` para `publicacoes_djen_servidor`.
+   - Não usar Browser como fonte do Servidor.
+   - O comparador continua sendo a única leitura cruzada, apenas visual/auditável.
 
-Total de divergências cai de 23 para ~9, e o que sobrar é diferença **real** que vale investigar.
+## Resultado esperado
 
-### Implementação
+Depois da implementação e nova execução limpa:
 
-- Arquivo único: `src/hooks/useDjenServidor.ts`, função `useComparadorAnalise` (linhas 463–700+).
-- Trocar `key(r)` (linha 644-649) por `clusterKey(r)` baseado em `dedup_*`.
-- Manter `id_djen` apenas na listagem de detalhes/duplicadas.
-- Atualizar o cabeçalho do CSV (`src/pages/DjenServidor.tsx`) para refletir "total = publicações lógicas (dedup)" e acrescentar coluna `ids_servidor`/`ids_browser` no cluster.
-- Sem mudança no engine, no banco, nem nas execuções.
-
-Confirma que sigo por aí?
+- Browser e Servidor devem comparar por coordenação independente.
+- Diferenças por “publicação achada em outra coordenação” não serão mais justificadas nem mascaradas.
+- O CSV mostrará se a diferença é API vazia/falha, execução não feita, horário posterior, duplicidade legítima por múltiplos `id_djen`, ou validação diferente.
+- A próxima divergência, se existir, terá causa objetiva no próprio relatório.
