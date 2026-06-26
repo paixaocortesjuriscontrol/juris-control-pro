@@ -2723,9 +2723,16 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       novas: Math.max(Number(det.novas || 0), aggregateFromTracks.novas, registrosEncontrados),
       duplicadas: Math.max(Number(det.duplicadas || 0), aggregateFromTracks.duplicadas),
       descartadas: Math.max(Number(det.descartadas || 0), aggregateFromTracks.descartadas, registrosProcessados),
-      percentage: finalStatus === 'executando'
-        ? Math.max(Math.min(100, Math.max(0, Number(det.percentage || 0))), percentageFromTracks, Number(state.progress.percentage || 0))
-        : Math.max(Math.min(100, Math.max(0, Number(det.percentage || 0))), percentageFromTracks),
+      percentage: (() => {
+        // Preferir o cálculo a partir dos tracks concluídos (alinhado ao
+        // header "X/Y tribunais"). Cair para det.percentage só se não houver
+        // tracks. Nunca usar Math.max com o estado anterior — isso travava
+        // a barra em 100% após o estado ficar contaminado.
+        if (tracks.length > 0) {
+          return Math.min(100, Math.max(0, Math.round((aggregateFromTracks.concluidos / tracks.length) * 100)));
+        }
+        return Math.min(100, Math.max(0, Number(det.percentage || 0)));
+      })(),
       mensagem: String(det.mensagem || `Última execução agendada — ${finalStatus}`),
       tempoDecorrido,
       iniciadoEm: data.iniciado_em ?? det.iniciadoEm ?? null,
