@@ -342,8 +342,6 @@ function nomeAdvogadoCasa(advNome, mon) {
   return nomesAlvoAdvogado(mon).some((nome) => {
     const alvo = normalize(nome);
     if (!alvo) return false;
-    const tokens = alvo.split(/\s+/).filter(Boolean);
-    if (tokens.length < 3) return false;
     return contemFrase(advNorm, alvo);
   });
 }
