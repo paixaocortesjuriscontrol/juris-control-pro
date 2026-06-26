@@ -188,6 +188,15 @@ function markOk(url) {
 }
 
 async function djenFetch(sb, queryParams, signal) {
+  // ── In-flight dedup: quando N workers (vários monitoramentos com mesmo
+  // advogado/tribunal/dia) disparam a MESMA query concorrentemente,
+  // compartilham UMA única resposta em vez de baterem N vezes na API.
+  const dedupKey = signal ? null : JSON.stringify(queryParams);
+  if (dedupKey) {
+    const existing = inflight.get(dedupKey);
+    if (existing) return existing;
+  }
+  const exec = (async () => {
   const slots = await loadPool(sb);
   let attempt = 0;
   while (attempt < slots.length * 2) {
@@ -206,7 +215,15 @@ async function djenFetch(sb, queryParams, signal) {
     }
   }
   throw new Error("Pool exausto");
+  })();
+  if (dedupKey) {
+    inflight.set(dedupKey, exec);
+    exec.finally(() => inflight.delete(dedupKey));
+  }
+  return exec;
 }
+
+const inflight = new Map();
 
 function makeSupabase() {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
