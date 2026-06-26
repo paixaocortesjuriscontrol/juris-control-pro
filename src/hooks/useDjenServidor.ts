@@ -670,7 +670,18 @@ export function useComparadorAnalise() {
 
       const provavelCausa = (origem: "so_servidor" | "so_browser", r: Row): string => {
         const cid = r.coordenacao_id || "sem_coord";
-        if (origem === "so_servidor") return "faltou_no_browser";
+        if (origem === "so_servidor") {
+          // Caso muito comum: o Browser tem dedup GLOBAL por id_djen
+          // (publicacoes_djen_global_hash). Quando duas coordenações monitoram
+          // o mesmo advogado/OAB, a primeira que captura "trava" a publicação
+          // e as demais não recebem cópia. O Servidor, ao contrário, grava
+          // uma cópia por coordenação. Por isso aparece como "só servidor"
+          // na coord X — mas o mesmo id_djen está no Browser em outra coord.
+          if (r.id_djen && idDjenBrowserPorAlgumaCoord.has(String(r.id_djen))) {
+            return "browser_atribuiu_a_outra_coord_dedup_global";
+          }
+          return "faltou_no_browser";
+        }
         // so_browser:
         const dia = String(r.data_disponibilizacao || "").slice(0, 10);
         const tribunaisCoord = tribunaisPorCoord.get(cid);
