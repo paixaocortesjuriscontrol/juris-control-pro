@@ -1023,9 +1023,13 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       origem: "servidor",
       execucao_id: execucaoId || null,
     };
-    const insertQuery = idDjen && coordenacaoId
-      ? sb.from("publicacoes_djen_servidor").upsert(insertRow, { onConflict: "coordenacao_id,id_djen", ignoreDuplicates: true }).select("id")
-      : sb.from("publicacoes_djen_servidor").insert(insertRow).select("id");
+    // Não usar upsert aqui: a unicidade oficial é um índice parcial
+    // (coordenacao_id, id_djen) WHERE id_djen/coordenacao_id IS NOT NULL.
+    // PostgREST não consegue inferir índice parcial via `onConflict`, então o
+    // upsert falha e a publicação válida acabava contabilizada como descartada.
+    // Como já consultamos a duplicidade acima, o caminho correto é INSERT e,
+    // se houver corrida, tratar 23505 como duplicata logo abaixo.
+    const insertQuery = sb.from("publicacoes_djen_servidor").insert(insertRow).select("id");
     const { data: insertedRows, error } = await insertQuery;
     const inserted = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
     if (error) {
