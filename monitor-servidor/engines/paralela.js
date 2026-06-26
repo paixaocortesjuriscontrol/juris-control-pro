@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-25-pagination-streaks";
+const ENGINE_VERSION = "2026-06-26-insert-partial-index-fix";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -1023,9 +1023,13 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       origem: "servidor",
       execucao_id: execucaoId || null,
     };
-    const insertQuery = idDjen && coordenacaoId
-      ? sb.from("publicacoes_djen_servidor").upsert(insertRow, { onConflict: "coordenacao_id,id_djen", ignoreDuplicates: true }).select("id")
-      : sb.from("publicacoes_djen_servidor").insert(insertRow).select("id");
+    // Não usar upsert aqui: a unicidade oficial é um índice parcial
+    // (coordenacao_id, id_djen) WHERE id_djen/coordenacao_id IS NOT NULL.
+    // PostgREST não consegue inferir índice parcial via `onConflict`, então o
+    // upsert falha e a publicação válida acabava contabilizada como descartada.
+    // Como já consultamos a duplicidade acima, o caminho correto é INSERT e,
+    // se houver corrida, tratar 23505 como duplicata logo abaixo.
+    const insertQuery = sb.from("publicacoes_djen_servidor").insert(insertRow).select("id");
     const { data: insertedRows, error } = await insertQuery;
     const inserted = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
     if (error) {
