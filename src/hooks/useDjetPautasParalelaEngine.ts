@@ -281,6 +281,16 @@ function normalizeDjetText(s: string): string {
     .trim();
 }
 
+const PAUTA_STRIP_INTIMADOS_RE = /(Intimad[ao]|Destinat[áa]rio|Advogad[ao]|Parte|Reclamante|Reclamad[ao]|Autor|R[eé]u|Requerente|Requerid[ao])\s*\(?s?\)?\s*:/i;
+function stripIntimadosPauta(t: string): string {
+  const i = (t || "").search(PAUTA_STRIP_INTIMADOS_RE);
+  return i > 0 ? t.slice(0, i) : (t || "");
+}
+function digitsProcessoPauta(p?: string | null): string {
+  const d = (p || "").replace(/\D/g, "");
+  return d || "sem-processo";
+}
+
 async function sha256Hex(input: string): Promise<string> {
   const buf = new TextEncoder().encode(input);
   const hash = await crypto.subtle.digest("SHA-256", buf);
@@ -496,8 +506,11 @@ async function buscarPautasNoNavegador(
         const hit = matchBlocoMonitoramento(subNorm, mon);
         if (!hit) continue;
         const conteudo = sub.texto.trim();
+        // Dedup de pautas: coordenação + processo + conteúdo SEM intimados.
+        // O conteúdo gravado segue completo (com intimados). A remoção é só
+        // para o cálculo da chave de comparação.
         const hash = await sha256Hex(
-          `${mon.id}|${tribunal}|${dataIso}|${sub.processo || ""}|${conteudo.slice(0, 1024)}`,
+          `${mon.coordenacao_id ?? ""}|${digitsProcessoPauta(sub.processo)}|${normalizeDjetText(stripIntimadosPauta(conteudo))}`,
         );
         matches.push({
           monitoramentoId: mon.id,
@@ -614,14 +627,14 @@ async function persistMatches(matches: MatchOut[]): Promise<{ novas: number; dup
     const { data: existentes } = hashes.length > 0
       ? await supabase
         .from("publicacoes_djen")
-        .select("id, coordenacao_id, monitoramento_id, hash_conteudo")
+        .select("id, coordenacao_id, hash_conteudo")
         .eq("tipo_publicacao", "pauta")
         .in("hash_conteudo", hashes as string[])
-      : { data: [] as Array<{ coordenacao_id: string | null; monitoramento_id: string; hash_conteudo: string }> };
+      : { data: [] as Array<{ coordenacao_id: string | null; hash_conteudo: string }> };
     const existingKeys = new Set(
-      (existentes || []).map((e) => `${e.coordenacao_id || ""}|${e.monitoramento_id || ""}|${e.hash_conteudo || ""}`),
+      (existentes || []).map((e) => `${e.coordenacao_id || ""}|${e.hash_conteudo || ""}`),
     );
-    const novosRows = slice.filter((r) => !existingKeys.has(`${r.coordenacao_id || ""}|${r.monitoramento_id || ""}|${r.hash_conteudo || ""}`));
+    const novosRows = slice.filter((r) => !existingKeys.has(`${r.coordenacao_id || ""}|${r.hash_conteudo || ""}`));
     duplicadas += slice.length - novosRows.length;
     if (novosRows.length === 0) continue;
 
