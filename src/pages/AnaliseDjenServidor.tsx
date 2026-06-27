@@ -796,10 +796,10 @@ const AnaliseDjenServidor = () => {
           ? dateLocalToUTCRange(dataFimDebounced, true)
           : null;
       const dataDispInicio = dataDisponibilizacaoDebounced
-        ? dateLocalToUTCRange(dataDisponibilizacaoDebounced, false)
+        ? `${dataDisponibilizacaoDebounced}T00:00:00Z`
         : null;
       const dataDispFim = dataDisponibilizacaoDebounced
-        ? dateLocalToUTCRange(dataDisponibilizacaoDebounced, true)
+        ? `${dataDisponibilizacaoDebounced}T23:59:59.999Z`
         : null;
 
       const { data, error } = await (supabase as any).rpc('get_djen_descartadas_dedup', {
