@@ -453,6 +453,12 @@ export function DjenServidorParalelaCard() {
               Cancelar
             </Button>
           )}
+          {isRunning && heartbeatStale && (
+            <Button onClick={handleDestravar} variant="destructive" className="gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Destravar (worker {heartbeatSec}s sem heartbeat)
+            </Button>
+          )}
           <Button onClick={handleForcarParada} variant="ghost" size="sm" className="gap-2 ml-auto">
             <Skull className="h-4 w-4" />
             Forçar Parada
