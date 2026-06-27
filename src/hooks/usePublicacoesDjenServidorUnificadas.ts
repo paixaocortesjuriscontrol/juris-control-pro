@@ -351,14 +351,15 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
     queryFn: async ({ signal }) => {
       if (!user?.id) return 0;
 
+      const hojeBrt = getHojeBrtISO();
       const dataInicioFiltro = filtros.apenasHoje
-        ? formatToUTC(startOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, false)
         : filtros.dataInicio
           ? dateLocalToUTCRange(filtros.dataInicio, false)
           : null;
 
       const dataFimFiltro = filtros.apenasHoje
-        ? formatToUTC(endOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, true)
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
@@ -388,8 +389,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         q = q.neq('motivo_descarte', 'termo_nao_encontrado');
 
         if (!buscaPorProcessoCount) {
-          if (dataInicioFiltro) q = filtros.apenasHoje ? q.gte('data_publicacao', dataInicioFiltro) : q.gte('created_at', dataInicioFiltro);
-          if (dataFimFiltro) q = filtros.apenasHoje ? q.lte('data_publicacao', dataFimFiltro) : q.lte('created_at', dataFimFiltro);
+          q = aplicarFiltroDataPublicacaoHojeBrt(q, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
           if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
           if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         } else {
@@ -443,13 +443,14 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
     queryFn: async ({ signal }) => {
       if (!user?.id) return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0, totalUnicas: 0, naoLidasUnicas: 0 };
 
+      const hojeBrt = getHojeBrtISO();
       const di = filtros.apenasHoje
-        ? formatToUTC(startOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, false)
         : filtros.dataInicio
           ? dateLocalToUTCRange(filtros.dataInicio, false)
           : null;
       const df = filtros.apenasHoje
-        ? formatToUTC(endOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, true)
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
@@ -473,8 +474,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
             .from('publicacoes_djen_servidor') as any)
             .select('id, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, coordenacao_id', { count: 'exact' })
             .eq('tipo_publicacao', 'pauta');
-          if (di) q = filtros.apenasHoje ? q.gte('data_publicacao', di) : q.gte('created_at', di);
-          if (df) q = filtros.apenasHoje ? q.lte('data_publicacao', df) : q.lte('created_at', df);
+          q = aplicarFiltroDataPublicacaoHojeBrt(q, di, df, filtros.apenasHoje);
           if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
           if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
           if (filtros.coordenacaoId) q = q.eq('coordenacao_id', filtros.coordenacaoId);
@@ -543,8 +543,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         .or('tipo_publicacao.is.null,tipo_publicacao.neq.pauta')
         .order('created_at', { ascending: false });
 
-      if (di) q = filtros.apenasHoje ? q.gte('data_publicacao', di) : q.gte('created_at', di);
-      if (df) q = filtros.apenasHoje ? q.lte('data_publicacao', df) : q.lte('created_at', df);
+      q = aplicarFiltroDataPublicacaoHojeBrt(q, di, df, filtros.apenasHoje);
       if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
       if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
       if (filtros.coordenacaoId) q = q.eq('coordenacao_id', filtros.coordenacaoId);
@@ -654,14 +653,15 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
     queryFn: async ({ signal }) => {
       if (!user?.id) return { rows: [] as PublicacaoUnificada[], lastChunkSize: 0 };
       
+      const hojeBrt = getHojeBrtISO();
       const dataInicioFiltro = filtros.apenasHoje 
-        ? formatToUTC(startOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, false)
         : filtros.dataInicio 
           ? dateLocalToUTCRange(filtros.dataInicio, false)
           : null;
       
       const dataFimFiltro = filtros.apenasHoje
-        ? formatToUTC(endOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, true)
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
@@ -836,8 +836,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
             .order('created_at', { ascending: false });
 
           if (!buscaPorProcessoList) {
-            if (dataInicioFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.gte('data_publicacao', dataInicioFiltro) : queryDescartadas.gte('created_at', dataInicioFiltro);
-            if (dataFimFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.lte('data_publicacao', dataFimFiltro) : queryDescartadas.lte('created_at', dataFimFiltro);
+            queryDescartadas = aplicarFiltroDataPublicacaoHojeBrt(queryDescartadas, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
           } else {
             queryDescartadas = queryDescartadas.ilike('processo_numero', `%${termoDigitsList}%`);
           }
@@ -950,8 +949,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           `)
           .order('created_at', { ascending: false });
 
-        if (dataInicioFiltro) queryTermos = filtros.apenasHoje ? queryTermos.gte('data_publicacao', dataInicioFiltro) : queryTermos.gte('created_at', dataInicioFiltro);
-        if (dataFimFiltro) queryTermos = filtros.apenasHoje ? queryTermos.lte('data_publicacao', dataFimFiltro) : queryTermos.lte('created_at', dataFimFiltro);
+        queryTermos = aplicarFiltroDataPublicacaoHojeBrt(queryTermos, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
         // Para DJET Pautas, `data_disponibilizacao` é gravada como meia-noite UTC
         // (semântica de DATE, não de timestamp local). Usar o range BRT (03:00→02:59 UTC)
         // descarta as pautas porque a meia-noite UTC fica ANTES da janela. Quando o filtro
@@ -1199,8 +1197,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           `)
           .order('created_at', { ascending: false });
 
-        if (dataInicioFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.gte('data_publicacao', dataInicioFiltro) : queryDescartadas.gte('created_at', dataInicioFiltro);
-        if (dataFimFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.lte('data_publicacao', dataFimFiltro) : queryDescartadas.lte('created_at', dataFimFiltro);
+        queryDescartadas = aplicarFiltroDataPublicacaoHojeBrt(queryDescartadas, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
         if (dataDisponibilizacaoInicio) queryDescartadas = queryDescartadas.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
         if (dataDisponibilizacaoFim) queryDescartadas = queryDescartadas.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         if (filtros.coordenacaoId) queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
