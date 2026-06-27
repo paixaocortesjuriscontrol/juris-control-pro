@@ -178,7 +178,11 @@ function getValuesFromDado(d: DadoBenner): string[] {
   const bancoList = splitRecursoValues((d as any).tipo_recurso_banco);
   const tipoRecurso = formatTipoRecursoList([...reclList, ...bancoList]);
   const midiaSN = d.risco_midia ? toSN(d.risco_midia) : "";
-  const riscoDesc = cleanDadoBennerValue(d.risco_descricao);
+  const riscoNivel = cleanDadoBennerValue((d as any).risco_nivel);
+  const riscoDescRaw = cleanDadoBennerValue(d.risco_descricao);
+  const riscoDesc = riscoNivel && riscoDescRaw
+    ? `${riscoNivel} - ${riscoDescRaw}`
+    : (riscoNivel || riscoDescRaw);
   const bemAparelhado = !!d.recurso_bem_aparelhado;
   const malAparelhado = !!d.recurso_mal_aparelhado;
 
