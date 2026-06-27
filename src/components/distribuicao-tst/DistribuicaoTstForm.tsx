@@ -1200,13 +1200,39 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
     // Se a sessão Judit preencheu campos, marca o registro como preenchido pela Judit.
     const payloadBase = responsaveisLoaded ? form : ({ ...form, responsaveis_ids: undefined } as DistribuicaoTstInsert);
-    const payload: DistribuicaoTstInsert = juditSessionFields.size > 0
+    const payloadJudit: DistribuicaoTstInsert = juditSessionFields.size > 0
       ? {
           ...payloadBase,
           judit_preenchido: true,
           judit_preenchido_em: new Date().toISOString(),
         }
       : payloadBase;
+
+    // Deriva campos LEGADOS (aparelhamento_*, recurso_*_aparelhado,
+    // posicao_turma_*, posicao_relator_*) a partir da nova lista por matéria.
+    // A planilha Benner e relatórios antigos continuam lendo esses campos —
+    // mantemos compatibilidade sem precisar mexer no template.
+    const matRecl = (bennerExtraRef.current as any).materias_analise_reclamante as MateriaAnaliseItem[] | null;
+    const matBanco = (bennerExtraRef.current as any).materias_analise_banco as MateriaAnaliseItem[] | null;
+    const aggRecl = derivarAgregadosDeMaterias(matRecl);
+    const aggBanco = derivarAgregadosDeMaterias(matBanco);
+    const payload: DistribuicaoTstInsert = { ...payloadJudit };
+    if (aggRecl.aparelhamento !== null) (payload as any).aparelhamento_reclamante = aggRecl.aparelhamento;
+    if (aggBanco.aparelhamento !== null) (payload as any).aparelhamento_banco = aggBanco.aparelhamento;
+
+    // Booleans agregados em dados_benner — apenas escreve quando há lista.
+    const derivedBenner: Record<string, any> = {};
+    if ((matRecl && matRecl.length) || (matBanco && matBanco.length)) {
+      derivedBenner.recurso_bem_aparelhado = aggRecl.bem || aggBanco.bem;
+      derivedBenner.recurso_mal_aparelhado = aggRecl.mal || aggBanco.mal;
+      derivedBenner.posicao_turma_favoravel = aggRecl.turma_favoravel || aggBanco.turma_favoravel;
+      derivedBenner.posicao_turma_desfavoravel = aggRecl.turma_desfavoravel || aggBanco.turma_desfavoravel;
+      derivedBenner.posicao_relator_favoravel = aggRecl.relator_favoravel || aggBanco.relator_favoravel;
+      derivedBenner.posicao_relator_desfavoravel = aggRecl.relator_desfavoravel || aggBanco.relator_desfavoravel;
+      for (const k of Object.keys(derivedBenner)) bennerDirtyRef.current.add(k);
+      setBennerExtra((prev) => ({ ...prev, ...derivedBenner }));
+    }
+
     // Computa o diff dos campos Benner unificados: envia SOMENTE os campos
     // que o usuário tocou nesta sessão (dirty). Isso é seguro mesmo que o
     // registro Benner ainda não tenha terminado de carregar em segundo plano
@@ -1216,7 +1242,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       const norm = (v: any) => (v === undefined || v === "" ? null : v);
       // Lê SEMPRE dos refs (valores atuais), nunca da closure — o save pode
       // ser disparado pelo botão externo via ref imperativa com closure velha.
-      const extra = bennerExtraRef.current;
+      const extra = { ...bennerExtraRef.current, ...derivedBenner };
       const extraInitial = bennerExtraInitialRef.current;
       const extraLoaded = bennerExtraLoadedRef.current;
       for (const k of bennerDirtyRef.current) {
