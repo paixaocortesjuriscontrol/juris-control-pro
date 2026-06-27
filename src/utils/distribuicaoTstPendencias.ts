@@ -101,8 +101,6 @@ export const CAMPOS_OBRIGATORIOS: CampoObrigatorio[] = [
 
   // Quadrinho VI – Análise
   { key: "honra", label: "Matéria de Honra (O)", quadrinho: "VI. Análise" },
-  { key: "tema", label: "Tema IRR", quadrinho: "VI. Análise" },
-  { key: "execucao", label: "Execução", quadrinho: "VI. Análise" },
   { key: "midia_negativa", label: "Mídia Negativa (H)", quadrinho: "VI. Análise" },
   {
     key: "risco_nivel",
@@ -143,7 +141,6 @@ export const CAMPOS_OBRIGATORIOS: CampoObrigatorio[] = [
 
   // Quadrinho VIII – Fechamento
   { key: "processo_baixado", label: "Processo Baixado (Z)", quadrinho: "VIII. Fechamento" },
-  { key: "chance_exito", label: "Chance de Êxito geral (AH)", quadrinho: "VIII. Fechamento" },
 ];
 
 /** Conjunto de chaves obrigatórias para asterisco no formulário. */
