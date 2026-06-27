@@ -1171,17 +1171,14 @@ async function run({ sb, payload, log, job }) {
       if (!statsCheckpointPorId.has(pi.id)) statsCheckpointPorId.set(pi.id, pi);
     }
   };
-  // Checkpoint só deve ser usado em RETOMADAS explícitas
-  // (payload.resumeCheckpoint === true). Execuções manuais E agendadas
-  // sempre começam do zero — caso contrário, a 2ª/3ª execução do dia
-  // (ex.: 02h, 13h, 21h) cairia inteira em "Já processado (checkpoint)".
+  // Checkpoint: auto-retomada quando existe execução recente da MESMA janela
+  // que terminou em 'falhou'/'cancelado'/'erro' (ex.: reaper matou por heartbeat).
+  // Assim, ao clicar "Executar novamente" após falha, NÃO recomeça do zero.
+  // resetCheckpoint=true força recomeço total.
   const forcarReset = !!payload?.resetCheckpoint;
-  const usarCheckpoint = payload?.resumeCheckpoint === true && !forcarReset;
+  const usarCheckpoint = !forcarReset;
   if (!usarCheckpoint) {
-    log("paralela.checkpoint_skipped", {
-      runKey,
-      motivo: forcarReset ? "resetCheckpoint" : (payload?.manual ? "manual" : "agendado"),
-    });
+    log("paralela.checkpoint_skipped", { runKey, motivo: "resetCheckpoint" });
   }
   try {
     if (!usarCheckpoint) throw new Error("__skip_checkpoint__");
@@ -1192,7 +1189,7 @@ async function run({ sb, payload, log, job }) {
       .from("execucoes_servidor")
       .select("id, status, payload, progresso, created_at")
       .eq("tipo", TIPO_ENGINE)
-      .in("status", ["cancelado", "erro", "concluido"])
+      .in("status", ["cancelado", "erro", "concluido", "falhou"])
       .order("created_at", { ascending: false })
       .limit(50);
     for (const ant of anteriores || []) {
