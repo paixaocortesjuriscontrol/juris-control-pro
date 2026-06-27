@@ -213,7 +213,9 @@ async function persistMatches(
   const tabela = persistMode === "servidor" ? "publicacoes_djen_servidor" : "publicacoes_djen";
   const rows = matches.filter((m) => {
     const coordenacaoId = monitCoordMap.get(m.monitoramentoId) ?? null;
-    const key = `${coordenacaoId || ""}|${m.monitoramentoId || ""}|${m.hash || ""}`;
+    // Dedup local: coordenação + hash (sem monitoramento). Mesma pauta vista
+    // por dois monitoramentos da mesma coordenação → 1 linha só.
+    const key = `${coordenacaoId || ""}|${m.hash || ""}`;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -247,14 +249,14 @@ async function persistMatches(
     const { data: existentes } = hashes.length > 0
       ? await supabase
         .from(tabela)
-        .select("id, coordenacao_id, monitoramento_id, hash_conteudo")
+        .select("id, coordenacao_id, hash_conteudo")
         .eq("tipo_publicacao", "pauta")
         .in("hash_conteudo", hashes)
-      : { data: [] as Array<{ id: string; coordenacao_id: string | null; monitoramento_id: string; hash_conteudo: string }> };
+      : { data: [] as Array<{ id: string; coordenacao_id: string | null; hash_conteudo: string }> };
     const existingKeys = new Set(
-      (existentes || []).map((e) => `${e.coordenacao_id || ""}|${e.monitoramento_id || ""}|${e.hash_conteudo || ""}`),
+      (existentes || []).map((e) => `${e.coordenacao_id || ""}|${e.hash_conteudo || ""}`),
     );
-    const novosRows = slice.filter((r) => !existingKeys.has(`${r.coordenacao_id || ""}|${r.monitoramento_id || ""}|${r.hash_conteudo || ""}`));
+    const novosRows = slice.filter((r) => !existingKeys.has(`${r.coordenacao_id || ""}|${r.hash_conteudo || ""}`));
     duplicadas += slice.length - novosRows.length;
     if (novosRows.length === 0) continue;
 
