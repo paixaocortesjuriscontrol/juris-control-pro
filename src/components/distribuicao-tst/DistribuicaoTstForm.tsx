@@ -474,6 +474,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     "analise_quarteirizado",
     "risco_midia",
     "risco_descricao",
+    "risco_nivel",
     "provas_digitais",
     "materia_honra",
     "tem_data_julgamento",
@@ -495,6 +496,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     "situacao_processo",
     "data_transito_julgado",
     "chance_exito",
+    "materias_analise_reclamante",
+    "materias_analise_banco",
+    "tem_chance_exito_reclamante",
+    "tem_chance_exito_banco",
+    "tem_chance_exito_terceiro",
   ] as const;
   const buildBennerExtra = (src: any | null | undefined): Record<string, any> => {
     const out: Record<string, any> = {};
