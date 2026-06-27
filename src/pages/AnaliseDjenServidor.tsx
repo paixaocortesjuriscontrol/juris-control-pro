@@ -65,7 +65,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { addDays, endOfDay, format, parseISO, startOfDay } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
 import { prepararConteudoParaIA } from "@/lib/publicacao-markdown";
@@ -104,8 +104,6 @@ type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas' | 'kurier';
 type FiltroDiaDjen = 'hoje' | 'todos';
 
-const formatToUTC = (date: Date) => date.toISOString();
-
 // Encurta nomes de turma/órgão como "5ª Turma do Tribunal Superior do Trabalho" → "5ª Turma".
 // Mantém o valor original quando não casar com o padrão "Nª Turma" / "N Turma".
 const shortenTurma = (value: string | null | undefined): string => {
@@ -121,6 +119,37 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
     return `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, '0')}-${String(nextDay.getDate()).padStart(2, '0')}T02:59:59.999Z`;
   }
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T03:00:00Z`;
+};
+
+const getHojeBrtISO = (): string => {
+  const parts = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+};
+
+const aplicarFiltroDataPublicacaoHojeBrt = <T extends any>(query: T, inicioUtc: string | null, fimUtc: string | null, apenasHoje?: boolean): T => {
+  if (apenasHoje) {
+    if (!inicioUtc || !fimUtc) return query;
+    const diaBrt = inicioUtc.slice(0, 10);
+    const inicioDiaUtc = `${diaBrt}T00:00:00Z`;
+    const fimDiaUtc = `${diaBrt}T23:59:59.999Z`;
+    return (query as any).or(
+      `and(data_publicacao.gte.${inicioUtc},data_publicacao.lte.${fimUtc}),` +
+      `and(data_publicacao.gte.${inicioDiaUtc},data_publicacao.lte.${fimDiaUtc}),` +
+      `and(data_publicacao.is.null,data_disponibilizacao.gte.${inicioUtc},data_disponibilizacao.lte.${fimUtc}),` +
+      `and(data_publicacao.is.null,data_disponibilizacao.gte.${inicioDiaUtc},data_disponibilizacao.lte.${fimDiaUtc}),` +
+      `and(data_publicacao.is.null,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc})`
+    ) as T;
+  }
+  let q: any = query;
+  if (inicioUtc) q = q.gte('created_at', inicioUtc);
+  if (fimUtc) q = q.lte('created_at', fimUtc);
+  return q as T;
 };
 
 const AnaliseDjenServidor = () => {
@@ -170,9 +199,10 @@ const AnaliseDjenServidor = () => {
   useEffect(() => {
     setExecucaoFocada(null);
   }, [dataDisponibilizacao, coordenacaoId]);
-  // Toggle para ocultar visualmente publicações duplicadas (mesmo processo +
-  // mesmo conteúdo dentro da mesma coordenação). Não altera o banco; apenas
-  // filtra a lista renderizada. Preferência persistida em localStorage.
+  // Toggle visual: usa a regra oficial da tela (coordenação + id_djen).
+  // A regra processo + conteúdo completo fica restrita ao botão vermelho
+  // "Descartar duplicadas da coordenação". Não altera o banco; apenas filtra
+  // a lista renderizada. Preferência persistida em localStorage.
   // Default false: mostra todas por padrão; o advogado clica para ocultar.
   const [ocultarDuplicadas, setOcultarDuplicadas] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -384,13 +414,13 @@ const AnaliseDjenServidor = () => {
       ? format(parseISO(inicioEfetivo), 'dd/MM/yyyy')
       : `${format(parseISO(inicioEfetivo), 'dd/MM/yyyy')} a ${format(parseISO(fimEfetivo), 'dd/MM/yyyy')}`;
     const confirma = window.confirm(
-      `Descartar publicações duplicadas (mesmo processo + dia + conteúdo) desta coordenação no intervalo ${labelIntervalo}?\n\n` +
+      `Descartar publicações duplicadas (mesmo processo + conteúdo completo) desta coordenação no intervalo ${labelIntervalo}?\n\n` +
       'A publicação mais antiga de cada grupo é mantida. Você poderá DESFAZER pelo botão "Desfazer último descarte".'
     );
     if (!confirma) return;
     try {
       setDescartandoDuplicadas(true);
-      const { data, error } = await (supabase as any).rpc('descartar_duplicadas_coordenacao', {
+      const { data, error } = await (supabase as any).rpc('descartar_duplicadas_coordenacao_servidor', {
         p_coordenacao_id: coordId,
         p_data_disp_inicio: inicioEfetivo,
         p_data_disp_fim: fimEfetivo,
@@ -453,8 +483,9 @@ const AnaliseDjenServidor = () => {
     termoBusca: execucaoFocada ? undefined : (termoBuscaDebounced || undefined),
     monitoramentoId: execucaoFocada ? undefined : (monitoramentoId || undefined),
     tribunal: execucaoFocada ? undefined : (tribunalFiltro || undefined),
-    // Quando o usuário clica em "Mostrar somente únicas", aplica DISTINCT ON
-    // por (coordenação, conteúdo) no servidor. Default false: traz tudo.
+    // Quando o usuário clica em "Mostrar somente únicas", usa apenas a regra
+    // oficial coordenação + id_djen. Processo + conteúdo completo só no botão
+    // "Descartar duplicadas da coordenação".
     dedupServidor: execucaoFocada ? false : ocultarDuplicadas,
     apenasNaoLidas: execucaoFocada ? false : apenasNaoLidas,
     readStatus: execucaoFocada ? 'todas' : readStatus,
@@ -479,7 +510,7 @@ const AnaliseDjenServidor = () => {
   });
 
   // === Login Kurier por publicação ===
-  // O `kurier_login` é gravado na tabela `publicacoes_djen` no momento da captura,
+      // O `kurier_login` é gravado na tabela `publicacoes_djen_servidor` no momento da captura,
   // mas a RPC unificada (get_djen_publicacoes_unificadas) não devolve essa coluna.
   // Buscamos lateralmente apenas os IDs das publicações Kurier visíveis para exibir
   // o login responsável pela captura no badge "Captura:".
@@ -502,7 +533,7 @@ const AnaliseDjenServidor = () => {
       for (let i = 0; i < kurierIdsVisiveis.length; i += chunkSize) {
         const slice = kurierIdsVisiveis.slice(i, i + chunkSize);
         const { data } = await (supabase as any)
-          .from('publicacoes_djen')
+          .from('publicacoes_djen_servidor')
           .select('id, kurier_login')
           .in('id', slice);
         (data || []).forEach((r: any) => { if (r.kurier_login) out[r.id] = r.kurier_login; });
@@ -618,35 +649,31 @@ const AnaliseDjenServidor = () => {
 
       const dataInicioEfetiva = dataDisponibilizacaoDebounced || dataInicioDebounced;
       const dataFimEfetiva = dataDisponibilizacaoDebounced || dataFimDebounced;
+      const hojeBrt = getHojeBrtISO();
       const dataInicioFiltro = apenasHoje
-        ? formatToUTC(startOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, false)
         : dataInicioEfetiva
           ? dateLocalToUTCRange(dataInicioEfetiva, false)
           : null;
       const dataFimFiltro = apenasHoje
-        ? formatToUTC(endOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, true)
         : dataFimEfetiva
           ? dateLocalToUTCRange(dataFimEfetiva, true)
           : null;
 
-      let query = (supabase.from('publicacoes_djen') as any)
+      let query = (supabase.from('publicacoes_djen_servidor') as any)
         .select(`
           id, id_djen, monitoramento_id, processo_numero, conteudo, data_publicacao,
-          data_disponibilizacao, fonte, tribunal, lida, created_at, orgao, tipo_comunicacao,
-          meio, advogados_json, partes_json, polo_ativo, polo_passivo,
-          monitoramento:monitoramentos_djen!inner(
-            id, tipo, termo_busca, descricao, oab, uf, coordenacao_id,
-            coordenacao:coordenacoes(id, nome)
-          )
+          data_disponibilizacao, fonte, tribunal, created_at, orgao, tipo_comunicacao,
+          meio, advogados_json, partes_json, polo_ativo, polo_passivo, coordenacao_id
         `)
         .eq('tipo_publicacao', 'pauta')
         .order('created_at', { ascending: false });
 
-      if (dataInicioFiltro) query = query.gte('created_at', dataInicioFiltro);
-      if (dataFimFiltro) query = query.lte('created_at', dataFimFiltro);
-      if (coordenacaoFiltroEfetivo) query = query.eq('monitoramento.coordenacao_id', coordenacaoFiltroEfetivo);
+      query = aplicarFiltroDataPublicacaoHojeBrt(query, dataInicioFiltro, dataFimFiltro, apenasHoje);
+      if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
       if (!isAdmin && !coordenacaoFiltroEfetivo && userCoordenacaoIds.length > 0) {
-        query = query.in('monitoramento.coordenacao_id', userCoordenacaoIds);
+        query = query.in('coordenacao_id', userCoordenacaoIds);
       }
       if (monitoramentoId) query = query.eq('monitoramento_id', monitoramentoId);
 
@@ -663,11 +690,10 @@ const AnaliseDjenServidor = () => {
         rows = rows.filter((pub) => {
           const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBuscaDebounced);
           const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
-          const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termoLower);
           const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
             ? (() => { const digits = pub.processo_numero.replace(/\D/g, ''); return digits.includes(termoDigits) || termoDigits.includes(digits); })()
             : false;
-          return matchConteudo || matchProcesso || matchTermoMonitor || matchProcessoDigits;
+          return matchConteudo || matchProcesso || matchProcessoDigits;
         });
       }
 
@@ -684,13 +710,13 @@ const AnaliseDjenServidor = () => {
         lida: false,
         created_at: pub.created_at,
         monitoramento_id: pub.monitoramento_id,
-        monitoramento_termo: pub.monitoramento?.termo_busca,
-        monitoramento_descricao: pub.monitoramento?.descricao,
-        monitoramento_tipo: pub.monitoramento?.tipo,
-        monitoramento_oab: pub.monitoramento?.oab,
-        monitoramento_uf: pub.monitoramento?.uf,
-        coordenacao_id: pub.monitoramento?.coordenacao_id,
-        coordenacao_nome: pub.monitoramento?.coordenacao?.nome,
+        monitoramento_termo: null,
+        monitoramento_descricao: null,
+        monitoramento_tipo: null,
+        monitoramento_oab: null,
+        monitoramento_uf: null,
+        coordenacao_id: pub.coordenacao_id ?? null,
+        coordenacao_nome: null,
         polo_ativo: pub.polo_ativo || null,
         polo_passivo: pub.polo_passivo || null,
         tribunal: pub.tribunal ?? null,
@@ -749,13 +775,14 @@ const AnaliseDjenServidor = () => {
     queryFn: async () => {
       if (!user?.id) return { rows: [] as PublicacaoUnificada[], total: 0 };
 
+      const hojeBrt = getHojeBrtISO();
       const dataInicioFiltro = apenasHoje
-        ? formatToUTC(startOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, false)
         : dataInicioDebounced
           ? dateLocalToUTCRange(dataInicioDebounced, false)
           : null;
       const dataFimFiltro = apenasHoje
-        ? formatToUTC(endOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, true)
         : dataFimDebounced
           ? dateLocalToUTCRange(dataFimDebounced, true)
           : null;
@@ -1020,13 +1047,8 @@ const AnaliseDjenServidor = () => {
 
       if (movError) throw movError;
 
-      // 2. Marcar a publicação como lida (tabela correta)
-      const { error: lidaError } = await supabase
-        .from(pub.tipo_origem === 'termo' ? 'publicacoes_djen' : 'publicacoes_djen_processos')
-        .update({ lida: true })
-        .eq('id', pub.id);
-
-      if (lidaError) throw lidaError;
+      // 2. Marcar a publicação como lida via controle per-user do hook (não escreve na tabela do Browser)
+      await marcarComoLida.mutateAsync([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
 
       // Invalidar queries
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
@@ -1145,11 +1167,8 @@ const AnaliseDjenServidor = () => {
           data_movimentacao: pub.data_publicacao || new Date().toISOString(),
         });
 
-      // 5. Marcar a publicação como lida
-      await supabase
-        .from('publicacoes_djen')
-        .update({ lida: true })
-        .eq('id', pub.id);
+      // 5. Marcar a publicação como lida via controle per-user do hook (não escreve na tabela do Browser)
+      await marcarComoLida.mutateAsync([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
 
       // Invalidar queries
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
@@ -4102,7 +4121,7 @@ const AnaliseDjenServidor = () => {
                     size="sm"
                     variant={ocultarDuplicadas ? 'default' : 'outline'}
                     onClick={() => setOcultarDuplicadas(v => !v)}
-                    title="Por padrão mostra TODAS as publicações. Clique para mostrar somente uma publicação por processo+conteúdo (na mesma coordenação). Não altera o banco."
+                    title="Por padrão mostra TODAS as publicações. Clique para mostrar somente uma por id_djen dentro da mesma coordenação. Processo + conteúdo completo só é usado no botão Descartar duplicadas. Não altera o banco."
                   >
                     <Layers className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
                     {ocultarDuplicadas ? 'Mostrar todas' : 'Mostrar somente únicas'}
@@ -4127,7 +4146,7 @@ const AnaliseDjenServidor = () => {
                         ? 'Selecione uma coordenação específica para habilitar o descarte.'
                         : (!isAdmin && !userCoordenacaoIds.includes(coordenacaoFiltroEfetivo))
                           ? 'Você não pertence a esta coordenação. Apenas administradores podem descartar de qualquer coordenação.'
-                          : 'Descarta em lote as publicações duplicadas (mesmo processo + dia + conteúdo) da coordenação dentro do intervalo informado (ou apenas HOJE se vazio). Mantém a mais antiga de cada grupo. Pode ser desfeito.'
+                          : 'Descarta em lote as publicações duplicadas (mesmo processo + conteúdo completo) da coordenação dentro do intervalo informado (ou apenas HOJE se vazio). Mantém a mais antiga de cada grupo. Pode ser desfeito.'
                     }
                   >
                     {descartandoDuplicadas ? (

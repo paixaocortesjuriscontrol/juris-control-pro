@@ -8233,6 +8233,14 @@ export type Database = {
             }
             Returns: Json
           }
+      descartar_duplicadas_coordenacao_servidor: {
+        Args: {
+          p_coordenacao_id: string
+          p_data_disp_fim?: string
+          p_data_disp_inicio?: string
+        }
+        Returns: Json
+      }
       descartar_publicacao_manualmente: {
         Args: { p_id: string; p_motivo?: string; p_tipo_origem: string }
         Returns: Json

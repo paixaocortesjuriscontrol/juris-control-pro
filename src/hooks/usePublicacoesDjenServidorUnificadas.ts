@@ -2,13 +2,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { startOfDay, endOfDay } from "date-fns";
 import { dedupePublicacoesDjen } from "@/utils/djenDedup";
 import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
-import { addDays, parse } from "date-fns";
-
-// Helper para formatar data em ISO com timezone UTC
-const formatToUTC = (date: Date) => date.toISOString();
+import { addDays } from "date-fns";
 
 /** Parse seguro de advogados_json/partes_json: evita throw e preserva objetos da Kurier. */
 function parseJsonArraySafe(value: unknown): any[] | null {
@@ -47,6 +43,41 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
     // Início do dia em BRT (00:00) = mesmo dia às 03:00 UTC
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T03:00:00Z`;
   }
+};
+
+const getHojeBrtISO = (): string => {
+  const parts = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+};
+
+// "Apenas hoje" na análise do DJEN Servidor deve olhar a DATA DA PUBLICAÇÃO em BRT.
+// Se alguma linha antiga ainda estiver sem data_publicacao, usa fallback para
+// data_disponibilizacao e, por último, created_at. Filtros manuais de período
+// continuam sendo por created_at/captura, como já era antes.
+const aplicarFiltroDataPublicacaoHojeBrt = <T extends any>(query: T, inicioUtc: string | null, fimUtc: string | null, apenasHoje?: boolean): T => {
+  if (apenasHoje) {
+    if (!inicioUtc || !fimUtc) return query;
+    const diaBrt = inicioUtc.slice(0, 10);
+    const inicioDiaUtc = `${diaBrt}T00:00:00Z`;
+    const fimDiaUtc = `${diaBrt}T23:59:59.999Z`;
+    return (query as any).or(
+      `and(data_publicacao.gte.${inicioUtc},data_publicacao.lte.${fimUtc}),` +
+      `and(data_publicacao.gte.${inicioDiaUtc},data_publicacao.lte.${fimDiaUtc}),` +
+      `and(data_publicacao.is.null,data_disponibilizacao.gte.${inicioUtc},data_disponibilizacao.lte.${fimUtc}),` +
+      `and(data_publicacao.is.null,data_disponibilizacao.gte.${inicioDiaUtc},data_disponibilizacao.lte.${fimDiaUtc}),` +
+      `and(data_publicacao.is.null,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc})`
+    ) as T;
+  }
+  let q: any = query;
+  if (inicioUtc) q = q.gte('created_at', inicioUtc);
+  if (fimUtc) q = q.lte('created_at', fimUtc);
+  return q as T;
 };
 
 function normalizarTermo(valor: string | null | undefined): string {
@@ -327,14 +358,15 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
     queryFn: async ({ signal }) => {
       if (!user?.id) return 0;
 
+      const hojeBrt = getHojeBrtISO();
       const dataInicioFiltro = filtros.apenasHoje
-        ? formatToUTC(startOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, false)
         : filtros.dataInicio
           ? dateLocalToUTCRange(filtros.dataInicio, false)
           : null;
 
       const dataFimFiltro = filtros.apenasHoje
-        ? formatToUTC(endOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, true)
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
@@ -364,8 +396,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         q = q.neq('motivo_descarte', 'termo_nao_encontrado');
 
         if (!buscaPorProcessoCount) {
-          if (dataInicioFiltro) q = filtros.apenasHoje ? q.gte('data_publicacao', dataInicioFiltro) : q.gte('created_at', dataInicioFiltro);
-          if (dataFimFiltro) q = filtros.apenasHoje ? q.lte('data_publicacao', dataFimFiltro) : q.lte('created_at', dataFimFiltro);
+          q = aplicarFiltroDataPublicacaoHojeBrt(q, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
           if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
           if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         } else {
@@ -419,13 +450,14 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
     queryFn: async ({ signal }) => {
       if (!user?.id) return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0, totalUnicas: 0, naoLidasUnicas: 0 };
 
+      const hojeBrt = getHojeBrtISO();
       const di = filtros.apenasHoje
-        ? formatToUTC(startOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, false)
         : filtros.dataInicio
           ? dateLocalToUTCRange(filtros.dataInicio, false)
           : null;
       const df = filtros.apenasHoje
-        ? formatToUTC(endOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, true)
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
@@ -449,8 +481,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
             .from('publicacoes_djen_servidor') as any)
             .select('id, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, coordenacao_id', { count: 'exact' })
             .eq('tipo_publicacao', 'pauta');
-          if (di) q = filtros.apenasHoje ? q.gte('data_publicacao', di) : q.gte('created_at', di);
-          if (df) q = filtros.apenasHoje ? q.lte('data_publicacao', df) : q.lte('created_at', df);
+          q = aplicarFiltroDataPublicacaoHojeBrt(q, di, df, filtros.apenasHoje);
           if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
           if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
           if (filtros.coordenacaoId) q = q.eq('coordenacao_id', filtros.coordenacaoId);
@@ -519,8 +550,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         .or('tipo_publicacao.is.null,tipo_publicacao.neq.pauta')
         .order('created_at', { ascending: false });
 
-      if (di) q = filtros.apenasHoje ? q.gte('data_publicacao', di) : q.gte('created_at', di);
-      if (df) q = filtros.apenasHoje ? q.lte('data_publicacao', df) : q.lte('created_at', df);
+      q = aplicarFiltroDataPublicacaoHojeBrt(q, di, df, filtros.apenasHoje);
       if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
       if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
       if (filtros.coordenacaoId) q = q.eq('coordenacao_id', filtros.coordenacaoId);
@@ -630,14 +660,15 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
     queryFn: async ({ signal }) => {
       if (!user?.id) return { rows: [] as PublicacaoUnificada[], lastChunkSize: 0 };
       
+      const hojeBrt = getHojeBrtISO();
       const dataInicioFiltro = filtros.apenasHoje 
-        ? formatToUTC(startOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, false)
         : filtros.dataInicio 
           ? dateLocalToUTCRange(filtros.dataInicio, false)
           : null;
       
       const dataFimFiltro = filtros.apenasHoje
-        ? formatToUTC(endOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, true)
         : filtros.dataFim
           ? dateLocalToUTCRange(filtros.dataFim, true)
           : null;
@@ -812,8 +843,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
             .order('created_at', { ascending: false });
 
           if (!buscaPorProcessoList) {
-            if (dataInicioFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.gte('data_publicacao', dataInicioFiltro) : queryDescartadas.gte('created_at', dataInicioFiltro);
-            if (dataFimFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.lte('data_publicacao', dataFimFiltro) : queryDescartadas.lte('created_at', dataFimFiltro);
+            queryDescartadas = aplicarFiltroDataPublicacaoHojeBrt(queryDescartadas, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
           } else {
             queryDescartadas = queryDescartadas.ilike('processo_numero', `%${termoDigitsList}%`);
           }
@@ -926,8 +956,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           `)
           .order('created_at', { ascending: false });
 
-        if (dataInicioFiltro) queryTermos = filtros.apenasHoje ? queryTermos.gte('data_publicacao', dataInicioFiltro) : queryTermos.gte('created_at', dataInicioFiltro);
-        if (dataFimFiltro) queryTermos = filtros.apenasHoje ? queryTermos.lte('data_publicacao', dataFimFiltro) : queryTermos.lte('created_at', dataFimFiltro);
+        queryTermos = aplicarFiltroDataPublicacaoHojeBrt(queryTermos, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
         // Para DJET Pautas, `data_disponibilizacao` é gravada como meia-noite UTC
         // (semântica de DATE, não de timestamp local). Usar o range BRT (03:00→02:59 UTC)
         // descarta as pautas porque a meia-noite UTC fica ANTES da janela. Quando o filtro
@@ -1175,8 +1204,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           `)
           .order('created_at', { ascending: false });
 
-        if (dataInicioFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.gte('data_publicacao', dataInicioFiltro) : queryDescartadas.gte('created_at', dataInicioFiltro);
-        if (dataFimFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.lte('data_publicacao', dataFimFiltro) : queryDescartadas.lte('created_at', dataFimFiltro);
+        queryDescartadas = aplicarFiltroDataPublicacaoHojeBrt(queryDescartadas, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
         if (dataDisponibilizacaoInicio) queryDescartadas = queryDescartadas.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
         if (dataDisponibilizacaoFim) queryDescartadas = queryDescartadas.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         if (filtros.coordenacaoId) queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
