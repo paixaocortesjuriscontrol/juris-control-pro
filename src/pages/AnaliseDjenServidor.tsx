@@ -199,9 +199,10 @@ const AnaliseDjenServidor = () => {
   useEffect(() => {
     setExecucaoFocada(null);
   }, [dataDisponibilizacao, coordenacaoId]);
-  // Toggle para ocultar visualmente publicações duplicadas (mesmo processo +
-  // mesmo conteúdo dentro da mesma coordenação). Não altera o banco; apenas
-  // filtra a lista renderizada. Preferência persistida em localStorage.
+  // Toggle visual: usa a regra oficial da tela (coordenação + id_djen).
+  // A regra processo + conteúdo completo fica restrita ao botão vermelho
+  // "Descartar duplicadas da coordenação". Não altera o banco; apenas filtra
+  // a lista renderizada. Preferência persistida em localStorage.
   // Default false: mostra todas por padrão; o advogado clica para ocultar.
   const [ocultarDuplicadas, setOcultarDuplicadas] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -482,8 +483,9 @@ const AnaliseDjenServidor = () => {
     termoBusca: execucaoFocada ? undefined : (termoBuscaDebounced || undefined),
     monitoramentoId: execucaoFocada ? undefined : (monitoramentoId || undefined),
     tribunal: execucaoFocada ? undefined : (tribunalFiltro || undefined),
-    // Quando o usuário clica em "Mostrar somente únicas", aplica DISTINCT ON
-    // por (coordenação, conteúdo) no servidor. Default false: traz tudo.
+    // Quando o usuário clica em "Mostrar somente únicas", usa apenas a regra
+    // oficial coordenação + id_djen. Processo + conteúdo completo só no botão
+    // "Descartar duplicadas da coordenação".
     dedupServidor: execucaoFocada ? false : ocultarDuplicadas,
     apenasNaoLidas: execucaoFocada ? false : apenasNaoLidas,
     readStatus: execucaoFocada ? 'todas' : readStatus,
@@ -4119,7 +4121,7 @@ const AnaliseDjenServidor = () => {
                     size="sm"
                     variant={ocultarDuplicadas ? 'default' : 'outline'}
                     onClick={() => setOcultarDuplicadas(v => !v)}
-                    title="Por padrão mostra TODAS as publicações. Clique para mostrar somente uma publicação por processo+conteúdo (na mesma coordenação). Não altera o banco."
+                    title="Por padrão mostra TODAS as publicações. Clique para mostrar somente uma por id_djen dentro da mesma coordenação. Processo + conteúdo completo só é usado no botão Descartar duplicadas. Não altera o banco."
                   >
                     <Layers className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
                     {ocultarDuplicadas ? 'Mostrar todas' : 'Mostrar somente únicas'}
@@ -4144,7 +4146,7 @@ const AnaliseDjenServidor = () => {
                         ? 'Selecione uma coordenação específica para habilitar o descarte.'
                         : (!isAdmin && !userCoordenacaoIds.includes(coordenacaoFiltroEfetivo))
                           ? 'Você não pertence a esta coordenação. Apenas administradores podem descartar de qualquer coordenação.'
-                          : 'Descarta em lote as publicações duplicadas (mesmo processo + dia + conteúdo) da coordenação dentro do intervalo informado (ou apenas HOJE se vazio). Mantém a mais antiga de cada grupo. Pode ser desfeito.'
+                          : 'Descarta em lote as publicações duplicadas (mesmo processo + conteúdo completo) da coordenação dentro do intervalo informado (ou apenas HOJE se vazio). Mantém a mais antiga de cada grupo. Pode ser desfeito.'
                     }
                   >
                     {descartandoDuplicadas ? (
