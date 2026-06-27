@@ -1,101 +1,33 @@
-## Problema real
+## Dedup de Pautas (Servidor + Browser) por coordenação + processo + conteúdo sem intimados
 
-A tela está errada nos dois lugares: **Análise DJEN** e **Análise DJEN Servidor**.
+Apenas Pautas. Não toca em termos. Conteúdo gravado permanece completo, com intimados — a remoção dos intimados é só para calcular a chave de comparação.
 
-Pelas imagens:
+### Arquivos
+- `src/hooks/useDjetPautasParalelaEngine.ts`
+- `supabase/functions/executar-djet-pautas-agendado/index.ts`
 
-- Sem preencher “Data Disponibilização” e com **Somente Hoje**: card **Pautas DEJT = 4**.
-- Ao preencher **Data Disponibilização = 26/06/2026** e mudar para “Todos os dias”: card **Pautas DEJT = 52**.
+### Mudanças
 
-A consulta no banco confirma o diagnóstico:
-
-```text
-Local:    52 pautas com data_disponibilizacao = hoje BRT
-Servidor: 52 pautas com data_disponibilizacao = hoje BRT
-Servidor: só 4 pautas com data_publicacao = hoje
-```
-
-Então o erro não é que não foram gravadas. Elas foram gravadas. O erro é que, quando a data de disponibilização está vazia, a tela usa o filtro de “hoje” pela **data errada**.
-
-## Do I know what the issue is?
-
-Sim.
-
-O problema é este: para **Pautas DEJT**, o sistema deve usar **data_disponibilizacao em BRT/São Paulo** como data principal. Hoje, quando o campo “Data Disponibilização” está vazio, os hooks caem no filtro genérico de “Somente Hoje”, que usa `data_publicacao`/`created_at`. Isso faz o card mostrar 4 em vez de 52.
-
-A documentação confirma que a forma correta de tratar fuso no JavaScript é especificar `timeZone: 'America/Sao_Paulo'` com `Intl.DateTimeFormat`, e não depender de `new Date()`/`toISOString()` sem fuso.
-
-## Arquivos envolvidos
-
-- `src/hooks/usePublicacoesDjenUnificadas.ts`
-- `src/hooks/usePublicacoesDjenServidorUnificadas.ts`
-
-São os hooks que montam os filtros e os contadores da Análise DJEN Local e Servidor.
-
-## Plano de correção
-
-### 1) Criar uma regra única de “hoje BRT” para os dois hooks
-
-Adicionar/usar helper para obter o dia atual em São Paulo:
-
+1) Helpers locais nos dois arquivos:
 ```ts
-getHojeBrtISO() // YYYY-MM-DD em America/Sao_Paulo
+const STRIP_RE = /(Intimad[ao]|Destinat[áa]rio|Advogad[ao]|Parte|Reclamante|Reclamad[ao]|Autor|R[eé]u|Requerente|Requerid[ao])\s*\(?s?\)?\s*:/i;
+const stripIntimados = (t: string) => { const i = (t||"").search(STRIP_RE); return i > 0 ? t.slice(0, i) : (t||""); };
+const digitsProcesso = (p?: string|null) => ((p||"").replace(/\D/g,"") || "sem-processo");
 ```
 
-E parar de usar, para filtro de tela:
+2) Hash gravado em `hash_conteudo`:
+`sha256( coordenacao_id | digitsProcesso(processo) | normalize(stripIntimados(conteudo)) )`
+- `normalize` = NFD + lowercase + colapso de espaços (`normalizeDjetText` já existe).
+- `conteudo` salvo na linha continua sendo o texto completo do bloco (com intimados).
 
-```ts
-startOfDay(new Date()).toISOString()
-endOfDay(new Date()).toISOString()
-```
+3) Dedup de existentes (em `persistMatches` de ambos os arquivos):
+- `seen` local e lookup no banco passam a usar chave `coordenacao_id | hash_conteudo` (sem `monitoramento_id`), filtrando `tipo_publicacao='pauta'`.
+- Tabela: `publicacoes_djen_servidor` quando `persist_mode=servidor`, senão `publicacoes_djen`.
 
-porque isso depende do fuso/UTC e já causou esse erro várias vezes.
+4) Nada muda em termos, validação, datas, junction `publicacoes_djen_servidor_execucoes`, fonte (`dejt-pdf`), `tipo_publicacao` (`pauta`).
 
-### 2) Para Pautas DEJT, “Somente Hoje” deve filtrar por data_disponibilizacao
-
-Quando `tipoOrigem === 'djet-pautas'` ou quando o card “Pautas DEJT” estiver sendo calculado:
-
-- se o usuário informou “Data Disponibilização”, usar essa data;
-- se não informou e está em “Somente Hoje”, usar **hoje BRT** automaticamente;
-- comparar `data_disponibilizacao` como dia fechado:
-
-```text
-YYYY-MM-DDT00:00:00Z até YYYY-MM-DDT23:59:59.999Z
-```
-
-Isso é necessário porque as pautas são gravadas com semântica de data do DEJT, não como evento de captura.
-
-### 3) Aplicar a mesma regra nos contadores e na lista
-
-Corrigir nos dois hooks:
-
-- card “Pautas DEJT”;
-- total independente/header;
-- lista principal;
-- fallback de query direta;
-- total de “Selecionar todos”.
-
-O card e a lista devem usar exatamente a mesma janela de data.
-
-### 4) Manter regra diferente para publicações normais
-
-Para publicações DJEN comuns, não alterar agora a regra de deduplicação nem `id_djen`.
-
-A mudança é específica para **filtro de data** e especialmente para **Pautas DEJT**.
-
-## Resultado esperado
-
-Depois da correção:
-
-- Análise DJEN Local sem data preenchida + “Somente Hoje” deve mostrar **52** pautas, não 4.
-- Análise DJEN Servidor sem data preenchida + “Somente Hoje” deve mostrar **52** pautas, não 4.
-- Ao preencher manualmente `26/06/2026`, o número deve continuar batendo com “Somente Hoje”.
-- Todo cálculo de “hoje” passa a usar **America/Sao_Paulo**.
-
-<presentation-actions>
-  <presentation-open-history>View History</presentation-open-history>
-</presentation-actions>
-
-<presentation-actions>
-<presentation-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</presentation-link>
-</presentation-actions>
+### Comportamento
+- 1ª execução do dia grava tudo (conteúdo completo com intimados).
+- 2ª execução com mesma coordenação+processo+conteúdo-sem-intimados: hash bate → conta como duplicada, não insere.
+- Coordenações diferentes seguem independentes.
+- Sem migração de banco.
