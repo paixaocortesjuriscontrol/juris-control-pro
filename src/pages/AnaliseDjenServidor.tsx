@@ -122,12 +122,14 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
 };
 
 const getHojeBrtISO = (): string => {
-  return new Intl.DateTimeFormat('en-CA', {
+  const parts = new Intl.DateTimeFormat('pt-BR', {
     timeZone: 'America/Sao_Paulo',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(new Date());
+  }).formatToParts(new Date());
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
 };
 
 const aplicarFiltroDataPublicacaoHojeBrt = <T extends any>(query: T, inicioUtc: string | null, fimUtc: string | null, apenasHoje?: boolean): T => {
