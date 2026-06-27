@@ -8,7 +8,7 @@
  * Não persiste nada — quem grava em publicacoes_djen é o engine browser.
  */
 
-import { getDocumentProxy } from "npm:unpdf@0.12.1";
+import * as pdfjsLib from "npm:pdfjs-dist@4.10.38/legacy/build/pdf.mjs";
 import {
   buildDejtPdfUrls,
   getDejtTribunal,
@@ -78,6 +78,8 @@ async function sha256Hex(input: string): Promise<string> {
 
 const CNJ_REGEX = /\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/;
 const CNJ_REGEX_GLOBAL = /\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/g;
+const MAX_BLOCO_CHARS = 400_000;
+const MAX_BUF_FLUSH_CHARS = 800_000;
 
 /**
  * Quebra um bloco grande de pauta em sub-blocos, um por processo (CNJ).
@@ -163,20 +165,20 @@ function makePautaStreamSegmenter() {
       if (!next) {
         // Bloco aberto, mas não temos o próximo marcador ainda.
         if (final) {
-          const bloco = buf.length > 8000 ? buf.slice(0, 8000) : buf;
+          const bloco = buf.length > MAX_BLOCO_CHARS ? buf.slice(0, MAX_BLOCO_CHARS) : buf;
           buf = "";
           inBlock = false;
           yield bloco;
-        } else if (buf.length > 16000) {
-          // Bloco "infinito" — trunca e emite para não estourar memória.
-          yield buf.slice(0, 8000);
+        } else if (buf.length > MAX_BUF_FLUSH_CHARS) {
+          // Bloco "infinito" — mesmo limite do engine Browser para não cortar pautas grandes.
+          yield buf.slice(0, MAX_BLOCO_CHARS);
           buf = buf.slice(-4000);
           inBlock = false;
         }
         return;
       }
       const bloco = buf.slice(0, next.index);
-      yield bloco.length > 8000 ? bloco.slice(0, 8000) : bloco;
+      yield bloco.length > MAX_BLOCO_CHARS ? bloco.slice(0, MAX_BLOCO_CHARS) : bloco;
       buf = buf.slice(next.index);
       // continua o while: pode haver mais blocos completos no buffer
     }
@@ -207,19 +209,16 @@ const MAX_PDF_BYTES = 80 * 1024 * 1024; // 80 MB
  * (TRT1/TRT2/TRT5).
  */
 async function* iteratePdfPages(uint8: Uint8Array): AsyncGenerator<string> {
-  interface PdfTextPage {
-    getTextContent(): Promise<{ items?: Array<{ str?: string; hasEOL?: boolean }> }>;
-    cleanup?: () => void;
-  }
-  interface PdfDoc {
-    numPages?: number;
-    getPage(pageNumber: number): Promise<PdfTextPage>;
-    destroy?: () => Promise<void> | void;
-  }
-  const pdf = await getDocumentProxy(uint8, {
+  // IMPORTANTE: usar o mesmo pdfjs-dist do Browser. `unpdf` extraía texto
+  // diferente em alguns DEJTs (ex.: TRT10), deixando pautas reais invisíveis
+  // no Servidor embora aparecessem no Browser.
+  const pdf = await pdfjsLib.getDocument({
+    data: uint8,
     disableFontFace: true,
     useSystemFonts: false,
-  } as never) as unknown as PdfDoc;
+    isEvalSupported: false,
+    disableWorker: true,
+  }).promise;
   try {
     const numPages = pdf.numPages ?? 0;
     for (let i = 1; i <= numPages; i++) {
