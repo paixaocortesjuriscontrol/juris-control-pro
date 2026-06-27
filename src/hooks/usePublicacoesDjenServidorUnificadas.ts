@@ -46,12 +46,14 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
 };
 
 const getHojeBrtISO = (): string => {
-  return new Intl.DateTimeFormat('en-CA', {
+  const parts = new Intl.DateTimeFormat('pt-BR', {
     timeZone: 'America/Sao_Paulo',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(new Date());
+  }).formatToParts(new Date());
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
 };
 
 // "Apenas hoje" na análise do DJEN Servidor deve olhar a DATA DA PUBLICAÇÃO em BRT.
