@@ -211,10 +211,11 @@ async function persistMatches(
   if (matches.length === 0) return { novas: 0, duplicadas: 0 };
   const seen = new Set<string>();
   const tabela = persistMode === "servidor" ? "publicacoes_djen_servidor" : "publicacoes_djen";
-  const onConflict = persistMode === "servidor" ? "monitoramento_id,hash_conteudo" : "coordenacao_id,hash_conteudo";
   const rows = matches.filter((m) => {
-    if (seen.has(m.hash)) return false;
-    seen.add(m.hash);
+    const coordenacaoId = monitCoordMap.get(m.monitoramentoId) ?? null;
+    const key = `${coordenacaoId || ""}|${m.monitoramentoId || ""}|${m.hash || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   }).map((m) => {
     const base: Record<string, unknown> = {
@@ -242,19 +243,34 @@ async function persistMatches(
   const batchSize = 100;
   for (let i = 0; i < rows.length; i += batchSize) {
     const slice = rows.slice(i, i + batchSize);
+    const hashes = Array.from(new Set(slice.map((r) => r.hash_conteudo as string).filter(Boolean)));
+    const { data: existentes } = hashes.length > 0
+      ? await supabase
+        .from(tabela)
+        .select("id, coordenacao_id, monitoramento_id, hash_conteudo")
+        .eq("tipo_publicacao", "pauta")
+        .in("hash_conteudo", hashes)
+      : { data: [] as Array<{ id: string; coordenacao_id: string | null; monitoramento_id: string; hash_conteudo: string }> };
+    const existingKeys = new Set(
+      (existentes || []).map((e) => `${e.coordenacao_id || ""}|${e.monitoramento_id || ""}|${e.hash_conteudo || ""}`),
+    );
+    const novosRows = slice.filter((r) => !existingKeys.has(`${r.coordenacao_id || ""}|${r.monitoramento_id || ""}|${r.hash_conteudo || ""}`));
+    duplicadas += slice.length - novosRows.length;
+    if (novosRows.length === 0) continue;
+
     const { data, error } = await supabase
       .from(tabela)
-      .upsert(slice, { onConflict, ignoreDuplicates: true })
+      .insert(novosRows)
       .select("id");
     if (error) {
-      for (const r of slice) {
+      for (const r of novosRows) {
         const { error: e2 } = await supabase.from(tabela).insert(r);
         if (!e2) novas++; else duplicadas++;
       }
     } else {
       const inseridas = data?.length ?? 0;
       novas += inseridas;
-      duplicadas += slice.length - inseridas;
+      duplicadas += novosRows.length - inseridas;
     }
     // Grava junção execução×publicação (somente servidor)
     if (persistMode === "servidor" && execucaoId) {
