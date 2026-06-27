@@ -65,7 +65,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { addDays, endOfDay, format, parseISO, startOfDay } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
 import { prepararConteudoParaIA } from "@/lib/publicacao-markdown";
@@ -104,8 +104,6 @@ type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas' | 'kurier';
 type FiltroDiaDjen = 'hoje' | 'todos';
 
-const formatToUTC = (date: Date) => date.toISOString();
-
 // Encurta nomes de turma/órgão como "5ª Turma do Tribunal Superior do Trabalho" → "5ª Turma".
 // Mantém o valor original quando não casar com o padrão "Nª Turma" / "N Turma".
 const shortenTurma = (value: string | null | undefined): string => {
@@ -121,6 +119,15 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
     return `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, '0')}-${String(nextDay.getDate()).padStart(2, '0')}T02:59:59.999Z`;
   }
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T03:00:00Z`;
+};
+
+const getHojeBrtISO = (): string => {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 };
 
 const AnaliseDjenServidor = () => {
