@@ -501,7 +501,7 @@ const AnaliseDjenServidor = () => {
   });
 
   // === Login Kurier por publicação ===
-  // O `kurier_login` é gravado na tabela `publicacoes_djen` no momento da captura,
+      // O `kurier_login` é gravado na tabela `publicacoes_djen_servidor` no momento da captura,
   // mas a RPC unificada (get_djen_publicacoes_unificadas) não devolve essa coluna.
   // Buscamos lateralmente apenas os IDs das publicações Kurier visíveis para exibir
   // o login responsável pela captura no badge "Captura:".
@@ -524,7 +524,7 @@ const AnaliseDjenServidor = () => {
       for (let i = 0; i < kurierIdsVisiveis.length; i += chunkSize) {
         const slice = kurierIdsVisiveis.slice(i, i + chunkSize);
         const { data } = await (supabase as any)
-          .from('publicacoes_djen')
+          .from('publicacoes_djen_servidor')
           .select('id, kurier_login')
           .in('id', slice);
         (data || []).forEach((r: any) => { if (r.kurier_login) out[r.id] = r.kurier_login; });
@@ -655,7 +655,7 @@ const AnaliseDjenServidor = () => {
       let query = (supabase.from('publicacoes_djen_servidor') as any)
         .select(`
           id, id_djen, monitoramento_id, processo_numero, conteudo, data_publicacao,
-          data_disponibilizacao, fonte, tribunal, lida, created_at, orgao, tipo_comunicacao,
+          data_disponibilizacao, fonte, tribunal, created_at, orgao, tipo_comunicacao,
           meio, advogados_json, partes_json, polo_ativo, polo_passivo, coordenacao_id
         `)
         .eq('tipo_publicacao', 'pauta')
@@ -1038,13 +1038,8 @@ const AnaliseDjenServidor = () => {
 
       if (movError) throw movError;
 
-      // 2. Marcar a publicação como lida (tabela correta)
-      const { error: lidaError } = await supabase
-        .from(pub.tipo_origem === 'termo' ? 'publicacoes_djen' : 'publicacoes_djen_processos')
-        .update({ lida: true })
-        .eq('id', pub.id);
-
-      if (lidaError) throw lidaError;
+      // 2. Marcar a publicação como lida via controle per-user do hook (não escreve na tabela do Browser)
+      await marcarComoLida.mutateAsync([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
 
       // Invalidar queries
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
@@ -1163,11 +1158,8 @@ const AnaliseDjenServidor = () => {
           data_movimentacao: pub.data_publicacao || new Date().toISOString(),
         });
 
-      // 5. Marcar a publicação como lida
-      await supabase
-        .from('publicacoes_djen')
-        .update({ lida: true })
-        .eq('id', pub.id);
+      // 5. Marcar a publicação como lida via controle per-user do hook (não escreve na tabela do Browser)
+      await marcarComoLida.mutateAsync([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
 
       // Invalidar queries
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
