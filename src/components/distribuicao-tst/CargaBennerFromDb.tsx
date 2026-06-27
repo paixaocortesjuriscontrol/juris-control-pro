@@ -491,7 +491,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
             seen.add(k);
             out.push(String(it.materia).trim());
           }
-          return out.join(", ");
+          return out.join("\n");
         };
         outRow[LAYOUT_COLS[27]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_turma).startsWith("FAVOR")));
         outRow[LAYOUT_COLS[28]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_turma).startsWith("DESF")));
@@ -602,7 +602,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       let centeredStyleId = 0;
       if (cellXfsMatch) {
         const cnt = parseInt(cellXfsMatch[1]);
-        stylesXml = stylesXml.replace(/<\/cellXfs>/, `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf></cellXfs>`);
+        stylesXml = stylesXml.replace(/<\/cellXfs>/, `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf></cellXfs>`);
         stylesXml = stylesXml.replace(`<cellXfs count="${cnt}">`, `<cellXfs count="${cnt + 1}">`);
         centeredStyleId = cnt;
         zip.file("xl/styles.xml", stylesXml);
@@ -641,7 +641,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
       zip.file("xl/sharedStrings.xml",
-        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newStrings.map(s => `<si><t>${escXml(s)}</t></si>`).join("")}</sst>`
+        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newStrings.map(s => `<si><t xml:space="preserve">${escXml(s)}</t></si>`).join("")}</sst>`
       );
 
       const suffix = fullMode === "full" ? "" : fullMode === "ag" ? "_ate_analise" : "_ate_recurso";
@@ -737,7 +737,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       let centeredStyleId = 0;
       if (cellXfsMatch) {
         const cnt = parseInt(cellXfsMatch[1]);
-        stylesXml = stylesXml.replace(/<\/cellXfs>/, `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf></cellXfs>`);
+        stylesXml = stylesXml.replace(/<\/cellXfs>/, `<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf></cellXfs>`);
         stylesXml = stylesXml.replace(`<cellXfs count="${cnt}">`, `<cellXfs count="${cnt + 1}">`);
         centeredStyleId = cnt;
         zip.file("xl/styles.xml", stylesXml);
@@ -839,7 +839,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
       zip.file("xl/sharedStrings.xml",
-        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newStrings.map(s => `<si><t>${escXml(s)}</t></si>`).join("")}</sst>`
+        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newStrings.map(s => `<si><t xml:space="preserve">${escXml(s)}</t></si>`).join("")}</sst>`
       );
 
       const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });

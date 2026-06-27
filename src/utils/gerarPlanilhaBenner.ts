@@ -436,7 +436,7 @@ export async function gerarPlanilhaBenner(
   zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
   // Rebuild shared strings
-  const newSstEntries = newStrings.map(s => `<si><t>${s}</t></si>`).join("");
+  const newSstEntries = newStrings.map(s => `<si><t xml:space="preserve">${s}</t></si>`).join("");
   const newSst = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newSstEntries}</sst>`;
   zip.file("xl/sharedStrings.xml", newSst);
 
