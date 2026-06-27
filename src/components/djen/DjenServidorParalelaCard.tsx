@@ -60,6 +60,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   concluido: { label: "Concluído", color: "text-muted-foreground", bg: "bg-muted/50" },
   cancelado: { label: "Cancelado", color: "text-amber-700", bg: "bg-amber-500/10" },
   erro: { label: "Erro", color: "text-destructive", bg: "bg-destructive/10" },
+  falhou: { label: "Falhou", color: "text-destructive", bg: "bg-destructive/10" },
 };
 
 const TRACK_COLORS: Record<string, string> = {
@@ -257,9 +258,6 @@ export function DjenServidorParalelaCard() {
     const payload: Record<string, unknown> = {
       dataInicio: ymd(dataInicio),
       dataFim: ymd(dataFim),
-      // Igual ao DJEN Browser: execução manual sempre começa do zero,
-      // ignorando checkpoint de execuções anteriores.
-      resetCheckpoint: true,
     };
     if (filtroCoordenacaoId) payload.coordenacaoId = filtroCoordenacaoId;
     if (filtroMonitoramentoId) {
@@ -441,7 +439,7 @@ export function DjenServidorParalelaCard() {
             {enfileirar.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlayCircle className="h-4 w-4" />}
             Executar Servidor
           </Button>
-          {execStatus === "erro" && (
+          {(execStatus === "erro" || execStatus === "falhou" || execStatus === "cancelado") && (
             <Button onClick={handleExecutar} disabled={isRunning || enfileirar.isPending} variant="outline" className="gap-2">
               <RotateCcw className="h-4 w-4" />
               Retomar

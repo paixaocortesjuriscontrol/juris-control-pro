@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-26-insert-partial-index-fix";
+const ENGINE_VERSION = "2026-06-27-checkpoint-auto-resume";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -40,8 +40,23 @@ function mapTipo(tipo) {
   return tipo === "nome" ? "palavra-chave" : (tipo || "palavra-chave");
 }
 
+function normalizeIdList(value) {
+  return Array.isArray(value)
+    ? value.map((v) => String(v || "").trim()).filter(Boolean).sort()
+    : [];
+}
+
+function sameMonitoramentoFilter(a, b) {
+  const aa = normalizeIdList(a);
+  const bb = normalizeIdList(b);
+  if (aa.length !== bb.length) return false;
+  return aa.every((id, idx) => id === bb[idx]);
+}
+
 function runKeyFromPayload(payload, dataInicio, dataFim, coordenacaoId) {
-  return `${dataInicio || payload?.diarioYmd || ""}..${dataFim || payload?.diarioYmd || dataInicio || ""}|coord:${coordenacaoId || "todas"}`;
+  const monIds = normalizeIdList(payload?.monitoramentoIds);
+  const monKey = monIds.length ? monIds.join(",") : "todos";
+  return `${dataInicio || payload?.diarioYmd || ""}..${dataFim || payload?.diarioYmd || dataInicio || ""}|coord:${coordenacaoId || "todas"}|mon:${monKey}`;
 }
 
 function isSameRunWindow(exec, runKey, dataInicio, dataFim, coordenacaoId, currentJobId) {
@@ -51,7 +66,12 @@ function isSameRunWindow(exec, runKey, dataInicio, dataFim, coordenacaoId, curre
   const df = p.dataFim || p.diarioYmd || di;
   const coord = p.coordenacaoId || null;
   const prevRunKey = exec.progresso?.checkpoint?.runKey || runKeyFromPayload(p, di, df, coord);
-  return prevRunKey === runKey || (di === dataInicio && df === dataFim && coord === coordenacaoId);
+  if (prevRunKey === runKey) return true;
+  return di === dataInicio
+    && df === dataFim
+    && coord === coordenacaoId
+    && sameMonitoramentoFilter(p.monitoramentoIds, exec?.payload?.monitoramentoIds)
+    && sameMonitoramentoFilter(p.monitoramentoIds, (runKey.includes("|mon:todos") ? [] : p.monitoramentoIds));
 }
 
 function normalize(text) {
