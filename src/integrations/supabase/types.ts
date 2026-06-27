@@ -8246,6 +8246,10 @@ export type Database = {
         Returns: Json
       }
       desfazer_descarte_lote: { Args: { p_lote_id: string }; Returns: Json }
+      destravar_execucao_servidor: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       djen_first_comunicacao_id_from_json: {
         Args: { p_advogados: Json; p_partes: Json }
         Returns: string
@@ -8766,6 +8770,7 @@ export type Database = {
       mark_djen_duplicadas_global: { Args: never; Returns: number }
       mark_djenp_duplicadas_global: { Args: never; Returns: number }
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
+      reaper_execucoes_servidor_travadas: { Args: never; Returns: number }
       rebuild_publicacoes_djen_unica_flags: { Args: never; Returns: undefined }
       reset_jobs_orfaos_servidor: {
         Args: { p_timeout_minutes?: number }
