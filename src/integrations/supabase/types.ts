@@ -8250,6 +8250,10 @@ export type Database = {
         Args: { p_advogados: Json; p_partes: Json }
         Returns: string
       }
+      djen_normalize_conteudo_descarte_sem_intimados: {
+        Args: { p_text: string }
+        Returns: string
+      }
       djen_normalize_conteudo_sem_destinatarios: {
         Args: { p_text: string }
         Returns: string
