@@ -1545,14 +1545,20 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </div>
               )}
             </div>
-            <div className={cn("space-y-2 p-2 -m-2", fieldClass("aparelhamento_banco", form.aparelhamento_banco))}>
-              <Label className="flex items-center">Aparelhamento (AF/AG){recorrenteEnvolveBanco(form) && <ReqMark />} <IaBadge field="aparelhamento_banco" value={form.aparelhamento_banco} /></Label>
-              <Select value={form.aparelhamento_banco || "__none__"} onValueChange={v => set("aparelhamento_banco", v === "__none__" ? "" : v)}>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("tem_chance_exito_banco", bennerExtra.tem_chance_exito_banco))}>
+              <Label className="flex items-center">
+                Tem chance de êxito?{recorrenteEnvolveBanco(form) && <ReqMark />}
+                <IaBadge field="tem_chance_exito_banco" value={bennerExtra.tem_chance_exito_banco} />
+              </Label>
+              <Select
+                value={bennerExtra.tem_chance_exito_banco || "__none__"}
+                onValueChange={(v) => setExtra("tem_chance_exito_banco", v === "__none__" ? null : v)}
+              >
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Selecione</SelectItem>
-                  <SelectItem value="BEM APARELHADO">BEM APARELHADO</SelectItem>
-                  <SelectItem value="MAL APARELHADO">MAL APARELHADO</SelectItem>
+                  <SelectItem value="SIM">SIM</SelectItem>
+                  <SelectItem value="NÃO">NÃO</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1564,18 +1570,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               onChange={(v) => set("materias_recurso_banco", v)}
             />
           </div>
-          <div className={cn("space-y-2 p-2 -m-2", fieldClass("chance_exito_banco", form.chance_exito_banco))}>
-            <Label className="flex items-center">Chance de Êxito (AH){recorrenteEnvolveBanco(form) && <ReqMark />} <IaBadge field="chance_exito_banco" value={form.chance_exito_banco} /></Label>
-            <Select value={form.chance_exito_banco || "__none__"} onValueChange={v => set("chance_exito_banco", v === "__none__" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Selecione</SelectItem>
-                <SelectItem value="PROVÁVEL">PROVÁVEL</SelectItem>
-                <SelectItem value="POSSÍVEL">POSSÍVEL</SelectItem>
-                <SelectItem value="REMOTA">REMOTA</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <MateriasAnaliseList
+            title="Análise por matéria (Banco)"
+            materias={form.materias_recurso_banco || null}
+            value={(bennerExtra.materias_analise_banco as MateriaAnaliseItem[] | null) || null}
+            onChange={(next) => setExtra("materias_analise_banco", next)}
+          />
         </div>
       </div>
 
