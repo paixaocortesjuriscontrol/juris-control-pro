@@ -316,6 +316,15 @@ export function DjenServidorParalelaCard() {
             {(execStatus === "idle" || execStatus === "pendente") && <Clock className="h-4 w-4" />}
             {statusConfig.label}
           </div>
+          {isRunning && heartbeatSec != null && (
+            <div className={cn("flex items-center gap-1 text-xs font-medium", heartbeatColor)}>
+              {heartbeatDead ? <AlertTriangle className="h-3.5 w-3.5" /> : <Wifi className="h-3.5 w-3.5" />}
+              <span>
+                Heartbeat: há {heartbeatSec}s
+                {heartbeatDead ? " — worker travado" : heartbeatStale ? " — lento" : ""}
+              </span>
+            </div>
+          )}
         </div>
       </CardHeader>
 
