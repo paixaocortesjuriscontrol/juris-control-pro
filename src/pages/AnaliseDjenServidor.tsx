@@ -572,11 +572,13 @@ const AnaliseDjenServidor = () => {
         query = query.eq('monitoramento_id', monitoramentoId);
       }
       if (apenasHoje) {
-        const today = new Date().toISOString().slice(0, 10);
-        query = query.gte('created_at', `${today}T00:00:00Z`);
+        const hojeBrt = getHojeBrtISO();
+        query = query
+          .gte('created_at', dateLocalToUTCRange(hojeBrt, false))
+          .lte('created_at', dateLocalToUTCRange(hojeBrt, true));
       } else {
-        if (dataInicioDebounced) query = query.gte('created_at', `${dataInicioDebounced}T00:00:00Z`);
-        if (dataFimDebounced) query = query.lte('created_at', `${dataFimDebounced}T23:59:59Z`);
+        if (dataInicioDebounced) query = query.gte('created_at', dateLocalToUTCRange(dataInicioDebounced, false));
+        if (dataFimDebounced) query = query.lte('created_at', dateLocalToUTCRange(dataFimDebounced, true));
       }
       if (termoBuscaDebounced) {
         const digits = termoBuscaDebounced.replace(/\D/g, '');
@@ -603,15 +605,17 @@ const AnaliseDjenServidor = () => {
         return { total: 0, naoLidas: 0 };
       }
       const applyFilters = (onlyUnread: boolean) => {
-        const today = new Date().toISOString().slice(0, 10);
+        const hojeBrt = getHojeBrtISO();
         let query = supabase
           .from('movimentacoes_datajud')
           .select('id', { count: 'exact', head: true });
         if (apenasHoje) {
-          query = query.gte('created_at', `${today}T00:00:00Z`);
+          query = query
+            .gte('created_at', dateLocalToUTCRange(hojeBrt, false))
+            .lte('created_at', dateLocalToUTCRange(hojeBrt, true));
         } else {
-          if (dataInicioDebounced) query = query.gte('created_at', `${dataInicioDebounced}T00:00:00Z`);
-          if (dataFimDebounced) query = query.lte('created_at', `${dataFimDebounced}T23:59:59Z`);
+          if (dataInicioDebounced) query = query.gte('created_at', dateLocalToUTCRange(dataInicioDebounced, false));
+          if (dataFimDebounced) query = query.lte('created_at', dateLocalToUTCRange(dataFimDebounced, true));
         }
         if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
         if (onlyUnread) query = query.eq('lida', false);
@@ -651,19 +655,14 @@ const AnaliseDjenServidor = () => {
     queryFn: async () => {
       if (!user?.id) return { total: 0 };
 
-      const dataInicioEfetiva = dataDisponibilizacaoDebounced || dataInicioDebounced;
-      const dataFimEfetiva = dataDisponibilizacaoDebounced || dataFimDebounced;
       const hojeBrt = getHojeBrtISO();
-      const dataInicioFiltro = apenasHoje
-        ? dateLocalToUTCRange(hojeBrt, false)
-        : dataInicioEfetiva
-          ? dateLocalToUTCRange(dataInicioEfetiva, false)
-          : null;
-      const dataFimFiltro = apenasHoje
-        ? dateLocalToUTCRange(hojeBrt, true)
-        : dataFimEfetiva
-          ? dateLocalToUTCRange(dataFimEfetiva, true)
-          : null;
+      const diaPauta = dataDisponibilizacaoDebounced || (apenasHoje ? hojeBrt : null);
+      const dataInicioFiltro = !diaPauta && dataInicioDebounced
+        ? dateLocalToUTCRange(dataInicioDebounced, false)
+        : null;
+      const dataFimFiltro = !diaPauta && dataFimDebounced
+        ? dateLocalToUTCRange(dataFimDebounced, true)
+        : null;
 
       let query = (supabase.from('publicacoes_djen_servidor') as any)
         .select(`
@@ -674,7 +673,13 @@ const AnaliseDjenServidor = () => {
         .eq('tipo_publicacao', 'pauta')
         .order('created_at', { ascending: false });
 
-      query = aplicarFiltroDataPublicacaoHojeBrt(query, dataInicioFiltro, dataFimFiltro, apenasHoje);
+      if (diaPauta) {
+        query = query
+          .gte('data_disponibilizacao', `${diaPauta}T00:00:00Z`)
+          .lte('data_disponibilizacao', `${diaPauta}T23:59:59.999Z`);
+      } else {
+        query = aplicarFiltroDataPublicacaoHojeBrt(query, dataInicioFiltro, dataFimFiltro, false);
+      }
       if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
       if (!isAdmin && !coordenacaoFiltroEfetivo && userCoordenacaoIds.length > 0) {
         query = query.in('coordenacao_id', userCoordenacaoIds);
@@ -685,8 +690,8 @@ const AnaliseDjenServidor = () => {
       if (error) throw error;
 
       let rows = (data || []) as any[];
-      if (dataDisponibilizacaoDebounced) {
-        rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === dataDisponibilizacaoDebounced);
+      if (diaPauta) {
+        rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === diaPauta);
       }
       if (termoBuscaDebounced) {
         const termoLower = termoBuscaDebounced.toLowerCase();
@@ -4043,7 +4048,7 @@ const AnaliseDjenServidor = () => {
                   onChange={(e) => {
                     const val = e.target.value;
                     setDataDisponibilizacao(val);
-                    if (val && val !== new Date().toISOString().slice(0, 10)) {
+                    if (val && val !== getHojeBrtISO()) {
                       setFiltroDia('todos');
                     }
                   }}
