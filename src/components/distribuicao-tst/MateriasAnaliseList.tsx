@@ -14,6 +14,7 @@ export type MateriaAnaliseItem = {
   aparelhamento: string | null; // "BEM APARELHADA" | "MAL APARELHADA"
   chance_turma: string | null; // "FAVORÁVEL" | "DESFAVORÁVEL"
   chance_relator: string | null; // "FAVORÁVEL" | "DESFAVORÁVEL"
+  chance_exito: string | null; // "SIM" | "NÃO"
 };
 
 interface Props {
@@ -26,6 +27,7 @@ interface Props {
 
 const APARELHAMENTO_OPTS = ["BEM APARELHADA", "MAL APARELHADA"];
 const CHANCE_OPTS = ["FAVORÁVEL", "DESFAVORÁVEL"];
+const SIM_NAO_OPTS = ["SIM", "NÃO"];
 
 function normalize(s: string): string {
   return (s || "")
@@ -56,7 +58,7 @@ export function reconcileMateriasAnalise(
     const found = byKey.get(normalize(nome));
     return found
       ? { ...found, materia: nome }
-      : { materia: nome, aparelhamento: null, chance_turma: null, chance_relator: null };
+      : { materia: nome, aparelhamento: null, chance_turma: null, chance_relator: null, chance_exito: null };
   });
 }
 
@@ -81,7 +83,8 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
         <div className="col-span-12 md:col-span-4">Matéria</div>
         <div className="col-span-4 md:col-span-3">Aparelhamento</div>
         <div className="col-span-4 md:col-span-2">Chance Turma</div>
-        <div className="col-span-4 md:col-span-3">Chance Relator</div>
+        <div className="col-span-4 md:col-span-2">Chance Relator</div>
+        <div className="col-span-4 md:col-span-1">Êxito</div>
       </div>
       {rows.map((row, idx) => (
         <div
@@ -123,7 +126,7 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
               </SelectContent>
             </Select>
           </div>
-          <div className="col-span-4 md:col-span-3">
+          <div className="col-span-4 md:col-span-2">
             <Select
               value={row.chance_relator || "__none__"}
               onValueChange={(v) => update(idx, { chance_relator: v === "__none__" ? null : v })}
@@ -134,6 +137,22 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
               <SelectContent>
                 <SelectItem value="__none__">Selecione</SelectItem>
                 {CHANCE_OPTS.map((o) => (
+                  <SelectItem key={o} value={o}>{o}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-4 md:col-span-1">
+            <Select
+              value={row.chance_exito || "__none__"}
+              onValueChange={(v) => update(idx, { chance_exito: v === "__none__" ? null : v })}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Selecione" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Selecione</SelectItem>
+                {SIM_NAO_OPTS.map((o) => (
                   <SelectItem key={o} value={o}>{o}</SelectItem>
                 ))}
               </SelectContent>
