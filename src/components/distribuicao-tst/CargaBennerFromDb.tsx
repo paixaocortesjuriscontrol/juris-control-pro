@@ -474,29 +474,32 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           (d as any).tipo_recurso_reclamante,
           (d as any).tipo_recurso_banco
         );
-        // Posições: derivar automaticamente das seleções da aba Distribuição TST
-        // (turma_favorabilidade / relator_favorabilidade). Fallback para os
-        // booleans legados gravados pela aba Confere Benner (agora oculta).
-        const turmaFavTxt = String((d as any).turma_favorabilidade ?? "").toLowerCase();
-        const turmaPos = turmaFavTxt.includes("positiv") || turmaFavTxt.includes("favor") && !turmaFavTxt.includes("desfav");
-        const turmaNeg = turmaFavTxt.includes("negativ") || turmaFavTxt.includes("desfav");
-        const relFavTxt = String((d as any).relator_favorabilidade ?? "").toLowerCase();
-        const relPos = relFavTxt.includes("positiv") || relFavTxt.includes("favor") && !relFavTxt.includes("desfav");
-        const relNeg = relFavTxt.includes("negativ") || relFavTxt.includes("desfav");
-        outRow[LAYOUT_COLS[27]] = (turmaPos || d.posicao_turma_favoravel) ? "X" : "";
-        outRow[LAYOUT_COLS[28]] = (turmaNeg || d.posicao_turma_desfavoravel) ? "X" : "";
-        outRow[LAYOUT_COLS[29]] = (relPos || d.posicao_relator_favoravel) ? "X" : "";
-        outRow[LAYOUT_COLS[30]] = (relNeg || d.posicao_relator_desfavoravel) ? "X" : "";
-        // Aparelhamento: derivar de aparelhamento_reclamante / aparelhamento_banco
-        // (BEM APARELHADO / MAL APARELHADO). Qualquer um marcando "BEM" preenche AF;
-        // qualquer um marcando "MAL" preenche AG. Fallback para os booleans legados.
-        const apRecl = String((d as any).aparelhamento_reclamante ?? "").toUpperCase();
-        const apBanc = String((d as any).aparelhamento_banco ?? "").toUpperCase();
-        const bemAp = apRecl.includes("BEM") || apBanc.includes("BEM");
-        const malAp = apRecl.includes("MAL") || apBanc.includes("MAL");
-        outRow[LAYOUT_COLS[31]] = (bemAp || d.recurso_bem_aparelhado) ? "X" : "";
-        outRow[LAYOUT_COLS[32]] = (malAp || d.recurso_mal_aparelhado) ? "X" : "";
-        outRow[LAYOUT_COLS[33]] = toSentenceCase(String(d.chance_exito ?? "").trim());
+        // Colunas AB..AH: listas de matérias (Reclamante + Banco), separadas por vírgula,
+        // filtradas pelo critério da coluna. Espelha src/utils/gerarPlanilhaBenner.ts.
+        const materiasAnalise: Array<any> = [
+          ...(Array.isArray((d as any).materias_analise_reclamante) ? (d as any).materias_analise_reclamante : []),
+          ...(Array.isArray((d as any).materias_analise_banco) ? (d as any).materias_analise_banco : []),
+        ].filter((it: any) => it && it.materia);
+        const normMat = (s: any) =>
+          String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+        const joinUniqueMat = (items: any[]) => {
+          const seen = new Set<string>();
+          const out: string[] = [];
+          for (const it of items) {
+            const k = normMat(it.materia);
+            if (!k || seen.has(k)) continue;
+            seen.add(k);
+            out.push(String(it.materia).trim());
+          }
+          return out.join(", ");
+        };
+        outRow[LAYOUT_COLS[27]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_turma).startsWith("FAVOR")));
+        outRow[LAYOUT_COLS[28]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_turma).startsWith("DESF")));
+        outRow[LAYOUT_COLS[29]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_relator).startsWith("FAVOR")));
+        outRow[LAYOUT_COLS[30]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_relator).startsWith("DESF")));
+        outRow[LAYOUT_COLS[31]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.aparelhamento).startsWith("BEM")));
+        outRow[LAYOUT_COLS[32]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.aparelhamento).startsWith("MAL")));
+        outRow[LAYOUT_COLS[33]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_exito) === "SIM"));
         outRow["__numProcesso"] = numProcesso;
         outRow["__dadoBennerId"] = d.id || null;
 
