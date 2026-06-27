@@ -86,25 +86,30 @@ export const CAMPOS_OBRIGATORIOS: CampoObrigatorio[] = [
   // Quadrinho III – Recurso do Reclamante
   // Só cobrados quando o Reclamante figura como Parte Recorrente.
   { key: "tipo_recurso_reclamante", label: "Tipo de Recurso do Reclamante (C)", quadrinho: "III. Recurso do Reclamante", requiredWhen: recorrenteEnvolveReclamante },
-  { key: "aparelhamento_reclamante", label: "Aparelhamento Reclamante (AF/AG)", quadrinho: "III. Recurso do Reclamante", requiredWhen: recorrenteEnvolveReclamante },
   { key: "materias_recurso_reclamante", label: "Matérias Recurso Reclamante", quadrinho: "III. Recurso do Reclamante", requiredWhen: recorrenteEnvolveReclamante },
-  { key: "chance_exito_reclamante", label: "Chance de Êxito Reclamante (AH)", quadrinho: "III. Recurso do Reclamante", requiredWhen: recorrenteEnvolveReclamante },
+  { key: "tem_chance_exito_reclamante", label: "Tem chance de êxito (Reclamante)?", quadrinho: "III. Recurso do Reclamante", requiredWhen: recorrenteEnvolveReclamante },
 
   // Quadrinho IV – Recurso do Reclamado/Banco
   // Só cobrados quando a Reclamada (banco) figura como Parte Recorrente.
   { key: "tipo_recurso_banco", label: "Tipo de Recurso do Banco (C)", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
-  { key: "aparelhamento_banco", label: "Aparelhamento Banco (AF/AG)", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
   { key: "materias_recurso_banco", label: "Matérias Recurso do Banco", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
-  { key: "chance_exito_banco", label: "Chance de Êxito Banco (AH)", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
+  { key: "tem_chance_exito_banco", label: "Tem chance de êxito (Banco)?", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
 
   // Quadrinho V – Recurso Terceiro (só quando Parte Recorrente = Terceiro)
   { key: "tipo_recurso_terceiro", label: "Tipo de Recurso (Terceiro) (C)", quadrinho: "V. Recurso Terceiro", requiredWhen: recorrenteEhTerceiro },
+  { key: "tem_chance_exito_terceiro", label: "Tem chance de êxito (Terceiro)?", quadrinho: "V. Recurso Terceiro", requiredWhen: recorrenteEhTerceiro },
 
   // Quadrinho VI – Análise
   { key: "honra", label: "Matéria de Honra (O)", quadrinho: "VI. Análise" },
   { key: "tema", label: "Tema IRR", quadrinho: "VI. Análise" },
   { key: "execucao", label: "Execução", quadrinho: "VI. Análise" },
   { key: "midia_negativa", label: "Mídia Negativa (H)", quadrinho: "VI. Análise" },
+  {
+    key: "risco_nivel",
+    label: "Risco — Nível (ALTO/MÉDIO/BAIXO)",
+    quadrinho: "VI. Análise",
+    requiredWhen: midiaNegativaSim,
+  },
   {
     key: "risco_descricao",
     label: "Risco (descrição) (I)",
