@@ -1709,6 +1709,48 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
           </div>
+          {/* Campos migrados de Dados Benner — Análise / Risco */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("risco_nivel", bennerExtra.risco_nivel))}>
+              <Label className="flex items-center">
+                Risco — Nível
+                {eq(form.midia_negativa, "SIM", "S") && <ReqMark />}
+                <IaBadge field="risco_nivel" value={bennerExtra.risco_nivel} />
+              </Label>
+              <Select
+                value={bennerExtra.risco_nivel || "__none__"}
+                onValueChange={(v) => setExtra("risco_nivel", v === "__none__" ? null : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="ALTO">ALTO</SelectItem>
+                  <SelectItem value="MÉDIO">MÉDIO</SelectItem>
+                  <SelectItem value="BAIXO">BAIXO</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("risco_descricao", bennerExtra.risco_descricao))}>
+              <Label className="flex items-center">
+                Risco (descrição) (I)
+                {eq(form.midia_negativa, "SIM", "S") && <ReqMark />}
+                <IaBadge field="risco_descricao" value={bennerExtra.risco_descricao} />
+              </Label>
+              <Input value={bennerExtra.risco_descricao || ""} onChange={e => setExtra("risco_descricao", e.target.value)} />
+            </div>
+            <div className={cn("space-y-2 p-2 -m-2", iaClass("provas_digitais", bennerExtra.provas_digitais))}>
+              <Label className="flex items-center">Provas Digitais (J)<ReqMark /> <IaBadge field="provas_digitais" value={bennerExtra.provas_digitais} /></Label>
+              <Select value={bennerExtra.provas_digitais || "__none__"} onValueChange={v => setExtra("provas_digitais", v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  <SelectItem value="S">S</SelectItem>
+                  <SelectItem value="N">N</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {/* Decisão - Análise do Quarteirizado (G) — movido para o FIM do quadro Análise */}
           <div className={cn("space-y-2 p-2 -m-2", fieldClass("decisao_quarteirizado", form.decisao_quarteirizado))}>
             <Label className="flex items-center">Decisão - Análise do Quarteirizado (G)<ReqMark /> <IaBadge field="decisao_quarteirizado" value={form.decisao_quarteirizado} /></Label>
             {(() => {
@@ -1756,28 +1798,6 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 </div>
               );
             })()}
-          </div>
-          {/* Campos migrados de Dados Benner — Análise / Risco */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className={cn("space-y-2 p-2 -m-2", iaClass("risco_descricao", bennerExtra.risco_descricao))}>
-              <Label className="flex items-center">
-                Risco (descrição) (I)
-                {eq(form.midia_negativa, "SIM", "S") && <ReqMark />}
-                <IaBadge field="risco_descricao" value={bennerExtra.risco_descricao} />
-              </Label>
-              <Input value={bennerExtra.risco_descricao || ""} onChange={e => setExtra("risco_descricao", e.target.value)} />
-            </div>
-            <div className={cn("space-y-2 p-2 -m-2", iaClass("provas_digitais", bennerExtra.provas_digitais))}>
-              <Label className="flex items-center">Provas Digitais (J)<ReqMark /> <IaBadge field="provas_digitais" value={bennerExtra.provas_digitais} /></Label>
-              <Select value={bennerExtra.provas_digitais || "__none__"} onValueChange={v => setExtra("provas_digitais", v === "__none__" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Selecione</SelectItem>
-                  <SelectItem value="S">S</SelectItem>
-                  <SelectItem value="N">N</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         </div>
       </div>
