@@ -406,10 +406,14 @@ const AnaliseDjenServidor = () => {
       toast.error('Você só pode descartar duplicadas das coordenações às quais pertence.');
       return;
     }
-    // Define o intervalo efetivo: se nada foi preenchido, usa apenas HOJE.
-    const hojeISO = format(new Date(), 'yyyy-MM-dd');
-    const inicioEfetivo = descarteDataInicio || descarteDataFim || hojeISO;
-    const fimEfetivo = descarteDataFim || descarteDataInicio || hojeISO;
+    // Define o intervalo efetivo do botão. Se o usuário não preencheu o
+    // intervalo próprio de descarte, usa o mesmo dia/filtro que está sendo
+    // analisado na tela; só cai para HOJE em BRT quando não há filtro algum.
+    const hojeISO = getHojeBrtISO();
+    const filtroInicioEfetivo = dataDisponibilizacaoDebounced || dataInicioDebounced;
+    const filtroFimEfetivo = dataDisponibilizacaoDebounced || dataFimDebounced;
+    const inicioEfetivo = descarteDataInicio || descarteDataFim || filtroInicioEfetivo || filtroFimEfetivo || hojeISO;
+    const fimEfetivo = descarteDataFim || descarteDataInicio || filtroFimEfetivo || filtroInicioEfetivo || hojeISO;
     const labelIntervalo = inicioEfetivo === fimEfetivo
       ? format(parseISO(inicioEfetivo), 'dd/MM/yyyy')
       : `${format(parseISO(inicioEfetivo), 'dd/MM/yyyy')} a ${format(parseISO(fimEfetivo), 'dd/MM/yyyy')}`;
