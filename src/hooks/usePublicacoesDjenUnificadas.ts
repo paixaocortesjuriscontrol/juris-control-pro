@@ -1132,8 +1132,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           `)
           .order('created_at', { ascending: false });
 
-        if (dataInicioFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.gte('data_publicacao', dataInicioFiltro) : queryDescartadas.gte('created_at', dataInicioFiltro);
-        if (dataFimFiltro) queryDescartadas = filtros.apenasHoje ? queryDescartadas.lte('data_publicacao', dataFimFiltro) : queryDescartadas.lte('created_at', dataFimFiltro);
+        queryDescartadas = aplicarFiltroDataPublicacaoHojeBrt(queryDescartadas, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
         if (dataDisponibilizacaoInicio) queryDescartadas = queryDescartadas.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
         if (dataDisponibilizacaoFim) queryDescartadas = queryDescartadas.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         if (filtros.coordenacaoId) queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
