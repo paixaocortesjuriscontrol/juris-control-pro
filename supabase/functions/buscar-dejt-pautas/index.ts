@@ -35,6 +35,7 @@ interface MonitoramentoInput {
   condicaoConcomitante?: string | null;
   exclusoes?: string[];
   oab?: string;              // se vier, casa também por número de OAB
+  coordenacao_id?: string | null;
 }
 
 interface RequestBody {
@@ -66,6 +67,18 @@ function normalize(s: string): string {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+}
+
+// Dedup de pautas: remove rodapé de intimados/destinatários/partes APENAS para
+// efeito de cálculo da chave de comparação. O `conteudo` gravado segue completo.
+const PAUTA_STRIP_INTIMADOS_RE = /(Intimad[ao]|Destinat[áa]rio|Advogad[ao]|Parte|Reclamante|Reclamad[ao]|Autor|R[eé]u|Requerente|Requerid[ao])\s*\(?s?\)?\s*:/i;
+function stripIntimadosPauta(t: string): string {
+  const i = (t || "").search(PAUTA_STRIP_INTIMADOS_RE);
+  return i > 0 ? t.slice(0, i) : (t || "");
+}
+function digitsProcessoPauta(p?: string | null): string {
+  const d = (p || "").replace(/\D/g, "");
+  return d || "sem-processo";
 }
 
 async function sha256Hex(input: string): Promise<string> {
@@ -517,8 +530,9 @@ Deno.serve(async (req) => {
           const hit = matchBlocoMonitoramento(subNorm, mon);
           if (!hit) continue;
           const conteudo = sub.texto.trim();
+          // Dedup de pauta = coordenação + processo + conteúdo SEM intimados.
           const hash = await sha256Hex(
-            `${mon.id}|${tribunal}|${dataIso}|${sub.processo || ""}|${conteudo.slice(0, 1024)}`,
+            `${mon.coordenacao_id ?? ""}|${digitsProcessoPauta(sub.processo)}|${normalize(stripIntimadosPauta(conteudo))}`,
           );
           matches.push({
             monitoramentoId: mon.id,
