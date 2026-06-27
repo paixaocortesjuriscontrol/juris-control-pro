@@ -78,6 +78,8 @@ async function sha256Hex(input: string): Promise<string> {
 
 const CNJ_REGEX = /\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/;
 const CNJ_REGEX_GLOBAL = /\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/g;
+const MAX_BLOCO_CHARS = 400_000;
+const MAX_BUF_FLUSH_CHARS = 800_000;
 
 /**
  * Quebra um bloco grande de pauta em sub-blocos, um por processo (CNJ).
@@ -163,20 +165,20 @@ function makePautaStreamSegmenter() {
       if (!next) {
         // Bloco aberto, mas não temos o próximo marcador ainda.
         if (final) {
-          const bloco = buf.length > 8000 ? buf.slice(0, 8000) : buf;
+          const bloco = buf.length > MAX_BLOCO_CHARS ? buf.slice(0, MAX_BLOCO_CHARS) : buf;
           buf = "";
           inBlock = false;
           yield bloco;
-        } else if (buf.length > 16000) {
-          // Bloco "infinito" — trunca e emite para não estourar memória.
-          yield buf.slice(0, 8000);
+        } else if (buf.length > MAX_BUF_FLUSH_CHARS) {
+          // Bloco "infinito" — mesmo limite do engine Browser para não cortar pautas grandes.
+          yield buf.slice(0, MAX_BLOCO_CHARS);
           buf = buf.slice(-4000);
           inBlock = false;
         }
         return;
       }
       const bloco = buf.slice(0, next.index);
-      yield bloco.length > 8000 ? bloco.slice(0, 8000) : bloco;
+      yield bloco.length > MAX_BLOCO_CHARS ? bloco.slice(0, MAX_BLOCO_CHARS) : bloco;
       buf = buf.slice(next.index);
       // continua o while: pode haver mais blocos completos no buffer
     }
