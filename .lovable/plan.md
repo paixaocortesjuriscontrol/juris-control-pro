@@ -1,38 +1,101 @@
-## Problema
+## Problema real
 
-A execução `19ce68b8…` está marcada como **executando** desde 22:18 BRT, mas o **heartbeat parou há 12+ min** sem nenhuma falha registrada — o worker da VPS (PM2) morreu silenciosamente. Sem detecção, fica travado para sempre: `dedupe_key` ocupado, card preso em "Aguardando VPS…", impressão de lentidão.
+A tela está errada nos dois lugares: **Análise DJEN** e **Análise DJEN Servidor**.
 
-Não vou tocar no motor de busca (`paralela.js`), nas regras de validação, deduplicação ou nos hooks do browser — só infra de monitoramento. Tudo barato em créditos.
+Pelas imagens:
 
-## Mudanças
+- Sem preencher “Data Disponibilização” e com **Somente Hoje**: card **Pautas DEJT = 4**.
+- Ao preencher **Data Disponibilização = 26/06/2026** e mudar para “Todos os dias”: card **Pautas DEJT = 52**.
 
-### 1. Watchdog de heartbeat (SQL + cron, 1 min)
-- Função `public.reaper_execucoes_servidor_travadas()`:
-  - Marca como `falhou` toda `execucoes_servidor` com `status='executando'` e (`heartbeat_at < now() - interval '3 minutes'` OU `heartbeat_at IS NULL AND iniciado_em < now() - interval '3 minutes'`).
-  - Preenche `erro = 'Heartbeat parado há X min — worker/VPS derrubado. Execute novamente.'` e `finalizado_em = now()`.
-- Cron `pg_cron` a cada 1 min chamando a função (via `cron.schedule`, não via `pg_net` — é SQL puro local).
+A consulta no banco confirma o diagnóstico:
 
-### 2. Botão "Destravar execução" no card
-- Em `src/components/djen/DjenServidorParalelaCard.tsx`, quando `status='executando'` E `now() - heartbeat_at > 2 min`:
-  - Mostrar botão vermelho **"Destravar (worker travado)"** ao lado do "Cancelar".
-  - Ao clicar: `update execucoes_servidor set status='falhou', erro='Destravado manualmente', finalizado_em=now() where id=...` (mesma RLS já existente).
+```text
+Local:    52 pautas com data_disponibilizacao = hoje BRT
+Servidor: 52 pautas com data_disponibilizacao = hoje BRT
+Servidor: só 4 pautas com data_publicacao = hoje
+```
 
-### 3. Indicador visual de heartbeat
-- No card, ao lado do título da execução em andamento, mostrar **"Última atividade: há Xs"**:
-  - Verde `< 60s`
-  - Âmbar `60–180s`
-  - Vermelho `> 180s` (+ texto "worker provavelmente travado")
-- Atualiza a cada 5s no client (já temos polling de 8s; só formata `heartbeat_at`).
+Então o erro não é que não foram gravadas. Elas foram gravadas. O erro é que, quando a data de disponibilização está vazia, a tela usa o filtro de “hoje” pela **data errada**.
 
-## Fora de escopo (NÃO mexer)
+## Do I know what the issue is?
 
-- `monitor-servidor/engines/paralela.js`
-- `useDjenTermosParalelaEngine.ts`, `useDjenServidor.ts`, sincronizações browser
-- Regras de validação parte/advogado, dedupe, descarte
-- RPC `descartar_duplicadas_coordenacao_servidor`
+Sim.
 
-## Técnico
+O problema é este: para **Pautas DEJT**, o sistema deve usar **data_disponibilizacao em BRT/São Paulo** como data principal. Hoje, quando o campo “Data Disponibilização” está vazio, os hooks caem no filtro genérico de “Somente Hoje”, que usa `data_publicacao`/`created_at`. Isso faz o card mostrar 4 em vez de 52.
 
-- 1 migração SQL: função reaper + grant execute para `service_role` + `cron.schedule` (id fixo, idempotente com `cron.unschedule` antes).
-- 1 patch em `DjenServidorParalelaCard.tsx`: badge de heartbeat + botão destravar.
-- Polling existente já busca `heartbeat_at`; se não, adicionar campo no SELECT (`useExecucoesServidor` ou similar).
+A documentação confirma que a forma correta de tratar fuso no JavaScript é especificar `timeZone: 'America/Sao_Paulo'` com `Intl.DateTimeFormat`, e não depender de `new Date()`/`toISOString()` sem fuso.
+
+## Arquivos envolvidos
+
+- `src/hooks/usePublicacoesDjenUnificadas.ts`
+- `src/hooks/usePublicacoesDjenServidorUnificadas.ts`
+
+São os hooks que montam os filtros e os contadores da Análise DJEN Local e Servidor.
+
+## Plano de correção
+
+### 1) Criar uma regra única de “hoje BRT” para os dois hooks
+
+Adicionar/usar helper para obter o dia atual em São Paulo:
+
+```ts
+getHojeBrtISO() // YYYY-MM-DD em America/Sao_Paulo
+```
+
+E parar de usar, para filtro de tela:
+
+```ts
+startOfDay(new Date()).toISOString()
+endOfDay(new Date()).toISOString()
+```
+
+porque isso depende do fuso/UTC e já causou esse erro várias vezes.
+
+### 2) Para Pautas DEJT, “Somente Hoje” deve filtrar por data_disponibilizacao
+
+Quando `tipoOrigem === 'djet-pautas'` ou quando o card “Pautas DEJT” estiver sendo calculado:
+
+- se o usuário informou “Data Disponibilização”, usar essa data;
+- se não informou e está em “Somente Hoje”, usar **hoje BRT** automaticamente;
+- comparar `data_disponibilizacao` como dia fechado:
+
+```text
+YYYY-MM-DDT00:00:00Z até YYYY-MM-DDT23:59:59.999Z
+```
+
+Isso é necessário porque as pautas são gravadas com semântica de data do DEJT, não como evento de captura.
+
+### 3) Aplicar a mesma regra nos contadores e na lista
+
+Corrigir nos dois hooks:
+
+- card “Pautas DEJT”;
+- total independente/header;
+- lista principal;
+- fallback de query direta;
+- total de “Selecionar todos”.
+
+O card e a lista devem usar exatamente a mesma janela de data.
+
+### 4) Manter regra diferente para publicações normais
+
+Para publicações DJEN comuns, não alterar agora a regra de deduplicação nem `id_djen`.
+
+A mudança é específica para **filtro de data** e especialmente para **Pautas DEJT**.
+
+## Resultado esperado
+
+Depois da correção:
+
+- Análise DJEN Local sem data preenchida + “Somente Hoje” deve mostrar **52** pautas, não 4.
+- Análise DJEN Servidor sem data preenchida + “Somente Hoje” deve mostrar **52** pautas, não 4.
+- Ao preencher manualmente `26/06/2026`, o número deve continuar batendo com “Somente Hoje”.
+- Todo cálculo de “hoje” passa a usar **America/Sao_Paulo**.
+
+<presentation-actions>
+  <presentation-open-history>View History</presentation-open-history>
+</presentation-actions>
+
+<presentation-actions>
+<presentation-link url="https://docs.lovable.dev/tips-tricks/troubleshooting">Troubleshooting docs</presentation-link>
+</presentation-actions>

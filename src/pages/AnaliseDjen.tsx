@@ -65,7 +65,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { addDays, endOfDay, format, parseISO, startOfDay } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
 import { prepararConteudoParaIA } from "@/lib/publicacao-markdown";
@@ -103,8 +103,6 @@ type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas' | 'kurier';
 type FiltroDiaDjen = 'hoje' | 'todos';
 
-const formatToUTC = (date: Date) => date.toISOString();
-
 // Encurta nomes de turma/órgão como "5ª Turma do Tribunal Superior do Trabalho" → "5ª Turma".
 // Mantém o valor original quando não casar com o padrão "Nª Turma" / "N Turma".
 const shortenTurma = (value: string | null | undefined): string => {
@@ -120,6 +118,17 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
     return `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, '0')}-${String(nextDay.getDate()).padStart(2, '0')}T02:59:59.999Z`;
   }
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T03:00:00Z`;
+};
+
+const getHojeBrtISO = (): string => {
+  const parts = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value || '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
 };
 
 const AnaliseDjen = () => {
@@ -532,11 +541,13 @@ const AnaliseDjen = () => {
         query = query.eq('monitoramento_id', monitoramentoId);
       }
       if (apenasHoje) {
-        const today = new Date().toISOString().slice(0, 10);
-        query = query.gte('created_at', `${today}T00:00:00Z`);
+        const hojeBrt = getHojeBrtISO();
+        query = query
+          .gte('created_at', dateLocalToUTCRange(hojeBrt, false))
+          .lte('created_at', dateLocalToUTCRange(hojeBrt, true));
       } else {
-        if (dataInicioDebounced) query = query.gte('created_at', `${dataInicioDebounced}T00:00:00Z`);
-        if (dataFimDebounced) query = query.lte('created_at', `${dataFimDebounced}T23:59:59Z`);
+        if (dataInicioDebounced) query = query.gte('created_at', dateLocalToUTCRange(dataInicioDebounced, false));
+        if (dataFimDebounced) query = query.lte('created_at', dateLocalToUTCRange(dataFimDebounced, true));
       }
       if (termoBuscaDebounced) {
         const digits = termoBuscaDebounced.replace(/\D/g, '');
@@ -563,15 +574,17 @@ const AnaliseDjen = () => {
         return { total: 0, naoLidas: 0 };
       }
       const applyFilters = (onlyUnread: boolean) => {
-        const today = new Date().toISOString().slice(0, 10);
+        const hojeBrt = getHojeBrtISO();
         let query = supabase
           .from('movimentacoes_datajud')
           .select('id', { count: 'exact', head: true });
         if (apenasHoje) {
-          query = query.gte('created_at', `${today}T00:00:00Z`);
+          query = query
+            .gte('created_at', dateLocalToUTCRange(hojeBrt, false))
+            .lte('created_at', dateLocalToUTCRange(hojeBrt, true));
         } else {
-          if (dataInicioDebounced) query = query.gte('created_at', `${dataInicioDebounced}T00:00:00Z`);
-          if (dataFimDebounced) query = query.lte('created_at', `${dataFimDebounced}T23:59:59Z`);
+          if (dataInicioDebounced) query = query.gte('created_at', dateLocalToUTCRange(dataInicioDebounced, false));
+          if (dataFimDebounced) query = query.lte('created_at', dateLocalToUTCRange(dataFimDebounced, true));
         }
         if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
         if (onlyUnread) query = query.eq('lida', false);
@@ -611,18 +624,14 @@ const AnaliseDjen = () => {
     queryFn: async () => {
       if (!user?.id) return { total: 0 };
 
-      const dataInicioEfetiva = dataDisponibilizacaoDebounced || dataInicioDebounced;
-      const dataFimEfetiva = dataDisponibilizacaoDebounced || dataFimDebounced;
-      const dataInicioFiltro = apenasHoje
-        ? formatToUTC(startOfDay(new Date()))
-        : dataInicioEfetiva
-          ? dateLocalToUTCRange(dataInicioEfetiva, false)
-          : null;
-      const dataFimFiltro = apenasHoje
-        ? formatToUTC(endOfDay(new Date()))
-        : dataFimEfetiva
-          ? dateLocalToUTCRange(dataFimEfetiva, true)
-          : null;
+      const hojeBrt = getHojeBrtISO();
+      const diaPauta = dataDisponibilizacaoDebounced || (apenasHoje ? hojeBrt : null);
+      const dataInicioFiltro = !diaPauta && dataInicioDebounced
+        ? dateLocalToUTCRange(dataInicioDebounced, false)
+        : null;
+      const dataFimFiltro = !diaPauta && dataFimDebounced
+        ? dateLocalToUTCRange(dataFimDebounced, true)
+        : null;
 
       let query = (supabase.from('publicacoes_djen') as any)
         .select(`
@@ -637,8 +646,14 @@ const AnaliseDjen = () => {
         .eq('tipo_publicacao', 'pauta')
         .order('created_at', { ascending: false });
 
-      if (dataInicioFiltro) query = query.gte('created_at', dataInicioFiltro);
-      if (dataFimFiltro) query = query.lte('created_at', dataFimFiltro);
+      if (diaPauta) {
+        query = query
+          .gte('data_disponibilizacao', `${diaPauta}T00:00:00Z`)
+          .lte('data_disponibilizacao', `${diaPauta}T23:59:59.999Z`);
+      } else {
+        if (dataInicioFiltro) query = query.gte('created_at', dataInicioFiltro);
+        if (dataFimFiltro) query = query.lte('created_at', dataFimFiltro);
+      }
       if (coordenacaoFiltroEfetivo) query = query.eq('monitoramento.coordenacao_id', coordenacaoFiltroEfetivo);
       if (!isAdmin && !coordenacaoFiltroEfetivo && userCoordenacaoIds.length > 0) {
         query = query.in('monitoramento.coordenacao_id', userCoordenacaoIds);
@@ -649,8 +664,8 @@ const AnaliseDjen = () => {
       if (error) throw error;
 
       let rows = (data || []) as any[];
-      if (dataDisponibilizacaoDebounced) {
-        rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === dataDisponibilizacaoDebounced);
+      if (diaPauta) {
+        rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === diaPauta);
       }
       if (termoBuscaDebounced) {
         const termoLower = termoBuscaDebounced.toLowerCase();
@@ -744,21 +759,22 @@ const AnaliseDjen = () => {
     queryFn: async () => {
       if (!user?.id) return { rows: [] as PublicacaoUnificada[], total: 0 };
 
+      const hojeBrt = getHojeBrtISO();
       const dataInicioFiltro = apenasHoje
-        ? formatToUTC(startOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, false)
         : dataInicioDebounced
           ? dateLocalToUTCRange(dataInicioDebounced, false)
           : null;
       const dataFimFiltro = apenasHoje
-        ? formatToUTC(endOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, true)
         : dataFimDebounced
           ? dateLocalToUTCRange(dataFimDebounced, true)
           : null;
       const dataDispInicio = dataDisponibilizacaoDebounced
-        ? dateLocalToUTCRange(dataDisponibilizacaoDebounced, false)
+        ? `${dataDisponibilizacaoDebounced}T00:00:00Z`
         : null;
       const dataDispFim = dataDisponibilizacaoDebounced
-        ? dateLocalToUTCRange(dataDisponibilizacaoDebounced, true)
+        ? `${dataDisponibilizacaoDebounced}T23:59:59.999Z`
         : null;
 
       const { data, error } = await (supabase as any).rpc('get_djen_descartadas_dedup', {
@@ -4015,7 +4031,7 @@ const AnaliseDjen = () => {
                   onChange={(e) => {
                     const val = e.target.value;
                     setDataDisponibilizacao(val);
-                    if (val && val !== new Date().toISOString().slice(0, 10)) {
+                    if (val && val !== getHojeBrtISO()) {
                       setFiltroDia('todos');
                     }
                   }}
