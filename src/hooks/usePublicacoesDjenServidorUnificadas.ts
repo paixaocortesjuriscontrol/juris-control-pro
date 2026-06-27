@@ -59,8 +59,8 @@ const getHojeBrtISO = (): string => {
 // data_disponibilizacao e, por último, created_at. Filtros manuais de período
 // continuam sendo por created_at/captura, como já era antes.
 const aplicarFiltroDataPublicacaoHojeBrt = <T extends any>(query: T, inicioUtc: string | null, fimUtc: string | null, apenasHoje?: boolean): T => {
-  if (!inicioUtc || !fimUtc) return query;
   if (apenasHoje) {
+    if (!inicioUtc || !fimUtc) return query;
     return (query as any).or(
       `and(data_publicacao.gte.${inicioUtc},data_publicacao.lte.${fimUtc}),` +
       `and(data_publicacao.is.null,data_disponibilizacao.gte.${inicioUtc},data_disponibilizacao.lte.${fimUtc}),` +
@@ -68,8 +68,8 @@ const aplicarFiltroDataPublicacaoHojeBrt = <T extends any>(query: T, inicioUtc: 
     ) as T;
   }
   let q: any = query;
-  q = q.gte('created_at', inicioUtc);
-  q = q.lte('created_at', fimUtc);
+  if (inicioUtc) q = q.gte('created_at', inicioUtc);
+  if (fimUtc) q = q.lte('created_at', fimUtc);
   return q as T;
 };
 
