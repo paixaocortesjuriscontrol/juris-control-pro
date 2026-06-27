@@ -509,25 +509,29 @@ Deno.serve(async (req) => {
 
     const processBloco = async (bloco: string) => {
       totalBlocos++;
-      const blocoNorm = normalize(bloco);
-      const processo = extractCnj(bloco);
-      for (const mon of monitoramentos) {
-        const hit = matchBlocoMonitoramento(blocoNorm, mon);
-        if (!hit) continue;
-        const conteudo = bloco.trim();
-        const hash = await sha256Hex(
-          `${mon.id}|${tribunal}|${dataIso}|${processo || ""}|${conteudo.slice(0, 1024)}`,
-        );
-        matches.push({
-          monitoramentoId: mon.id,
-          termoMatch: hit,
-          processo,
-          conteudo,
-          hash,
-          dataPublicacao: dataIso,
-          fonte: "dejt-pdf",
-          tribunal,
-        });
+      // Quebra o bloco em sub-blocos por processo (igual ao engine browser)
+      // para casar termos individualmente por CNJ, e não no bloco inteiro.
+      const subBlocos = splitBlocoByProcessos(bloco);
+      for (const sub of subBlocos) {
+        const subNorm = normalize(sub.texto);
+        for (const mon of monitoramentos) {
+          const hit = matchBlocoMonitoramento(subNorm, mon);
+          if (!hit) continue;
+          const conteudo = sub.texto.trim();
+          const hash = await sha256Hex(
+            `${mon.id}|${tribunal}|${dataIso}|${sub.processo || ""}|${conteudo.slice(0, 1024)}`,
+          );
+          matches.push({
+            monitoramentoId: mon.id,
+            termoMatch: hit,
+            processo: sub.processo,
+            conteudo,
+            hash,
+            dataPublicacao: dataIso,
+            fonte: "dejt-pdf",
+            tribunal,
+          });
+        }
       }
     };
 
