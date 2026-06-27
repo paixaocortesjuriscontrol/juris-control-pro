@@ -1794,6 +1794,8 @@ export type Database = {
           judit_preenchido_por: string | null
           juizo: string | null
           materia_honra: string | null
+          materias_analise_banco: Json | null
+          materias_analise_reclamante: Json | null
           materias_recurso_banco: string | null
           materias_recurso_reclamante: string | null
           materias_recurso_terceiro: string | null
@@ -1832,6 +1834,7 @@ export type Database = {
           resultado_sem_transcendencia: boolean | null
           risco_descricao: string | null
           risco_midia: string | null
+          risco_nivel: string | null
           segredo_justica: boolean | null
           situacao_envio_carga_id: string | null
           situacao_processo: string | null
@@ -1840,6 +1843,9 @@ export type Database = {
           subcategoria: string | null
           subida_em_massa: boolean
           sustentacao_oral: string | null
+          tem_chance_exito_banco: string | null
+          tem_chance_exito_reclamante: string | null
+          tem_chance_exito_terceiro: string | null
           tem_data_julgamento: string | null
           tem_responsavel: boolean
           tema: string | null
@@ -1909,6 +1915,8 @@ export type Database = {
           judit_preenchido_por?: string | null
           juizo?: string | null
           materia_honra?: string | null
+          materias_analise_banco?: Json | null
+          materias_analise_reclamante?: Json | null
           materias_recurso_banco?: string | null
           materias_recurso_reclamante?: string | null
           materias_recurso_terceiro?: string | null
@@ -1947,6 +1955,7 @@ export type Database = {
           resultado_sem_transcendencia?: boolean | null
           risco_descricao?: string | null
           risco_midia?: string | null
+          risco_nivel?: string | null
           segredo_justica?: boolean | null
           situacao_envio_carga_id?: string | null
           situacao_processo?: string | null
@@ -1955,6 +1964,9 @@ export type Database = {
           subcategoria?: string | null
           subida_em_massa?: boolean
           sustentacao_oral?: string | null
+          tem_chance_exito_banco?: string | null
+          tem_chance_exito_reclamante?: string | null
+          tem_chance_exito_terceiro?: string | null
           tem_data_julgamento?: string | null
           tem_responsavel?: boolean
           tema?: string | null
@@ -2024,6 +2036,8 @@ export type Database = {
           judit_preenchido_por?: string | null
           juizo?: string | null
           materia_honra?: string | null
+          materias_analise_banco?: Json | null
+          materias_analise_reclamante?: Json | null
           materias_recurso_banco?: string | null
           materias_recurso_reclamante?: string | null
           materias_recurso_terceiro?: string | null
@@ -2062,6 +2076,7 @@ export type Database = {
           resultado_sem_transcendencia?: boolean | null
           risco_descricao?: string | null
           risco_midia?: string | null
+          risco_nivel?: string | null
           segredo_justica?: boolean | null
           situacao_envio_carga_id?: string | null
           situacao_processo?: string | null
@@ -2070,6 +2085,9 @@ export type Database = {
           subcategoria?: string | null
           subida_em_massa?: boolean
           sustentacao_oral?: string | null
+          tem_chance_exito_banco?: string | null
+          tem_chance_exito_reclamante?: string | null
+          tem_chance_exito_terceiro?: string | null
           tem_data_julgamento?: string | null
           tem_responsavel?: boolean
           tema?: string | null
