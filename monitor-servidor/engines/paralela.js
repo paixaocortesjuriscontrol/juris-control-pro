@@ -59,7 +59,7 @@ function runKeyFromPayload(payload, dataInicio, dataFim, coordenacaoId) {
   return `${dataInicio || payload?.diarioYmd || ""}..${dataFim || payload?.diarioYmd || dataInicio || ""}|coord:${coordenacaoId || "todas"}|mon:${monKey}`;
 }
 
-function isSameRunWindow(exec, runKey, dataInicio, dataFim, coordenacaoId, currentJobId) {
+function isSameRunWindow(exec, runKey, dataInicio, dataFim, coordenacaoId, monitoramentoIdsFiltro, currentJobId) {
   if (!exec || exec.id === currentJobId) return false;
   const p = exec.payload || {};
   const di = p.dataInicio || p.diarioYmd || null;
@@ -70,8 +70,7 @@ function isSameRunWindow(exec, runKey, dataInicio, dataFim, coordenacaoId, curre
   return di === dataInicio
     && df === dataFim
     && coord === coordenacaoId
-    && sameMonitoramentoFilter(p.monitoramentoIds, exec?.payload?.monitoramentoIds)
-    && sameMonitoramentoFilter(p.monitoramentoIds, (runKey.includes("|mon:todos") ? [] : p.monitoramentoIds));
+    && sameMonitoramentoFilter(p.monitoramentoIds, monitoramentoIdsFiltro);
 }
 
 function normalize(text) {
@@ -1213,7 +1212,7 @@ async function run({ sb, payload, log, job }) {
       .order("created_at", { ascending: false })
       .limit(50);
     for (const ant of anteriores || []) {
-      if (!isSameRunWindow(ant, runKey, dataInicio, dataFim, coordenacaoId, job?.id)) continue;
+      if (!isSameRunWindow(ant, runKey, dataInicio, dataFim, coordenacaoId, monitoramentoIdsFiltro, job?.id)) continue;
       absorverProgressoCheckpoint(ant.progresso);
     }
     for (const item of itens) {
