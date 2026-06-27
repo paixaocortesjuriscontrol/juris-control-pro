@@ -183,8 +183,31 @@ function getValuesFromDado(d: DadoBenner): string[] {
   const riscoDesc = riscoNivel && riscoDescRaw
     ? `${riscoNivel} - ${riscoDescRaw}`
     : (riscoNivel || riscoDescRaw);
-  const bemAparelhado = !!d.recurso_bem_aparelhado;
-  const malAparelhado = !!d.recurso_mal_aparelhado;
+
+  // Listas de matérias com análise (Reclamante + Banco) - novas colunas AB..AH
+  const materiasAnalise: Array<any> = [
+    ...(Array.isArray((d as any).materias_analise_reclamante) ? (d as any).materias_analise_reclamante : []),
+    ...(Array.isArray((d as any).materias_analise_banco) ? (d as any).materias_analise_banco : []),
+  ].filter((i) => i && i.materia);
+  const norm = (s: any) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+  const joinUnique = (items: any[]) => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const it of items) {
+      const k = norm(it.materia);
+      if (!k || seen.has(k)) continue;
+      seen.add(k);
+      out.push(String(it.materia).trim());
+    }
+    return out.join(", ");
+  };
+  const turmaFav = joinUnique(materiasAnalise.filter((i) => norm(i.chance_turma).startsWith("FAVOR")));
+  const turmaDesf = joinUnique(materiasAnalise.filter((i) => norm(i.chance_turma).startsWith("DESF")));
+  const relFav = joinUnique(materiasAnalise.filter((i) => norm(i.chance_relator).startsWith("FAVOR")));
+  const relDesf = joinUnique(materiasAnalise.filter((i) => norm(i.chance_relator).startsWith("DESF")));
+  const bem = joinUnique(materiasAnalise.filter((i) => norm(i.aparelhamento).startsWith("BEM")));
+  const mal = joinUnique(materiasAnalise.filter((i) => norm(i.aparelhamento).startsWith("MAL")));
+  const exito = joinUnique(materiasAnalise.filter((i) => norm(i.chance_exito) === "SIM"));
 
   return [
     d.dossie || "",
@@ -214,13 +237,13 @@ function getValuesFromDado(d: DadoBenner): string[] {
     d.perdemos ? "X" : "",
     d.processo_baixado ? toSN(d.processo_baixado) : "",
     deriveRecorrenteFromRecursos((d as any).tipo_recurso_reclamante, (d as any).tipo_recurso_banco),
-    d.posicao_turma_favoravel ? "X" : "",
-    d.posicao_turma_desfavoravel ? "X" : "",
-    d.posicao_relator_favoravel ? "X" : "",
-    d.posicao_relator_desfavoravel ? "X" : "",
-    bemAparelhado ? "X" : "",
-    malAparelhado ? "X" : "",
-    toSentenceCase(cleanDadoBennerValue(d.chance_exito)),
+    turmaFav,
+    turmaDesf,
+    relFav,
+    relDesf,
+    bem,
+    mal,
+    exito,
   ];
 }
 
