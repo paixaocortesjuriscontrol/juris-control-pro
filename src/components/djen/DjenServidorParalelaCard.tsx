@@ -16,6 +16,7 @@ import {
   Wifi,
   XCircle,
   Zap,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -168,6 +169,28 @@ export function DjenServidorParalelaCard() {
   const execStatus = exec?.status || "idle";
   const isRunning = execStatus === "pendente" || execStatus === "executando";
   const statusConfig = STATUS_CONFIG[execStatus] || STATUS_CONFIG.idle;
+
+  // Heartbeat watchdog visual: detecta worker travado
+  const heartbeatMs = exec?.heartbeat_at ? nowTick - new Date(exec.heartbeat_at).getTime() : null;
+  const heartbeatSec = heartbeatMs != null ? Math.floor(heartbeatMs / 1000) : null;
+  const heartbeatStale = isRunning && heartbeatSec != null && heartbeatSec > 120;
+  const heartbeatDead = isRunning && heartbeatSec != null && heartbeatSec > 180;
+  const heartbeatColor =
+    heartbeatSec == null ? "text-muted-foreground"
+    : heartbeatDead ? "text-destructive"
+    : heartbeatStale ? "text-amber-500"
+    : "text-emerald-500";
+
+  const handleDestravar = useCallback(async () => {
+    if (!exec?.id) return;
+    const { error } = await supabase.rpc("destravar_execucao_servidor" as never, { p_id: exec.id } as never);
+    if (error) {
+      toast.error(`Falha ao destravar: ${error.message}`);
+      return;
+    }
+    toast.success("Execução destravada — pode rodar novamente");
+    await queryClient.invalidateQueries({ queryKey: ["djen-servidor"] });
+  }, [exec?.id, queryClient]);
   const progress = exec?.progresso;
   const tracks = ((progress?.itens || []) as ProgressoItem[]).map((track) =>
     execStatus === "cancelado" && (track.status === "executando" || track.status === "pendente")
