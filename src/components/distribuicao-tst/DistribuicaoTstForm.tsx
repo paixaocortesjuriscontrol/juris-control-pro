@@ -15,6 +15,12 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMultiSelect";
+import {
+  MateriasAnaliseList,
+  reconcileMateriasAnalise,
+  derivarAgregadosDeMaterias,
+  type MateriaAnaliseItem,
+} from "@/components/distribuicao-tst/MateriasAnaliseList";
 import { MultiTipoRecurso } from "@/components/distribuicao-tst/MultiTipoRecurso";
 import { RelatorTurmaCombo } from "@/components/distribuicao-tst/RelatorTurmaCombo";
 import { persistirPartesJudit } from "@/lib/juditDistribuicaoTst";
