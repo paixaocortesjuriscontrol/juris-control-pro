@@ -601,19 +601,37 @@ async function persistMatches(matches: MatchOut[]): Promise<{ novas: number; dup
     lida: false,
   }));
 
-  // Insere em lotes de 100, ignorando duplicatas via constraint hash_conteudo
+  // Insere em lotes de 100. Não usar upsert por hash_conteudo aqui: não há
+  // constraint única por pauta, então PostgREST cai em erro/fallback e duplica
+  // as mesmas pautas a cada execução. A deduplicação correta é por
+  // coordenação + monitoramento + hash da sub-pauta.
   let novas = 0;
   let duplicadas = 0;
   const batchSize = 100;
   for (let i = 0; i < rows.length; i += batchSize) {
     const slice = rows.slice(i, i + batchSize);
+    const hashes = Array.from(new Set(slice.map((r) => r.hash_conteudo).filter(Boolean)));
+    const { data: existentes } = hashes.length > 0
+      ? await supabase
+        .from("publicacoes_djen")
+        .select("id, coordenacao_id, monitoramento_id, hash_conteudo")
+        .eq("tipo_publicacao", "pauta")
+        .in("hash_conteudo", hashes as string[])
+      : { data: [] as Array<{ coordenacao_id: string | null; monitoramento_id: string; hash_conteudo: string }> };
+    const existingKeys = new Set(
+      (existentes || []).map((e) => `${e.coordenacao_id || ""}|${e.monitoramento_id || ""}|${e.hash_conteudo || ""}`),
+    );
+    const novosRows = slice.filter((r) => !existingKeys.has(`${r.coordenacao_id || ""}|${r.monitoramento_id || ""}|${r.hash_conteudo || ""}`));
+    duplicadas += slice.length - novosRows.length;
+    if (novosRows.length === 0) continue;
+
     const { data, error } = await supabase
       .from("publicacoes_djen")
-      .upsert(slice as never, { onConflict: "hash_conteudo", ignoreDuplicates: true })
+      .insert(novosRows as never)
       .select("id");
     if (error) {
       // Fallback: insere uma a uma
-      for (const r of slice) {
+      for (const r of novosRows) {
         const { error: e2 } = await supabase
           .from("publicacoes_djen")
           .insert(r as never);
@@ -622,7 +640,7 @@ async function persistMatches(matches: MatchOut[]): Promise<{ novas: number; dup
     } else {
       const inseridas = (data?.length ?? 0);
       novas += inseridas;
-      duplicadas += slice.length - inseridas;
+      duplicadas += novosRows.length - inseridas;
     }
   }
   return { novas, duplicadas };
