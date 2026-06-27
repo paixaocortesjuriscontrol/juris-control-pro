@@ -491,7 +491,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
             seen.add(k);
             out.push(String(it.materia).trim());
           }
-          return out.join(", ");
+          return out.join("\n");
         };
         outRow[LAYOUT_COLS[27]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_turma).startsWith("FAVOR")));
         outRow[LAYOUT_COLS[28]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_turma).startsWith("DESF")));
