@@ -77,6 +77,41 @@ async function sha256Hex(input: string): Promise<string> {
 }
 
 const CNJ_REGEX = /\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/;
+const CNJ_REGEX_GLOBAL = /\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/g;
+
+/**
+ * Quebra um bloco grande de pauta em sub-blocos, um por processo (CNJ).
+ * Replica o comportamento do engine browser (useDjetPautasParalelaEngine.ts)
+ * — sem isso, um único bloco "PAUTA DE JULGAMENTO" com 50 processos só
+ * gera 1 match por monitoramento, em vez de 50. Foi a causa da diferença
+ * gigante entre DJEN Servidor (poucas pautas) e DJEN Browser (muitas).
+ */
+function splitBlocoByProcessos(bloco: string): Array<{ processo: string | null; texto: string }> {
+  const cnjs: Array<{ value: string; index: number }> = [];
+  CNJ_REGEX_GLOBAL.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = CNJ_REGEX_GLOBAL.exec(bloco)) !== null) {
+    cnjs.push({ value: m[0], index: m.index });
+  }
+  if (cnjs.length === 0) {
+    return [{ processo: null, texto: bloco }];
+  }
+  const headerEnd = cnjs[0].index;
+  const header = bloco.slice(0, Math.min(headerEnd, 1500));
+  const out: Array<{ processo: string | null; texto: string }> = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < cnjs.length; i++) {
+    const cur = cnjs[i];
+    if (seen.has(cur.value)) continue;
+    seen.add(cur.value);
+    const next = cnjs[i + 1];
+    const end = next ? next.index : Math.min(bloco.length, cur.index + 3000);
+    const slice = bloco.slice(cur.index, end);
+    const texto = (header && cur.index > 0 ? `${header}\n` : "") + slice;
+    out.push({ processo: cur.value, texto: texto.length > 8000 ? texto.slice(0, 8000) : texto });
+  }
+  return out;
+}
 
 /**
  * Marcadores que iniciam uma pauta no caderno Judiciário.
