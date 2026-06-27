@@ -126,11 +126,20 @@ function SchedulerPanel() {
 
 export function MonitoramentoDjetPautasCard() {
   const { progress, isRunning, canResume, executar, retomar, cancelar, forceKill, resetTotal } = useDjetPautasParalela();
-  const today = new Date();
-  const [dataInicio, setDataInicio] = useState<Date>(today);
-  const [dataFim, setDataFim] = useState<Date>(today);
+  // YMD em BRT (America/Sao_Paulo). Usar toISOString() em new Date() gera UTC,
+  // o que no fim do dia BRT vira o "amanhã" e busca DEJT inexistente → 0 matches.
+  const ymdBrt = (d: Date) =>
+    d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const todayBrtStr = ymdBrt(new Date());
+  // Constrói Date local correspondente ao YMD BRT para o componente Calendar.
+  const brtDate = (() => {
+    const [y, m, d] = todayBrtStr.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  })();
+  const [dataInicio, setDataInicio] = useState<Date>(brtDate);
+  const [dataFim, setDataFim] = useState<Date>(brtDate);
 
-  const ymd = (d: Date) => d.toISOString().slice(0, 10);
+  const ymd = (d: Date) => ymdBrt(d);
 
   // Filtros: Coordenação e Termo
   const [filtroCoordenacaoId, setFiltroCoordenacaoId] = useState<string>("");
