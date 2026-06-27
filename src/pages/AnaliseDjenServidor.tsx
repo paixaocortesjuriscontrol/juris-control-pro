@@ -130,6 +130,21 @@ const getHojeBrtISO = (): string => {
   }).format(new Date());
 };
 
+const aplicarFiltroDataPublicacaoHojeBrt = <T extends any>(query: T, inicioUtc: string | null, fimUtc: string | null, apenasHoje?: boolean): T => {
+  if (!inicioUtc || !fimUtc) return query;
+  if (apenasHoje) {
+    return (query as any).or(
+      `and(data_publicacao.gte.${inicioUtc},data_publicacao.lte.${fimUtc}),` +
+      `and(data_publicacao.is.null,data_disponibilizacao.gte.${inicioUtc},data_disponibilizacao.lte.${fimUtc}),` +
+      `and(data_publicacao.is.null,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc})`
+    ) as T;
+  }
+  let q: any = query;
+  q = q.gte('created_at', inicioUtc);
+  q = q.lte('created_at', fimUtc);
+  return q as T;
+};
+
 const AnaliseDjenServidor = () => {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
@@ -391,13 +406,13 @@ const AnaliseDjenServidor = () => {
       ? format(parseISO(inicioEfetivo), 'dd/MM/yyyy')
       : `${format(parseISO(inicioEfetivo), 'dd/MM/yyyy')} a ${format(parseISO(fimEfetivo), 'dd/MM/yyyy')}`;
     const confirma = window.confirm(
-      `Descartar publicações duplicadas (mesmo processo + dia + conteúdo) desta coordenação no intervalo ${labelIntervalo}?\n\n` +
+      `Descartar publicações duplicadas (mesmo processo + conteúdo completo) desta coordenação no intervalo ${labelIntervalo}?\n\n` +
       'A publicação mais antiga de cada grupo é mantida. Você poderá DESFAZER pelo botão "Desfazer último descarte".'
     );
     if (!confirma) return;
     try {
       setDescartandoDuplicadas(true);
-      const { data, error } = await (supabase as any).rpc('descartar_duplicadas_coordenacao', {
+      const { data, error } = await (supabase as any).rpc('descartar_duplicadas_coordenacao_servidor', {
         p_coordenacao_id: coordId,
         p_data_disp_inicio: inicioEfetivo,
         p_data_disp_fim: fimEfetivo,
@@ -625,35 +640,31 @@ const AnaliseDjenServidor = () => {
 
       const dataInicioEfetiva = dataDisponibilizacaoDebounced || dataInicioDebounced;
       const dataFimEfetiva = dataDisponibilizacaoDebounced || dataFimDebounced;
+      const hojeBrt = getHojeBrtISO();
       const dataInicioFiltro = apenasHoje
-        ? formatToUTC(startOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, false)
         : dataInicioEfetiva
           ? dateLocalToUTCRange(dataInicioEfetiva, false)
           : null;
       const dataFimFiltro = apenasHoje
-        ? formatToUTC(endOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, true)
         : dataFimEfetiva
           ? dateLocalToUTCRange(dataFimEfetiva, true)
           : null;
 
-      let query = (supabase.from('publicacoes_djen') as any)
+      let query = (supabase.from('publicacoes_djen_servidor') as any)
         .select(`
           id, id_djen, monitoramento_id, processo_numero, conteudo, data_publicacao,
           data_disponibilizacao, fonte, tribunal, lida, created_at, orgao, tipo_comunicacao,
-          meio, advogados_json, partes_json, polo_ativo, polo_passivo,
-          monitoramento:monitoramentos_djen!inner(
-            id, tipo, termo_busca, descricao, oab, uf, coordenacao_id,
-            coordenacao:coordenacoes(id, nome)
-          )
+          meio, advogados_json, partes_json, polo_ativo, polo_passivo, coordenacao_id
         `)
         .eq('tipo_publicacao', 'pauta')
         .order('created_at', { ascending: false });
 
-      if (dataInicioFiltro) query = query.gte('created_at', dataInicioFiltro);
-      if (dataFimFiltro) query = query.lte('created_at', dataFimFiltro);
-      if (coordenacaoFiltroEfetivo) query = query.eq('monitoramento.coordenacao_id', coordenacaoFiltroEfetivo);
+      query = aplicarFiltroDataPublicacaoHojeBrt(query, dataInicioFiltro, dataFimFiltro, apenasHoje);
+      if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
       if (!isAdmin && !coordenacaoFiltroEfetivo && userCoordenacaoIds.length > 0) {
-        query = query.in('monitoramento.coordenacao_id', userCoordenacaoIds);
+        query = query.in('coordenacao_id', userCoordenacaoIds);
       }
       if (monitoramentoId) query = query.eq('monitoramento_id', monitoramentoId);
 
@@ -670,11 +681,10 @@ const AnaliseDjenServidor = () => {
         rows = rows.filter((pub) => {
           const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBuscaDebounced);
           const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
-          const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termoLower);
           const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
             ? (() => { const digits = pub.processo_numero.replace(/\D/g, ''); return digits.includes(termoDigits) || termoDigits.includes(digits); })()
             : false;
-          return matchConteudo || matchProcesso || matchTermoMonitor || matchProcessoDigits;
+          return matchConteudo || matchProcesso || matchProcessoDigits;
         });
       }
 
@@ -691,13 +701,13 @@ const AnaliseDjenServidor = () => {
         lida: false,
         created_at: pub.created_at,
         monitoramento_id: pub.monitoramento_id,
-        monitoramento_termo: pub.monitoramento?.termo_busca,
-        monitoramento_descricao: pub.monitoramento?.descricao,
-        monitoramento_tipo: pub.monitoramento?.tipo,
-        monitoramento_oab: pub.monitoramento?.oab,
-        monitoramento_uf: pub.monitoramento?.uf,
-        coordenacao_id: pub.monitoramento?.coordenacao_id,
-        coordenacao_nome: pub.monitoramento?.coordenacao?.nome,
+        monitoramento_termo: null,
+        monitoramento_descricao: null,
+        monitoramento_tipo: null,
+        monitoramento_oab: null,
+        monitoramento_uf: null,
+        coordenacao_id: pub.coordenacao_id ?? null,
+        coordenacao_nome: null,
         polo_ativo: pub.polo_ativo || null,
         polo_passivo: pub.polo_passivo || null,
         tribunal: pub.tribunal ?? null,
@@ -756,13 +766,14 @@ const AnaliseDjenServidor = () => {
     queryFn: async () => {
       if (!user?.id) return { rows: [] as PublicacaoUnificada[], total: 0 };
 
+      const hojeBrt = getHojeBrtISO();
       const dataInicioFiltro = apenasHoje
-        ? formatToUTC(startOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, false)
         : dataInicioDebounced
           ? dateLocalToUTCRange(dataInicioDebounced, false)
           : null;
       const dataFimFiltro = apenasHoje
-        ? formatToUTC(endOfDay(new Date()))
+        ? dateLocalToUTCRange(hojeBrt, true)
         : dataFimDebounced
           ? dateLocalToUTCRange(dataFimDebounced, true)
           : null;
