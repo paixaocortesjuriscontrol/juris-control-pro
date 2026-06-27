@@ -2,13 +2,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { startOfDay, endOfDay } from "date-fns";
 import { dedupePublicacoesDjen } from "@/utils/djenDedup";
 import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
-import { addDays, parse } from "date-fns";
-
-// Helper para formatar data em ISO com timezone UTC
-const formatToUTC = (date: Date) => date.toISOString();
+import { addDays } from "date-fns";
 
 /** Parse seguro de advogados_json/partes_json: evita throw e preserva objetos da Kurier. */
 function parseJsonArraySafe(value: unknown): any[] | null {
@@ -47,6 +43,34 @@ const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
     // Início do dia em BRT (00:00) = mesmo dia às 03:00 UTC
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T03:00:00Z`;
   }
+};
+
+const getHojeBrtISO = (): string => {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+};
+
+// "Apenas hoje" na análise do DJEN Servidor deve olhar a DATA DA PUBLICAÇÃO em BRT.
+// Se alguma linha antiga ainda estiver sem data_publicacao, usa fallback para
+// data_disponibilizacao e, por último, created_at. Filtros manuais de período
+// continuam sendo por created_at/captura, como já era antes.
+const aplicarFiltroDataPublicacaoHojeBrt = <T extends any>(query: T, inicioUtc: string | null, fimUtc: string | null, apenasHoje?: boolean): T => {
+  if (!inicioUtc || !fimUtc) return query;
+  if (apenasHoje) {
+    return (query as any).or(
+      `and(data_publicacao.gte.${inicioUtc},data_publicacao.lte.${fimUtc}),` +
+      `and(data_publicacao.is.null,data_disponibilizacao.gte.${inicioUtc},data_disponibilizacao.lte.${fimUtc}),` +
+      `and(data_publicacao.is.null,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc})`
+    ) as T;
+  }
+  let q: any = query;
+  q = q.gte('created_at', inicioUtc);
+  q = q.lte('created_at', fimUtc);
+  return q as T;
 };
 
 function normalizarTermo(valor: string | null | undefined): string {
