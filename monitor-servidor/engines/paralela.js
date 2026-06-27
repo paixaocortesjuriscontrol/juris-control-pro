@@ -1121,10 +1121,9 @@ async function run({ sb, payload, log, job }) {
   for (const m of lista) {
     const tipo = mapTipo(m.tipo);
     for (const tribunal of expandirTribunais(m.tribunais)) {
-      // Paridade com browser (useDjenTermosParalelaEngine.ts): 1 unit por
-      // (tipo, tribunal, monitoramento). Garante paralelismo real entre as VPS
-      // do pool em vez de serializar N monitoramentos numa única VPS.
-      const key = tipo === "processo" ? `${tipo}|${tribunal}` : `${tipo}|${tribunal}|${m.id}`;
+      // Agrupa todos os termos do mesmo (tipo, tribunal) em um único slot/card,
+      // executando sequencialmente. Reduz chamadas à API DJEN e evita 429.
+      const key = `${tipo}|${tribunal}`;
       if (!grouped.has(key)) grouped.set(key, { id: key, tipo, tribunal, monitoramentos: [] });
       grouped.get(key).monitoramentos.push(m);
     }
