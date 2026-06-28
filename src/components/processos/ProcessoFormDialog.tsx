@@ -1093,18 +1093,23 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-8">
-                <TabsTrigger value="basico">Dados Básicos</TabsTrigger>
-                <TabsTrigger value="tribunal">Tribunal</TabsTrigger>
-                <TabsTrigger value="partes">Partes</TabsTrigger>
-                <TabsTrigger value="administrativo" className={tipoProcesso === "administrativo" ? "bg-orange-100 dark:bg-orange-900/30" : ""}>
-                  Administrativo
-                </TabsTrigger>
-                <TabsTrigger value="contingencial">Contingencial</TabsTrigger>
-                <TabsTrigger value="documentos">Documentos</TabsTrigger>
-                <TabsTrigger value="analise-judit">Análise Judit</TabsTrigger>
-                <TabsTrigger value="anexos-judit">Anexos Judit</TabsTrigger>
-              </TabsList>
+              <div className="w-full overflow-x-auto -mx-1 px-1">
+                <TabsList className="inline-flex h-auto w-auto min-w-full justify-start gap-1 p-1">
+                  <TabsTrigger value="basico" className="shrink-0 whitespace-nowrap px-3">Dados Básicos</TabsTrigger>
+                  <TabsTrigger value="tribunal" className="shrink-0 whitespace-nowrap px-3">Tribunal</TabsTrigger>
+                  <TabsTrigger value="partes" className="shrink-0 whitespace-nowrap px-3">Partes</TabsTrigger>
+                  <TabsTrigger
+                    value="administrativo"
+                    className={`shrink-0 whitespace-nowrap px-3 ${tipoProcesso === "administrativo" ? "bg-orange-100 dark:bg-orange-900/30" : ""}`}
+                  >
+                    Administrativo
+                  </TabsTrigger>
+                  <TabsTrigger value="contingencial" className="shrink-0 whitespace-nowrap px-3">Contingencial</TabsTrigger>
+                  <TabsTrigger value="documentos" className="shrink-0 whitespace-nowrap px-3">Documentos</TabsTrigger>
+                  <TabsTrigger value="analise-judit" className="shrink-0 whitespace-nowrap px-3">Análise Judit</TabsTrigger>
+                  <TabsTrigger value="anexos-judit" className="shrink-0 whitespace-nowrap px-3">Anexos Judit</TabsTrigger>
+                </TabsList>
+              </div>
 
               <TabsContent value="basico" className="space-y-4 mt-4">
                 {/* Tipo de processo */}
