@@ -123,6 +123,42 @@ const formatCNJ = (value: string): string => {
   }
 };
 
+// Painéis memoizados para as abas Judit — só re-renderizam quando o número CNJ
+// muda, evitando re-fetch a cada tecla digitada em outros campos do formulário.
+const AnaliseJuditTabPanel = memo(function AnaliseJuditTabPanel({
+  control,
+}: {
+  control: Control<any>;
+}) {
+  const numero = useWatch({ control, name: "numero" }) as string | undefined;
+  if (!numero) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Informe o número CNJ do processo para visualizar a análise Judit.
+      </p>
+    );
+  }
+  return <AnaliseJuditTab processoNumero={numero} />;
+});
+
+const AnexosJuditTabPanel = memo(function AnexosJuditTabPanel({
+  control,
+  processoId,
+}: {
+  control: Control<any>;
+  processoId?: string;
+}) {
+  const numero = useWatch({ control, name: "numero" }) as string | undefined;
+  if (!numero) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Informe o número CNJ do processo para visualizar os anexos Judit.
+      </p>
+    );
+  }
+  return <ProcessoAnexosJuditTab processoNumero={numero} processoId={processoId} />;
+});
+
 export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFormDialogProps) {
   const [loading, setLoading] = useState(false);
   const [fetchingFromApi, setFetchingFromApi] = useState(false);
