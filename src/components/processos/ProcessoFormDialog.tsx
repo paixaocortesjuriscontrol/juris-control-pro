@@ -2168,19 +2168,11 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
               </TabsContent>
 
               <TabsContent value="analise-judit" className="space-y-4 mt-4">
-                {form.watch("numero") ? (
-                  <AnaliseJuditTab processoNumero={form.watch("numero") as string} />
-                ) : (
-                  <p className="text-sm text-muted-foreground">Informe o número CNJ do processo para visualizar a análise Judit.</p>
-                )}
+                <AnaliseJuditTabPanel control={form.control} />
               </TabsContent>
 
               <TabsContent value="anexos-judit" className="space-y-4 mt-4">
-                {form.watch("numero") ? (
-                  <ProcessoAnexosJuditTab processoNumero={form.watch("numero") as string} processoId={processo?.id} />
-                ) : (
-                  <p className="text-sm text-muted-foreground">Informe o número CNJ do processo para visualizar os anexos Judit.</p>
-                )}
+                <AnexosJuditTabPanel control={form.control} processoId={processo?.id} />
               </TabsContent>
             </Tabs>
 
