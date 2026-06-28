@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Loader2, Pencil, Upload, FileText, Trash2, FolderOpen, Plus, Sparkles } from "lucide-react";
@@ -123,6 +123,42 @@ const formatCNJ = (value: string): string => {
   }
 };
 
+// Painéis memoizados para as abas Judit — só re-renderizam quando o número CNJ
+// muda, evitando re-fetch a cada tecla digitada em outros campos do formulário.
+const AnaliseJuditTabPanel = memo(function AnaliseJuditTabPanel({
+  control,
+}: {
+  control: Control<any>;
+}) {
+  const numero = useWatch({ control, name: "numero" }) as string | undefined;
+  if (!numero) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Informe o número CNJ do processo para visualizar a análise Judit.
+      </p>
+    );
+  }
+  return <AnaliseJuditTab processoNumero={numero} />;
+});
+
+const AnexosJuditTabPanel = memo(function AnexosJuditTabPanel({
+  control,
+  processoId,
+}: {
+  control: Control<any>;
+  processoId?: string;
+}) {
+  const numero = useWatch({ control, name: "numero" }) as string | undefined;
+  if (!numero) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Informe o número CNJ do processo para visualizar os anexos Judit.
+      </p>
+    );
+  }
+  return <ProcessoAnexosJuditTab processoNumero={numero} processoId={processoId} />;
+});
+
 export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFormDialogProps) {
   const [loading, setLoading] = useState(false);
   const [fetchingFromApi, setFetchingFromApi] = useState(false);
@@ -223,8 +259,18 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
     },
   });
 
-  // Watch tipo_processo for conditional rendering
-  const tipoProcesso = form.watch("tipo_processo");
+  // Watch tipo_processo for conditional rendering (useWatch evita re-render do form inteiro)
+  const tipoProcesso = useWatch({ control: form.control, name: "tipo_processo" });
+
+  // Ao fechar o diálogo, cancela quaisquer queries Judit em andamento para
+  // não desperdiçar rede/CPU em consultas que o usuário não vai mais ver.
+  useEffect(() => {
+    if (!open) {
+      queryClient.cancelQueries({ queryKey: ["judit_anexos"] });
+      queryClient.cancelQueries({ queryKey: ["analise-judit"] });
+      queryClient.cancelQueries({ queryKey: ["judit-historico"] });
+    }
+  }, [open, queryClient]);
 
   // Reset form when dialog opens or processo changes
   useEffect(() => {
@@ -348,7 +394,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
     }
   }, [open, processo, form]);
 
-  const selectedCoordenacao = form.watch("coordenacao_id");
+  const selectedCoordenacao = useWatch({ control: form.control, name: "coordenacao_id" });
   const membros = coordenacoes.find((c) => c.id === selectedCoordenacao)?.membros || [];
 
   const handleNumeroChange = (e: React.ChangeEvent<HTMLInputElement>, onChange: (value: string) => void) => {
@@ -2168,19 +2214,11 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
               </TabsContent>
 
               <TabsContent value="analise-judit" className="space-y-4 mt-4">
-                {form.watch("numero") ? (
-                  <AnaliseJuditTab processoNumero={form.watch("numero") as string} />
-                ) : (
-                  <p className="text-sm text-muted-foreground">Informe o número CNJ do processo para visualizar a análise Judit.</p>
-                )}
+                <AnaliseJuditTabPanel control={form.control} />
               </TabsContent>
 
               <TabsContent value="anexos-judit" className="space-y-4 mt-4">
-                {form.watch("numero") ? (
-                  <ProcessoAnexosJuditTab processoNumero={form.watch("numero") as string} processoId={processo?.id} />
-                ) : (
-                  <p className="text-sm text-muted-foreground">Informe o número CNJ do processo para visualizar os anexos Judit.</p>
-                )}
+                <AnexosJuditTabPanel control={form.control} processoId={processo?.id} />
               </TabsContent>
             </Tabs>
 
