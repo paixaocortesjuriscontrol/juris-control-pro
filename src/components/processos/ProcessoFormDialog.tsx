@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Loader2, Pencil, Upload, FileText, Trash2, FolderOpen, Plus, Sparkles } from "lucide-react";
@@ -223,8 +223,8 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
     },
   });
 
-  // Watch tipo_processo for conditional rendering
-  const tipoProcesso = form.watch("tipo_processo");
+  // Watch tipo_processo for conditional rendering (useWatch evita re-render do form inteiro)
+  const tipoProcesso = useWatch({ control: form.control, name: "tipo_processo" });
 
   // Reset form when dialog opens or processo changes
   useEffect(() => {
@@ -348,7 +348,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
     }
   }, [open, processo, form]);
 
-  const selectedCoordenacao = form.watch("coordenacao_id");
+  const selectedCoordenacao = useWatch({ control: form.control, name: "coordenacao_id" });
   const membros = coordenacoes.find((c) => c.id === selectedCoordenacao)?.membros || [];
 
   const handleNumeroChange = (e: React.ChangeEvent<HTMLInputElement>, onChange: (value: string) => void) => {
