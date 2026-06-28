@@ -262,6 +262,16 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
   // Watch tipo_processo for conditional rendering (useWatch evita re-render do form inteiro)
   const tipoProcesso = useWatch({ control: form.control, name: "tipo_processo" });
 
+  // Ao fechar o diálogo, cancela quaisquer queries Judit em andamento para
+  // não desperdiçar rede/CPU em consultas que o usuário não vai mais ver.
+  useEffect(() => {
+    if (!open) {
+      queryClient.cancelQueries({ queryKey: ["judit_anexos"] });
+      queryClient.cancelQueries({ queryKey: ["analise-judit"] });
+      queryClient.cancelQueries({ queryKey: ["judit-historico"] });
+    }
+  }, [open, queryClient]);
+
   // Reset form when dialog opens or processo changes
   useEffect(() => {
     if (open) {
