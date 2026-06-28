@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, memo } from "react";
 import { z } from "zod";
-import { useForm, useWatch } from "react-hook-form";
+import { useForm, useWatch, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Loader2, Pencil, Upload, FileText, Trash2, FolderOpen, Plus, Sparkles } from "lucide-react";
