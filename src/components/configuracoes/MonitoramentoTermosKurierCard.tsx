@@ -17,7 +17,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useDjenTermosKurier } from "@/hooks/useDjenTermosKurier";
 import { useDjenTermosKurierScheduler } from "@/hooks/useDjenTermosKurierScheduler";
 import { KurierCredenciaisPanel } from "./KurierCredenciaisPanel";
-import { Play, Square, RotateCcw, ShieldAlert, Save, Activity, Loader2, Search, CalendarIcon } from "lucide-react";
+import { HorariosDoDiaPicker } from "@/components/djen/HorariosDoDiaPicker";
+import { DiasSemanaPicker, DIAS_SEMANA_DEFAULT } from "@/components/djen/DiasSemanaPicker";
+import { Play, Square, RotateCcw, ShieldAlert, Save, Activity, Loader2, Search, CalendarIcon, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 function formatDuracao(s: number) {
@@ -29,7 +31,18 @@ function formatDuracao(s: number) {
 
 export function MonitoramentoTermosKurierCard() {
   const { progress, isRunning, canResume, executar, drenarBacklog, retomar, cancelar, forceKill, resetTotal } = useDjenTermosKurier();
-  const { config, saveConfig } = useDjenTermosKurierScheduler();
+  const {
+    ativo,
+    horarios,
+    diasSemana,
+    proximoHorario,
+    baseUrl,
+    start,
+    stop,
+    setHorarios,
+    setDiasSemana,
+    setBaseUrl,
+  } = useDjenTermosKurierScheduler();
   const qc = useQueryClient();
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillDate, setBackfillDate] = useState<Date | undefined>(new Date());
@@ -74,7 +87,6 @@ export function MonitoramentoTermosKurierCard() {
     }
   };
   const [baseUrlDraft, setBaseUrlDraft] = useState<string | null>(null);
-  const [freqDraft, setFreqDraft] = useState<string | null>(null);
   const today = new Date();
   const [dataInicio, setDataInicio] = useState<Date | undefined>(undefined);
   const [dataFim, setDataFim] = useState<Date | undefined>(undefined);
@@ -114,8 +126,7 @@ export function MonitoramentoTermosKurierCard() {
           : undefined),
   });
 
-  const baseUrlValor = baseUrlDraft ?? config.baseUrl;
-  const freqValor = freqDraft ?? String(config.frequenciaMin);
+  const baseUrlValor = baseUrlDraft ?? baseUrl;
 
   return (
     <div className="space-y-4">
@@ -130,39 +141,64 @@ export function MonitoramentoTermosKurierCard() {
                 Busca publicações Kurier por data de disponibilização/publicação na API REST KJuridico, igual à tela Kurier, sem depender da fila/backlog.
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="kurier-ativo" className="text-sm">Auto-execução</Label>
-              <Switch
-                id="kurier-ativo"
-                checked={config.ativo}
-                onCheckedChange={(v) => saveConfig({ ativo: v })}
-              />
-            </div>
+            <Badge variant={ativo ? "default" : "secondary"}>
+              {ativo ? "Agendamento ativo" : "Agendamento inativo"}
+            </Badge>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Frequência (min)</Label>
-              <div className="flex gap-1">
-                <Input
-                  type="number"
-                  min={5}
-                  value={freqValor}
-                  onChange={(e) => setFreqDraft(e.target.value)}
-                  className="h-9"
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={freqDraft === null || Number(freqValor) < 5}
-                  onClick={async () => { await saveConfig({ frequenciaMin: Number(freqValor) }); setFreqDraft(null); }}
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
+          <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Clock className="h-4 w-4 text-primary" /> Agendamento automático
               </div>
+              <Badge variant={ativo ? "default" : "secondary"}>{ativo ? "Ativo" : "Inativo"}</Badge>
             </div>
-            <div className="space-y-1 md:col-span-2">
+            <div className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+              <Label htmlFor="kurier-scheduler-toggle" className="text-sm font-medium">
+                Ativar agendamento
+              </Label>
+              <Switch
+                id="kurier-scheduler-toggle"
+                checked={ativo}
+                onCheckedChange={(checked) => {
+                  if (checked) { start(); toast.success("Agendamento Kurier ativado"); }
+                  else { stop(); toast.info("Agendamento Kurier desativado"); }
+                }}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Horários BRT (até 3 por dia)</Label>
+              <HorariosDoDiaPicker
+                value={horarios}
+                onChange={(next) => {
+                  setHorarios(next);
+                  toast.success(next.length > 0 ? `Horários: ${next.join(", ")}` : "Horários limpos");
+                }}
+                disabled={!ativo}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Dias da semana</Label>
+              <DiasSemanaPicker
+                value={diasSemana?.length ? diasSemana : DIAS_SEMANA_DEFAULT}
+                onChange={(dias) => setDiasSemana(dias)}
+                disabled={!ativo}
+              />
+            </div>
+            {ativo && proximoHorario && (
+              <div className="flex items-center gap-2 rounded-md bg-background p-2 border">
+                <Clock className="h-4 w-4 text-primary flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs text-muted-foreground">Próxima execução</p>
+                  <p className="text-sm font-medium">{proximoHorario}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            <div className="space-y-1">
               <Label className="text-xs">Base URL da API Kurier</Label>
               <div className="flex gap-1">
                 <Input
@@ -175,7 +211,7 @@ export function MonitoramentoTermosKurierCard() {
                   size="sm"
                   variant="outline"
                   disabled={baseUrlDraft === null || !baseUrlValor.startsWith("http")}
-                  onClick={async () => { await saveConfig({ baseUrl: baseUrlValor.trim() }); setBaseUrlDraft(null); }}
+                  onClick={() => { setBaseUrl(baseUrlValor.trim()); setBaseUrlDraft(null); }}
                 >
                   <Save className="h-4 w-4" />
                 </Button>
