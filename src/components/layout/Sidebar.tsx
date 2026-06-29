@@ -78,6 +78,7 @@ const menuItemsPublicos: MenuItem[] = [
 // Itens visíveis apenas para administradores (na seção inferior)
 const menuItemsAdmin: MenuItem[] = [
   { icon: ShieldCheck, label: "Administração", path: "/admin" },
+  { icon: Server, label: "Pool de Proxies DJEN", path: "/pool-proxy-djen" },
 ];
 
 const menuItems = [...menuItemsPublicos, ...menuItemsAdmin];
