@@ -49,6 +49,7 @@ const TIPOS_FINAIS: WorkerTipo[] = ['palavra-chave', 'processo'];
 
 function mapMonTipoToWorkerTipo(tipo: Monitoramento['tipo']): WorkerTipo {
   if (tipo === 'nome') return 'palavra-chave';
+  if (tipo === 'geral') return 'palavra-chave';
   return tipo as WorkerTipo;
 }
 
@@ -110,7 +111,7 @@ export interface DjenTermosParalelaProgress {
 
 interface Monitoramento {
   id: string;
-  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte' | 'nome';
+  tipo: 'palavra-chave' | 'advogado' | 'processo' | 'parte' | 'nome' | 'geral';
   termo_busca: string;
   oab?: string;
   uf?: string;
