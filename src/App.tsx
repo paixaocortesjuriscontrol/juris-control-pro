@@ -17,6 +17,7 @@ import Coordenacoes from "./pages/Coordenacoes";
 import Relatorios from "./pages/Relatorios";
 import Administracao from "./pages/Administracao";
 import PoolProxyDjen from "./pages/PoolProxyDjen";
+import ValidaKurier from "./pages/ValidaKurier";
 import ConsultaExterna from "./pages/ConsultaExterna";
 import ImportarProcessos from "./pages/ImportarProcessos";
 import ImportarHub from "./pages/ImportarHub";
