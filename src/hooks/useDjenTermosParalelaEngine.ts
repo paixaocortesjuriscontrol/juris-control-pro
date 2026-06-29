@@ -2758,7 +2758,7 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       iniciadoEm: data.iniciado_em ?? det.iniciadoEm ?? null,
       dataInicioYmd: det.dataInicioYmd ?? null,
       dataFimYmd: det.dataFimYmd ?? null,
-      concorrencia: Number(det.concorrencia || HOST_BUCKET_LIMITS['pje-comunica']),
+      concorrencia: Number(det.concorrencia || 1),
       poolStats: det.pool_stats,
     };
     state.lastUpdatedAt = snapTs || Date.now();
