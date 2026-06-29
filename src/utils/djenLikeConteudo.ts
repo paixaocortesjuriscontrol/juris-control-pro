@@ -62,6 +62,10 @@ function htmlToPlainText(value: unknown): string {
     .trim();
 }
 
+export function sanitizeDjenPublicationText(value: unknown): string {
+  return htmlToPlainText(value);
+}
+
 function cleanMetadataName(value: unknown): string {
   return htmlToPlainText(value)
     .replace(/\s+/g, ' ')
