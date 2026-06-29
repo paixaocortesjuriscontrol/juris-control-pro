@@ -42,63 +42,69 @@ const eq = (v: any, ...alvos: string[]) => {
   return alvos.some((a) => s === a.toUpperCase());
 };
 const OPCOES_RECURSO_NORM = [
-  "Agravo de Instrumento em Recurso de Revista",
-  "Recurso de Revista com Agravo",
-  "Recurso de Revista",
-  "Embargos à SDI",
-  "Embargos em Recurso de Revista",
-  "Recurso Ordinário",
-  "Recurso Ordinário em Procedimento Sumaríssimo",
-  "Recurso Ordinário em Mandado de Segurança",
-  "Recurso Ordinário em Ação Rescisória",
-  "Recurso Ordinário Trabalhista",
-  "Agravo de Petição",
-  "Embargos de Declaração",
-  "Embargos em Execução",
-  "Embargos Infringentes",
-  "Embargos",
-  "Agravo Regimental",
-  "Agravo Interno",
+  "Ação Rescisória",
   "Agravo de Instrumento",
-  "Agravo",
-  "Recurso Extraordinário",
   "Agravo em Recurso Extraordinário",
-  "Recurso Especial",
-  "Agravo em Recurso Especial",
-  "Recurso Adesivo",
-  "Reclamação",
+  "Agravo Interno",
+  "Embargos de Declaração",
+  "Embargos de Divergência",
+  "Embargos SDI",
+  "Incidente de arguição de inconstitucionalidade",
+  "Incidente de assunção de competência",
+  "Incidente de recurso repetitivo",
+  "Incidente de resolução de demanda repetitiva",
+  "Incidente de superação e revisão de precedentes",
   "Mandado de Segurança",
-  "Habeas Corpus",
+  "Medida Cautelar",
+  "Reclamação",
+  "Recurso de Revista",
+  "Recurso Especial",
+  "Recurso Extraordinário",
+  "Recurso Ordinário",
 ];
+
+/** Mapeamento de valores legados para a nova lista (planilha "alterações" 2026-06). */
+const ALTERACOES_LEGADAS: Record<string, string> = {
+  "agravo": "Agravo Interno",
+  "agravo de instrumento em recurso de revista": "Agravo de Instrumento",
+  "recurso de revista com agravo": "Agravo de Instrumento",
+  "recurso ordinario em mandado de seguranca": "Recurso Ordinário",
+  // Itens deletados que devem virar o equivalente mais próximo na lista nova
+  "embargos a sdi": "Embargos SDI",
+  "agravo regimental": "Agravo Interno",
+  "recurso ordinario trabalhista": "Recurso Ordinário",
+  "recurso ordinario em procedimento sumarissimo": "Recurso Ordinário",
+  "recurso ordinario em acao rescisoria": "Ação Rescisória",
+};
 
 // Mapa de siglas comuns vindas de classes/códigos da Judit/CNJ/TST.
 // Mantido fora da função para reuso e evitar realocação.
 const SIGLAS_RECURSO: Record<string, string> = {
   // TST
   "rr": "Recurso de Revista",
-  "rrag": "Recurso de Revista com Agravo",
-  "arr": "Recurso de Revista com Agravo",
-  "ararr": "Recurso de Revista com Agravo",
-  "airr": "Agravo de Instrumento em Recurso de Revista",
-  "aiarr": "Agravo de Instrumento em Recurso de Revista",
-  "e": "Embargos à SDI",
-  "err": "Embargos em Recurso de Revista",
+  "rrag": "Agravo de Instrumento",
+  "arr": "Agravo de Instrumento",
+  "ararr": "Agravo de Instrumento",
+  "airr": "Agravo de Instrumento",
+  "aiarr": "Agravo de Instrumento",
+  "e": "Embargos SDI",
+  "esdi": "Embargos SDI",
+  "ediv": "Embargos de Divergência",
+  "err": "Embargos de Declaração",
   // TRT
   "ro": "Recurso Ordinário",
-  "rot": "Recurso Ordinário Trabalhista",
-  "rotsum": "Recurso Ordinário em Procedimento Sumaríssimo",
-  "rops": "Recurso Ordinário em Procedimento Sumaríssimo",
-  "roms": "Recurso Ordinário em Mandado de Segurança",
-  "roar": "Recurso Ordinário em Ação Rescisória",
-  "ap": "Agravo de Petição",
+  "rot": "Recurso Ordinário",
+  "rotsum": "Recurso Ordinário",
+  "rops": "Recurso Ordinário",
+  "roms": "Recurso Ordinário",
+  "roar": "Ação Rescisória",
+  "ar": "Ação Rescisória",
   // Embargos
   "ed": "Embargos de Declaração",
   "edcl": "Embargos de Declaração",
-  "ee": "Embargos em Execução",
-  "ei": "Embargos Infringentes",
   // Agravos
-  "ag": "Agravo",
-  "agr": "Agravo Regimental",
+  "ag": "Agravo Interno",
+  "agr": "Agravo Interno",
   "agint": "Agravo Interno",
   "agi": "Agravo Interno",
   "ai": "Agravo de Instrumento",
@@ -106,12 +112,11 @@ const SIGLAS_RECURSO: Record<string, string> = {
   "re": "Recurso Extraordinário",
   "are": "Agravo em Recurso Extraordinário",
   "resp": "Recurso Especial",
-  "aresp": "Agravo em Recurso Especial",
+  "aresp": "Agravo em Recurso Extraordinário",
   // Outros
   "ms": "Mandado de Segurança",
-  "hc": "Habeas Corpus",
+  "mc": "Medida Cautelar",
   "rcl": "Reclamação",
-  "radesivo": "Recurso Adesivo",
 };
 
 /** Normaliza string vinda da Judit (ex.: "AGRAVO DE INSTRUMENTO EM RECURSO DE REVISTA",
@@ -149,6 +154,9 @@ function normalizarTipoRecurso(raw: any): string | null {
       const hit = OPCOES_RECURSO_NORM.find((opt) => norm(opt) === alvo);
       nome = hit || p;
     }
+    // Aplica mapeamento de valores legados (planilha "alterações")
+    const legada = ALTERACOES_LEGADAS[norm(nome)];
+    if (legada) nome = legada;
     const k = norm(nome);
     if (vistos.has(k)) continue;
     vistos.add(k);
@@ -1573,7 +1581,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             </div>
             <div className={cn("space-y-2 p-2 -m-2", iaClass("tem_chance_exito_banco", bennerExtra.tem_chance_exito_banco))}>
               <Label className="flex items-center">
-                Tem chance de êxito?{recorrenteEnvolveBanco(form) && <ReqMark />}
+                Tem chance de êxito?
                 <IaBadge field="tem_chance_exito_banco" value={bennerExtra.tem_chance_exito_banco} />
               </Label>
               <Select
@@ -1946,12 +1954,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Fechamento" color="bg-yellow-500 !text-black" />
         <div className="p-4 space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
-            <div className={cn("flex items-center gap-2 p-2 -m-2", iaClass("ganhamos", bennerExtra.ganhamos))}>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 items-end">
+            <div className={cn("flex items-center gap-2 p-2 -m-2 h-10", iaClass("ganhamos", bennerExtra.ganhamos))}>
               <Checkbox id="be-ganhamos" checked={!!bennerExtra.ganhamos} onCheckedChange={v => setExtra("ganhamos", !!v)} />
               <Label htmlFor="be-ganhamos" className="cursor-pointer flex items-center">Ganhamos (X) <IaBadge field="ganhamos" value={bennerExtra.ganhamos} /></Label>
             </div>
-            <div className={cn("flex items-center gap-2 p-2 -m-2", iaClass("perdemos", bennerExtra.perdemos))}>
+            <div className={cn("flex items-center gap-2 p-2 -m-2 h-10", iaClass("perdemos", bennerExtra.perdemos))}>
               <Checkbox id="be-perdemos" checked={!!bennerExtra.perdemos} onCheckedChange={v => setExtra("perdemos", !!v)} />
               <Label htmlFor="be-perdemos" className="cursor-pointer flex items-center">Perdemos (Y) <IaBadge field="perdemos" value={bennerExtra.perdemos} /></Label>
             </div>
@@ -1971,7 +1979,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               <Input value={bennerExtra.situacao_processo || ""} onChange={e => setExtra("situacao_processo", e.target.value)} />
             </div>
             <div className={cn("space-y-2 p-2 -m-2", iaClass("chance_exito", bennerExtra.chance_exito))}>
-              <Label className="flex items-center">Chance de Êxito (geral) (AH)<ReqMark /> <IaBadge field="chance_exito" value={bennerExtra.chance_exito} /></Label>
+              <Label className="flex items-center">Chance de Êxito (geral)<ReqMark /> <IaBadge field="chance_exito" value={bennerExtra.chance_exito} /></Label>
               <Select value={bennerExtra.chance_exito || "__none__"} onValueChange={v => setExtra("chance_exito", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>

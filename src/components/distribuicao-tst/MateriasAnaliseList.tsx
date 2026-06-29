@@ -72,19 +72,21 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
     onChange(next);
   };
 
+  const missingCls = "ring-1 ring-red-400 focus:ring-red-500";
+
   return (
     <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
       {title && (
         <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          {title}
+          {title} <span className="text-red-600 normal-case">— preencha todas as colunas para cada matéria</span>
         </div>
       )}
       <div className="grid grid-cols-12 gap-2 text-[11px] font-medium text-muted-foreground px-1">
         <div className="col-span-12 md:col-span-4">Matéria</div>
-        <div className="col-span-4 md:col-span-3">Aparelhamento</div>
-        <div className="col-span-4 md:col-span-2">Chance Turma</div>
-        <div className="col-span-4 md:col-span-2">Chance Relator</div>
-        <div className="col-span-4 md:col-span-1">Êxito</div>
+        <div className="col-span-4 md:col-span-3">Aparelhamento <span className="text-red-600">*</span></div>
+        <div className="col-span-4 md:col-span-2">Chance Turma <span className="text-red-600">*</span></div>
+        <div className="col-span-4 md:col-span-2">Chance Relator <span className="text-red-600">*</span></div>
+        <div className="col-span-4 md:col-span-1">Êxito <span className="text-red-600">*</span></div>
       </div>
       {rows.map((row, idx) => (
         <div
@@ -99,7 +101,7 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
               value={row.aparelhamento || "__none__"}
               onValueChange={(v) => update(idx, { aparelhamento: v === "__none__" ? null : v })}
             >
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className={`h-8 text-xs ${!row.aparelhamento ? missingCls : ""}`}>
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -115,7 +117,7 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
               value={row.chance_turma || "__none__"}
               onValueChange={(v) => update(idx, { chance_turma: v === "__none__" ? null : v })}
             >
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className={`h-8 text-xs ${!row.chance_turma ? missingCls : ""}`}>
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -131,7 +133,7 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
               value={row.chance_relator || "__none__"}
               onValueChange={(v) => update(idx, { chance_relator: v === "__none__" ? null : v })}
             >
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className={`h-8 text-xs ${!row.chance_relator ? missingCls : ""}`}>
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
@@ -147,7 +149,7 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
               value={row.chance_exito || "__none__"}
               onValueChange={(v) => update(idx, { chance_exito: v === "__none__" ? null : v })}
             >
-              <SelectTrigger className="h-8 text-xs">
+              <SelectTrigger className={`h-8 text-xs ${!row.chance_exito ? missingCls : ""}`}>
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
