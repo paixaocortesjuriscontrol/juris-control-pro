@@ -10,7 +10,7 @@ function sanitizeConteudoKurier(raw: string | null | undefined): string {
   if (!raw) return "";
   let s = String(raw);
   const named: Record<string, string> = {
-    nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
+    nbsp: " ", amp: " & ", lt: "<", gt: ">", quot: '"', apos: "'",
     aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
     Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú",
     atilde: "ã", otilde: "õ", ntilde: "ñ", Atilde: "Ã", Otilde: "Õ", Ntilde: "Ñ",
