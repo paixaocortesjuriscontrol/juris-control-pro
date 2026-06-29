@@ -1143,6 +1143,7 @@ Deno.serve(async (req: Request) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const b: any = (globalThis as any).__lastKurierBody;
       credencialId = b?.credencial_id;
+      credencialLogin = (globalThis as any).__lastKurierLogin;
     } catch {}
     console.error("[kurier-consultar-publicacoes] FATAL", {
       message: msg,
