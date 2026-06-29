@@ -828,7 +828,7 @@ Deno.serve(async (req: Request) => {
               .from(pubTable)
               .insert({
                 ...basePayload,
-                id_djen: null,
+                id_djen: idDjen,
                 hash_conteudo: uniqueHashMatch,
                 monitoramento_id: matched.id,
                 coordenacao_id: matched.coordenacao_id ?? null,
@@ -837,8 +837,13 @@ Deno.serve(async (req: Request) => {
               .maybeSingle();
 
             if (pubErr) {
-              console.warn(`[kurier] erro insert ${pubTable}:`, pubErr.message);
-              motivoDescarte = `erro_insert:${pubErr.message.slice(0, 60)}`;
+              if ((pubErr as any).code === "23505") {
+                // Duplicado por unique (coordenacao_id, id_djen) — silencia
+                totalDuplicadas++;
+              } else {
+                console.warn(`[kurier] erro insert ${pubTable}:`, pubErr.message);
+                motivoDescarte = `erro_insert:${pubErr.message.slice(0, 60)}`;
+              }
             } else if (insPub) {
               publicacaoDjenId = insPub.id;
               totalNovas++;
@@ -893,7 +898,7 @@ Deno.serve(async (req: Request) => {
               .from(pubTable)
               .insert({
                 ...basePayload,
-                id_djen: null,           // <- evita conflito no unique (coord, id_djen)
+                id_djen: idDjen,
                 hash_conteudo: uniqueHash,
                 monitoramento_id: ct.monit_id,
                 coordenacao_id: ct.id,
@@ -901,6 +906,11 @@ Deno.serve(async (req: Request) => {
               .select("id")
               .maybeSingle();
             if (ctErr) {
+              if ((ctErr as any).code === "23505") {
+                // Duplicado por unique (coordenacao_id, id_djen) — silencia
+                totalDuplicadas++;
+                continue;
+              }
               console.warn(`[kurier] erro captura_total insert coord ${ct.id}:`, ctErr.message);
             } else if (insCt) {
               if (!publicacaoDjenId) publicacaoDjenId = insCt.id;
