@@ -24,7 +24,7 @@ const decodeLooseHtmlEntities = (value: string): string => {
   let s = value;
   // Kurier/TJSP às vezes chega com entidade quebrada por quebra de linha e sem ";"
   // (ex.: "R&Eacute\nU", "&ccedil\n&atilde\no"). Decodifica antes do DOM.
-  s = s.replace(/&([A-Za-z][A-Za-z0-9]+)(?:\s*;)?/g, (full, name) => {
+  s = s.replace(/&([A-Za-z][A-Za-z0-9]+)\s*;?/g, (full, name) => {
     return Object.prototype.hasOwnProperty.call(LOOSE_HTML_ENTITIES, name)
       ? LOOSE_HTML_ENTITIES[name]
       : full;
@@ -114,6 +114,7 @@ export const formatConteudoParaExibicao = (conteudo: string | null | undefined, 
     .replace(/<[^>]+>/g, "");
 
   s = decodeHtmlEntities(s)
+    .replace(/:\s*:/g, ":")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();

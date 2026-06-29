@@ -25,7 +25,7 @@ function sanitizeConteudoKurier(raw: string | null | undefined): string {
   const decodeLoose = (value: string) => value
     // Kurier/TJSP chega muitas vezes com entidade sem ponto-e-vírgula e quebrada
     // por \n: "R&Eacute\nU", "&ccedil\n&atilde\no".
-    .replace(/&([A-Za-z][A-Za-z0-9]+)(?:\s*;)?/g, (full, name) => name in named ? named[name] : full)
+    .replace(/&([A-Za-z][A-Za-z0-9]+)\s*;?/g, (full, name) => name in named ? named[name] : full)
     .replace(/&#(\d+);?/g, (_, d) => {
       try { return String.fromCodePoint(parseInt(d, 10)); } catch { return " "; }
     })
@@ -47,7 +47,7 @@ function sanitizeConteudoKurier(raw: string | null | undefined): string {
   // Decodifica entidades nomeadas e numéricas
   s = decodeLoose(s);
   // Colapsa espaços
-  s = s.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
+  s = s.replace(/:\s*:/g, ":").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
   return s;
 }
 
