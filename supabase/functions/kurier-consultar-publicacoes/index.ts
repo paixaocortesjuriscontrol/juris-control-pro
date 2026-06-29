@@ -9,35 +9,43 @@ function sha256(s: string): string {
 function sanitizeConteudoKurier(raw: string | null | undefined): string {
   if (!raw) return "";
   let s = String(raw);
-  // Remove blocos não-texto inteiros
-  s = s.replace(/<script[\s\S]*?<\/script>/gi, " ")
-       .replace(/<style[\s\S]*?<\/style>/gi, " ");
-  // Quebras de linha a partir de tags de bloco
-  s = s.replace(/<\s*(br|\/p|\/div|\/tr|\/li|\/h[1-6]|\/section|\/article|\/header|\/footer)\s*\/?>/gi, "\n");
-  // Tabular: célula vira espaço
-  s = s.replace(/<\s*\/?(td|th)[^>]*>/gi, " ");
-  // Remove todas as demais tags
-  s = s.replace(/<\/?[a-z][^>]*>/gi, " ");
-  // Decodifica entidades nomeadas e numéricas
   const named: Record<string, string> = {
     nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
     aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
     Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú",
     atilde: "ã", otilde: "õ", ntilde: "ñ", Atilde: "Ã", Otilde: "Õ", Ntilde: "Ñ",
-    acirc: "â", ecirc: "ê", ocirc: "ô", Acirc: "Â", Ecirc: "Ê", Ocirc: "Ô",
-    agrave: "à", Agrave: "À",
-    ccedil: "ç", Ccedil: "Ç",
-    ordm: "º", ordf: "ª", deg: "°", middot: "·",
-    hellip: "…", ndash: "–", mdash: "—", laquo: "«", raquo: "»",
+    acirc: "â", ecirc: "ê", icirc: "î", ocirc: "ô", ucirc: "û",
+    Acirc: "Â", Ecirc: "Ê", Icirc: "Î", Ocirc: "Ô", Ucirc: "Û",
+    agrave: "à", egrave: "è", igrave: "ì", ograve: "ò", ugrave: "ù",
+    Agrave: "À", Egrave: "È", Igrave: "Ì", Ograve: "Ò", Ugrave: "Ù",
+    ccedil: "ç", Ccedil: "Ç", ordm: "º", ordf: "ª", deg: "°",
+    middot: "·", hellip: "…", ndash: "–", mdash: "—", laquo: "«", raquo: "»",
     lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”",
   };
-  s = s.replace(/&([a-zA-Z]+);/g, (_, n) => (n in named ? named[n] : " "));
-  s = s.replace(/&#(\d+);/g, (_, d) => {
-    try { return String.fromCodePoint(parseInt(d, 10)); } catch { return " "; }
-  });
-  s = s.replace(/&#[xX]([0-9a-fA-F]+);/g, (_, h) => {
-    try { return String.fromCodePoint(parseInt(h, 16)); } catch { return " "; }
-  });
+  const decodeLoose = (value: string) => value
+    // Kurier/TJSP chega muitas vezes com entidade sem ponto-e-vírgula e quebrada
+    // por \n: "R&Eacute\nU", "&ccedil\n&atilde\no".
+    .replace(/&([A-Za-z][A-Za-z0-9]+)(?:\s*;)?/g, (full, name) => name in named ? named[name] : full)
+    .replace(/&#(\d+);?/g, (_, d) => {
+      try { return String.fromCodePoint(parseInt(d, 10)); } catch { return " "; }
+    })
+    .replace(/&#[xX]([0-9a-fA-F]+);?/g, (_, h) => {
+      try { return String.fromCodePoint(parseInt(h, 16)); } catch { return " "; }
+    });
+
+  s = decodeLoose(s);
+  // Remove blocos não-texto inteiros
+  s = s.replace(/<script[\s\S]*?<\/script>/gi, " ")
+       .replace(/<style[\s\S]*?<\/style>/gi, " ");
+  // Quebras de linha a partir de tags de bloco
+  s = s.replace(/<\s*(br|\/p|\/div|\/tr|\/li|\/h[1-6]|\/section|\/article|\/header|\/footer)\s*\/?>/gi, "\n");
+  s = s.replace(/<\s*\/td\s*>\s*<\s*td[^>]*>/gi, ": ");
+  // Tabular: célula vira espaço
+  s = s.replace(/<\s*\/?(td|th)[^>]*>/gi, " ");
+  // Remove todas as demais tags
+  s = s.replace(/<\/?[a-z][^>]*>/gi, " ");
+  // Decodifica entidades nomeadas e numéricas
+  s = decodeLoose(s);
   // Colapsa espaços
   s = s.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
   return s;
