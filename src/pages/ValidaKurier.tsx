@@ -29,6 +29,7 @@ type Pub = {
 };
 
 const KURIER_COORD_DEFAULT_ID = "a7843a1f-a90e-4a2f-8f6b-12160ce3e86d";
+const ALL_COORDS = "__ALL__";
 
 function todayBRT(): string {
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" });
@@ -45,6 +46,10 @@ function dateRef(p: Pub): string {
 
 function comparisonKey(p: Pub): string {
   return `${onlyDigits(p.processo_numero)}|${dateRef(p)}`;
+}
+
+function djenIdKey(p: Pub): string | null {
+  return p.id_djen ? `djen:${p.id_djen}` : null;
 }
 
 function identityKey(p: Pub): string {
@@ -80,11 +85,11 @@ async function fetchAll(coordId: string, ini: string, fim: string, side: "djen" 
       let q = (supabase as any)
       .from(table)
       .select("id, id_djen, processo_numero, tribunal, data_disponibilizacao, data_publicacao, tipo_comunicacao, orgao, kurier_login, fonte")
-      .eq("coordenacao_id", coordId)
       .gte("data_disponibilizacao", ini)
       .lt("data_disponibilizacao", fimNext)
       .order("data_disponibilizacao", { ascending: false })
       .range(from, from + PAGE - 1);
+      if (coordId !== ALL_COORDS) q = q.eq("coordenacao_id", coordId);
       q = side === "kurier" ? q.eq("fonte", "kurier") : q.or("fonte.is.null,fonte.neq.kurier");
       const { data, error } = await q;
       if (error) throw error;
@@ -116,22 +121,44 @@ type Comparison = {
 };
 
 function comparar(djen: Pub[], kurier: Pub[]): Comparison {
+  // Match prioritário por id_djen; fallback por processo+data
+  const dById = new Map<string, Pub[]>();
   const dByKey = new Map<string, Pub[]>();
+  const kById = new Map<string, Pub[]>();
   const kByKey = new Map<string, Pub[]>();
   for (const p of djen) {
+    const id = djenIdKey(p);
+    if (id) dById.set(id, [...(dById.get(id) ?? []), p]);
     const key = comparisonKey(p);
     if (!key.startsWith("|")) dByKey.set(key, [...(dByKey.get(key) ?? []), p]);
   }
   for (const p of kurier) {
+    const id = djenIdKey(p);
+    if (id) kById.set(id, [...(kById.get(id) ?? []), p]);
     const key = comparisonKey(p);
     if (!key.startsWith("|")) kByKey.set(key, [...(kByKey.get(key) ?? []), p]);
   }
 
-  const matchedDjen = djen.filter((p) => kByKey.has(comparisonKey(p)));
-  const soDjen = djen.filter((p) => !kByKey.has(comparisonKey(p)));
-  const matchedKurier = kurier.filter((p) => dByKey.has(comparisonKey(p)));
-  const soKurier = kurier.filter((p) => !dByKey.has(comparisonKey(p)));
-  const ambos = matchedKurier.map((k) => ({ djen: dByKey.get(comparisonKey(k))![0], kurier: k }));
+  const matchDjen = (p: Pub): Pub | null => {
+    const id = djenIdKey(p);
+    if (id && kById.has(id)) return kById.get(id)![0];
+    const key = comparisonKey(p);
+    if (!key.startsWith("|") && kByKey.has(key)) return kByKey.get(key)![0];
+    return null;
+  };
+  const matchKurier = (p: Pub): Pub | null => {
+    const id = djenIdKey(p);
+    if (id && dById.has(id)) return dById.get(id)![0];
+    const key = comparisonKey(p);
+    if (!key.startsWith("|") && dByKey.has(key)) return dByKey.get(key)![0];
+    return null;
+  };
+
+  const matchedDjen = djen.filter((p) => matchDjen(p));
+  const soDjen = djen.filter((p) => !matchDjen(p));
+  const matchedKurier = kurier.filter((p) => matchKurier(p));
+  const soKurier = kurier.filter((p) => !matchKurier(p));
+  const ambos = matchedKurier.map((k) => ({ djen: matchKurier(k)!, kurier: k }));
   return { soDjen, soKurier, ambos, matchedDjen, matchedKurier };
 }
 
@@ -194,7 +221,7 @@ export default function ValidaKurier() {
     return { totalDjen, totalKurier, ambos, soDjen, soKurier, coberturaKurier, coberturaDjen, tribunais };
   }, [data]);
 
-  const nomeCoord = (id: string) => coords?.find((c: any) => c.id === id)?.nome ?? id;
+  const nomeCoord = (id: string) => id === ALL_COORDS ? "Todas as coordenações" : (coords?.find((c: any) => c.id === id)?.nome ?? id);
 
   function rowsParaExport(list: Pub[], origem: string) {
     return list.map((p) => ({
@@ -295,6 +322,7 @@ export default function ValidaKurier() {
               <Select value={coordDjenId} onValueChange={setCoordDjenId}>
                 <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={ALL_COORDS}>Todas as coordenações</SelectItem>
                   {(coords ?? []).map((c: any) => (
                     <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
                   ))}
