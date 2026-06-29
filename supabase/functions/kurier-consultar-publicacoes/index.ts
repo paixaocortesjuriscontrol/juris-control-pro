@@ -333,6 +333,8 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json().catch(() => ({} as any));
+    // expõe o body para o catch externo conseguir logar qual credencial estourou
+    try { (globalThis as any).__lastKurierBody = body; } catch {}
     const credencial_id: string | undefined = body.credencial_id;
     // Edge Functions têm orçamento curto de CPU/tempo; cada chamada processa só 1 lote
     // e o frontend faz novas chamadas pequenas até esvaziar a fila da credencial.
@@ -380,6 +382,11 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     if (credErr || !cred) return jsonResponse({ error: "Credencial não encontrada" }, 404);
     if (!cred.senha_encrypted) return jsonResponse({ error: "Credencial sem senha" }, 400);
+    console.log("[kurier-consultar-publicacoes] START", {
+      credencial_id: cred.id, login: cred.login,
+      data_inicio, data_fim, max_lotes, modo_personalizado, backfill_raw,
+    });
+    try { (globalThis as any).__lastKurierLogin = cred.login; } catch {}
 
     const senha = await decryptKurier(cred.senha_encrypted);
     const baseUrl = await getKurierBaseUrlFromDb(admin);
@@ -1126,6 +1133,24 @@ Deno.serve(async (req: Request) => {
       erro: ultimoErro,
     });
   } catch (e) {
-    return jsonResponse({ error: String(e?.message ?? e) }, 500);
+    const msg = String((e as any)?.message ?? e);
+    const stack = String((e as any)?.stack ?? "");
+    let credencialId: string | undefined;
+    let credencialLogin: string | undefined;
+    try {
+      // best-effort: re-parse body to surface qual credencial estourou
+      // (body já foi consumido acima; ignorar se falhar)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const b: any = (globalThis as any).__lastKurierBody;
+      credencialId = b?.credencial_id;
+      credencialLogin = (globalThis as any).__lastKurierLogin;
+    } catch {}
+    console.error("[kurier-consultar-publicacoes] FATAL", {
+      message: msg,
+      stack: stack.slice(0, 2000),
+      credencial_id: credencialId,
+      credencial_login: credencialLogin,
+    });
+    return jsonResponse({ error: msg, stack: stack.slice(0, 1500) }, 500);
   }
 });
