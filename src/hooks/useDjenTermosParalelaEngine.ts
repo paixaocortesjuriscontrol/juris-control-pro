@@ -2116,7 +2116,22 @@ async function executarLoop(
           status: 'executando',
           job_name: 'DJEN Termos Paralela',
           iniciado_em: iniciadoEm,
-          detalhes: { runKey, totalTribunais: totalUnidades, dataInicioYmd, dataFimYmd, concorrencia: HOST_BUCKET_LIMITS['pje-comunica'], tiposAtivos },
+          detalhes: {
+            runKey,
+            totalTribunais: totalUnidades,
+            dataInicioYmd,
+            dataFimYmd,
+            // Concorrência real = nº de VPS habilitadas (1 worker por VPS).
+            // Fallback 1 quando não houver pool (executa direto pelo browser).
+            concorrencia: (() => {
+              try {
+                if (!isDjenProxyPoolEnabled()) return 1;
+                const n = loadDjenProxyPool().filter((s) => s.enabled && s.id && s.baseUrl && s.token).length;
+                return n > 0 ? n : 1;
+              } catch { return 1; }
+            })(),
+            tiposAtivos,
+          },
         })
         .select('id');
       if (insErr) console.error('[DJEN Paralela] Falha registrar execução:', insErr.message);
