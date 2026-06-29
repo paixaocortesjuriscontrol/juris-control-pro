@@ -163,7 +163,7 @@ function comparar(djen: Pub[], kurier: Pub[]): Comparison {
 }
 
 export default function ValidaKurier() {
-  const [coordDjenId, setCoordDjenId] = useState<string>("");
+  const [coordDjenId, setCoordDjenId] = useState<string>(ALL_COORDS);
   const [coordKurierId, setCoordKurierId] = useState<string>(KURIER_COORD_DEFAULT_ID);
   const today = todayBRT();
   const [dataIni, setDataIni] = useState<string>(today);
@@ -182,7 +182,7 @@ export default function ValidaKurier() {
     },
   });
 
-  const enabled = run > 0 && !!coordDjenId && !!coordKurierId;
+  const enabled = run > 0 && (!!coordDjenId || !!coordKurierId);
   const { data, isFetching, refetch } = useQuery({
     queryKey: ["valida-kurier", coordDjenId, coordKurierId, dataIni, dataFim, run],
     enabled,
@@ -294,11 +294,11 @@ export default function ValidaKurier() {
   }
 
   function executar() {
-    if (!coordDjenId || !coordKurierId) {
-      toast.error("Selecione as duas coordenações");
+    if (!coordDjenId && !coordKurierId) {
+      toast.error("Selecione ao menos uma coordenação");
       return;
     }
-    if (coordDjenId !== ALL_COORDS && coordDjenId === coordKurierId) {
+    if (coordDjenId && coordKurierId && coordDjenId !== ALL_COORDS && coordDjenId === coordKurierId) {
       toast.error("Escolha coordenações diferentes");
       return;
     }
