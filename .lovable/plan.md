@@ -1,34 +1,36 @@
+## Diagnóstico
+
+Comparei o motor **DJEN Local** (`src/hooks/useDjenTermosParalelaEngine.ts`) com o **DJEN Servidor** (`monitor-servidor/engines/paralela.js`). Os workers em paralelo já estão corretos (cada VPS = 1 worker independente, sem trava global), mas o **Local usa delays bem maiores por página/retry** que o Servidor — por isso adicionar VPS não acelera proporcionalmente.
+
+| Parâmetro | Local (hoje) | Servidor | Efeito |
+|---|---|---|---|
+| `delay_between_pages` | **1800 ms** | 800 ms | +1s perdido a cada página paginada — domina o tempo total |
+| `retry_base_delay` | **20.000 ms** | 8.000 ms (429) / 3.000 ms (outros) | Cada 429 ocasional custa ~20s no Local |
+| `HOST_BUCKET_LIMITS['pje-comunica']` | 1 (cosmético) | — | Mostra "concorrência 1" na UI mesmo com N VPS |
+
+Constante `HOST_BUCKET_LIMITS` não trava workers de verdade hoje (só rotula UI), mas confunde leitura. O cooldown 429 já é por VPS (correto). Não há fallback estranho — o gargalo é puramente os delays.
+
 ## Mudanças
 
-### 1. Edge Function `kurier-consultar-publicacoes`
-- Remover o `id_djen: null` forçado na inserção.
-- Passar o `idDjen` já extraído via regex do conteúdo.
-- Tratar erro de constraint única (código `23505`) como duplicado silencioso, contando em `totalDuplicadas` em vez de falhar.
+### `src/hooks/useDjenTermosParalelaEngine.ts`
 
-### 2. Backfill (25/06 a 29/06/2026)
-Atualizar `publicacoes_djen` preenchendo `id_djen` a partir do conteúdo somente para `fonte='kurier'` nesse intervalo, pulando linhas que conflitariam com `(coordenacao_id, id_djen)` já existente:
+1. Alinhar `CONFIG` ao Servidor:
+   ```ts
+   const CONFIG = {
+     delay_between_terms: 2500,        // mantém
+     delay_between_pages: 800,         // 1800 → 800 (paridade servidor)
+     delay_between_termos_or: 1800,    // mantém
+     max_retries: 3,
+     retry_base_delay: 8000,           // 20000 → 8000 (paridade servidor 429)
+   };
+   ```
 
-```sql
-UPDATE publicacoes_djen p
-SET id_djen = sub.id_extraido
-FROM (
-  SELECT id,
-         coordenacao_id,
-         (regexp_match(conteudo, 'ID\s*COMUNICA[ÇC][AÃ]O\s*(\d{4,})', 'i'))[1] AS id_extraido
-  FROM publicacoes_djen
-  WHERE fonte='kurier'
-    AND id_djen IS NULL
-    AND data_disponibilizacao >= '2026-06-25'
-    AND data_disponibilizacao <  '2026-06-30'
-) sub
-WHERE p.id = sub.id
-  AND sub.id_extraido IS NOT NULL
-  AND NOT EXISTS (
-    SELECT 1 FROM publicacoes_djen p2
-    WHERE p2.coordenacao_id = p.coordenacao_id
-      AND p2.id_djen = sub.id_extraido
-  );
-```
+2. Substituir o uso cosmético de `HOST_BUCKET_LIMITS['pje-comunica']` em `concorrencia` (linhas 302, 2114, 2741) por `vias.length` quando disponível, caindo para `1` apenas quando não houver pool. Mantém o resto da estrutura intacta.
 
-### 3. Sem alterações em `ValidaKurier.tsx` agora
-A tela já prioriza `id_djen` quando presente; após o backfill o match passa a ser exato automaticamente.
+### Sem alterações em
+- Pool de proxies, cooldown por VPS, validação parte/advogado, deduplicação — tudo intacto.
+- Servidor não é tocado.
+
+## Resultado esperado
+
+Com 10 VPS rodando, o tempo por tribunal cai aproximadamente pela metade (a paginação domina o ciclo). Adicionar mais VPS volta a escalar linearmente.

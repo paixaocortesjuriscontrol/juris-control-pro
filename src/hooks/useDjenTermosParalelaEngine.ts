@@ -141,10 +141,15 @@ interface Checkpoint {
 const MAX_CONCURRENCY = 5;
 const CONFIG = {
   delay_between_terms: 2500,
-  delay_between_pages: 1800,
+  // Paridade com monitor-servidor/engines/paralela.js (PAGE_DELAY_MS=800).
+  // 1800ms estava dobrando o custo de paginação e neutralizando o ganho
+  // de adicionar mais VPS ao pool.
+  delay_between_pages: 800,
   delay_between_termos_or: 1800,
   max_retries: 3,
-  retry_base_delay: 20000,
+  // Paridade com servidor: 429 → ~8s base (8000*(attempt+1)). 20s travava
+  // o worker em retries longos a cada rate-limit isolado.
+  retry_base_delay: 8000,
 };
 
 // ============================================================================
@@ -2111,7 +2116,22 @@ async function executarLoop(
           status: 'executando',
           job_name: 'DJEN Termos Paralela',
           iniciado_em: iniciadoEm,
-          detalhes: { runKey, totalTribunais: totalUnidades, dataInicioYmd, dataFimYmd, concorrencia: HOST_BUCKET_LIMITS['pje-comunica'], tiposAtivos },
+          detalhes: {
+            runKey,
+            totalTribunais: totalUnidades,
+            dataInicioYmd,
+            dataFimYmd,
+            // Concorrência real = nº de VPS habilitadas (1 worker por VPS).
+            // Fallback 1 quando não houver pool (executa direto pelo browser).
+            concorrencia: (() => {
+              try {
+                if (!isDjenProxyPoolEnabled()) return 1;
+                const n = loadDjenProxyPool().filter((s) => s.enabled && s.id && s.baseUrl && s.token).length;
+                return n > 0 ? n : 1;
+              } catch { return 1; }
+            })(),
+            tiposAtivos,
+          },
         })
         .select('id');
       if (insErr) console.error('[DJEN Paralela] Falha registrar execução:', insErr.message);
@@ -2738,7 +2758,7 @@ export async function hydrateDjenTermosParalelaFromBackend(): Promise<boolean> {
       iniciadoEm: data.iniciado_em ?? det.iniciadoEm ?? null,
       dataInicioYmd: det.dataInicioYmd ?? null,
       dataFimYmd: det.dataFimYmd ?? null,
-      concorrencia: Number(det.concorrencia || HOST_BUCKET_LIMITS['pje-comunica']),
+      concorrencia: Number(det.concorrencia || 1),
       poolStats: det.pool_stats,
     };
     state.lastUpdatedAt = snapTs || Date.now();
