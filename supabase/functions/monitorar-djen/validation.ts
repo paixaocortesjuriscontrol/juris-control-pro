@@ -97,6 +97,14 @@ export function conteudoContemTermo(
 
   const conteudoNorm = normalizar(conteudo);
 
+  // Busca Geral: aceita match em qualquer trecho do conteúdo bruto
+  // (que já inclui partes, advogados, número de processo e teor).
+  if (tipo === 'geral') {
+    const termoBase = extrairPalavraChavePura(termo);
+    if (!termoBase) return true;
+    return validarTermoComAnd(conteudoNorm, termoBase);
+  }
+
   if (tipo === 'advogado' || tipo === 'nome') {
     if (termo) {
       const termoBase = extrairPalavraChavePura(termo);
@@ -197,9 +205,18 @@ export function conteudoContemTermoOuOr(
   conteudo: string,
   monitoramento: Monitoramento
 ): boolean {
-  const termoPuro = (monitoramento.tipo === 'palavra-chave' || monitoramento.tipo === 'parte' || monitoramento.tipo === 'advogado' || monitoramento.tipo === 'nome')
+  const termoPuro = (monitoramento.tipo === 'palavra-chave' || monitoramento.tipo === 'parte' || monitoramento.tipo === 'advogado' || monitoramento.tipo === 'nome' || monitoramento.tipo === 'geral')
     ? extrairPalavraChavePura(monitoramento.termo_busca)
     : monitoramento.termo_busca;
+
+  if (monitoramento.tipo === 'geral') {
+    if (conteudoContemTermo(conteudo, termoPuro, 'geral')) return true;
+    for (const t of monitoramento.termos_or || []) {
+      const pure = extrairPalavraChavePura(String(t));
+      if (pure && conteudoContemTermo(conteudo, pure, 'geral')) return true;
+    }
+    return false;
+  }
 
   if (monitoramento.tipo === 'nome') {
     return conteudoContemTermo(conteudo, termoPuro, 'nome', undefined);

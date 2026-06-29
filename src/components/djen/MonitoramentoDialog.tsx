@@ -118,7 +118,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
   const { data: coordenacoesAll = [], isLoading: loadingCoordenacoes } = useCoordenacoesFull();
   const coordenacoes = coordenacoesOverride ?? coordenacoesAll;
   
-  const [tipo, setTipo] = useState<'palavra-chave' | 'advogado' | 'processo' | 'parte'>(
+  const [tipo, setTipo] = useState<'palavra-chave' | 'advogado' | 'processo' | 'parte' | 'geral'>(
     (fonte?.tipo as any) || 'palavra-chave'
   );
   const [termoBusca, setTermoBusca] = useState(fonte?.termo_busca || '');
@@ -429,6 +429,7 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
                     <SelectItem value="advogado">Advogado (OAB ou Nome)</SelectItem>
                     <SelectItem value="processo">Número do Processo</SelectItem>
                     <SelectItem value="parte">Polo passivo ou ativo</SelectItem>
+                    <SelectItem value="geral">Busca Geral (partes, advogados, conteúdo e processo)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -522,17 +523,30 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
               ) : (
                 <div className="space-y-2">
                   <Label htmlFor="termo">
-                    {tipo === 'processo' ? 'Número do Processo *' : 'Palavra-chave / Razão Social *'}
+                    {tipo === 'processo'
+                      ? 'Número do Processo *'
+                      : tipo === 'geral'
+                        ? 'Termo (busca em partes, advogados, conteúdo e nº processo) *'
+                        : 'Palavra-chave / Razão Social *'}
                   </Label>
                   <Input
                     id="termo"
                     value={termoBusca}
                     onChange={(e) => setTermoBusca(e.target.value)}
-                    placeholder={tipo === 'processo' 
-                      ? 'Ex: 0001234-12.2024.5.10.0001' 
-                      : 'Ex: Anovis Industrial Farmacêutica LTDA'}
+                    placeholder={tipo === 'processo'
+                      ? 'Ex: 0001234-12.2024.5.10.0001'
+                      : tipo === 'geral'
+                        ? 'Ex: HEINZ — casa em qualquer campo'
+                        : 'Ex: Anovis Industrial Farmacêutica LTDA'}
                     required
                   />
+                  {tipo === 'geral' && (
+                    <p className="text-xs text-muted-foreground">
+                      Busca ampla: o termo é aceito se aparecer em <strong>qualquer</strong> campo
+                      da publicação — partes, advogados, conteúdo ou número do processo. Use quando
+                      não souber em qual campo o termo aparece.
+                    </p>
+                  )}
                 </div>
               )}
 
