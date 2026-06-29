@@ -97,6 +97,14 @@ export function conteudoContemTermo(
 
   const conteudoNorm = normalizar(conteudo);
 
+  // Busca Geral: aceita match em qualquer trecho do conteúdo bruto
+  // (que já inclui partes, advogados, número de processo e teor).
+  if (tipo === 'geral') {
+    const termoBase = extrairPalavraChavePura(termo);
+    if (!termoBase) return true;
+    return validarTermoComAnd(conteudoNorm, termoBase);
+  }
+
   if (tipo === 'advogado' || tipo === 'nome') {
     if (termo) {
       const termoBase = extrairPalavraChavePura(termo);
