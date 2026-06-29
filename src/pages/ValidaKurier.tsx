@@ -48,7 +48,7 @@ function keysFor(p: Pub): { primary: string; fallback: string } {
   return { primary: idKey || fb, fallback: fb };
 }
 
-async function fetchAll(coordId: string, ini: string, fim: string): Promise<Pub[]> {
+async function fetchAll(coordId: string, ini: string, fim: string, side: "djen" | "kurier"): Promise<Pub[]> {
   const PAGE = 1000;
   let from = 0;
   const out: Pub[] = [];
@@ -59,7 +59,7 @@ async function fetchAll(coordId: string, ini: string, fim: string): Promise<Pub[
     return d.toISOString().slice(0, 10);
   })();
   while (true) {
-    const { data, error } = await supabase
+    let q = supabase
       .from("publicacoes_djen")
       .select("id, id_djen, processo_numero, tribunal, data_disponibilizacao, data_publicacao, tipo_comunicacao, orgao, kurier_login, fonte")
       .eq("coordenacao_id", coordId)
@@ -67,6 +67,8 @@ async function fetchAll(coordId: string, ini: string, fim: string): Promise<Pub[
       .lt("data_disponibilizacao", fimNext)
       .order("data_disponibilizacao", { ascending: false })
       .range(from, from + PAGE - 1);
+    q = side === "kurier" ? q.eq("fonte", "kurier") : q.neq("fonte", "kurier");
+    const { data, error } = await q;
     if (error) throw error;
     const rows = (data ?? []) as Pub[];
     out.push(...rows);
@@ -134,8 +136,8 @@ export default function ValidaKurier() {
     enabled,
     queryFn: async () => {
       const [djen, kurier] = await Promise.all([
-        fetchAll(coordDjenId, dataIni, dataFim),
-        fetchAll(coordKurierId, dataIni, dataFim),
+        fetchAll(coordDjenId, dataIni, dataFim, "djen"),
+        fetchAll(coordKurierId, dataIni, dataFim, "kurier"),
       ]);
       return { djen, kurier, cmp: comparar(djen, kurier) };
     },
