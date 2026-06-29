@@ -141,10 +141,15 @@ interface Checkpoint {
 const MAX_CONCURRENCY = 5;
 const CONFIG = {
   delay_between_terms: 2500,
-  delay_between_pages: 1800,
+  // Paridade com monitor-servidor/engines/paralela.js (PAGE_DELAY_MS=800).
+  // 1800ms estava dobrando o custo de paginação e neutralizando o ganho
+  // de adicionar mais VPS ao pool.
+  delay_between_pages: 800,
   delay_between_termos_or: 1800,
   max_retries: 3,
-  retry_base_delay: 20000,
+  // Paridade com servidor: 429 → ~8s base (8000*(attempt+1)). 20s travava
+  // o worker em retries longos a cada rate-limit isolado.
+  retry_base_delay: 8000,
 };
 
 // ============================================================================
