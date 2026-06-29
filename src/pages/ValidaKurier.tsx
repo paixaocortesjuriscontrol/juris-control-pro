@@ -298,7 +298,7 @@ export default function ValidaKurier() {
       toast.error("Selecione as duas coordenações");
       return;
     }
-    if (coordDjenId === coordKurierId) {
+    if (coordDjenId !== ALL_COORDS && coordDjenId === coordKurierId) {
       toast.error("Escolha coordenações diferentes");
       return;
     }
