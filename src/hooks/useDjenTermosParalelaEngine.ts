@@ -19,7 +19,7 @@ import {
   type PjeSearchType,
   type PoolViaInfo,
 } from "@/utils/pjeComunicaClient";
-import { buildDjenLikeConteudo } from "@/utils/djenLikeConteudo";
+import { buildDjenLikeConteudo, sanitizeDjenPublicationText } from "@/utils/djenLikeConteudo";
 import {
   resetDjenProxyPoolStats,
   getDjenProxyPoolStats,
@@ -673,13 +673,19 @@ function parseOabFromString(raw: string): { numero_oab?: string; uf_oab?: string
 function normalizarAdvogadoEntry(entry: any): { nome: string; numero_oab?: string; uf_oab?: string } | null {
   if (!entry) return null;
   if (typeof entry === 'string') {
-    const parsed = parseOabFromString(entry);
-    const nome = entry.replace(/\s*-?\s*OAB\b.*$/i, '').trim();
+    const text = sanitizeDjenPublicationText(entry).replace(/\s+/g, ' ').trim();
+    if (!text || text.length > 180 || /[<>]|&[A-Za-z]+;?/i.test(text)) return null;
+    const parsed = parseOabFromString(text);
+    const nome = text
+      .replace(/^ADVOGADO\s*\(\s*A\s*\)\s*:?[\s-]*/i, '')
+      .replace(/\s*-?\s*OAB\b.*$/i, '')
+      .trim();
     return nome ? { nome, ...parsed } : null;
   }
   const adv = entry?.advogado || entry;
   if (!adv || typeof adv !== 'object') return null;
-  const nome = String(adv.nome || adv.nomeAdvogado || adv.nomeRepresentante || adv.nome_representante || adv.nomeProcurador || '').trim();
+  const nome = sanitizeDjenPublicationText(adv.nome || adv.nomeAdvogado || adv.nomeRepresentante || adv.nome_representante || adv.nomeProcurador || '').replace(/\s+/g, ' ').trim();
+  if (!nome || nome.length > 180 || /[<>]|&[A-Za-z]+;?/i.test(nome)) return null;
   const numero_oab = String(adv.numero_oab || adv.numeroOab || adv.oab || adv.inscricaoOab || '').replace(/\D/g, '');
   const uf_oab = String(adv.uf_oab || adv.ufOab || adv.uf || adv.siglaUf || '').trim().toUpperCase();
   return nome ? { nome, ...(numero_oab ? { numero_oab } : {}), ...(uf_oab ? { uf_oab } : {}) } : null;
@@ -808,7 +814,8 @@ function extrairPartesDeCamposEstruturados(pub: any): string[] {
       ? raw
       : (raw?.nome || raw?.nomeParte || raw?.parte || raw?.nomeDestinatario || raw?.destinatarioNome || '');
     if (!s) return;
-    for (const nome of String(s).split(/\s*,\s*|\s*;\s*/).map(x => x.trim()).filter(Boolean)) {
+    for (const nome of sanitizeDjenPublicationText(s).split(/\s*,\s*|\s*;\s*/).map(x => x.replace(/\s+/g, ' ').trim()).filter(Boolean)) {
+      if (nome.length > 180 || /[<>]|&[A-Za-z]+;?/i.test(nome)) continue;
       result.push(polo ? `[${polo}] ${nome}` : nome);
     }
   };
