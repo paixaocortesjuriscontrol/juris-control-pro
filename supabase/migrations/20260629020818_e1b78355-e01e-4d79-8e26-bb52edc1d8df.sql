@@ -1,0 +1,1 @@
+UPDATE djen_proxy_pool SET enabled = true, updated_at = now() WHERE label ILIKE '%VPS 8%';
