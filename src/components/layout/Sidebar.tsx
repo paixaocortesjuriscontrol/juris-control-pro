@@ -125,7 +125,9 @@ export function Sidebar() {
       <nav className="flex-1 py-4 lg:py-6 px-2 lg:px-3 space-y-1 overflow-y-auto">
         {[
           ...visiblePublicos,
-          ...(isAdminOrCoordinator && !isAdvogadoTemporario ? menuItemsAdmin : []),
+          ...(isAdminOrCoordinator && !isAdvogadoTemporario
+            ? menuItemsAdmin.filter((item) => !item.adminOnly || isAdmin)
+            : []),
         ].map((item) => (
           <NavLink
             key={item.path}
