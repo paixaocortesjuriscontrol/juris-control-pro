@@ -93,7 +93,6 @@ export const CAMPOS_OBRIGATORIOS: CampoObrigatorio[] = [
   // Só cobrados quando a Reclamada (banco) figura como Parte Recorrente.
   { key: "tipo_recurso_banco", label: "Tipo de Recurso do Banco (C)", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
   { key: "materias_recurso_banco", label: "Matérias Recurso do Banco", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
-  { key: "tem_chance_exito_banco", label: "Tem chance de êxito (Banco)?", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
 
   // Quadrinho V – Recurso Terceiro (só quando Parte Recorrente = Terceiro)
   { key: "tipo_recurso_terceiro", label: "Tipo de Recurso (Terceiro) (C)", quadrinho: "V. Recurso Terceiro", requiredWhen: recorrenteEhTerceiro },
