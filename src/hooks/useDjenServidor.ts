@@ -500,10 +500,14 @@ export function useComparadorAnalise() {
       // - kurier: zera as linhas DJEN (kurier vem só do bloco kurier_publicacoes_raw)
       if (origem === "termos") {
         servQ = servQ.or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta");
-        browQ = browQ.or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta");
+        browQ = browQ
+          .or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta")
+          .or("fonte.is.null,fonte.neq.kurier");
       } else if (origem === "pautas") {
         servQ = servQ.eq("tipo_publicacao", "pauta");
-        browQ = browQ.eq("tipo_publicacao", "pauta");
+        browQ = browQ
+          .eq("tipo_publicacao", "pauta")
+          .or("fonte.is.null,fonte.neq.kurier");
       } else if (origem === "kurier") {
         // Não busca DJEN — força resultado vazio mantendo a query válida.
         servQ = servQ.eq("id_djen", "__NONE__");

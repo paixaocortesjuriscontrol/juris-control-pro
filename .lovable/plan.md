@@ -1,33 +1,44 @@
-## Para que serve o "Captura total Kurier (sentinela - não editar)"
+## Problema
 
-Esse termo **não é uma busca de verdade**. É um marcador interno, criado automaticamente pela edge function `kurier-consultar-publicacoes` para coordenações configuradas no vínculo `kurier_credencial_coordenacoes` com a flag `captura_total = true`.
+Na tela DJEN Servidor, com filtro Origem = "DJEN Termos" e data 29/06, o comparador mostra `Total Browser 4338` × `Total Servidor 3374` e `Só Browser 964`. A diferença não é real:
 
-Como funciona:
-- Quando um login Kurier tem coordenações em modo "captura total", **toda** publicação que o Kurier devolve naquela janela é gravada para a coordenação — sem precisar casar com nenhum termo cadastrado.
-- Para essas linhas, o sistema precisa de algum `monitoramento_id` para gravar (a coluna é NOT NULL). Em vez de inventar um, a edge function cria/reutiliza um monitoramento "fantasma" com `termo_busca = '__CAPTURA_TOTAL_KURIER__'` e usa o id dele só como etiqueta.
-- Nas telas Análise DJEN / DJEN Servidor, esse id é renderizado com o rótulo amigável "Captura total Kurier" (`AnaliseDjen.tsx:3573`, `AnaliseDjenServidor.tsx:3587`), pra você saber que aquela publicação veio em modo "tudo o que o Kurier mandou", não por casamento de termo.
+- `publicacoes_djen` (lado Browser) recebe inserções tanto do motor DJEN Browser quanto da edge `kurier-consultar-publicacoes` (linhas com `fonte='kurier'`, `execucao_id=NULL`).
+- `publicacoes_djen_servidor` é isolada e nunca recebe Kurier.
+- O filtro atual de Origem só faz `tipo_publicacao != 'pauta'`; não exclui `fonte='kurier'`.
 
-## Por que está aparecendo executando nas VPSs (problema real)
+Resultado: todas as publicações importadas pelo Kurier no dia (964) aparecem falsamente como "Só Browser". Os 3 da coord Dr. Thomás (TRT1, TRT18, TJMT) já foram confirmados como `fonte='kurier'`, `execucao_id=NULL`.
 
-O sentinela foi inserido em `monitoramentos_djen` como `ativo = true` e `tipo = 'palavra-chave'`. Os engines da DJEN Local (`useDjenTermosParalelaEngine.ts`) e do DJEN Servidor (`monitor-servidor/engines/paralela.js`) **não filtram esse termo**. Resultado: cada VPS está rodando uma busca real por `__CAPTURA_TOTAL_KURIER__` em todos os tribunais — é isso que aparece na sua tela como "Captura total Kurier (sentinela - não editar) … 99 termos … Google VPS X". Sempre retorna 0 e gasta quota à toa.
+## Mudança
 
-Ele só deveria ser usado pela edge function do Kurier — nunca pelas engines de busca DJEN.
+Arquivo único: `src/hooks/useDjenServidor.ts`, no bloco onde Origem é aplicado (linhas 501-511 do trecho atual).
 
-## Plano
+Adicionar, quando `origem === "termos"` ou `origem === "pautas"`, um filtro no lado Browser que exclua linhas inseridas pelo Kurier:
 
-1. **Filtrar o sentinela na carga de monitoramentos**, em três pontos:
-   - `src/hooks/useDjenTermosParalelaEngine.ts` (DJEN Local).
-   - `monitor-servidor/engines/paralela.js` (DJEN Servidor, executado nas VPSs).
-   - `src/hooks/useDjenTermosKurierScheduler.ts` e `useDjenTermosParalelaScheduler.ts`, para não agendarem o termo.
-   
-   Filtro: descartar todo monitoramento com `termo_busca === '__CAPTURA_TOTAL_KURIER__'` logo após carregar do banco. Assim ele continua existindo (necessário pro Kurier) mas nunca entra em fila de busca.
+```ts
+if (origem === "termos") {
+  servQ = servQ.or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta");
+  browQ = browQ
+    .or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta")
+    .or("fonte.is.null,fonte.neq.kurier"); // ⬅ novo
+} else if (origem === "pautas") {
+  servQ = servQ.eq("tipo_publicacao", "pauta");
+  browQ = browQ
+    .eq("tipo_publicacao", "pauta")
+    .or("fonte.is.null,fonte.neq.kurier"); // ⬅ novo
+}
+```
 
-2. **Adicionar rótulo amigável também na própria lista de termos** (badge da execução), em vez de exibir o nome cru `__CAPTURA_TOTAL_KURIER__`, caso ele venha a aparecer em algum outro componente.
+Em "kurier" e "todos" não filtra (Kurier deve aparecer nessas modalidades).
 
-3. **Documentar nas telas DJEN Local/Servidor**, num tooltip discreto no rótulo "Captura total Kurier", o que esse marcador significa — para não gerar mais dúvida no futuro.
+Manter o servidor (`servQ`) sem alteração — ele já não tem Kurier.
 
-4. **Não mudar nada no edge function do Kurier** nem no schema; o sentinela continua sendo criado e usado como etiqueta. Só vai parar de ser executado pelos motores DJEN.
+## Validação
 
-### Detalhes técnicos
-- Após o deploy da função do servidor, será necessário um `git pull` + `pm2 restart` nas VPSs (mesmo procedimento de sempre).
-- Não há migração de dados: as publicações antigas marcadas com o monitoramento sentinela continuam válidas e seguem com o rótulo "Captura total Kurier".
+1. Reabrir a tela DJEN Servidor, 29/06 × 29/06, Origem "DJEN Termos", "Analisar".
+2. Esperado:
+   - Coord Dr. Thomás: 48 / 48 / 48 / 0 / 0.
+   - "Só Browser" total cai de 964 para próximo de 0 (apenas diferenças reais entre os dois motores DJEN).
+3. Trocar Origem para "Todas" e conferir que o Kurier volta a aparecer no resumo por fonte.
+4. Trocar para "Kurier" e validar que só Kurier aparece.
+
+Sem migração de banco. Sem mudança no motor Browser, Servidor ou Kurier.
