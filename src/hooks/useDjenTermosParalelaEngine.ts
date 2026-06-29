@@ -917,6 +917,28 @@ function termosDeParte(mon: Monitoramento): string[] {
 
 function validarTermo(pub: any, mon: Monitoramento): boolean {
   const tipo = mon.tipo;
+  // Busca Geral: aceita match em QUALQUER campo (partes, advogados, conteúdo, nº processo).
+  if (tipo === 'geral') {
+    const termos = [mon.termo_busca, ...(mon.termos_or || [])]
+      .map((t) => String(t || '').trim())
+      .filter(Boolean);
+    const textoNorm = normalizar(buildTextoCompleto(pub));
+    const pn = String(
+      pub?.numero_processo || pub?.numeroProcesso || pub?.processo_numero || pub?.processo || '',
+    ).replace(/\D/g, '');
+    for (const t of termos) {
+      const tn = normalizar(t);
+      if (!tn) continue;
+      if (contemFrase(textoNorm, tn)) return true;
+      if (validarParteMetadados(pub, t)) return true;
+      if (validarParteSecaoPartes(pub, t)) return true;
+      if (validarAdvogadoMetadados(pub, undefined, t)) return true;
+      if (validarAdvogadoSecaoAdvogados(pub, undefined, t)) return true;
+      const td = t.replace(/\D/g, '');
+      if (td && pn && pn.includes(td)) return true;
+    }
+    return false;
+  }
   if (tipo === 'parte') {
     // REGRA: tipo='parte' SÓ casa em metadados estruturados ou na seção Parte(s).
     // Nunca valida no corpo/teor geral.
