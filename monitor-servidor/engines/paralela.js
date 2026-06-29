@@ -37,7 +37,8 @@ const delay = (ms, signal) => new Promise((resolve) => {
 });
 
 function mapTipo(tipo) {
-  return tipo === "nome" ? "palavra-chave" : (tipo || "palavra-chave");
+  if (tipo === "nome" || tipo === "geral") return "palavra-chave";
+  return tipo || "palavra-chave";
 }
 
 function normalizeIdList(value) {
@@ -734,6 +735,29 @@ function contemTermo(conteudo, mon, pub) {
   //                     sem concatenar advogados/destinatários).
   // - 'processo'      → casa por número de processo (somente dígitos).
   const tipo = mapTipo(mon.tipo);
+  // Busca Geral: aceita match em qualquer campo (partes, advogados, conteúdo,
+  // nº de processo). Identificada pelo tipo original do monitoramento.
+  if (mon.tipo === "geral") {
+    const termos = [mon.termo_busca, ...((mon.termos_or) || [])]
+      .map((t) => String(t || "").trim())
+      .filter(Boolean);
+    const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
+    const pn = String(
+      pub?.numeroProcesso || pub?.numero_processo || pub?.processo_numero || pub?.processo || "",
+    ).replace(/\D/g, "");
+    for (const t of termos) {
+      const tn = normalize(t);
+      if (!tn) continue;
+      if (contemFrase(textoNorm, tn)) return true;
+      if (validarParteMetadados(pub, t)) return true;
+      if (validarParteSecaoPartes(pub, t)) return true;
+      if (validarAdvogadoMetadados(pub, undefined, t)) return true;
+      if (validarAdvogadoSecaoAdvogados(pub, undefined, t)) return true;
+      const td = t.replace(/\D/g, "");
+      if (td && pn && pn.includes(td)) return true;
+    }
+    return false;
+  }
   if (tipo === "parte") {
     if (validarParteMetadados(pub, mon.termo_busca)) return true;
     if (validarParteSecaoPartes(pub, mon.termo_busca)) return true;
