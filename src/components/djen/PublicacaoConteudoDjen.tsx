@@ -647,12 +647,13 @@ export function PublicacaoConteudoDjen({
     partesJson, advogadosJson, conteudo, poloAtivo, poloPassivo
   );
 
-  // Para blob Kurier, se o banco não tem partes/advogados estruturados, usar o parser
+  // Para blob Kurier, usar o parser próprio como fonte principal: o texto vem
+  // colado em uma linha e os regex genéricos misturam partes, advogados e teor.
   if (kurier.isKurier) {
-    if (partesFinais.length === 0 && kurier.partes.length > 0) {
+    if (kurier.partes.length > 0) {
       partesFinais = kurier.partes.map((p) => `[${p.papel}] ${p.nome}`);
     }
-    if (advogados.length === 0 && kurier.advogados.length > 0) {
+    if (kurier.advogados.length > 0) {
       advogados = kurier.advogados;
     }
   }

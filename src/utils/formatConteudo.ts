@@ -371,6 +371,7 @@ const KURIER_PARTY_LABELS = [
 ];
 
 const KURIER_BODY_OPENERS = [
+  "D\\s+E\\s+C\\s+I\\s+S\\s+[ÃA]\\s+O",
   "DECISÃO",
   "DESPACHO",
   "SENTENÇA",
@@ -383,6 +384,33 @@ const KURIER_BODY_OPENERS = [
 const capitalizePapel = (s: string): string => {
   const lower = s.toLowerCase();
   return lower.charAt(0).toUpperCase() + lower.slice(1);
+};
+
+const cleanKurierSegmentName = (value: string): string => {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/^[:\-–—\s]+/, "")
+    .replace(/\s+[A-Z]{2,10}\/[A-Z]{2,10}.*$/i, "")
+    .replace(/\s+(?:DECISÃO|D\s+E\s+C\s+I\s+S\s+[ÃA]\s+O|DESPACHO|SENTENÇA|ACÓRDÃO)\b.*$/i, "")
+    .trim();
+};
+
+const isKurierNoiseName = (value: string): boolean => {
+  const v = cleanKurierSegmentName(value);
+  if (!v || v.length < 3 || v.length > 160) return true;
+  if (/^[A-Z]{2,10}\/[A-Z]{2,10}$/i.test(v)) return true;
+  if (/^(TEXTO|PROCESSO|TRIBUNAL|MEIO|ORG[ÃA]O)$/i.test(v)) return true;
+  return false;
+};
+
+const normalizeKurierInteiroTeor = (value: string): string => {
+  return String(value || "")
+    .replace(/\s+((?:Agravante|Agravado|Recorrente|Recorrido|Reclamante|Reclamado|Autor|Autora|Réu|Exequente|Executado|Embargante|Embargado|Apelante|Apelado|Interessado)\s*:)/gi, "\n$1")
+    .replace(/\s+(ADVOGADO\s*:)/gi, "\n$1")
+    .replace(/\b(D\s+E\s+C\s+I\s+S\s+[ÃA]\s+O)\b/gi, "\n\n$1\n\n")
+    .replace(/\s+(PRESSUPOSTOS\s+INTR[ÍI]NSECOS|CONCLUS[ÃA]O|Publique-se\.|Bras[íi]lia,)/gi, "\n\n$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 };
 
 const isKurierBlob = (texto: string): boolean => {
@@ -456,6 +484,7 @@ export function parseKurierBlob(
 
   if (miolo) {
     // Localiza início do corpo da decisão (primeiro DECISÃO/DESPACHO/etc.
+    // Também aceita "D E C I S Ã O", muito comum no TST/Kurier.
     // PRECEDIDO de espaço, para não confundir com label "DECISÃO" colado).
     const bodyOpenersAlt = KURIER_BODY_OPENERS.join("|");
     const bodyRe = new RegExp(`\\s(?:${bodyOpenersAlt})\\b`, "i");
@@ -484,19 +513,29 @@ export function parseKurierBlob(
         if (!rawValue) continue;
 
         if (/^ADVOGADOS?$/.test(rawLabel)) {
-          // Divide por "NOME - UF + dígitos[A?]"
+          // Divide por "NOME - UF + dígitos[A?]". Se não houver OAB no blob,
+          // preserva o nome do advogado em vez de jogar no corpo/partes.
           const advRe = /([A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç.\s']+?)\s*[-–]\s*([A-Z]{2})(\d{3,7}[A-Z]?)/g;
           let am: RegExpExecArray | null;
+          let foundOab = false;
           while ((am = advRe.exec(rawValue)) !== null) {
-            const nome = am[1].trim().replace(/\s+/g, " ");
+            const nome = cleanKurierSegmentName(am[1]);
             const uf = am[2];
             const num = am[3];
             if (nome.length >= 4) {
+              foundOab = true;
               advogados.push(`${nome} - OAB ${uf}-${num}`);
             }
           }
+          if (!foundOab) {
+            const nome = cleanKurierSegmentName(rawValue);
+            if (!isKurierNoiseName(nome)) advogados.push(nome);
+          }
         } else {
-          partes.push({ papel: capitalizePapel(rawLabel), nome: rawValue });
+          const nome = cleanKurierSegmentName(rawValue);
+          if (!isKurierNoiseName(nome)) {
+            partes.push({ papel: capitalizePapel(rawLabel), nome });
+          }
         }
       }
     }
@@ -507,6 +546,6 @@ export function parseKurierBlob(
     meta: { orgao, dataDisp, tipoComunicacao, meio, tribunal, processo },
     partes,
     advogados,
-    inteiroTeor: inteiroTeor.trim(),
+    inteiroTeor: normalizeKurierInteiroTeor(inteiroTeor),
   };
 }
