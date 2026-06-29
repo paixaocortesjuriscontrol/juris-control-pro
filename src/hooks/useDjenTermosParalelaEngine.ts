@@ -1971,7 +1971,15 @@ async function executarLoop(
 
   try {
     // Carregar monitoramentos
-    let query = supabase.from('monitoramentos_djen').select('*').eq('ativo', true).neq('somente_kurier', true);
+    // Excluir sentinela "__CAPTURA_TOTAL_KURIER__": é apenas um marcador interno
+    // usado pela edge function `kurier-consultar-publicacoes` para etiquetar
+    // publicações capturadas em modo "captura total". Não deve virar uma busca real.
+    let query = supabase
+      .from('monitoramentos_djen')
+      .select('*')
+      .eq('ativo', true)
+      .neq('somente_kurier', true)
+      .neq('termo_busca', '__CAPTURA_TOTAL_KURIER__');
     if (coordenacaoId) query = query.eq('coordenacao_id', coordenacaoId);
     if (monitoramentoIds?.length) query = query.in('id', monitoramentoIds);
     const { data: termos, error } = await query;
