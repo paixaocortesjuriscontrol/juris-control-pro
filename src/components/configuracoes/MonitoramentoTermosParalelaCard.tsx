@@ -444,7 +444,13 @@ export function MonitoramentoTermosParalelaCard() {
               Cancelar
             </Button>
           )}
-          <Button onClick={() => forceKill(true)} variant="ghost" size="sm" className="gap-2 ml-auto">
+          <Button
+            onClick={() => forceKill(false)}
+            variant="ghost"
+            size="sm"
+            className="gap-2 ml-auto"
+            title="Para a execução preservando o checkpoint para retomar depois"
+          >
             <Skull className="h-4 w-4" />
             Forçar Parada
           </Button>
