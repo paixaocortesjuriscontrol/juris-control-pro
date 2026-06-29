@@ -191,9 +191,66 @@ function rawObj(pub) {
   return pub?.comunicacao && typeof pub.comunicacao === "object" ? pub.comunicacao : pub;
 }
 
+// ============================================================
+// Sanitização de HTML/entidades quebradas (parity c/ browser)
+// Aplica-se ao conteudo e aos nomes em advogados_json / partes_json
+// para impedir lixo do tipo "<a href=", "&Eacute\nU", etc.
+// ============================================================
+const NAMED_ENTITIES = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", sect: "§",
+  aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
+  Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú",
+  atilde: "ã", otilde: "õ", Atilde: "Ã", Otilde: "Õ",
+  acirc: "â", ecirc: "ê", icirc: "î", ocirc: "ô", ucirc: "û",
+  Acirc: "Â", Ecirc: "Ê", Icirc: "Î", Ocirc: "Ô", Ucirc: "Û",
+  agrave: "à", Agrave: "À", uuml: "ü", Uuml: "Ü",
+  ccedil: "ç", Ccedil: "Ç", ntilde: "ñ", Ntilde: "Ñ",
+  ordf: "ª", ordm: "º", deg: "°", middot: "·", hellip: "…",
+  ldquo: '"', rdquo: '"', lsquo: "'", rsquo: "'", mdash: "—", ndash: "–",
+};
+function decodeLooseEntities(s) {
+  if (!s || typeof s !== "string") return s || "";
+  return s
+    .replace(/&([a-zA-Z]+)\s*;?/g, (m, name) => (NAMED_ENTITIES[name] ?? m))
+    .replace(/&#(\d+);?/g, (_m, n) => { try { return String.fromCodePoint(+n); } catch { return _m; } })
+    .replace(/&#x([0-9a-fA-F]+);?/g, (_m, n) => { try { return String.fromCodePoint(parseInt(n, 16)); } catch { return _m; } });
+}
+function htmlToPlain(input) {
+  if (input == null) return "";
+  let s = String(input);
+  if (!/[<&]/.test(s)) return s;
+  s = s.replace(/<\s*br\s*\/?>/gi, "\n");
+  s = s.replace(/<\s*\/(p|div|tr|li|h[1-6])\s*>/gi, "\n");
+  s = s.replace(/<\s*\/td\s*>\s*<\s*td[^>]*>/gi, " | ");
+  s = s.replace(/<[^>]+>/g, " ");
+  s = decodeLooseEntities(s);
+  s = s.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
+  return s;
+}
+function sanitizeMetadataName(value) {
+  if (value == null) return "";
+  let s = htmlToPlain(String(value));
+  s = s.replace(/\s+/g, " ").trim();
+  if (!s || s.length > 160) return "";
+  if (/[<>]|&[a-zA-Z#]/.test(s)) return "";
+  return s;
+}
+function sanitizeMetadataArray(arr) {
+  if (!Array.isArray(arr)) return arr;
+  const out = [];
+  for (const item of arr) {
+    if (!item || typeof item !== "object") continue;
+    const nome = sanitizeMetadataName(item.nome ?? item.nomeAdvogado ?? item.nomeParte ?? item.name);
+    if (!nome) continue;
+    out.push({ ...item, nome });
+  }
+  return out;
+}
+
 function getConteudo(pub) {
   const obj = rawObj(pub);
-  return String(obj?.conteudo || obj?.texto || obj?.teor || pub?.conteudo || pub?.texto || pub?.teor || pub?.descricao || "");
+  const raw = String(obj?.conteudo || obj?.texto || obj?.teor || pub?.conteudo || pub?.texto || pub?.teor || pub?.descricao || "");
+  return htmlToPlain(raw);
 }
 
 function getIdDjen(pub) {
@@ -265,8 +322,8 @@ function metadataFromRaw(pub) {
     orgao: obj?.orgao || obj?.nomeOrgao || null,
     tipo_comunicacao: obj?.tipoComunicacao || obj?.tipo || obj?.tipo_comunicacao || null,
     meio: obj?.meio || null,
-    partes_json: partesRaw || (partesExtraidas?.length ? partesExtraidas : null),
-    advogados_json: advogadosRaw || (advogadosExtraidos?.length ? advogadosExtraidos : null),
+    partes_json: sanitizeMetadataArray(partesRaw || (partesExtraidas?.length ? partesExtraidas : null)),
+    advogados_json: sanitizeMetadataArray(advogadosRaw || (advogadosExtraidos?.length ? advogadosExtraidos : null)),
   };
 }
 
