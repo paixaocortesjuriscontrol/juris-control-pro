@@ -163,6 +163,28 @@ function getValor(row: any, c: CampoObrigatorio): any {
 
 export type Pendencia = { key: string; label: string; quadrinho: string };
 
+/** Verifica pendências na lista de "Análise por matéria" (JSONB). Cada matéria
+ *  selecionada exige aparelhamento, chance_turma, chance_relator e chance_exito. */
+function pendenciasMateriasAnalise(
+  row: any,
+  campoJsonb: string,
+  rotuloBloco: string,
+  quadrinho: string,
+): Pendencia[] {
+  const lista = row?.[campoJsonb];
+  if (!Array.isArray(lista) || lista.length === 0) return [];
+  const out: Pendencia[] = [];
+  for (const item of lista) {
+    if (!item || typeof item !== "object" || !item.materia) continue;
+    const m = String(item.materia).trim();
+    if (isEmpty(item.aparelhamento)) out.push({ key: `${campoJsonb}.aparelhamento.${m}`, label: `${rotuloBloco} • "${m}": Aparelhamento`, quadrinho });
+    if (isEmpty(item.chance_turma)) out.push({ key: `${campoJsonb}.chance_turma.${m}`, label: `${rotuloBloco} • "${m}": Chance Turma`, quadrinho });
+    if (isEmpty(item.chance_relator)) out.push({ key: `${campoJsonb}.chance_relator.${m}`, label: `${rotuloBloco} • "${m}": Chance Relator`, quadrinho });
+    if (isEmpty(item.chance_exito)) out.push({ key: `${campoJsonb}.chance_exito.${m}`, label: `${rotuloBloco} • "${m}": Êxito`, quadrinho });
+  }
+  return out;
+}
+
 /** Retorna a lista de campos obrigatórios em aberto para `row`. */
 export function getPendencias(row: any): Pendencia[] {
   if (!row) return [];
@@ -172,6 +194,11 @@ export function getPendencias(row: any): Pendencia[] {
     const v = getValor(row, c);
     if (isEmpty(v)) out.push({ key: c.key, label: c.label, quadrinho: c.quadrinho });
   }
+  // Pendências dinâmicas: para cada matéria selecionada nos quadros de recurso,
+  // exigir Aparelhamento + Chance Turma + Chance Relator + Êxito.
+  out.push(...pendenciasMateriasAnalise(row, "materias_analise_reclamante", "Análise Reclamante", "III. Recurso do Reclamante"));
+  out.push(...pendenciasMateriasAnalise(row, "materias_analise_banco", "Análise Banco", "IV. Recurso do Banco"));
+  out.push(...pendenciasMateriasAnalise(row, "materias_analise_terceiro", "Análise Terceiro", "V. Recurso Terceiro"));
   return out;
 }
 
