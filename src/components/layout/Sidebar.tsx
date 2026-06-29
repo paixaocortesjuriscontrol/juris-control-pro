@@ -78,6 +78,7 @@ const menuItemsPublicos: MenuItem[] = [
 // Itens visíveis apenas para administradores (na seção inferior)
 const menuItemsAdmin: MenuItem[] = [
   { icon: ShieldCheck, label: "Administração", path: "/admin" },
+  { icon: Server, label: "Pool de Proxies DJEN", path: "/pool-proxy-djen", adminOnly: true },
 ];
 
 const menuItems = [...menuItemsPublicos, ...menuItemsAdmin];
@@ -124,7 +125,9 @@ export function Sidebar() {
       <nav className="flex-1 py-4 lg:py-6 px-2 lg:px-3 space-y-1 overflow-y-auto">
         {[
           ...visiblePublicos,
-          ...(isAdminOrCoordinator && !isAdvogadoTemporario ? menuItemsAdmin : []),
+          ...(isAdminOrCoordinator && !isAdvogadoTemporario
+            ? menuItemsAdmin.filter((item) => !item.adminOnly || isAdmin)
+            : []),
         ].map((item) => (
           <NavLink
             key={item.path}

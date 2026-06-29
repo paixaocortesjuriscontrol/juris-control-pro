@@ -13,7 +13,6 @@ import { MonitoramentoTermosParalelaCard } from "@/components/configuracoes/Moni
 import { MonitoramentoTermosKurierCard } from "@/components/configuracoes/MonitoramentoTermosKurierCard";
 import { StfTermosDashboardCard } from "@/components/configuracoes/StfTermosDashboardCard";
 import { MonitoramentoDjetPautasCard } from "@/components/configuracoes/MonitoramentoDjetPautasCard";
-import PoolProxyDjenCard from "@/components/configuracoes/PoolProxyDjenCard";
 import { RelatorioMonitoramentoCard } from "@/components/configuracoes/RelatorioMonitoramentoCard";
 import { MonitoringDashboard } from "@/components/configuracoes/MonitoringDashboard";
 import { ParametrosDjenCard } from "@/components/configuracoes/ParametrosDjenCard";
@@ -176,7 +175,6 @@ export default function Configuracoes() {
             </p>
           </div>
           <MonitoramentoTermosParalelaCard />
-          <PoolProxyDjenCard />
         </TabsContent>
 
         {/* Aba DJEN Termos Kurier */}
