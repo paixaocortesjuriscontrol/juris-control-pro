@@ -1,36 +1,34 @@
-## Diagnóstico
+## Objetivo
+Garantir que **todas as publicações DJEN** (qualquer coordenação) fiquem com conteúdo limpo — sem HTML bruto, entidades quebradas ou lixo nos campos `advogados_json` / `partes_json`.
 
-Comparei o motor **DJEN Local** (`src/hooks/useDjenTermosParalelaEngine.ts`) com o **DJEN Servidor** (`monitor-servidor/engines/paralela.js`). Os workers em paralelo já estão corretos (cada VPS = 1 worker independente, sem trava global), mas o **Local usa delays bem maiores por página/retry** que o Servidor — por isso adicionar VPS não acelera proporcionalmente.
+## 1. Daqui para frente (já implementado — confirmar)
+Nenhuma mudança de código necessária. Já está ativo para **todas as coordenações**:
+- `src/utils/djenLikeConteudo.ts` — sanitiza conteúdo, advogados e partes na captura.
+- `src/hooks/useDjenTermosParalelaEngine.ts` — rejeita nomes com `<` ou `&` na gravação.
+- `kurier-consultar-publicacoes` — sanitiza payload da API Kurier.
+- `PublicacaoConteudoDjen.tsx` + `formatConteudo.ts` — limpam no render como rede de segurança.
 
-| Parâmetro | Local (hoje) | Servidor | Efeito |
-|---|---|---|---|
-| `delay_between_pages` | **1800 ms** | 800 ms | +1s perdido a cada página paginada — domina o tempo total |
-| `retry_base_delay` | **20.000 ms** | 8.000 ms (429) / 3.000 ms (outros) | Cada 429 ocasional custa ~20s no Local |
-| `HOST_BUCKET_LIMITS['pje-comunica']` | 1 (cosmético) | — | Mostra "concorrência 1" na UI mesmo com N VPS |
+## 2. Backfill — somente hoje (29/06/2026), todas as coordenações
+Executar limpeza SQL em `publicacoes_djen` filtrando `data_disponibilizacao = '2026-06-29'` **sem filtro por coordenação**:
 
-Constante `HOST_BUCKET_LIMITS` não trava workers de verdade hoje (só rotula UI), mas confunde leitura. O cooldown 429 já é por VPS (correto). Não há fallback estranho — o gargalo é puramente os delays.
+1. **`conteudo`**: aplicar o mesmo pipeline já usado no backfill Kurier:
+   - Transformar `<tr>/<td>` em quebras de linha + `:`.
+   - Remover demais tags HTML.
+   - Decodificar entidades (incluindo as quebradas por `\n` e sem `;`): `&Eacute`, `&aacute;`, `&sect;`, `&ccedil;`, `&atilde;`, etc.
+   - Colapsar espaços e linhas em branco.
 
-## Mudanças
+2. **`advogados_json`**: remover elementos cujo `nome` contenha `<`, `&`, tenha > 120 chars, ou seja fragmento de URL/href.
 
-### `src/hooks/useDjenTermosParalelaEngine.ts`
+3. **`partes_json`**: mesma regra de rejeição de lixo no campo `nome`.
 
-1. Alinhar `CONFIG` ao Servidor:
-   ```ts
-   const CONFIG = {
-     delay_between_terms: 2500,        // mantém
-     delay_between_pages: 800,         // 1800 → 800 (paridade servidor)
-     delay_between_termos_or: 1800,    // mantém
-     max_retries: 3,
-     retry_base_delay: 8000,           // 20000 → 8000 (paridade servidor 429)
-   };
-   ```
+4. Aplicar também em `publicacoes_djen_servidor` para o mesmo dia, mesma lógica.
 
-2. Substituir o uso cosmético de `HOST_BUCKET_LIMITS['pje-comunica']` em `concorrencia` (linhas 302, 2114, 2741) por `vias.length` quando disponível, caindo para `1` apenas quando não houver pool. Mantém o resto da estrutura intacta.
+Escopo da query: `WHERE data_disponibilizacao = '2026-06-29'` (BRT) — sem mexer em dias anteriores nem em outras coordenações específicas.
 
-### Sem alterações em
-- Pool de proxies, cooldown por VPS, validação parte/advogado, deduplicação — tudo intacto.
-- Servidor não é tocado.
+## 3. Validação
+- Recontar quantas linhas foram alteradas por tabela.
+- Spot-check no `/valida-kurier` e na Análise DJEN do dia para confirmar que sumiu o HTML.
 
-## Resultado esperado
-
-Com 10 VPS rodando, o tempo por tribunal cai aproximadamente pela metade (a paginação domina o ciclo). Adicionar mais VPS volta a escalar linearmente.
+## Fora de escopo
+- Backfill de dias anteriores a 29/06/2026.
+- Mudanças de UI ou de motor (já corrigidos).
