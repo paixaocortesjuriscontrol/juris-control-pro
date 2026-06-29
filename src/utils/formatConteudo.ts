@@ -6,14 +6,47 @@ import React from "react";
  * preparando o texto para ser exibido com whitespace-pre-wrap.
  */
 
+const LOOSE_HTML_ENTITIES: Record<string, string> = {
+  nbsp: " ", amp: " & ", lt: "<", gt: ">", quot: '"', apos: "'",
+  aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
+  Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú",
+  atilde: "ã", otilde: "õ", ntilde: "ñ", Atilde: "Ã", Otilde: "Õ", Ntilde: "Ñ",
+  acirc: "â", ecirc: "ê", icirc: "î", ocirc: "ô", ucirc: "û",
+  Acirc: "Â", Ecirc: "Ê", Icirc: "Î", Ocirc: "Ô", Ucirc: "Û",
+  agrave: "à", egrave: "è", igrave: "ì", ograve: "ò", ugrave: "ù",
+  Agrave: "À", Egrave: "È", Igrave: "Ì", Ograve: "Ò", Ugrave: "Ù",
+  ccedil: "ç", Ccedil: "Ç", ordm: "º", ordf: "ª", deg: "°",
+  middot: "·", hellip: "…", ndash: "–", mdash: "—", laquo: "«", raquo: "»",
+  lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”",
+};
+
+const decodeLooseHtmlEntities = (value: string): string => {
+  let s = value;
+  // Kurier/TJSP às vezes chega com entidade quebrada por quebra de linha e sem ";"
+  // (ex.: "R&Eacute\nU", "&ccedil\n&atilde\no"). Decodifica antes do DOM.
+  s = s.replace(/&([A-Za-z][A-Za-z0-9]+)\s*;?/g, (full, name) => {
+    return Object.prototype.hasOwnProperty.call(LOOSE_HTML_ENTITIES, name)
+      ? LOOSE_HTML_ENTITIES[name]
+      : full;
+  });
+  s = s.replace(/&#(\d+);?/g, (_, d) => {
+    try { return String.fromCodePoint(parseInt(d, 10)); } catch { return " "; }
+  });
+  s = s.replace(/&#[xX]([0-9a-fA-F]+);?/g, (_, h) => {
+    try { return String.fromCodePoint(parseInt(h, 16)); } catch { return " "; }
+  });
+  return s;
+};
+
 export const decodeHtmlEntities = (value: string): string => {
   if (!value) return value;
+  const looseDecoded = decodeLooseHtmlEntities(value);
   try {
     const textarea = document.createElement("textarea");
-    textarea.innerHTML = value;
+    textarea.innerHTML = looseDecoded;
     return textarea.value;
   } catch {
-    return value;
+    return looseDecoded;
   }
 };
 
@@ -27,8 +60,8 @@ export const stripHtmlAndDecodeEntities = (
   value: string | null | undefined,
 ): string => {
   if (!value) return "";
-  // 1) Remove tags HTML
-  const noTags = String(value).replace(/<[^>]*>/g, " ");
+  // 1) Normaliza entidades soltas e remove tags HTML
+  const noTags = decodeLooseHtmlEntities(String(value)).replace(/<[^>]*>/g, " ");
   // 2) Decodifica entidades (named + numéricas) via DOM
   const decoded = decodeHtmlEntities(noTags);
   // 3) Normaliza espaços
@@ -43,7 +76,7 @@ export const stripHtmlAndDecodeEntities = (
 export const formatConteudoParaExibicao = (conteudo: string | null | undefined, stripMetadataHeader = false): string => {
   const raw = conteudo || "Sem conteúdo";
 
-  let s = raw;
+  let s = decodeLooseHtmlEntities(raw);
 
   // Detectar e limpar HTML truncado (tags incompletas no final)
   // Isso acontece quando a API retorna conteúdo cortado no meio de uma tag HTML
@@ -68,6 +101,9 @@ export const formatConteudoParaExibicao = (conteudo: string | null | undefined, 
   s = s
     .replace(/\r\n?/g, "\n")
     .replace(/<br\s*\/?>(\s*)/gi, "\n")
+    .replace(/<\/tr\s*>/gi, "\n")
+    .replace(/<\/td\s*>\s*<td[^>]*>/gi, ": ")
+    .replace(/<\/?(?:td|th)[^>]*>/gi, " ")
     .replace(/<\/p\s*>/gi, "\n\n")
     .replace(/<p[^>]*>/gi, "")
     .replace(/<li[^>]*>/gi, "• ")
@@ -78,6 +114,7 @@ export const formatConteudoParaExibicao = (conteudo: string | null | undefined, 
     .replace(/<[^>]+>/g, "");
 
   s = decodeHtmlEntities(s)
+    .replace(/:\s*:/g, ":")
     .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();

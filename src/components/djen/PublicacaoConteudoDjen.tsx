@@ -132,6 +132,38 @@ const pareceNomeAdvogado = (value: string): boolean => {
   return meaningful.length >= 2;
 };
 
+const cleanDisplayLine = (value: string): string => {
+  return formatConteudoParaExibicao(String(value || ""), false)
+    .replace(/\bADVOGADO\s*\(\s*A\s*\)\s*:?\s*/gi, "")
+    .replace(/\bADVOGADO\s*:?\s*/gi, "")
+    .replace(/\bAUTOR\s*:?\s*/gi, "")
+    .replace(/\bR[ÉE]\s*U\s*:?\s*/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+const cleanAdvogadoDisplay = (value: string): string => {
+  const text = cleanDisplayLine(value);
+  const m1 = text.match(/([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s\.']{3,}?)\s*[-–—]?\s*\(?\s*OAB\s*([A-Z]{2})\s*[-–—\/]?\s*(\d{1,10})\s*\)?/i);
+  if (m1) return `${m1[1].trim()} - OAB ${m1[2].toUpperCase()}-${m1[3]}`;
+  const m2 = text.match(/([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s\.']{3,}?)\s*\(?\s*OAB\s*(\d{1,10})\s*\/?\s*([A-Z]{2})\s*\)?/i);
+  if (m2) return `${m2[1].trim()} - OAB ${m2[3].toUpperCase()}-${m2[2]}`;
+  return text;
+};
+
+const cleanParteDisplay = (value: string): string => cleanDisplayLine(value)
+  .replace(/^\[(Reclamante|Reclamado)\]\s*/i, "[$1] ")
+  .trim();
+
+const isGarbageDisplay = (value: string): boolean => {
+  const v = String(value || "").trim();
+  if (!v) return true;
+  if (/[<>]|<\/?|\b(td|tr|table|section|article|body|html)\b/i.test(v)) return true;
+  if (/&[a-zA-Z]+;?/i.test(v)) return true;
+  if (v.length > 160) return true;
+  return false;
+};
+
 const cleanKurierEntityName = (value: string): string => {
   return String(value || "")
     .replace(/\s+/g, " ")
@@ -491,12 +523,12 @@ export function getPartesEAdvogadosParaExibicao(
       const numero = (adv?.numero_oab || adv?.oab || adv?.numero || '').toString().trim();
       const uf = (adv?.uf_oab || adv?.uf || '').toString().trim().toUpperCase();
       if (!nome) return '';
-      if (numero && uf) return `${nome} - OAB ${uf}-${numero}`;
-      if (numero) return `${nome} - OAB ${numero}`;
-      return nome;
+      if (numero && uf) return cleanAdvogadoDisplay(`${nome} - OAB ${uf}-${numero}`);
+      if (numero) return cleanAdvogadoDisplay(`${nome} - OAB ${numero}`);
+      return cleanAdvogadoDisplay(nome);
     }
-    return String(x || "").trim();
-  }).filter(Boolean) : [];
+    return cleanAdvogadoDisplay(String(x || ""));
+  }).filter((s) => s && !isGarbageDisplay(s)) : [];
   const itemPareceParte = (s: string) =>
     /\b(BANCO|S\.A\.|S\/A|LTDA|RECUPERAÇÃO|CONTAX|INSTITUIÇÃO)\b/i.test(s) ||
     (!/\bOAB\b|\bDR\.|\bDRA\./i.test(s) && s.split(/\s+/).filter(Boolean).length >= 2);
@@ -521,7 +553,23 @@ export function getPartesEAdvogadosParaExibicao(
     const extraido = extractPartesAndAdvogados(conteudoParaExtracao, poloAtivo, poloPassivo, advogadosJson);
     advogados = extraido.advogados;
   }
-  return { partes, advogados };
+  const normalizeList = (items: string[], cleaner: (value: string) => string) => {
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const item of items) {
+      const clean = cleaner(item);
+      if (isGarbageDisplay(clean)) continue;
+      const key = clean.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(clean);
+    }
+    return out;
+  };
+  return {
+    partes: normalizeList(partes, cleanParteDisplay),
+    advogados: normalizeList(advogados, cleanAdvogadoDisplay),
+  };
 }
 
 /**
@@ -613,6 +661,7 @@ export function PublicacaoConteudoDjen({
   const conteudoLimpo = kurier.isKurier
     ? kurier.inteiroTeor || stripMetadataFromContent(conteudo)
     : stripMetadataFromContent(conteudo);
+  const conteudoParaExibir = formatConteudoParaExibicao(conteudoLimpo, true);
 
   const [expandirGeralLocal, setExpandirGeralLocal] = useState(false);
   const expandirGeral = expandirGeralExterno ?? expandirGeralLocal;
@@ -620,14 +669,14 @@ export function PublicacaoConteudoDjen({
 
   const handleCopy = (withFormatting: boolean) => {
     const text = withFormatting
-      ? conteudo || ""
-      : stripHtmlAndDecodeEntities(conteudo);
+      ? conteudoParaExibir
+      : stripHtmlAndDecodeEntities(conteudoParaExibir);
     navigator.clipboard.writeText(text);
     toast.success(withFormatting ? "Copiado (HTML)" : "Copiado sem formatação");
   };
 
   const handleCopyRich = async () => {
-    const html = conteudo || "";
+    const html = conteudoParaExibir;
     const plain = stripHtmlAndDecodeEntities(html);
     try {
       if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
@@ -678,7 +727,7 @@ export function PublicacaoConteudoDjen({
           </div>
           ${partesFinais.length > 0 ? `<div class="partes"><strong>Parte(s):</strong><ul>${partesFinais.map((p) => `<li>${p}</li>`).join("")}</ul></div>` : ""}
           ${advogados.length > 0 ? `<div class="partes"><strong>Advogado(s):</strong><ul>${advogados.map((a) => `<li>${a}</li>`).join("")}</ul></div>` : ""}
-          <div class="conteudo">${conteudo || ""}</div>
+          <div class="conteudo">${conteudoParaExibir.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br />")}</div>
         </body>
         </html>
       `);
@@ -840,8 +889,8 @@ export function PublicacaoConteudoDjen({
             )}
           >
             {monitoramentoTipo === 'palavra-chave' && monitoramentoTermo
-              ? highlightTermInContent(formatConteudoParaExibicao(conteudoLimpo, true), monitoramentoTermo)
-              : formatConteudoParaExibicao(conteudoLimpo, true)}
+              ? highlightTermInContent(conteudoParaExibir, monitoramentoTermo)
+              : conteudoParaExibir}
           </div>
         </main>
       </div>
