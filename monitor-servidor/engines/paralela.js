@@ -1209,7 +1209,13 @@ async function run({ sb, payload, log, job }) {
     ],
   });
 
-  let q = sb.from("monitoramentos_djen").select("id, descricao, termo_busca, termos_or, tipo, oab, uf, coordenacao_id, tribunais, exclusoes, condicao_concomitante").eq("ativo", true);
+  // Excluir sentinela "__CAPTURA_TOTAL_KURIER__": marcador interno do Kurier,
+  // não é uma busca real.
+  let q = sb
+    .from("monitoramentos_djen")
+    .select("id, descricao, termo_busca, termos_or, tipo, oab, uf, coordenacao_id, tribunais, exclusoes, condicao_concomitante")
+    .eq("ativo", true)
+    .neq("termo_busca", "__CAPTURA_TOTAL_KURIER__");
   if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
   if (monitoramentoIdsFiltro) q = q.in("id", monitoramentoIdsFiltro);
   const { data: monitoramentos, error: monErr } = await q;
