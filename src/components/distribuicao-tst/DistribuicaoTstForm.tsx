@@ -1954,12 +1954,12 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       <div className="border border-border rounded-lg overflow-hidden">
         <SectionHeader title="Fechamento" color="bg-yellow-500 !text-black" />
         <div className="p-4 space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 items-end">
-            <div className={cn("flex items-center gap-2 p-2 -m-2", iaClass("ganhamos", bennerExtra.ganhamos))}>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 items-end">
+            <div className={cn("flex items-center gap-2 p-2 -m-2 h-10", iaClass("ganhamos", bennerExtra.ganhamos))}>
               <Checkbox id="be-ganhamos" checked={!!bennerExtra.ganhamos} onCheckedChange={v => setExtra("ganhamos", !!v)} />
               <Label htmlFor="be-ganhamos" className="cursor-pointer flex items-center">Ganhamos (X) <IaBadge field="ganhamos" value={bennerExtra.ganhamos} /></Label>
             </div>
-            <div className={cn("flex items-center gap-2 p-2 -m-2", iaClass("perdemos", bennerExtra.perdemos))}>
+            <div className={cn("flex items-center gap-2 p-2 -m-2 h-10", iaClass("perdemos", bennerExtra.perdemos))}>
               <Checkbox id="be-perdemos" checked={!!bennerExtra.perdemos} onCheckedChange={v => setExtra("perdemos", !!v)} />
               <Label htmlFor="be-perdemos" className="cursor-pointer flex items-center">Perdemos (Y) <IaBadge field="perdemos" value={bennerExtra.perdemos} /></Label>
             </div>
@@ -1979,7 +1979,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               <Input value={bennerExtra.situacao_processo || ""} onChange={e => setExtra("situacao_processo", e.target.value)} />
             </div>
             <div className={cn("space-y-2 p-2 -m-2", iaClass("chance_exito", bennerExtra.chance_exito))}>
-              <Label className="flex items-center">Chance de Êxito (geral) (AH)<ReqMark /> <IaBadge field="chance_exito" value={bennerExtra.chance_exito} /></Label>
+              <Label className="flex items-center">Chance de Êxito (geral)<ReqMark /> <IaBadge field="chance_exito" value={bennerExtra.chance_exito} /></Label>
               <Select value={bennerExtra.chance_exito || "__none__"} onValueChange={v => setExtra("chance_exito", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
