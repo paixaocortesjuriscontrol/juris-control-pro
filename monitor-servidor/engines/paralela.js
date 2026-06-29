@@ -322,8 +322,8 @@ function metadataFromRaw(pub) {
     orgao: obj?.orgao || obj?.nomeOrgao || null,
     tipo_comunicacao: obj?.tipoComunicacao || obj?.tipo || obj?.tipo_comunicacao || null,
     meio: obj?.meio || null,
-    partes_json: partesRaw || (partesExtraidas?.length ? partesExtraidas : null),
-    advogados_json: advogadosRaw || (advogadosExtraidos?.length ? advogadosExtraidos : null),
+    partes_json: sanitizeMetadataArray(partesRaw || (partesExtraidas?.length ? partesExtraidas : null)),
+    advogados_json: sanitizeMetadataArray(advogadosRaw || (advogadosExtraidos?.length ? advogadosExtraidos : null)),
   };
 }
 
