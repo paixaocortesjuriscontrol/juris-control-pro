@@ -195,7 +195,11 @@ const extractPartesAndAdvogados = (
 
   // ── 2. Partes do bloco "Advogado(s):" ou "Advogado(s)" (sem dois pontos) no header ──
   if (texto) {
-    const headerMatch = texto.match(/Advogados?\s*(?:\(\s*s\s*\))?\s*(?:\s*:\s*)?\s*\n([\s\S]*?)(?=\n\s*\n|\nPODER\b|\nINTIMAÇÃO\b|\nDESPACHO\b|\nSENTENÇA\b|\nDECISÃO\b|\nACÓRDÃO\b|\nEDITAL\b|\nCERTIDÃO\b|$)/i);
+    // ATENÇÃO: o cabeçalho "Advogado(s)" deve ser uma linha isolada (sem nada
+    // antes na mesma linha). Sem essa âncora, frases como "Caso seja advogado:"
+    // disparavam a captura e enchiam a coluna de Advogados com lixo do conteúdo
+    // (especialmente em publicações Kurier do TJSP — sistema eproc).
+    const headerMatch = texto.match(/(?:^|\n)[ \t]*Advogados?\s*(?:\(\s*s\s*\))?[ \t]*:?[ \t]*\n([\s\S]*?)(?=\n\s*\n|\nPODER\b|\nINTIMAÇÃO\b|\nDESPACHO\b|\nSENTENÇA\b|\nDECISÃO\b|\nACÓRDÃO\b|\nEDITAL\b|\nCERTIDÃO\b|$)/i);
     if (headerMatch?.[1]) {
       const linhas = headerMatch[1].split('\n').map(l => l.trim()).filter(Boolean);
       for (const linha of linhas) {
@@ -396,7 +400,7 @@ const extractPartesAndAdvogados = (
     }
 
     // Formato multi-linha do DJEN: "Advogado(s)" ou "Advogado(s):" + quebra + lista
-    const advBlock = texto.match(/Advogados?\s*(?:\(\s*s\s*\))?\s*(?:\s*:\s*)?\s*\n([\s\S]*?)(?=\n\s*\n|\nParte\s*\(\s*s\s*\)|\nPARTES?\s*:|\nPODER\b|\nINTIMAÇÃO\b|\nDESPACHO\b|\nSENTENÇA\b|\nDECISÃO\b|\nACÓRDÃO\b|$)/i);
+    const advBlock = texto.match(/(?:^|\n)[ \t]*Advogados?\s*(?:\(\s*s\s*\))?[ \t]*:?[ \t]*\n([\s\S]*?)(?=\n\s*\n|\nParte\s*\(\s*s\s*\)|\nPARTES?\s*:|\nPODER\b|\nINTIMAÇÃO\b|\nDESPACHO\b|\nSENTENÇA\b|\nDECISÃO\b|\nACÓRDÃO\b|$)/i);
     if (advBlock?.[1]) {
       for (const line of advBlock[1].split(/\n/)) {
         const t = line.trim();
