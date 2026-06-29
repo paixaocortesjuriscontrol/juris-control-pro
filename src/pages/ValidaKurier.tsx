@@ -25,6 +25,7 @@ type Pub = {
   orgao: string | null;
   kurier_login: string | null;
   fonte: string | null;
+  sistema_origem?: "djen_local" | "djen_servidor" | "kurier";
 };
 
 const KURIER_COORD_DEFAULT_ID = "a7843a1f-a90e-4a2f-8f6b-12160ce3e86d";
@@ -42,72 +43,96 @@ function dateRef(p: Pub): string {
   return (p.data_disponibilizacao || p.data_publicacao || "").slice(0, 10);
 }
 
-function keysFor(p: Pub): { primary: string; fallback: string } {
-  const idKey = p.id_djen ? `djen:${p.id_djen}` : "";
-  const fb = `${onlyDigits(p.processo_numero)}|${dateRef(p)}`;
-  return { primary: idKey || fb, fallback: fb };
+function comparisonKey(p: Pub): string {
+  return `${onlyDigits(p.processo_numero)}|${dateRef(p)}`;
+}
+
+function identityKey(p: Pub): string {
+  if (p.id_djen) return `djen:${p.id_djen}`;
+  return [comparisonKey(p), p.tribunal ?? "", p.orgao ?? "", p.tipo_comunicacao ?? ""].join("|");
+}
+
+function dedupeDjenRows(rows: Pub[]): Pub[] {
+  const map = new Map<string, Pub>();
+  for (const row of rows) {
+    const key = identityKey(row);
+    const current = map.get(key);
+    if (!current || current.sistema_origem === "djen_local") {
+      map.set(key, row);
+    }
+  }
+  return Array.from(map.values());
 }
 
 async function fetchAll(coordId: string, ini: string, fim: string, side: "djen" | "kurier"): Promise<Pub[]> {
   const PAGE = 1000;
-  let from = 0;
-  const out: Pub[] = [];
   // data_disponibilizacao é TIMESTAMP — usar lt no dia seguinte para incluir o dia todo
   const fimNext = (() => {
     const d = new Date(`${fim}T00:00:00Z`);
     d.setUTCDate(d.getUTCDate() + 1);
     return d.toISOString().slice(0, 10);
   })();
-  while (true) {
-    let q = supabase
-      .from("publicacoes_djen")
+
+  async function fetchTable(table: "publicacoes_djen" | "publicacoes_djen_servidor", sistema: Pub["sistema_origem"]) {
+    let from = 0;
+    const out: Pub[] = [];
+    while (true) {
+      let q = (supabase as any)
+      .from(table)
       .select("id, id_djen, processo_numero, tribunal, data_disponibilizacao, data_publicacao, tipo_comunicacao, orgao, kurier_login, fonte")
       .eq("coordenacao_id", coordId)
       .gte("data_disponibilizacao", ini)
       .lt("data_disponibilizacao", fimNext)
       .order("data_disponibilizacao", { ascending: false })
       .range(from, from + PAGE - 1);
-    q = side === "kurier" ? q.eq("fonte", "kurier") : q.neq("fonte", "kurier");
-    const { data, error } = await q;
-    if (error) throw error;
-    const rows = (data ?? []) as Pub[];
-    out.push(...rows);
-    if (rows.length < PAGE) break;
-    from += PAGE;
+      q = side === "kurier" ? q.eq("fonte", "kurier") : q.or("fonte.is.null,fonte.neq.kurier");
+      const { data, error } = await q;
+      if (error) throw error;
+      const rows = ((data ?? []) as Pub[]).map((row) => ({ ...row, sistema_origem: sistema }));
+      out.push(...rows);
+      if (rows.length < PAGE) break;
+      from += PAGE;
+    }
+    return out;
   }
-  return out;
+
+  if (side === "kurier") {
+    return fetchTable("publicacoes_djen", "kurier");
+  }
+
+  const [local, servidor] = await Promise.all([
+    fetchTable("publicacoes_djen", "djen_local"),
+    fetchTable("publicacoes_djen_servidor", "djen_servidor"),
+  ]);
+  return dedupeDjenRows([...local, ...servidor]);
 }
 
 type Comparison = {
   soDjen: Pub[];
   soKurier: Pub[];
   ambos: { djen: Pub; kurier: Pub }[];
+  matchedDjen: Pub[];
+  matchedKurier: Pub[];
 };
 
 function comparar(djen: Pub[], kurier: Pub[]): Comparison {
-  // Index Kurier by primary (id_djen if present) and by fallback (processo+data)
-  const kPrimary = new Map<string, Pub>();
-  const kFallback = new Map<string, Pub>();
+  const dByKey = new Map<string, Pub[]>();
+  const kByKey = new Map<string, Pub[]>();
+  for (const p of djen) {
+    const key = comparisonKey(p);
+    if (!key.startsWith("|")) dByKey.set(key, [...(dByKey.get(key) ?? []), p]);
+  }
   for (const p of kurier) {
-    const k = keysFor(p);
-    if (k.primary) kPrimary.set(k.primary, p);
-    if (k.fallback && !kFallback.has(k.fallback)) kFallback.set(k.fallback, p);
+    const key = comparisonKey(p);
+    if (!key.startsWith("|")) kByKey.set(key, [...(kByKey.get(key) ?? []), p]);
   }
-  const matchedKurier = new Set<string>();
-  const ambos: { djen: Pub; kurier: Pub }[] = [];
-  const soDjen: Pub[] = [];
-  for (const d of djen) {
-    const k = keysFor(d);
-    let m = (k.primary && kPrimary.get(k.primary)) || kFallback.get(k.fallback);
-    if (m) {
-      ambos.push({ djen: d, kurier: m });
-      matchedKurier.add(m.id);
-    } else {
-      soDjen.push(d);
-    }
-  }
-  const soKurier = kurier.filter((p) => !matchedKurier.has(p.id));
-  return { soDjen, soKurier, ambos };
+
+  const matchedDjen = djen.filter((p) => kByKey.has(comparisonKey(p)));
+  const soDjen = djen.filter((p) => !kByKey.has(comparisonKey(p)));
+  const matchedKurier = kurier.filter((p) => dByKey.has(comparisonKey(p)));
+  const soKurier = kurier.filter((p) => !dByKey.has(comparisonKey(p)));
+  const ambos = matchedKurier.map((k) => ({ djen: dByKey.get(comparisonKey(k))![0], kurier: k }));
+  return { soDjen, soKurier, ambos, matchedDjen, matchedKurier };
 }
 
 export default function ValidaKurier() {
@@ -150,8 +175,8 @@ export default function ValidaKurier() {
     const ambos = data.cmp.ambos.length;
     const soDjen = data.cmp.soDjen.length;
     const soKurier = data.cmp.soKurier.length;
-    const coberturaKurier = totalDjen > 0 ? (ambos / totalDjen) * 100 : 0;
-    const coberturaDjen = totalKurier > 0 ? (ambos / totalKurier) * 100 : 0;
+    const coberturaKurier = totalDjen > 0 ? (data.cmp.matchedDjen.length / totalDjen) * 100 : 0;
+    const coberturaDjen = totalKurier > 0 ? (data.cmp.matchedKurier.length / totalKurier) * 100 : 0;
     // Breakdown por tribunal
     const byTrib = new Map<string, { soDjen: number; soKurier: number; ambos: number }>();
     const bump = (t: string | null | undefined, k: "soDjen" | "soKurier" | "ambos") => {
@@ -162,7 +187,7 @@ export default function ValidaKurier() {
     };
     data.cmp.soDjen.forEach((p) => bump(p.tribunal, "soDjen"));
     data.cmp.soKurier.forEach((p) => bump(p.tribunal, "soKurier"));
-    data.cmp.ambos.forEach(({ djen }) => bump(djen.tribunal, "ambos"));
+    data.cmp.ambos.forEach(({ kurier }) => bump(kurier.tribunal, "ambos"));
     const tribunais = Array.from(byTrib.entries())
       .map(([tribunal, v]) => ({ tribunal, ...v, total: v.soDjen + v.soKurier + v.ambos }))
       .sort((a, b) => b.total - a.total);
@@ -183,6 +208,7 @@ export default function ValidaKurier() {
       "ID DJEN": p.id_djen ?? "",
       "Kurier Login": p.kurier_login ?? "",
       Fonte: p.fonte ?? "",
+      "Origem Sistema": p.sistema_origem === "djen_servidor" ? "DJEN Servidor" : p.sistema_origem === "djen_local" ? "DJEN Local" : "Kurier",
     }));
   }
 
