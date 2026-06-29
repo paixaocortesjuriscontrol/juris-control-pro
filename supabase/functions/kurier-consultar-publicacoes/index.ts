@@ -333,6 +333,8 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json().catch(() => ({} as any));
+    // expõe o body para o catch externo conseguir logar qual credencial estourou
+    try { (globalThis as any).__lastKurierBody = body; } catch {}
     const credencial_id: string | undefined = body.credencial_id;
     // Edge Functions têm orçamento curto de CPU/tempo; cada chamada processa só 1 lote
     // e o frontend faz novas chamadas pequenas até esvaziar a fila da credencial.
