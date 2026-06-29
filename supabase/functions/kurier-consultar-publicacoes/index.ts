@@ -756,12 +756,13 @@ Deno.serve(async (req: Request) => {
             "numProcesso", "nrProcesso", "numeroProcesso", "processoNumero",
             "numeroProcessoFormatado", "processoCNJ", "cnj",
           ]) ?? extractProcessoFromText(searchable));
-        const conteudo = pickStr(p,
+        const conteudoRaw = pickStr(p,
           "conteudo", "Conteudo", "texto", "Texto",
           "mensagem", "Mensagem", "descricao", "Descricao",
           "textoPublicacao", "TextoPublicacao", "corpo", "Corpo",
           "publicacao", "Publicacao", "PUBLICACAO", "movimento", "Movimento",
           "andamento", "Andamento", "intimacao", "Intimacao") ?? searchable;
+        const conteudo = sanitizeConteudoKurier(conteudoRaw);
         const dataDispRaw = pickStr(p,
           "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
           "dtDisponibilizacao", "DtDisponibilizacao",
