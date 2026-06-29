@@ -15,7 +15,8 @@ const LOOSE_HTML_ENTITIES: Record<string, string> = {
   Acirc: "Â", Ecirc: "Ê", Icirc: "Î", Ocirc: "Ô", Ucirc: "Û",
   agrave: "à", egrave: "è", igrave: "ì", ograve: "ò", ugrave: "ù",
   Agrave: "À", Egrave: "È", Igrave: "Ì", Ograve: "Ò", Ugrave: "Ù",
-  ccedil: "ç", Ccedil: "Ç", ordm: "º", ordf: "ª", deg: "°",
+  ccedil: "ç", Ccedil: "Ç", ordm: "º", ordf: "ª", deg: "°", sect: "§",
+  uuml: "ü", Uuml: "Ü", emsp: " ", ensp: " ", thinsp: " ",
   middot: "·", hellip: "…", ndash: "–", mdash: "—", laquo: "«", raquo: "»",
   lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”",
 };
