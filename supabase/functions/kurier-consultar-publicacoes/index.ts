@@ -51,6 +51,118 @@ function sanitizeConteudoKurier(raw: string | null | undefined): string {
   return s;
 }
 
+type KurierParteParsed = { papel: string; nome: string };
+
+const KURIER_PARTY_LABELS = [
+  "RELATOR(?:A)?", "EMBARGANTE", "EMBARGADO", "RECORRENTE", "RECORRIDO",
+  "AGRAVANTE", "AGRAVADO", "RECLAMANTE", "RECLAMADO", "AUTOR(?:A)?", "R[ÉE]U",
+  "IMPETRANTE", "IMPETRADO", "REQUERENTE", "REQUERIDO", "EXEQUENTE", "EXECUTADO",
+  "APELANTE", "APELADO", "INTERESSADO", "ADVOGADOS?",
+];
+
+const KURIER_BODY_OPENERS = [
+  "D\\s+E\\s+C\\s+I\\s+S\\s+[ÃA]\\s+O", "DECISÃO", "DESPACHO", "SENTENÇA", "ACÓRDÃO", "EMENTA", "RELATÓRIO", "VOTO",
+];
+
+function capitalizePapel(s: string): string {
+  const lower = s.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+function cleanKurierSegmentName(value: string): string {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/^[:\-–—\s]+/, "")
+    .replace(/\s+[A-Z]{2,10}\/[A-Z]{2,10}.*$/i, "")
+    .replace(/\s+(?:DECISÃO|D\s+E\s+C\s+I\s+S\s+[ÃA]\s+O|DESPACHO|SENTENÇA|ACÓRDÃO)\b.*$/i, "")
+    .trim();
+}
+
+function isKurierNoiseName(value: string): boolean {
+  const v = cleanKurierSegmentName(value);
+  if (!v || v.length < 3 || v.length > 160) return true;
+  if (/^[A-Z]{2,10}\/[A-Z]{2,10}$/i.test(v)) return true;
+  if (/^(TEXTO|PROCESSO|TRIBUNAL|MEIO|ORG[ÃA]O)$/i.test(v)) return true;
+  return false;
+}
+
+function normalizeKurierInteiroTeor(value: string): string {
+  return String(value || "")
+    .replace(/\s+((?:Agravante|Agravado|Recorrente|Recorrido|Reclamante|Reclamado|Autor|Autora|Réu|Exequente|Executado|Embargante|Embargado|Apelante|Apelado|Interessado)\s*:)/gi, "\n$1")
+    .replace(/\s+(ADVOGADO\s*:)/gi, "\n$1")
+    .replace(/\b(D\s+E\s+C\s+I\s+S\s+[ÃA]\s+O)\b/gi, "\n\n$1\n\n")
+    .replace(/\s+(PRESSUPOSTOS\s+INTR[ÍI]NSECOS|CONCLUS[ÃA]O|Publique-se\.|Bras[íi]lia,)/gi, "\n\n$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function parseKurierBlobForStorage(conteudo: string): { partes: string[]; advogados: string[]; conteudoNormalizado: string | null } {
+  const texto = String(conteudo || "").trim();
+  const isBlob =
+    !/<\s*(html|table|tr|td|p|div|br)\b/i.test(texto) &&
+    (/\bDATA\s+DE\s+DISPONIBILIZAÇÃO\d{4}-\d{1,2}-\d{1,2}/i.test(texto) ||
+      /\bTIPO\s+DE\s+COMUNICAÇÃO[A-ZÀ-Ÿa-zà-ÿ]/.test(texto) ||
+      (/\bORG[ÃA]O[A-ZÀ-Ÿ]/.test(texto) && /\bMEIO[A-ZÀ-Ÿ]/.test(texto)) ||
+      /\bTRIBUNAL[A-Z]{2,5}\s+(?:DESPACHO|TEXTO|DECISÃO|SENTENÇA|ACÓRDÃO|RECURSO)/i.test(texto));
+  if (!isBlob) return { partes: [], advogados: [], conteudoNormalizado: null };
+
+  const textoIdx = texto.search(/\bTEXTO(?=[A-ZÀ-Ÿ"'(\[])/);
+  let miolo = textoIdx >= 0 ? texto.slice(textoIdx).replace(/^TEXTO/, "").trim() : texto;
+  const partes: KurierParteParsed[] = [];
+  const advogados: string[] = [];
+  let inteiroTeor = miolo;
+
+  if (miolo) {
+    const bodyRe = new RegExp(`\\s(?:${KURIER_BODY_OPENERS.join("|")})\\b`, "i");
+    const bodyMatch = miolo.match(bodyRe);
+    let estrutBlock = miolo;
+    if (bodyMatch && bodyMatch.index !== undefined) {
+      estrutBlock = miolo.slice(0, bodyMatch.index);
+      inteiroTeor = miolo.slice(bodyMatch.index + 1);
+    } else {
+      estrutBlock = "";
+    }
+
+    if (estrutBlock) {
+      const labelsAlt = KURIER_PARTY_LABELS.join("|");
+      const segRe = new RegExp(`\\b(${labelsAlt})\\b\\s+([\\s\\S]*?)(?=\\s+\\b(?:${labelsAlt})\\b|$)`, "gi");
+      let m: RegExpExecArray | null;
+      while ((m = segRe.exec(estrutBlock)) !== null) {
+        const rawLabel = m[1].toUpperCase();
+        const rawValue = m[2].trim().replace(/\s+/g, " ");
+        if (!rawValue) continue;
+        if (/^ADVOGADOS?$/.test(rawLabel)) {
+          const advRe = /([A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç.\s']+?)\s*[-–]\s*([A-Z]{2})(\d{3,7}[A-Z]?)/g;
+          let am: RegExpExecArray | null;
+          let foundOab = false;
+          while ((am = advRe.exec(rawValue)) !== null) {
+            const nome = cleanKurierSegmentName(am[1]);
+            const uf = am[2];
+            const num = am[3];
+            if (nome.length >= 4) {
+              foundOab = true;
+              advogados.push(`${nome} - OAB ${uf}-${num}`);
+            }
+          }
+          if (!foundOab) {
+            const nome = cleanKurierSegmentName(rawValue);
+            if (!isKurierNoiseName(nome)) advogados.push(nome);
+          }
+        } else {
+          const nome = cleanKurierSegmentName(rawValue);
+          if (!isKurierNoiseName(nome)) partes.push({ papel: capitalizePapel(rawLabel), nome });
+        }
+      }
+    }
+  }
+
+  return {
+    partes: partes.map((p) => `[${p.papel}] ${p.nome}`),
+    advogados,
+    conteudoNormalizado: normalizeKurierInteiroTeor(inteiroTeor) || null,
+  };
+}
+
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   buildKurierAuthHeaders,
@@ -777,7 +889,9 @@ Deno.serve(async (req: Request) => {
           "textoPublicacao", "TextoPublicacao", "corpo", "Corpo",
           "publicacao", "Publicacao", "PUBLICACAO", "movimento", "Movimento",
           "andamento", "Andamento", "intimacao", "Intimacao") ?? searchable;
-        const conteudo = sanitizeConteudoKurier(conteudoRaw);
+        const conteudoLimpo = sanitizeConteudoKurier(conteudoRaw);
+        const kurierEstruturado = parseKurierBlobForStorage(conteudoLimpo);
+        const conteudo = kurierEstruturado.conteudoNormalizado ?? conteudoLimpo;
         const dataDispRaw = pickStr(p,
           "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
           "dtDisponibilizacao", "DtDisponibilizacao",
@@ -846,6 +960,8 @@ Deno.serve(async (req: Request) => {
             data_disponibilizacao: dataDisp ?? null,
             data_publicacao: toIsoDate(dataPub) ?? null,
             tipo_publicacao: "intimacao",
+            partes_json: kurierEstruturado.partes,
+            advogados_json: kurierEstruturado.advogados,
             kurier_login: cred.login ?? null,
             execucao_id: execucao_id_local ?? null,
           };
