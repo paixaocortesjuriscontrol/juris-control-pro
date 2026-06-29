@@ -382,6 +382,11 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     if (credErr || !cred) return jsonResponse({ error: "Credencial não encontrada" }, 404);
     if (!cred.senha_encrypted) return jsonResponse({ error: "Credencial sem senha" }, 400);
+    console.log("[kurier-consultar-publicacoes] START", {
+      credencial_id: cred.id, login: cred.login,
+      data_inicio, data_fim, max_lotes, modo_personalizado, backfill_raw,
+    });
+    try { (globalThis as any).__lastKurierLogin = cred.login; } catch {}
 
     const senha = await decryptKurier(cred.senha_encrypted);
     const baseUrl = await getKurierBaseUrlFromDb(admin);
