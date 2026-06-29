@@ -1331,7 +1331,7 @@ async function processarTermoEmTribunal(
   // esse literal em `tipo`. Para manter a busca correta, usamos palavra-chave.
   const tipo: PjeSearchType = mon.tipo === 'parte'
     ? 'parte'
-    : mon.tipo === 'nome'
+    : mon.tipo === 'nome' || mon.tipo === 'geral'
       ? 'palavra-chave'
       : mon.tipo;
   const resultados: any[] = [];
