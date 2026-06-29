@@ -1126,6 +1126,23 @@ Deno.serve(async (req: Request) => {
       erro: ultimoErro,
     });
   } catch (e) {
-    return jsonResponse({ error: String(e?.message ?? e) }, 500);
+    const msg = String((e as any)?.message ?? e);
+    const stack = String((e as any)?.stack ?? "");
+    let credencialId: string | undefined;
+    let credencialLogin: string | undefined;
+    try {
+      // best-effort: re-parse body to surface qual credencial estourou
+      // (body já foi consumido acima; ignorar se falhar)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const b: any = (globalThis as any).__lastKurierBody;
+      credencialId = b?.credencial_id;
+    } catch {}
+    console.error("[kurier-consultar-publicacoes] FATAL", {
+      message: msg,
+      stack: stack.slice(0, 2000),
+      credencial_id: credencialId,
+      credencial_login: credencialLogin,
+    });
+    return jsonResponse({ error: msg, stack: stack.slice(0, 1500) }, 500);
   }
 });
