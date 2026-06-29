@@ -154,6 +154,9 @@ function normalizarTipoRecurso(raw: any): string | null {
       const hit = OPCOES_RECURSO_NORM.find((opt) => norm(opt) === alvo);
       nome = hit || p;
     }
+    // Aplica mapeamento de valores legados (planilha "alterações")
+    const legada = ALTERACOES_LEGADAS[norm(nome)];
+    if (legada) nome = legada;
     const k = norm(nome);
     if (vistos.has(k)) continue;
     vistos.add(k);
