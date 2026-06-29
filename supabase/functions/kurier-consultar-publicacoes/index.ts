@@ -5,6 +5,44 @@ function sha256(s: string): string {
   return createHash("sha256").update(s).digest("hex");
 }
 
+// Decodifica entidades HTML comuns e remove tags, deixando texto plano legível.
+function sanitizeConteudoKurier(raw: string | null | undefined): string {
+  if (!raw) return "";
+  let s = String(raw);
+  // Remove blocos não-texto inteiros
+  s = s.replace(/<script[\s\S]*?<\/script>/gi, " ")
+       .replace(/<style[\s\S]*?<\/style>/gi, " ");
+  // Quebras de linha a partir de tags de bloco
+  s = s.replace(/<\s*(br|\/p|\/div|\/tr|\/li|\/h[1-6]|\/section|\/article|\/header|\/footer)\s*\/?>/gi, "\n");
+  // Tabular: célula vira espaço
+  s = s.replace(/<\s*\/?(td|th)[^>]*>/gi, " ");
+  // Remove todas as demais tags
+  s = s.replace(/<\/?[a-z][^>]*>/gi, " ");
+  // Decodifica entidades nomeadas e numéricas
+  const named: Record<string, string> = {
+    nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
+    aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
+    Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú",
+    atilde: "ã", otilde: "õ", ntilde: "ñ", Atilde: "Ã", Otilde: "Õ", Ntilde: "Ñ",
+    acirc: "â", ecirc: "ê", ocirc: "ô", Acirc: "Â", Ecirc: "Ê", Ocirc: "Ô",
+    agrave: "à", Agrave: "À",
+    ccedil: "ç", Ccedil: "Ç",
+    ordm: "º", ordf: "ª", deg: "°", middot: "·",
+    hellip: "…", ndash: "–", mdash: "—", laquo: "«", raquo: "»",
+    lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”",
+  };
+  s = s.replace(/&([a-zA-Z]+);/g, (_, n) => (n in named ? named[n] : " "));
+  s = s.replace(/&#(\d+);/g, (_, d) => {
+    try { return String.fromCodePoint(parseInt(d, 10)); } catch { return " "; }
+  });
+  s = s.replace(/&#[xX]([0-9a-fA-F]+);/g, (_, h) => {
+    try { return String.fromCodePoint(parseInt(h, 16)); } catch { return " "; }
+  });
+  // Colapsa espaços
+  s = s.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/[ \t]{2,}/g, " ").trim();
+  return s;
+}
+
 import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   buildKurierAuthHeaders,
@@ -718,12 +756,13 @@ Deno.serve(async (req: Request) => {
             "numProcesso", "nrProcesso", "numeroProcesso", "processoNumero",
             "numeroProcessoFormatado", "processoCNJ", "cnj",
           ]) ?? extractProcessoFromText(searchable));
-        const conteudo = pickStr(p,
+        const conteudoRaw = pickStr(p,
           "conteudo", "Conteudo", "texto", "Texto",
           "mensagem", "Mensagem", "descricao", "Descricao",
           "textoPublicacao", "TextoPublicacao", "corpo", "Corpo",
           "publicacao", "Publicacao", "PUBLICACAO", "movimento", "Movimento",
           "andamento", "Andamento", "intimacao", "Intimacao") ?? searchable;
+        const conteudo = sanitizeConteudoKurier(conteudoRaw);
         const dataDispRaw = pickStr(p,
           "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
           "dtDisponibilizacao", "DtDisponibilizacao",
