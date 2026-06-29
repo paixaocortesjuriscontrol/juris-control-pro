@@ -9,6 +9,81 @@ type TraverseOptions = {
   ignoreKeyRe?: RegExp;
 };
 
+const LOOSE_HTML_ENTITIES: Record<string, string> = {
+  nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'",
+  aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú',
+  Aacute: 'Á', Eacute: 'É', Iacute: 'Í', Oacute: 'Ó', Uacute: 'Ú',
+  atilde: 'ã', otilde: 'õ', ntilde: 'ñ', Atilde: 'Ã', Otilde: 'Õ', Ntilde: 'Ñ',
+  acirc: 'â', ecirc: 'ê', icirc: 'î', ocirc: 'ô', ucirc: 'û',
+  Acirc: 'Â', Ecirc: 'Ê', Icirc: 'Î', Ocirc: 'Ô', Ucirc: 'Û',
+  agrave: 'à', egrave: 'è', igrave: 'ì', ograve: 'ò', ugrave: 'ù',
+  Agrave: 'À', Egrave: 'È', Igrave: 'Ì', Ograve: 'Ò', Ugrave: 'Ù',
+  ccedil: 'ç', Ccedil: 'Ç', ordm: 'º', ordf: 'ª', deg: '°',
+  middot: '·', hellip: '…', ndash: '–', mdash: '—', laquo: '«', raquo: '»',
+  lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”',
+};
+
+function decodeLooseHtmlEntities(value: string): string {
+  return String(value || '')
+    .replace(/&([A-Za-z][A-Za-z0-9]+)\s*;?/g, (full, name) => (
+      Object.prototype.hasOwnProperty.call(LOOSE_HTML_ENTITIES, name) ? LOOSE_HTML_ENTITIES[name] : full
+    ))
+    .replace(/&#(\d+);?/g, (_, d) => {
+      try { return String.fromCodePoint(parseInt(d, 10)); } catch { return ' '; }
+    })
+    .replace(/&#[xX]([0-9a-fA-F]+);?/g, (_, h) => {
+      try { return String.fromCodePoint(parseInt(h, 16)); } catch { return ' '; }
+    });
+}
+
+function htmlToPlainText(value: unknown): string {
+  let s = decodeLooseHtmlEntities(String(value ?? ''));
+  if (!s) return '';
+  s = s
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<\s*br\s*\/?\s*>/gi, '\n')
+    .replace(/<\s*\/tr\s*>/gi, '\n')
+    .replace(/<\s*\/td\s*>\s*<\s*td[^>]*>/gi, ': ')
+    .replace(/<\s*\/?(?:td|th)[^>]*>/gi, ' ')
+    .replace(/<\s*\/p\s*>/gi, '\n')
+    .replace(/<\s*p[^>]*>/gi, '')
+    .replace(/<\s*\/li\s*>/gi, '\n')
+    .replace(/<\s*li[^>]*>/gi, '• ')
+    .replace(/<\s*\/(?:div|section|article|table|tbody|thead|header|footer|h[1-6])\s*>/gi, '\n')
+    .replace(/<\s*(?:div|section|article|table|tbody|thead|header|footer|h[1-6])[^>]*>/gi, '')
+    .replace(/<[^>]+>/g, ' ');
+  s = decodeLooseHtmlEntities(s);
+  return s
+    .replace(/:\s*:/g, ':')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+export function sanitizeDjenPublicationText(value: unknown): string {
+  return htmlToPlainText(value);
+}
+
+function cleanMetadataName(value: unknown): string {
+  return htmlToPlainText(value)
+    .replace(/\s+/g, ' ')
+    .replace(/^[:\-–—\s]+/, '')
+    .replace(/\s+N[ºª°]?\s*OAB\b.*$/i, '')
+    .replace(/\s+UF\s*[A-Z]{2}\b.*$/i, '')
+    .trim();
+}
+
+function isGarbageMetadataValue(value: string): boolean {
+  const v = String(value || '').trim();
+  if (!v) return true;
+  if (/[<>]|<\/?|\b(?:td|tr|table|section|article|body|html|script|style)\b/i.test(v)) return true;
+  if (/&[A-Za-z]+;?/i.test(v)) return true;
+  if (v.length > 180) return true;
+  return false;
+}
+
 function defaultTraverseOptions(): Required<TraverseOptions> {
   return {
     maxDepth: 5,
@@ -104,7 +179,7 @@ function hasDjenLikeHeader(text: string): boolean {
 
 function extractPartesFromConteudo(conteudo: string): string[] {
   const partes: string[] = [];
-  const c = String(conteudo || '');
+  const c = htmlToPlainText(conteudo || '');
 
   const req = c.match(/\bRequerente:\s*([^\n\r]{3,200})/i);
   const reqd = c.match(/\bRequerido:\s*([^\n\r]{3,200})/i);
@@ -135,8 +210,9 @@ export function extractDestinatariosFromMeta(pub: any): string[] {
   const seen = new Set<string>();
 
   const add = (nome: string) => {
-    const nomeTrim = (nome || '').trim();
+    const nomeTrim = cleanMetadataName(nome);
     if (!nomeTrim || nomeTrim.length < 3) return;
+    if (isGarbageMetadataValue(nomeTrim)) return;
     const key = nomeTrim.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
@@ -178,8 +254,9 @@ export function extractAdvogadosFromApiMeta(pub: any): string[] {
   const seen = new Set<string>();
 
   const addAdvogado = (nome: string, oab?: string, uf?: string) => {
-    const nomeTrim = (nome || '').trim();
+    const nomeTrim = cleanMetadataName(nome);
     if (!nomeTrim || nomeTrim.length < 3) return;
+    if (isGarbageMetadataValue(nomeTrim)) return;
     
     // Ignorar nomes que parecem empresas/partes (não advogados)
     if (/\b(BANCO|S\.A\.|S\/A|LTDA|EIRELI|SINDICATO|MUNICIPIO|ESTADO|UNIÃO|INSTITUTO|FUNDAÇÃO)\b/i.test(nomeTrim)) return;
@@ -411,7 +488,7 @@ export function buildDjenLikeConteudo(params: {
   conteudoOriginal?: string | null;
 }): string {
   const { pub, diaYmd, monitoramento, conteudoOriginal } = params;
-  const original = String(conteudoOriginal || '').trim();
+  const original = htmlToPlainText(conteudoOriginal || '').trim();
 
   // Se já estiver no formato esperado, não mexe.
   if (original && hasDjenLikeHeader(original)) {
