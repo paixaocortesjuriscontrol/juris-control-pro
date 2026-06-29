@@ -52,13 +52,19 @@ async function fetchAll(coordId: string, ini: string, fim: string): Promise<Pub[
   const PAGE = 1000;
   let from = 0;
   const out: Pub[] = [];
+  // data_disponibilizacao é TIMESTAMP — usar lt no dia seguinte para incluir o dia todo
+  const fimNext = (() => {
+    const d = new Date(`${fim}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  })();
   while (true) {
     const { data, error } = await supabase
       .from("publicacoes_djen")
       .select("id, id_djen, processo_numero, tribunal, data_disponibilizacao, data_publicacao, tipo_comunicacao, orgao, kurier_login, fonte")
       .eq("coordenacao_id", coordId)
       .gte("data_disponibilizacao", ini)
-      .lte("data_disponibilizacao", fim)
+      .lt("data_disponibilizacao", fimNext)
       .order("data_disponibilizacao", { ascending: false })
       .range(from, from + PAGE - 1);
     if (error) throw error;
