@@ -541,11 +541,51 @@ export function parseKurierBlob(
     }
   }
 
+  // ── Preferência: bloco estruturado "ADVOGADOS NOMExxx Nº OAB123 UFXX" ─
+  // Quando presente em qualquer parte do texto (geralmente no rodapé Kurier),
+  // ele traz nomes formais (DR./DRA.) com OAB completa e é a fonte canônica.
+  // Nessa situação descartamos os ADVOGADO inline soltos (que viram lixo
+  // do tipo "ADVOGADO NEY JOSÉ CAMPOS", "GMDMA/RAS" etc.) e também removemos
+  // o bloco estruturado do inteiroTeor para não duplicar no painel direito.
+  const estruturadosAdvs: string[] = [];
+  const advRe = /\bADVOGADOS?\b([\s\S]*?)(?=\b(?:MOVIMENTOS|INTIMAÇÃO\s+EFETIVADA|LOCAL|NR\.?\s*PROCESSO|PARTES|POLO[AP]?|ID\s+COMUNICA)\b|$)/gi;
+  const nomeOabRe = /\bNOME\s*([A-ZÁÉÍÓÚÂÊÔÃÕÇ][\s\S]*?)\s+N[ºª°]?\s*OAB\s*:?\s*([\d.]+)\s+UF\s*([A-Z]{2})\b/gi;
+  let advChunk: RegExpExecArray | null;
+  let inteiroTeorLimpo = inteiroTeor;
+  while ((advChunk = advRe.exec(texto)) !== null) {
+    const chunk = advChunk[1] || "";
+    if (!/\bNOME\b/i.test(chunk)) continue;
+    let nm: RegExpExecArray | null;
+    nomeOabRe.lastIndex = 0;
+    while ((nm = nomeOabRe.exec(chunk)) !== null) {
+      const nome = cleanKurierSegmentName(nm[1] || "");
+      const numero = (nm[2] || "").trim();
+      const uf = (nm[3] || "").toUpperCase();
+      if (nome.length >= 4 && numero && uf) {
+        estruturadosAdvs.push(`${nome} - OAB ${uf}-${numero}`);
+      }
+    }
+    // Remove o bloco estruturado do inteiroTeor para não poluir o conteúdo
+    inteiroTeorLimpo = inteiroTeorLimpo
+      .replace(/\s*(?:POLO[AP]?\s+)?(?:ID\s+COMUNICA[ÇC][AÃ]O\s*\d+\s+)?ADVOGADOS?\s+NOME[\s\S]*?(?=\b(?:MOVIMENTOS|INTIMAÇÃO\s+EFETIVADA|LOCAL|NR\.?\s*PROCESSO|PARTES|POLO[AP]?)\b|$)/i, "")
+      .trim();
+  }
+
+  // Deduplica estruturados preservando ordem
+  const seenAdv = new Set<string>();
+  const advsFinal: string[] = [];
+  for (const a of estruturadosAdvs) {
+    const key = a.toUpperCase().replace(/\s+/g, " ");
+    if (seenAdv.has(key)) continue;
+    seenAdv.add(key);
+    advsFinal.push(a);
+  }
+
   return {
     isKurier: true,
     meta: { orgao, dataDisp, tipoComunicacao, meio, tribunal, processo },
     partes,
-    advogados,
-    inteiroTeor: normalizeKurierInteiroTeor(inteiroTeor),
+    advogados: advsFinal.length > 0 ? advsFinal : advogados,
+    inteiroTeor: normalizeKurierInteiroTeor(inteiroTeorLimpo),
   };
 }
