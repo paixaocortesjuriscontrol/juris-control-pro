@@ -79,6 +79,7 @@ const menuItemsPublicos: MenuItem[] = [
 const menuItemsAdmin: MenuItem[] = [
   { icon: ShieldCheck, label: "Administração", path: "/admin" },
   { icon: Server, label: "Pool de Proxies DJEN", path: "/pool-proxy-djen", adminOnly: true },
+  { icon: ArrowRightLeft, label: "Valida Kurier", path: "/valida-kurier", adminOnly: true },
 ];
 
 const menuItems = [...menuItemsPublicos, ...menuItemsAdmin];

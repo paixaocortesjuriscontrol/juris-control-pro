@@ -17,6 +17,7 @@ import Coordenacoes from "./pages/Coordenacoes";
 import Relatorios from "./pages/Relatorios";
 import Administracao from "./pages/Administracao";
 import PoolProxyDjen from "./pages/PoolProxyDjen";
+import ValidaKurier from "./pages/ValidaKurier";
 import ConsultaExterna from "./pages/ConsultaExterna";
 import ImportarProcessos from "./pages/ImportarProcessos";
 import ImportarHub from "./pages/ImportarHub";
@@ -138,6 +139,7 @@ function App() {
               <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
               <Route path="/admin" element={<AdminRoute><Administracao /></AdminRoute>} />
               <Route path="/pool-proxy-djen" element={<AdminRoute><PoolProxyDjen /></AdminRoute>} />
+              <Route path="/valida-kurier" element={<AdminRoute><ValidaKurier /></AdminRoute>} />
               <Route path="/consulta-externa" element={<ProtectedRoute><ConsultaExterna /></ProtectedRoute>} />
               <Route path="/importar" element={<ProtectedRoute><ImportarHub /></ProtectedRoute>} />
               <Route path="/importar-processos" element={<ProtectedRoute><ImportarProcessos /></ProtectedRoute>} />
