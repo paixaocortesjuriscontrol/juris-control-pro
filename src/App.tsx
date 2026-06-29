@@ -139,6 +139,7 @@ function App() {
               <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
               <Route path="/admin" element={<AdminRoute><Administracao /></AdminRoute>} />
               <Route path="/pool-proxy-djen" element={<AdminRoute><PoolProxyDjen /></AdminRoute>} />
+              <Route path="/valida-kurier" element={<AdminRoute><ValidaKurier /></AdminRoute>} />
               <Route path="/consulta-externa" element={<ProtectedRoute><ConsultaExterna /></ProtectedRoute>} />
               <Route path="/importar" element={<ProtectedRoute><ImportarHub /></ProtectedRoute>} />
               <Route path="/importar-processos" element={<ProtectedRoute><ImportarProcessos /></ProtectedRoute>} />
