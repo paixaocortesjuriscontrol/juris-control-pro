@@ -889,7 +889,9 @@ Deno.serve(async (req: Request) => {
           "textoPublicacao", "TextoPublicacao", "corpo", "Corpo",
           "publicacao", "Publicacao", "PUBLICACAO", "movimento", "Movimento",
           "andamento", "Andamento", "intimacao", "Intimacao") ?? searchable;
-        const conteudo = sanitizeConteudoKurier(conteudoRaw);
+        const conteudoLimpo = sanitizeConteudoKurier(conteudoRaw);
+        const kurierEstruturado = parseKurierBlobForStorage(conteudoLimpo);
+        const conteudo = kurierEstruturado.conteudoNormalizado ?? conteudoLimpo;
         const dataDispRaw = pickStr(p,
           "data_disponibilizacao", "DataDisponibilizacao", "dataDisponibilizacao",
           "dtDisponibilizacao", "DtDisponibilizacao",
@@ -958,6 +960,8 @@ Deno.serve(async (req: Request) => {
             data_disponibilizacao: dataDisp ?? null,
             data_publicacao: toIsoDate(dataPub) ?? null,
             tipo_publicacao: "intimacao",
+            partes_json: kurierEstruturado.partes,
+            advogados_json: kurierEstruturado.advogados,
             kurier_login: cred.login ?? null,
             execucao_id: execucao_id_local ?? null,
           };
