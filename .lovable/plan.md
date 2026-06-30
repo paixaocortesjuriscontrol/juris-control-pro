@@ -1,44 +1,53 @@
 ## Problema
 
-Na tela DJEN Servidor, com filtro Origem = "DJEN Termos" e data 29/06, o comparador mostra `Total Browser 4338` × `Total Servidor 3374` e `Só Browser 964`. A diferença não é real:
+Na tela **Análise DJEN**, com "Somente Hoje" ativo e campo "Data Disponibilização" vazio:
 
-- `publicacoes_djen` (lado Browser) recebe inserções tanto do motor DJEN Browser quanto da edge `kurier-consultar-publicacoes` (linhas com `fonte='kurier'`, `execucao_id=NULL`).
-- `publicacoes_djen_servidor` é isolada e nunca recebe Kurier.
-- O filtro atual de Origem só faz `tipo_publicacao != 'pauta'`; não exclui `fonte='kurier'`.
+1. Publicações Kurier de hoje (30/06) com `data_publicacao = 01/07` não aparecem.
+2. Publicações Kurier que chegam atrasadas hoje (30/06) mas têm `data_disponibilizacao = 29/06` também não aparecem — e o usuário precisa vê-las, porque foram capturadas hoje.
 
-Resultado: todas as publicações importadas pelo Kurier no dia (964) aparecem falsamente como "Só Browser". Os 3 da coord Dr. Thomás (TRT1, TRT18, TJMT) já foram confirmados como `fonte='kurier'`, `execucao_id=NULL`.
+## Causa raiz
 
-## Mudança
+Em `src/hooks/usePublicacoesDjenUnificadas.ts` (e gêmeo `usePublicacoesDjenServidorUnificadas.ts`), a função `aplicarFiltroDataPublicacaoHojeBrt` filtra "hoje" por `data_publicacao`/`data_disponibilizacao` na janela do dia BRT. Isso ignora a natureza do Kurier, onde o que importa é o **dia da captura** (`created_at`), já que o Kurier entrega publicações com atraso (disp de dias anteriores) e às vezes adiantadas (pub do dia seguinte).
 
-Arquivo único: `src/hooks/useDjenServidor.ts`, no bloco onde Origem é aplicado (linhas 501-511 do trecho atual).
+## Correção
 
-Adicionar, quando `origem === "termos"` ou `origem === "pautas"`, um filtro no lado Browser que exclua linhas inseridas pelo Kurier:
+Tornar o filtro "Somente Hoje" **sensível à fonte**:
 
-```ts
-if (origem === "termos") {
-  servQ = servQ.or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta");
-  browQ = browQ
-    .or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta")
-    .or("fonte.is.null,fonte.neq.kurier"); // ⬅ novo
-} else if (origem === "pautas") {
-  servQ = servQ.eq("tipo_publicacao", "pauta");
-  browQ = browQ
-    .eq("tipo_publicacao", "pauta")
-    .or("fonte.is.null,fonte.neq.kurier"); // ⬅ novo
-}
+- **Fonte `kurier`** → matchear pelo dia da captura: `created_at` dentro do dia BRT de hoje (janela UTC já calculada). Isso garante que tudo capturado hoje aparece, seja com `data_disponibilizacao = 30/06`, `29/06` (atrasado) ou `data_publicacao = 01/07` (adiantado).
+- **Demais fontes (DJEN/DJET/etc.)** → manter comportamento atual: casa por `data_publicacao` OU `data_disponibilizacao` no dia BRT, com fallback `created_at` quando ambos forem NULL. Remover a restrição supérflua `data_publicacao.is.null` das cláusulas de `data_disponibilizacao` para também resolver o caso "DJEN com pub no dia seguinte e disp hoje".
+
+Estrutura final do `or(...)` quando `apenasHoje=true`:
+
+```
+or(
+  fonte.eq.kurier,created_at.gte.<inicioDiaUtc>,created_at.lte.<fimDiaUtc>  → combinadas via and(...)
+  and(fonte.neq.kurier, data_publicacao gte/lte janela UTC),
+  and(fonte.neq.kurier, data_publicacao gte/lte dia BRT UTC),
+  and(fonte.neq.kurier, data_disponibilizacao gte/lte janela UTC),
+  and(fonte.neq.kurier, data_disponibilizacao gte/lte dia BRT UTC),
+  and(fonte.neq.kurier, data_publicacao.is.null, data_disponibilizacao.is.null, created_at gte/lte janela UTC)
+)
 ```
 
-Em "kurier" e "todos" não filtra (Kurier deve aparecer nessas modalidades).
+(Sintaxe PostgREST real: cada ramo dentro de um `and(...)` no `.or(...)`. A condição `fonte.neq.kurier` exclui Kurier dos ramos por data; o ramo Kurier usa apenas `created_at`.)
 
-Manter o servidor (`servQ`) sem alteração — ele já não tem Kurier.
+## Campo "Data Disponibilização" manual
 
-## Validação
+Quando o usuário **digita** uma data no campo "Data Disponibilização", o comportamento continua igual (filtra por `data_disponibilizacao` exato no banco, sem cláusula Kurier especial). É só o atalho "Somente Hoje" que ganha o tratamento por `created_at` para Kurier.
 
-1. Reabrir a tela DJEN Servidor, 29/06 × 29/06, Origem "DJEN Termos", "Analisar".
-2. Esperado:
-   - Coord Dr. Thomás: 48 / 48 / 48 / 0 / 0.
-   - "Só Browser" total cai de 964 para próximo de 0 (apenas diferenças reais entre os dois motores DJEN).
-3. Trocar Origem para "Todas" e conferir que o Kurier volta a aparecer no resumo por fonte.
-4. Trocar para "Kurier" e validar que só Kurier aparece.
+## Escopo
 
-Sem migração de banco. Sem mudança no motor Browser, Servidor ou Kurier.
+Apenas dois arquivos, apenas a função `aplicarFiltroDataPublicacaoHojeBrt`:
+
+- `src/hooks/usePublicacoesDjenUnificadas.ts`
+- `src/hooks/usePublicacoesDjenServidorUnificadas.ts`
+
+Sem mudanças em UI, contadores de cards, exportações ou outros filtros.
+
+## Resultado esperado
+
+Em 30/06/2026, com "Somente Hoje" e "Data Disponibilização" vazio:
+
+- Aparecem todas as 522 publicações Kurier capturadas hoje, incluindo as com `Disp: 29/06` e `Pub: 30/06` mostradas no print.
+- Publicações DJEN do dia com `data_publicacao = 01/07` e `data_disponibilizacao = 30/06` também aparecem.
+- Publicações antigas (capturadas em dias anteriores) continuam fora.
