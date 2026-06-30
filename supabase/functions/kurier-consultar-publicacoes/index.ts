@@ -734,36 +734,19 @@ Deno.serve(async (req: Request) => {
           ? buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoesPersonalizado", { data: datas[lote] })
           : buildKurierUrl(baseUrl, "/api/KJuridico/ConsultarPublicacoes", {});
 
-        // Retry transitório (500/502/503/504) — instabilidade do webservice Kurier.
-        let resp: Response | null = null;
+        let resp: Response;
         let texto = "";
-        let netErro: string | null = null;
-        const maxTent = 4;
-        for (let tent = 1; tent <= maxTent; tent++) {
-          try {
-            resp = await fetch(url, { method: "GET", headers: buildKurierAuthHeaders(cred.login, senha) });
-            texto = await resp.text();
-          } catch (e) {
-            netErro = `Falha rede lote ${lote} tent${tent}: ${String(e)}`;
-            resp = null;
-          }
-          const status = resp?.status ?? 0;
-          const transitorio = !resp || status === 500 || status === 502 || status === 503 || status === 504 || status === 408 || status === 429;
-          if (!transitorio) break;
-          if (tent < maxTent) {
-            const wait = 1500 * tent + Math.floor(Math.random() * 500);
-            console.log(`[kurier] retry cred=${cred.id} lote=${lote} tent=${tent} status=${status || "net"} aguardando ${wait}ms`);
-            await new Promise((r) => setTimeout(r, wait));
-          }
-        }
-        if (!resp) {
-          ultimoErro = netErro || `Falha rede lote ${lote}`;
+        try {
+          resp = await fetch(url, { method: "GET", headers: buildKurierAuthHeaders(cred.login, senha) });
+          texto = await resp.text();
+        } catch (e) {
+          ultimoErro = `Falha rede lote ${lote}: ${String(e)}`;
           break;
         }
         if (resp.status < 200 || resp.status >= 300) {
           ultimoErro = resp.status === 401
             ? "HTTP 401 — login ou senha recusados pela Kurier"
-            : `HTTP ${resp.status} lote ${lote} (após ${maxTent} tentativas): ${texto.trim() ? texto.slice(0, 200) : "resposta sem mensagem"}`;
+            : `HTTP ${resp.status} lote ${lote}: ${texto.trim() ? texto.slice(0, 200) : "resposta sem mensagem"}`;
           break;
         }
         try {
