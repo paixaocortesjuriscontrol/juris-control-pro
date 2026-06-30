@@ -236,6 +236,12 @@ export function bennerToDistribuicao(b: any): DistribuicaoTst {
     tipo_julgamento: b.tipo_julgamento ?? null,
     processo_baixado: b.processo_baixado ?? null,
     chance_exito: b.chance_exito ?? null,
+    // Listas "Análise por matéria" (JSONB) — necessárias para que
+    // getPendencias() cobre Aparelhamento/Chance Turma/Relator/Êxito
+    // por matéria na listagem (badge "Pendências").
+    materias_analise_reclamante: (b as any).materias_analise_reclamante ?? null,
+    materias_analise_banco: (b as any).materias_analise_banco ?? null,
+    materias_analise_terceiro: (b as any).materias_analise_terceiro ?? null,
   } as any;
 }
 
