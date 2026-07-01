@@ -141,12 +141,15 @@ interface Checkpoint {
 
 const MAX_CONCURRENCY = 5;
 const CONFIG = {
-  delay_between_terms: 2500,
+  // Cada VPS do pool tem IP próprio — o rate-limit do PJE Comunica é por IP,
+  // não global. Delays intra-worker altos só serializavam trabalho e deixavam
+  // as demais VPSs ociosas. Valores alinhados com a paridade do servidor.
+  delay_between_terms: 800,
   // Paridade com monitor-servidor/engines/paralela.js (PAGE_DELAY_MS=800).
   // 1800ms estava dobrando o custo de paginação e neutralizando o ganho
   // de adicionar mais VPS ao pool.
   delay_between_pages: 800,
-  delay_between_termos_or: 1800,
+  delay_between_termos_or: 400,
   max_retries: 3,
   // Paridade com servidor: 429 → ~8s base (8000*(attempt+1)). 20s travava
   // o worker em retries longos a cada rate-limit isolado.
@@ -305,7 +308,10 @@ function createDefaultProgress(): DjenTermosParalelaProgress {
     iniciadoEm: null,
     dataInicioYmd: null,
     dataFimYmd: null,
-    concorrencia: HOST_BUCKET_LIMITS['pje-comunica'],
+    // Valor real (nº de VPS ativas) é atribuído no início da execução via
+    // updateProgress({ concorrencia }). Aqui só usamos 1 como placeholder de
+    // estado idle — não usar HOST_BUCKET_LIMITS, que é rótulo interno.
+    concorrencia: 1,
   };
 }
 
