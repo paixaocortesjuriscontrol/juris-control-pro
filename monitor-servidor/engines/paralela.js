@@ -24,8 +24,11 @@ const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY
 const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
 // Sharding: cards com muitos termos são fatiados em sub-units para que o
 // mesmo (tipo, tribunal) rode em várias VPS simultaneamente.
-const SHARD_SIZE = Math.max(1, Number(process.env.SERVIDOR_SHARD_SIZE || 12));
-const SHARD_MIN = Math.max(1, Number(process.env.SERVIDOR_SHARD_MIN || 6));
+// Sharding agressivo: com 10 VPS, dividir cards em fatias pequenas garante
+// que TODAS as VPS peguem trabalho e evita cauda longa (1 VPS grinding um
+// card de 12+ termos enquanto as outras 9 ficam ociosas).
+const SHARD_SIZE = Math.max(1, Number(process.env.SERVIDOR_SHARD_SIZE || 4));
+const SHARD_MIN = Math.max(1, Number(process.env.SERVIDOR_SHARD_MIN || 2));
 // Regras simples (sem flags): nenhum fallback é executado.
 //  - parte    → só nas partes (nomeParte na API + metadados/seção Parte(s))
 //  - advogado → só nos advogados (nomeAdvogado/numeroOab na API + metadados)
