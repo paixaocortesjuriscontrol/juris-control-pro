@@ -5,13 +5,13 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-07-01-sublotes-15";
+const ENGINE_VERSION = "2026-07-01-sublotes-8";
 
 // Sub-lotes: quebra grupos grandes (tipo+tribunal) em pedaços de até
 // CHUNK_MAX termos. Sem isso, TST parte (118 termos) ficava serial em 1 VPS
-// enquanto as outras VPS ficavam ociosas. Com 15, TST parte vira 8 unidades
+// enquanto as outras VPS ficavam ociosas. Com 8, TST parte vira mais unidades
 // independentes que se distribuem no pool.
-const CHUNK_MAX = Math.max(1, Number(process.env.PARALELA_CHUNK_MAX || 15));
+const CHUNK_MAX = Math.max(1, Number(process.env.PARALELA_CHUNK_MAX || 8));
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -24,9 +24,9 @@ const MAIN_TIPOS = ["parte", "advogado", "palavra-chave"];
 // Cada VPS do pool tem IP próprio — rate-limit do PJE Comunica é por IP.
 // Delays altos só serializavam trabalho no mesmo worker.
 const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 800));
-const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 800));
-const TERMOS_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERMOS_OR_DELAY_MS || 400));
-const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 1800));
+const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 400));
+const TERMOS_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERMOS_OR_DELAY_MS || 300));
+const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 600));
 const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
 // Regras simples (sem flags): nenhum fallback é executado.
 //  - parte    → só nas partes (nomeParte na API + metadados/seção Parte(s))
