@@ -938,6 +938,11 @@ export default function DistribuicaoTst() {
       ]);
       let totalComPend = 0;
       for (const r of linhas) {
+        const naoPrecisaFazer =
+          (r as any).transito_julgado === true ||
+          (r as any).processo_outro_escritorio === true ||
+          (r as any).segredo_justica === true;
+        if (naoPrecisaFazer) continue;
         const pend = getPendencias(r);
         if (pend.length === 0) continue;
         totalComPend++;
@@ -2527,9 +2532,17 @@ export default function DistribuicaoTst() {
                   </TableCell>
                   {mostrarPendencias && (() => {
                     const pend = getPendencias(d);
+                    const naoPrecisaFazer =
+                      (d as any).transito_julgado === true ||
+                      (d as any).processo_outro_escritorio === true ||
+                      (d as any).segredo_justica === true;
                     return (
                       <TableCell className="align-middle min-w-[260px]" onClick={e => e.stopPropagation()}>
-                        {pend.length === 0 ? (
+                        {naoPrecisaFazer ? (
+                          <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 text-[10px]">
+                            Não precisa fazer
+                          </Badge>
+                        ) : pend.length === 0 ? (
                           <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 text-[10px]">
                             Sem pendências
                           </Badge>
