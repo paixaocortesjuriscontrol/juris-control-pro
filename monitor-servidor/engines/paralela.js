@@ -15,10 +15,17 @@ const MAIN_TIPOS = ["parte", "advogado", "palavra-chave"];
 // Paridade com DJEN Termos Paralela do browser (src/hooks/useDjenTermosParalelaEngine.ts CONFIG):
 //   paginação default 800ms quando não informado, delay_between_terms 2500ms,
 //   delay_between_termos_or 1800ms. Fallbacks extras ficam desligados por padrão.
-const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 800));
-const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 2500));
-const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 1800));
+// Delays mais agressivos: cada VPS é um IP distinto e o rate limit da API PJE
+// Comunica é por IP. Com 10 VPS paralelas, cada uma pode ser mais ativa que o
+// motor de 1 VPS/1 usuário. Ajustável via env se a API endurecer.
+const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 400));
+const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 1000));
+const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 800));
 const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
+// Sharding: cards com muitos termos são fatiados em sub-units para que o
+// mesmo (tipo, tribunal) rode em várias VPS simultaneamente.
+const SHARD_SIZE = Math.max(1, Number(process.env.SERVIDOR_SHARD_SIZE || 12));
+const SHARD_MIN = Math.max(1, Number(process.env.SERVIDOR_SHARD_MIN || 6));
 // Regras simples (sem flags): nenhum fallback é executado.
 //  - parte    → só nas partes (nomeParte na API + metadados/seção Parte(s))
 //  - advogado → só nos advogados (nomeAdvogado/numeroOab na API + metadados)
