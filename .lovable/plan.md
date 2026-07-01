@@ -1,53 +1,54 @@
-## Problema
+## Diagnóstico
 
-Na tela **Análise DJEN**, com "Somente Hoje" ativo e campo "Data Disponibilização" vazio:
+Hoje a execução das 06:00 levou **3h17min (11.818s)** com 10 VPS habilitadas — o dobro/triplo do normal. Investigando o motor, achei o gargalo estrutural:
 
-1. Publicações Kurier de hoje (30/06) com `data_publicacao = 01/07` não aparecem.
-2. Publicações Kurier que chegam atrasadas hoje (30/06) mas têm `data_disponibilizacao = 29/06` também não aparecem — e o usuário precisa vê-las, porque foram capturadas hoje.
+### O que está errado
 
-## Causa raiz
+Em `src/hooks/useDjenTermosParalelaEngine.ts` cada monitoramento com lista **OR** (ex.: Santander com 5–6 nomes de advogado) é despachado como **UMA única unidade** amarrada a **UMA única VPS**. Dentro dessa unidade os nomes rodam em série, com **`delay_between_termos_or = 1800 ms`** entre cada um (linha 149, laço 1530-1546). Enquanto isso, 8 das 10 VPSs ficam ociosas esperando.
 
-Em `src/hooks/usePublicacoesDjenUnificadas.ts` (e gêmeo `usePublicacoesDjenServidorUnificadas.ts`), a função `aplicarFiltroDataPublicacaoHojeBrt` filtra "hoje" por `data_publicacao`/`data_disponibilizacao` na janela do dia BRT. Isso ignora a natureza do Kurier, onde o que importa é o **dia da captura** (`created_at`), já que o Kurier entrega publicações com atraso (disp de dias anteriores) e às vezes adiantadas (pub do dia seguinte).
+Efeito prático para Santander advogado (6 nomes) em Banda 2 (27 tribunais):
+- Cada unidade = 6 chamadas × ≥1,8 s de atraso + latência da API = ~30-60s de trabalho travado numa única VPS.
+- 27 tribunais × 3 tipos = ~81 unidades pesadas → apenas 10 VPSs para engolir.
+- Somando `delay_between_terms = 2500 ms` entre termos do mesmo tribunal, cada worker gasta minutos só em `sleep`.
 
-## Correção
+Isso confirma o que vejo na tela: várias linhas "Executando" na mesma VPS (Google VPS 1) e várias em "Pendente / Aguardando slot..." — o problema não é falta de VPS, é **granularidade grande demais das unidades**.
 
-Tornar o filtro "Somente Hoje" **sensível à fonte**:
+Ponto secundário: `HOST_BUCKET_LIMITS['pje-comunica'] = 1` (linha 176) só é lido para exibir "concorrência" no cabeçalho — não gate a execução. Ok, mas o valor sinalizado enganava.
 
-- **Fonte `kurier`** → matchear pelo dia da captura: `created_at` dentro do dia BRT de hoje (janela UTC já calculada). Isso garante que tudo capturado hoje aparece, seja com `data_disponibilizacao = 30/06`, `29/06` (atrasado) ou `data_publicacao = 01/07` (adiantado).
-- **Demais fontes (DJEN/DJET/etc.)** → manter comportamento atual: casa por `data_publicacao` OU `data_disponibilizacao` no dia BRT, com fallback `created_at` quando ambos forem NULL. Remover a restrição supérflua `data_publicacao.is.null` das cláusulas de `data_disponibilizacao` para também resolver o caso "DJEN com pub no dia seguinte e disp hoje".
+## Plano de correção
 
-Estrutura final do `or(...)` quando `apenasHoje=true`:
+### 1. Explodir OR de advogado em unidades independentes
+No dispatcher (bandas 0/1/2), em vez de empurrar `[{ tipo: 'advogado', monIds: [m.id] }]` como um único step, gerar **uma sub-unidade por nome OR**:
+- Para cada monitoramento advogado com `termos_or`: criar 1 unidade para o nome principal + 1 unidade por termo OR (mesmo `tribunal`, mesmo `tipo`, `monId` do dono, mas com um `nomeOverride`/`oabOverride`).
+- Cada sub-unidade vira uma linha independente na tela e é puxada por uma VPS diferente — o Santander de 6 nomes passa a rodar em paralelo em até 6 VPSs em vez de 1.
+- Consolidação (dedup, persistência, contadores) continua por `monitoramento_id`, como já é hoje.
 
-```
-or(
-  fonte.eq.kurier,created_at.gte.<inicioDiaUtc>,created_at.lte.<fimDiaUtc>  → combinadas via and(...)
-  and(fonte.neq.kurier, data_publicacao gte/lte janela UTC),
-  and(fonte.neq.kurier, data_publicacao gte/lte dia BRT UTC),
-  and(fonte.neq.kurier, data_disponibilizacao gte/lte janela UTC),
-  and(fonte.neq.kurier, data_disponibilizacao gte/lte dia BRT UTC),
-  and(fonte.neq.kurier, data_publicacao.is.null, data_disponibilizacao.is.null, created_at gte/lte janela UTC)
-)
-```
+### 2. Reduzir a espera intra-unidade
+Como cada VPS tem IP próprio (o rate-limit é por IP, não global):
+- `delay_between_termos_or`: 1800 → **400 ms** (mesmo racional já aplicado a `delay_between_pages` na paridade com o servidor).
+- `delay_between_terms`: 2500 → **800 ms**.
 
-(Sintaxe PostgREST real: cada ramo dentro de um `and(...)` no `.or(...)`. A condição `fonte.neq.kurier` exclui Kurier dos ramos por data; o ramo Kurier usa apenas `created_at`.)
+### 3. Espelhar no servidor
+`monitor-servidor/engines/paralela.js` tem exatamente a mesma serialização de OR dentro de `buscarTermo`. Aplicar as mesmas duas mudanças:
+- 1 unidade por termo OR na fila do worker principal.
+- Delays reduzidos com o mesmo racional.
 
-## Campo "Data Disponibilização" manual
+### 4. Corrigir o rótulo "concorrência"
+Substituir a inicialização em `state.progress.concorrencia = HOST_BUCKET_LIMITS['pje-comunica']` (linha 308) por `vias.length` (nº de VPS ativas), que é o valor real.
 
-Quando o usuário **digita** uma data no campo "Data Disponibilização", o comportamento continua igual (filtra por `data_disponibilizacao` exato no banco, sem cláusula Kurier especial). É só o atalho "Somente Hoje" que ganha o tratamento por `created_at` para Kurier.
+## Estimativa de ganho
 
-## Escopo
+- Santander advogado em Banda 2: de ~10-15 min (serial nas 27 UFs) para ~2-3 min (paralelo real entre 10 VPSs).
+- Execução total esperada: sair de 40-60 min (dia normal) para ~15-25 min. Dias com pico de 3h caem para <40 min.
 
-Apenas dois arquivos, apenas a função `aplicarFiltroDataPublicacaoHojeBrt`:
+## O que NÃO mexer
 
-- `src/hooks/usePublicacoesDjenUnificadas.ts`
-- `src/hooks/usePublicacoesDjenServidorUnificadas.ts`
+- Regras de dedup, validação parte/advogado, isolamento por coordenação.
+- Ordem das bandas (TST → STF/STJ → outros → processo).
+- Checkpoint / retomada.
+- Servidor continua isolado do Browser em `publicacoes_djen`.
 
-Sem mudanças em UI, contadores de cards, exportações ou outros filtros.
+## Arquivos afetados
 
-## Resultado esperado
-
-Em 30/06/2026, com "Somente Hoje" e "Data Disponibilização" vazio:
-
-- Aparecem todas as 522 publicações Kurier capturadas hoje, incluindo as com `Disp: 29/06` e `Pub: 30/06` mostradas no print.
-- Publicações DJEN do dia com `data_publicacao = 01/07` e `data_disponibilizacao = 30/06` também aparecem.
-- Publicações antigas (capturadas em dias anteriores) continuam fora.
+- `src/hooks/useDjenTermosParalelaEngine.ts` (dispatcher de bandas, config de delays, rótulo de concorrência).
+- `monitor-servidor/engines/paralela.js` (mesma explosão de OR + delays).
