@@ -19,7 +19,10 @@ const PJE_COMUNICA_BASE = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
 const STORAGE_POOL = "djen_proxy_pool";
 const STORAGE_ENABLED = "djen_proxy_pool_enabled";
 const OFFLINE_COOLDOWN_MS = 60_000;
-const PROXY_SLOT_TIMEOUT_MS = 25_000;
+// Aumentado de 25s → 45s: sob carga, a API PJE Comunica costuma responder
+// entre 25–40 s. 25 s estava marcando VPS como "offline" enquanto o upstream
+// ainda estava respondendo — não era falha da VPS.
+const PROXY_SLOT_TIMEOUT_MS = 45_000;
 
 // Importa o cliente Supabase de forma lazy para evitar ciclo de import
 // e permitir que o pool funcione mesmo se a conexão falhar (cai pro cache local).
@@ -41,6 +44,12 @@ export interface ProxySlotConfig {
 interface SlotRuntimeState {
   offlineUntil: number;
   lastError: string | null;
+  /**
+   * true quando a última chamada timeoutou aguardando o upstream (PJE).
+   * Diferente de offline: a VPS continua na fila do round-robin. Só serve
+   * para pintar a chip como "Lento" na UI.
+   */
+  slow?: boolean;
 }
 
 type ProxyFailureKind = "offline" | "config";
@@ -530,6 +539,7 @@ function markOffline(slotId: string, error: string) {
   runtime[slotId] = {
     offlineUntil: Date.now() + OFFLINE_COOLDOWN_MS,
     lastError: error,
+    slow: false,
   };
 }
 
@@ -537,7 +547,26 @@ function markConfigError(slotId: string, error: string) {
   runtime[slotId] = {
     offlineUntil: 0,
     lastError: error,
+    slow: false,
   };
+}
+
+/**
+ * Registra que a última chamada por esta VPS estourou o timeout aguardando
+ * o upstream (PJE Comunica). NÃO tira a VPS do round-robin — apenas guarda
+ * a mensagem para exibição e sinaliza `slow: true` para a UI.
+ */
+function markUpstreamSlow(slotId: string, error: string) {
+  runtime[slotId] = {
+    offlineUntil: 0,
+    lastError: error,
+    slow: true,
+  };
+}
+
+/** Erros originados de timeout no upstream (via nossa VPS) — não são falha da VPS. */
+function isUpstreamTimeoutError(message: string): boolean {
+  return /^proxy_slot_timeout_\d+ms$/i.test(String(message || "").trim());
 }
 
 function clearProxyRuntimeState(slotId: string) {
