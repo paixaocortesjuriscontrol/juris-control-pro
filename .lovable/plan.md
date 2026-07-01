@@ -1,67 +1,48 @@
-## Diagnóstico
+# Plano: reduzir "proxy slot timeout" e proteger contra perda de publicações
 
-Sua impressão está correta — no DJEN **Local** ainda está serial por tribunal, mesmo com muitas VPS no pool. O que aparece na tela ("TRF3 Parte • 8 termos • Google VPS 4/6/Hostinger 1/…") é só o histórico da última VPS usada em cada chamada, **não paralelismo real**.
+Escopo restrito a `src/utils/djenProxyPool.ts` e `src/hooks/useDjenTermosParalelaEngine.ts`. Nenhuma outra tela, motor ou lógica de busca muda.
 
-Motivo, em `src/hooks/useDjenTermosParalelaEngine.ts` (bandas 1 e 2, linhas ~2229-2248):
+## 1. Aumentar teto de espera por VPS
 
-```ts
-const pushUnitsPorTipo = (fila, band, trib) => {
-  for (const tipo of ORDEM_TIPOS_PRINCIPAIS) {
-    ...
-    fila.push({ band, tribunal: trib, steps: [{ tipo, monIds: [null] }] });
-    //                                                    ^^^^^^ 1 unidade só
-  }
-};
-```
+Em `src/utils/djenProxyPool.ts`:
+- `PROXY_SLOT_TIMEOUT_MS`: **25 000 → 45 000 ms**.
 
-`monIds: [null]` significa **1 única unidade** por (tribunal, tipo). Dentro do worker, `processarTribunalTrack` itera os 8 termos do TRF3/Parte em série. Concorrência efetiva = 1, independente do tamanho do pool.
+Motivo: quando a API PJE Comunica está sob carga, respostas chegam entre 25–40 s. 25 s hoje está estourando na parte estável do upstream, não em falha real da VPS.
 
-O servidor (`monitor-servidor/engines/paralela.js`) já resolveu isso em 01/07 com `CHUNK_MAX=8` (sub-lotes) — só o Local ficou pra trás.
+## 2. Tratar timeout de upstream como "lento", não "offline"
 
-## Plano
+Ainda em `src/utils/djenProxyPool.ts`:
+- Introduzir estado runtime `slow` (separado de `online/offline`).
+- Quando o erro capturado for exatamente `proxy_slot_timeout_*ms` (upstream demorou), chamar um novo `markUpstreamSlow(slot.id, msg)` **em vez de** `markOffline(...)`. Registrar `lastError`, mas manter `online: true` para o próximo round-robin.
+- `markOffline` continua sendo usado para: erro de rede/DNS/TLS, HTTP 502/503/504 sustentados, erros de config (401/403 de token), qualquer coisa que **não** seja timeout do PJE via nossa VPS.
+- `getDjenProxySlotsRuntime()` passa a expor `slow: boolean` no retorno.
 
-Replicar a estratégia de **sub-lotes** do servidor no motor local, sem tocar em TST (banda 0 já é 1 unidade por termo) nem em `processo` (banda 3 continua 1 por tribunal).
+Efeito visual (sem mexer em outras telas além dos dois cards que já leem esse runtime — `PoolProxyDjenCard` e `WorkersDjenVpsPanel`):
+- Chip verde: online normal.
+- Chip **amarela "Lento"**: última chamada timeoutou no upstream, mas continua na fila.
+- Chip vermelha "Offline": erro real da VPS. Só entra aqui quando a VPS realmente não respondeu (rede/config/5xx sustentado).
 
-### Mudanças em `src/hooks/useDjenTermosParalelaEngine.ts`
+## 3. Proteção contra perda de publicações (checkpoint só fecha em sucesso)
 
-1. Constante nova no topo do arquivo:
-   ```ts
-   const CHUNK_MAX = 8; // termos por sub-lote em bandas 1/2 (STF/STJ/TRT/TJ/TRF)
-   ```
+Em `src/hooks/useDjenTermosParalelaEngine.ts`:
+- Hoje, quando as 5 tentativas de um termo esgotam, ele é registrado como concluído no checkpoint com 0 achados. Se o motivo foi PJE 500/timeout em cadeia, aquela publicação some daquele ciclo.
+- Mudança: quando o motor detectar que **todas** as tentativas falharam com erro de upstream (`proxy_slot_timeout_*`, `upstream_status_5xx`, `429` persistente), **não fechar** o termo no checkpoint — marcar internamente como `precisa_refazer: true` e propagar mensagem "Termo com upstream instável — será refeito no próximo ciclo".
+- No próximo ciclo agendado (ou ao clicar Retomar), o motor pega esses termos primeiro, antes dos demais.
+- Termos que retornaram 200 com 0 publicações continuam sendo fechados normalmente (é resposta legítima do PJE, não falha).
 
-2. Reescrever `pushUnitsPorTipo` para dividir os monitoramentos daquele (tribunal, tipo) em fatias de até 8 e enfileirar 1 unidade por fatia:
-   ```ts
-   const monsAtivos = (monsPorTipo.get(tipo) || []).filter(m =>
-     expandirTribunaisDoMon(m.tribunais).includes(trib) ||
-     expandirTribunaisDoMon(m.tribunais).length === 0
-   );
-   for (let i = 0; i < monsAtivos.length; i += CHUNK_MAX) {
-     const slice = monsAtivos.slice(i, i + CHUNK_MAX);
-     fila.push({
-       band, tribunal: trib,
-       steps: [{ tipo, monIds: slice.map(m => m.id) }],
-     });
-   }
-   ```
+## 4. Paridade no servidor (opcional, mesma release)
 
-3. Adaptar a criação de `tracks` (linhas 2058-2113) para bandas 1/2:
-   - Se o (trib, tipo) tem mais de `CHUNK_MAX` termos, criar 1 track por sub-lote (label "N termos • lote k/K").
-   - Se tem ≤ CHUNK_MAX, mantém 1 track única com os termos do lote (comportamento atual).
-   - `trackKey` ganha o sufixo `|c{k}` (idêntico ao servidor) pra checkpoint não colidir.
+Espelhar a mesma proteção em `monitor-servidor/engines/paralela.js`:
+- Não marcar `execucao_servidor.status = 'concluido'` para uma unidade cujas tentativas terminaram todas em erro de upstream — deixar em `precisa_refazer` para o reaper/próxima janela retomar.
+- Manter a lógica atual de sucesso e de "0 achados legítimos" intacta.
 
-4. `processarTribunalTrack` já aceita `monIdAtual` específico — o loop de `step.monIds` no worker (linhas 2363-2397) já itera termo a termo persistindo checkpoint. Basta ele receber os IDs reais em vez de `[null]`.
+## Fora do escopo
 
-5. Checkpoint: `unidadesJaConcluidas` passa a comparar chaves com sufixo `|c{k}`. Checkpoints antigos ficam obsoletos apenas para essa execução (o motor já lida com isso graciosamente — refaz o tribunal sem erro).
+- Não vou alterar retry base delay, número de tentativas, delays entre termos, motor de OAB/Parte/Advogado, comparador, análise DJEN, Kurier, distribuição TST, nem qualquer outra tela.
+- Não vou tentar mitigar a instabilidade do PJE em si — apenas absorver melhor.
 
-### Resultado esperado
+## Como validar depois
 
-- **TRF3 Parte** com 8 termos + 8 VPS: hoje = 8 chamadas seriais em 1 VPS. Depois = 8 unidades paralelas, uma por VPS → ~1/N do tempo.
-- **TST parte** (banda 0): sem mudança, já rodava paralelo por termo.
-- **Processo** (banda 3): sem mudança, continua 1 unidade por tribunal.
-- **STF/STJ**: se tiverem >8 termos ganham sub-lotes também.
-
-### Observação
-
-`CHUNK_MAX=8` casa com o servidor. Se quiser posso deixar exposto como config (`localStorage.djen_local_chunk_max`) pra ajustar sem redeploy — só me avise.
-
-Nenhuma mudança em RLS, edge functions, tabelas ou no motor do servidor.
+1. Rodar um tribunal grande (STF Parte, por exemplo). Durante um pico do PJE, observar que as chips ficam amarelas "Lento" em vez de vermelhas, e que a execução não pinta VPS como Offline em massa.
+2. Verificar em `execucoes_servidor` (ou no checkpoint local via console) que termos com falha por upstream ficam com `precisa_refazer: true` e são recolhidos no próximo ciclo — nenhuma publicação "some" entre execuções.
+3. Se após aplicar isso ainda houver perda, o próximo passo é aumentar `max_retries` ou o `retry_base_delay` — mas só depois de medir.
