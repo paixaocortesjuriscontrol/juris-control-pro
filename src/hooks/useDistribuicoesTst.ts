@@ -242,6 +242,14 @@ export function bennerToDistribuicao(b: any): DistribuicaoTst {
     materias_analise_reclamante: (b as any).materias_analise_reclamante ?? null,
     materias_analise_banco: (b as any).materias_analise_banco ?? null,
     materias_analise_terceiro: (b as any).materias_analise_terceiro ?? null,
+    // Flags "Tem chance de êxito?" (Sim/Não) — usados em getPendencias.
+    // Sem estes campos no objeto mapeado, o badge "Verificar Pendências"
+    // reportava falsamente "Tem chance de êxito (Reclamante)?" mesmo com
+    // o valor preenchido no banco.
+    tem_chance_exito_reclamante: (b as any).tem_chance_exito_reclamante ?? null,
+    tem_chance_exito_banco: (b as any).tem_chance_exito_banco ?? null,
+    tem_chance_exito_terceiro: (b as any).tem_chance_exito_terceiro ?? null,
+    risco_nivel: (b as any).risco_nivel ?? null,
   } as any;
 }
 
