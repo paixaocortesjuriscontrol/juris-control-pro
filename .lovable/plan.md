@@ -1,53 +1,41 @@
-## Problema
+## Objetivo
 
-Na tela **Análise DJEN**, com "Somente Hoje" ativo e campo "Data Disponibilização" vazio:
+Fazer o DJEN Local Paralela pinar cada termo/unidade a UMA única VPS (igual ao DJEN Servidor), sem espalhar as chamadas do mesmo termo por várias VPS. Isso é o comportamento que existia antes e que o servidor mantém em `monitor-servidor/engines/paralela.js`.
 
-1. Publicações Kurier de hoje (30/06) com `data_publicacao = 01/07` não aparecem.
-2. Publicações Kurier que chegam atrasadas hoje (30/06) mas têm `data_disponibilizacao = 29/06` também não aparecem — e o usuário precisa vê-las, porque foram capturadas hoje.
+## O que está acontecendo hoje
 
-## Causa raiz
-
-Em `src/hooks/usePublicacoesDjenUnificadas.ts` (e gêmeo `usePublicacoesDjenServidorUnificadas.ts`), a função `aplicarFiltroDataPublicacaoHojeBrt` filtra "hoje" por `data_publicacao`/`data_disponibilizacao` na janela do dia BRT. Isso ignora a natureza do Kurier, onde o que importa é o **dia da captura** (`created_at`), já que o Kurier entrega publicações com atraso (disp de dias anteriores) e às vezes adiantadas (pub do dia seguinte).
-
-## Correção
-
-Tornar o filtro "Somente Hoje" **sensível à fonte**:
-
-- **Fonte `kurier`** → matchear pelo dia da captura: `created_at` dentro do dia BRT de hoje (janela UTC já calculada). Isso garante que tudo capturado hoje aparece, seja com `data_disponibilizacao = 30/06`, `29/06` (atrasado) ou `data_publicacao = 01/07` (adiantado).
-- **Demais fontes (DJEN/DJET/etc.)** → manter comportamento atual: casa por `data_publicacao` OU `data_disponibilizacao` no dia BRT, com fallback `created_at` quando ambos forem NULL. Remover a restrição supérflua `data_publicacao.is.null` das cláusulas de `data_disponibilizacao` para também resolver o caso "DJEN com pub no dia seguinte e disp hoje".
-
-Estrutura final do `or(...)` quando `apenasHoje=true`:
+Em `src/hooks/useDjenTermosParalelaEngine.ts`, dentro de `executarBusca`, a chamada a `buscarPjeComunicaPaginado` passa:
 
 ```
-or(
-  fonte.eq.kurier,created_at.gte.<inicioDiaUtc>,created_at.lte.<fimDiaUtc>  → combinadas via and(...)
-  and(fonte.neq.kurier, data_publicacao gte/lte janela UTC),
-  and(fonte.neq.kurier, data_publicacao gte/lte dia BRT UTC),
-  and(fonte.neq.kurier, data_disponibilizacao gte/lte janela UTC),
-  and(fonte.neq.kurier, data_disponibilizacao gte/lte dia BRT UTC),
-  and(fonte.neq.kurier, data_publicacao.is.null, data_disponibilizacao.is.null, created_at gte/lte janela UTC)
-)
+forceVia: forceViaOverride,
+fallbackToPool: !!forceViaOverride && forceViaOverride !== DIRECT_SLOT_ID,  // → true
+fallbackToDirect: forceViaOverride === DIRECT_SLOT_ID,
 ```
 
-(Sintaxe PostgREST real: cada ramo dentro de um `and(...)` no `.or(...)`. A condição `fonte.neq.kurier` exclui Kurier dos ramos por data; o ramo Kurier usa apenas `created_at`.)
+`fallbackToPool: true` faz o cliente rotacionar para outras VPS do pool quando a VPS "dona" do worker falha em qualquer request (5xx, timeout, "Failed to fetch", 429, etc.). Resultado: o mesmo termo aparece com 3+ chips de VPS (o que a Dra. viu no print) e a execução não fica mais rápida — só embaralha rotas.
 
-## Campo "Data Disponibilização" manual
+O servidor (`monitor-servidor/engines/paralela.js`, linhas ~1500-1528) faz o oposto: cada unit é fixada no slot atribuído; só troca de slot em erro persistente 5xx (`HTTP 5xx` ou "Falha ao consultar VPS"). Isso é o que a Dra. quer replicar.
 
-Quando o usuário **digita** uma data no campo "Data Disponibilização", o comportamento continua igual (filtra por `data_disponibilizacao` exato no banco, sem cláusula Kurier especial). É só o atalho "Somente Hoje" que ganha o tratamento por `created_at` para Kurier.
+## Mudança
 
-## Escopo
+**Arquivo:** `src/hooks/useDjenTermosParalelaEngine.ts`
 
-Apenas dois arquivos, apenas a função `aplicarFiltroDataPublicacaoHojeBrt`:
+Dentro de `processarTermoEmTribunal → executarBusca`, ao chamar `buscarPjeComunicaPaginado`:
 
-- `src/hooks/usePublicacoesDjenUnificadas.ts`
-- `src/hooks/usePublicacoesDjenServidorUnificadas.ts`
+- Trocar `fallbackToPool: !!forceViaOverride && forceViaOverride !== DIRECT_SLOT_ID` por `fallbackToPool: false`.
+- Manter `fallbackToDirect` só quando a via é o browser direto (comportamento atual).
+- Manter `forceVia: forceViaOverride` para pinar a VPS.
 
-Sem mudanças em UI, contadores de cards, exportações ou outros filtros.
+Isso faz cada worker usar exclusivamente sua VPS. Se essa VPS falhar, o erro sobe para o worker do engine — que já é isolado dos outros (cada worker é um `via` diferente).
 
-## Resultado esperado
+**Sem** adicionar failover 5xx entre VPS no browser por enquanto (o pedido é "como estava antes"; a Dra. não pediu retry cross-VPS e reclama que sobra chamada). O worker que falhar registra `erro` na track; o próximo agendamento reprocessa. Se depois quisermos espelhar o failover 5xx do servidor (linhas 1500-1528 de `paralela.js`), fica como passo separado.
 
-Em 30/06/2026, com "Somente Hoje" e "Data Disponibilização" vazio:
+## Fora de escopo
 
-- Aparecem todas as 522 publicações Kurier capturadas hoje, incluindo as com `Disp: 29/06` e `Pub: 30/06` mostradas no print.
-- Publicações DJEN do dia com `data_publicacao = 01/07` e `data_disponibilizacao = 30/06` também aparecem.
-- Publicações antigas (capturadas em dias anteriores) continuam fora.
+- Motor do servidor (`monitor-servidor/engines/paralela.js`) — já está no comportamento pedido, nada muda.
+- Kurier, Flash, Servidor, edge functions — não são afetados.
+- UI dos cards da Paralela — o próprio efeito de "1 chip de VPS por track" já aparece automaticamente porque `callsByProxy` deixa de acumular contadores em VPSs alternativas.
+
+## Verificação
+
+- Rodar uma Paralela e checar visualmente que cada track (STJ Parte, TRF1 Parte, etc.) mostra apenas UM chip de VPS na linha inferior, e que o tempo total não piora.
