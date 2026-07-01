@@ -542,20 +542,30 @@ export function MonitoramentoTermosParalelaCard() {
               {poolSlots.map(s => {
                 const calls = routingStats.byProxy[s.id] || 0;
                 const rl = routingStats.rateLimitsByProxy[s.id] || 0;
+                const isSlow = !!(s as any).slow;
                 return (
                   <Badge
                     key={s.id}
                     variant="outline"
                     className={cn(
                       "text-[11px] gap-1 font-mono",
-                      s.online
-                        ? "border-emerald-500/40 text-emerald-700 bg-emerald-500/5"
-                        : "border-destructive/40 text-destructive bg-destructive/5"
+                      !s.online
+                        ? "border-destructive/40 text-destructive bg-destructive/5"
+                        : isSlow
+                          ? "border-amber-500/50 text-amber-700 bg-amber-500/10"
+                          : "border-emerald-500/40 text-emerald-700 bg-emerald-500/5"
                     )}
-                    title={s.online ? `Online — ${s.baseUrl}` : `Offline — ${s.lastError ?? ''}`}
+                    title={
+                      !s.online
+                        ? `Offline — ${s.lastError ?? ''}`
+                        : isSlow
+                          ? `Lento — upstream (PJE) demorou > 45s na última chamada. VPS continua na fila.`
+                          : `Online — ${s.baseUrl}`
+                    }
                   >
                     {s.online ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
                     {s.label}
+                    {isSlow && <span className="opacity-80">· lento</span>}
                     <span className="opacity-70">· {calls}</span>
                     {rl > 0 && <span className="text-amber-600">⚠ {rl}</span>}
                   </Badge>
