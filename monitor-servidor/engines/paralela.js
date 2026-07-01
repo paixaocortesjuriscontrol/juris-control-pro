@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-27-checkpoint-auto-resume";
+const ENGINE_VERSION = "2026-07-01-prioridade-original-wave";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -45,6 +45,40 @@ const delay = (ms, signal) => new Promise((resolve) => {
   }
   signal?.addEventListener?.("abort", done, { once: true });
 });
+
+function tribunalPriorityRank(tribunal) {
+  const t = String(tribunal || "").toUpperCase();
+  if (t === "TST") return 0;
+  if (t === "STF") return 1;
+  if (t === "STJ") return 2;
+  const trt = t.match(/^TRT(\d{1,2})$/);
+  if (trt) return 10 + Number(trt[1]);
+  const idx = TODOS_TRIBUNAIS.indexOf(t);
+  return idx >= 0 ? 100 + idx : 999;
+}
+
+function tipoPriorityRank(tipo) {
+  const idx = TIPO_ORDER.indexOf(String(tipo || ""));
+  return idx >= 0 ? idx : 99;
+}
+
+function isTribunalPrioritario(tribunal) {
+  const t = String(tribunal || "").toUpperCase();
+  return t === "TST" || t === "STF" || t === "STJ" || /^TRT\d{1,2}$/.test(t);
+}
+
+function comparePriorityUnits(a, b) {
+  const ia = a.item || a;
+  const ib = b.item || b;
+  // Wave scheduling: não deixa 30 shards de TST monopolizarem as 10 VPS.
+  // Primeiro roda o shard 0 de TST/STF/STJ/TRTs, depois shard 1 etc.
+  const shardA = Number(ia.shardIdx) || 0;
+  const shardB = Number(ib.shardIdx) || 0;
+  return (shardA - shardB)
+    || (tribunalPriorityRank(ia.tribunal) - tribunalPriorityRank(ib.tribunal))
+    || (tipoPriorityRank(ia.tipo) - tipoPriorityRank(ib.tipo))
+    || ((Number(ib.total) || 0) - (Number(ia.total) || 0));
+}
 
 function mapTipo(tipo) {
   if (tipo === "nome" || tipo === "geral") return "palavra-chave";
