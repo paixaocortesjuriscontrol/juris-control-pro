@@ -45,6 +45,12 @@ export interface ProgressoItem {
   novas?: number;
   descartadas?: number;
   duplicatas?: number;
+  via?: {
+    id?: string;
+    label?: string;
+    multiplas?: boolean;
+    labels?: string[];
+  } | null;
 }
 
 export interface ProgressoExecucao {
@@ -57,6 +63,7 @@ export interface ProgressoExecucao {
   atual?: { id: string; label: string } | null;
   itens?: ProgressoItem[];
   janela?: { dataInicio: string; dataFim: string };
+  vias?: Array<{ id?: string; label?: string; multiplas?: boolean; labels?: string[] }>;
 }
 
 export interface WorkerServidor {
