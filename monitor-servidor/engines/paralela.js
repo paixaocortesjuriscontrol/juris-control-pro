@@ -15,8 +15,11 @@ const MAIN_TIPOS = ["parte", "advogado", "palavra-chave"];
 // Paridade com DJEN Termos Paralela do browser (src/hooks/useDjenTermosParalelaEngine.ts CONFIG):
 //   paginação default 800ms quando não informado, delay_between_terms 2500ms,
 //   delay_between_termos_or 1800ms. Fallbacks extras ficam desligados por padrão.
+// Cada VPS do pool tem IP próprio — rate-limit do PJE Comunica é por IP.
+// Delays altos só serializavam trabalho no mesmo worker.
 const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 800));
-const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 2500));
+const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 800));
+const TERMOS_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERMOS_OR_DELAY_MS || 400));
 const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 1800));
 const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
 // Regras simples (sem flags): nenhum fallback é executado.
