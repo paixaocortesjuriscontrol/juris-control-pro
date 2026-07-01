@@ -196,9 +196,17 @@ export function getPendencias(row: any): Pendencia[] {
   }
   // Pendências dinâmicas: para cada matéria selecionada nos quadros de recurso,
   // exigir Aparelhamento + Chance Turma + Chance Relator + Êxito.
-  out.push(...pendenciasMateriasAnalise(row, "materias_analise_reclamante", "Análise Reclamante", "III. Recurso do Reclamante"));
-  out.push(...pendenciasMateriasAnalise(row, "materias_analise_banco", "Análise Banco", "IV. Recurso do Banco"));
-  out.push(...pendenciasMateriasAnalise(row, "materias_analise_terceiro", "Análise Terceiro", "V. Recurso Terceiro"));
+  // Só cobrar sub-itens quando a parte figura como recorrente (mesma regra dos
+  // campos de tipo/matéria/êxito do bloco correspondente).
+  if (recorrenteEnvolveReclamante(row)) {
+    out.push(...pendenciasMateriasAnalise(row, "materias_analise_reclamante", "Análise Reclamante", "III. Recurso do Reclamante"));
+  }
+  if (recorrenteEnvolveBanco(row)) {
+    out.push(...pendenciasMateriasAnalise(row, "materias_analise_banco", "Análise Banco", "IV. Recurso do Banco"));
+  }
+  if (recorrenteEhTerceiro(row)) {
+    out.push(...pendenciasMateriasAnalise(row, "materias_analise_terceiro", "Análise Terceiro", "V. Recurso Terceiro"));
+  }
   return out;
 }
 
