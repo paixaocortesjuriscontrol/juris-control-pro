@@ -1358,10 +1358,74 @@ async function run({ sb, payload, log, job }) {
     const now = Date.now();
     if (!force && now - lastFlush < 800) return;
     lastFlush = now;
-    const concluidos = itens.filter((i) => i.status === "concluido" || i.status === "erro").length;
-    const falhas = itens.filter((i) => i.status === "erro").length;
-    const executando = itens.filter((i) => i.status === "executando");
-    const totais = itens.reduce((acc, i) => {
+    // Agrupa shards por cardKey para o frontend exibir 1 card único por
+    // (tipo, tribunal), independente de quantos shards estejam rodando.
+    const byCard = new Map();
+    for (const i of itens) {
+      const key = i.cardKey || i.id;
+      let card = byCard.get(key);
+      if (!card) {
+        card = {
+          id: key,
+          cardKey: key,
+          label: i.label,
+          tribunal: i.tribunal,
+          tipo: i.tipo,
+          monitoramentoIds: [],
+          status: "pendente",
+          current: 0,
+          total: 0,
+          mensagem: "",
+          novas: 0, descartadas: 0, duplicatas: 0,
+          erro: null,
+          via: null,
+          _shards: 0,
+          _statuses: [],
+          _viasAtivas: [],
+        };
+        byCard.set(key, card);
+      }
+      card._shards++;
+      card._statuses.push(i.status);
+      card.current += Number(i.current) || 0;
+      card.total += Number(i.total) || 0;
+      card.novas += Number(i.novas) || 0;
+      card.duplicatas += Number(i.duplicatas) || 0;
+      card.descartadas += Number(i.descartadas) || 0;
+      if (Array.isArray(i.monitoramentoIds)) card.monitoramentoIds.push(...i.monitoramentoIds);
+      if (i.status === "executando" && i.via) card._viasAtivas.push(i.via);
+      if (i.erro) card.erro = i.erro;
+      if (i.status === "executando" && !card.mensagem) card.mensagem = i.mensagem;
+    }
+    const cardItens = [];
+    for (const card of byCard.values()) {
+      const stats = card._statuses;
+      const total = card._shards;
+      if (stats.every((s) => s === "concluido")) card.status = "concluido";
+      else if (stats.some((s) => s === "executando")) card.status = "executando";
+      else if (stats.every((s) => s === "erro")) card.status = "erro";
+      else if (stats.some((s) => s === "cancelado")) card.status = "cancelado";
+      else if (stats.every((s) => s === "concluido" || s === "erro")) card.status = "concluido";
+      else card.status = "pendente";
+      // Label: se shardeado, mostra "N termos (X shards)"
+      if (total > 1) card.label = `${card.total / Math.max(1, dias.length)} termos (${total} shards)`;
+      if (!card.mensagem) {
+        if (card.status === "concluido") card.mensagem = `Concluído: ${card.novas} novas, ${card.duplicatas} duplicadas, ${card.descartadas} descartadas`;
+        else if (card.status === "pendente") card.mensagem = "Aguardando VPS...";
+        else if (card.status === "erro") card.mensagem = `Erro: ${card.erro || "desconhecido"}`;
+      }
+      // via: se múltiplas VPS ativas, sinaliza no label.
+      if (card._viasAtivas.length === 1) card.via = card._viasAtivas[0];
+      else if (card._viasAtivas.length > 1) {
+        card.via = { id: "multiplas", label: `${card._viasAtivas.length} VPS`, multiplas: true, labels: card._viasAtivas.map((v) => v?.label).filter(Boolean) };
+      }
+      delete card._shards; delete card._statuses; delete card._viasAtivas;
+      cardItens.push(card);
+    }
+    const concluidos = cardItens.filter((i) => i.status === "concluido" || i.status === "erro").length;
+    const falhas = cardItens.filter((i) => i.status === "erro").length;
+    const executando = cardItens.filter((i) => i.status === "executando");
+    const totais = cardItens.reduce((acc, i) => {
       acc.novas += Number(i.novas) || 0;
       acc.duplicatas += Number(i.duplicatas) || 0;
       acc.descartadas += Number(i.descartadas) || 0;
@@ -1369,17 +1433,18 @@ async function run({ sb, payload, log, job }) {
     }, { novas: 0, duplicatas: 0, descartadas: 0 });
     await sb.from("execucoes_servidor").update({
       progresso: {
-        totalItens: itens.length,
+        totalItens: cardItens.length,
         concluidos,
         falhas,
         novas: totais.novas,
         duplicatas: totais.duplicatas,
         descartadas: totais.descartadas,
         atual: executando[0] ? { id: executando[0].id, label: executando[0].label } : null,
-        itens,
+        itens: cardItens,
         janela: { dataInicio, dataFim },
         checkpoint: {
           runKey,
+          // Checkpoint fica em nível de SHARD (mais fino) para retomada precisa.
           unidadesConcluidas: itens.filter((i) => i.status === "concluido").map((i) => i.id),
         },
         pool_enabled: true,
