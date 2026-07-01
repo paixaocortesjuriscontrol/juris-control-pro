@@ -2330,14 +2330,13 @@ async function executarLoop(
     let bandAtual = 0;
     const emProcessamentoPorBand = [0, 0, 0, 0];
 
-    const pickNextUnit = (viaId: string): WorkUnit | null => {
-      // Cada worker só consome unidades cuja `viaId` bate com a sua VPS
-      // (mapeamento fixo tribunal/termo → VPS). Prioridade por banda mantida.
+    const pickNextUnit = (_viaId: string): WorkUnit | null => {
+      // Fila compartilhada: qualquer worker livre pega a próxima unidade
+      // respeitando a prioridade por banda (0→1→2→3).
       for (let b = 0; b < bands.length; b++) {
-        const idx = bands[b].findIndex((u) => u.viaId === viaId);
-        if (idx >= 0) {
+        if (bands[b].length > 0) {
           bandAtual = b;
-          return bands[b].splice(idx, 1)[0];
+          return bands[b].shift() as WorkUnit;
         }
       }
       return null;
