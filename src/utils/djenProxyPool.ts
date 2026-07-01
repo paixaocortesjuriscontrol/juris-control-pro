@@ -705,6 +705,7 @@ export async function fetchDjenViaPool(
       // já controla 429/504; aqui só registramos estatística/erro.
       if (routing.fallbackToDirect) {
         if (classifyProxyFailure(message) === "config") markConfigError(slot.id, message);
+        else if (isUpstreamTimeoutError(message)) markUpstreamSlow(slot.id, message);
         else markOffline(slot.id, message);
       }
       sessionStats.errorsByProxy[slot.id] =
@@ -720,6 +721,7 @@ export async function fetchDjenViaPool(
             if (altErr?.name === "AbortError") throw altErr;
             const altMessage = altErr?.message || String(altErr);
             if (classifyProxyFailure(altMessage) === "config") markConfigError(alt.id, altMessage);
+            else if (isUpstreamTimeoutError(altMessage)) markUpstreamSlow(alt.id, altMessage);
             else markOffline(alt.id, altMessage);
             sessionStats.errorsByProxy[alt.id] =
               (sessionStats.errorsByProxy[alt.id] || 0) + 1;
@@ -772,6 +774,7 @@ export async function fetchDjenViaPool(
       if (slot) {
         const message = err?.message || String(err);
         if (classifyProxyFailure(message) === "config") markConfigError(slot.id, message);
+        else if (isUpstreamTimeoutError(message)) markUpstreamSlow(slot.id, message);
         else markOffline(slot.id, message);
         sessionStats.errorsByProxy[slot.id] =
           (sessionStats.errorsByProxy[slot.id] || 0) + 1;
