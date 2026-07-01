@@ -2439,7 +2439,12 @@ async function executarLoop(
               if (signal.aborted) break;
               let unidadeOk = true;
               try {
-                await processarTribunalTrack(unit.tribunal, step.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
+                // Sub-lote: passa os UUIDs reais em `monIdsFilter` e usa o
+                // chunkKey sintético como identificador da track.
+                const monIdsFilter = unit.chunkKey && unit.chunkMonIds
+                  ? unit.chunkMonIds
+                  : undefined;
+                await processarTribunalTrack(unit.tribunal, step.tipo, monitoramentos, datas, signal, via.id, monIdAtual, monIdsFilter);
                 const tr = state.progress.tracks.find(
                   t => t.tribunal === unit.tribunal && t.tipo === step.tipo && (t.monId ?? null) === (monIdAtual ?? null),
                 );
