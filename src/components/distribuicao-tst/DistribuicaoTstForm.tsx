@@ -1704,7 +1704,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               </Select>
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("tema", form.tema))}>
-              <Label className="flex items-center">Tema IRR<ReqMark /> <IaBadge field="tema" value={form.tema} /></Label>
+              <Label className="flex items-center">Tema IRR <IaBadge field="tema" value={form.tema} /></Label>
               <Input value={form.tema || ""} onChange={e => set("tema", e.target.value)} />
             </div>
             <div className={cn("space-y-2 p-2 -m-2", fieldClass("execucao", form.execucao))}>
@@ -1979,7 +1979,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               <Input value={bennerExtra.situacao_processo || ""} onChange={e => setExtra("situacao_processo", e.target.value)} />
             </div>
             <div className={cn("space-y-2 p-2 -m-2", iaClass("chance_exito", bennerExtra.chance_exito))}>
-              <Label className="flex items-center">Chance de Êxito (geral)<ReqMark /> <IaBadge field="chance_exito" value={bennerExtra.chance_exito} /></Label>
+              <Label className="flex items-center">Chance de Êxito (geral) <IaBadge field="chance_exito" value={bennerExtra.chance_exito} /></Label>
               <Select value={bennerExtra.chance_exito || "__none__"} onValueChange={v => setExtra("chance_exito", v === "__none__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>

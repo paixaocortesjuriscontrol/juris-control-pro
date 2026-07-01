@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, Trash2 } from "lucide-react";
+import { X, Trash2 } from "lucide-react";
 
 interface Props {
   value: string | null | undefined;
@@ -136,9 +136,6 @@ export function MultiTipoRecurso({ value, onChange }: Props) {
         );
       })}
       <div className="flex items-center gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={add} className="gap-1">
-          <Plus className="h-3 w-3" /> Adicionar tipo de recurso
-        </Button>
         {tipos.some((t) => t.trim()) && (
           <Button
             type="button"

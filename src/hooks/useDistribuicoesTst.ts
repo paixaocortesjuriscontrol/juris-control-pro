@@ -828,6 +828,19 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
   const filtersKey = JSON.stringify(filters);
   useEffect(() => { setPage(1); }, [filtersKey]);
 
+  // Sempre atualizar as pendências quando o advogado voltar para a página
+  // (troca de aba, foco na janela ou retorno via SPA re-mount).
+  useEffect(() => {
+    const onFocus = () => { fetchDados(); };
+    const onVisibility = () => { if (document.visibilityState === "visible") fetchDados(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [fetchDados]);
+
   const saveDado = async (dado: DistribuicaoTstInsert, id?: string): Promise<boolean | string> => {
     const payload = distribuicaoToBenner(dado);
     const shouldPersistResponsaveis = Array.isArray(dado.responsaveis_ids);
