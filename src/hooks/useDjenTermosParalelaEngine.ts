@@ -1557,17 +1557,18 @@ async function processarTermoEmTribunal(
           // instabilidade via retries por página). Se vier 0, cai no fallback
           // por OAB abaixo (se aplicável).
         }
-        // Fallback OAB: somente se a busca por nome veio vazia E temos OAB+UF
-        // específica (UF=TODAS não é aceita pela API com numeroOab sozinho).
+        // Fallback OAB: se a busca por nome veio vazia, tentar OAB/UF quando
+        // houver UF específica ou quando for possível inferir UF pelo tribunal
+        // estadual (ex.: TJDFT => OAB DF). Isso cobre casos em que o PJE não
+        // devolve a publicação por nomeAdvogado, mas devolve por numeroOab+ufOab.
         const veioVazio = !respPrincipal || (respPrincipal.items?.length || 0) === 0;
-        if (
-          !signal.aborted &&
-          veioVazio &&
-          oab && oab.length >= 3 &&
-          uf && uf !== 'TODAS' && /^[A-Z]{2}$/.test(uf)
-        ) {
+        const ufsFallback = veioVazio && oab && oab.length >= 3
+          ? ufsOabFallbackParaTribunal(tribunal, uf)
+          : [];
+        if (!signal.aborted && ufsFallback.length > 0) {
           await abortableDelay(800, signal);
-          if (!signal.aborted) {
+          for (const ufFallback of ufsFallback) {
+            if (signal.aborted) break;
             const paramsOab = {
               tipo: 'advogado',
               dataInicio: diaYmd,
@@ -1575,13 +1576,17 @@ async function processarTermoEmTribunal(
               pageSize: 50,
               siglaTribunal: tribunal,
               oab,
-              uf,
+              uf: ufFallback,
             } as any;
             try {
-              await executarBusca(paramsOab, { ...matchMeta, __advogadoOabFallback: true });
+              await executarBusca(paramsOab, {
+                ...matchMeta,
+                __advogadoOabFallback: true,
+                __advogadoOabFallbackUf: ufFallback,
+              });
             } catch (e: any) {
               if (e?.name === 'AbortError') throw e;
-              console.warn(`[DJEN Paralela][${tribunal}] Fallback OAB advogado falhou:`, e?.message || e);
+              console.warn(`[DJEN Paralela][${tribunal}] Fallback OAB advogado ${ufFallback} falhou:`, e?.message || e);
             }
           }
         }
