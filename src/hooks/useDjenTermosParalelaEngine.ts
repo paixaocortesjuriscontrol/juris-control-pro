@@ -2289,32 +2289,12 @@ async function executarLoop(
     const usandoPoolVps = viasProxy.length > 0;
 
     // ------------------------------------------------------------------
-    // MAPEAMENTO FIXO tribunal/termo → VPS (espelha DJEN Servidor)
-    // Cada WorkUnit é casada a UMA `viaId` de forma determinística
-    // (hash da unitKey). Workers só consomem unidades da sua VPS.
-    // Isso elimina a rotação de chips por card e faz com que resumir
-    // um checkpoint reatribua a MESMA VPS para a mesma unidade.
+    // FILA COMPARTILHADA (espelha DJEN Servidor):
+    // qualquer worker/VPS livre pega a próxima unidade da banda atual.
+    // Uma vez que a VPS pega a unit, ela processa até o fim SEM rotação
+    // (fallbackToPool=false garante isso). Assim nenhuma VPS fica ociosa
+    // enquanto houver unidades pendentes, e cada card fica com 1 VPS só.
     // ------------------------------------------------------------------
-    const hashStr = (s: string) => {
-      let h = 0;
-      for (let i = 0; i < s.length; i++) {
-        h = ((h << 5) - h) + s.charCodeAt(i);
-        h |= 0;
-      }
-      return Math.abs(h);
-    };
-    const unitKeyOf = (u: WorkUnit) => {
-      const parts = u.steps.flatMap((st) =>
-        st.monIds.map((m) => `${st.tipo}|${u.tribunal}|${m ?? ''}`),
-      );
-      return parts.join('#');
-    };
-    const viasCount = vias.length;
-    for (const banda of bands) {
-      for (const u of banda) {
-        u.viaId = vias[hashStr(unitKeyOf(u)) % viasCount].id;
-      }
-    }
 
     // Concorrência efetiva = mín(nº vias, nº unidades pendentes).
     const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, totalUnidadesPendentes || 1));
