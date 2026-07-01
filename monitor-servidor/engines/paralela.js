@@ -940,17 +940,10 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
       if (signal?.aborted) throw new Error("cancelado");
       const termoBusca = termoParteParaBusca(nomeParte);
       const params = { ...baseParams(mon, dia, tribunal), nomeParte: termoBusca };
-      let items = await buscarPaginado(slot, params, signal);
-      // Espelha Browser (useDjenTermosParalelaEngine.ts:1311-1320):
-      // a API PJE Comunica devolve listagem vazia intermitentemente sem
-      // erro HTTP. Refaz a MESMA chamada uma única vez após 600ms (paridade
-      // com o Browser).
-      if (!signal?.aborted && items.length === 0) {
-        await delay(600, signal);
-        if (!signal?.aborted) {
-          items = await buscarPaginado(slot, params, signal);
-        }
-      }
+      // Sem 2ª passada em resultado vazio: buscarPaginado já tolera
+      // instabilidade internamente (retries por página + streaks). Vazio aqui
+      // é ausência real.
+      const items = await buscarPaginado(slot, params, signal);
       for (const it of items) it.__matchedByNomeParte = true;
       results.push(...items);
       if (PARTE_OR_DELAY_MS > 0) await delay(PARTE_OR_DELAY_MS, signal);
@@ -958,16 +951,10 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
     return results;
   }
   const params = baseParams(mon, dia, tribunal);
+  // Sem 2ª passada em resultado vazio (buscarPaginado já cobre instabilidade
+  // via retries por página). Se vier 0, o fallback por OAB abaixo trata o
+  // caso de advogado com OAB+UF específica.
   let items = await buscarPaginado(slot, params, signal);
-  // Espelha Browser (useDjenTermosParalelaEngine.ts:1354-1383):
-  // se 1ª passada veio vazia, espera 600ms e refaz a MESMA chamada uma vez
-  // (paridade com o Browser).
-  if (!signal?.aborted && items.length === 0 && tipo !== "processo") {
-    await delay(600, signal);
-    if (!signal?.aborted) {
-      items = await buscarPaginado(slot, params, signal);
-    }
-  }
   // Regra nova: fallback OAB. Se a busca primária por nomeAdvogado veio vazia
   // E temos OAB + UF específica, fazemos UMA segunda chamada por OAB+UF e
   // marcamos cada item com __advogadoOabFallback para que a validação posterior
