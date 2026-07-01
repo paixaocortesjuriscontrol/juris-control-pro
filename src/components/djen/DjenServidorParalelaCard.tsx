@@ -484,6 +484,30 @@ export function DjenServidorParalelaCard() {
               <span>❌ Descartadas: <strong>{descartadas}</strong></span>
               {falhas > 0 && <span>⚠️ Falhas: <strong className="text-destructive">{falhas}</strong></span>}
             </div>
+            {(() => {
+              // Coleta VPS únicas efetivamente executando shards agora, a partir dos tracks
+              const labels = new Set<string>();
+              for (const t of tracks) {
+                if (t.status !== "executando" || !t.via) continue;
+                if (t.via.multiplas && Array.isArray(t.via.labels)) {
+                  for (const l of t.via.labels) if (l) labels.add(String(l));
+                } else if (t.via.label) {
+                  labels.add(String(t.via.label));
+                }
+              }
+              const arr = Array.from(labels);
+              if (arr.length === 0) return null;
+              return (
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                  <span className="text-[11px] text-muted-foreground">VPS em execução ({arr.length}):</span>
+                  {arr.map((l) => (
+                    <Badge key={l} variant="outline" className="text-[10px] gap-1 font-mono border-[hsl(var(--area-civil))]/40 text-[hsl(var(--area-civil))] bg-[hsl(var(--area-civil))]/10">
+                      <Wifi className="h-3 w-3" /> {l}
+                    </Badge>
+                  ))}
+                </div>
+              );
+            })()}
             {progress?.atual?.label && <p className="text-xs text-muted-foreground italic pt-1">Executando: {progress.atual.label}</p>}
             {erroVisivel && <p className="text-xs text-destructive italic pt-1">{erroVisivel}</p>}
           </div>
