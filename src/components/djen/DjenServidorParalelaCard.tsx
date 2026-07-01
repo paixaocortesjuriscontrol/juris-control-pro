@@ -575,9 +575,19 @@ export function DjenServidorParalelaCard() {
                         <Badge variant="outline" className="text-xs capitalize">{track.status}</Badge>
                         {track.tribunal && <span className="text-[11px] truncate max-w-[40ch] opacity-80" title={track.label}>{track.label}</span>}
                         {track.status === "executando" && <Loader2 className="h-3 w-3 animate-spin" />}
-                        <Badge variant="outline" className="text-[10px] gap-1 font-mono border-primary/50 text-primary bg-primary/10">
-                          <Server className="h-3 w-3" /> VPS
-                        </Badge>
+                        {track.status === "executando" && track.via?.multiplas && Array.isArray(track.via?.labels) && track.via.labels.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {track.via.labels.map((l) => (
+                              <Badge key={l} variant="outline" className="text-[10px] gap-1 font-mono border-primary/50 text-primary bg-primary/10">
+                                <Server className="h-3 w-3" /> {l}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] gap-1 font-mono border-primary/50 text-primary bg-primary/10">
+                            <Server className="h-3 w-3" /> {track.status === "executando" ? (track.via?.label || "VPS") : "VPS"}
+                          </Badge>
+                        )}
                       </div>
                       <div className="text-xs tabular-nums whitespace-nowrap">{track.current ?? (pct === 100 ? 1 : 0)}/{track.total ?? 1} • {pct}%</div>
                     </div>
