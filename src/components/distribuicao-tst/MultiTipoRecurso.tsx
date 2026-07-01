@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { X } from "lucide-react";
@@ -75,14 +74,6 @@ export function MultiTipoRecurso({ value, onChange }: Props) {
   const remove = (idx: number) => {
     const next = tipos.filter((_, i) => i !== idx);
     commit(next.length ? next : [""]);
-  };
-
-  const limparTudo = () => {
-    commit([""]);
-  };
-
-  const add = () => {
-    commit([...tipos, ""]);
   };
 
   return (
