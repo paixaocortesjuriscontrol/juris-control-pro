@@ -1459,20 +1459,13 @@ async function processarTermoEmTribunal(
       for (const termoParte of termosDeParte(mon)) {
         if (signal.aborted) break;
         const paramsParte = { ...baseParams, nomeParte: termoParte };
-        let resp = await executarBusca(
+        const resp = await executarBusca(
           paramsParte,
           { __matchedByNomeParte: true, __nomeParteBusca: termoParte },
         );
-        if (!signal.aborted && resp.items.length === 0) {
-          await abortableDelay(600, signal);
-          if (!signal.aborted) {
-            console.warn(`[DJEN Paralela][${tribunal}] Parte "${termoParte}": 0 resultados na 1ª passada — refazendo busca.`);
-            resp = await executarBusca(
-              paramsParte,
-              { __matchedByNomeParte: true, __nomeParteBusca: termoParte },
-            );
-          }
-        }
+        // Sem 2ª passada em resultado vazio: o cliente paginado já tolera
+        // instabilidade internamente (retries por página, streak de vazias).
+        // Se chegou aqui com 0 itens, é ausência real na API.
         console.log(`[DJEN Paralela][${tribunal}] Busca por parte termo="${termoParte}": ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
         await abortableDelay(CONFIG.delay_between_termos_or, signal);
       }
@@ -1498,18 +1491,9 @@ async function processarTermoEmTribunal(
             nomeAdvogado: nome,
           } as any;
           respPrincipal = await executarBusca(paramsNome, matchMeta);
-          // A API PJE Comunica também pode devolver vazio intermitente em uma
-          // busca específica de advogado (principal ou termos_or). Antes do
-          // fallback por OAB, refazemos a mesma busca por nome uma vez, igual
-          // ao Servidor, para não perder um termo OR quando outro termo já
-          // trouxe resultado e impediu o retry global no fim da função.
-          if (!signal.aborted && (respPrincipal.items?.length || 0) === 0) {
-            await abortableDelay(600, signal);
-            if (!signal.aborted) {
-              console.warn(`[DJEN Paralela][${tribunal}] Advogado "${nome}": 0 resultados na 1ª passada — refazendo busca por nome.`);
-              respPrincipal = await executarBusca(paramsNome, matchMeta);
-            }
-          }
+          // Sem 2ª passada em resultado vazio (cliente paginado já tolera
+          // instabilidade via retries por página). Se vier 0, cai no fallback
+          // por OAB abaixo (se aplicável).
         }
         // Fallback OAB: somente se a busca por nome veio vazia E temos OAB+UF
         // específica (UF=TODAS não é aceita pela API com numeroOab sozinho).
