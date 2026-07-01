@@ -2242,7 +2242,18 @@ async function executarLoop(
     // Workers só consomem da próxima banda quando a banda anterior está
     // 100% drenada (sem unidades pendentes e sem unidades em processamento).
     type UnitStep = { tipo: WorkerTipo; monIds: (string | null)[] };
-    type WorkUnit = { band: 0 | 1 | 2 | 3; tribunal: string; steps: UnitStep[] };
+    type WorkUnit = {
+      band: 0 | 1 | 2 | 3;
+      tribunal: string;
+      steps: UnitStep[];
+      /**
+       * Quando presente, indica que a unidade é um sub-lote de termos: o
+       * `chunkKey` é usado como monId sintético na track (ex.: `__chunk_1_3`)
+       * e `chunkMonIds` traz os UUIDs reais dos monitoramentos a processar.
+       */
+      chunkKey?: string;
+      chunkMonIds?: string[];
+    };
 
     const ORDEM_TIPOS_PRINCIPAIS: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave'];
     const TRIBUNAIS_BAND1 = ['STF', 'STJ'];
@@ -2266,16 +2277,36 @@ async function executarLoop(
       }
     }
 
-    // Helper para bandas 1 e 2: cria UMA unidade independente por (tribunal, tipo).
-    // Assim, diferentes tipos do mesmo tribunal podem rodar em paralelo em workers
-    // distintos quando há slot livre, em vez de serem serializados num único worker.
+    // Helper para bandas 1 e 2: cria unidades independentes por (tribunal, tipo)
+    // com SUB-LOTES de até CHUNK_MAX termos. Assim, um TRF3/Parte com 8 termos
+    // vira 8 unidades paralelas (uma por VPS) em vez de 1 unidade serial.
     // A ordem de empilhamento preserva a prioridade parte → advogado → palavra-chave.
     const pushUnitsPorTipo = (fila: WorkUnit[], band: 1 | 2, trib: string) => {
       for (const tipo of ORDEM_TIPOS_PRINCIPAIS) {
         const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
         if (!tribsDoTipo.includes(trib)) continue;
-        if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
-        fila.push({ band, tribunal: trib, steps: [{ tipo, monIds: [null] }] });
+        const mons = (monsPorTipo.get(tipo) || []).filter((m) => {
+          const t = expandirTribunaisDoMon(m.tribunais);
+          return t.length === 0 || t.includes(trib);
+        });
+        if (mons.length === 0) continue;
+        const chunks = chunkArray(mons, CHUNK_MAX);
+        if (chunks.length <= 1) {
+          if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
+          fila.push({ band, tribunal: trib, steps: [{ tipo, monIds: [null] }] });
+        } else {
+          chunks.forEach((slice, idx) => {
+            const cKey = makeChunkKey(idx, chunks.length);
+            if (unidadesJaConcluidas.has(trackKey(tipo, trib, cKey))) return;
+            fila.push({
+              band,
+              tribunal: trib,
+              steps: [{ tipo, monIds: [cKey] }],
+              chunkKey: cKey,
+              chunkMonIds: slice.map((m) => m.id),
+            });
+          });
+        }
       }
     };
 
