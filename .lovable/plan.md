@@ -1,54 +1,50 @@
-## Diagnóstico
+## Correção da execução das 6h + otimizações de banco
 
-Hoje a execução das 06:00 levou **3h17min (11.818s)** com 10 VPS habilitadas — o dobro/triplo do normal. Investigando o motor, achei o gargalo estrutural:
+### Diagnóstico da execução das 6h BRT
 
-### O que está errado
+- **Execução das 09:00 UTC (6h BRT) — `6cbfa546…`**: `falhou` com "Heartbeat parado (382s) — worker/VPS derrubado". 95/205 unidades concluídas. Watchdog matou porque uma VPS travou por mais de 6 min.
+- **Execução iniciada às 09:39 BRT — `4b39d4a3…`**: ainda `executando` há >1h. Todas as 10 VPS ocupadas, mas gargalo em **TST parte 7/118** e **TRT10 parte 11/83** rodando em série numa VPS só.
 
-Em `src/hooks/useDjenTermosParalelaEngine.ts` cada monitoramento com lista **OR** (ex.: Santander com 5–6 nomes de advogado) é despachado como **UMA única unidade** amarrada a **UMA única VPS**. Dentro dessa unidade os nomes rodam em série, com **`delay_between_termos_or = 1800 ms`** entre cada um (linha 149, laço 1530-1546). Enquanto isso, 8 das 10 VPSs ficam ociosas esperando.
+### O que vou implementar
 
-Efeito prático para Santander advogado (6 nomes) em Banda 2 (27 tribunais):
-- Cada unidade = 6 chamadas × ≥1,8 s de atraso + latência da API = ~30-60s de trabalho travado numa única VPS.
-- 27 tribunais × 3 tipos = ~81 unidades pesadas → apenas 10 VPSs para engolir.
-- Somando `delay_between_terms = 2500 ms` entre termos do mesmo tribunal, cada worker gasta minutos só em `sleep`.
+#### 1. Motor do servidor (`monitor-servidor/engines/paralela.js`)
+- Quebrar unidades grandes em sub-lotes de até 15 termos (mantendo a chave `tipo+tribunal`), para TST/TRT10 rodarem em várias VPS simultaneamente.
+- Regras de busca continuam intactas: parte só valida partes, advogado só valida advogados, palavra-chave só valida conteúdo. Sem misturar Browser/Servidor.
+- Reduzir frequência de flushes de `progresso` em `execucoes_servidor` (hoje 34.464 updates numa janela recente). Escrever no máximo 1x a cada 3s por unidade — corta ~70% dos UPDATEs.
+- Fazer os inserts em `publicacoes_djen_servidor` em lote com `.upsert([...])` de N linhas em vez de 1-a-1 (hoje ~18.000 inserts unitários somando ~50 min de tempo total de DB).
 
-Isso confirma o que vejo na tela: várias linhas "Executando" na mesma VPS (Google VPS 1) e várias em "Pendente / Aguardando slot..." — o problema não é falta de VPS, é **granularidade grande demais das unidades**.
+#### 2. Watchdog e retomada
+- Aumentar tolerância de heartbeat em `reaper_execucoes_servidor_travadas` de 6 → 10 min.
+- Quando reaper marcar `falhou`, disparar automaticamente nova execução aproveitando o checkpoint da coordenação (hoje só o botão "Destravar" faz).
 
-Ponto secundário: `HOST_BUCKET_LIMITS['pje-comunica'] = 1` (linha 176) só é lido para exibir "concorrência" no cabeçalho — não gate a execução. Ok, mas o valor sinalizado enganava.
+#### 3. UI
+- No `DjenServidorParalelaCard`, quando existir execução recente `falhou`, mostrar alerta "Execução das 06:00 falhou (heartbeat) — 95/205 concluídas — Retomar do checkpoint".
 
-## Plano de correção
+#### 4. Índices e banco — cirúrgico
 
-### 1. Explodir OR de advogado em unidades independentes
-No dispatcher (bandas 0/1/2), em vez de empurrar `[{ tipo: 'advogado', monIds: [m.id] }]` como um único step, gerar **uma sub-unidade por nome OR**:
-- Para cada monitoramento advogado com `termos_or`: criar 1 unidade para o nome principal + 1 unidade por termo OR (mesmo `tribunal`, mesmo `tipo`, `monId` do dono, mas com um `nomeOverride`/`oabOverride`).
-- Cada sub-unidade vira uma linha independente na tela e é puxada por uma VPS diferente — o Santander de 6 nomes passa a rodar em paralelo em até 6 VPSs em vez de 1.
-- Consolidação (dedup, persistência, contadores) continua por `monitoramento_id`, como já é hoje.
+**Adicionar** (queries quentes hoje sem índice ideal):
+- `execucoes_servidor (tipo, created_at DESC)` — a listagem "últimas execuções por tipo" tem 25.678 chamadas / 540s totais e faz `Seq/Sort` porque só existe índice em `status,agendado_para`.
+- `processos (coordenacao_id, advogado_responsavel_id)` — 28.117 chamadas / 478s totais.
 
-### 2. Reduzir a espera intra-unidade
-Como cada VPS tem IP próprio (o rate-limit é por IP, não global):
-- `delay_between_termos_or`: 1800 → **400 ms** (mesmo racional já aplicado a `delay_between_pages` na paridade com o servidor).
-- `delay_between_terms`: 2500 → **800 ms**.
+**Remover** (redundantes, encarecem cada INSERT em `publicacoes_djen_servidor` — a tabela mais escrita hoje):
+- `idx_pub_djen_servidor_coord` — prefixo já coberto por `idx_pub_djen_servidor_coord_data_dispo`.
+- `idx_pub_djen_servidor_data_dispo` — prefixo já coberto por `idx_pub_djen_servidor_data_dispo_created`.
+- `idx_pub_djen_servidor_data` (`data_publicacao`) — não aparece em nenhuma query quente; consultas de análise usam `data_disponibilizacao`.
 
-### 3. Espelhar no servidor
-`monitor-servidor/engines/paralela.js` tem exatamente a mesma serialização de OR dentro de `buscarTermo`. Aplicar as mesmas duas mudanças:
-- 1 unidade por termo OR na fila do worker principal.
-- Delays reduzidos com o mesmo racional.
+Cada INSERT hoje atualiza ~10 índices; tirando 3 redundantes o custo de escrita cai proporcionalmente, o que também alivia o `max=5,5s` observado nos INSERTs.
 
-### 4. Corrigir o rótulo "concorrência"
-Substituir a inicialização em `state.progress.concorrencia = HOST_BUCKET_LIMITS['pje-comunica']` (linha 308) por `vias.length` (nº de VPS ativas), que é o valor real.
+**Confirmação a fazer antes de dropar**: rodar `EXPLAIN (ANALYZE, BUFFERS)` numa amostra da query de leitura pertinente antes/depois via `read_query` para garantir que o índice composto absorve.
 
-## Estimativa de ganho
+#### 5. O que não vou tocar
+- Motor Browser (Local).
+- Regras de validação parte/advogado/palavra-chave.
+- Constraint única `(coordenacao_id, id_djen)`.
+- Tabelas do Kurier, DJEN local e comparador.
 
-- Santander advogado em Banda 2: de ~10-15 min (serial nas 27 UFs) para ~2-3 min (paralelo real entre 10 VPSs).
-- Execução total esperada: sair de 40-60 min (dia normal) para ~15-25 min. Dias com pico de 3h caem para <40 min.
+### Ordem de execução após aprovação
 
-## O que NÃO mexer
-
-- Regras de dedup, validação parte/advogado, isolamento por coordenação.
-- Ordem das bandas (TST → STF/STJ → outros → processo).
-- Checkpoint / retomada.
-- Servidor continua isolado do Browser em `publicacoes_djen`.
-
-## Arquivos afetados
-
-- `src/hooks/useDjenTermosParalelaEngine.ts` (dispatcher de bandas, config de delays, rótulo de concorrência).
-- `monitor-servidor/engines/paralela.js` (mesma explosão de OR + delays).
+1. Migration: adicionar os 2 índices novos e dropar os 3 redundantes.
+2. `monitor-servidor/engines/paralela.js`: sub-lotes + throttle de progresso + upsert em lote.
+3. Função `reaper_execucoes_servidor_travadas`: 10 min + auto-retomada.
+4. UI do card do servidor: banner de execução falhada.
+5. Rodar EXPLAIN antes/depois para provar que a leitura continua rápida.
