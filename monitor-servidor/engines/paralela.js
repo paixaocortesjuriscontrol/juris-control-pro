@@ -1150,6 +1150,10 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
         const { data: conflictRows } = await conflictQuery.limit(5);
         if (conflictRows && conflictRows.length > 0) {
           stats.duplicatas++;
+          if (idDjen && conflictRows[0]?.id) existingByIdDjen.set(String(idDjen), conflictRows[0].id);
+          if (execucaoId && conflictRows[0]?.id) {
+            execLinks.push({ publicacao_id: conflictRows[0].id, execucao_id: execucaoId, tipo_engine: "paralela" });
+          }
           logDebug?.("paralela.duplicata_constraint_confirmada", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, constraint: error.details || msg, conflictRows });
         } else {
           stats.descartadas++;
