@@ -139,11 +139,13 @@ const aplicarFiltroDataPublicacaoHojeBrt = <T extends any>(query: T, inicioUtc: 
     const inicioDiaUtc = `${diaBrt}T00:00:00Z`;
     const fimDiaUtc = `${diaBrt}T23:59:59.999Z`;
     return (query as any).or(
-      `and(data_publicacao.gte.${inicioUtc},data_publicacao.lte.${fimUtc}),` +
-      `and(data_publicacao.gte.${inicioDiaUtc},data_publicacao.lte.${fimDiaUtc}),` +
-      `and(data_publicacao.is.null,data_disponibilizacao.gte.${inicioUtc},data_disponibilizacao.lte.${fimUtc}),` +
-      `and(data_publicacao.is.null,data_disponibilizacao.gte.${inicioDiaUtc},data_disponibilizacao.lte.${fimDiaUtc}),` +
-      `and(data_publicacao.is.null,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc})`
+      `and(fonte.eq.kurier,data_disponibilizacao.gte.${inicioDiaUtc},data_disponibilizacao.lte.${fimDiaUtc}),` +
+      `and(fonte.eq.kurier,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc}),` +
+      `and(fonte.neq.kurier,data_publicacao.gte.${inicioUtc},data_publicacao.lte.${fimUtc}),` +
+      `and(fonte.neq.kurier,data_publicacao.gte.${inicioDiaUtc},data_publicacao.lte.${fimDiaUtc}),` +
+      `and(fonte.neq.kurier,data_disponibilizacao.gte.${inicioUtc},data_disponibilizacao.lte.${fimUtc}),` +
+      `and(fonte.neq.kurier,data_disponibilizacao.gte.${inicioDiaUtc},data_disponibilizacao.lte.${fimDiaUtc}),` +
+      `and(fonte.neq.kurier,data_publicacao.is.null,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc})`
     ) as T;
   }
   let q: any = query;

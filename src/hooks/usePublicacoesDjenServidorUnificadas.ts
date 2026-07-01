@@ -77,8 +77,9 @@ const aplicarFiltroDataPublicacaoHojeBrt = <T extends any>(query: T, inicioUtc: 
     const inicioDiaUtc = `${diaBrt}T00:00:00Z`;
     const fimDiaUtc = `${diaBrt}T23:59:59.999Z`;
     return (query as any).or(
-      // Kurier: dia de captura (created_at) em BRT — cobre atraso (disp anterior) e adiantamento (pub futura)
-      `and(fonte.eq.kurier,created_at.gte.${inicioDiaUtc},created_at.lte.${fimDiaUtc}),` +
+      // Kurier: usa a data de disponibilização; se ela não existir, cai para captura em BRT.
+      `and(fonte.eq.kurier,data_disponibilizacao.gte.${inicioDiaUtc},data_disponibilizacao.lte.${fimDiaUtc}),` +
+      `and(fonte.eq.kurier,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc}),` +
       // Demais fontes: data_publicacao ou data_disponibilizacao dentro do dia BRT
       `and(fonte.neq.kurier,data_publicacao.gte.${inicioUtc},data_publicacao.lte.${fimUtc}),` +
       `and(fonte.neq.kurier,data_publicacao.gte.${inicioDiaUtc},data_publicacao.lte.${fimDiaUtc}),` +
