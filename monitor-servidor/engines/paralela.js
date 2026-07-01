@@ -1001,7 +1001,7 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
           dataDisponibilizacaoFim: dia,
           nomeAdvogado: normalizeForApi(parsed.nome),
         };
-        await delay(1800, signal);
+        if (TERMOS_OR_DELAY_MS > 0) await delay(TERMOS_OR_DELAY_MS, signal);
         if (signal?.aborted) break;
         try {
           let orItems = await buscarPaginado(slot, paramsOr, signal);
