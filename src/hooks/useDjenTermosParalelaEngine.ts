@@ -2350,14 +2350,14 @@ async function executarLoop(
     let bandAtual = 0;
     const emProcessamentoPorBand = [0, 0, 0, 0];
 
-    const pickNextUnit = (): WorkUnit | null => {
-      // Sem trava entre bandas: pega a unidade da banda de maior prioridade
-      // que tiver itens. Workers ociosos não ficam aguardando bandas anteriores
-      // drenarem (espelha monitor-servidor/engines/paralela.js).
+    const pickNextUnit = (viaId: string): WorkUnit | null => {
+      // Cada worker só consome unidades cuja `viaId` bate com a sua VPS
+      // (mapeamento fixo tribunal/termo → VPS). Prioridade por banda mantida.
       for (let b = 0; b < bands.length; b++) {
-        if (bands[b].length > 0) {
-          bandAtual = b; // apenas para label/progresso
-          return bands[b].shift()!;
+        const idx = bands[b].findIndex((u) => u.viaId === viaId);
+        if (idx >= 0) {
+          bandAtual = b;
+          return bands[b].splice(idx, 1)[0];
         }
       }
       return null;
@@ -2370,7 +2370,7 @@ async function executarLoop(
       const t0 = Date.now();
       console.log(`[DJEN Paralela][worker ${via.label}] ▶ iniciado`);
       while (!signal.aborted) {
-        const unit = pickNextUnit();
+        const unit = pickNextUnit(via.id);
         if (!unit) {
           if (emProcessamentoPorBand.some((n) => n > 0)) {
             await new Promise((r) => setTimeout(r, 500));
