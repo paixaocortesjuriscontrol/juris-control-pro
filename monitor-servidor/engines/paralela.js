@@ -3,6 +3,7 @@
 
 const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
+const { randomUUID } = require("crypto");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
 const ENGINE_VERSION = "2026-07-01-sublotes-8";
@@ -1037,6 +1038,23 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
   const tribunaisMon = Array.isArray(mon.tribunais) ? expandirTribunais(mon.tribunais) : [];
   const logDebug = typeof mon.__log === "function" ? mon.__log : null;
   const seenRunKeys = new Set();
+  const coordenacaoIdMon = mon.coordenacao_id || null;
+  const existingByIdDjen = new Map();
+  const execLinks = [];
+  if (coordenacaoIdMon) {
+    const idsDjen = Array.from(new Set((pubs || []).map((pub) => getIdDjen(pub)).filter(Boolean)));
+    for (let i = 0; i < idsDjen.length; i += 500) {
+      const chunk = idsDjen.slice(i, i + 500);
+      const { data: existentes } = await sb
+        .from("publicacoes_djen_servidor")
+        .select("id, id_djen")
+        .eq("coordenacao_id", coordenacaoIdMon)
+        .in("id_djen", chunk);
+      for (const row of existentes || []) {
+        if (row?.id_djen && row?.id) existingByIdDjen.set(String(row.id_djen), row.id);
+      }
+    }
+  }
   for (const pub of pubs) {
     const conteudo = getConteudo(pub);
     const metadata = metadataFromRaw(pub);
@@ -1044,7 +1062,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     const dataDisponibilizacao = normalizarDataDispBrt(getDataDisponibilizacao(pub, dia));
     const processoNumero = extractProcesso(pub, conteudo);
     const hashConteudo = generatePublicacaoHash(conteudo, dataDisponibilizacao, processoNumero, idDjen);
-    const coordenacaoId = mon.coordenacao_id || null;
+    const coordenacaoId = coordenacaoIdMon;
     const runKey = idDjen ? `id_djen:${idDjen}` : `row:${Math.random().toString(36).slice(2)}:${hashConteudo}`;
     if (seenRunKeys.has(runKey)) {
       stats.duplicatas++;
@@ -1085,27 +1103,21 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     let exists = null;
     let existsReason = null;
     if (idDjen && coordenacaoId) {
-      const { data } = await sb
-        .from("publicacoes_djen_servidor")
-        .select("id")
-        .eq("coordenacao_id", coordenacaoId)
-        .eq("id_djen", idDjen)
-        .maybeSingle();
-      exists = data || null;
+      const existingId = existingByIdDjen.get(String(idDjen));
+      exists = existingId ? { id: existingId } : null;
       if (exists) existsReason = "same_coordenacao_id_djen";
     }
     if (exists) {
       stats.duplicatas++;
       logDebug?.("paralela.duplicata_existente", { reason: existsReason, monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, existing: exists });
       if (execucaoId) {
-        await sb.from("publicacoes_djen_servidor_execucoes").upsert(
-          { publicacao_id: exists.id, execucao_id: execucaoId, tipo_engine: "paralela" },
-          { onConflict: "publicacao_id,execucao_id", ignoreDuplicates: true }
-        );
+        execLinks.push({ publicacao_id: exists.id, execucao_id: execucaoId, tipo_engine: "paralela" });
       }
       continue;
     }
+    const newId = randomUUID();
     const insertRow = {
+      id: newId,
       monitoramento_id: mon.id,
       coordenacao_id: coordenacaoId,
       hash_conteudo: hashConteudo,
@@ -1125,9 +1137,8 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     // upsert falha e a publicação válida acabava contabilizada como descartada.
     // Como já consultamos a duplicidade acima, o caminho correto é INSERT e,
     // se houver corrida, tratar 23505 como duplicata logo abaixo.
-    const insertQuery = sb.from("publicacoes_djen_servidor").insert(insertRow).select("id");
-    const { data: insertedRows, error } = await insertQuery;
-    const inserted = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
+    const insertQuery = sb.from("publicacoes_djen_servidor").insert(insertRow);
+    const { error } = await insertQuery;
     if (error) {
       const msg = String(error.message || "");
       const isConflict = error.code === "23505" || msg.includes("duplicate key");
@@ -1148,19 +1159,20 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
         stats.descartadas++;
         logDebug?.("paralela.insert_error", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, code: error.code, message: msg, details: error.details });
       }
-    } else if (!inserted?.id) {
-      stats.duplicatas++;
-      logDebug?.("paralela.upsert_ignorado", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo });
     } else {
       stats.novas++;
-      logDebug?.("paralela.nova_inserida", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, publicacaoId: inserted?.id || null });
-      if (execucaoId && inserted?.id) {
-        await sb.from("publicacoes_djen_servidor_execucoes").upsert(
-          { publicacao_id: inserted.id, execucao_id: execucaoId, tipo_engine: "paralela" },
-          { onConflict: "publicacao_id,execucao_id", ignoreDuplicates: true }
-        );
+      if (idDjen && coordenacaoId) existingByIdDjen.set(String(idDjen), newId);
+      logDebug?.("paralela.nova_inserida", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, publicacaoId: newId });
+      if (execucaoId) {
+        execLinks.push({ publicacao_id: newId, execucao_id: execucaoId, tipo_engine: "paralela" });
       }
     }
+  }
+  for (let i = 0; i < execLinks.length; i += 500) {
+    await sb.from("publicacoes_djen_servidor_execucoes").upsert(
+      execLinks.slice(i, i + 500),
+      { onConflict: "publicacao_id,execucao_id", ignoreDuplicates: true }
+    );
   }
   return stats;
 }
