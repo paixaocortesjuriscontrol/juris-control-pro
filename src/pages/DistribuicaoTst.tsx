@@ -939,7 +939,6 @@ export default function DistribuicaoTst() {
       let totalComPend = 0;
       for (const r of linhas) {
         const naoPrecisaFazer =
-          (r as any).transito_julgado === true ||
           (r as any).processo_outro_escritorio === true ||
           (r as any).segredo_justica === true;
         if (naoPrecisaFazer) continue;
@@ -2533,7 +2532,6 @@ export default function DistribuicaoTst() {
                   {mostrarPendencias && (() => {
                     const pend = getPendencias(d);
                     const naoPrecisaFazer =
-                      (d as any).transito_julgado === true ||
                       (d as any).processo_outro_escritorio === true ||
                       (d as any).segredo_justica === true;
                     return (
