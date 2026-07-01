@@ -5,7 +5,7 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-27-checkpoint-auto-resume";
+const ENGINE_VERSION = "2026-07-01-prioridade-original-wave";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -45,6 +45,40 @@ const delay = (ms, signal) => new Promise((resolve) => {
   }
   signal?.addEventListener?.("abort", done, { once: true });
 });
+
+function tribunalPriorityRank(tribunal) {
+  const t = String(tribunal || "").toUpperCase();
+  if (t === "TST") return 0;
+  if (t === "STF") return 1;
+  if (t === "STJ") return 2;
+  const trt = t.match(/^TRT(\d{1,2})$/);
+  if (trt) return 10 + Number(trt[1]);
+  const idx = TODOS_TRIBUNAIS.indexOf(t);
+  return idx >= 0 ? 100 + idx : 999;
+}
+
+function tipoPriorityRank(tipo) {
+  const idx = TIPO_ORDER.indexOf(String(tipo || ""));
+  return idx >= 0 ? idx : 99;
+}
+
+function isTribunalPrioritario(tribunal) {
+  const t = String(tribunal || "").toUpperCase();
+  return t === "TST" || t === "STF" || t === "STJ" || /^TRT\d{1,2}$/.test(t);
+}
+
+function comparePriorityUnits(a, b) {
+  const ia = a.item || a;
+  const ib = b.item || b;
+  // Wave scheduling: não deixa 30 shards de TST monopolizarem as 10 VPS.
+  // Primeiro roda o shard 0 de TST/STF/STJ/TRTs, depois shard 1 etc.
+  const shardA = Number(ia.shardIdx) || 0;
+  const shardB = Number(ib.shardIdx) || 0;
+  return (shardA - shardB)
+    || (tribunalPriorityRank(ia.tribunal) - tribunalPriorityRank(ib.tribunal))
+    || (tipoPriorityRank(ia.tipo) - tipoPriorityRank(ib.tipo))
+    || ((Number(ib.total) || 0) - (Number(ia.total) || 0));
+}
 
 function mapTipo(tipo) {
   if (tipo === "nome" || tipo === "geral") return "palavra-chave";
@@ -1236,9 +1270,8 @@ async function run({ sb, payload, log, job }) {
   // qualquer VPS. Cada shard mantém o mesmo cardKey (tipo|tribunal) para o
   // frontend continuar exibindo 1 card único agregado.
   const gruposOrdenados = Array.from(grouped.values()).sort((a, b) => {
-    const ta = TODOS_TRIBUNAIS.indexOf(a.tribunal);
-    const tb = TODOS_TRIBUNAIS.indexOf(b.tribunal);
-    return (ta - tb) || (TIPO_ORDER.indexOf(a.tipo) - TIPO_ORDER.indexOf(b.tipo));
+    return (tribunalPriorityRank(a.tribunal) - tribunalPriorityRank(b.tribunal))
+      || (tipoPriorityRank(a.tipo) - tipoPriorityRank(b.tipo));
   });
   const itens = [];
   for (const g of gruposOrdenados) {
@@ -1490,30 +1523,28 @@ async function run({ sb, payload, log, job }) {
     } catch (_) { /* swallow: heartbeat best-effort */ }
   }, 30_000);
 
-  // Agora cada item é (tipo, tribunal, monitoramento). Distribui em 4 bandas
-  // por prioridade de tribunal/tipo. Iterar `itens` (em vez de `byKey.get`) é
-  // necessário porque as keys passaram a incluir o monId.
-  const band0 = []; // TST principais
-  const band1 = []; // STF/STJ principais
-  const band2 = []; // demais tribunais principais
-  const band3 = []; // processo (qualquer tribunal)
+  // Prioridade original restaurada:
+  //   0) TST/STF/STJ/TRTs dos tipos principais
+  //   1) demais tribunais dos tipos principais
+  //   2) processo (qualquer tribunal)
+  // Antes, TST sozinho ocupava a banda 0 com dezenas de shards e só depois
+  // liberava STF/STJ/TRTs. Isso dava a sensação correta de "10 VPS ativas",
+  // mas atrasava o avanço global: o usuário via horas sem a priorização antiga.
+  const band0 = []; // TST/STF/STJ/TRTs principais
+  const band1 = []; // demais tribunais principais
+  const band2 = []; // processo (qualquer tribunal)
   for (const item of itens) {
     if (item.status === "concluido") continue;
     if (item.tipo === "processo") {
-      band3.push({ band: 3, item, monIds: item.monitoramentoIds });
-    } else if (item.tribunal === "TST" && MAIN_TIPOS.includes(item.tipo)) {
-      band0.push({ band: 0, item, monIds: item.monitoramentoIds });
-    } else if ((item.tribunal === "STF" || item.tribunal === "STJ") && MAIN_TIPOS.includes(item.tipo)) {
-      band1.push({ band: 1, item, monIds: item.monitoramentoIds });
-    } else if (MAIN_TIPOS.includes(item.tipo)) {
       band2.push({ band: 2, item, monIds: item.monitoramentoIds });
+    } else if (isTribunalPrioritario(item.tribunal) && MAIN_TIPOS.includes(item.tipo)) {
+      band0.push({ band: 0, item, monIds: item.monitoramentoIds });
+    } else if (MAIN_TIPOS.includes(item.tipo)) {
+      band1.push({ band: 1, item, monIds: item.monitoramentoIds });
     }
   }
-  const bands = [band0, band1, band2, band3];
-  // LPT scheduling: dentro de cada banda, processa primeiro as units mais
-  // pesadas (maior `total`). Evita cauda longa (uma unit grande sobrar por
-  // último enquanto todas as outras VPS estão ociosas).
-  for (const b of bands) b.sort((a, b2) => (Number(b2.item.total) || 0) - (Number(a.item.total) || 0));
+  const bands = [band0, band1, band2];
+  for (const b of bands) b.sort(comparePriorityUnits);
 
   // Acumula totais já vindos do checkpoint
   let totalNovas = 0, totalDescartadas = 0, totalDuplicatas = 0, totalErros = 0;
@@ -1525,7 +1556,7 @@ async function run({ sb, payload, log, job }) {
     }
   }
   let bandAtual = 0;
-  const inBand = [0, 0, 0, 0];
+  const inBand = [0, 0, 0];
   const pickNext = () => {
     // Sem trava entre bandas: pega o item da banda de maior prioridade
     // que ainda tenha itens pendentes. Workers livres não esperam mais
@@ -1541,7 +1572,7 @@ async function run({ sb, payload, log, job }) {
   };
 
   await flushProgresso(true);
-  log("paralela.pool", { vias: slots.length, totalItens: itens.length, bandas: { tst: band0.length, superiores: band1.length, outros: band2.length, processo: band3.length } });
+  log("paralela.pool", { vias: slots.length, totalItens: itens.length, bandas: { prioritarios: band0.length, outros: band1.length, processo: band2.length } });
 
   // === RETRY: refila falhas pendentes do mesmo dia BRT como units extras ===
   // Em vez do loop serial bloqueante de 1 VPS, injeta cada falha pendente
@@ -1580,10 +1611,9 @@ async function run({ sb, payload, log, job }) {
         };
         itens.push(syntheticItem);
         const unit = { item: syntheticItem, monIds: [monId] };
-        if (tribunal === "TST" && MAIN_TIPOS.includes(tipoMon)) { unit.band = 0; band0.push(unit); }
-        else if ((tribunal === "STF" || tribunal === "STJ") && MAIN_TIPOS.includes(tipoMon)) { unit.band = 1; band1.push(unit); }
-        else if (tipoMon === "processo") { unit.band = 3; band3.push(unit); }
-        else { unit.band = 2; band2.push(unit); }
+        if (isTribunalPrioritario(tribunal) && MAIN_TIPOS.includes(tipoMon)) { unit.band = 0; band0.push(unit); band0.sort(comparePriorityUnits); }
+        else if (tipoMon === "processo") { unit.band = 2; band2.push(unit); band2.sort(comparePriorityUnits); }
+        else { unit.band = 1; band1.push(unit); band1.sort(comparePriorityUnits); }
       }
     }
   } catch (e) {
