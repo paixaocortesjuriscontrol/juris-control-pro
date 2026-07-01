@@ -1317,7 +1317,11 @@ async function processarTribunalTrack(
         } catch (e: any) {
           if (e?.name === 'AbortError') break;
           failedGroups += 1;
-          ultimoErro = e?.message || String(e);
+          const msg = e?.message || String(e);
+          const upstream = /proxy_slot_timeout|upstream_status_5|http\s*5\d{2}|too many attempts|429/i.test(msg);
+          ultimoErro = upstream
+            ? `Upstream instável (${msg}) — termo NÃO será marcado como concluído; refeito no próximo ciclo/Retomar.`
+            : msg;
           console.warn(`[DJEN Paralela][${tribunal}] erro grupo:`, e?.message);
         }
 
