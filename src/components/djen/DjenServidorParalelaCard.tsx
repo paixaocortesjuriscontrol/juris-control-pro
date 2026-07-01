@@ -36,6 +36,7 @@ import {
   useConfiguracoesServidor,
   useEnfileirarManual,
   useExecucaoServidorAoVivo,
+  useDjenProxyPoolServidor,
   useTickAge,
   useWorkersServidor,
   type ProgressoItem,
@@ -117,6 +118,7 @@ export function DjenServidorParalelaCard() {
   const enfileirar = useEnfileirarManual();
   const cancelar = useCancelarExecucaoServidor();
   const { data: workers = [] } = useWorkersServidor();
+  const { data: proxyPool = [] } = useDjenProxyPoolServidor();
   const nowTick = useTickAge();
 
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
@@ -233,6 +235,19 @@ export function DjenServidorParalelaCard() {
   const workersBase = workersServidor.length > 0 ? workersServidor : workers;
   const workersOnline = workersBase.filter((w) => Date.now() - new Date(w.heartbeat_at).getTime() < 90_000);
   const currentWorker = workers.find((w) => w.current_execucao_id === exec?.id) || workersServidor.find((w) => w.status === "busy");
+  const proxyPoolAtivo = proxyPool.filter((slot) => slot.enabled && slot.pool_enabled_global !== false);
+  const viasEmUsoMap = new Map<string, { id?: string; label?: string }>();
+  tracks.forEach((track) => {
+    const via = track.via;
+    const key = via?.id || via?.label;
+    if (key) viasEmUsoMap.set(key, via);
+  });
+  (progress?.vias || []).forEach((via) => {
+    const key = via?.id || via?.label;
+    if (key) viasEmUsoMap.set(key, via);
+  });
+  const viasEmUso = Array.from(viasEmUsoMap.values());
+  const chamadasProcessadas = tracks.reduce((sum, track) => sum + (Number(track.current) || 0), 0);
 
   const handleHorariosChange = useCallback(async (proximos: string[]) => {
     if (!cfg) return;
@@ -300,10 +315,10 @@ export function DjenServidorParalelaCard() {
             <Zap className="h-5 w-5 text-primary" />
             <CardTitle>DJEN Termos</CardTitle>
             <Badge variant="outline" className="text-xs">
-              {workersBase.length || 0} worker{workersBase.length === 1 ? "" : "s"} VPS
+              {workersOnline.length || 0} daemon{workersOnline.length === 1 ? "" : "s"}
             </Badge>
             <Badge className="bg-emerald-500/15 text-emerald-700 border border-emerald-500/30 text-xs gap-1">
-              <Server className="h-3 w-3" /> Pool VPS ativo · {workersOnline.length}/{workersBase.length || 0}
+              <Server className="h-3 w-3" /> Pool VPS ativo · {proxyPoolAtivo.length}/{proxyPool.length || 0}
             </Badge>
           </div>
           <div className={cn("px-3 py-1 rounded-md text-sm font-medium flex items-center gap-2", statusConfig.bg, statusConfig.color)}>
@@ -511,7 +526,7 @@ export function DjenServidorParalelaCard() {
               <Server className="h-4 w-4 text-primary" />
               Roteamento da sessão
             </div>
-            <span className="text-xs text-muted-foreground tabular-nums">{done} chamadas</span>
+            <span className="text-xs text-muted-foreground tabular-nums">{chamadasProcessadas} termos processados</span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
             <div className="rounded-md border bg-background p-2">
@@ -520,7 +535,7 @@ export function DjenServidorParalelaCard() {
             </div>
             <div className="rounded-md border bg-background p-2">
               <div className="text-muted-foreground flex items-center gap-1"><Server className="h-3 w-3" /> Via VPS</div>
-              <div className="text-base font-bold tabular-nums text-primary">{done}</div>
+              <div className="text-base font-bold tabular-nums text-primary">{viasEmUso.length || (isRunning ? proxyPoolAtivo.length : done)}</div>
             </div>
             <div className="rounded-md border bg-background p-2">
               <div className="text-muted-foreground">Rate-limits (429)</div>
@@ -528,18 +543,18 @@ export function DjenServidorParalelaCard() {
             </div>
             <div className="rounded-md border bg-background p-2">
               <div className="text-muted-foreground">VPS online</div>
-              <div className="text-base font-bold tabular-nums">{workersOnline.length}/{workersBase.length || 0}</div>
+              <div className="text-base font-bold tabular-nums">{proxyPoolAtivo.length}/{proxyPool.length || 0}</div>
             </div>
           </div>
           <div className="flex flex-wrap gap-1.5 pt-1">
-            {workersBase.map((worker) => (
-              <Badge key={worker.id} variant="outline" className="text-[11px] gap-1 font-mono border-emerald-500/40 text-emerald-700 bg-emerald-500/5">
+            {proxyPoolAtivo.map((slot) => (
+              <Badge key={slot.id} variant="outline" className="text-[11px] gap-1 font-mono border-emerald-500/40 text-emerald-700 bg-emerald-500/5">
                 <Wifi className="h-3 w-3" />
-                {worker.worker_id.replace(/^hostinger-01-/, "")}
-                <span className="opacity-70">· {worker.current_execucao_id === exec?.id ? "ativo" : worker.status}</span>
+                {slot.label || slot.base_url.replace(/^https?:\/\//, "")}
+                <span className="opacity-70">· habilitada</span>
               </Badge>
             ))}
-            {currentWorker && workersBase.length === 0 && (
+            {currentWorker && proxyPoolAtivo.length === 0 && (
               <Badge variant="outline" className="text-[11px] gap-1 font-mono border-primary/40 text-primary bg-primary/5">
                 <Wifi className="h-3 w-3" /> {currentWorker.worker_id}
               </Badge>

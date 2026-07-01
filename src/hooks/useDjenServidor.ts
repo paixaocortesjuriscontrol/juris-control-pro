@@ -45,6 +45,7 @@ export interface ProgressoItem {
   novas?: number;
   descartadas?: number;
   duplicatas?: number;
+  via?: { id?: string; label?: string } | null;
 }
 
 export interface ProgressoExecucao {
@@ -57,6 +58,8 @@ export interface ProgressoExecucao {
   atual?: { id: string; label: string } | null;
   itens?: ProgressoItem[];
   janela?: { dataInicio: string; dataFim: string };
+  vias?: Array<{ id?: string; label?: string }>;
+  pool_enabled?: boolean;
 }
 
 export interface WorkerServidor {
@@ -69,6 +72,15 @@ export interface WorkerServidor {
   heartbeat_at: string;
   started_at: string;
   metadata: Record<string, unknown> | null;
+}
+
+export interface ProxyPoolServidor {
+  id: string;
+  label: string | null;
+  base_url: string;
+  enabled: boolean;
+  pool_enabled_global: boolean | null;
+  updated_at: string | null;
 }
 
 export interface PublicacaoServidor {
@@ -198,6 +210,21 @@ export function useWorkersServidor() {
   }, [qc]);
 
   return query;
+}
+
+export function useDjenProxyPoolServidor() {
+  return useQuery({
+    queryKey: ["djen-servidor", "proxy-pool"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("djen_proxy_pool")
+        .select("id, label, base_url, enabled, pool_enabled_global, updated_at")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data as ProxyPoolServidor[];
+    },
+    refetchInterval: 30_000,
+  });
 }
 
 export function usePublicacoesServidor(opts: { dataInicio?: string; dataFim?: string; limit?: number } = {}) {

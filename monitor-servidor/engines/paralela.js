@@ -3,15 +3,16 @@
 
 const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
+const { randomUUID } = require("crypto");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-07-01-sublotes-15";
+const ENGINE_VERSION = "2026-07-01-sublotes-8";
 
 // Sub-lotes: quebra grupos grandes (tipo+tribunal) em pedaços de até
 // CHUNK_MAX termos. Sem isso, TST parte (118 termos) ficava serial em 1 VPS
-// enquanto as outras VPS ficavam ociosas. Com 15, TST parte vira 8 unidades
+// enquanto as outras VPS ficavam ociosas. Com 8, TST parte vira mais unidades
 // independentes que se distribuem no pool.
-const CHUNK_MAX = Math.max(1, Number(process.env.PARALELA_CHUNK_MAX || 15));
+const CHUNK_MAX = Math.max(1, Number(process.env.PARALELA_CHUNK_MAX || 8));
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -24,9 +25,9 @@ const MAIN_TIPOS = ["parte", "advogado", "palavra-chave"];
 // Cada VPS do pool tem IP próprio — rate-limit do PJE Comunica é por IP.
 // Delays altos só serializavam trabalho no mesmo worker.
 const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 800));
-const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 800));
-const TERMOS_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERMOS_OR_DELAY_MS || 400));
-const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 1800));
+const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 400));
+const TERMOS_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERMOS_OR_DELAY_MS || 300));
+const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 600));
 const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
 // Regras simples (sem flags): nenhum fallback é executado.
 //  - parte    → só nas partes (nomeParte na API + metadados/seção Parte(s))
@@ -1037,6 +1038,23 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
   const tribunaisMon = Array.isArray(mon.tribunais) ? expandirTribunais(mon.tribunais) : [];
   const logDebug = typeof mon.__log === "function" ? mon.__log : null;
   const seenRunKeys = new Set();
+  const coordenacaoIdMon = mon.coordenacao_id || null;
+  const existingByIdDjen = new Map();
+  const execLinks = [];
+  if (coordenacaoIdMon) {
+    const idsDjen = Array.from(new Set((pubs || []).map((pub) => getIdDjen(pub)).filter(Boolean)));
+    for (let i = 0; i < idsDjen.length; i += 500) {
+      const chunk = idsDjen.slice(i, i + 500);
+      const { data: existentes } = await sb
+        .from("publicacoes_djen_servidor")
+        .select("id, id_djen")
+        .eq("coordenacao_id", coordenacaoIdMon)
+        .in("id_djen", chunk);
+      for (const row of existentes || []) {
+        if (row?.id_djen && row?.id) existingByIdDjen.set(String(row.id_djen), row.id);
+      }
+    }
+  }
   for (const pub of pubs) {
     const conteudo = getConteudo(pub);
     const metadata = metadataFromRaw(pub);
@@ -1044,7 +1062,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     const dataDisponibilizacao = normalizarDataDispBrt(getDataDisponibilizacao(pub, dia));
     const processoNumero = extractProcesso(pub, conteudo);
     const hashConteudo = generatePublicacaoHash(conteudo, dataDisponibilizacao, processoNumero, idDjen);
-    const coordenacaoId = mon.coordenacao_id || null;
+    const coordenacaoId = coordenacaoIdMon;
     const runKey = idDjen ? `id_djen:${idDjen}` : `row:${Math.random().toString(36).slice(2)}:${hashConteudo}`;
     if (seenRunKeys.has(runKey)) {
       stats.duplicatas++;
@@ -1085,27 +1103,21 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     let exists = null;
     let existsReason = null;
     if (idDjen && coordenacaoId) {
-      const { data } = await sb
-        .from("publicacoes_djen_servidor")
-        .select("id")
-        .eq("coordenacao_id", coordenacaoId)
-        .eq("id_djen", idDjen)
-        .maybeSingle();
-      exists = data || null;
+      const existingId = existingByIdDjen.get(String(idDjen));
+      exists = existingId ? { id: existingId } : null;
       if (exists) existsReason = "same_coordenacao_id_djen";
     }
     if (exists) {
       stats.duplicatas++;
       logDebug?.("paralela.duplicata_existente", { reason: existsReason, monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, existing: exists });
       if (execucaoId) {
-        await sb.from("publicacoes_djen_servidor_execucoes").upsert(
-          { publicacao_id: exists.id, execucao_id: execucaoId, tipo_engine: "paralela" },
-          { onConflict: "publicacao_id,execucao_id", ignoreDuplicates: true }
-        );
+        execLinks.push({ publicacao_id: exists.id, execucao_id: execucaoId, tipo_engine: "paralela" });
       }
       continue;
     }
+    const newId = randomUUID();
     const insertRow = {
+      id: newId,
       monitoramento_id: mon.id,
       coordenacao_id: coordenacaoId,
       hash_conteudo: hashConteudo,
@@ -1125,9 +1137,8 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     // upsert falha e a publicação válida acabava contabilizada como descartada.
     // Como já consultamos a duplicidade acima, o caminho correto é INSERT e,
     // se houver corrida, tratar 23505 como duplicata logo abaixo.
-    const insertQuery = sb.from("publicacoes_djen_servidor").insert(insertRow).select("id");
-    const { data: insertedRows, error } = await insertQuery;
-    const inserted = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
+    const insertQuery = sb.from("publicacoes_djen_servidor").insert(insertRow);
+    const { error } = await insertQuery;
     if (error) {
       const msg = String(error.message || "");
       const isConflict = error.code === "23505" || msg.includes("duplicate key");
@@ -1139,6 +1150,10 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
         const { data: conflictRows } = await conflictQuery.limit(5);
         if (conflictRows && conflictRows.length > 0) {
           stats.duplicatas++;
+          if (idDjen && conflictRows[0]?.id) existingByIdDjen.set(String(idDjen), conflictRows[0].id);
+          if (execucaoId && conflictRows[0]?.id) {
+            execLinks.push({ publicacao_id: conflictRows[0].id, execucao_id: execucaoId, tipo_engine: "paralela" });
+          }
           logDebug?.("paralela.duplicata_constraint_confirmada", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, constraint: error.details || msg, conflictRows });
         } else {
           stats.descartadas++;
@@ -1148,19 +1163,20 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
         stats.descartadas++;
         logDebug?.("paralela.insert_error", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, code: error.code, message: msg, details: error.details });
       }
-    } else if (!inserted?.id) {
-      stats.duplicatas++;
-      logDebug?.("paralela.upsert_ignorado", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo });
     } else {
       stats.novas++;
-      logDebug?.("paralela.nova_inserida", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, publicacaoId: inserted?.id || null });
-      if (execucaoId && inserted?.id) {
-        await sb.from("publicacoes_djen_servidor_execucoes").upsert(
-          { publicacao_id: inserted.id, execucao_id: execucaoId, tipo_engine: "paralela" },
-          { onConflict: "publicacao_id,execucao_id", ignoreDuplicates: true }
-        );
+      if (idDjen && coordenacaoId) existingByIdDjen.set(String(idDjen), newId);
+      logDebug?.("paralela.nova_inserida", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, publicacaoId: newId });
+      if (execucaoId) {
+        execLinks.push({ publicacao_id: newId, execucao_id: execucaoId, tipo_engine: "paralela" });
       }
     }
+  }
+  for (let i = 0; i < execLinks.length; i += 500) {
+    await sb.from("publicacoes_djen_servidor_execucoes").upsert(
+      execLinks.slice(i, i + 500),
+      { onConflict: "publicacao_id,execucao_id", ignoreDuplicates: true }
+    );
   }
   return stats;
 }
