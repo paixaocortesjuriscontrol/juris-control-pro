@@ -619,6 +619,21 @@ function parsearTermoOr(raw: string): ParsedTermoOr | null {
   return { nome: clean };
 }
 
+function ufsOabFallbackParaTribunal(tribunal: string, ufRaw?: string): string[] {
+  const uf = String(ufRaw || '').trim().toUpperCase();
+  if (uf && uf !== 'TODAS' && /^[A-Z]{2}$/.test(uf)) return [uf];
+
+  const sigla = String(tribunal || '').trim().toUpperCase();
+  if (sigla === 'TJDFT') return ['DF'];
+  const tj = sigla.match(/^TJ([A-Z]{2})$/);
+  if (tj) return [tj[1]];
+
+  // Para cortes federais/superiores a OAB pode ser de qualquer UF; não abrir
+  // 27 chamadas como fallback automático aqui. O fallback amplo continua sendo
+  // a busca por nomeAdvogado, e só tribunais estaduais recebem OAB/UF inferido.
+  return [];
+}
+
 function parseArrayLike(value: any): any[] {
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') {
@@ -744,7 +759,11 @@ function validarAdvogadoSecaoAdvogados(pub: any, oab?: string, nome?: string): b
   if (nomeNorm && contemFrase(secaoNorm, nomeNorm)) return true;
   if (pub?.__advogadoOabFallback && oab) {
     const oabDigits = String(oab).replace(/\D/g, '');
-    if (oabDigits.length >= 3 && secaoNorm.includes(oabDigits)) return true;
+    const fallbackUf = String(pub?.__advogadoOabFallbackUf || '').trim().toUpperCase();
+    if (oabDigits.length >= 3 && secaoNorm.includes(oabDigits)) {
+      if (!fallbackUf) return true;
+      return secaoNorm.includes(fallbackUf);
+    }
   }
   return false;
 }
@@ -763,7 +782,11 @@ function validarAdvogadoMetadados(pub: any, oab?: string, nome?: string): boolea
   const oabFallbackAtivo = pub?.__advogadoOabFallback === true;
   for (const adv of advs) {
     if (oabFallbackAtivo && oabDigits && adv.numero_oab) {
-      if (String(adv.numero_oab).replace(/\D/g, '') === oabDigits) return true;
+      if (String(adv.numero_oab).replace(/\D/g, '') === oabDigits) {
+        const fallbackUf = String(pub?.__advogadoOabFallbackUf || '').trim().toUpperCase();
+        const advUf = String(adv.uf_oab || '').trim().toUpperCase();
+        if (!fallbackUf || !advUf || advUf === fallbackUf) return true;
+      }
     }
     if (nomeNorm && adv.nome) {
       const advNorm = normalizar(adv.nome);
