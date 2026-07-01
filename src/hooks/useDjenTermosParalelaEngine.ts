@@ -308,7 +308,10 @@ function createDefaultProgress(): DjenTermosParalelaProgress {
     iniciadoEm: null,
     dataInicioYmd: null,
     dataFimYmd: null,
-    concorrencia: HOST_BUCKET_LIMITS['pje-comunica'],
+    // Valor real (nº de VPS ativas) é atribuído no início da execução via
+    // updateProgress({ concorrencia }). Aqui só usamos 1 como placeholder de
+    // estado idle — não usar HOST_BUCKET_LIMITS, que é rótulo interno.
+    concorrencia: 1,
   };
 }
 
