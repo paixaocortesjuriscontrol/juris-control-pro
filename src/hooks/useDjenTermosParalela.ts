@@ -7,10 +7,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-  executarDjenTermosKurier,
-  isDjenTermosKurierRunning,
-} from './useDjenTermosKurierEngine';
-import {
   type DjenTermosParalelaProgress,
   executarDjenTermosParalela,
   cancelarDjenTermosParalela,
@@ -31,17 +27,11 @@ export function useDjenTermosParalela() {
   const [progress, setProgress] = useState<DjenTermosParalelaProgress>(getDjenTermosParalelaProgress);
   const [isRunning, setIsRunning] = useState(isDjenTermosParalelaRunning);
   const lastNotifiedStatusRef = useRef<string>(getDjenTermosParalelaProgress().status);
-  const lastRunParamsRef = useRef<{
-    coordenacaoId?: string;
-    monitoramentoIds?: string[];
-  }>({});
-  // Marca o iniciadoEm da última execução que já disparou o Kurier.
-  // Persistido em localStorage para sobreviver a recargas/abas e evitar
-  // re-disparo na mesma execução, mas garantir disparo em execuções novas
-  // detectadas via hidratação (cron/scheduler).
-  const KURIER_TRIGGER_KEY = 'djen-paralela:last-kurier-trigger-iniciado-em';
-  const lastKurierTriggerRef = useRef<string | null>(
-    typeof window !== 'undefined' ? window.localStorage.getItem(KURIER_TRIGGER_KEY) : null,
+  // Marca a última conclusão já tratada para evitar notificações repetidas
+  // quando a UI reidrata execuções finalizadas via polling/outra aba.
+  const COMPLETION_HANDLED_KEY = 'djen-paralela:last-completion-handled-iniciado-em';
+  const lastCompletionHandledRef = useRef<string | null>(
+    typeof window !== 'undefined' ? window.localStorage.getItem(COMPLETION_HANDLED_KEY) : null,
   );
 
   useEffect(() => {
@@ -61,22 +51,22 @@ export function useDjenTermosParalela() {
       const prevStatus = lastNotifiedStatusRef.current;
       const statusChanged = prevStatus !== p.status;
       lastNotifiedStatusRef.current = p.status;
-      // Dispara Kurier quando a Paralela conclui. Aceita dois cenários:
+      // Trata conclusão da Paralela. Aceita dois cenários:
       //  (a) transição local 'executando' → 'concluido' nesta sessão;
       //  (b) hidratação trouxe uma execução nova (iniciadoEm diferente da última
-      //      já disparada), o que cobre cron/scheduler/outra aba.
+      //      já tratada), o que cobre cron/scheduler/outra aba.
       const iniciadoEmKey = p.iniciadoEm ?? null;
       const isNewCompletedRun =
         p.status === 'concluido' &&
         !!iniciadoEmKey &&
-        iniciadoEmKey !== lastKurierTriggerRef.current;
-      const shouldTriggerKurier =
+        iniciadoEmKey !== lastCompletionHandledRef.current;
+      const shouldHandleCompletion =
         p.status === 'concluido' &&
         ((statusChanged && prevStatus === 'executando') || isNewCompletedRun);
-      if (shouldTriggerKurier) {
-        lastKurierTriggerRef.current = iniciadoEmKey;
+      if (shouldHandleCompletion) {
+        lastCompletionHandledRef.current = iniciadoEmKey;
         if (iniciadoEmKey && typeof window !== 'undefined') {
-          try { window.localStorage.setItem(KURIER_TRIGGER_KEY, iniciadoEmKey); } catch {}
+          try { window.localStorage.setItem(COMPLETION_HANDLED_KEY, iniciadoEmKey); } catch {}
         }
         void (async () => {
           await Promise.all([
@@ -95,17 +85,6 @@ export function useDjenTermosParalela() {
             console.warn('[DJEN Paralela] Falha ao atualizar estatísticas (ANALYZE):', e);
           }
           if (p.novas > 0) toast.success(`DJEN Paralela: ${p.novas} novas publicações encontradas!`);
-          if (!isDjenTermosKurierRunning()) {
-            const params = lastRunParamsRef.current;
-            toast.info('Kurier: iniciando varredura após DJEN Paralela...');
-            void executarDjenTermosKurier(
-              false,
-              params.monitoramentoIds,
-              params.coordenacaoId,
-              p.dataInicioYmd ?? undefined,
-              p.dataFimYmd ?? undefined,
-            );
-          }
         })();
       }
       if (p.status === 'erro' && statusChanged) toast.error(p.mensagem || 'Erro DJEN Paralela');
@@ -146,14 +125,12 @@ export function useDjenTermosParalela() {
   const canResume = !!checkpoint && progress.status !== 'executando';
 
   const executar = useCallback((dataInicioYmd?: string, dataFimYmd?: string, coordenacaoId?: string, monitoramentoIds?: string[]) => {
-    lastRunParamsRef.current = { coordenacaoId, monitoramentoIds };
     executarDjenTermosParalela(dataInicioYmd, dataFimYmd, false, coordenacaoId, monitoramentoIds);
     toast.info('DJEN Termos Paralela iniciado');
   }, []);
 
   const retomar = useCallback((coordenacaoId?: string, monitoramentoIds?: string[]) => {
     if (!checkpoint) return;
-    lastRunParamsRef.current = { coordenacaoId, monitoramentoIds };
     executarDjenTermosParalela(checkpoint.dataInicioYmd, checkpoint.dataFimYmd, true, coordenacaoId, monitoramentoIds);
     toast.info('DJEN Paralela retomando...');
   }, [checkpoint]);
