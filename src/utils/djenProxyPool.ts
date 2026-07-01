@@ -789,14 +789,17 @@ export async function fetchDjenViaPool(
 
 /** Retorna o estado runtime (online/offline) de cada slot configurado. */
 export function getDjenProxySlotsRuntime(): Array<
-  ProxySlotConfig & { online: boolean; lastError: string | null; offlineUntil: number }
+  ProxySlotConfig & { online: boolean; slow: boolean; lastError: string | null; offlineUntil: number }
 > {
   return loadDjenProxyPool().map((s) => {
     const st = runtime[s.id];
     const online = !st || Date.now() >= st.offlineUntil;
+    // "Lento" = online, mas a última chamada timeoutou no upstream.
+    const slow = !!(st && online && st.slow);
     return {
       ...s,
       online,
+      slow,
       lastError: st?.lastError ?? null,
       offlineUntil: st?.offlineUntil ?? 0,
     };
