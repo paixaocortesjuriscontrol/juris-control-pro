@@ -193,7 +193,7 @@ const HOST_BUCKET_LIMITS: Record<HostBucket, number> = {
   'outro': 5,
 };
 
-const STORAGE_KEY = 'djen-termos-paralela-checkpoint-v1';
+const STORAGE_KEY = 'djen-termos-paralela-checkpoint-v2';
 const RESET_MARK_KEY = 'djen-termos-paralela-reset-at-v1';
 const BR_TZ = 'America/Sao_Paulo';
 const EXECUTION_SYNC_INTERVAL_MS = 15000;
@@ -619,6 +619,21 @@ function parsearTermoOr(raw: string): ParsedTermoOr | null {
   return { nome: clean };
 }
 
+function ufsOabFallbackParaTribunal(tribunal: string, ufRaw?: string): string[] {
+  const uf = String(ufRaw || '').trim().toUpperCase();
+  if (uf && uf !== 'TODAS' && /^[A-Z]{2}$/.test(uf)) return [uf];
+
+  const sigla = String(tribunal || '').trim().toUpperCase();
+  if (sigla === 'TJDFT') return ['DF'];
+  const tj = sigla.match(/^TJ([A-Z]{2})$/);
+  if (tj) return [tj[1]];
+
+  // Para cortes federais/superiores a OAB pode ser de qualquer UF; não abrir
+  // 27 chamadas como fallback automático aqui. O fallback amplo continua sendo
+  // a busca por nomeAdvogado, e só tribunais estaduais recebem OAB/UF inferido.
+  return [];
+}
+
 function parseArrayLike(value: any): any[] {
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') {
@@ -744,7 +759,11 @@ function validarAdvogadoSecaoAdvogados(pub: any, oab?: string, nome?: string): b
   if (nomeNorm && contemFrase(secaoNorm, nomeNorm)) return true;
   if (pub?.__advogadoOabFallback && oab) {
     const oabDigits = String(oab).replace(/\D/g, '');
-    if (oabDigits.length >= 3 && secaoNorm.includes(oabDigits)) return true;
+    const fallbackUf = String(pub?.__advogadoOabFallbackUf || '').trim().toUpperCase();
+    if (oabDigits.length >= 3 && secaoNorm.includes(oabDigits)) {
+      if (!fallbackUf) return true;
+      return secaoNorm.includes(fallbackUf);
+    }
   }
   return false;
 }
@@ -763,7 +782,11 @@ function validarAdvogadoMetadados(pub: any, oab?: string, nome?: string): boolea
   const oabFallbackAtivo = pub?.__advogadoOabFallback === true;
   for (const adv of advs) {
     if (oabFallbackAtivo && oabDigits && adv.numero_oab) {
-      if (String(adv.numero_oab).replace(/\D/g, '') === oabDigits) return true;
+      if (String(adv.numero_oab).replace(/\D/g, '') === oabDigits) {
+        const fallbackUf = String(pub?.__advogadoOabFallbackUf || '').trim().toUpperCase();
+        const advUf = String(adv.uf_oab || '').trim().toUpperCase();
+        if (!fallbackUf || !advUf || advUf === fallbackUf) return true;
+      }
     }
     if (nomeNorm && adv.nome) {
       const advNorm = normalizar(adv.nome);
@@ -1477,6 +1500,17 @@ async function processarTermoEmTribunal(
       fallbackToDirect: forceViaOverride === DIRECT_SLOT_ID,
       fallbackToPool: !!forceViaOverride && forceViaOverride !== DIRECT_SLOT_ID,
     });
+
+    const failedPages = Number((resp as any).failedPages || 0);
+    const partial = Boolean((resp as any).partial || (resp as any).truncated || failedPages > 0);
+    if (partial) {
+      const msg = (resp as any).lastError
+        ? `Busca incompleta no PJE (${failedPages} página(s) com falha): ${(resp as any).lastError}`
+        : `Busca incompleta no PJE (${failedPages} página(s) com falha).`;
+      ultimoErro = msg;
+      throw new Error(msg);
+    }
+
     addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
     return resp;
@@ -1523,17 +1557,18 @@ async function processarTermoEmTribunal(
           // instabilidade via retries por página). Se vier 0, cai no fallback
           // por OAB abaixo (se aplicável).
         }
-        // Fallback OAB: somente se a busca por nome veio vazia E temos OAB+UF
-        // específica (UF=TODAS não é aceita pela API com numeroOab sozinho).
+        // Fallback OAB: se a busca por nome veio vazia, tentar OAB/UF quando
+        // houver UF específica ou quando for possível inferir UF pelo tribunal
+        // estadual (ex.: TJDFT => OAB DF). Isso cobre casos em que o PJE não
+        // devolve a publicação por nomeAdvogado, mas devolve por numeroOab+ufOab.
         const veioVazio = !respPrincipal || (respPrincipal.items?.length || 0) === 0;
-        if (
-          !signal.aborted &&
-          veioVazio &&
-          oab && oab.length >= 3 &&
-          uf && uf !== 'TODAS' && /^[A-Z]{2}$/.test(uf)
-        ) {
+        const ufsFallback = veioVazio && oab && oab.length >= 3
+          ? ufsOabFallbackParaTribunal(tribunal, uf)
+          : [];
+        if (!signal.aborted && ufsFallback.length > 0) {
           await abortableDelay(800, signal);
-          if (!signal.aborted) {
+          for (const ufFallback of ufsFallback) {
+            if (signal.aborted) break;
             const paramsOab = {
               tipo: 'advogado',
               dataInicio: diaYmd,
@@ -1541,13 +1576,17 @@ async function processarTermoEmTribunal(
               pageSize: 50,
               siglaTribunal: tribunal,
               oab,
-              uf,
+              uf: ufFallback,
             } as any;
             try {
-              await executarBusca(paramsOab, { ...matchMeta, __advogadoOabFallback: true });
+              await executarBusca(paramsOab, {
+                ...matchMeta,
+                __advogadoOabFallback: true,
+                __advogadoOabFallbackUf: ufFallback,
+              });
             } catch (e: any) {
               if (e?.name === 'AbortError') throw e;
-              console.warn(`[DJEN Paralela][${tribunal}] Fallback OAB advogado falhou:`, e?.message || e);
+              console.warn(`[DJEN Paralela][${tribunal}] Fallback OAB advogado ${ufFallback} falhou:`, e?.message || e);
             }
           }
         }
@@ -1579,6 +1618,11 @@ async function processarTermoEmTribunal(
   } catch (e: any) {
     if (e?.name === 'AbortError') throw e;
     ultimoErro = e?.message || 'Falha de busca';
+    // Não transformar falha real de consulta em "0 resultados". Se a API/PJE,
+    // proxy ou paginação falhou, a track precisa ficar em erro e NÃO fechar
+    // checkpoint como concluída; caso contrário o card mostra "concluído" sem
+    // ter pesquisado todas as páginas.
+    throw e;
   }
 
   if (signal.aborted) {
