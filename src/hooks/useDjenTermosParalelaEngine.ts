@@ -193,7 +193,7 @@ const HOST_BUCKET_LIMITS: Record<HostBucket, number> = {
   'outro': 5,
 };
 
-const STORAGE_KEY = 'djen-termos-paralela-checkpoint-v1';
+const STORAGE_KEY = 'djen-termos-paralela-checkpoint-v2';
 const RESET_MARK_KEY = 'djen-termos-paralela-reset-at-v1';
 const BR_TZ = 'America/Sao_Paulo';
 const EXECUTION_SYNC_INTERVAL_MS = 15000;
