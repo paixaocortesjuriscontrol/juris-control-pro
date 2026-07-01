@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Trash2 } from "lucide-react";
+import { X } from "lucide-react";
 
 interface Props {
   value: string | null | undefined;
@@ -124,31 +124,9 @@ export function MultiTipoRecurso({ value, onChange }: Props) {
                 )
               )}
             </div>
-            {!isPredef && (
-              <Input
-                className="w-full"
-                placeholder="Descreva o recurso"
-                value={t}
-                onChange={(e) => setAt(idx, e.target.value)}
-              />
-            )}
           </div>
         );
       })}
-      <div className="flex items-center gap-2">
-        {tipos.some((t) => t.trim()) && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={limparTudo}
-            className="gap-1 text-destructive hover:text-destructive"
-            title="Remover todos os tipos de recurso"
-          >
-            <Trash2 className="h-3 w-3" /> Remover todos
-          </Button>
-        )}
-      </div>
     </div>
   );
 }
