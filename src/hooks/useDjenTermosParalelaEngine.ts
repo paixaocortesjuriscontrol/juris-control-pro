@@ -47,6 +47,19 @@ const WORKER_TIPOS_ORDER: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave', 
 const TIPOS_PRIORITARIOS: WorkerTipo[] = ['parte', 'advogado'];
 const TIPOS_FINAIS: WorkerTipo[] = ['palavra-chave', 'processo'];
 
+/**
+ * Sub-lotes por (tribunal, tipo) nas bandas 1/2 (STF/STJ/TRTs/TJs/TRFs).
+ * Cada sub-lote vira 1 unidade de fila e roda em paralelo entre VPS distintas,
+ * espelhando `PARALELA_CHUNK_MAX=8` do `monitor-servidor/engines/paralela.js`.
+ * Sem isso, um (trib, tipo) com N termos ficava serial em 1 VPS, ignorando o
+ * restante do pool.
+ */
+const CHUNK_MAX = 8;
+
+function makeChunkKey(idx: number, total: number): string {
+  return `__chunk_${idx}_${total}`;
+}
+
 function mapMonTipoToWorkerTipo(tipo: Monitoramento['tipo']): WorkerTipo {
   if (tipo === 'nome') return 'palavra-chave';
   if (tipo === 'geral') return 'palavra-chave';
