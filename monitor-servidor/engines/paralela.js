@@ -1505,6 +1505,10 @@ async function run({ sb, payload, log, job }) {
     }
   }
   const bands = [band0, band1, band2, band3];
+  // LPT scheduling: dentro de cada banda, processa primeiro as units mais
+  // pesadas (maior `total`). Evita cauda longa (uma unit grande sobrar por
+  // último enquanto todas as outras VPS estão ociosas).
+  for (const b of bands) b.sort((a, b2) => (Number(b2.item.total) || 0) - (Number(a.item.total) || 0));
 
   // Acumula totais já vindos do checkpoint
   let totalNovas = 0, totalDescartadas = 0, totalDuplicatas = 0, totalErros = 0;
