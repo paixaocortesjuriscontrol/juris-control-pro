@@ -2288,6 +2288,34 @@ async function executarLoop(
       : [{ id: DIRECT_SLOT_ID, label: 'Direto (browser)' }];
     const usandoPoolVps = viasProxy.length > 0;
 
+    // ------------------------------------------------------------------
+    // MAPEAMENTO FIXO tribunal/termo → VPS (espelha DJEN Servidor)
+    // Cada WorkUnit é casada a UMA `viaId` de forma determinística
+    // (hash da unitKey). Workers só consomem unidades da sua VPS.
+    // Isso elimina a rotação de chips por card e faz com que resumir
+    // um checkpoint reatribua a MESMA VPS para a mesma unidade.
+    // ------------------------------------------------------------------
+    const hashStr = (s: string) => {
+      let h = 0;
+      for (let i = 0; i < s.length; i++) {
+        h = ((h << 5) - h) + s.charCodeAt(i);
+        h |= 0;
+      }
+      return Math.abs(h);
+    };
+    const unitKeyOf = (u: WorkUnit) => {
+      const parts = u.steps.flatMap((st) =>
+        st.monIds.map((m) => `${st.tipo}|${u.tribunal}|${m ?? ''}`),
+      );
+      return parts.join('#');
+    };
+    const viasCount = vias.length;
+    for (const banda of bands) {
+      for (const u of banda) {
+        u.viaId = vias[hashStr(unitKeyOf(u)) % viasCount].id;
+      }
+    }
+
     // Concorrência efetiva = mín(nº vias, nº unidades pendentes).
     const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, totalUnidadesPendentes || 1));
     try {
