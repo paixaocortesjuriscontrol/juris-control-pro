@@ -2089,13 +2089,39 @@ async function executarLoop(
         // monitoramento vira uma track própria. Demais tribunais agrupam
         // todos os termos em UMA única track serial por (tipo, tribunal).
         const tstParalelo = trib === 'TST' && tipo !== 'processo';
-        const trackTargets = tstParalelo
-          ? monsDoTipoNoTrib.map((mon) => ({ monId: mon.id, monLabel: mon.descricao || mon.termo_busca, total: datas.length }))
-          : [{
+        const isProcesso = tipo === 'processo';
+        // Sub-lotes: para bandas 1/2 (não-TST, não-processo), quando há mais
+        // termos que CHUNK_MAX, dividimos em N tracks paralelas — cada uma
+        // consumida por uma VPS diferente. Espelha o motor do servidor.
+        let trackTargets: Array<{ monId: string | null; monLabel: string | null; total: number }>;
+        if (tstParalelo) {
+          trackTargets = monsDoTipoNoTrib.map((mon) => ({
+            monId: mon.id,
+            monLabel: mon.descricao || mon.termo_busca,
+            total: datas.length,
+          }));
+        } else if (isProcesso) {
+          trackTargets = [{
+            monId: null,
+            monLabel: monsDoTipoNoTrib.length > 1 ? `${monsDoTipoNoTrib.length} termos` : (monsDoTipoNoTrib[0]?.descricao || monsDoTipoNoTrib[0]?.termo_busca || null),
+            total: monsDoTipoNoTrib.length * datas.length,
+          }];
+        } else {
+          const chunks = chunkArray(monsDoTipoNoTrib, CHUNK_MAX);
+          if (chunks.length <= 1) {
+            trackTargets = [{
               monId: null,
               monLabel: monsDoTipoNoTrib.length > 1 ? `${monsDoTipoNoTrib.length} termos` : (monsDoTipoNoTrib[0]?.descricao || monsDoTipoNoTrib[0]?.termo_busca || null),
               total: monsDoTipoNoTrib.length * datas.length,
             }];
+          } else {
+            trackTargets = chunks.map((slice, idx) => ({
+              monId: makeChunkKey(idx, chunks.length),
+              monLabel: `${slice.length} termos • lote ${idx + 1}/${chunks.length}`,
+              total: slice.length * datas.length,
+            }));
+          }
+        }
         for (const target of trackTargets) {
           const monId = target.monId;
           const monLabel = target.monLabel;
