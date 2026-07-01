@@ -1622,10 +1622,20 @@ async function run({ sb, payload, log, job }) {
               // tupla (tribunal, mon, dia). Tenta os demais slots do pool antes
               // de empurrar para a refila — espelha o fallback do browser que
               // alterna entre VPS quando uma devolve 5xx.
+              // Short-circuit: tenta no máximo 2 slots alternativos aleatórios
+              // em vez de percorrer todos os 9 restantes. Em pico de 5xx isso
+              // corta o tempo de recuperação por par (mon, dia) de até 30-90s
+              // para <5s; se ambos falharem, cai para refila (recordFalha).
               const outrosSlots = slots.filter((s) => s.id !== slot.id);
+              // Shuffle leve
+              for (let i = outrosSlots.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [outrosSlots[i], outrosSlots[j]] = [outrosSlots[j], outrosSlots[i]];
+              }
+              const candidatos = outrosSlots.slice(0, 2);
               let recovered = null;
               let lastErr = firstErr;
-              for (const alt of outrosSlots) {
+              for (const alt of candidatos) {
                 if (cancelled || signal.aborted) break;
                 try {
                   log("paralela.failover_slot", { de: slot.label || slot.url, para: alt.label || alt.url, tribunal: item.tribunal, monId, dia, motivo: msg.slice(0, 160) });
