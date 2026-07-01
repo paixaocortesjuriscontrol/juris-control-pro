@@ -471,6 +471,22 @@ export function DjenServidorParalelaCard() {
           </Button>
         </div>
 
+        {execStatus === "falhou" && !isRunning && (
+          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 flex items-start gap-2 text-sm">
+            <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-medium text-destructive">Última execução falhou (heartbeat perdido)</div>
+              <div className="text-xs text-muted-foreground">
+                {total > 0 && (
+                  <>Progresso preservado: {done}/{total} unidades concluídas. </>
+                )}
+                Clique em <strong>Retomar</strong> para continuar do checkpoint sem refazer o que já terminou.
+              </div>
+              {erroVisivel && <div className="text-xs text-destructive/80 italic mt-1">{erroVisivel}</div>}
+            </div>
+          </div>
+        )}
+
         {total > 0 && (
           <div className="space-y-1">
             <div className="flex items-center justify-between text-sm">
