@@ -47,6 +47,19 @@ const WORKER_TIPOS_ORDER: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave', 
 const TIPOS_PRIORITARIOS: WorkerTipo[] = ['parte', 'advogado'];
 const TIPOS_FINAIS: WorkerTipo[] = ['palavra-chave', 'processo'];
 
+/**
+ * Sub-lotes por (tribunal, tipo) nas bandas 1/2 (STF/STJ/TRTs/TJs/TRFs).
+ * Cada sub-lote vira 1 unidade de fila e roda em paralelo entre VPS distintas,
+ * espelhando `PARALELA_CHUNK_MAX=8` do `monitor-servidor/engines/paralela.js`.
+ * Sem isso, um (trib, tipo) com N termos ficava serial em 1 VPS, ignorando o
+ * restante do pool.
+ */
+const CHUNK_MAX = 8;
+
+function makeChunkKey(idx: number, total: number): string {
+  return `__chunk_${idx}_${total}`;
+}
+
 function mapMonTipoToWorkerTipo(tipo: Monitoramento['tipo']): WorkerTipo {
   if (tipo === 'nome') return 'palavra-chave';
   if (tipo === 'geral') return 'palavra-chave';
@@ -1230,8 +1243,13 @@ async function processarTribunalTrack(
   // Filtrar monitoramentos que devem ser executados nesse (tribunal, tipo)
   const monsParaEsseTrib = monitoramentos.filter(mon => {
     if (mapMonTipoToWorkerTipo(mon.tipo) !== tipo) return false;
-    if (monIdsFilter?.length && !monIdsFilter.includes(mon.id)) return false;
-    if (monId && mon.id !== monId) return false;
+    if (monIdsFilter?.length) {
+      // Sub-lote (chunk): filtra somente pelos IDs reais do lote.
+      if (!monIdsFilter.includes(mon.id)) return false;
+    } else if (monId && !monId.startsWith('__chunk_')) {
+      // Modo 1-termo-por-unidade (banda 0/TST): exige match exato.
+      if (mon.id !== monId) return false;
+    }
     const tribs = expandirTribunaisDoMon(mon.tribunais);
     // Se o monitoramento não tem tribunais (= todos), inclui esse tribunal.
     if (tribs.length === 0) return true;
@@ -2071,13 +2089,39 @@ async function executarLoop(
         // monitoramento vira uma track própria. Demais tribunais agrupam
         // todos os termos em UMA única track serial por (tipo, tribunal).
         const tstParalelo = trib === 'TST' && tipo !== 'processo';
-        const trackTargets = tstParalelo
-          ? monsDoTipoNoTrib.map((mon) => ({ monId: mon.id, monLabel: mon.descricao || mon.termo_busca, total: datas.length }))
-          : [{
+        const isProcesso = tipo === 'processo';
+        // Sub-lotes: para bandas 1/2 (não-TST, não-processo), quando há mais
+        // termos que CHUNK_MAX, dividimos em N tracks paralelas — cada uma
+        // consumida por uma VPS diferente. Espelha o motor do servidor.
+        let trackTargets: Array<{ monId: string | null; monLabel: string | null; total: number }>;
+        if (tstParalelo) {
+          trackTargets = monsDoTipoNoTrib.map((mon) => ({
+            monId: mon.id,
+            monLabel: mon.descricao || mon.termo_busca,
+            total: datas.length,
+          }));
+        } else if (isProcesso) {
+          trackTargets = [{
+            monId: null,
+            monLabel: monsDoTipoNoTrib.length > 1 ? `${monsDoTipoNoTrib.length} termos` : (monsDoTipoNoTrib[0]?.descricao || monsDoTipoNoTrib[0]?.termo_busca || null),
+            total: monsDoTipoNoTrib.length * datas.length,
+          }];
+        } else {
+          const chunks = chunkArray(monsDoTipoNoTrib, CHUNK_MAX);
+          if (chunks.length <= 1) {
+            trackTargets = [{
               monId: null,
               monLabel: monsDoTipoNoTrib.length > 1 ? `${monsDoTipoNoTrib.length} termos` : (monsDoTipoNoTrib[0]?.descricao || monsDoTipoNoTrib[0]?.termo_busca || null),
               total: monsDoTipoNoTrib.length * datas.length,
             }];
+          } else {
+            trackTargets = chunks.map((slice, idx) => ({
+              monId: makeChunkKey(idx, chunks.length),
+              monLabel: `${slice.length} termos • lote ${idx + 1}/${chunks.length}`,
+              total: slice.length * datas.length,
+            }));
+          }
+        }
         for (const target of trackTargets) {
           const monId = target.monId;
           const monLabel = target.monLabel;
@@ -2198,7 +2242,18 @@ async function executarLoop(
     // Workers só consomem da próxima banda quando a banda anterior está
     // 100% drenada (sem unidades pendentes e sem unidades em processamento).
     type UnitStep = { tipo: WorkerTipo; monIds: (string | null)[] };
-    type WorkUnit = { band: 0 | 1 | 2 | 3; tribunal: string; steps: UnitStep[] };
+    type WorkUnit = {
+      band: 0 | 1 | 2 | 3;
+      tribunal: string;
+      steps: UnitStep[];
+      /**
+       * Quando presente, indica que a unidade é um sub-lote de termos: o
+       * `chunkKey` é usado como monId sintético na track (ex.: `__chunk_1_3`)
+       * e `chunkMonIds` traz os UUIDs reais dos monitoramentos a processar.
+       */
+      chunkKey?: string;
+      chunkMonIds?: string[];
+    };
 
     const ORDEM_TIPOS_PRINCIPAIS: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave'];
     const TRIBUNAIS_BAND1 = ['STF', 'STJ'];
@@ -2222,16 +2277,36 @@ async function executarLoop(
       }
     }
 
-    // Helper para bandas 1 e 2: cria UMA unidade independente por (tribunal, tipo).
-    // Assim, diferentes tipos do mesmo tribunal podem rodar em paralelo em workers
-    // distintos quando há slot livre, em vez de serem serializados num único worker.
+    // Helper para bandas 1 e 2: cria unidades independentes por (tribunal, tipo)
+    // com SUB-LOTES de até CHUNK_MAX termos. Assim, um TRF3/Parte com 8 termos
+    // vira 8 unidades paralelas (uma por VPS) em vez de 1 unidade serial.
     // A ordem de empilhamento preserva a prioridade parte → advogado → palavra-chave.
     const pushUnitsPorTipo = (fila: WorkUnit[], band: 1 | 2, trib: string) => {
       for (const tipo of ORDEM_TIPOS_PRINCIPAIS) {
         const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
         if (!tribsDoTipo.includes(trib)) continue;
-        if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
-        fila.push({ band, tribunal: trib, steps: [{ tipo, monIds: [null] }] });
+        const mons = (monsPorTipo.get(tipo) || []).filter((m) => {
+          const t = expandirTribunaisDoMon(m.tribunais);
+          return t.length === 0 || t.includes(trib);
+        });
+        if (mons.length === 0) continue;
+        const chunks = chunkArray(mons, CHUNK_MAX);
+        if (chunks.length <= 1) {
+          if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
+          fila.push({ band, tribunal: trib, steps: [{ tipo, monIds: [null] }] });
+        } else {
+          chunks.forEach((slice, idx) => {
+            const cKey = makeChunkKey(idx, chunks.length);
+            if (unidadesJaConcluidas.has(trackKey(tipo, trib, cKey))) return;
+            fila.push({
+              band,
+              tribunal: trib,
+              steps: [{ tipo, monIds: [cKey] }],
+              chunkKey: cKey,
+              chunkMonIds: slice.map((m) => m.id),
+            });
+          });
+        }
       }
     };
 
@@ -2364,7 +2439,12 @@ async function executarLoop(
               if (signal.aborted) break;
               let unidadeOk = true;
               try {
-                await processarTribunalTrack(unit.tribunal, step.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
+                // Sub-lote: passa os UUIDs reais em `monIdsFilter` e usa o
+                // chunkKey sintético como identificador da track.
+                const monIdsFilter = unit.chunkKey && unit.chunkMonIds
+                  ? unit.chunkMonIds
+                  : undefined;
+                await processarTribunalTrack(unit.tribunal, step.tipo, monitoramentos, datas, signal, via.id, monIdAtual, monIdsFilter);
                 const tr = state.progress.tracks.find(
                   t => t.tribunal === unit.tribunal && t.tipo === step.tipo && (t.monId ?? null) === (monIdAtual ?? null),
                 );
