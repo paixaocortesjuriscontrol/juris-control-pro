@@ -1477,6 +1477,17 @@ async function processarTermoEmTribunal(
       fallbackToDirect: forceViaOverride === DIRECT_SLOT_ID,
       fallbackToPool: !!forceViaOverride && forceViaOverride !== DIRECT_SLOT_ID,
     });
+
+    const failedPages = Number((resp as any).failedPages || 0);
+    const partial = Boolean((resp as any).partial || (resp as any).truncated || failedPages > 0);
+    if (partial) {
+      const msg = (resp as any).lastError
+        ? `Busca incompleta no PJE (${failedPages} página(s) com falha): ${(resp as any).lastError}`
+        : `Busca incompleta no PJE (${failedPages} página(s) com falha).`;
+      ultimoErro = msg;
+      throw new Error(msg);
+    }
+
     addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
     return resp;
@@ -1579,6 +1590,11 @@ async function processarTermoEmTribunal(
   } catch (e: any) {
     if (e?.name === 'AbortError') throw e;
     ultimoErro = e?.message || 'Falha de busca';
+    // Não transformar falha real de consulta em "0 resultados". Se a API/PJE,
+    // proxy ou paginação falhou, a track precisa ficar em erro e NÃO fechar
+    // checkpoint como concluída; caso contrário o card mostra "concluído" sem
+    // ter pesquisado todas as páginas.
+    throw e;
   }
 
   if (signal.aborted) {
