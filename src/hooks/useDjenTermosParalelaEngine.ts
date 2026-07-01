@@ -47,19 +47,6 @@ const WORKER_TIPOS_ORDER: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave', 
 const TIPOS_PRIORITARIOS: WorkerTipo[] = ['parte', 'advogado'];
 const TIPOS_FINAIS: WorkerTipo[] = ['palavra-chave', 'processo'];
 
-/**
- * Sub-lotes por (tribunal, tipo) nas bandas 1/2 (STF/STJ/TRTs/TJs/TRFs).
- * Cada sub-lote vira 1 unidade de fila e roda em paralelo entre VPS distintas,
- * espelhando `PARALELA_CHUNK_MAX=8` do `monitor-servidor/engines/paralela.js`.
- * Sem isso, um (trib, tipo) com N termos ficava serial em 1 VPS, ignorando o
- * restante do pool.
- */
-const CHUNK_MAX = 8;
-
-function makeChunkKey(idx: number, total: number): string {
-  return `__chunk_${idx}_${total}`;
-}
-
 function mapMonTipoToWorkerTipo(tipo: Monitoramento['tipo']): WorkerTipo {
   if (tipo === 'nome') return 'palavra-chave';
   if (tipo === 'geral') return 'palavra-chave';
@@ -154,15 +141,12 @@ interface Checkpoint {
 
 const MAX_CONCURRENCY = 5;
 const CONFIG = {
-  // Cada VPS do pool tem IP próprio — o rate-limit do PJE Comunica é por IP,
-  // não global. Delays intra-worker altos só serializavam trabalho e deixavam
-  // as demais VPSs ociosas. Valores alinhados com a paridade do servidor.
-  delay_between_terms: 800,
+  delay_between_terms: 2500,
   // Paridade com monitor-servidor/engines/paralela.js (PAGE_DELAY_MS=800).
   // 1800ms estava dobrando o custo de paginação e neutralizando o ganho
   // de adicionar mais VPS ao pool.
   delay_between_pages: 800,
-  delay_between_termos_or: 400,
+  delay_between_termos_or: 1800,
   max_retries: 3,
   // Paridade com servidor: 429 → ~8s base (8000*(attempt+1)). 20s travava
   // o worker em retries longos a cada rate-limit isolado.
@@ -193,7 +177,7 @@ const HOST_BUCKET_LIMITS: Record<HostBucket, number> = {
   'outro': 5,
 };
 
-const STORAGE_KEY = 'djen-termos-paralela-checkpoint-v2';
+const STORAGE_KEY = 'djen-termos-paralela-checkpoint-v1';
 const RESET_MARK_KEY = 'djen-termos-paralela-reset-at-v1';
 const BR_TZ = 'America/Sao_Paulo';
 const EXECUTION_SYNC_INTERVAL_MS = 15000;
@@ -321,10 +305,7 @@ function createDefaultProgress(): DjenTermosParalelaProgress {
     iniciadoEm: null,
     dataInicioYmd: null,
     dataFimYmd: null,
-    // Valor real (nº de VPS ativas) é atribuído no início da execução via
-    // updateProgress({ concorrencia }). Aqui só usamos 1 como placeholder de
-    // estado idle — não usar HOST_BUCKET_LIMITS, que é rótulo interno.
-    concorrencia: 1,
+    concorrencia: HOST_BUCKET_LIMITS['pje-comunica'],
   };
 }
 
@@ -619,21 +600,6 @@ function parsearTermoOr(raw: string): ParsedTermoOr | null {
   return { nome: clean };
 }
 
-function ufsOabFallbackParaTribunal(tribunal: string, ufRaw?: string): string[] {
-  const uf = String(ufRaw || '').trim().toUpperCase();
-  if (uf && uf !== 'TODAS' && /^[A-Z]{2}$/.test(uf)) return [uf];
-
-  const sigla = String(tribunal || '').trim().toUpperCase();
-  if (sigla === 'TJDFT') return ['DF'];
-  const tj = sigla.match(/^TJ([A-Z]{2})$/);
-  if (tj) return [tj[1]];
-
-  // Para cortes federais/superiores a OAB pode ser de qualquer UF; não abrir
-  // 27 chamadas como fallback automático aqui. O fallback amplo continua sendo
-  // a busca por nomeAdvogado, e só tribunais estaduais recebem OAB/UF inferido.
-  return [];
-}
-
 function parseArrayLike(value: any): any[] {
   if (Array.isArray(value)) return value;
   if (typeof value === 'string') {
@@ -759,11 +725,7 @@ function validarAdvogadoSecaoAdvogados(pub: any, oab?: string, nome?: string): b
   if (nomeNorm && contemFrase(secaoNorm, nomeNorm)) return true;
   if (pub?.__advogadoOabFallback && oab) {
     const oabDigits = String(oab).replace(/\D/g, '');
-    const fallbackUf = String(pub?.__advogadoOabFallbackUf || '').trim().toUpperCase();
-    if (oabDigits.length >= 3 && secaoNorm.includes(oabDigits)) {
-      if (!fallbackUf) return true;
-      return secaoNorm.includes(fallbackUf);
-    }
+    if (oabDigits.length >= 3 && secaoNorm.includes(oabDigits)) return true;
   }
   return false;
 }
@@ -782,11 +744,7 @@ function validarAdvogadoMetadados(pub: any, oab?: string, nome?: string): boolea
   const oabFallbackAtivo = pub?.__advogadoOabFallback === true;
   for (const adv of advs) {
     if (oabFallbackAtivo && oabDigits && adv.numero_oab) {
-      if (String(adv.numero_oab).replace(/\D/g, '') === oabDigits) {
-        const fallbackUf = String(pub?.__advogadoOabFallbackUf || '').trim().toUpperCase();
-        const advUf = String(adv.uf_oab || '').trim().toUpperCase();
-        if (!fallbackUf || !advUf || advUf === fallbackUf) return true;
-      }
+      if (String(adv.numero_oab).replace(/\D/g, '') === oabDigits) return true;
     }
     if (nomeNorm && adv.nome) {
       const advNorm = normalizar(adv.nome);
@@ -1266,13 +1224,8 @@ async function processarTribunalTrack(
   // Filtrar monitoramentos que devem ser executados nesse (tribunal, tipo)
   const monsParaEsseTrib = monitoramentos.filter(mon => {
     if (mapMonTipoToWorkerTipo(mon.tipo) !== tipo) return false;
-    if (monIdsFilter?.length) {
-      // Sub-lote (chunk): filtra somente pelos IDs reais do lote.
-      if (!monIdsFilter.includes(mon.id)) return false;
-    } else if (monId && !monId.startsWith('__chunk_')) {
-      // Modo 1-termo-por-unidade (banda 0/TST): exige match exato.
-      if (mon.id !== monId) return false;
-    }
+    if (monIdsFilter?.length && !monIdsFilter.includes(mon.id)) return false;
+    if (monId && mon.id !== monId) return false;
     const tribs = expandirTribunaisDoMon(mon.tribunais);
     // Se o monitoramento não tem tribunais (= todos), inclui esse tribunal.
     if (tribs.length === 0) return true;
@@ -1340,11 +1293,7 @@ async function processarTribunalTrack(
         } catch (e: any) {
           if (e?.name === 'AbortError') break;
           failedGroups += 1;
-          const msg = e?.message || String(e);
-          const upstream = /proxy_slot_timeout|upstream_status_5|http\s*5\d{2}|too many attempts|429/i.test(msg);
-          ultimoErro = upstream
-            ? `Upstream instável (${msg}) — termo NÃO será marcado como concluído; refeito no próximo ciclo/Retomar.`
-            : msg;
+          ultimoErro = e?.message || String(e);
           console.warn(`[DJEN Paralela][${tribunal}] erro grupo:`, e?.message);
         }
 
@@ -1500,17 +1449,6 @@ async function processarTermoEmTribunal(
       fallbackToDirect: forceViaOverride === DIRECT_SLOT_ID,
       fallbackToPool: !!forceViaOverride && forceViaOverride !== DIRECT_SLOT_ID,
     });
-
-    const failedPages = Number((resp as any).failedPages || 0);
-    const partial = Boolean((resp as any).partial || (resp as any).truncated || failedPages > 0);
-    if (partial) {
-      const msg = (resp as any).lastError
-        ? `Busca incompleta no PJE (${failedPages} página(s) com falha): ${(resp as any).lastError}`
-        : `Busca incompleta no PJE (${failedPages} página(s) com falha).`;
-      ultimoErro = msg;
-      throw new Error(msg);
-    }
-
     addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
     return resp;
@@ -1557,18 +1495,17 @@ async function processarTermoEmTribunal(
           // instabilidade via retries por página). Se vier 0, cai no fallback
           // por OAB abaixo (se aplicável).
         }
-        // Fallback OAB: se a busca por nome veio vazia, tentar OAB/UF quando
-        // houver UF específica ou quando for possível inferir UF pelo tribunal
-        // estadual (ex.: TJDFT => OAB DF). Isso cobre casos em que o PJE não
-        // devolve a publicação por nomeAdvogado, mas devolve por numeroOab+ufOab.
+        // Fallback OAB: somente se a busca por nome veio vazia E temos OAB+UF
+        // específica (UF=TODAS não é aceita pela API com numeroOab sozinho).
         const veioVazio = !respPrincipal || (respPrincipal.items?.length || 0) === 0;
-        const ufsFallback = veioVazio && oab && oab.length >= 3
-          ? ufsOabFallbackParaTribunal(tribunal, uf)
-          : [];
-        if (!signal.aborted && ufsFallback.length > 0) {
+        if (
+          !signal.aborted &&
+          veioVazio &&
+          oab && oab.length >= 3 &&
+          uf && uf !== 'TODAS' && /^[A-Z]{2}$/.test(uf)
+        ) {
           await abortableDelay(800, signal);
-          for (const ufFallback of ufsFallback) {
-            if (signal.aborted) break;
+          if (!signal.aborted) {
             const paramsOab = {
               tipo: 'advogado',
               dataInicio: diaYmd,
@@ -1576,17 +1513,13 @@ async function processarTermoEmTribunal(
               pageSize: 50,
               siglaTribunal: tribunal,
               oab,
-              uf: ufFallback,
+              uf,
             } as any;
             try {
-              await executarBusca(paramsOab, {
-                ...matchMeta,
-                __advogadoOabFallback: true,
-                __advogadoOabFallbackUf: ufFallback,
-              });
+              await executarBusca(paramsOab, { ...matchMeta, __advogadoOabFallback: true });
             } catch (e: any) {
               if (e?.name === 'AbortError') throw e;
-              console.warn(`[DJEN Paralela][${tribunal}] Fallback OAB advogado ${ufFallback} falhou:`, e?.message || e);
+              console.warn(`[DJEN Paralela][${tribunal}] Fallback OAB advogado falhou:`, e?.message || e);
             }
           }
         }
@@ -1618,11 +1551,6 @@ async function processarTermoEmTribunal(
   } catch (e: any) {
     if (e?.name === 'AbortError') throw e;
     ultimoErro = e?.message || 'Falha de busca';
-    // Não transformar falha real de consulta em "0 resultados". Se a API/PJE,
-    // proxy ou paginação falhou, a track precisa ficar em erro e NÃO fechar
-    // checkpoint como concluída; caso contrário o card mostra "concluído" sem
-    // ter pesquisado todas as páginas.
-    throw e;
   }
 
   if (signal.aborted) {
@@ -2137,39 +2065,13 @@ async function executarLoop(
         // monitoramento vira uma track própria. Demais tribunais agrupam
         // todos os termos em UMA única track serial por (tipo, tribunal).
         const tstParalelo = trib === 'TST' && tipo !== 'processo';
-        const isProcesso = tipo === 'processo';
-        // Sub-lotes: para bandas 1/2 (não-TST, não-processo), quando há mais
-        // termos que CHUNK_MAX, dividimos em N tracks paralelas — cada uma
-        // consumida por uma VPS diferente. Espelha o motor do servidor.
-        let trackTargets: Array<{ monId: string | null; monLabel: string | null; total: number }>;
-        if (tstParalelo) {
-          trackTargets = monsDoTipoNoTrib.map((mon) => ({
-            monId: mon.id,
-            monLabel: mon.descricao || mon.termo_busca,
-            total: datas.length,
-          }));
-        } else if (isProcesso) {
-          trackTargets = [{
-            monId: null,
-            monLabel: monsDoTipoNoTrib.length > 1 ? `${monsDoTipoNoTrib.length} termos` : (monsDoTipoNoTrib[0]?.descricao || monsDoTipoNoTrib[0]?.termo_busca || null),
-            total: monsDoTipoNoTrib.length * datas.length,
-          }];
-        } else {
-          const chunks = chunkArray(monsDoTipoNoTrib, CHUNK_MAX);
-          if (chunks.length <= 1) {
-            trackTargets = [{
+        const trackTargets = tstParalelo
+          ? monsDoTipoNoTrib.map((mon) => ({ monId: mon.id, monLabel: mon.descricao || mon.termo_busca, total: datas.length }))
+          : [{
               monId: null,
               monLabel: monsDoTipoNoTrib.length > 1 ? `${monsDoTipoNoTrib.length} termos` : (monsDoTipoNoTrib[0]?.descricao || monsDoTipoNoTrib[0]?.termo_busca || null),
               total: monsDoTipoNoTrib.length * datas.length,
             }];
-          } else {
-            trackTargets = chunks.map((slice, idx) => ({
-              monId: makeChunkKey(idx, chunks.length),
-              monLabel: `${slice.length} termos • lote ${idx + 1}/${chunks.length}`,
-              total: slice.length * datas.length,
-            }));
-          }
-        }
         for (const target of trackTargets) {
           const monId = target.monId;
           const monLabel = target.monLabel;
@@ -2290,18 +2192,7 @@ async function executarLoop(
     // Workers só consomem da próxima banda quando a banda anterior está
     // 100% drenada (sem unidades pendentes e sem unidades em processamento).
     type UnitStep = { tipo: WorkerTipo; monIds: (string | null)[] };
-    type WorkUnit = {
-      band: 0 | 1 | 2 | 3;
-      tribunal: string;
-      steps: UnitStep[];
-      /**
-       * Quando presente, indica que a unidade é um sub-lote de termos: o
-       * `chunkKey` é usado como monId sintético na track (ex.: `__chunk_1_3`)
-       * e `chunkMonIds` traz os UUIDs reais dos monitoramentos a processar.
-       */
-      chunkKey?: string;
-      chunkMonIds?: string[];
-    };
+    type WorkUnit = { band: 0 | 1 | 2 | 3; tribunal: string; steps: UnitStep[] };
 
     const ORDEM_TIPOS_PRINCIPAIS: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave'];
     const TRIBUNAIS_BAND1 = ['STF', 'STJ'];
@@ -2325,36 +2216,16 @@ async function executarLoop(
       }
     }
 
-    // Helper para bandas 1 e 2: cria unidades independentes por (tribunal, tipo)
-    // com SUB-LOTES de até CHUNK_MAX termos. Assim, um TRF3/Parte com 8 termos
-    // vira 8 unidades paralelas (uma por VPS) em vez de 1 unidade serial.
+    // Helper para bandas 1 e 2: cria UMA unidade independente por (tribunal, tipo).
+    // Assim, diferentes tipos do mesmo tribunal podem rodar em paralelo em workers
+    // distintos quando há slot livre, em vez de serem serializados num único worker.
     // A ordem de empilhamento preserva a prioridade parte → advogado → palavra-chave.
     const pushUnitsPorTipo = (fila: WorkUnit[], band: 1 | 2, trib: string) => {
       for (const tipo of ORDEM_TIPOS_PRINCIPAIS) {
         const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
         if (!tribsDoTipo.includes(trib)) continue;
-        const mons = (monsPorTipo.get(tipo) || []).filter((m) => {
-          const t = expandirTribunaisDoMon(m.tribunais);
-          return t.length === 0 || t.includes(trib);
-        });
-        if (mons.length === 0) continue;
-        const chunks = chunkArray(mons, CHUNK_MAX);
-        if (chunks.length <= 1) {
-          if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
-          fila.push({ band, tribunal: trib, steps: [{ tipo, monIds: [null] }] });
-        } else {
-          chunks.forEach((slice, idx) => {
-            const cKey = makeChunkKey(idx, chunks.length);
-            if (unidadesJaConcluidas.has(trackKey(tipo, trib, cKey))) return;
-            fila.push({
-              band,
-              tribunal: trib,
-              steps: [{ tipo, monIds: [cKey] }],
-              chunkKey: cKey,
-              chunkMonIds: slice.map((m) => m.id),
-            });
-          });
-        }
+        if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
+        fila.push({ band, tribunal: trib, steps: [{ tipo, monIds: [null] }] });
       }
     };
 
@@ -2487,12 +2358,7 @@ async function executarLoop(
               if (signal.aborted) break;
               let unidadeOk = true;
               try {
-                // Sub-lote: passa os UUIDs reais em `monIdsFilter` e usa o
-                // chunkKey sintético como identificador da track.
-                const monIdsFilter = unit.chunkKey && unit.chunkMonIds
-                  ? unit.chunkMonIds
-                  : undefined;
-                await processarTribunalTrack(unit.tribunal, step.tipo, monitoramentos, datas, signal, via.id, monIdAtual, monIdsFilter);
+                await processarTribunalTrack(unit.tribunal, step.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
                 const tr = state.progress.tracks.find(
                   t => t.tribunal === unit.tribunal && t.tipo === step.tipo && (t.monId ?? null) === (monIdAtual ?? null),
                 );

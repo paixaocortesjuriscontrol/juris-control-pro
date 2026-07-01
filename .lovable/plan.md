@@ -1,48 +1,53 @@
-# Plano: reduzir "proxy slot timeout" e proteger contra perda de publicações
+## Problema
 
-Escopo restrito a `src/utils/djenProxyPool.ts` e `src/hooks/useDjenTermosParalelaEngine.ts`. Nenhuma outra tela, motor ou lógica de busca muda.
+Na tela **Análise DJEN**, com "Somente Hoje" ativo e campo "Data Disponibilização" vazio:
 
-## 1. Aumentar teto de espera por VPS
+1. Publicações Kurier de hoje (30/06) com `data_publicacao = 01/07` não aparecem.
+2. Publicações Kurier que chegam atrasadas hoje (30/06) mas têm `data_disponibilizacao = 29/06` também não aparecem — e o usuário precisa vê-las, porque foram capturadas hoje.
 
-Em `src/utils/djenProxyPool.ts`:
-- `PROXY_SLOT_TIMEOUT_MS`: **25 000 → 45 000 ms**.
+## Causa raiz
 
-Motivo: quando a API PJE Comunica está sob carga, respostas chegam entre 25–40 s. 25 s hoje está estourando na parte estável do upstream, não em falha real da VPS.
+Em `src/hooks/usePublicacoesDjenUnificadas.ts` (e gêmeo `usePublicacoesDjenServidorUnificadas.ts`), a função `aplicarFiltroDataPublicacaoHojeBrt` filtra "hoje" por `data_publicacao`/`data_disponibilizacao` na janela do dia BRT. Isso ignora a natureza do Kurier, onde o que importa é o **dia da captura** (`created_at`), já que o Kurier entrega publicações com atraso (disp de dias anteriores) e às vezes adiantadas (pub do dia seguinte).
 
-## 2. Tratar timeout de upstream como "lento", não "offline"
+## Correção
 
-Ainda em `src/utils/djenProxyPool.ts`:
-- Introduzir estado runtime `slow` (separado de `online/offline`).
-- Quando o erro capturado for exatamente `proxy_slot_timeout_*ms` (upstream demorou), chamar um novo `markUpstreamSlow(slot.id, msg)` **em vez de** `markOffline(...)`. Registrar `lastError`, mas manter `online: true` para o próximo round-robin.
-- `markOffline` continua sendo usado para: erro de rede/DNS/TLS, HTTP 502/503/504 sustentados, erros de config (401/403 de token), qualquer coisa que **não** seja timeout do PJE via nossa VPS.
-- `getDjenProxySlotsRuntime()` passa a expor `slow: boolean` no retorno.
+Tornar o filtro "Somente Hoje" **sensível à fonte**:
 
-Efeito visual (sem mexer em outras telas além dos dois cards que já leem esse runtime — `PoolProxyDjenCard` e `WorkersDjenVpsPanel`):
-- Chip verde: online normal.
-- Chip **amarela "Lento"**: última chamada timeoutou no upstream, mas continua na fila.
-- Chip vermelha "Offline": erro real da VPS. Só entra aqui quando a VPS realmente não respondeu (rede/config/5xx sustentado).
+- **Fonte `kurier`** → matchear pelo dia da captura: `created_at` dentro do dia BRT de hoje (janela UTC já calculada). Isso garante que tudo capturado hoje aparece, seja com `data_disponibilizacao = 30/06`, `29/06` (atrasado) ou `data_publicacao = 01/07` (adiantado).
+- **Demais fontes (DJEN/DJET/etc.)** → manter comportamento atual: casa por `data_publicacao` OU `data_disponibilizacao` no dia BRT, com fallback `created_at` quando ambos forem NULL. Remover a restrição supérflua `data_publicacao.is.null` das cláusulas de `data_disponibilizacao` para também resolver o caso "DJEN com pub no dia seguinte e disp hoje".
 
-## 3. Proteção contra perda de publicações (checkpoint só fecha em sucesso)
+Estrutura final do `or(...)` quando `apenasHoje=true`:
 
-Em `src/hooks/useDjenTermosParalelaEngine.ts`:
-- Hoje, quando as 5 tentativas de um termo esgotam, ele é registrado como concluído no checkpoint com 0 achados. Se o motivo foi PJE 500/timeout em cadeia, aquela publicação some daquele ciclo.
-- Mudança: quando o motor detectar que **todas** as tentativas falharam com erro de upstream (`proxy_slot_timeout_*`, `upstream_status_5xx`, `429` persistente), **não fechar** o termo no checkpoint — marcar internamente como `precisa_refazer: true` e propagar mensagem "Termo com upstream instável — será refeito no próximo ciclo".
-- No próximo ciclo agendado (ou ao clicar Retomar), o motor pega esses termos primeiro, antes dos demais.
-- Termos que retornaram 200 com 0 publicações continuam sendo fechados normalmente (é resposta legítima do PJE, não falha).
+```
+or(
+  fonte.eq.kurier,created_at.gte.<inicioDiaUtc>,created_at.lte.<fimDiaUtc>  → combinadas via and(...)
+  and(fonte.neq.kurier, data_publicacao gte/lte janela UTC),
+  and(fonte.neq.kurier, data_publicacao gte/lte dia BRT UTC),
+  and(fonte.neq.kurier, data_disponibilizacao gte/lte janela UTC),
+  and(fonte.neq.kurier, data_disponibilizacao gte/lte dia BRT UTC),
+  and(fonte.neq.kurier, data_publicacao.is.null, data_disponibilizacao.is.null, created_at gte/lte janela UTC)
+)
+```
 
-## 4. Paridade no servidor (opcional, mesma release)
+(Sintaxe PostgREST real: cada ramo dentro de um `and(...)` no `.or(...)`. A condição `fonte.neq.kurier` exclui Kurier dos ramos por data; o ramo Kurier usa apenas `created_at`.)
 
-Espelhar a mesma proteção em `monitor-servidor/engines/paralela.js`:
-- Não marcar `execucao_servidor.status = 'concluido'` para uma unidade cujas tentativas terminaram todas em erro de upstream — deixar em `precisa_refazer` para o reaper/próxima janela retomar.
-- Manter a lógica atual de sucesso e de "0 achados legítimos" intacta.
+## Campo "Data Disponibilização" manual
 
-## Fora do escopo
+Quando o usuário **digita** uma data no campo "Data Disponibilização", o comportamento continua igual (filtra por `data_disponibilizacao` exato no banco, sem cláusula Kurier especial). É só o atalho "Somente Hoje" que ganha o tratamento por `created_at` para Kurier.
 
-- Não vou alterar retry base delay, número de tentativas, delays entre termos, motor de OAB/Parte/Advogado, comparador, análise DJEN, Kurier, distribuição TST, nem qualquer outra tela.
-- Não vou tentar mitigar a instabilidade do PJE em si — apenas absorver melhor.
+## Escopo
 
-## Como validar depois
+Apenas dois arquivos, apenas a função `aplicarFiltroDataPublicacaoHojeBrt`:
 
-1. Rodar um tribunal grande (STF Parte, por exemplo). Durante um pico do PJE, observar que as chips ficam amarelas "Lento" em vez de vermelhas, e que a execução não pinta VPS como Offline em massa.
-2. Verificar em `execucoes_servidor` (ou no checkpoint local via console) que termos com falha por upstream ficam com `precisa_refazer: true` e são recolhidos no próximo ciclo — nenhuma publicação "some" entre execuções.
-3. Se após aplicar isso ainda houver perda, o próximo passo é aumentar `max_retries` ou o `retry_base_delay` — mas só depois de medir.
+- `src/hooks/usePublicacoesDjenUnificadas.ts`
+- `src/hooks/usePublicacoesDjenServidorUnificadas.ts`
+
+Sem mudanças em UI, contadores de cards, exportações ou outros filtros.
+
+## Resultado esperado
+
+Em 30/06/2026, com "Somente Hoje" e "Data Disponibilização" vazio:
+
+- Aparecem todas as 522 publicações Kurier capturadas hoje, incluindo as com `Disp: 29/06` e `Pub: 30/06` mostradas no print.
+- Publicações DJEN do dia com `data_publicacao = 01/07` e `data_disponibilizacao = 30/06` também aparecem.
+- Publicações antigas (capturadas em dias anteriores) continuam fora.

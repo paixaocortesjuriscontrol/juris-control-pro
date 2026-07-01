@@ -36,7 +36,6 @@ import {
   useConfiguracoesServidor,
   useEnfileirarManual,
   useExecucaoServidorAoVivo,
-  useDjenProxyPoolServidor,
   useTickAge,
   useWorkersServidor,
   type ProgressoItem,
@@ -118,7 +117,6 @@ export function DjenServidorParalelaCard() {
   const enfileirar = useEnfileirarManual();
   const cancelar = useCancelarExecucaoServidor();
   const { data: workers = [] } = useWorkersServidor();
-  const { data: proxyPool = [] } = useDjenProxyPoolServidor();
   const nowTick = useTickAge();
 
   const [dataInicio, setDataInicio] = useState<Date | undefined>();
@@ -235,19 +233,6 @@ export function DjenServidorParalelaCard() {
   const workersBase = workersServidor.length > 0 ? workersServidor : workers;
   const workersOnline = workersBase.filter((w) => Date.now() - new Date(w.heartbeat_at).getTime() < 90_000);
   const currentWorker = workers.find((w) => w.current_execucao_id === exec?.id) || workersServidor.find((w) => w.status === "busy");
-  const proxyPoolAtivo = proxyPool.filter((slot) => slot.enabled && slot.pool_enabled_global !== false);
-  const viasEmUsoMap = new Map<string, { id?: string; label?: string }>();
-  tracks.forEach((track) => {
-    const via = track.via;
-    const key = via?.id || via?.label;
-    if (key) viasEmUsoMap.set(key, via);
-  });
-  (progress?.vias || []).forEach((via) => {
-    const key = via?.id || via?.label;
-    if (key) viasEmUsoMap.set(key, via);
-  });
-  const viasEmUso = Array.from(viasEmUsoMap.values());
-  const chamadasProcessadas = tracks.reduce((sum, track) => sum + (Number(track.current) || 0), 0);
 
   const handleHorariosChange = useCallback(async (proximos: string[]) => {
     if (!cfg) return;
@@ -315,10 +300,10 @@ export function DjenServidorParalelaCard() {
             <Zap className="h-5 w-5 text-primary" />
             <CardTitle>DJEN Termos</CardTitle>
             <Badge variant="outline" className="text-xs">
-              {workersOnline.length || 0} daemon{workersOnline.length === 1 ? "" : "s"}
+              {workersBase.length || 0} worker{workersBase.length === 1 ? "" : "s"} VPS
             </Badge>
             <Badge className="bg-emerald-500/15 text-emerald-700 border border-emerald-500/30 text-xs gap-1">
-              <Server className="h-3 w-3" /> Pool VPS ativo · {proxyPoolAtivo.length}/{proxyPool.length || 0}
+              <Server className="h-3 w-3" /> Pool VPS ativo · {workersOnline.length}/{workersBase.length || 0}
             </Badge>
           </div>
           <div className={cn("px-3 py-1 rounded-md text-sm font-medium flex items-center gap-2", statusConfig.bg, statusConfig.color)}>
@@ -486,22 +471,6 @@ export function DjenServidorParalelaCard() {
           </Button>
         </div>
 
-        {execStatus === "falhou" && !isRunning && (
-          <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 flex items-start gap-2 text-sm">
-            <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <div className="font-medium text-destructive">Última execução falhou (heartbeat perdido)</div>
-              <div className="text-xs text-muted-foreground">
-                {total > 0 && (
-                  <>Progresso preservado: {done}/{total} unidades concluídas. </>
-                )}
-                Clique em <strong>Retomar</strong> para continuar do checkpoint sem refazer o que já terminou.
-              </div>
-              {erroVisivel && <div className="text-xs text-destructive/80 italic mt-1">{erroVisivel}</div>}
-            </div>
-          </div>
-        )}
-
         {total > 0 && (
           <div className="space-y-1">
             <div className="flex items-center justify-between text-sm">
@@ -526,7 +495,7 @@ export function DjenServidorParalelaCard() {
               <Server className="h-4 w-4 text-primary" />
               Roteamento da sessão
             </div>
-            <span className="text-xs text-muted-foreground tabular-nums">{chamadasProcessadas} termos processados</span>
+            <span className="text-xs text-muted-foreground tabular-nums">{done} chamadas</span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
             <div className="rounded-md border bg-background p-2">
@@ -535,7 +504,7 @@ export function DjenServidorParalelaCard() {
             </div>
             <div className="rounded-md border bg-background p-2">
               <div className="text-muted-foreground flex items-center gap-1"><Server className="h-3 w-3" /> Via VPS</div>
-              <div className="text-base font-bold tabular-nums text-primary">{viasEmUso.length || (isRunning ? proxyPoolAtivo.length : done)}</div>
+              <div className="text-base font-bold tabular-nums text-primary">{done}</div>
             </div>
             <div className="rounded-md border bg-background p-2">
               <div className="text-muted-foreground">Rate-limits (429)</div>
@@ -543,18 +512,18 @@ export function DjenServidorParalelaCard() {
             </div>
             <div className="rounded-md border bg-background p-2">
               <div className="text-muted-foreground">VPS online</div>
-              <div className="text-base font-bold tabular-nums">{proxyPoolAtivo.length}/{proxyPool.length || 0}</div>
+              <div className="text-base font-bold tabular-nums">{workersOnline.length}/{workersBase.length || 0}</div>
             </div>
           </div>
           <div className="flex flex-wrap gap-1.5 pt-1">
-            {proxyPoolAtivo.map((slot) => (
-              <Badge key={slot.id} variant="outline" className="text-[11px] gap-1 font-mono border-emerald-500/40 text-emerald-700 bg-emerald-500/5">
+            {workersBase.map((worker) => (
+              <Badge key={worker.id} variant="outline" className="text-[11px] gap-1 font-mono border-emerald-500/40 text-emerald-700 bg-emerald-500/5">
                 <Wifi className="h-3 w-3" />
-                {slot.label || slot.base_url.replace(/^https?:\/\//, "")}
-                <span className="opacity-70">· habilitada</span>
+                {worker.worker_id.replace(/^hostinger-01-/, "")}
+                <span className="opacity-70">· {worker.current_execucao_id === exec?.id ? "ativo" : worker.status}</span>
               </Badge>
             ))}
-            {currentWorker && proxyPoolAtivo.length === 0 && (
+            {currentWorker && workersBase.length === 0 && (
               <Badge variant="outline" className="text-[11px] gap-1 font-mono border-primary/40 text-primary bg-primary/5">
                 <Wifi className="h-3 w-3" /> {currentWorker.worker_id}
               </Badge>

@@ -3,16 +3,9 @@
 
 const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
-const { randomUUID } = require("crypto");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-07-01-sublotes-8";
-
-// Sub-lotes: quebra grupos grandes (tipo+tribunal) em pedaços de até
-// CHUNK_MAX termos. Sem isso, TST parte (118 termos) ficava serial em 1 VPS
-// enquanto as outras VPS ficavam ociosas. Com 8, TST parte vira mais unidades
-// independentes que se distribuem no pool.
-const CHUNK_MAX = Math.max(1, Number(process.env.PARALELA_CHUNK_MAX || 8));
+const ENGINE_VERSION = "2026-06-27-checkpoint-auto-resume";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -22,12 +15,9 @@ const MAIN_TIPOS = ["parte", "advogado", "palavra-chave"];
 // Paridade com DJEN Termos Paralela do browser (src/hooks/useDjenTermosParalelaEngine.ts CONFIG):
 //   paginação default 800ms quando não informado, delay_between_terms 2500ms,
 //   delay_between_termos_or 1800ms. Fallbacks extras ficam desligados por padrão.
-// Cada VPS do pool tem IP próprio — rate-limit do PJE Comunica é por IP.
-// Delays altos só serializavam trabalho no mesmo worker.
 const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 800));
-const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 400));
-const TERMOS_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERMOS_OR_DELAY_MS || 300));
-const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 600));
+const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 2500));
+const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 1800));
 const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
 // Regras simples (sem flags): nenhum fallback é executado.
 //  - parte    → só nas partes (nomeParte na API + metadados/seção Parte(s))
@@ -1008,7 +998,7 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
           dataDisponibilizacaoFim: dia,
           nomeAdvogado: normalizeForApi(parsed.nome),
         };
-        if (TERMOS_OR_DELAY_MS > 0) await delay(TERMOS_OR_DELAY_MS, signal);
+        await delay(1800, signal);
         if (signal?.aborted) break;
         try {
           let orItems = await buscarPaginado(slot, paramsOr, signal);
@@ -1038,23 +1028,6 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
   const tribunaisMon = Array.isArray(mon.tribunais) ? expandirTribunais(mon.tribunais) : [];
   const logDebug = typeof mon.__log === "function" ? mon.__log : null;
   const seenRunKeys = new Set();
-  const coordenacaoIdMon = mon.coordenacao_id || null;
-  const existingByIdDjen = new Map();
-  const execLinks = [];
-  if (coordenacaoIdMon) {
-    const idsDjen = Array.from(new Set((pubs || []).map((pub) => getIdDjen(pub)).filter(Boolean)));
-    for (let i = 0; i < idsDjen.length; i += 500) {
-      const chunk = idsDjen.slice(i, i + 500);
-      const { data: existentes } = await sb
-        .from("publicacoes_djen_servidor")
-        .select("id, id_djen")
-        .eq("coordenacao_id", coordenacaoIdMon)
-        .in("id_djen", chunk);
-      for (const row of existentes || []) {
-        if (row?.id_djen && row?.id) existingByIdDjen.set(String(row.id_djen), row.id);
-      }
-    }
-  }
   for (const pub of pubs) {
     const conteudo = getConteudo(pub);
     const metadata = metadataFromRaw(pub);
@@ -1062,7 +1035,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     const dataDisponibilizacao = normalizarDataDispBrt(getDataDisponibilizacao(pub, dia));
     const processoNumero = extractProcesso(pub, conteudo);
     const hashConteudo = generatePublicacaoHash(conteudo, dataDisponibilizacao, processoNumero, idDjen);
-    const coordenacaoId = coordenacaoIdMon;
+    const coordenacaoId = mon.coordenacao_id || null;
     const runKey = idDjen ? `id_djen:${idDjen}` : `row:${Math.random().toString(36).slice(2)}:${hashConteudo}`;
     if (seenRunKeys.has(runKey)) {
       stats.duplicatas++;
@@ -1103,21 +1076,27 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     let exists = null;
     let existsReason = null;
     if (idDjen && coordenacaoId) {
-      const existingId = existingByIdDjen.get(String(idDjen));
-      exists = existingId ? { id: existingId } : null;
+      const { data } = await sb
+        .from("publicacoes_djen_servidor")
+        .select("id")
+        .eq("coordenacao_id", coordenacaoId)
+        .eq("id_djen", idDjen)
+        .maybeSingle();
+      exists = data || null;
       if (exists) existsReason = "same_coordenacao_id_djen";
     }
     if (exists) {
       stats.duplicatas++;
       logDebug?.("paralela.duplicata_existente", { reason: existsReason, monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, existing: exists });
       if (execucaoId) {
-        execLinks.push({ publicacao_id: exists.id, execucao_id: execucaoId, tipo_engine: "paralela" });
+        await sb.from("publicacoes_djen_servidor_execucoes").upsert(
+          { publicacao_id: exists.id, execucao_id: execucaoId, tipo_engine: "paralela" },
+          { onConflict: "publicacao_id,execucao_id", ignoreDuplicates: true }
+        );
       }
       continue;
     }
-    const newId = randomUUID();
     const insertRow = {
-      id: newId,
       monitoramento_id: mon.id,
       coordenacao_id: coordenacaoId,
       hash_conteudo: hashConteudo,
@@ -1137,8 +1116,9 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
     // upsert falha e a publicação válida acabava contabilizada como descartada.
     // Como já consultamos a duplicidade acima, o caminho correto é INSERT e,
     // se houver corrida, tratar 23505 como duplicata logo abaixo.
-    const insertQuery = sb.from("publicacoes_djen_servidor").insert(insertRow);
-    const { error } = await insertQuery;
+    const insertQuery = sb.from("publicacoes_djen_servidor").insert(insertRow).select("id");
+    const { data: insertedRows, error } = await insertQuery;
+    const inserted = Array.isArray(insertedRows) ? insertedRows[0] : insertedRows;
     if (error) {
       const msg = String(error.message || "");
       const isConflict = error.code === "23505" || msg.includes("duplicate key");
@@ -1150,10 +1130,6 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
         const { data: conflictRows } = await conflictQuery.limit(5);
         if (conflictRows && conflictRows.length > 0) {
           stats.duplicatas++;
-          if (idDjen && conflictRows[0]?.id) existingByIdDjen.set(String(idDjen), conflictRows[0].id);
-          if (execucaoId && conflictRows[0]?.id) {
-            execLinks.push({ publicacao_id: conflictRows[0].id, execucao_id: execucaoId, tipo_engine: "paralela" });
-          }
           logDebug?.("paralela.duplicata_constraint_confirmada", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, constraint: error.details || msg, conflictRows });
         } else {
           stats.descartadas++;
@@ -1163,20 +1139,19 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
         stats.descartadas++;
         logDebug?.("paralela.insert_error", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, code: error.code, message: msg, details: error.details });
       }
+    } else if (!inserted?.id) {
+      stats.duplicatas++;
+      logDebug?.("paralela.upsert_ignorado", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo });
     } else {
       stats.novas++;
-      if (idDjen && coordenacaoId) existingByIdDjen.set(String(idDjen), newId);
-      logDebug?.("paralela.nova_inserida", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, publicacaoId: newId });
-      if (execucaoId) {
-        execLinks.push({ publicacao_id: newId, execucao_id: execucaoId, tipo_engine: "paralela" });
+      logDebug?.("paralela.nova_inserida", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, publicacaoId: inserted?.id || null });
+      if (execucaoId && inserted?.id) {
+        await sb.from("publicacoes_djen_servidor_execucoes").upsert(
+          { publicacao_id: inserted.id, execucao_id: execucaoId, tipo_engine: "paralela" },
+          { onConflict: "publicacao_id,execucao_id", ignoreDuplicates: true }
+        );
       }
     }
-  }
-  for (let i = 0; i < execLinks.length; i += 500) {
-    await sb.from("publicacoes_djen_servidor_execucoes").upsert(
-      execLinks.slice(i, i + 500),
-      { onConflict: "publicacao_id,execucao_id", ignoreDuplicates: true }
-    );
   }
   return stats;
 }
@@ -1239,49 +1214,21 @@ async function run({ sb, payload, log, job }) {
   for (const m of lista) {
     const tipo = mapTipo(m.tipo);
     for (const tribunal of expandirTribunais(m.tribunais)) {
+      // Agrupa todos os termos do mesmo (tipo, tribunal) em um único slot/card,
+      // executando sequencialmente. Reduz chamadas à API DJEN e evita 429.
       const key = `${tipo}|${tribunal}`;
-      if (!grouped.has(key)) grouped.set(key, []);
-      grouped.get(key).push(m);
+      if (!grouped.has(key)) grouped.set(key, { id: key, tipo, tribunal, monitoramentos: [] });
+      grouped.get(key).monitoramentos.push(m);
     }
   }
 
-  // Sub-lotes: cada (tipo, tribunal) vira 1..N unidades de até CHUNK_MAX
-  // termos, para que várias VPS ataquem o mesmo tribunal pesado em paralelo.
-  const grupos = [];
-  for (const [baseKey, mons] of grouped.entries()) {
-    const [tipo, tribunal] = baseKey.split("|");
-    if (mons.length <= CHUNK_MAX) {
-      grupos.push({ id: baseKey, tipo, tribunal, monitoramentos: mons });
-    } else {
-      for (let i = 0; i < mons.length; i += CHUNK_MAX) {
-        const slice = mons.slice(i, i + CHUNK_MAX);
-        const chunkIdx = Math.floor(i / CHUNK_MAX);
-        grupos.push({
-          id: `${baseKey}|c${chunkIdx}`,
-          tipo,
-          tribunal,
-          monitoramentos: slice,
-          __chunkIdx: chunkIdx,
-          __chunkTotal: Math.ceil(mons.length / CHUNK_MAX),
-        });
-      }
-    }
-  }
-
-  const itens = grupos.sort((a, b) => {
+  const itens = Array.from(grouped.values()).sort((a, b) => {
     const ta = TODOS_TRIBUNAIS.indexOf(a.tribunal);
     const tb = TODOS_TRIBUNAIS.indexOf(b.tribunal);
-    return (ta - tb) || (TIPO_ORDER.indexOf(a.tipo) - TIPO_ORDER.indexOf(b.tipo)) || ((a.__chunkIdx || 0) - (b.__chunkIdx || 0));
+    return (ta - tb) || (TIPO_ORDER.indexOf(a.tipo) - TIPO_ORDER.indexOf(b.tipo));
   }).map((g) => ({
     id: g.id,
-    label: (() => {
-      const single = g.monitoramentos.length === 1;
-      if (single) return g.monitoramentos[0]?.descricao || g.monitoramentos[0]?.termo_busca || g.tribunal;
-      if (g.__chunkTotal && g.__chunkTotal > 1) {
-        return `${g.monitoramentos.length} termos (lote ${(g.__chunkIdx || 0) + 1}/${g.__chunkTotal})`;
-      }
-      return `${g.monitoramentos.length} termos`;
-    })(),
+    label: g.monitoramentos.length > 1 ? `${g.monitoramentos.length} termos` : (g.monitoramentos[0]?.descricao || g.monitoramentos[0]?.termo_busca || g.tribunal),
     tribunal: g.tribunal,
     tipo: g.tipo,
     monitoramentoIds: g.monitoramentos.map((m) => m.id),
@@ -1364,10 +1311,7 @@ async function run({ sb, payload, log, job }) {
   const flushProgresso = async (force = false) => {
     if (!job?.id) return;
     const now = Date.now();
-    // Throttle: 3s entre flushes reduz o volume de UPDATEs em
-    // execucoes_servidor (era o 2º gargalo do banco). Heartbeat independente
-    // continua batendo a cada 30s para o watchdog.
-    if (!force && now - lastFlush < 3000) return;
+    if (!force && now - lastFlush < 800) return;
     lastFlush = now;
     const concluidos = itens.filter((i) => i.status === "concluido" || i.status === "erro").length;
     const falhas = itens.filter((i) => i.status === "erro").length;
