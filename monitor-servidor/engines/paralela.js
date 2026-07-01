@@ -5,7 +5,13 @@ const { djenFetchSlot, loadPool } = require("../proxyPool");
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
-const ENGINE_VERSION = "2026-06-27-checkpoint-auto-resume";
+const ENGINE_VERSION = "2026-07-01-sublotes-15";
+
+// Sub-lotes: quebra grupos grandes (tipo+tribunal) em pedaços de até
+// CHUNK_MAX termos. Sem isso, TST parte (118 termos) ficava serial em 1 VPS
+// enquanto as outras VPS ficavam ociosas. Com 15, TST parte vira 8 unidades
+// independentes que se distribuem no pool.
+const CHUNK_MAX = Math.max(1, Number(process.env.PARALELA_CHUNK_MAX || 15));
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
@@ -1217,21 +1223,49 @@ async function run({ sb, payload, log, job }) {
   for (const m of lista) {
     const tipo = mapTipo(m.tipo);
     for (const tribunal of expandirTribunais(m.tribunais)) {
-      // Agrupa todos os termos do mesmo (tipo, tribunal) em um único slot/card,
-      // executando sequencialmente. Reduz chamadas à API DJEN e evita 429.
       const key = `${tipo}|${tribunal}`;
-      if (!grouped.has(key)) grouped.set(key, { id: key, tipo, tribunal, monitoramentos: [] });
-      grouped.get(key).monitoramentos.push(m);
+      if (!grouped.has(key)) grouped.set(key, []);
+      grouped.get(key).push(m);
     }
   }
 
-  const itens = Array.from(grouped.values()).sort((a, b) => {
+  // Sub-lotes: cada (tipo, tribunal) vira 1..N unidades de até CHUNK_MAX
+  // termos, para que várias VPS ataquem o mesmo tribunal pesado em paralelo.
+  const grupos = [];
+  for (const [baseKey, mons] of grouped.entries()) {
+    const [tipo, tribunal] = baseKey.split("|");
+    if (mons.length <= CHUNK_MAX) {
+      grupos.push({ id: baseKey, tipo, tribunal, monitoramentos: mons });
+    } else {
+      for (let i = 0; i < mons.length; i += CHUNK_MAX) {
+        const slice = mons.slice(i, i + CHUNK_MAX);
+        const chunkIdx = Math.floor(i / CHUNK_MAX);
+        grupos.push({
+          id: `${baseKey}|c${chunkIdx}`,
+          tipo,
+          tribunal,
+          monitoramentos: slice,
+          __chunkIdx: chunkIdx,
+          __chunkTotal: Math.ceil(mons.length / CHUNK_MAX),
+        });
+      }
+    }
+  }
+
+  const itens = grupos.sort((a, b) => {
     const ta = TODOS_TRIBUNAIS.indexOf(a.tribunal);
     const tb = TODOS_TRIBUNAIS.indexOf(b.tribunal);
-    return (ta - tb) || (TIPO_ORDER.indexOf(a.tipo) - TIPO_ORDER.indexOf(b.tipo));
+    return (ta - tb) || (TIPO_ORDER.indexOf(a.tipo) - TIPO_ORDER.indexOf(b.tipo)) || ((a.__chunkIdx || 0) - (b.__chunkIdx || 0));
   }).map((g) => ({
     id: g.id,
-    label: g.monitoramentos.length > 1 ? `${g.monitoramentos.length} termos` : (g.monitoramentos[0]?.descricao || g.monitoramentos[0]?.termo_busca || g.tribunal),
+    label: (() => {
+      const single = g.monitoramentos.length === 1;
+      if (single) return g.monitoramentos[0]?.descricao || g.monitoramentos[0]?.termo_busca || g.tribunal;
+      if (g.__chunkTotal && g.__chunkTotal > 1) {
+        return `${g.monitoramentos.length} termos (lote ${(g.__chunkIdx || 0) + 1}/${g.__chunkTotal})`;
+      }
+      return `${g.monitoramentos.length} termos`;
+    })(),
     tribunal: g.tribunal,
     tipo: g.tipo,
     monitoramentoIds: g.monitoramentos.map((m) => m.id),
@@ -1314,7 +1348,10 @@ async function run({ sb, payload, log, job }) {
   const flushProgresso = async (force = false) => {
     if (!job?.id) return;
     const now = Date.now();
-    if (!force && now - lastFlush < 800) return;
+    // Throttle: 3s entre flushes reduz o volume de UPDATEs em
+    // execucoes_servidor (era o 2º gargalo do banco). Heartbeat independente
+    // continua batendo a cada 30s para o watchdog.
+    if (!force && now - lastFlush < 3000) return;
     lastFlush = now;
     const concluidos = itens.filter((i) => i.status === "concluido" || i.status === "erro").length;
     const falhas = itens.filter((i) => i.status === "erro").length;
