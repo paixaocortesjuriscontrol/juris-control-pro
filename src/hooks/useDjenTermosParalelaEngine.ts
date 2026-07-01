@@ -1447,7 +1447,9 @@ async function processarTermoEmTribunal(
       onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via, monIdTrack),
       forceVia: forceViaOverride ?? undefined,
       fallbackToDirect: forceViaOverride === DIRECT_SLOT_ID,
-      fallbackToPool: !!forceViaOverride && forceViaOverride !== DIRECT_SLOT_ID,
+      // Igual ao DJEN Servidor: cada unit fica pinada em UMA VPS. Sem
+      // rotacionar chamadas do mesmo termo entre múltiplas VPS do pool.
+      fallbackToPool: false,
     });
     addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
