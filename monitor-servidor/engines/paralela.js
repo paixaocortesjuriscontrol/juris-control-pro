@@ -1229,26 +1229,64 @@ async function run({ sb, payload, log, job }) {
     }
   }
 
-  const itens = Array.from(grouped.values()).sort((a, b) => {
+  // Sharding: fatia cards com muitos termos em sub-units elegíveis para
+  // qualquer VPS. Cada shard mantém o mesmo cardKey (tipo|tribunal) para o
+  // frontend continuar exibindo 1 card único agregado.
+  const gruposOrdenados = Array.from(grouped.values()).sort((a, b) => {
     const ta = TODOS_TRIBUNAIS.indexOf(a.tribunal);
     const tb = TODOS_TRIBUNAIS.indexOf(b.tribunal);
     return (ta - tb) || (TIPO_ORDER.indexOf(a.tipo) - TIPO_ORDER.indexOf(b.tipo));
-  }).map((g) => ({
-    id: g.id,
-    label: g.monitoramentos.length > 1 ? `${g.monitoramentos.length} termos` : (g.monitoramentos[0]?.descricao || g.monitoramentos[0]?.termo_busca || g.tribunal),
-    tribunal: g.tribunal,
-    tipo: g.tipo,
-    monitoramentoIds: g.monitoramentos.map((m) => m.id),
-    status: "pendente",
-    current: 0,
-    total: g.monitoramentos.length * Math.max(1, dias.length),
-    mensagem: "Aguardando VPS...",
-    novas: 0,
-    descartadas: 0,
-    duplicatas: 0,
-    erro: null,
-    via: null,
-  }));
+  });
+  const itens = [];
+  for (const g of gruposOrdenados) {
+    const cardKey = g.id; // "tipo|tribunal"
+    const totalMons = g.monitoramentos.length;
+    // Só shardeia se ultrapassar o mínimo; caso contrário mantém 1 unit.
+    const shard = totalMons > SHARD_MIN && totalMons > SHARD_SIZE;
+    if (!shard) {
+      itens.push({
+        id: cardKey,
+        cardKey,
+        shardIdx: 0,
+        shardTotal: 1,
+        label: totalMons > 1 ? `${totalMons} termos` : (g.monitoramentos[0]?.descricao || g.monitoramentos[0]?.termo_busca || g.tribunal),
+        tribunal: g.tribunal,
+        tipo: g.tipo,
+        monitoramentoIds: g.monitoramentos.map((m) => m.id),
+        status: "pendente",
+        current: 0,
+        total: totalMons * Math.max(1, dias.length),
+        mensagem: "Aguardando VPS...",
+        novas: 0, descartadas: 0, duplicatas: 0,
+        erro: null, via: null,
+      });
+      continue;
+    }
+    // Divide em chunks de SHARD_SIZE
+    const chunks = [];
+    for (let i = 0; i < totalMons; i += SHARD_SIZE) {
+      chunks.push(g.monitoramentos.slice(i, i + SHARD_SIZE));
+    }
+    for (let idx = 0; idx < chunks.length; idx++) {
+      const chunk = chunks[idx];
+      itens.push({
+        id: `${cardKey}|shard${idx}`,
+        cardKey,
+        shardIdx: idx,
+        shardTotal: chunks.length,
+        label: `${chunk.length} termos`,
+        tribunal: g.tribunal,
+        tipo: g.tipo,
+        monitoramentoIds: chunk.map((m) => m.id),
+        status: "pendente",
+        current: 0,
+        total: chunk.length * Math.max(1, dias.length),
+        mensagem: "Aguardando VPS...",
+        novas: 0, descartadas: 0, duplicatas: 0,
+        erro: null, via: null,
+      });
+    }
+  }
 
   // === CHECKPOINT igual ao DJEN browser ===
   // Em vez de depender só da última execução, faz união de todas as unidades
