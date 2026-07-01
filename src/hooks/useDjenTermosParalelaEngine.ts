@@ -2289,32 +2289,12 @@ async function executarLoop(
     const usandoPoolVps = viasProxy.length > 0;
 
     // ------------------------------------------------------------------
-    // MAPEAMENTO FIXO tribunal/termo → VPS (espelha DJEN Servidor)
-    // Cada WorkUnit é casada a UMA `viaId` de forma determinística
-    // (hash da unitKey). Workers só consomem unidades da sua VPS.
-    // Isso elimina a rotação de chips por card e faz com que resumir
-    // um checkpoint reatribua a MESMA VPS para a mesma unidade.
+    // FILA COMPARTILHADA (espelha DJEN Servidor):
+    // qualquer worker/VPS livre pega a próxima unidade da banda atual.
+    // Uma vez que a VPS pega a unit, ela processa até o fim SEM rotação
+    // (fallbackToPool=false garante isso). Assim nenhuma VPS fica ociosa
+    // enquanto houver unidades pendentes, e cada card fica com 1 VPS só.
     // ------------------------------------------------------------------
-    const hashStr = (s: string) => {
-      let h = 0;
-      for (let i = 0; i < s.length; i++) {
-        h = ((h << 5) - h) + s.charCodeAt(i);
-        h |= 0;
-      }
-      return Math.abs(h);
-    };
-    const unitKeyOf = (u: WorkUnit) => {
-      const parts = u.steps.flatMap((st) =>
-        st.monIds.map((m) => `${st.tipo}|${u.tribunal}|${m ?? ''}`),
-      );
-      return parts.join('#');
-    };
-    const viasCount = vias.length;
-    for (const banda of bands) {
-      for (const u of banda) {
-        u.viaId = vias[hashStr(unitKeyOf(u)) % viasCount].id;
-      }
-    }
 
     // Concorrência efetiva = mín(nº vias, nº unidades pendentes).
     const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, totalUnidadesPendentes || 1));
@@ -2350,14 +2330,13 @@ async function executarLoop(
     let bandAtual = 0;
     const emProcessamentoPorBand = [0, 0, 0, 0];
 
-    const pickNextUnit = (viaId: string): WorkUnit | null => {
-      // Cada worker só consome unidades cuja `viaId` bate com a sua VPS
-      // (mapeamento fixo tribunal/termo → VPS). Prioridade por banda mantida.
+    const pickNextUnit = (_viaId: string): WorkUnit | null => {
+      // Fila compartilhada: qualquer worker livre pega a próxima unidade
+      // respeitando a prioridade por banda (0→1→2→3).
       for (let b = 0; b < bands.length; b++) {
-        const idx = bands[b].findIndex((u) => u.viaId === viaId);
-        if (idx >= 0) {
+        if (bands[b].length > 0) {
           bandAtual = b;
-          return bands[b].splice(idx, 1)[0];
+          return bands[b].shift() as WorkUnit;
         }
       }
       return null;
