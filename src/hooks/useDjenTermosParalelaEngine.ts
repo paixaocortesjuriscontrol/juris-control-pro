@@ -2194,7 +2194,7 @@ async function executarLoop(
     // Workers só consomem da próxima banda quando a banda anterior está
     // 100% drenada (sem unidades pendentes e sem unidades em processamento).
     type UnitStep = { tipo: WorkerTipo; monIds: (string | null)[] };
-    type WorkUnit = { band: 0 | 1 | 2 | 3; tribunal: string; steps: UnitStep[] };
+    type WorkUnit = { band: 0 | 1 | 2 | 3; tribunal: string; steps: UnitStep[]; viaId?: string };
 
     const ORDEM_TIPOS_PRINCIPAIS: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave'];
     const TRIBUNAIS_BAND1 = ['STF', 'STJ'];
