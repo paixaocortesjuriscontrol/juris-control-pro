@@ -1243,8 +1243,13 @@ async function processarTribunalTrack(
   // Filtrar monitoramentos que devem ser executados nesse (tribunal, tipo)
   const monsParaEsseTrib = monitoramentos.filter(mon => {
     if (mapMonTipoToWorkerTipo(mon.tipo) !== tipo) return false;
-    if (monIdsFilter?.length && !monIdsFilter.includes(mon.id)) return false;
-    if (monId && mon.id !== monId) return false;
+    if (monIdsFilter?.length) {
+      // Sub-lote (chunk): filtra somente pelos IDs reais do lote.
+      if (!monIdsFilter.includes(mon.id)) return false;
+    } else if (monId && !monId.startsWith('__chunk_')) {
+      // Modo 1-termo-por-unidade (banda 0/TST): exige match exato.
+      if (mon.id !== monId) return false;
+    }
     const tribs = expandirTribunaisDoMon(mon.tribunais);
     // Se o monitoramento não tem tribunais (= todos), inclui esse tribunal.
     if (tribs.length === 0) return true;
