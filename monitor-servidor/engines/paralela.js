@@ -15,10 +15,17 @@ const MAIN_TIPOS = ["parte", "advogado", "palavra-chave"];
 // Paridade com DJEN Termos Paralela do browser (src/hooks/useDjenTermosParalelaEngine.ts CONFIG):
 //   paginação default 800ms quando não informado, delay_between_terms 2500ms,
 //   delay_between_termos_or 1800ms. Fallbacks extras ficam desligados por padrão.
-const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 800));
-const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 2500));
-const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 1800));
+// Delays mais agressivos: cada VPS é um IP distinto e o rate limit da API PJE
+// Comunica é por IP. Com 10 VPS paralelas, cada uma pode ser mais ativa que o
+// motor de 1 VPS/1 usuário. Ajustável via env se a API endurecer.
+const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 400));
+const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 1000));
+const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 800));
 const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
+// Sharding: cards com muitos termos são fatiados em sub-units para que o
+// mesmo (tipo, tribunal) rode em várias VPS simultaneamente.
+const SHARD_SIZE = Math.max(1, Number(process.env.SERVIDOR_SHARD_SIZE || 12));
+const SHARD_MIN = Math.max(1, Number(process.env.SERVIDOR_SHARD_MIN || 6));
 // Regras simples (sem flags): nenhum fallback é executado.
 //  - parte    → só nas partes (nomeParte na API + metadados/seção Parte(s))
 //  - advogado → só nos advogados (nomeAdvogado/numeroOab na API + metadados)
@@ -1222,26 +1229,64 @@ async function run({ sb, payload, log, job }) {
     }
   }
 
-  const itens = Array.from(grouped.values()).sort((a, b) => {
+  // Sharding: fatia cards com muitos termos em sub-units elegíveis para
+  // qualquer VPS. Cada shard mantém o mesmo cardKey (tipo|tribunal) para o
+  // frontend continuar exibindo 1 card único agregado.
+  const gruposOrdenados = Array.from(grouped.values()).sort((a, b) => {
     const ta = TODOS_TRIBUNAIS.indexOf(a.tribunal);
     const tb = TODOS_TRIBUNAIS.indexOf(b.tribunal);
     return (ta - tb) || (TIPO_ORDER.indexOf(a.tipo) - TIPO_ORDER.indexOf(b.tipo));
-  }).map((g) => ({
-    id: g.id,
-    label: g.monitoramentos.length > 1 ? `${g.monitoramentos.length} termos` : (g.monitoramentos[0]?.descricao || g.monitoramentos[0]?.termo_busca || g.tribunal),
-    tribunal: g.tribunal,
-    tipo: g.tipo,
-    monitoramentoIds: g.monitoramentos.map((m) => m.id),
-    status: "pendente",
-    current: 0,
-    total: g.monitoramentos.length * Math.max(1, dias.length),
-    mensagem: "Aguardando VPS...",
-    novas: 0,
-    descartadas: 0,
-    duplicatas: 0,
-    erro: null,
-    via: null,
-  }));
+  });
+  const itens = [];
+  for (const g of gruposOrdenados) {
+    const cardKey = g.id; // "tipo|tribunal"
+    const totalMons = g.monitoramentos.length;
+    // Só shardeia se ultrapassar o mínimo; caso contrário mantém 1 unit.
+    const shard = totalMons > SHARD_MIN && totalMons > SHARD_SIZE;
+    if (!shard) {
+      itens.push({
+        id: cardKey,
+        cardKey,
+        shardIdx: 0,
+        shardTotal: 1,
+        label: totalMons > 1 ? `${totalMons} termos` : (g.monitoramentos[0]?.descricao || g.monitoramentos[0]?.termo_busca || g.tribunal),
+        tribunal: g.tribunal,
+        tipo: g.tipo,
+        monitoramentoIds: g.monitoramentos.map((m) => m.id),
+        status: "pendente",
+        current: 0,
+        total: totalMons * Math.max(1, dias.length),
+        mensagem: "Aguardando VPS...",
+        novas: 0, descartadas: 0, duplicatas: 0,
+        erro: null, via: null,
+      });
+      continue;
+    }
+    // Divide em chunks de SHARD_SIZE
+    const chunks = [];
+    for (let i = 0; i < totalMons; i += SHARD_SIZE) {
+      chunks.push(g.monitoramentos.slice(i, i + SHARD_SIZE));
+    }
+    for (let idx = 0; idx < chunks.length; idx++) {
+      const chunk = chunks[idx];
+      itens.push({
+        id: `${cardKey}|shard${idx}`,
+        cardKey,
+        shardIdx: idx,
+        shardTotal: chunks.length,
+        label: `${chunk.length} termos`,
+        tribunal: g.tribunal,
+        tipo: g.tipo,
+        monitoramentoIds: chunk.map((m) => m.id),
+        status: "pendente",
+        current: 0,
+        total: chunk.length * Math.max(1, dias.length),
+        mensagem: "Aguardando VPS...",
+        novas: 0, descartadas: 0, duplicatas: 0,
+        erro: null, via: null,
+      });
+    }
+  }
 
   // === CHECKPOINT igual ao DJEN browser ===
   // Em vez de depender só da última execução, faz união de todas as unidades
@@ -1313,10 +1358,74 @@ async function run({ sb, payload, log, job }) {
     const now = Date.now();
     if (!force && now - lastFlush < 800) return;
     lastFlush = now;
-    const concluidos = itens.filter((i) => i.status === "concluido" || i.status === "erro").length;
-    const falhas = itens.filter((i) => i.status === "erro").length;
-    const executando = itens.filter((i) => i.status === "executando");
-    const totais = itens.reduce((acc, i) => {
+    // Agrupa shards por cardKey para o frontend exibir 1 card único por
+    // (tipo, tribunal), independente de quantos shards estejam rodando.
+    const byCard = new Map();
+    for (const i of itens) {
+      const key = i.cardKey || i.id;
+      let card = byCard.get(key);
+      if (!card) {
+        card = {
+          id: key,
+          cardKey: key,
+          label: i.label,
+          tribunal: i.tribunal,
+          tipo: i.tipo,
+          monitoramentoIds: [],
+          status: "pendente",
+          current: 0,
+          total: 0,
+          mensagem: "",
+          novas: 0, descartadas: 0, duplicatas: 0,
+          erro: null,
+          via: null,
+          _shards: 0,
+          _statuses: [],
+          _viasAtivas: [],
+        };
+        byCard.set(key, card);
+      }
+      card._shards++;
+      card._statuses.push(i.status);
+      card.current += Number(i.current) || 0;
+      card.total += Number(i.total) || 0;
+      card.novas += Number(i.novas) || 0;
+      card.duplicatas += Number(i.duplicatas) || 0;
+      card.descartadas += Number(i.descartadas) || 0;
+      if (Array.isArray(i.monitoramentoIds)) card.monitoramentoIds.push(...i.monitoramentoIds);
+      if (i.status === "executando" && i.via) card._viasAtivas.push(i.via);
+      if (i.erro) card.erro = i.erro;
+      if (i.status === "executando" && !card.mensagem) card.mensagem = i.mensagem;
+    }
+    const cardItens = [];
+    for (const card of byCard.values()) {
+      const stats = card._statuses;
+      const total = card._shards;
+      if (stats.every((s) => s === "concluido")) card.status = "concluido";
+      else if (stats.some((s) => s === "executando")) card.status = "executando";
+      else if (stats.every((s) => s === "erro")) card.status = "erro";
+      else if (stats.some((s) => s === "cancelado")) card.status = "cancelado";
+      else if (stats.every((s) => s === "concluido" || s === "erro")) card.status = "concluido";
+      else card.status = "pendente";
+      // Label: se shardeado, mostra "N termos (X shards)"
+      if (total > 1) card.label = `${card.total / Math.max(1, dias.length)} termos (${total} shards)`;
+      if (!card.mensagem) {
+        if (card.status === "concluido") card.mensagem = `Concluído: ${card.novas} novas, ${card.duplicatas} duplicadas, ${card.descartadas} descartadas`;
+        else if (card.status === "pendente") card.mensagem = "Aguardando VPS...";
+        else if (card.status === "erro") card.mensagem = `Erro: ${card.erro || "desconhecido"}`;
+      }
+      // via: se múltiplas VPS ativas, sinaliza no label.
+      if (card._viasAtivas.length === 1) card.via = card._viasAtivas[0];
+      else if (card._viasAtivas.length > 1) {
+        card.via = { id: "multiplas", label: `${card._viasAtivas.length} VPS`, multiplas: true, labels: card._viasAtivas.map((v) => v?.label).filter(Boolean) };
+      }
+      delete card._shards; delete card._statuses; delete card._viasAtivas;
+      cardItens.push(card);
+    }
+    const concluidos = cardItens.filter((i) => i.status === "concluido" || i.status === "erro").length;
+    const falhas = cardItens.filter((i) => i.status === "erro").length;
+    const executando = cardItens.filter((i) => i.status === "executando");
+    const totais = cardItens.reduce((acc, i) => {
       acc.novas += Number(i.novas) || 0;
       acc.duplicatas += Number(i.duplicatas) || 0;
       acc.descartadas += Number(i.descartadas) || 0;
@@ -1324,17 +1433,18 @@ async function run({ sb, payload, log, job }) {
     }, { novas: 0, duplicatas: 0, descartadas: 0 });
     await sb.from("execucoes_servidor").update({
       progresso: {
-        totalItens: itens.length,
+        totalItens: cardItens.length,
         concluidos,
         falhas,
         novas: totais.novas,
         duplicatas: totais.duplicatas,
         descartadas: totais.descartadas,
         atual: executando[0] ? { id: executando[0].id, label: executando[0].label } : null,
-        itens,
+        itens: cardItens,
         janela: { dataInicio, dataFim },
         checkpoint: {
           runKey,
+          // Checkpoint fica em nível de SHARD (mais fino) para retomada precisa.
           unidadesConcluidas: itens.filter((i) => i.status === "concluido").map((i) => i.id),
         },
         pool_enabled: true,
@@ -1395,6 +1505,10 @@ async function run({ sb, payload, log, job }) {
     }
   }
   const bands = [band0, band1, band2, band3];
+  // LPT scheduling: dentro de cada banda, processa primeiro as units mais
+  // pesadas (maior `total`). Evita cauda longa (uma unit grande sobrar por
+  // último enquanto todas as outras VPS estão ociosas).
+  for (const b of bands) b.sort((a, b2) => (Number(b2.item.total) || 0) - (Number(a.item.total) || 0));
 
   // Acumula totais já vindos do checkpoint
   let totalNovas = 0, totalDescartadas = 0, totalDuplicatas = 0, totalErros = 0;
@@ -1508,10 +1622,20 @@ async function run({ sb, payload, log, job }) {
               // tupla (tribunal, mon, dia). Tenta os demais slots do pool antes
               // de empurrar para a refila — espelha o fallback do browser que
               // alterna entre VPS quando uma devolve 5xx.
+              // Short-circuit: tenta no máximo 2 slots alternativos aleatórios
+              // em vez de percorrer todos os 9 restantes. Em pico de 5xx isso
+              // corta o tempo de recuperação por par (mon, dia) de até 30-90s
+              // para <5s; se ambos falharem, cai para refila (recordFalha).
               const outrosSlots = slots.filter((s) => s.id !== slot.id);
+              // Shuffle leve
+              for (let i = outrosSlots.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [outrosSlots[i], outrosSlots[j]] = [outrosSlots[j], outrosSlots[i]];
+              }
+              const candidatos = outrosSlots.slice(0, 2);
               let recovered = null;
               let lastErr = firstErr;
-              for (const alt of outrosSlots) {
+              for (const alt of candidatos) {
                 if (cancelled || signal.aborted) break;
                 try {
                   log("paralela.failover_slot", { de: slot.label || slot.url, para: alt.label || alt.url, tribunal: item.tribunal, monId, dia, motivo: msg.slice(0, 160) });
