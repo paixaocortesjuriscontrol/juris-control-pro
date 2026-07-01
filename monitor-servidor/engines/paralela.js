@@ -1244,8 +1244,10 @@ async function run({ sb, payload, log, job }) {
   for (const g of gruposOrdenados) {
     const cardKey = g.id; // "tipo|tribunal"
     const totalMons = g.monitoramentos.length;
-    // Só shardeia se ultrapassar o mínimo; caso contrário mantém 1 unit.
-    const shard = totalMons > SHARD_MIN && totalMons > SHARD_SIZE;
+    // Shardeia sempre que o grupo tem mais que SHARD_MIN termos, mesmo que
+    // caiba num único shard de SHARD_SIZE. Isso permite que 2 grupos pequenos
+    // do mesmo (tipo, tribunal) rodem em VPS distintas.
+    const shard = totalMons > SHARD_MIN;
     if (!shard) {
       itens.push({
         id: cardKey,
