@@ -2079,64 +2079,96 @@ async function executarLoop(
       cp && cp.runKey === runKey ? cp.tribunaisConcluidos : []
     );
 
-    // Inicializar tracks: 1 por (tipo, tribunal). Ordem: agrupado por tribunal
-    // (TST_parte, TST_adv, TST_kw, TST_proc, STF_parte, ...) para leitura natural.
-    const tracks: TrackProgress[] = [];
-    for (const trib of tribunais) {
-      for (const tipo of tiposAtivos) {
-        const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
-        if (!tribsDoTipo.includes(trib)) continue;
-        // Para tipo=parte: TST mantém 1 track por termo; demais tribunais
-        // ficam com 1 única track por tribunal e executam os termos em série.
-        const monsDoTipoNoTrib = (monsPorTipo.get(tipo) || []).filter((m) => {
-          const tribs = expandirTribunaisDoMon(m.tribunais);
-          return tribs.length === 0 || tribs.includes(trib);
-        });
-        // TST roda em paralelo entre VPSs para TODOS os tipos exceto
-        // 'processo' (que vai sempre na faixa final). Para isso cada
-        // monitoramento vira uma track própria. Demais tribunais agrupam
-        // todos os termos em UMA única track serial por (tipo, tribunal).
-        const tstParalelo = trib === 'TST' && tipo !== 'processo';
-        const trackTargets = tstParalelo
-          ? monsDoTipoNoTrib.map((mon) => ({ monId: mon.id, monLabel: mon.descricao || mon.termo_busca, total: datas.length }))
-          : [{
-              monId: null,
-              monLabel: monsDoTipoNoTrib.length > 1 ? `${monsDoTipoNoTrib.length} termos` : (monsDoTipoNoTrib[0]?.descricao || monsDoTipoNoTrib[0]?.termo_busca || null),
-              total: monsDoTipoNoTrib.length * datas.length,
-            }];
-        for (const target of trackTargets) {
-          const monId = target.monId;
-          const monLabel = target.monLabel;
-          const key = trackKey(tipo, trib, monId);
-          const jaConcluido = unidadesJaConcluidas.has(key);
-          const totalTrack = target.total;
-          tracks.push({
-            tribunal: trib,
-            tipo,
-            monId,
-            monLabel,
-            status: jaConcluido ? 'concluido' : 'pendente',
-            current: jaConcluido ? totalTrack : 0,
-            total: totalTrack,
-            novas: 0,
-            duplicadas: 0,
-            descartadas: 0,
-            mensagem: jaConcluido ? 'Já processado (checkpoint)' : 'Aguardando slot...',
-            termoAtual: tstParalelo ? monLabel : null,
-            diaAtual: null,
-            rateLimitHits: 0,
-            ultimoErro: null,
-            startedAt: null,
-            finishedAt: jaConcluido ? Date.now() : null,
-            lastViaId: null,
-            lastViaLabel: null,
-            lastViaKind: null,
-            callsDirect: 0,
-            callsByProxy: {},
-          });
-        }
+    type PlannedUnit = {
+      id: string;
+      cardKey: string;
+      tipo: WorkerTipo;
+      tribunal: string;
+      monId: string | null;
+      monitoramentoIds: string[];
+      label: string | null;
+      total: number;
+      shardIdx: number;
+      shardTotal: number;
+    };
+
+    const grupos = new Map<string, { tipo: WorkerTipo; tribunal: string; monitoramentos: Monitoramento[] }>();
+    for (const mon of monitoramentos) {
+      const tipo = mapMonTipoToWorkerTipo(mon.tipo);
+      const tribsDeclarados = expandirTribunaisDoMon(mon.tribunais);
+      const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
+      const tribsEfetivos = tribsDeclarados.length > 0 ? tribsDeclarados : tribsDoTipo;
+      for (const tribunal of tribsEfetivos) {
+        if (!tribsDoTipo.includes(tribunal)) continue;
+        const key = `${tipo}|${tribunal}`;
+        if (!grupos.has(key)) grupos.set(key, { tipo, tribunal, monitoramentos: [] });
+        grupos.get(key)!.monitoramentos.push(mon);
       }
     }
+
+    const plannedUnits: PlannedUnit[] = [];
+    const gruposOrdenados = Array.from(grupos.values()).sort((a, b) =>
+      (tribunalPriorityRank(a.tribunal) - tribunalPriorityRank(b.tribunal)) ||
+      (tipoPriorityRank(a.tipo) - tipoPriorityRank(b.tipo))
+    );
+    for (const grupo of gruposOrdenados) {
+      const totalMons = grupo.monitoramentos.length;
+      if (totalMons === 0) continue;
+      const cardKey = `${grupo.tipo}|${grupo.tribunal}`;
+      const deveShardear = totalMons > SHARD_MIN;
+      const chunks = deveShardear
+        ? chunkArray(grupo.monitoramentos, SHARD_SIZE)
+        : [grupo.monitoramentos];
+      chunks.forEach((chunk, idx) => {
+        const monId = deveShardear ? `shard${idx}` : null;
+        plannedUnits.push({
+          id: deveShardear ? `${cardKey}|shard${idx}` : cardKey,
+          cardKey,
+          tipo: grupo.tipo,
+          tribunal: grupo.tribunal,
+          monId,
+          monitoramentoIds: chunk.map((m) => m.id),
+          label: deveShardear
+            ? `${chunk.length} termos (${idx + 1}/${chunks.length})`
+            : totalMons > 1
+              ? `${totalMons} termos`
+              : (chunk[0]?.descricao || chunk[0]?.termo_busca || null),
+          total: chunk.length * datas.length,
+          shardIdx: idx,
+          shardTotal: chunks.length,
+        });
+      });
+    }
+
+    // Inicializar tracks exatamente no mesmo nível das units do Servidor:
+    // card pequeno = 1 unit por (tipo, tribunal); card grande = shards.
+    const tracks: TrackProgress[] = plannedUnits.map((unit) => {
+      const jaConcluido = unidadesJaConcluidas.has(unit.id) || unidadesJaConcluidas.has(trackKey(unit.tipo, unit.tribunal, unit.monId));
+      return {
+        tribunal: unit.tribunal,
+        tipo: unit.tipo,
+        monId: unit.monId,
+        monLabel: unit.label,
+        status: jaConcluido ? 'concluido' : 'pendente',
+        current: jaConcluido ? unit.total : 0,
+        total: unit.total,
+        novas: 0,
+        duplicadas: 0,
+        descartadas: 0,
+        mensagem: jaConcluido ? 'Já processado (checkpoint)' : 'Aguardando VPS...',
+        termoAtual: unit.shardTotal > 1 ? unit.label : null,
+        diaAtual: null,
+        rateLimitHits: 0,
+        ultimoErro: null,
+        startedAt: null,
+        finishedAt: jaConcluido ? Date.now() : null,
+        lastViaId: null,
+        lastViaLabel: null,
+        lastViaKind: null,
+        callsDirect: 0,
+        callsByProxy: {},
+      };
+    });
     const totalUnidades = tracks.length;
     const unidadesConcluidasInicial = tracks.filter(t => t.status === 'concluido').length;
     const totalWorkInicial = tracks.reduce((sum, t) => sum + Number(t.total || 0), 0);
