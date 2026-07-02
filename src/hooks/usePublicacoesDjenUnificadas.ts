@@ -245,7 +245,7 @@ export interface FiltrosUnificados {
   // - processo: publicações vindas de processos cadastrados
   // - descartada: auditoria
   // - todos: (legado) mantido por compatibilidade
-  tipoOrigem?: 'termo' | 'parte' | 'processo' | 'descartada' | 'djet-pautas' | 'todos';
+  tipoOrigem?: 'termo' | 'parte' | 'processo' | 'descartada' | 'djet-pautas' | 'kurier' | 'todos';
   incluirDescartadas?: boolean;
   /** Página atual (1-based). Default: 1. */
   page?: number;
@@ -617,7 +617,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         // Quando há filtro de leitura, ele precisa ser aplicado ANTES do LIMIT;
         // senão a tela pode pegar 500 já lidas, filtrar no client e ficar vazia
         // mesmo com milhares de não lidas nos totalizadores.
-        const canUseRpc = (filtros.dedupServidor === true || readStatus !== 'todas')
+        const canUseRpc = (filtros.dedupServidor === true || readStatus !== 'todas' || filtros.tipoOrigem === 'kurier')
           && filtros.tipoOrigem !== 'descartada'
           && filtros.tipoOrigem !== 'djet-pautas';
       if (canUseRpc) {
