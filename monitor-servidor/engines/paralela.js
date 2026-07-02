@@ -9,7 +9,7 @@ const ENGINE_VERSION = "2026-07-01-prioridade-original-wave";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
-const TODOS_TRIBUNAIS = [...TODOS_TRT, "STF", "STJ", "TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6", ...TODOS_CIVEIS];
+const TODOS_TRIBUNAIS = [...TODOS_TRT, "STJ", "TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6", ...TODOS_CIVEIS, "STF"];
 const TIPO_ORDER = ["parte", "advogado", "palavra-chave", "processo"];
 const MAIN_TIPOS = ["parte", "advogado", "palavra-chave"];
 // Paridade com DJEN Termos Paralela do browser (src/hooks/useDjenTermosParalelaEngine.ts CONFIG):
@@ -49,8 +49,7 @@ const delay = (ms, signal) => new Promise((resolve) => {
 function tribunalPriorityRank(tribunal) {
   const t = String(tribunal || "").toUpperCase();
   if (t === "TST") return 0;
-  if (t === "STF") return 1;
-  if (t === "STJ") return 2;
+  if (t === "STJ") return 1;
   const trt = t.match(/^TRT(\d{1,2})$/);
   if (trt) return 10 + Number(trt[1]);
   const idx = TODOS_TRIBUNAIS.indexOf(t);
@@ -64,7 +63,7 @@ function tipoPriorityRank(tipo) {
 
 function isTribunalPrioritario(tribunal) {
   const t = String(tribunal || "").toUpperCase();
-  return t === "TST" || t === "STF" || t === "STJ" || /^TRT\d{1,2}$/.test(t);
+  return t === "TST" || t === "STJ" || /^TRT\d{1,2}$/.test(t);
 }
 
 function comparePriorityUnits(a, b) {

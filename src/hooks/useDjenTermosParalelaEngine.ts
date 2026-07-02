@@ -68,8 +68,7 @@ function trackKey(tipo: WorkerTipo, tribunal: string, monId?: string | null, sha
 function tribunalPriorityRank(tribunal: string): number {
   const t = String(tribunal || '').toUpperCase();
   if (t === 'TST') return 0;
-  if (t === 'STF') return 1;
-  if (t === 'STJ') return 2;
+  if (t === 'STJ') return 1;
   const trt = t.match(/^TRT(\d{1,2})$/);
   if (trt) return 10 + Number(trt[1]);
   const idx = TRIBUNAL_PRIORITY_ORDER.indexOf(t);
@@ -83,7 +82,7 @@ function tipoPriorityRank(tipo: WorkerTipo): number {
 
 function isTribunalPrioritario(tribunal: string): boolean {
   const t = String(tribunal || '').toUpperCase();
-  return t === 'TST' || t === 'STF' || t === 'STJ' || /^TRT\d{1,2}$/.test(t);
+  return t === 'TST' || t === 'STJ' || /^TRT\d{1,2}$/.test(t);
 }
 
 function isRecoverableVpsFailure(error: unknown): boolean {
@@ -273,7 +272,7 @@ function abortableDelay(ms: number, signal?: AbortSignal): Promise<void> {
 // ============================================================================
 
 const TRIBUNAL_PRIORITY_ORDER: string[] = [
-  'TST', 'STF', 'STJ',
+  'TST', 'STJ',
   'TRF1', 'TRF2', 'TRF3', 'TRF4', 'TRF5', 'TRF6',
   'TRT1', 'TRT2', 'TRT3', 'TRT4', 'TRT5', 'TRT6', 'TRT7', 'TRT8', 'TRT9',
   'TRT10', 'TRT11', 'TRT12', 'TRT13', 'TRT14', 'TRT15', 'TRT16', 'TRT17',
@@ -281,6 +280,7 @@ const TRIBUNAL_PRIORITY_ORDER: string[] = [
   'TJAC', 'TJAL', 'TJAM', 'TJAP', 'TJBA', 'TJCE', 'TJDFT', 'TJES', 'TJGO',
   'TJMA', 'TJMG', 'TJMS', 'TJMT', 'TJPA', 'TJPB', 'TJPE', 'TJPI', 'TJPR',
   'TJRJ', 'TJRN', 'TJRO', 'TJRR', 'TJRS', 'TJSC', 'TJSE', 'TJSP', 'TJTO',
+  'STF',
 ];
 
 function ordenarTribunais(tribunais: string[]): string[] {
