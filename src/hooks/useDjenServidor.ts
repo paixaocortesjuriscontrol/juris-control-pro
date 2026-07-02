@@ -444,6 +444,13 @@ export interface ComparadorAnaliseRelatorio {
     execucao_servidor_agendada_para: string | null;
     execucao_servidor_finalizada_em: string | null;
     provavel_causa: string | null;
+    motivo_exato: string | null;
+    existe_na_mesma_origem_outra_coord: boolean;
+    coords_mesma_origem_outra_coord: string | null;
+    capturado_na_mesma_origem_em: string | null;
+    existe_na_outra_origem_outra_coord: boolean;
+    coords_outra_origem_outra_coord: string | null;
+    capturado_na_outra_origem_em: string | null;
   }>;
   detalhesDuplicadas: Array<{
     coordenacaoId: string;
