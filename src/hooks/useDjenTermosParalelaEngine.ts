@@ -38,7 +38,7 @@ import {
 
 export type TrackStatus = 'pendente' | 'executando' | 'concluido' | 'erro' | 'cancelado';
 
-/** Tipos de busca dedicados às VPS (mapeamos 'nome' → 'palavra-chave'). */
+/** Tipos de busca dedicados às VPS (legado 'nome' = busca de advogado por nome). */
 export type WorkerTipo = 'parte' | 'advogado' | 'palavra-chave' | 'processo';
 // Ordem de prioridade global das filas. `palavra-chave` (termo) e `processo`
 // SEMPRE rodam por último — todos os workers só começam essas filas depois que
@@ -48,7 +48,10 @@ const TIPOS_PRIORITARIOS: WorkerTipo[] = ['parte', 'advogado'];
 const TIPOS_FINAIS: WorkerTipo[] = ['palavra-chave', 'processo'];
 
 function mapMonTipoToWorkerTipo(tipo: Monitoramento['tipo']): WorkerTipo {
-  if (tipo === 'nome') return 'palavra-chave';
+  // IMPORTANTE: muitos monitoramentos antigos de advogado foram gravados como
+  // tipo='nome' (ex.: OSMAR MENDES/Coord. Dr. Thomás). No PJE Comunica isso
+  // precisa ir em `nomeAdvogado`, não em `texto`/palavra-chave.
+  if (tipo === 'nome') return 'advogado';
   if (tipo === 'geral') return 'palavra-chave';
   return tipo as WorkerTipo;
 }
@@ -1021,7 +1024,7 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   }
 
   const textoNorm = normalizar(buildTextoCompleto(pub));
-  if (tipo === 'advogado') {
+  if (tipo === 'advogado' || tipo === 'nome') {
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
     if (validarAdvogadoSecaoAdvogados(pub, mon.oab, mon.termo_busca)) return true;
     // Fallback: nome como frase contígua no teor (a API já filtrou por nomeAdvogado)
@@ -1371,13 +1374,15 @@ async function processarTermoEmTribunal(
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; ultimoErro: string | null }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
 
-  // `nome` é um tipo válido no banco, mas a API do PJE Comunica não aceita
-  // esse literal em `tipo`. Para manter a busca correta, usamos palavra-chave.
+  // `nome` é legado no banco para "advogado por nome". Para casar com a URL
+  // oficial do Comunica, deve virar `nomeAdvogado`, não `texto`.
   const tipo: PjeSearchType = mon.tipo === 'parte'
     ? 'parte'
-    : mon.tipo === 'nome' || mon.tipo === 'geral'
-      ? 'palavra-chave'
-      : mon.tipo;
+    : mon.tipo === 'nome'
+      ? 'advogado'
+      : mon.tipo === 'geral'
+        ? 'palavra-chave'
+        : mon.tipo;
   const resultados: any[] = [];
   const seen = new Set<string>();
   let rateLimitHits = preloaded?.rateLimitHits ?? 0;
