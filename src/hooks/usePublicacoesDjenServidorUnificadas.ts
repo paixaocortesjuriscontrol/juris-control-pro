@@ -458,6 +458,8 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         tipoOrigem: filtros.tipoOrigem ?? null,
         termoBusca: filtros.termoBusca ?? null,
         monitoramentoId: filtros.monitoramentoId ?? null,
+        tribunal: filtros.tribunal ?? null,
+        dedupServidor: filtros.dedupServidor === true,
         readStatus,
       },
     ],
@@ -482,187 +484,69 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         ? `${filtros.dataDisponibilizacao}T23:59:59.999Z`
         : null;
 
-      // Conta per-user via RPC: "não lidas" considera publicacoes_djen_leituras
-      // do usuário autenticado (espelhando o mergeWithLeituras no client),
-      // para que o card bata com o badge de cada coordenação.
-      // Repassa também os filtros de tipo de origem, busca e monitoramento
-      // para que os totalizadores reflitam exatamente o que está filtrado.
-      // FILTRO DJET PAUTAS: a RPC não conhece tipo_publicacao, então
-      // contamos diretamente em publicacoes_djen filtrando por 'pauta'.
-      if (filtros.tipoOrigem === 'djet-pautas') {
-        try {
-          let q = (supabase
-            .from('publicacoes_djen_servidor') as any)
-            .select('id, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, coordenacao_id', { count: 'exact' })
-            .eq('tipo_publicacao', 'pauta');
-          const pautaDispInicio = dataDisponibilizacaoPautaInicio(filtros.dataDisponibilizacao, filtros.apenasHoje);
-          const pautaDispFim = dataDisponibilizacaoPautaFim(filtros.dataDisponibilizacao, filtros.apenasHoje);
-          if (pautaDispInicio) q = q.gte('data_disponibilizacao', pautaDispInicio);
-          if (pautaDispFim) q = q.lte('data_disponibilizacao', pautaDispFim);
-          if (!pautaDispInicio && di) q = q.gte('created_at', di);
-          if (!pautaDispFim && df) q = q.lte('created_at', df);
-          if (filtros.coordenacaoId) q = q.eq('coordenacao_id', filtros.coordenacaoId);
-          if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
-          const { data: pautasRows } = await q.limit(2000).abortSignal(signal);
-          // Per-user read status via RPC
-          const ids = (pautasRows || []).map((r: any) => r.id);
-          let readSet = new Set<string>();
-          if (ids.length > 0) {
-            const { data: leituras } = await (supabase as any).rpc('get_leituras_publicacoes', { p_ids: ids });
-            (leituras || []).forEach((l: any) => {
-              if (l.usuario_id === user.id) readSet.add(l.publicacao_id);
-            });
-          }
-          // Aplicar deduplicação para alinhar contagem do header com a lista
-          // (4 pautas idênticas para o mesmo processo viram 1 na lista).
-          const dedupedRows = dedupePublicacoesDjen(
-            (pautasRows || []).map((r: any) => ({
-              id: r.id,
-              tipo_origem: 'termo',
-              processo_id: null,
-              processo_numero: r.processo_numero,
-              conteudo: r.conteudo,
-              data_publicacao: r.data_publicacao,
-              data_disponibilizacao: r.data_disponibilizacao,
-              fonte: null,
-              lida: false,
-              created_at: r.created_at,
-              monitoramento_id: null,
-              monitoramento_termo: null,
-              monitoramento_descricao: null,
-              monitoramento_tipo: null,
-              monitoramento_oab: null,
-              monitoramento_uf: null,
-              coordenacao_id: r.coordenacao_id ?? null,
-              coordenacao_nome: null,
-              polo_ativo: null,
-              polo_passivo: null,
-              tribunal: r.tribunal ?? null,
-              orgao: null,
-              tipo_comunicacao: null,
-              meio: null,
-              advogados_json: [],
-              partes_json: [],
-            })) as any
-          );
-          const tT = dedupedRows.length;
-          const nT = dedupedRows.filter((r: any) => !readSet.has(r.id)).length;
-          const lT = Math.max(0, tT - nT);
-          if (readStatus === 'nao_lidas') {
-            return { total: nT, naoLidas: nT, totalTermos: nT, totalProcessos: 0, totalUnicas: nT, naoLidasUnicas: nT };
-          }
-          if (readStatus === 'lidas') {
-            return { total: lT, naoLidas: 0, totalTermos: lT, totalProcessos: 0, totalUnicas: lT, naoLidasUnicas: 0 };
-          }
-          return { total: tT, naoLidas: nT, totalTermos: tT, totalProcessos: 0, totalUnicas: tT, naoLidasUnicas: nT };
-        } catch (e) {
-          console.warn('[stats-header] djet-pautas count failed', e);
-          return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0, totalUnicas: 0, naoLidasUnicas: 0 };
-        }
-      }
-
-        let q = (supabase
-          .from('publicacoes_djen_servidor') as any)
-          .select('id, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, fonte, created_at, monitoramento_id, tipo_publicacao, coordenacao_id', { count: 'exact' })
-        .or('tipo_publicacao.is.null,tipo_publicacao.neq.pauta')
-        .order('created_at', { ascending: false });
-
-      q = aplicarFiltroDataPublicacaoHojeBrt(q, di, df, filtros.apenasHoje);
-      if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
-      if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
-      if (filtros.coordenacaoId) q = q.eq('coordenacao_id', filtros.coordenacaoId);
-      if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
-      if (filtros.tribunal) q = q.ilike('tribunal', `%${filtros.tribunal}%`);
-
-      const { data: rows, error } = await q.limit(20000).abortSignal(signal);
+      const { data, error } = await (supabase.rpc as any)('get_djen_stats_servidor_per_user', {
+        p_coordenacao_id: filtros.coordenacaoId ?? null,
+        p_inicio: di,
+        p_fim: df,
+        p_tipo_origem: filtros.tipoOrigem && filtros.tipoOrigem !== 'descartada' && filtros.tipoOrigem !== 'todos'
+          ? filtros.tipoOrigem
+          : null,
+        p_search_query: filtros.termoBusca || null,
+        p_monitoramento_id: filtros.monitoramentoId || null,
+        p_data_disponibilizacao_inicio: dataDisponibilizacaoInicio,
+        p_data_disponibilizacao_fim: dataDisponibilizacaoFim,
+        p_tribunal: filtros.tribunal || null,
+        p_dedup: filtros.dedupServidor === true,
+        p_apenas_hoje: filtros.apenasHoje === true,
+      }).abortSignal(signal);
       if (error) {
-        console.error('[stats-header] publicacoes_djen_servidor error', error);
+        console.error('[stats-header] get_djen_stats_servidor_per_user error', error);
         return { total: 0, naoLidas: 0, totalTermos: 0, totalProcessos: 0, totalUnicas: 0, naoLidasUnicas: 0 };
       }
-
-      let filteredRows = (rows || []) as any[];
-      const monitoramentoMap = await carregarMonitoramentosDjen(filteredRows.map((r: any) => r.monitoramento_id), signal);
-      if (filtros.tipoOrigem === 'parte') {
-        filteredRows = filteredRows.filter((pub) => (monitoramentoMap.get(pub.monitoramento_id)?.tipo || '').toLowerCase() === 'parte');
-      }
-      if (filtros.termoBusca) {
-        const termo = filtros.termoBusca.toLowerCase();
-        const termoDigits = termo.replace(/\D/g, '');
-        filteredRows = filteredRows.filter((pub) => {
-          const monitoramento = monitoramentoMap.get(pub.monitoramento_id);
-          const matchConteudo = conteudoContemFraseExata(pub.conteudo, filtros.termoBusca!);
-          const matchProcesso = pub.processo_numero?.toLowerCase().includes(termo);
-          const matchTermoMonitor = monitoramento?.termo_busca?.toLowerCase().includes(termo);
-          const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
-            ? (() => { const d = pub.processo_numero.replace(/\D/g, ''); return d.includes(termoDigits) || termoDigits.includes(d); })()
-            : false;
-          return matchConteudo || matchProcesso || matchTermoMonitor || matchProcessoDigits;
-        });
-      }
-
-      const mappedForDedup = filteredRows.map((r) => {
-        const monitoramento = monitoramentoMap.get(r.monitoramento_id);
-        return {
-          id: r.id,
-          tipo_origem: 'termo' as const,
-          processo_id: null,
-          processo_numero: r.processo_numero,
-          conteudo: r.conteudo,
-          data_publicacao: r.data_publicacao,
-          data_disponibilizacao: r.data_disponibilizacao,
-          fonte: r.fonte,
-          lida: false,
-          created_at: r.created_at,
-          monitoramento_id: r.monitoramento_id,
-          monitoramento_termo: monitoramento?.termo_busca ?? null,
-          monitoramento_descricao: null,
-          monitoramento_tipo: monitoramento?.tipo ?? null,
-          monitoramento_oab: null,
-          monitoramento_uf: null,
-          coordenacao_id: r.coordenacao_id ?? monitoramento?.coordenacao_id ?? null,
-          coordenacao_nome: null,
-          polo_ativo: null,
-          polo_passivo: null,
-          tribunal: r.tribunal ?? null,
-        };
-      }) as PublicacaoUnificada[];
-
-      const ids = mappedForDedup.map((r) => r.id);
-      const readSet = new Set<string>();
-      if (ids.length > 0) {
-        const { data: leituras } = await (supabase as any).rpc('get_leituras_publicacoes', { p_ids: ids });
-        (leituras || []).forEach((l: any) => {
-          if (l.usuario_id === user.id) readSet.add(l.publicacao_id);
-        });
-      }
-
-      const total = mappedForDedup.length;
-      const naoLidas = mappedForDedup.filter((r) => !readSet.has(r.id)).length;
-      const totalUnicas = dedupePublicacoesDjen(mappedForDedup).length;
-      const naoLidasUnicas = dedupePublicacoesDjen(mappedForDedup.filter((r) => !readSet.has(r.id))).length;
-      const tT = total;
-      const tP = 0;
-      const nT = naoLidas;
-      const nP = 0;
+      const row = Array.isArray(data) ? data[0] : data;
+      const tT = Number(row?.total_termos ?? 0);
+      const tP = Number(row?.total_processos ?? 0);
+      const nT = Number(row?.nao_lidas_termos ?? 0);
+      const nP = Number(row?.nao_lidas_processos ?? 0);
+      const totalUnicas = Number(row?.total_unicas ?? 0);
+      const naoLidasUnicas = Number(row?.nao_lidas_unicas ?? 0);
+      const totalBruto = Number(row?.total_bruto ?? (tT + tP));
+      const total = filtros.dedupServidor === true ? totalUnicas : totalBruto;
+      const naoLidas = filtros.dedupServidor === true ? naoLidasUnicas : nT + nP;
       const lT = Math.max(0, tT - nT);
-      const lP = 0;
+      const lP = Math.max(0, tP - nP);
       if (readStatus === 'nao_lidas') {
-        return { total: naoLidas, naoLidas, totalTermos: nT, totalProcessos: nP, totalUnicas: naoLidasUnicas, naoLidasUnicas };
+        return {
+          total: naoLidas,
+          naoLidas,
+          totalTermos: filtros.dedupServidor === true ? naoLidasUnicas : nT,
+          totalProcessos: filtros.dedupServidor === true ? 0 : nP,
+          totalUnicas: naoLidasUnicas,
+          naoLidasUnicas,
+        };
       }
       if (readStatus === 'lidas') {
         const lidasUnicas = Math.max(0, totalUnicas - naoLidasUnicas);
-        return { total: lT + lP, naoLidas: 0, totalTermos: lT, totalProcessos: lP, totalUnicas: lidasUnicas, naoLidasUnicas: 0 };
+        return {
+          total: filtros.dedupServidor === true ? lidasUnicas : lT + lP,
+          naoLidas: 0,
+          totalTermos: filtros.dedupServidor === true ? lidasUnicas : lT,
+          totalProcessos: filtros.dedupServidor === true ? 0 : lP,
+          totalUnicas: lidasUnicas,
+          naoLidasUnicas: 0,
+        };
       }
       return {
         total,
         naoLidas,
-        totalTermos: tT,
-        totalProcessos: tP,
+        totalTermos: filtros.dedupServidor === true ? totalUnicas : tT,
+        totalProcessos: filtros.dedupServidor === true ? 0 : tP,
         totalUnicas,
         naoLidasUnicas,
       };
     },
     enabled: shouldLoadExactStats,
+    placeholderData: (previousData) => previousData,
     staleTime: 30_000,
   });
 
@@ -1329,6 +1213,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
       return { rows: finalRowsFallback, lastChunkSize };
     },
     enabled: !!user?.id && !filtros.desabilitarLista,
+    placeholderData: (previousData) => previousData,
   });
 
   const publicacoes: PublicacaoUnificada[] = queryResult?.rows ?? [];
