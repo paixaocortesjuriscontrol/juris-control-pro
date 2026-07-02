@@ -53,7 +53,8 @@ function mapMonTipoToWorkerTipo(tipo: Monitoramento['tipo']): WorkerTipo {
   return tipo as WorkerTipo;
 }
 
-function trackKey(tipo: WorkerTipo, tribunal: string, monId?: string | null): string {
+function trackKey(tipo: WorkerTipo, tribunal: string, monId?: string | null, shardIdx?: number | null): string {
+  if (typeof shardIdx === 'number' && Number.isFinite(shardIdx)) return `${tipo}|${tribunal}|shard${shardIdx}`;
   return monId ? `${tipo}|${tribunal}|${monId}` : `${tipo}|${tribunal}`;
 }
 
