@@ -8458,6 +8458,54 @@ export type Database = {
           tribunal: string
         }[]
       }
+      get_djen_publicacoes_servidor_unificadas: {
+        Args: {
+          p_apenas_hoje?: boolean
+          p_coordenacao_id?: string
+          p_data_disponibilizacao_fim?: string
+          p_data_disponibilizacao_inicio?: string
+          p_dedup?: boolean
+          p_fim?: string
+          p_inicio?: string
+          p_limit?: number
+          p_monitoramento_id?: string
+          p_offset?: number
+          p_read_status?: string
+          p_search_query?: string
+          p_tipo_origem?: string
+          p_tribunal?: string
+        }
+        Returns: {
+          advogados_json: Json
+          conteudo: string
+          coordenacao_id: string
+          coordenacao_nome: string
+          created_at: string
+          data_disponibilizacao: string
+          data_publicacao: string
+          fonte: string
+          id: string
+          id_djen: string
+          lida: boolean
+          lido_por: Json
+          meio: string
+          monitoramento_descricao: string
+          monitoramento_id: string
+          monitoramento_oab: string
+          monitoramento_termo: string
+          monitoramento_tipo: string
+          monitoramento_uf: string
+          orgao: string
+          partes_json: Json
+          polo_ativo: string
+          polo_passivo: string
+          processo_id: string
+          processo_numero: string
+          tipo_comunicacao: string
+          tipo_origem: string
+          tribunal: string
+        }[]
+      }
       get_djen_publicacoes_unificadas:
         | {
             Args: {
