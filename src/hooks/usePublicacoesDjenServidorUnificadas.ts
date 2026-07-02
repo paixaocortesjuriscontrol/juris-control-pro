@@ -56,16 +56,6 @@ const getHojeBrtISO = (): string => {
   return `${get('year')}-${get('month')}-${get('day')}`;
 };
 
-const dataDisponibilizacaoPautaInicio = (dataDisponibilizacao?: string, apenasHoje?: boolean): string | null => {
-  const dia = dataDisponibilizacao || (apenasHoje ? getHojeBrtISO() : null);
-  return dia ? `${dia}T00:00:00Z` : null;
-};
-
-const dataDisponibilizacaoPautaFim = (dataDisponibilizacao?: string, apenasHoje?: boolean): string | null => {
-  const dia = dataDisponibilizacao || (apenasHoje ? getHojeBrtISO() : null);
-  return dia ? `${dia}T23:59:59.999Z` : null;
-};
-
 // "Apenas hoje" na análise do DJEN Servidor deve olhar a DATA DA PUBLICAÇÃO em BRT.
 // Se alguma linha antiga ainda estiver sem data_publicacao, usa fallback para
 // data_disponibilizacao e, por último, created_at. Filtros manuais de período
