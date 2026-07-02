@@ -141,17 +141,21 @@ interface Checkpoint {
 
 const MAX_CONCURRENCY = 5;
 const CONFIG = {
-  delay_between_terms: 2500,
-  // Paridade com monitor-servidor/engines/paralela.js (PAGE_DELAY_MS=800).
-  // 1800ms estava dobrando o custo de paginação e neutralizando o ganho
-  // de adicionar mais VPS ao pool.
-  delay_between_pages: 800,
-  delay_between_termos_or: 1800,
+  // Paridade direta com monitor-servidor/engines/paralela.js.
+  delay_between_terms: 1000,
+  delay_between_pages: 400,
+  delay_between_termos_or: 800,
   max_retries: 3,
   // Paridade com servidor: 429 → ~8s base (8000*(attempt+1)). 20s travava
   // o worker em retries longos a cada rate-limit isolado.
   retry_base_delay: 8000,
 };
+
+// Paridade com DJEN Servidor: grupos grandes são fatiados para que múltiplas
+// VPS processem o mesmo (tipo, tribunal) sem serializar tudo em uma única via.
+const SHARD_SIZE = 4;
+const SHARD_MIN = 2;
+const MAIN_TIPOS: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave'];
 
 // ============================================================================
 // AGRUPAMENTO POR HOST (anti rate-limit 429)
