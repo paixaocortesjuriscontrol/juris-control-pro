@@ -684,7 +684,11 @@ export async function fetchDjenViaPool(
         const alternatives = loadDjenProxyPool().filter(
           (s) => s.enabled && s.id !== slot.id && isOnline(s),
         );
-        for (const alt of alternatives) {
+        for (let i = alternatives.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [alternatives[i], alternatives[j]] = [alternatives[j], alternatives[i]];
+        }
+        for (const alt of alternatives.slice(0, 2)) {
           try {
             return await callProxyAsResponse(alt);
           } catch (altErr: any) {
