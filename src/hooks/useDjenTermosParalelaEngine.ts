@@ -172,7 +172,7 @@ const CONFIG = {
   delay_between_pages: 400,
   delay_between_parte_or: 800,
   delay_between_advogado_or: 1800,
-  max_retries: 3,
+  max_retries: 4,
   // Paridade com servidor: 429 → ~8s base (8000*(attempt+1)). 20s travava
   // o worker em retries longos a cada rate-limit isolado.
   retry_base_delay: 8000,
@@ -521,6 +521,11 @@ function encurtarParaApi(termo: string): string {
   // apenas normalizada sem acentos para casar com o índice da API.
   // A validação local depois confirma a frase exata na ordem.
   return termo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+}
+
+function termoParteParaBusca(raw: string): string {
+  const parsed = parsearTermoOr(raw);
+  return String(parsed?.nome || raw || '').trim();
 }
 
 function getSiglaTribunal(item: any): string | null {
@@ -1013,86 +1018,6 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   return false;
 }
 
-async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(
-  mon: Monitoramento,
-  diaYmd: string,
-  tribunal: string,
-): Promise<Record<string, unknown>[]> {
-  if (!mon.coordenacao_id) return [];
-  const tipo = mapMonTipoToWorkerTipo(mon.tipo);
-  if (!MAIN_TIPOS.includes(tipo)) return [];
-
-  const resgatadas = new Map<string, Record<string, unknown>>();
-
-  // Paridade com o DJEN Servidor: não filtrar por ILIKE no SQL. Algumas
-  // comunicações de advogado só trazem o nome nos metadados estruturados; o
-  // filtro textual antes do validation fazia o Browser não resgatar exatamente
-  // casos como OSMAR MENDES PAIXAO CORTES em TST/TJMS/TJDFT.
-  const cols = 'id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id';
-  // ISOLAMENTO: Browser NUNCA lê publicacoes_djen_servidor. Resgate cross-coord
-  // usa apenas publicacoes_djen (fonte do próprio Browser).
-  const collect = async (table: 'publicacoes_djen') => {
-    const batch = 1000;
-    for (let from = 0; from <= 10000; from += batch) {
-      const { data, error } = await (supabase as any)
-        .from(table)
-        .select(cols)
-        .eq('tribunal', tribunal)
-        .gte('data_disponibilizacao', `${diaYmd}T00:00:00.000Z`)
-        .lte('data_disponibilizacao', `${diaYmd}T23:59:59.999Z`)
-        .neq('coordenacao_id', mon.coordenacao_id)
-        .eq('status', 'encontrada')
-        .range(from, from + batch - 1);
-      if (error) {
-        console.warn(`[DJEN Paralela][${tribunal}] Falha ao resgatar de ${table}:`, error.message);
-        return;
-      }
-
-      const rows = (data || []) as any[];
-      for (const row of rows) {
-      const candidato = {
-        ...row,
-        id: row.id_djen ?? row.id,
-        texto: row.conteudo,
-        dataDisponibilizacao: row.data_disponibilizacao,
-        dataPublicacao: row.data_publicacao,
-        siglaTribunal: row.tribunal,
-        numeroProcesso: row.processo_numero,
-        destinatarioadvogados: row.advogados_json,
-        destinatarios: row.partes_json,
-        partes: row.partes_json,
-      };
-      const casa = tipo === 'parte'
-        ? termosDeParte(mon).some((t) => validarParteMetadados(candidato, t) || validarParteSecaoPartes(candidato, t))
-        : validarTermo(candidato, mon);
-      if (!casa) continue;
-      const exc = tipo === 'parte'
-        ? temExclusaoEmPartes(candidato, mon.exclusoes)
-        : temExclusao(candidato, mon.exclusoes);
-      if (exc) continue;
-      const concomitanteOk = tipo === 'parte'
-        ? condicaoConcomitanteAtendidaEmPartes(candidato, mon.condicao_concomitante)
-        : condicaoConcomitanteAtendida(candidato, mon.condicao_concomitante);
-      if (!concomitanteOk) continue;
-      const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${table}:${row.id}`;
-      if (resgatadas.has(key)) continue;
-      resgatadas.set(key, {
-        ...candidato,
-        ...(tipo === 'parte' ? { __matchedByNomeParte: true } : {}),
-        __resgatadaDeOutraCoordenacao: row.coordenacao_id,
-        __resgatadaDeFonte: table,
-      });
-    }
-
-      if (rows.length < batch) break;
-    }
-  };
-
-  await collect('publicacoes_djen');
-
-  return Array.from(resgatadas.values());
-}
-
 function extrairAdvogadosEstruturados(pub: any): string[] {
   const result: string[] = [];
   const seen = new Set<string>();
@@ -1339,25 +1264,6 @@ async function processarTribunalTrack(
           console.warn(`[DJEN Paralela][${tribunal}] erro grupo:`, e?.message);
         }
 
-        // Paridade com Servidor: se outra coordenação/fonte já capturou uma
-        // publicação válida no mesmo dia/tribunal, persistir também nesta
-        // coordenação. Isso corrige falhas de coleta da API PJE Comunica em que
-        // a chamada por nomeAdvogado não devolve itens que outra execução já viu.
-        try {
-          const resgatadas = await buscarPublicacoesJaEncontradasEmOutraCoordenacao(grupo[0], diaYmd, tribunal);
-          if (resgatadas.length > 0) {
-            const rr = await consolidarResultadosTermo(grupo[0], diaYmd, tribunal, resgatadas, 0, ultimoErro);
-            acumNovas += rr.novas;
-            acumDup += rr.duplicadas;
-            acumDesc += rr.descartadas;
-            ultimoErro = rr.ultimoErro ?? ultimoErro;
-            console.log(`[DJEN Paralela][${tribunal}] Resgate cross-coord: ${resgatadas.length} candidatas, ${rr.novas} novas`);
-          }
-        } catch (e: any) {
-          if (e?.name === 'AbortError') break;
-          console.warn(`[DJEN Paralela][${tribunal}] resgate cross-coord falhou:`, e?.message || e);
-        }
-
         processed += grupo.length;
         updateTrack(tribunal, tipo, {
           current: processed,
@@ -1510,6 +1416,9 @@ async function processarTermoEmTribunal(
       // Igual ao DJEN Servidor: se a VPS da unit falha com 5xx/timeout, tenta
       // outra VPS do pool antes de desistir daquele par (mon, dia, tribunal).
       fallbackToPool: true,
+      disableEdgeFallback: true,
+      disableClientAdvogadoFallbacks: true,
+      serverParity404AsError: true,
     });
     addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
@@ -1520,15 +1429,16 @@ async function processarTermoEmTribunal(
     if (tipo === 'parte') {
       for (const termoParte of termosDeParte(mon)) {
         if (signal.aborted) break;
-        const paramsParte = { ...baseParams, nomeParte: termoParte };
+        const termoBusca = termoParteParaBusca(termoParte);
+        const paramsParte = { ...baseParams, nomeParte: termoBusca };
         const resp = await executarBusca(
           paramsParte,
-          { __matchedByNomeParte: true, __nomeParteBusca: termoParte },
+          { __matchedByNomeParte: true, __nomeParteBusca: termoBusca },
         );
         // Sem 2ª passada em resultado vazio: o cliente paginado já tolera
         // instabilidade internamente (retries por página, streak de vazias).
         // Se chegou aqui com 0 itens, é ausência real na API.
-        console.log(`[DJEN Paralela][${tribunal}] Busca por parte termo="${termoParte}": ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
+        console.log(`[DJEN Paralela][${tribunal}] Busca por parte termo="${termoBusca}": ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
         await abortableDelay(CONFIG.delay_between_parte_or, signal);
       }
     } else {
