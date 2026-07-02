@@ -1637,7 +1637,14 @@ async function consolidarResultadosTermo(
         return false;
       }
     }
-    const exc = mon.tipo === 'parte'
+    // Exclusões: para buscas por PARTE, ADVOGADO ou NOME (advogado), verificar
+    // APENAS nas seções estruturadas de partes/polos/destinatários. Aplicar a
+    // exclusão no teor completo em editais coletivos (pauta com dezenas de
+    // processos) descarta indevidamente uma comunicação legítima do advogado
+    // apenas porque OUTRO processo agrupado no mesmo edital menciona a parte
+    // excluída (ex.: SANTANDER). Só buscas do tipo palavra-chave/geral seguem
+    // fazendo a checagem no teor completo.
+    const exc = (mon.tipo === 'parte' || mon.tipo === 'advogado' || mon.tipo === 'nome')
       ? temExclusaoEmPartes(pub, mon.exclusoes)
       : temExclusao(pub, mon.exclusoes);
     if (exc) {
