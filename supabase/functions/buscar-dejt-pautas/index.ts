@@ -44,6 +44,10 @@ interface RequestBody {
   caderno?: DejtCaderno;     // default 'judiciario'
   downloadOnly?: boolean;    // true = atua só como proxy CORS do PDF, sem extrair texto no worker
   monitoramentos: MonitoramentoInput[];
+  // Chunk de páginas processado nesta invocação (evita HTTP 546 em cadernos grandes: TRT1/TRT2/TRT5).
+  // Se omitidos, processa o PDF inteiro (comportamento legado).
+  pageStart?: number;        // 1-based, inclusive
+  pageEnd?: number;          // 1-based, inclusive
 }
 
 interface MatchOut {
@@ -221,7 +225,10 @@ const MAX_PDF_BYTES = 80 * 1024 * 1024; // 80 MB
  * imediatamente após o uso para manter RAM/CPU sob controle em cadernos grandes
  * (TRT1/TRT2/TRT5).
  */
-async function* iteratePdfPages(uint8: Uint8Array): AsyncGenerator<string> {
+async function* iteratePdfPages(
+  uint8: Uint8Array,
+  opts?: { pageStart?: number; pageEnd?: number; onNumPages?: (n: number) => void },
+): AsyncGenerator<string> {
   // IMPORTANTE: usar o mesmo pdfjs-dist do Browser. `unpdf` extraía texto
   // diferente em alguns DEJTs (ex.: TRT10), deixando pautas reais invisíveis
   // no Servidor embora aparecessem no Browser.
@@ -234,7 +241,10 @@ async function* iteratePdfPages(uint8: Uint8Array): AsyncGenerator<string> {
   }).promise;
   try {
     const numPages = pdf.numPages ?? 0;
-    for (let i = 1; i <= numPages; i++) {
+    if (opts?.onNumPages) opts.onNumPages(numPages);
+    const start = Math.max(1, opts?.pageStart ?? 1);
+    const end = Math.min(numPages, opts?.pageEnd ?? numPages);
+    for (let i = start; i <= end; i++) {
       try {
         const page = await pdf.getPage(i);
         try {
@@ -518,6 +528,9 @@ Deno.serve(async (req) => {
     const matches: MatchOut[] = [];
     let totalBlocos = 0;
     const seg = makePautaStreamSegmenter();
+    let numPagesPdf = 0;
+    const pageStart = Math.max(1, Number(body.pageStart) || 1);
+    const pageEnd = body.pageEnd && Number(body.pageEnd) > 0 ? Number(body.pageEnd) : undefined;
 
     const processBloco = async (bloco: string) => {
       totalBlocos++;
@@ -549,7 +562,13 @@ Deno.serve(async (req) => {
     };
 
     try {
-      for await (const pageText of iteratePdfPages(fetched.bytes)) {
+      for await (
+        const pageText of iteratePdfPages(fetched.bytes, {
+          pageStart,
+          pageEnd,
+          onNumPages: (n) => { numPagesPdf = n; },
+        })
+      ) {
         for (const bloco of seg.push(pageText)) await processBloco(bloco);
       }
       for (const bloco of seg.end()) await processBloco(bloco);
@@ -565,12 +584,15 @@ Deno.serve(async (req) => {
           dataPublicacao: dataIso,
           totalBlocos,
           matches,
+          numPages: numPagesPdf,
+          pageStart,
+          pageEnd: pageEnd ?? numPagesPdf,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    console.log(`[DJET-Pautas] ${tribunal} ${body.dataDDMMYYYY}: ${totalBlocos} blocos`);
+    console.log(`[DJET-Pautas] ${tribunal} ${body.dataDDMMYYYY} p${pageStart}-${pageEnd ?? numPagesPdf}/${numPagesPdf}: ${totalBlocos} blocos, ${matches.length} match(es)`);
 
     return new Response(
       JSON.stringify({
@@ -579,6 +601,9 @@ Deno.serve(async (req) => {
         dataPublicacao: dataIso,
         totalBlocos,
         matches,
+        numPages: numPagesPdf,
+        pageStart,
+        pageEnd: pageEnd ?? numPagesPdf,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
