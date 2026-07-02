@@ -568,12 +568,11 @@ function gerarHash(conteudo: string, data: string, processoNumero?: string): str
 }
 
 function extrairIdDjen(item: any): string | null {
+  const isUuid = (v: unknown) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
   const raw = item?.id_djen
     ?? item?.id
     ?? item?.codigoComunicacao
     ?? item?.codigo_comunicacao
-    ?? item?.numeroComunicacao
-    ?? item?.numero_comunicacao
     ?? item?.idComunicacao
     ?? item?.id_comunicacao
     ?? item?.comunicacaoId
@@ -581,7 +580,7 @@ function extrairIdDjen(item: any): string | null {
     ?? item?.codigo
     ?? null;
   const id = raw != null ? String(raw).trim() : '';
-  return id || null;
+  return id && !isUuid(id) ? id : null;
 }
 
 function gerarHashPublicacao(conteudo: string, data: string, processoNumero?: string, idDjen?: string | null): string {
