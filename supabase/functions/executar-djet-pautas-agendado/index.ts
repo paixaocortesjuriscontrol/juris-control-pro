@@ -109,6 +109,20 @@ function makeProgressItems(datas: string[]): ProgressoPautaItem[] {
   }));
 }
 
+function buildProgressPayload(itens: ProgressoPautaItem[], datasJanela: string[], ymd: string) {
+  const concluidos = itens.filter((i) => ["concluido", "erro", "cancelado"].includes(i.status)).length;
+  const falhas = itens.filter((i) => i.status === "erro").length;
+  const atual = itens.find((i) => i.status === "executando") || null;
+  return {
+    totalItens: itens.length,
+    concluidos,
+    falhas,
+    atual: atual ? { id: atual.id, label: atual.label } : null,
+    itens: itens.map((i) => ({ ...i })),
+    janela: { dataInicio: datasJanela[0] || ymd, dataFim: datasJanela[datasJanela.length - 1] || ymd },
+  };
+}
+
 async function inferExecucaoServidorId(supabase: ReturnType<typeof createClient>): Promise<string | null> {
   const { data } = await supabase
     .from("workers_servidor")
@@ -306,7 +320,7 @@ async function runJob(
   ymd: string,
   persistMode: "browser" | "servidor" = "browser",
   configTable: string = "configuracoes_monitoramento",
-  options: { execucaoServidorId?: string | null; dataInicio?: string; dataFim?: string } = {},
+  options: { execucaoServidorId?: string | null; dataInicio?: string; dataFim?: string; coordenacaoId?: string | null; monitoramentoIds?: string[] } = {},
 ) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -332,28 +346,30 @@ async function runJob(
   const datasJanela = buildDateRange(dataInicioOpcao || ymd, dataFimOpcao || dataInicioOpcao || ymd);
   const itens = makeProgressItems(datasJanela);
   let lastFlush = 0;
-  const flushProgressoServidor = async (force = false) => {
-    if (!execucaoServidorId) return;
+  const flushProgresso = async (force = false) => {
     const now = Date.now();
     if (!force && now - lastFlush < 700) return;
     lastFlush = now;
-    const concluidos = itens.filter((i) => ["concluido", "erro", "cancelado"].includes(i.status)).length;
-    const falhas = itens.filter((i) => i.status === "erro").length;
-    const atual = itens.find((i) => i.status === "executando") || null;
+    const progresso = buildProgressPayload(itens, datasJanela, ymd);
+    await supabase
+      .from("execucoes_agendadas")
+      .update({
+        status: "executando",
+        registros_encontrados: totalNovas,
+        registros_processados: totalNovas + totalDuplicadas,
+        erros: totalErros,
+        detalhes: { novas: totalNovas, duplicadas: totalDuplicadas, progresso },
+      })
+      .eq("id", execId)
+      .neq("status", "cancelado");
+    if (!execucaoServidorId) return;
     await supabase
       .from("execucoes_servidor")
       .update({
         status: "executando",
         finalizado_em: null,
         erro: null,
-        progresso: {
-          totalItens: itens.length,
-          concluidos,
-          falhas,
-          atual: atual ? { id: atual.id, label: atual.label } : null,
-          itens: itens.slice(-200),
-          janela: { dataInicio: datasJanela[0] || ymd, dataFim: datasJanela[datasJanela.length - 1] || ymd },
-        },
+        progresso,
         progresso_atualizado_em: new Date().toISOString(),
         heartbeat_at: new Date().toISOString(),
       })
@@ -370,11 +386,19 @@ async function runJob(
       .neq("somente_kurier", true);
 
     if (monitsErr) throw monitsErr;
-    const monits = (monitsData || []) as unknown as Monitoramento[];
+    let monits = (monitsData || []) as unknown as Monitoramento[];
+    const filtroMonitoramentoIds = Array.isArray(options.monitoramentoIds)
+      ? new Set(options.monitoramentoIds.filter(Boolean))
+      : null;
+    if (filtroMonitoramentoIds && filtroMonitoramentoIds.size > 0) {
+      monits = monits.filter((m) => filtroMonitoramentoIds.has(m.id));
+    } else if (options.coordenacaoId) {
+      monits = monits.filter((m) => m.coordenacao_id === options.coordenacaoId);
+    }
     const monitCoordMap = new Map<string, string | null>();
     monits.forEach((m) => monitCoordMap.set(m.id, m.coordenacao_id));
 
-    await flushProgressoServidor(true);
+    await flushProgresso(true);
 
     for (const tribunal of TRIBUNAIS_DEJT) {
       const item = itens.find((i) => i.id === tribunal)!;
@@ -382,12 +406,12 @@ async function runJob(
       const monsInput = monitsTrib.map(monitToInput).filter((m) => m.termos.length > 0 || m.oab);
       item.status = "executando";
       item.mensagem = monsInput.length === 0 ? "Sem monitoramentos para este tribunal" : "Iniciando...";
-      await flushProgressoServidor(true);
+      await flushProgresso(true);
       if (monsInput.length === 0) {
         item.status = "concluido";
         item.current = item.total;
         item.mensagem = "Sem monitoramentos aplicáveis";
-        await flushProgressoServidor(true);
+        await flushProgresso(true);
         continue;
       }
 
@@ -397,7 +421,7 @@ async function runJob(
             it.status = "cancelado";
             it.mensagem = "Cancelado pelo usuário";
           }
-          await flushProgressoServidor(true);
+          await flushProgresso(true);
           return;
         }
         const dataDDMMYYYY = ymdToDdmmyyyy(dataYmd);
@@ -408,7 +432,7 @@ async function runJob(
           item.current += 1;
           item.diasSemPdf += 1;
           item.mensagem = `Sem caderno (${dow === 0 ? "domingo" : "sábado"})`;
-          await flushProgressoServidor();
+          await flushProgresso();
           continue;
         }
         try {
@@ -444,7 +468,7 @@ async function runJob(
             item.current += 1;
             item.ultimoErro = `HTTP ${lastStatus}`;
             item.mensagem = `Erro HTTP ${lastStatus} em ${dataDDMMYYYY}`;
-            await flushProgressoServidor(true);
+            await flushProgresso(true);
             console.error(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY}: HTTP ${lastStatus}`);
             continue;
           }
@@ -466,14 +490,14 @@ async function runJob(
           item.novas += novas;
           item.duplicatas += duplicadas;
           item.mensagem = `${dataDDMMYYYY}: ${matches.length} achado(s) · ${novas} nova(s)`;
-          await flushProgressoServidor();
+          await flushProgresso();
           console.log(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY}: ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
         } catch (e) {
           totalErros++;
           item.current += 1;
           item.ultimoErro = String((e as Error)?.message || e).slice(0, 200);
           item.mensagem = `Erro em ${dataDDMMYYYY}`;
-          await flushProgressoServidor(true);
+          await flushProgresso(true);
           console.error(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY} erro:`, e);
         }
 
@@ -484,8 +508,10 @@ async function runJob(
         item.status = "concluido";
         item.mensagem = `Concluído · ${item.novas} nova(s)` + (item.ultimoErro ? ` · último erro: ${item.ultimoErro}` : "");
       }
-      await flushProgressoServidor(true);
+      await flushProgresso(true);
     }
+
+    const progressoFinal = buildProgressPayload(itens, datasJanela, ymd);
 
     await supabase
       .from("execucoes_agendadas")
@@ -495,11 +521,9 @@ async function runJob(
         registros_encontrados: totalNovas,
         registros_processados: totalNovas + totalDuplicadas,
         erros: totalErros,
-        detalhes: { novas: totalNovas, duplicadas: totalDuplicadas, duracao_ms: Date.now() - startedAt },
+        detalhes: { novas: totalNovas, duplicadas: totalDuplicadas, duracao_ms: Date.now() - startedAt, progresso: progressoFinal },
       })
       .eq("id", execId);
-
-    await flushProgressoServidor(true);
 
     if (execucaoServidorId) {
       await supabase
