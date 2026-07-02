@@ -141,11 +141,12 @@ const aplicarFiltroDataPublicacaoHojeBrt = <T extends any>(query: T, inicioUtc: 
     return (query as any).or(
       `and(fonte.eq.kurier,data_disponibilizacao.gte.${inicioDiaUtc},data_disponibilizacao.lte.${fimDiaUtc}),` +
       `and(fonte.eq.kurier,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc}),` +
-      `and(fonte.neq.kurier,data_publicacao.gte.${inicioUtc},data_publicacao.lte.${fimUtc}),` +
-      `and(fonte.neq.kurier,data_publicacao.gte.${inicioDiaUtc},data_publicacao.lte.${fimDiaUtc}),` +
-      `and(fonte.neq.kurier,data_disponibilizacao.gte.${inicioUtc},data_disponibilizacao.lte.${fimUtc}),` +
-      `and(fonte.neq.kurier,data_disponibilizacao.gte.${inicioDiaUtc},data_disponibilizacao.lte.${fimDiaUtc}),` +
-      `and(fonte.neq.kurier,data_publicacao.is.null,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc})`
+      // Demais fontes (inclui fonte NULL — publicacoes_djen_servidor não popula fonte).
+      `and(or(fonte.neq.kurier,fonte.is.null),data_publicacao.gte.${inicioUtc},data_publicacao.lte.${fimUtc}),` +
+      `and(or(fonte.neq.kurier,fonte.is.null),data_publicacao.gte.${inicioDiaUtc},data_publicacao.lte.${fimDiaUtc}),` +
+      `and(or(fonte.neq.kurier,fonte.is.null),data_disponibilizacao.gte.${inicioUtc},data_disponibilizacao.lte.${fimUtc}),` +
+      `and(or(fonte.neq.kurier,fonte.is.null),data_disponibilizacao.gte.${inicioDiaUtc},data_disponibilizacao.lte.${fimDiaUtc}),` +
+      `and(or(fonte.neq.kurier,fonte.is.null),data_publicacao.is.null,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc})`
     ) as T;
   }
   let q: any = query;
