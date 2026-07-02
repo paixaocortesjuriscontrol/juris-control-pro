@@ -1,67 +1,101 @@
-## Correção simples: consulta por advogado OSMAR (Servidor + Browser)
+## Correção objetiva: filtros da Análise DJEN e busca por advogado/processo
 
-Você tem razão: o Comunica encontra pela URL
+Você tem razão em reclamar da tela: o problema agora está no **filtro/listagem**, não só na captura.
 
-`siglaTribunal=TJDFT&dataDisponibilizacaoInicio=2026-07-01&dataDisponibilizacaoFim=2026-07-01&nomeAdvogado=OSMAR MENDES PAIXAO CORTES`
+### Causa exata
 
-Portanto tanto o **DJEN Servidor** quanto o **DJEN Browser** devem enviar exatamente essa mesma consulta para cada monitoramento `tipo=advogado`. Nada de sweep de conteúdo, nada de cruzamento entre coordenações.
+1. As RPCs de listagem/totalizadores da **Análise DJEN** e **Análise DJEN Servidor** só comparavam o número digitado contra `processo_numero`.
+2. Em editais coletivos, o processo procurado pode estar dentro do `conteudo` da publicação, não em `processo_numero`, então o filtro retornava zero mesmo com a publicação salva no banco.
+3. A busca por advogado dependia de `ILIKE` simples, sensível a acento/variações, e não consultava bem `advogados_json`, `partes_json` e descrição do monitoramento.
+4. Na **Análise DJEN Local**, o card “Execuções do dia” continuava filtrando por `execucaoFocada.novasIds`; quando o usuário mudava processo/advogado/data, esse foco antigo continuava escondendo resultados.
+5. O card também não tinha botão de fechar de verdade; “Limpar filtro” apenas removia a seleção, mas o card ficava aberto.
 
-## Correções (idênticas nos dois motores)
+### Implementação a fazer em build mode
 
-### 1. `nomeAdvogado` sempre, por tribunal do card
+#### 1. Nova migration SQL
 
-Em `monitor-servidor/engines/paralela.js` (Servidor) **e** em `src/hooks/useDjenTermosParalelaEngine.ts` + `src/utils/pjeComunicaClient.ts` (Browser), para `tipo=advogado` a chamada primária deve ser sempre:
+Criar `supabase/migrations/20260702161000_fix_djen_analysis_search_filters.sql` redefinindo:
 
-```text
-siglaTribunal = tribunal do card (ex.: TJDFT)
-dataDisponibilizacaoInicio = dia
-dataDisponibilizacaoFim = dia
-nomeAdvogado = termo_busca normalizado (NFD, sem acento), ex.: OSMAR MENDES PAIXAO CORTES
+- `public.get_djen_publicacoes_unificadas`
+- `public.get_djen_publicacoes_servidor_unificadas`
+- `public.get_djen_stats_per_user`
+- `public.get_djen_stats_servidor_per_user`
+
+Mudanças nas quatro funções:
+
+- Criar `v_q_digits`, `v_q_cnj` e `v_q_unaccent`.
+- Para número de processo:
+
+```sql
+OR (v_q_cnj IS NOT NULL AND conteudo ILIKE ('%' || v_q_cnj || '%'))
+OR (v_q_digits IS NOT NULL AND (
+  regexp_replace(COALESCE(processo_numero, ''), '[^0-9]', '', 'g') LIKE ('%' || v_q_digits || '%')
+  OR ((p_coordenacao_id IS NOT NULL OR p_data_disponibilizacao_inicio IS NOT NULL OR p_inicio IS NOT NULL)
+      AND regexp_replace(COALESCE(conteudo, ''), '[^0-9]', '', 'g') LIKE ('%' || v_q_digits || '%'))
+))
 ```
 
-Regras estritas mantidas: NUNCA passar `texto` junto com `nomeAdvogado`; `numeroOab/ufOab` só quando UF é específica (não "TODAS"); nunca misturar com parte/palavra-chave.
+- Para advogado/nome:
 
-### 2. Checkpoint por termo, não por card
-
-Hoje, tanto o Servidor quanto o Browser marcam a unidade concluída como `tipo|tribunal` (ou shard). Ao clicar “executar novamente” o card inteiro é pulado e o termo OSMAR não é reconsultado.
-
-Vou trocar a chave de checkpoint para:
-
-```text
-data | tribunal | tipo | monitoramento_id
+```sql
+OR lower(public.unaccent(COALESCE(advogados_json::text, ''))) LIKE ('%' || v_q_unaccent || '%')
+OR lower(public.unaccent(COALESCE(partes_json::text, ''))) LIKE ('%' || v_q_unaccent || '%')
+OR lower(public.unaccent(COALESCE(md.termo_busca, ''))) LIKE ('%' || v_q_unaccent || '%')
+OR lower(public.unaccent(COALESCE(md.descricao, ''))) LIKE ('%' || v_q_unaccent || '%')
+OR ((p_coordenacao_id IS NOT NULL OR p_data_disponibilizacao_inicio IS NOT NULL OR p_inicio IS NOT NULL)
+    AND lower(public.unaccent(COALESCE(conteudo, ''))) LIKE ('%' || v_q_unaccent || '%'))
 ```
 
-Nos dois motores. Assim, cada termo é auditado individualmente e a reexecução sempre reprocessa termos pendentes/errados.
+Observação de performance: busca no `conteudo` completo só deve entrar quando houver coordenação/data/criação filtrada, para não varrer a base inteira sem recorte.
 
-### 3. Botão "Executar agora" em coordenação/termo/data específicos → `resetCheckpoint=true`
+#### 2. Corrigir foco antigo na Análise DJEN Local
 
-Quando o usuário dispara execução manual filtrando coordenação, data ou termo, os hooks (`useDjenServidor` e `useDjenTermosParalela`) devem enviar `resetCheckpoint=true`, para forçar a reconsulta e evitar cache antigo enganoso.
+Em `src/pages/AnaliseDjen.tsx`:
 
-### 4. Auditoria: registrar a query enviada
+- Ao trocar coordenação, também limpar execução focada:
 
-Em ambos motores, para cada consulta de advogado, gravar no `progresso/resultado` (ou log da execução):
-
-```text
-tribunal, dia, tipo, monitoramento_id, termo_busca, nomeAdvogado, total_retornado
+```tsx
+useEffect(() => {
+  setMonitoramentoId("");
+  setTribunalFiltro("");
+  setExecucaoFocada(null);
+}, [coordenacaoId]);
 ```
 
-Isso permite comprovar que a chamada do sistema é idêntica à URL manual do Comunica.
+- No efeito que reseta paginação/lista ao mudar filtros, incluir:
 
-### 5. Reexecutar o caso e validar
-
-Após aplicar:
-
-```text
-Coordenação: Dr. Thomás
-Data: 2026-07-01
-Termo: OSMAR MENDES PAIXAO CORTES (tipo=advogado)
-Tribunal: TJDFT
+```tsx
+setExecucaoFocada(null);
 ```
 
-Rodar tanto em **DJEN Browser** quanto em **DJEN Servidor**. Ambos devem listar a publicação `id_djen 656313964` (o edital coletivo TJDFT com 29 processos onde OSMAR consta).
+Assim o filtro por execução anterior não fica escondendo resultado quando o usuário procura advogado/processo/data.
 
-## Fora do escopo
+#### 3. Corrigir foco antigo na Análise DJEN Servidor
 
-- Não criar sweep de conteúdo entre coordenações.
-- Não misturar tabelas: Servidor grava só em `publicacoes_djen_servidor`; Browser só em `publicacoes_djen`.
-- Sem mudança em RPCs, comparador ou telas de análise.
+Em `src/pages/AnaliseDjenServidor.tsx`, no efeito que reseta paginação/lista ao mudar filtros, incluir:
+
+```tsx
+setExecucaoFocada(null);
+```
+
+#### 4. Botão real para fechar o card de execuções locais
+
+Em `src/components/djen/ExecucoesDoDiaLocalCard.tsx`:
+
+- Importar `useEffect` e `useState`.
+- Adicionar estado `dismissedKey` por `coordenação|data`.
+- Se `dismissedKey === currentKey`, retornar `null`.
+- Resetar `dismissedKey` ao mudar coordenação/data.
+- Adicionar botão `X` sempre visível no título, chamando:
+
+```tsx
+onSelecionarExecucao(null);
+setDismissedKey(currentKey);
+```
+
+### Resultado esperado
+
+- Buscar pelo processo `0705967-44.2022.8.07.0001` ou apenas pelos dígitos deve encontrar edital coletivo mesmo quando o processo está no conteúdo.
+- Buscar por advogado deve funcionar sem depender de acento/caixa e deve olhar campos estruturados e conteúdo quando houver filtro de data/coordenação.
+- Trocar data/processo/advogado na Análise DJEN Local não continuará preso a uma execução antiga.
+- O card de execuções anteriores poderá ser fechado.
