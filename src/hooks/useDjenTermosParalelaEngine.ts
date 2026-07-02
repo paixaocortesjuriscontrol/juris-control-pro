@@ -2070,10 +2070,14 @@ async function executarLoop(
 
     // Checkpoint
     const cp = retomar ? loadCheckpoint() : null;
-    const runKey = `${dataInicioYmd}..${dataFimYmd}`;
-    // Chaves de unidade concluída no formato `${tipo}|${tribunal}` (v2).
-    // Checkpoints antigos (v1) só tinham siglas de tribunal e não casarão —
-    // o que apenas faz com que o retomar refaça aquele tipo/tribunal sem erro.
+    const monitoramentoIdsKey = [...(monitoramentoIds || [])]
+      .map((id) => String(id || '').trim())
+      .filter(Boolean)
+      .sort()
+      .join(',') || 'todos';
+    const runKey = `${dataInicioYmd}..${dataFimYmd}|coord:${coordenacaoId || 'todas'}|mon:${monitoramentoIdsKey}`;
+    // Checkpoint isolado por coordenação e filtro de monitoramentos, igual ao
+    // Servidor. Checkpoints antigos não casam e serão refeitos com segurança.
     const unidadesJaConcluidas = new Set<string>(
       cp && cp.runKey === runKey ? cp.tribunaisConcluidos : []
     );
@@ -2139,10 +2143,15 @@ async function executarLoop(
       });
     }
 
+    const plannedUnitIds = new Set(plannedUnits.map((u) => u.id));
+    const unidadesJaConcluidasValidas = new Set(
+      Array.from(unidadesJaConcluidas).filter((id) => plannedUnitIds.has(id)),
+    );
+
     // Inicializar tracks exatamente no mesmo nível das units do Servidor:
     // card pequeno = 1 unit por (tipo, tribunal); card grande = shards.
     const tracks: TrackProgress[] = plannedUnits.map((unit) => {
-      const jaConcluido = unidadesJaConcluidas.has(unit.id) || unidadesJaConcluidas.has(trackKey(unit.tipo, unit.tribunal, unit.monId));
+      const jaConcluido = unidadesJaConcluidasValidas.has(unit.id) || unidadesJaConcluidasValidas.has(trackKey(unit.tipo, unit.tribunal, unit.monId));
       return {
         tribunal: unit.tribunal,
         tipo: unit.tipo,
@@ -2252,7 +2261,7 @@ async function executarLoop(
     const filaBand2: WorkUnit[] = [];
 
     for (const unit of plannedUnits) {
-      if (unidadesJaConcluidas.has(unit.id)) continue;
+      if (unidadesJaConcluidasValidas.has(unit.id)) continue;
       const band: 0 | 1 | 2 = unit.tipo === 'processo'
         ? 2
         : isTribunalPrioritario(unit.tribunal) && MAIN_TIPOS.includes(unit.tipo)
@@ -2268,7 +2277,7 @@ async function executarLoop(
     for (const b of bands) b.sort(comparePriorityUnits);
     const totalUnidadesPendentes = bands.reduce((a, b) => a + b.length, 0);
     const totalStepsPendentes = totalUnidadesPendentes;
-    const unidadesConcluidasLista: string[] = Array.from(unidadesJaConcluidas);
+    const unidadesConcluidasLista: string[] = Array.from(unidadesJaConcluidasValidas);
 
     // Inicializa progresso por unidade (steps) para a barra refletir realidade.
     state.unitTotal = totalStepsPendentes + unidadesConcluidasLista.length;
