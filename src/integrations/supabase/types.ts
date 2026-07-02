@@ -8648,6 +8648,30 @@ export type Database = {
               total_unicas: number
             }[]
           }
+      get_djen_stats_servidor_per_user: {
+        Args: {
+          p_apenas_hoje?: boolean
+          p_coordenacao_id?: string
+          p_data_disponibilizacao_fim?: string
+          p_data_disponibilizacao_inicio?: string
+          p_dedup?: boolean
+          p_fim?: string
+          p_inicio?: string
+          p_monitoramento_id?: string
+          p_search_query?: string
+          p_tipo_origem?: string
+          p_tribunal?: string
+        }
+        Returns: {
+          nao_lidas_processos: number
+          nao_lidas_termos: number
+          nao_lidas_unicas: number
+          total_bruto: number
+          total_processos: number
+          total_termos: number
+          total_unicas: number
+        }[]
+      }
       get_equipe_tarefas_stats: {
         Args: { p_coordenacao_ids: string[] }
         Returns: {
