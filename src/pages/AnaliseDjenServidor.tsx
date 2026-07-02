@@ -511,6 +511,20 @@ const AnaliseDjenServidor = () => {
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
 
+  // No filtro de leitura "Todas", se o total do dia é pequeno o bastante,
+  // carregar o conjunto completo em background. Assim a tela deixa de ficar
+  // presa nos primeiros 500 registros quando o total é ~3-4 mil, mas mantém
+  // a renderização em blocos via `displayLimit` para não travar o navegador.
+  useEffect(() => {
+    if (execucaoFocada || tipoOrigem === 'datajud' || tipoOrigem === 'descartada') return;
+    if (readStatus !== 'todas') return;
+    const total = Number(totalHoje || 0);
+    const AUTO_LOAD_ALL_LIMIT = 5000;
+    if (total > listLimit && total <= AUTO_LOAD_ALL_LIMIT) {
+      setListLimit(total);
+    }
+  }, [execucaoFocada, tipoOrigem, readStatus, totalHoje, listLimit]);
+
   // === Login Kurier por publicação ===
       // O `kurier_login` é gravado na tabela `publicacoes_djen_servidor` no momento da captura,
   // mas a RPC unificada (get_djen_publicacoes_unificadas) não devolve essa coluna.
