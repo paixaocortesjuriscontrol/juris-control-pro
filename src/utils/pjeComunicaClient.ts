@@ -364,7 +364,7 @@ export async function buscarPjeComunicaNoBrowser(
     s: String(params.siglaTribunal || '').toUpperCase(),
     di: params.dataInicio || '',
     df: params.dataFim || '',
-    p: params.page ?? 1,
+    p: params.page ?? 0,
     ps: params.pageSize ?? 50,
     fv: options?.forceVia || '',
   });
@@ -424,8 +424,10 @@ async function _buscarPjeComunicaNoBrowserImpl(
     throw new Error("Parâmetro de busca inválido (precisa de termo, tribunal ou data)");
   }
 
-  // API PJE Comunica usa paginação 1-based (pagina=1 é a primeira)
-  const page = Math.max(params.page ?? 1, 1);
+  // API PJE Comunica / portal oficial usa paginação 0-based (pagina=0 é a primeira).
+  // Começar em 1 pula a primeira página e faz buscas por advogado com poucos
+  // resultados (ex.: Osmar Mendes/TJDFT em 01/07/2026) voltarem vazias.
+  const page = Math.max(params.page ?? 0, 0);
   // Sempre permitir pageSize até 50 - a API suporta e precisamos cobrir todos os resultados
   const maxPageSize = 50;
   const pageSize = Math.min(Math.max(params.pageSize ?? 50, 1), maxPageSize);
@@ -640,10 +642,10 @@ async function _buscarPjeComunicaNoBrowserImpl(
             ? (page + 1) * pageSize + 1
             : page * pageSize + items.length;
 
-      // hasMore: API é 1-based, então page*pageSize já é o offset do fim da página atual
+      // hasMore: API é 0-based, então o fim da página atual é (page + 1) * pageSize.
       const hasMore =
         typeof totalExpected === "number" && totalExpected >= 0
-          ? page * pageSize < totalExpected
+          ? (page + 1) * pageSize < totalExpected
           : items.length === pageSize;
 
       console.log(
@@ -793,8 +795,8 @@ async function _buscarPjeComunicaNoBrowserImpl(
           siglaTribunal: params.siglaTribunal,
           dataInicio: params.dataInicio,
           dataFim: params.dataFim,
-          // buscar-djen usa paginação 0-based; este client usa 1-based.
-          page: Math.max((params.page ?? 1) - 1, 0),
+          // buscar-djen e este client usam paginação 0-based.
+          page: Math.max(params.page ?? 0, 0),
           pageSize: params.pageSize ?? 50,
         },
       });
@@ -870,8 +872,8 @@ export async function buscarPjeComunicaPaginado(
   const maxRetries = options?.maxRetries ?? 5;
   const retryBaseDelay = options?.retryBaseDelay ?? 5000;  // 5s base para retry
 
-  // API PJE Comunica usa paginação 1-based
-  const startPage = Math.max(params.page ?? 1, 1);
+  // API PJE Comunica / portal oficial usa paginação 0-based.
+  const startPage = Math.max(params.page ?? 0, 0);
   // PageSize 50: menos páginas = menos delays = ~2-3x mais rápido (restaurado do 26/01)
   const pageSize = Math.min(Math.max(params.pageSize ?? 50, 1), 50);
 
