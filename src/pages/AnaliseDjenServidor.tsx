@@ -3726,7 +3726,7 @@ const AnaliseDjenServidor = () => {
   const totalDescartadasVisivel = allPublicacoes.filter(p => p.tipo_origem === 'descartada').length;
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
   const totalKurierVisivel = tipoOrigem === 'kurier'
-    ? totalGeralFiltrado
+    ? totalHoje
     : mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length;
   // PERFORMANCE/CORREÇÃO: o backend agora aplica os filtros de data de
   // disponibilização e tribunal nas RPCs de contagem (get_djen_stats_per_user).
