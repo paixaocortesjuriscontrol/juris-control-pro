@@ -582,6 +582,8 @@ Deno.serve(async (req) => {
     let execucaoServidorId: string | null = null;
     let dataInicio: string | undefined;
     let dataFim: string | undefined;
+    let coordenacaoId: string | null = null;
+    let monitoramentoIds: string[] | undefined;
     try {
       const body = await req.json().catch(() => ({}));
       force = body?.force === true;
@@ -589,6 +591,10 @@ Deno.serve(async (req) => {
       execucaoServidorId = typeof body?.execucaoServidorId === "string" ? body.execucaoServidorId : null;
       dataInicio = typeof body?.dataInicio === "string" ? body.dataInicio : undefined;
       dataFim = typeof body?.dataFim === "string" ? body.dataFim : undefined;
+      coordenacaoId = typeof body?.coordenacaoId === "string" && body.coordenacaoId.trim() ? body.coordenacaoId : null;
+      monitoramentoIds = Array.isArray(body?.monitoramentoIds)
+        ? body.monitoramentoIds.filter((id: unknown) => typeof id === "string" && id.trim())
+        : undefined;
     } catch { /* ignore */ }
 
     // 1) Lê configuração — usa tabela correta conforme modo (servidor vs browser)
@@ -636,10 +642,11 @@ Deno.serve(async (req) => {
     // 3) Trava do dia
     const ymdStart = `${now.ymd}T00:00:00-03:00`;
     const ymdEnd = `${now.ymd}T23:59:59-03:00`;
+    const tiposExistentes = persistMode === "servidor" ? ["djet_pautas_servidor"] : ["djet_pautas", "djet_pautas_servidor"];
     const { data: existing } = await supabase
       .from("execucoes_agendadas")
       .select("id, status")
-      .eq("tipo", "djet_pautas")
+      .in("tipo", tiposExistentes)
       .gte("iniciado_em", ymdStart)
       .lte("iniciado_em", ymdEnd)
       .limit(1);
@@ -657,6 +664,15 @@ Deno.serve(async (req) => {
         tipo: "djet_pautas",
         status: "executando",
         iniciado_em: new Date().toISOString(),
+        detalhes: {
+          filtro: {
+            coordenacaoId,
+            monitoramentoIds: monitoramentoIds || null,
+            persistMode,
+            dataInicio: dataInicio || null,
+            dataFim: dataFim || null,
+          },
+        },
       })
       .select("id")
       .single();
@@ -666,7 +682,7 @@ Deno.serve(async (req) => {
     }
 
     // 5) Executa em background (não bloqueia resposta do cron)
-    const task = runJob(supabase, exec.id as string, now.ymd, persistMode, configTable, { execucaoServidorId, dataInicio, dataFim });
+    const task = runJob(supabase, exec.id as string, now.ymd, persistMode, configTable, { execucaoServidorId, dataInicio, dataFim, coordenacaoId, monitoramentoIds });
     // @ts-ignore EdgeRuntime existe no Deno Deploy do Supabase
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
       // @ts-ignore
