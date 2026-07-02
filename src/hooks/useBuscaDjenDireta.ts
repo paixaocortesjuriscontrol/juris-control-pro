@@ -668,9 +668,13 @@ export function useBuscaDjenDireta() {
     const baseOab = String(oab || '').replace(/\D/g, '');
     const baseUf = String(uf || '').trim().toUpperCase();
 
-    if (baseNome || baseOab) {
+    if (baseNome) {
+      // DJEN Termos/Comunica oficial: quando existe nome do advogado,
+      // a busca primária NÃO pode carregar OAB/UF junto, pois isso restringe
+      // resultados e some com editais coletivos (ex.: Osmar Mendes/TJDFT).
+      targets.push({ nome: baseNome });
+    } else if (baseOab) {
       targets.push({
-        nome: baseNome || undefined,
         oab: baseOab || undefined,
         uf: baseUf || undefined,
       });
@@ -678,7 +682,9 @@ export function useBuscaDjenDireta() {
 
     for (const t of termosOr || []) {
       const parsed = parseAdvogadoTermo(t);
-      if (parsed.nome || parsed.oab) {
+      if (parsed.nome) {
+        targets.push({ nome: parsed.nome });
+      } else if (parsed.oab) {
         targets.push(parsed);
       }
     }
