@@ -44,6 +44,10 @@ interface RequestBody {
   caderno?: DejtCaderno;     // default 'judiciario'
   downloadOnly?: boolean;    // true = atua só como proxy CORS do PDF, sem extrair texto no worker
   monitoramentos: MonitoramentoInput[];
+  // Chunk de páginas processado nesta invocação (evita HTTP 546 em cadernos grandes: TRT1/TRT2/TRT5).
+  // Se omitidos, processa o PDF inteiro (comportamento legado).
+  pageStart?: number;        // 1-based, inclusive
+  pageEnd?: number;          // 1-based, inclusive
 }
 
 interface MatchOut {
