@@ -189,6 +189,7 @@ const AnaliseDjenServidor = () => {
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [dataDisponibilizacao, setDataDisponibilizacao] = useState<string>("");
+  const [dataPublicacao, setDataPublicacao] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [monitoramentoId, setMonitoramentoId] = useState<string>("");
   const [tribunalFiltro, setTribunalFiltro] = useState<string>("");
@@ -241,6 +242,7 @@ const AnaliseDjenServidor = () => {
   const dataInicioDebounced = useDebouncedValue(dataInicio, 250);
   const dataFimDebounced = useDebouncedValue(dataFim, 250);
   const dataDisponibilizacaoDebounced = useDebouncedValue(dataDisponibilizacao, 250);
+  const dataPublicacaoDebounced = useDebouncedValue(dataPublicacao, 250);
   const filtroDataDisponibilizacaoAtivo = !!dataDisponibilizacaoDebounced;
   const filtroQualquerDataAtivo = !!dataInicioDebounced || !!dataFimDebounced || filtroDataDisponibilizacaoAtivo;
   const apenasHojeEfetivo = apenasHoje && !filtroDataDisponibilizacaoAtivo;
@@ -875,8 +877,11 @@ const AnaliseDjenServidor = () => {
     if (focusFromErrata) {
       result = result.filter(p => focusFromErrata.ids.has(p.id));
     }
+    if (dataPublicacaoDebounced) {
+      result = result.filter((p: any) => (p.data_publicacao || '').slice(0, 10) === dataPublicacaoDebounced);
+    }
     return result;
-  }, [tipoOrigem, publicacoes, datajudAsPublicacoes, descartadasDedupData, deveRestringirPorCoordenacao, userCoordenacaoIds, focusFromErrata]);
+  }, [tipoOrigem, publicacoes, datajudAsPublicacoes, descartadasDedupData, deveRestringirPorCoordenacao, userCoordenacaoIds, focusFromErrata, dataPublicacaoDebounced]);
 
   // Loading considera tanto o carregamento inicial da coordenação quanto das publicações.
   // Também considera `isFetching` para evitar mostrar "Nenhuma publicação encontrada"
@@ -3990,7 +3995,7 @@ const AnaliseDjenServidor = () => {
               )}
 
               <div className="space-y-1.5">
-                <Label className="text-xs md:text-sm" title="Data de publicação (disponibilização) da comunicação">Data de Publicação</Label>
+                <Label className="text-xs md:text-sm">Data Disponibilização</Label>
                 <Input
                   type="date"
                   value={dataDisponibilizacao}
@@ -4001,6 +4006,16 @@ const AnaliseDjenServidor = () => {
                       setFiltroDia('todos');
                     }
                   }}
+                  className="h-9 md:h-10 text-sm"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs md:text-sm" title="Data de publicação da comunicação (data_publicacao)">Data de Publicação</Label>
+                <Input
+                  type="date"
+                  value={dataPublicacao}
+                  onChange={(e) => setDataPublicacao(e.target.value)}
                   className="h-9 md:h-10 text-sm"
                 />
               </div>
