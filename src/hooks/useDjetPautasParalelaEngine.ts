@@ -130,27 +130,56 @@ function applyRemoteState(row: {
   finalizado_em: string | null;
 }) {
   const d = (row.detalhes as Record<string, unknown> | null) || {};
+  const progressoRemoto = (d.progresso as Record<string, unknown> | null) || null;
+  const itensRemotos = Array.isArray(progressoRemoto?.itens) ? progressoRemoto.itens as Record<string, unknown>[] : [];
   const novas = Number(d.novas ?? row.registros_encontrados ?? 0);
   const duplicadas = Number(d.duplicadas ?? Math.max(0, (row.registros_processados ?? 0) - novas));
   progress.novas = novas;
   progress.duplicadas = duplicadas;
   if (row.iniciado_em) progress.iniciadoEm = row.iniciado_em;
 
-  // Progresso por-tribunal: quando a edge está associada a uma execucao_servidor,
-  // as tracks ficam lá. Como aqui rodamos no modo Browser (sem execução servidor),
-  // exibimos agregado. Cria uma track virtual "Servidor" com contadores.
   const s = row.status;
-  progress.tracks = progress.tracks.map((t, idx) => idx === 0 ? {
-    ...t,
-    tribunal: "Servidor DEJT",
-    status: s === "executando" ? "executando" : (s === "concluido" ? "concluido" : s === "cancelado" ? "cancelado" : "erro"),
-    novas,
-    duplicadas,
-    mensagem: s === "executando" ? "Rodando no servidor…" : `Total: ${novas} nova(s)`,
-  } : { ...t, status: "pendente" });
-  progress.totalTribunais = 1;
-  progress.tribunaisConcluidos = ["concluido", "cancelado", "erro"].includes(s) ? 1 : 0;
-  progress.percentage = ["concluido", "cancelado", "erro"].includes(s) ? 100 : 50;
+  const statusFromRemote = (status: unknown): TrackStatus => {
+    const v = String(status || "pendente");
+    return v === "executando" || v === "concluido" || v === "cancelado" || v === "erro" ? v : "pendente";
+  };
+
+  if (itensRemotos.length > 0) {
+    progress.tracks = itensRemotos.map((item) => ({
+      tribunal: String(item.tribunal || item.label || item.id || "DEJT"),
+      status: statusFromRemote(item.status),
+      current: Number(item.current ?? 0),
+      total: Number(item.total ?? 0),
+      novas: Number(item.novas ?? 0),
+      duplicadas: Number(item.duplicadas ?? item.duplicatas ?? 0),
+      descartadas: Number(item.descartadas ?? 0),
+      diasSemPdf: Number(item.diasSemPdf ?? 0),
+      mensagem: String(item.mensagem || ""),
+      diaAtual: (item.diaAtual as string | null) ?? null,
+      ultimoErro: (item.ultimoErro as string | null) ?? null,
+      startedAt: null,
+      finishedAt: null,
+    }));
+    progress.totalTribunais = Number(progressoRemoto?.totalItens ?? progress.tracks.length);
+    progress.tribunaisConcluidos = Number(
+      progressoRemoto?.concluidos ?? progress.tracks.filter((t) => ["concluido", "erro", "cancelado"].includes(t.status)).length,
+    );
+    progress.percentage = progress.totalTribunais > 0
+      ? Math.min(100, Math.round((progress.tribunaisConcluidos / progress.totalTribunais) * 100))
+      : (["concluido", "cancelado", "erro", "falhou"].includes(s) ? 100 : 0);
+  } else {
+    progress.tracks = progress.tracks.map((t, idx) => idx === 0 ? {
+      ...t,
+      tribunal: "Servidor DEJT",
+      status: s === "executando" ? "executando" : (s === "concluido" ? "concluido" : s === "cancelado" ? "cancelado" : "erro"),
+      novas,
+      duplicadas,
+      mensagem: s === "executando" ? "Rodando no servidor…" : `Total: ${novas} nova(s)`,
+    } : { ...t, status: "pendente" });
+    progress.totalTribunais = 1;
+    progress.tribunaisConcluidos = ["concluido", "cancelado", "erro", "falhou"].includes(s) ? 1 : 0;
+    progress.percentage = ["concluido", "cancelado", "erro", "falhou"].includes(s) ? 100 : 50;
+  }
 
   if (s === "executando" || s === "pendente") {
     progress.status = "executando";
@@ -168,7 +197,7 @@ function applyRemoteState(row: {
     stopPolling();
   } else {
     progress.status = "erro";
-    progress.mensagem = "Erro na execução no servidor";
+    progress.mensagem = String(d.ultimo_erro || "Erro na execução no servidor");
     running = false;
     stopPolling();
   }
@@ -216,6 +245,8 @@ export async function executarDjetPautasParalela(
         persist_mode: "browser",
         dataInicio: dataInicioYmd,
         dataFim: dataFimYmd,
+        coordenacaoId: _coordenacaoId,
+        monitoramentoIds: _monitoramentoIds,
       },
     });
     if (error) throw error;
