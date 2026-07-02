@@ -584,6 +584,23 @@ function validarAdvogadoSecaoAdvogados(pub, oab, nome) {
   return false;
 }
 
+/**
+ * Fallback: aceita quando o nome do advogado aparece como frase contígua
+ * no teor completo da publicação. Usado após os validadores estruturados
+ * (metadados / seção "Advogados:") porque, em editais coletivos do TJDFT,
+ * o `advogados_json` vem vazio e a seção do advogado alvo pode estar
+ * enterrada no meio de dezenas de processos. Como a API foi chamada com
+ * `nomeAdvogado=...`, se o item veio na resposta, o nome consta como
+ * advogado dentro do teor.
+ */
+function validarAdvogadoNoConteudo(pub, conteudo, nome) {
+  const nomeNorm = nome ? normalize(nome) : "";
+  if (!nomeNorm) return false;
+  const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
+  if (!textoNorm) return false;
+  return contemFrase(textoNorm, nomeNorm);
+}
+
 function extrairAdvogadosParaPersistencia(pub) {
   const out = [];
   const seen = new Set();
