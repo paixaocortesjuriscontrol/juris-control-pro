@@ -6,10 +6,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import {
-  executarDjetPautasParalela,
-  isDjetPautasParalelaRunning,
-} from "./useDjetPautasParalelaEngine";
+import { isDjetPautasParalelaRunning } from "./useDjetPautasParalelaEngine";
 
 export interface DjetPautasSchedulerStatus {
   ativo: boolean;
@@ -177,8 +174,10 @@ class DjetPautasScheduler {
     this.lastRunDate = today;
     this.notify();
     try {
-      toast.info(`Iniciando DJET Pautas Paralela agendado (${slot})...`);
-      executarDjetPautasParalela(today, today, false);
+      // Disparo local desativado: pg_cron do servidor chama
+      // `executar-djet-pautas-agendado` a cada 5 min. Esta função apenas
+      // marca o slot como rodado para o UI.
+      toast.info(`DJET Pautas agendado no servidor (${slot})`);
       if (this.dbConfigId) {
         await supabase.from("configuracoes_monitoramento")
           .update({ ultima_execucao: new Date().toISOString() })

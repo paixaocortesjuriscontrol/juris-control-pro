@@ -13,7 +13,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { executarDjenTermosKurier, isDjenTermosKurierRunning } from "./useDjenTermosKurierEngine";
+import { isDjenTermosKurierRunning } from "./useDjenTermosKurierEngine";
 
 export interface KurierSchedulerStatus {
   ativo: boolean;
@@ -197,8 +197,11 @@ class KurierScheduler {
     this.notifySubscribers();
 
     try {
-      this.showToast(`Iniciando Kurier agendado (${slot})...`, "info");
-      void executarDjenTermosKurier(false, undefined, undefined, undefined, undefined, false, false);
+      // Disparo local desativado: agora o pg_cron do servidor chama a edge
+      // `executar-kurier-agendado` a cada 5 min e respeita esta mesma configuração
+      // (horários/dias/`ultima_execucao`). Este bloco só marca o slot como
+      // "rodado" no localStorage para evitar toasts repetidos na UI.
+      this.showToast(`Kurier agendado no servidor (${slot})`, "info");
       if (this.dbConfigId) {
         await (supabase as any)
           .from("configuracoes_monitoramento")
