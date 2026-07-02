@@ -53,9 +53,34 @@ function mapMonTipoToWorkerTipo(tipo: Monitoramento['tipo']): WorkerTipo {
   return tipo as WorkerTipo;
 }
 
+function isShardTrackId(monId?: string | null): boolean {
+  return typeof monId === 'string' && monId.startsWith('__shard:');
+}
+
 function trackKey(tipo: WorkerTipo, tribunal: string, monId?: string | null, shardIdx?: number | null): string {
   if (typeof shardIdx === 'number' && Number.isFinite(shardIdx)) return `${tipo}|${tribunal}|shard${shardIdx}`;
   return monId ? `${tipo}|${tribunal}|${monId}` : `${tipo}|${tribunal}`;
+}
+
+function tribunalPriorityRank(tribunal: string): number {
+  const t = String(tribunal || '').toUpperCase();
+  if (t === 'TST') return 0;
+  if (t === 'STF') return 1;
+  if (t === 'STJ') return 2;
+  const trt = t.match(/^TRT(\d{1,2})$/);
+  if (trt) return 10 + Number(trt[1]);
+  const idx = TRIBUNAL_PRIORITY_ORDER.indexOf(t);
+  return idx >= 0 ? 100 + idx : 999;
+}
+
+function tipoPriorityRank(tipo: WorkerTipo): number {
+  const idx = WORKER_TIPOS_ORDER.indexOf(tipo);
+  return idx >= 0 ? idx : 99;
+}
+
+function isTribunalPrioritario(tribunal: string): boolean {
+  const t = String(tribunal || '').toUpperCase();
+  return t === 'TST' || t === 'STF' || t === 'STJ' || /^TRT\d{1,2}$/.test(t);
 }
 
 export interface TrackProgress {
