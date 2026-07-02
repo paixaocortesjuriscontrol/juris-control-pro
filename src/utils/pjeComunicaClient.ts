@@ -795,8 +795,8 @@ async function _buscarPjeComunicaNoBrowserImpl(
           siglaTribunal: params.siglaTribunal,
           dataInicio: params.dataInicio,
           dataFim: params.dataFim,
-          // buscar-djen usa paginação 0-based; este client usa 1-based.
-          page: Math.max((params.page ?? 1) - 1, 0),
+          // buscar-djen e este client usam paginação 0-based.
+          page: Math.max(params.page ?? 0, 0),
           pageSize: params.pageSize ?? 50,
         },
       });
@@ -872,8 +872,8 @@ export async function buscarPjeComunicaPaginado(
   const maxRetries = options?.maxRetries ?? 5;
   const retryBaseDelay = options?.retryBaseDelay ?? 5000;  // 5s base para retry
 
-  // API PJE Comunica usa paginação 1-based
-  const startPage = Math.max(params.page ?? 1, 1);
+  // API PJE Comunica / portal oficial usa paginação 0-based.
+  const startPage = Math.max(params.page ?? 0, 0);
   // PageSize 50: menos páginas = menos delays = ~2-3x mais rápido (restaurado do 26/01)
   const pageSize = Math.min(Math.max(params.pageSize ?? 50, 1), 50);
 
