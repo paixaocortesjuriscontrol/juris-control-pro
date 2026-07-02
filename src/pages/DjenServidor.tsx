@@ -31,6 +31,8 @@ import {
   type ProgressoItem,
 } from "@/hooks/useDjenServidor";
 import { DjenServidorParalelaCard } from "@/components/djen/DjenServidorParalelaCard";
+import { MonitoramentoTermosKurierCard } from "@/components/configuracoes/MonitoramentoTermosKurierCard";
+import { MonitoramentoDjetPautasCard } from "@/components/configuracoes/MonitoramentoDjetPautasCard";
 import { HorariosDoDiaPicker } from "@/components/djen/HorariosDoDiaPicker";
 import { DiasSemanaPicker, DIAS_SEMANA_DEFAULT } from "@/components/djen/DiasSemanaPicker";
 
@@ -914,8 +916,8 @@ export default function DjenServidor() {
           <TabsTrigger value="comparador"><GitCompare className="h-4 w-4 mr-1" />Comparador</TabsTrigger>
         </TabsList>
         <TabsContent value="servidor"><div className="space-y-4"><DjenServidorParalelaCard /></div></TabsContent>
-        <TabsContent value="pautas"><EngineTab tipo="djet_pautas_servidor" /></TabsContent>
-        <TabsContent value="kurier"><EngineTab tipo="kurier_servidor" /></TabsContent>
+        <TabsContent value="pautas"><MonitoramentoDjetPautasCard /></TabsContent>
+        <TabsContent value="kurier"><MonitoramentoTermosKurierCard /></TabsContent>
         <TabsContent value="workers"><WorkersPanel /></TabsContent>
         <TabsContent value="execucoes"><ExecucoesPanel /></TabsContent>
         <TabsContent value="publicacoes"><PublicacoesPanel /></TabsContent>
