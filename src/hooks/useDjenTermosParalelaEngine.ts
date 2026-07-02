@@ -1436,7 +1436,9 @@ async function processarTermoEmTribunal(
     matchMeta: Record<string, any> = {},
     forceViaOverride: string | undefined | null = viaId,
   ) => {
-    const requestParams = { ...params, page: 1 };
+    // O portal oficial do Comunica começa em pagina=0. Começar em 1 pulava a
+    // primeira página justamente nas buscas por advogado com poucos resultados.
+    const requestParams = { ...params, page: 0 };
     if (requestParams.tipo === 'parte') {
       if (requestParams.palavraChave) {
         console.error('[DJEN Paralela] Proteção: termo do tipo parte nunca pode enviar palavraChave. Removendo parâmetro.', {

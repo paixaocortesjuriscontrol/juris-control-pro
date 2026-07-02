@@ -904,7 +904,9 @@ async function buscarPaginado(slot, params, signal) {
   let emptyStreak = 0;
   let noNewStreak = 0;
   let failedStreak = 0;
-  for (let page = 1; page < 1000; page++) {
+  // O Comunica oficial usa paginação 0-based; pagina=0 é a primeira.
+  // Começar em 1 pulava a página onde ficam buscas pequenas por advogado.
+  for (let page = 0; page < 1000; page++) {
     if (signal?.aborted) throw new Error("cancelado");
     const query = {
       ...params,
