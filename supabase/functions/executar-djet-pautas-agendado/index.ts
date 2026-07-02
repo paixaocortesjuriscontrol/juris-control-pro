@@ -158,6 +158,13 @@ function buildProgressPayload(itens: ProgressoPautaItem[], datasJanela: string[]
   };
 }
 
+function descreverErroHttp(status: number): string {
+  if (status === 546) return "HTTP 546: limite de CPU/memória da Edge Function";
+  if (status === 504) return "HTTP 504: timeout ao processar o caderno";
+  if (status >= 500) return `HTTP ${status}: falha transitória do servidor`;
+  return `HTTP ${status}`;
+}
+
 async function inferExecucaoServidorId(supabase: ReturnType<typeof createClient>): Promise<string | null> {
   const { data } = await supabase
     .from("workers_servidor")
@@ -511,8 +518,9 @@ async function runJob(
           if (!resp || !resp.ok) {
             totalErros++;
             item.current += 1;
-            item.ultimoErro = `HTTP ${lastStatus}`;
-            item.mensagem = `Erro HTTP ${lastStatus} em ${dataDDMMYYYY}`;
+            item.status = "erro";
+            item.ultimoErro = descreverErroHttp(lastStatus);
+            item.mensagem = `${item.ultimoErro} em ${dataDDMMYYYY}`;
             await flushProgresso(true);
             console.error(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY}: HTTP ${lastStatus}`);
             continue;
@@ -548,10 +556,12 @@ async function runJob(
 
         await new Promise((r) => setTimeout(r, DELAY_BETWEEN_TRIBUNAIS_MS));
       }
-      // Tribunal finalizado: marca concluído (mesmo que tenha tido erros em dias específicos).
+      // Tribunal finalizado: se houve erro em qualquer dia, mantém vermelho no painel.
       if (item.status !== "cancelado") {
-        item.status = "concluido";
-        item.mensagem = `Concluído · ${item.novas} nova(s)` + (item.ultimoErro ? ` · último erro: ${item.ultimoErro}` : "");
+        item.status = item.ultimoErro ? "erro" : "concluido";
+        item.mensagem = item.ultimoErro
+          ? `Erro · ${item.ultimoErro}`
+          : `Concluído · ${item.novas} nova(s)`;
       }
       await flushProgresso(true);
     }
