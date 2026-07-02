@@ -1,11 +1,14 @@
 /**
- * DJEN Termos Kurier Engine v1.0
+ * DJEN Termos Kurier Engine v2.0 — Servidor
  *
- * Singleton em memória + checkpoint em localStorage que processa as credenciais
- * Kurier ativas em paralelo (concorrência 3), chamando a edge function
- * `kurier-consultar-publicacoes` para cada login.
+ * Antes rodava as credenciais Kurier direto no navegador. Agora dispara a
+ * execução no servidor (edge `executar-kurier-agendado`, que por sua vez chama
+ * `kurier-consultar-publicacoes` em pool com concorrência 3 do lado do
+ * servidor) e apenas polla `execucoes_agendadas` (tipo='djen_kurier') para
+ * refletir o progresso na UI.
  *
- * Cada track = uma credencial Kurier. Totalmente isolado do DJEN/Paralela.
+ * A gravação continua indo para `publicacoes_djen` (tabela oficial do Browser).
+ * Nenhum motor Servidor DJEN é tocado.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -56,8 +59,7 @@ interface Checkpoint {
 }
 
 const MAX_CONCURRENCY = 3;
-const MAX_CALLS_PER_CREDENCIAL = 200;
-const STORAGE_KEY = "djen-termos-kurier-checkpoint-v1";
+const POLL_INTERVAL_MS = 2000;
 
 function initialProgress(): KurierProgress {
   return {
@@ -80,31 +82,15 @@ function initialProgress(): KurierProgress {
 
 let progress: KurierProgress = initialProgress();
 let running = false;
-let cancelRequested = false;
 let listeners = new Set<(p: KurierProgress) => void>();
-let runKey: string | null = null;
 let currentExecucaoId: string | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 function emit() {
   for (const l of listeners) l({ ...progress, tracks: progress.tracks.map((t) => ({ ...t })) });
 }
 
-function loadCheckpoint(): Checkpoint | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
-
-function saveCheckpoint(cp: Checkpoint) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cp)); } catch {}
-}
-
-function clearCheckpoint() {
-  try { localStorage.removeItem(STORAGE_KEY); } catch {}
-}
-
-export function getCheckpointKurier(): Checkpoint | null { return loadCheckpoint(); }
+export function getCheckpointKurier(): Checkpoint | null { return null; }
 export function isDjenTermosKurierRunning() { return running; }
 export function getDjenTermosKurierProgress(): KurierProgress { return { ...progress, tracks: progress.tracks.map((t) => ({ ...t })) }; }
 
@@ -114,139 +100,86 @@ export function subscribeDjenTermosKurier(fn: (p: KurierProgress) => void): () =
   return () => { listeners.delete(fn); };
 }
 
-function recompute() {
-  progress.totalCredenciais = progress.tracks.length;
-  progress.credenciaisConcluidas = progress.tracks.filter((t) => t.status === "concluido" || t.status === "erro" || t.status === "cancelado").length;
-  progress.novas = progress.tracks.reduce((s, t) => s + t.novas, 0);
-  progress.duplicadas = progress.tracks.reduce((s, t) => s + t.duplicadas, 0);
-  progress.descartadas = progress.tracks.reduce((s, t) => s + t.descartadas, 0);
-  progress.confirmadas = progress.tracks.reduce((s, t) => s + t.confirmadas, 0);
-  progress.recebidas = progress.tracks.reduce((s, t) => s + t.recebidas, 0);
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+function applyRemoteState(row: {
+  status: string;
+  registros_encontrados: number | null;
+  registros_processados: number | null;
+  detalhes: unknown;
+  iniciado_em: string | null;
+  finalizado_em: string | null;
+}) {
+  const d = (row.detalhes as Record<string, unknown> | null) || {};
+  const tracksIn = Array.isArray(d.tracks) ? (d.tracks as Array<Record<string, unknown>>) : [];
+  progress.tracks = tracksIn.map((t): KurierTrack => ({
+    credencialId: String(t.credencialId || ""),
+    login: String(t.login || ""),
+    status: (t.status as KurierTrack["status"]) || "pendente",
+    novas: Number(t.novas ?? 0),
+    duplicadas: Number(t.duplicadas ?? 0),
+    descartadas: Number(t.descartadas ?? 0),
+    confirmadas: Number(t.confirmadas ?? 0),
+    recebidas: Number(t.recebidas ?? 0),
+    lotes: Number(t.lotes ?? 0),
+    mensagem: String(t.mensagem ?? ""),
+    erro: (t.erro as string | null) ?? null,
+    startedAt: null,
+    finishedAt: null,
+  }));
+  progress.totalCredenciais = Number(d.totalCredenciais ?? progress.tracks.length);
+  progress.credenciaisConcluidas = Number(d.credenciaisConcluidas ?? 0);
+  progress.novas = Number(d.novas ?? row.registros_encontrados ?? 0);
+  progress.duplicadas = Number(d.duplicadas ?? 0);
+  progress.descartadas = Number(d.descartadas ?? 0);
+  progress.confirmadas = Number(d.confirmadas ?? 0);
+  progress.recebidas = Number(d.recebidas ?? row.registros_processados ?? 0);
   progress.percentage = progress.totalCredenciais > 0
     ? Math.floor((progress.credenciaisConcluidas / progress.totalCredenciais) * 100)
     : 0;
-}
+  if (row.iniciado_em) progress.iniciadoEm = row.iniciado_em;
 
-async function processarCredencial(
-  track: KurierTrack,
-  monitoramentoIds?: string[],
-  coordenacaoId?: string,
-  dataInicioYmd?: string,
-  dataFimYmd?: string,
-  modoPersonalizado = false,
-) {
-  track.status = "executando";
-  track.startedAt = Date.now();
-  track.mensagem = "Consultando lotes…";
-  emit();
-
-  try {
-    for (let chamada = 1; chamada <= MAX_CALLS_PER_CREDENCIAL && !cancelRequested; chamada++) {
-      track.mensagem = `Consultando lote ${chamada}…`;
-      emit();
-
-      const { data, error } = await supabase.functions.invoke("kurier-consultar-publicacoes", {
-        body: {
-          credencial_id: track.credencialId,
-          // A edge function consome até MAX_LOTES_PER_CALL lotes de 50 itens por
-          // chamada. O engine encadeia chamadas até a fila esvaziar.
-          max_lotes: 5,
-          monitoramento_ids: monitoramentoIds && monitoramentoIds.length ? monitoramentoIds : undefined,
-          coordenacao_id: coordenacaoId || undefined,
-          data_inicio: dataInicioYmd || undefined,
-          data_fim: dataFimYmd || undefined,
-          modo_personalizado: modoPersonalizado,
-          execucao_id: currentExecucaoId || undefined,
-        },
-      });
-      if (error) throw error;
-      const r = data as any;
-      if (r?.error) throw new Error(r.error);
-
-      const recebidas = Number(r?.total_recebidas ?? 0);
-      track.novas += Number(r?.total_novas ?? 0);
-      track.duplicadas += Number(r?.total_duplicadas ?? 0);
-      track.descartadas += Number(r?.total_descartadas ?? 0);
-      track.confirmadas += Number(r?.total_confirmadas ?? 0);
-      track.recebidas += recebidas;
-      track.lotes += Number(r?.lotes_processados ?? 0);
-      track.erro = r?.erro ?? null;
-      track.mensagem = modoPersonalizado
-        ? `${track.recebidas} recebidas, ${track.novas} novas, ${track.duplicadas} dup em ${track.lotes} lote(s)`
-        : `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
-      recompute();
-      emit();
-
-      if (r?.ok === false) {
-        track.status = "erro";
-        track.mensagem = `Erro: ${(r?.erro ?? "").slice(0, 80)}`;
-        return;
-      }
-      // Em modo personalizado (endpoint de data), uma chamada já cobre o intervalo.
-      if (modoPersonalizado) break;
-      // Fila: continua até a API voltar vazia. Lotes parciais podem ser apenas o
-      // fim de uma faixa antiga; ainda assim seguimos. Só paramos quando 0.
-      if (recebidas === 0 || Number(r?.lotes_processados ?? 0) === 0) break;
-      // Sinal explícito da edge function de que ultrapassamos a janela
-      // (todos os itens do lote têm data_disponibilizacao > data_fim).
-      if (r?.janela_ultrapassada === true) break;
-    }
-
-    track.status = cancelRequested ? "cancelado" : "concluido";
-    if (track.status === "concluido") {
-      track.mensagem = modoPersonalizado
-        ? `${track.recebidas} recebidas, ${track.novas} novas, ${track.duplicadas} dup em ${track.lotes} lote(s)`
-        : `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
-    }
-  } catch (e: any) {
-    track.status = "erro";
-    track.erro = String(e?.message ?? e);
-    track.mensagem = `Erro: ${track.erro.slice(0, 80)}`;
-  } finally {
-    track.finishedAt = Date.now();
-    recompute();
-    // Persiste checkpoint
-    if (runKey) {
-      saveCheckpoint({
-        runKey,
-        credenciaisConcluidas: progress.tracks
-          .filter((t) => t.status === "concluido" || t.status === "erro")
-          .map((t) => t.credencialId),
-        novas: progress.novas,
-        duplicadas: progress.duplicadas,
-        descartadas: progress.descartadas,
-        confirmadas: progress.confirmadas,
-        tempoInicio: progress.iniciadoEm ? new Date(progress.iniciadoEm).getTime() : Date.now(),
-      });
-    }
-    emit();
+  const s = row.status;
+  if (s === "executando" || s === "pendente") {
+    progress.status = "executando";
+    running = true;
+    progress.mensagem = progress.tracks.find((t) => t.status === "executando")?.mensagem
+      || `Executando no servidor (${progress.credenciaisConcluidas}/${progress.totalCredenciais})`;
+  } else if (s === "concluido") {
+    progress.status = "concluido";
+    progress.mensagem = `Concluído: ${progress.novas} novas, ${progress.duplicadas} dup, ${progress.confirmadas} confirmadas`;
+    running = false;
+    stopPolling();
+  } else if (s === "cancelado") {
+    progress.status = "cancelado";
+    progress.mensagem = "Cancelado pelo usuário";
+    running = false;
+    stopPolling();
+  } else {
+    progress.status = "erro";
+    progress.mensagem = "Erro na execução Kurier";
+    running = false;
+    stopPolling();
   }
+  emit();
 }
 
-async function runPool(
-  tracks: KurierTrack[],
-  monitoramentoIds?: string[],
-  coordenacaoId?: string,
-  dataInicioYmd?: string,
-  dataFimYmd?: string,
-  modoPersonalizado = false,
-) {
-  let idx = 0;
-  const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, tracks.length) }, async () => {
-    while (!cancelRequested) {
-      const i = idx++;
-      if (i >= tracks.length) return;
-      await processarCredencial(tracks[i], monitoramentoIds, coordenacaoId, dataInicioYmd, dataFimYmd, modoPersonalizado);
-    }
-    // Marca pendentes como cancelados
-    for (let j = idx; j < tracks.length; j++) {
-      if (tracks[j].status === "pendente") {
-        tracks[j].status = "cancelado";
-        tracks[j].mensagem = "Cancelado antes de iniciar";
-      }
-    }
-  });
-  await Promise.all(workers);
+async function pollOnce() {
+  if (!currentExecucaoId) return;
+  const { data } = await (supabase as any)
+    .from("execucoes_agendadas")
+    .select("status, registros_encontrados, registros_processados, detalhes, iniciado_em, finalizado_em")
+    .eq("id", currentExecucaoId)
+    .maybeSingle();
+  if (data) applyRemoteState(data);
+}
+
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(() => { void pollOnce(); }, POLL_INTERVAL_MS);
+  void pollOnce();
 }
 
 export async function executarDjenTermosKurier(
@@ -260,12 +193,6 @@ export async function executarDjenTermosKurier(
 ): Promise<void> {
   if (running) return;
   running = true;
-  cancelRequested = false;
-  runKey = retomar ? (loadCheckpoint()?.runKey ?? crypto.randomUUID()) : crypto.randomUUID();
-
-  // Modo fila (padrão): endpoint ConsultarPublicacoes ignora data e confirma
-  // cada item lido. Só aplicamos data quando o usuário pediu modo personalizado
-  // explicitamente (reconsulta histórica) E informou datas.
   const ymdValido = (s?: string) => !!s && /^\d{4}-\d{2}-\d{2}$/.test(s);
   const effInicio = modoPersonalizado && ymdValido(dataInicioYmd) ? dataInicioYmd : undefined;
   const effFim = modoPersonalizado && ymdValido(dataFimYmd) ? dataFimYmd : undefined;
@@ -273,142 +200,59 @@ export async function executarDjenTermosKurier(
   progress = initialProgress();
   progress.status = "executando";
   progress.iniciadoEm = new Date().toISOString();
-  progress.mensagem = drenarBacklog
-    ? `Drenando backlog do Kurier (sem filtro de data)…`
-    : modoPersonalizado
-      ? `Carregando credenciais ativas… (janela ${effInicio ?? "-"} → ${effFim ?? "-"})`
-      : `Carregando credenciais ativas… (modo fila — disponibilizadas do dia + confirmação automática)`;
+  progress.mensagem = "Solicitando execução no servidor...";
   emit();
 
-  // Registra a execução no banco para a tela "Análise DJEN > Execuções do dia"
   try {
-    const { data: insExec } = await (supabase as any)
-      .from("execucoes_agendadas")
-      .insert({
-        tipo: "djen_kurier",
-        status: "executando",
-        job_name: "DJEN Termos Kurier",
-        iniciado_em: new Date().toISOString(),
-        detalhes: {
-          runKey,
-          coordenacao_id: coordenacaoId ?? null,
-          modo_personalizado: modoPersonalizado,
-          drenar_backlog: drenarBacklog,
-        },
-      })
-      .select("id");
-    currentExecucaoId = insExec?.[0]?.id ?? null;
-  } catch (e) {
-    console.warn("[DJEN Kurier] falha registrar execução:", e);
-    currentExecucaoId = null;
-  }
-
-  try {
-    let credsQuery = (supabase as any)
-      .from("kurier_credenciais")
-      .select("id, login, senha_encrypted")
-      .eq("ativo", true)
-      .not("senha_encrypted", "is", null)
-      .order("prioridade", { ascending: false });
-
-    // Se houver coordenação selecionada, restringe às credenciais vinculadas
-    let credIdsPermitidos: Set<string> | null = null;
-    if (coordenacaoId) {
-      const { data: vinculos, error: errVinc } = await (supabase as any)
-        .from("kurier_credencial_coordenacoes")
-        .select("credencial_id")
-        .eq("coordenacao_id", coordenacaoId);
-      if (errVinc) throw errVinc;
-      credIdsPermitidos = new Set<string>((vinculos ?? []).map((v: any) => v.credencial_id));
-      if (credIdsPermitidos.size === 0) {
-        progress.status = "concluido";
-        progress.mensagem = "Nenhuma credencial Kurier vinculada a esta coordenação.";
-        running = false;
-        emit();
-        return;
-      }
-      credsQuery = credsQuery.in("id", Array.from(credIdsPermitidos));
-    }
-
-    const { data: creds, error } = await credsQuery;
+    const { data, error } = await supabase.functions.invoke("executar-kurier-agendado", {
+      body: {
+        manual: true,
+        force: true,
+        coordenacao_id: coordenacaoId,
+        monitoramento_ids: monitoramentoIds,
+        data_inicio: effInicio,
+        data_fim: effFim,
+        modo_personalizado: modoPersonalizado,
+        drenar_backlog: drenarBacklog,
+      },
+    });
     if (error) throw error;
-
-    const ckp = retomar ? loadCheckpoint() : null;
-    const concluidasPrev = new Set<string>(ckp?.credenciaisConcluidas ?? []);
-
-    const tracks: KurierTrack[] = (creds ?? []).map((c: any) => ({
-      credencialId: c.id,
-      login: c.login,
-      status: concluidasPrev.has(c.id) ? "concluido" : "pendente",
-      novas: 0,
-      duplicadas: 0,
-      descartadas: 0,
-      confirmadas: 0,
-      recebidas: 0,
-      lotes: 0,
-      mensagem: concluidasPrev.has(c.id) ? "Já concluído (checkpoint)" : "Aguardando…",
-      erro: null,
-      startedAt: null,
-      finishedAt: null,
-    }));
-
-    if (!tracks.length) {
+    const r = data as { started?: boolean; exec_id?: string; skipped?: string };
+    if (!r?.exec_id) {
       progress.status = "concluido";
-      progress.mensagem = "Nenhuma credencial ativa com senha cadastrada.";
+      progress.mensagem = r?.skipped ? `Servidor pulou: ${r.skipped}` : "Servidor não retornou exec_id";
       running = false;
       emit();
       return;
     }
-
-    progress.tracks = tracks;
-    recompute();
+    currentExecucaoId = r.exec_id;
+    progress.mensagem = "Executando no servidor...";
     emit();
-
-    const aPercorrer = tracks.filter((t) => t.status === "pendente");
-    await runPool(aPercorrer, monitoramentoIds, coordenacaoId, effInicio, effFim, modoPersonalizado && !drenarBacklog);
-
-    if (cancelRequested) {
-      progress.status = "cancelado";
-      progress.mensagem = "Execução cancelada";
-    } else {
-      const houveErro = tracks.some((t) => t.status === "erro");
-      progress.status = houveErro ? "erro" : "concluido";
-      progress.mensagem = houveErro
-        ? `Concluído com erros (${progress.novas} novas)`
-        : modoPersonalizado && !drenarBacklog
-        ? `Concluído: ${progress.recebidas} recebidas da Kurier, ${progress.novas} novas, ${progress.duplicadas} dup`
-        : `Concluído: ${progress.novas} novas, ${progress.duplicadas} dup, ${progress.confirmadas} confirmadas`;
-      clearCheckpoint();
-    }
-  } catch (e: any) {
+    startPolling();
+  } catch (e: unknown) {
     progress.status = "erro";
-    progress.mensagem = `Erro: ${String(e?.message ?? e)}`;
-  } finally {
-    // Finaliza execução no banco
-    if (currentExecucaoId) {
-      try {
-        await (supabase as any)
-          .from("execucoes_agendadas")
-          .update({
-            status: progress.status === "concluido" ? "concluido" : progress.status === "erro" ? "erro" : "cancelado",
-            finalizado_em: new Date().toISOString(),
-            registros_encontrados: progress.novas,
-            registros_processados: progress.recebidas,
-          })
-          .eq("id", currentExecucaoId);
-      } catch (e) {
-        console.warn("[DJEN Kurier] falha finalizar execução:", e);
-      }
-      currentExecucaoId = null;
-    }
+    progress.mensagem = `Erro: ${String((e as Error)?.message ?? e)}`;
     running = false;
-    cancelRequested = false;
     emit();
   }
 }
 
 export async function cancelarDjenTermosKurier(): Promise<void> {
-  cancelRequested = true;
+  if (!currentExecucaoId) { running = false; return; }
+  try {
+    // Sinaliza cancelamento — o motor no servidor consulta a cada iteração.
+    await (supabase as any)
+      .from("execucoes_agendadas")
+      .update({ status: "cancelado", detalhes: { cancel_request: true } })
+      .eq("id", currentExecucaoId);
+  } catch (e) {
+    console.warn("[DJEN Kurier] cancelar falhou:", e);
+  }
+  progress.status = "cancelado";
+  progress.mensagem = "Cancelamento solicitado ao servidor";
+  running = false;
+  stopPolling();
+  emit();
 }
 
 export function limparEstadoDjenTermosKurier() {
@@ -417,25 +261,41 @@ export function limparEstadoDjenTermosKurier() {
   emit();
 }
 
-export async function forceKillDjenTermosKurier(alsoClearCheckpoint = false) {
-  cancelRequested = true;
+export async function forceKillDjenTermosKurier(_alsoClearCheckpoint = false) {
+  await cancelarDjenTermosKurier();
   running = false;
   progress.status = "cancelado";
   progress.mensagem = "Force kill";
-  if (alsoClearCheckpoint) clearCheckpoint();
+  stopPolling();
+  currentExecucaoId = null;
   emit();
 }
 
 export async function resetTotalDjenTermosKurier() {
-  cancelRequested = true;
   running = false;
-  clearCheckpoint();
+  stopPolling();
+  currentExecucaoId = null;
   progress = initialProgress();
   emit();
 }
 
 /** Reidrata UI a partir da última execução agendada (best effort). */
 export async function hydrateDjenTermosKurierFromBackend() {
-  // Sem state global no backend ainda: mantemos o que está em memória.
-  // (Espaço para evoluir lendo kurier_execucoes recentes.)
+  // Se houver execução em andamento, reata o poll.
+  try {
+    const { data } = await (supabase as any)
+      .from("execucoes_agendadas")
+      .select("id, status, registros_encontrados, registros_processados, detalhes, iniciado_em, finalizado_em")
+      .eq("tipo", "djen_kurier")
+      .in("status", ["executando", "pendente"])
+      .order("iniciado_em", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data?.id) {
+      currentExecucaoId = data.id;
+      running = true;
+      applyRemoteState(data);
+      startPolling();
+    }
+  } catch { /* silencioso */ }
 }
