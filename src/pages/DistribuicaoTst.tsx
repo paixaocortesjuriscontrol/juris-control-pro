@@ -177,6 +177,7 @@ export default function DistribuicaoTst() {
 
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectAllLoading, setSelectAllLoading] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   // ID do registro recém-editado/salvo. Mantém ele visível (sticky) na lista
@@ -2217,13 +2218,27 @@ export default function DistribuicaoTst() {
                 <TableHead className="w-10">
                   <Checkbox 
                     checked={dados.length > 0 && dados.every(d => selectedIds.has(d.id))}
-                    onCheckedChange={(checked) => {
+                    disabled={selectAllLoading}
+                    onCheckedChange={async (checked) => {
                       if (checked) {
-                        setSelectedIds(new Set([...selectedIds, ...dados.map(d => d.id)]));
+                        // Seleciona TODOS os registros que batem com o filtro atual
+                        // (não apenas os da página visível).
+                        try {
+                          setSelectAllLoading(true);
+                          const allIds = await fetchAllDistribuicaoTstIds(debouncedFilters);
+                          setSelectedIds(new Set(allIds));
+                          if (allIds.length > dados.length) {
+                            toast.success(`${allIds.length} processo(s) selecionado(s) (todos os filtrados)`);
+                          }
+                        } catch (e: any) {
+                          toast.error("Erro ao selecionar todos: " + (e?.message || ""));
+                          // Fallback: seleciona apenas a página atual
+                          setSelectedIds(new Set([...selectedIds, ...dados.map(d => d.id)]));
+                        } finally {
+                          setSelectAllLoading(false);
+                        }
                       } else {
-                        const newSet = new Set(selectedIds);
-                        dados.forEach(d => newSet.delete(d.id));
-                        setSelectedIds(newSet);
+                        setSelectedIds(new Set());
                       }
                     }}
                   />
