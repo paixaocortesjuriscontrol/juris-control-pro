@@ -59,6 +59,41 @@ function resolveHorarioDoDia(horarios: (string | null)[] | null, weekday: number
   return v && v.trim() !== "" ? v : null;
 }
 
+function sanitizarHorarios(horarios: unknown[]): string[] {
+  return Array.from(new Set(
+    horarios
+      .map((h) => String(h || "").trim())
+      .filter((h) => /^([01]?\d|2[0-3]):[0-5]\d$/.test(h))
+      .map((h) => {
+        const [hh, mm] = h.split(":");
+        return `${hh.padStart(2, "0")}:${mm}`;
+      }),
+  )).sort().slice(0, 3);
+}
+
+function resolveHorariosDoDia(cfg: { horarios_execucao?: unknown; metadata?: unknown }, weekday: number): string[] {
+  const metadata = (cfg.metadata as Record<string, unknown> | null) || {};
+  const matriz = metadata.horarios_por_dia as unknown;
+  if (Array.isArray(matriz) && matriz.length === 7) {
+    const linha = matriz[weekday];
+    return Array.isArray(linha) ? sanitizarHorarios(linha) : [];
+  }
+  const arr = Array.isArray(cfg.horarios_execucao) ? cfg.horarios_execucao as unknown[] : [];
+  const legado = resolveHorarioDoDia(arr.map((h) => h == null ? null : String(h)), weekday);
+  return legado ? [legado] : [];
+}
+
+function slotNaJanela(horarios: string[], hour: number, minute: number): string | null {
+  const nowMin = hour * 60 + minute;
+  for (const horario of horarios) {
+    const [hh, mm] = horario.split(":").map(Number);
+    if (isNaN(hh) || isNaN(mm)) continue;
+    const tgtMin = hh * 60 + mm;
+    if (nowMin >= tgtMin && nowMin <= tgtMin + WINDOW_MIN) return horario;
+  }
+  return null;
+}
+
 function ymdToDdmmyyyy(ymd: string): string {
   const [y, m, d] = ymd.split("-");
   return `${d}/${m}/${y}`;
@@ -107,6 +142,20 @@ function makeProgressItems(datas: string[]): ProgressoPautaItem[] {
     descartadas: 0,
     diasSemPdf: 0,
   }));
+}
+
+function buildProgressPayload(itens: ProgressoPautaItem[], datasJanela: string[], ymd: string) {
+  const concluidos = itens.filter((i) => ["concluido", "erro", "cancelado"].includes(i.status)).length;
+  const falhas = itens.filter((i) => i.status === "erro").length;
+  const atual = itens.find((i) => i.status === "executando") || null;
+  return {
+    totalItens: itens.length,
+    concluidos,
+    falhas,
+    atual: atual ? { id: atual.id, label: atual.label } : null,
+    itens: itens.map((i) => ({ ...i })),
+    janela: { dataInicio: datasJanela[0] || ymd, dataFim: datasJanela[datasJanela.length - 1] || ymd },
+  };
 }
 
 async function inferExecucaoServidorId(supabase: ReturnType<typeof createClient>): Promise<string | null> {
@@ -306,7 +355,7 @@ async function runJob(
   ymd: string,
   persistMode: "browser" | "servidor" = "browser",
   configTable: string = "configuracoes_monitoramento",
-  options: { execucaoServidorId?: string | null; dataInicio?: string; dataFim?: string } = {},
+  options: { execucaoServidorId?: string | null; dataInicio?: string; dataFim?: string; coordenacaoId?: string | null; monitoramentoIds?: string[]; schedulerSlot?: string | null } = {},
 ) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -331,29 +380,41 @@ async function runJob(
   const dataFimOpcao = options.dataFim || (typeof payloadServidor?.dataFim === "string" ? payloadServidor.dataFim : undefined);
   const datasJanela = buildDateRange(dataInicioOpcao || ymd, dataFimOpcao || dataInicioOpcao || ymd);
   const itens = makeProgressItems(datasJanela);
+  const filtroDetalhes = {
+    scheduler_slot: options.schedulerSlot || null,
+    filtro: {
+      coordenacaoId: options.coordenacaoId || null,
+      monitoramentoIds: options.monitoramentoIds || null,
+      persistMode,
+      dataInicio: dataInicioOpcao || null,
+      dataFim: dataFimOpcao || null,
+    },
+  };
   let lastFlush = 0;
-  const flushProgressoServidor = async (force = false) => {
-    if (!execucaoServidorId) return;
+  const flushProgresso = async (force = false) => {
     const now = Date.now();
     if (!force && now - lastFlush < 700) return;
     lastFlush = now;
-    const concluidos = itens.filter((i) => ["concluido", "erro", "cancelado"].includes(i.status)).length;
-    const falhas = itens.filter((i) => i.status === "erro").length;
-    const atual = itens.find((i) => i.status === "executando") || null;
+    const progresso = buildProgressPayload(itens, datasJanela, ymd);
+    await supabase
+      .from("execucoes_agendadas")
+      .update({
+        status: "executando",
+        registros_encontrados: totalNovas,
+        registros_processados: totalNovas + totalDuplicadas,
+        erros: totalErros,
+        detalhes: { ...filtroDetalhes, novas: totalNovas, duplicadas: totalDuplicadas, progresso },
+      })
+      .eq("id", execId)
+      .neq("status", "cancelado");
+    if (!execucaoServidorId) return;
     await supabase
       .from("execucoes_servidor")
       .update({
         status: "executando",
         finalizado_em: null,
         erro: null,
-        progresso: {
-          totalItens: itens.length,
-          concluidos,
-          falhas,
-          atual: atual ? { id: atual.id, label: atual.label } : null,
-          itens: itens.slice(-200),
-          janela: { dataInicio: datasJanela[0] || ymd, dataFim: datasJanela[datasJanela.length - 1] || ymd },
-        },
+        progresso,
         progresso_atualizado_em: new Date().toISOString(),
         heartbeat_at: new Date().toISOString(),
       })
@@ -370,11 +431,19 @@ async function runJob(
       .neq("somente_kurier", true);
 
     if (monitsErr) throw monitsErr;
-    const monits = (monitsData || []) as unknown as Monitoramento[];
+    let monits = (monitsData || []) as unknown as Monitoramento[];
+    const filtroMonitoramentoIds = Array.isArray(options.monitoramentoIds)
+      ? new Set(options.monitoramentoIds.filter(Boolean))
+      : null;
+    if (filtroMonitoramentoIds && filtroMonitoramentoIds.size > 0) {
+      monits = monits.filter((m) => filtroMonitoramentoIds.has(m.id));
+    } else if (options.coordenacaoId) {
+      monits = monits.filter((m) => m.coordenacao_id === options.coordenacaoId);
+    }
     const monitCoordMap = new Map<string, string | null>();
     monits.forEach((m) => monitCoordMap.set(m.id, m.coordenacao_id));
 
-    await flushProgressoServidor(true);
+    await flushProgresso(true);
 
     for (const tribunal of TRIBUNAIS_DEJT) {
       const item = itens.find((i) => i.id === tribunal)!;
@@ -382,12 +451,12 @@ async function runJob(
       const monsInput = monitsTrib.map(monitToInput).filter((m) => m.termos.length > 0 || m.oab);
       item.status = "executando";
       item.mensagem = monsInput.length === 0 ? "Sem monitoramentos para este tribunal" : "Iniciando...";
-      await flushProgressoServidor(true);
+      await flushProgresso(true);
       if (monsInput.length === 0) {
         item.status = "concluido";
         item.current = item.total;
         item.mensagem = "Sem monitoramentos aplicáveis";
-        await flushProgressoServidor(true);
+        await flushProgresso(true);
         continue;
       }
 
@@ -397,7 +466,7 @@ async function runJob(
             it.status = "cancelado";
             it.mensagem = "Cancelado pelo usuário";
           }
-          await flushProgressoServidor(true);
+          await flushProgresso(true);
           return;
         }
         const dataDDMMYYYY = ymdToDdmmyyyy(dataYmd);
@@ -408,7 +477,7 @@ async function runJob(
           item.current += 1;
           item.diasSemPdf += 1;
           item.mensagem = `Sem caderno (${dow === 0 ? "domingo" : "sábado"})`;
-          await flushProgressoServidor();
+          await flushProgresso();
           continue;
         }
         try {
@@ -444,7 +513,7 @@ async function runJob(
             item.current += 1;
             item.ultimoErro = `HTTP ${lastStatus}`;
             item.mensagem = `Erro HTTP ${lastStatus} em ${dataDDMMYYYY}`;
-            await flushProgressoServidor(true);
+            await flushProgresso(true);
             console.error(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY}: HTTP ${lastStatus}`);
             continue;
           }
@@ -466,14 +535,14 @@ async function runJob(
           item.novas += novas;
           item.duplicatas += duplicadas;
           item.mensagem = `${dataDDMMYYYY}: ${matches.length} achado(s) · ${novas} nova(s)`;
-          await flushProgressoServidor();
+          await flushProgresso();
           console.log(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY}: ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
         } catch (e) {
           totalErros++;
           item.current += 1;
           item.ultimoErro = String((e as Error)?.message || e).slice(0, 200);
           item.mensagem = `Erro em ${dataDDMMYYYY}`;
-          await flushProgressoServidor(true);
+          await flushProgresso(true);
           console.error(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY} erro:`, e);
         }
 
@@ -484,8 +553,10 @@ async function runJob(
         item.status = "concluido";
         item.mensagem = `Concluído · ${item.novas} nova(s)` + (item.ultimoErro ? ` · último erro: ${item.ultimoErro}` : "");
       }
-      await flushProgressoServidor(true);
+      await flushProgresso(true);
     }
+
+    const progressoFinal = buildProgressPayload(itens, datasJanela, ymd);
 
     await supabase
       .from("execucoes_agendadas")
@@ -495,11 +566,9 @@ async function runJob(
         registros_encontrados: totalNovas,
         registros_processados: totalNovas + totalDuplicadas,
         erros: totalErros,
-        detalhes: { novas: totalNovas, duplicadas: totalDuplicadas, duracao_ms: Date.now() - startedAt },
+        detalhes: { ...filtroDetalhes, novas: totalNovas, duplicadas: totalDuplicadas, duracao_ms: Date.now() - startedAt, progresso: progressoFinal },
       })
       .eq("id", execId);
-
-    await flushProgressoServidor(true);
 
     if (execucaoServidorId) {
       await supabase
@@ -537,7 +606,7 @@ async function runJob(
         status: "falhou",
         finalizado_em: new Date().toISOString(),
         ultimo_erro: String((e as Error)?.message || e),
-        detalhes: { duracao_ms: Date.now() - startedAt },
+        detalhes: { ...filtroDetalhes, duracao_ms: Date.now() - startedAt },
       })
       .eq("id", execId);
   }
@@ -558,6 +627,8 @@ Deno.serve(async (req) => {
     let execucaoServidorId: string | null = null;
     let dataInicio: string | undefined;
     let dataFim: string | undefined;
+    let coordenacaoId: string | null = null;
+    let monitoramentoIds: string[] | undefined;
     try {
       const body = await req.json().catch(() => ({}));
       force = body?.force === true;
@@ -565,6 +636,10 @@ Deno.serve(async (req) => {
       execucaoServidorId = typeof body?.execucaoServidorId === "string" ? body.execucaoServidorId : null;
       dataInicio = typeof body?.dataInicio === "string" ? body.dataInicio : undefined;
       dataFim = typeof body?.dataFim === "string" ? body.dataFim : undefined;
+      coordenacaoId = typeof body?.coordenacaoId === "string" && body.coordenacaoId.trim() ? body.coordenacaoId : null;
+      monitoramentoIds = Array.isArray(body?.monitoramentoIds)
+        ? body.monitoramentoIds.filter((id: unknown) => typeof id === "string" && id.trim())
+        : undefined;
     } catch { /* ignore */ }
 
     // 1) Lê configuração — usa tabela correta conforme modo (servidor vs browser)
@@ -572,7 +647,7 @@ Deno.serve(async (req) => {
     const configTipo = persistMode === "servidor" ? "djet_pautas_servidor" : "djet_pautas";
     const { data: cfg, error: cfgErr } = await supabase
       .from(configTable)
-      .select("id, ativo, horarios_execucao")
+      .select("id, ativo, horarios_execucao, metadata")
       .eq("tipo", configTipo)
       .maybeSingle();
 
@@ -584,26 +659,20 @@ Deno.serve(async (req) => {
     }
 
     const now = brtNow();
+    let schedulerSlot: string | null = null;
 
     // 2) Janela de horário
     if (!force) {
       const wd = brtWeekday(now.ymd);
-      const horario = resolveHorarioDoDia(cfg.horarios_execucao as (string | null)[] | null, wd);
-      if (!horario) {
+      const horarios = resolveHorariosDoDia(cfg, wd);
+      if (horarios.length === 0) {
         return new Response(JSON.stringify({ skipped: "dia_desativado", weekday: wd }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const [hh, mm] = horario.split(":").map(Number);
-      if (isNaN(hh) || isNaN(mm)) {
-        return new Response(JSON.stringify({ skipped: "horario_invalido" }), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const nowMin = now.hour * 60 + now.minute;
-      const tgtMin = hh * 60 + mm;
-      if (nowMin < tgtMin || nowMin > tgtMin + WINDOW_MIN) {
-        return new Response(JSON.stringify({ skipped: "fora_janela", now: `${now.hour}:${now.minute}`, target: horario }), {
+      schedulerSlot = slotNaJanela(horarios, now.hour, now.minute);
+      if (!schedulerSlot) {
+        return new Response(JSON.stringify({ skipped: "fora_janela", now: `${now.hour}:${now.minute}`, target: horarios.join(", ") }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -612,10 +681,12 @@ Deno.serve(async (req) => {
     // 3) Trava do dia
     const ymdStart = `${now.ymd}T00:00:00-03:00`;
     const ymdEnd = `${now.ymd}T23:59:59-03:00`;
+    const tiposExistentes = persistMode === "servidor" ? ["djet_pautas_servidor"] : ["djet_pautas", "djet_pautas_servidor"];
     const { data: existing } = await supabase
       .from("execucoes_agendadas")
       .select("id, status")
-      .eq("tipo", "djet_pautas")
+      .in("tipo", tiposExistentes)
+      .contains("detalhes", { scheduler_slot: schedulerSlot })
       .gte("iniciado_em", ymdStart)
       .lte("iniciado_em", ymdEnd)
       .limit(1);
@@ -633,6 +704,16 @@ Deno.serve(async (req) => {
         tipo: "djet_pautas",
         status: "executando",
         iniciado_em: new Date().toISOString(),
+        detalhes: {
+          scheduler_slot: schedulerSlot,
+          filtro: {
+            coordenacaoId,
+            monitoramentoIds: monitoramentoIds || null,
+            persistMode,
+            dataInicio: dataInicio || null,
+            dataFim: dataFim || null,
+          },
+        },
       })
       .select("id")
       .single();
@@ -642,7 +723,7 @@ Deno.serve(async (req) => {
     }
 
     // 5) Executa em background (não bloqueia resposta do cron)
-    const task = runJob(supabase, exec.id as string, now.ymd, persistMode, configTable, { execucaoServidorId, dataInicio, dataFim });
+    const task = runJob(supabase, exec.id as string, now.ymd, persistMode, configTable, { execucaoServidorId, dataInicio, dataFim, coordenacaoId, monitoramentoIds, schedulerSlot });
     // @ts-ignore EdgeRuntime existe no Deno Deploy do Supabase
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
       // @ts-ignore
