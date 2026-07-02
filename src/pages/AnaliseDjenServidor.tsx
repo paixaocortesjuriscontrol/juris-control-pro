@@ -935,9 +935,13 @@ const AnaliseDjenServidor = () => {
     return result;
   }, [tipoOrigem, publicacoes, datajudAsPublicacoes, descartadasDedupData, deveRestringirPorCoordenacao, userCoordenacaoIds, focusFromErrata]);
 
-  // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
+  // Loading considera tanto o carregamento inicial da coordenação quanto das publicações.
+  // Também considera `isFetching` para evitar mostrar "Nenhuma publicação encontrada"
+  // enquanto a query ainda está buscando dados (ex.: 7k+ linhas do dia demoram).
   const isLoading = loadingUserCoord || coordenacaoId === null
-    || (tipoOrigem === 'descartada' ? isLoadingDescartadasDedup : isLoadingPublicacoes)
+    || (tipoOrigem === 'descartada'
+        ? (isLoadingDescartadasDedup || isFetchingDescartadasDedup)
+        : (isLoadingPublicacoes || isFetchingPublicacoes))
     || (tipoOrigem === 'datajud' && isLoadingDatajud);
 
 
