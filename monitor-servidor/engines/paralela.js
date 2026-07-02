@@ -884,13 +884,7 @@ function shouldExclude(conteudo, mon, pub) {
   const excs = Array.isArray(mon.exclusoes) ? mon.exclusoes : [];
   if (excs.length === 0) return false;
   const tipo = mapTipo(mon?.tipo);
-  // Exclusões: para PARTE, ADVOGADO ou NOME (advogado por nome), aplicar
-  // apenas nas seções estruturadas de partes/polos/destinatários. O teor
-  // completo só é usado em buscas do tipo palavra-chave/geral. Isso evita
-  // que um edital coletivo (pauta com dezenas de processos) descarte uma
-  // comunicação legítima do advogado só porque outro processo agrupado no
-  // mesmo edital menciona a parte excluída.
-  const text = (tipo === "parte" || tipo === "advogado" || tipo === "nome")
+  const text = tipo === "parte"
     ? normalize([...extrairPartesEstruturadas(pub), ...extrairSecoesPartesTexto(pub)].join("\n"))
     : normalize(buildTextoCompleto(pub, conteudo));
   if (!text) return false;
