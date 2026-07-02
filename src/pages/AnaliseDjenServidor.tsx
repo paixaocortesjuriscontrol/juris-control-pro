@@ -3688,7 +3688,7 @@ const AnaliseDjenServidor = () => {
   // filtros estavam ativos, a tela trocava para "contadores da lista" e
   // contava apenas as publicações da página atual, gerando totalizadores
   // incoerentes (especialmente o "Total no período").
-  const usarContadoresDaLista = false;
+  const usarContadoresDaLista = !!dataPublicacaoDebounced;
   const totalGeralFiltrado = usarContadoresDaLista
     ? totalListaVisivel
     : tipoOrigem === 'datajud'
