@@ -848,11 +848,14 @@ async function processarTermo(
     variantesParaBuscar = [];
   } else if (tipo === 'advogado' && mon.oab) {
     baseParams.oab = String(mon.oab).replace(/\D/g, '');
-    // Nome é útil para fallback via `nomeAdvogado` (portal oficial) quando a busca por OAB retorna 0.
+    // Regra oficial do Comunica: a busca primária por advogado é por NOME,
+    // sem OAB/UF na mesma URL. Misturar `numeroOab/ufOab` com `nomeAdvogado`
+    // restringe a API e faz editais coletivos sumirem (Osmar Mendes/TJDFT).
     baseParams.nomeAdvogado = extrairPalavraChavePura(mon.termo_busca);
     const ufValue = String(mon.uf || '').trim().toUpperCase();
-    ufsParaBuscar = parseUfs(ufValue);
-    // Para advogado com OAB: buscar por OAB (sem palavra-chave) e filtrar por nome depois
+    baseParams._ufsOabFallback = parseUfs(ufValue);
+    // Primária por nome não itera UF; OAB/UF fica só como fallback se o nome vier vazio.
+    ufsParaBuscar = [];
     variantesParaBuscar = [];
   } else if (tipo === 'processo') {
     baseParams.numeroProcesso = mon.termo_busca.replace(/\D/g, '');
@@ -937,7 +940,7 @@ async function processarTermo(
           // porque a API retorna resultados diferentes para cada siglaTribunal.
           // Sem esse fix, o cache do 1º tribunal era reutilizado para os demais, perdendo publicações.
           const cacheKey = isAdvogadoComOab
-            ? `${baseParams.dataInicio}|${baseParams.oab}|${uf ?? 'ALL'}${advogadoForcarTribunalNaBusca ? `|${trib ?? 'ALL'}` : ''}`
+            ? `${baseParams.dataInicio}|nome:${baseParams.nomeAdvogado || ''}|${advogadoForcarTribunalNaBusca ? `|${trib ?? 'ALL'}` : ''}`
             : null;
 
           let respItems: any[] | null = null;
@@ -946,7 +949,7 @@ async function processarTermo(
           } else {
             if (isAdvogadoComOab) {
               updateProgress({
-                mensagem: `🧩 Fase 1/2: coleta OAB ${baseParams.oab}${uf ? `/${uf}` : ''}...`,
+                mensagem: `🧩 Fase 1/2: coleta por nome ${baseParams.nomeAdvogado || baseParams.oab}...`,
               });
             } else if (baseParams._advogadoSemOabNomes && variante) {
               updateProgress({
@@ -1033,6 +1036,61 @@ async function processarTermo(
     // Reportar progresso após processar cada tribunal
     tribunalIdxAtual++;
     onTribunalProgress?.(tribunalIdxAtual, totalTribunaisParaReportar);
+  }
+
+  // Fallback OAB/UF separado: só roda se a URL oficial por nome não retornou
+  // nada. Nunca misturamos OAB/UF com nomeAdvogado na mesma consulta.
+  if (isAdvogadoComOab && resultados.length === 0 && !signal.aborted) {
+    const fallbackUfs = Array.isArray(baseParams._ufsOabFallback) ? baseParams._ufsOabFallback : [];
+    if (fallbackUfs.length > 0) {
+      updateProgress({ mensagem: `🧩 Fallback OAB/UF para ${baseParams.oab}...` });
+      for (const trib of tribLoop) {
+        if (signal.aborted) break;
+        for (const fallbackUf of fallbackUfs) {
+          if (signal.aborted) break;
+          try {
+            const resp = await buscarPjeComunicaPaginado(
+              {
+                tipo: baseParams.tipo,
+                oab: baseParams.oab,
+                uf: fallbackUf,
+                siglaTribunal: advogadoForcarTribunalNaBusca ? trib : undefined,
+                dataInicio: baseParams.dataInicio,
+                dataFim: baseParams.dataFim,
+                page: 0,
+                pageSize: baseParams.pageSize,
+              },
+              {
+                signal,
+                maxPages: 999,
+                delayMs: dynamicPageDelay,
+                maxRetries: runtimeConfig.max_retries,
+                retryBaseDelay: runtimeConfig.retry_base_delay,
+                onRateLimit: (waitMs) => onRateLimit?.(waitMs),
+                continueUntilEmpty: true,
+              }
+            );
+
+            for (const item of resp.items || []) {
+              const id = String(item?.id ?? '');
+              const key = id || JSON.stringify(item).slice(0, 400);
+              if (!seen.has(key)) {
+                seen.add(key);
+                resultados.push({
+                  ...item,
+                  __advogadoOabFallback: true,
+                  ...(trib ? { siglaTribunal: item?.siglaTribunal ?? trib } : {}),
+                });
+              }
+            }
+          } catch (e: any) {
+            if (e?.name === 'AbortError') break;
+            console.warn(`[DJEN] Fallback OAB/UF ${trib ?? 'TODOS'} ${fallbackUf}:`, e?.message);
+          }
+          await delay(Math.max(dynamicVariantDelay, 300));
+        }
+      }
+    }
   }
 
   // Bloco buscar_parte REMOVIDO - substituído pelo tipo 'parte' dedicado
