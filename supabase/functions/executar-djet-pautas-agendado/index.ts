@@ -355,7 +355,7 @@ async function runJob(
   ymd: string,
   persistMode: "browser" | "servidor" = "browser",
   configTable: string = "configuracoes_monitoramento",
-  options: { execucaoServidorId?: string | null; dataInicio?: string; dataFim?: string; coordenacaoId?: string | null; monitoramentoIds?: string[] } = {},
+  options: { execucaoServidorId?: string | null; dataInicio?: string; dataFim?: string; coordenacaoId?: string | null; monitoramentoIds?: string[]; schedulerSlot?: string | null } = {},
 ) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -380,6 +380,16 @@ async function runJob(
   const dataFimOpcao = options.dataFim || (typeof payloadServidor?.dataFim === "string" ? payloadServidor.dataFim : undefined);
   const datasJanela = buildDateRange(dataInicioOpcao || ymd, dataFimOpcao || dataInicioOpcao || ymd);
   const itens = makeProgressItems(datasJanela);
+  const filtroDetalhes = {
+    scheduler_slot: options.schedulerSlot || null,
+    filtro: {
+      coordenacaoId: options.coordenacaoId || null,
+      monitoramentoIds: options.monitoramentoIds || null,
+      persistMode,
+      dataInicio: dataInicioOpcao || null,
+      dataFim: dataFimOpcao || null,
+    },
+  };
   let lastFlush = 0;
   const flushProgresso = async (force = false) => {
     const now = Date.now();
@@ -393,7 +403,7 @@ async function runJob(
         registros_encontrados: totalNovas,
         registros_processados: totalNovas + totalDuplicadas,
         erros: totalErros,
-        detalhes: { novas: totalNovas, duplicadas: totalDuplicadas, progresso },
+        detalhes: { ...filtroDetalhes, novas: totalNovas, duplicadas: totalDuplicadas, progresso },
       })
       .eq("id", execId)
       .neq("status", "cancelado");
@@ -556,7 +566,7 @@ async function runJob(
         registros_encontrados: totalNovas,
         registros_processados: totalNovas + totalDuplicadas,
         erros: totalErros,
-        detalhes: { novas: totalNovas, duplicadas: totalDuplicadas, duracao_ms: Date.now() - startedAt, progresso: progressoFinal },
+        detalhes: { ...filtroDetalhes, novas: totalNovas, duplicadas: totalDuplicadas, duracao_ms: Date.now() - startedAt, progresso: progressoFinal },
       })
       .eq("id", execId);
 
@@ -596,7 +606,7 @@ async function runJob(
         status: "falhou",
         finalizado_em: new Date().toISOString(),
         ultimo_erro: String((e as Error)?.message || e),
-        detalhes: { duracao_ms: Date.now() - startedAt },
+        detalhes: { ...filtroDetalhes, duracao_ms: Date.now() - startedAt },
       })
       .eq("id", execId);
   }
@@ -713,7 +723,7 @@ Deno.serve(async (req) => {
     }
 
     // 5) Executa em background (não bloqueia resposta do cron)
-    const task = runJob(supabase, exec.id as string, now.ymd, persistMode, configTable, { execucaoServidorId, dataInicio, dataFim, coordenacaoId, monitoramentoIds });
+    const task = runJob(supabase, exec.id as string, now.ymd, persistMode, configTable, { execucaoServidorId, dataInicio, dataFim, coordenacaoId, monitoramentoIds, schedulerSlot });
     // @ts-ignore EdgeRuntime existe no Deno Deploy do Supabase
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
       // @ts-ignore
