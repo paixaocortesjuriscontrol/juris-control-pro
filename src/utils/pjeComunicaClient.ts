@@ -863,10 +863,11 @@ export async function buscarPjeComunicaPaginado(
         
         // Se foi cancelado, não tentar novamente
         if (e?.name === 'AbortError') throw e;
+        const msg = String(e?.message ?? '');
+        if (msg.includes('HTTP 404')) throw e;
         
         // Rate limited ou erro de rede - aguardar com backoff exponencial
         if (attempt < maxRetries - 1) {
-          const msg = String(e?.message ?? '');
           const is429 = msg.includes('HTTP 429') || msg.includes('Too Many');
           const isGateway = msg.includes('HTTP 504') || msg.includes('HTTP 502') || msg.includes('HTTP 503');
           // 429 precisa de backoff maior. 504/502/503 (Cloudflare gateway timeout)
