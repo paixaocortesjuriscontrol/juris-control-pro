@@ -805,6 +805,23 @@ function validarAdvogadoMetadados(pub: any, oab?: string, nome?: string): boolea
   return false;
 }
 
+/**
+ * Fallback simples: aceita quando o nome do advogado aparece como frase
+ * contígua no texto completo da publicação. Este validador só é usado
+ * quando a busca primária foi feita por `nomeAdvogado` (rota oficial do
+ * Comunica). A API já filtrou pelo nome, então se o item veio na resposta
+ * é porque o nome consta como advogado — mesmo em editais coletivos do
+ * TJDFT onde `advogados_json` vem vazio e a seção "Advogados:" está
+ * enterrada no meio de dezenas de processos.
+ */
+function validarAdvogadoNoConteudo(pub: any, nome?: string): boolean {
+  const nomeNorm = nome ? normalizar(nome) : '';
+  if (!nomeNorm) return false;
+  const textoNorm = normalizar(buildTextoCompleto(pub));
+  if (!textoNorm) return false;
+  return contemFrase(textoNorm, nomeNorm);
+}
+
 function validarParteMetadados(pub: any, nomeParte: string): boolean {
   const nomeNorm = normalizar(nomeParte);
   if (!nomeNorm) return false;
