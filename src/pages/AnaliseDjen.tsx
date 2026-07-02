@@ -4025,7 +4025,7 @@ const AnaliseDjen = () => {
               )}
 
               <div className="space-y-1.5">
-                <Label className="text-xs md:text-sm" title="Data de publicação (disponibilização) da comunicação">Data de Publicação</Label>
+                <Label className="text-xs md:text-sm">Data Disponibilização</Label>
                 <Input
                   type="date"
                   value={dataDisponibilizacao}
@@ -4036,6 +4036,16 @@ const AnaliseDjen = () => {
                       setFiltroDia('todos');
                     }
                   }}
+                  className="h-9 md:h-10 text-sm"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs md:text-sm" title="Data de publicação da comunicação (data_publicacao)">Data de Publicação</Label>
+                <Input
+                  type="date"
+                  value={dataPublicacao}
+                  onChange={(e) => setDataPublicacao(e.target.value)}
                   className="h-9 md:h-10 text-sm"
                 />
               </div>
