@@ -56,28 +56,7 @@ const getHojeBrtISO = (): string => {
   return `${get('year')}-${get('month')}-${get('day')}`;
 };
 
-// "Apenas hoje" na análise do DJEN Servidor deve olhar a DATA DA PUBLICAÇÃO em BRT.
-// Se alguma linha antiga ainda estiver sem data_publicacao, usa fallback para
-// data_disponibilizacao e, por último, created_at. Filtros manuais de período
-// continuam sendo por created_at/captura, como já era antes.
-const aplicarFiltroDataPublicacaoHojeBrt = <T extends any>(query: T, inicioUtc: string | null, fimUtc: string | null, apenasHoje?: boolean): T => {
-  if (apenasHoje) {
-    if (!inicioUtc || !fimUtc) return query;
-    const diaBrt = inicioUtc.slice(0, 10);
-    const inicioDiaUtc = `${diaBrt}T00:00:00Z`;
-    const fimDiaUtc = `${diaBrt}T23:59:59.999Z`;
-    return (query as any).or(
-      // Kurier: usa a data de disponibilização; se ela não existir, cai para captura em BRT.
-      `and(fonte.eq.kurier,data_disponibilizacao.gte.${inicioDiaUtc},data_disponibilizacao.lte.${fimDiaUtc}),` +
-      `and(fonte.eq.kurier,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc}),` +
-      // Demais fontes (inclui fonte NULL — publicacoes_djen_servidor não popula fonte).
-      `and(or(fonte.neq.kurier,fonte.is.null),data_publicacao.gte.${inicioUtc},data_publicacao.lte.${fimUtc}),` +
-      `and(or(fonte.neq.kurier,fonte.is.null),data_publicacao.gte.${inicioDiaUtc},data_publicacao.lte.${fimDiaUtc}),` +
-      `and(or(fonte.neq.kurier,fonte.is.null),data_disponibilizacao.gte.${inicioUtc},data_disponibilizacao.lte.${fimUtc}),` +
-      `and(or(fonte.neq.kurier,fonte.is.null),data_disponibilizacao.gte.${inicioDiaUtc},data_disponibilizacao.lte.${fimDiaUtc}),` +
-      `and(or(fonte.neq.kurier,fonte.is.null),data_publicacao.is.null,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc})`
-    ) as T;
-  }
+const aplicarFiltroDataCapturaBrt = <T extends any>(query: T, inicioUtc: string | null, fimUtc: string | null, apenasHoje?: boolean): T => {
   let q: any = query;
   if (inicioUtc) q = q.gte('created_at', inicioUtc);
   if (fimUtc) q = q.lte('created_at', fimUtc);
