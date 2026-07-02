@@ -728,6 +728,50 @@ export function useComparadorAnalise() {
       const sRows = (serv.data || []) as Row[];
       const bRows = (brow.data || []) as Row[];
 
+      type AuditRow = { id_djen?: string | null; coordenacao_id?: string | null; created_at?: string | null };
+      const auditIds = Array.from(new Set([...sRows, ...bRows].map((r) => r.id_djen).filter(Boolean) as string[]));
+      const auditServRows: AuditRow[] = [];
+      const auditBrowRows: AuditRow[] = [];
+      const chunkAudit = <T,>(arr: T[], size: number): T[][] => {
+        const out: T[][] = [];
+        for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+        return out;
+      };
+      for (const ids of chunkAudit(auditIds, 500)) {
+        const [as, ab] = await Promise.all([
+          supabase
+            .from("publicacoes_djen_servidor")
+            .select("id_djen, coordenacao_id, created_at")
+            .gte("data_disponibilizacao", inicioDispoTs)
+            .lte("data_disponibilizacao", fimDispoTs)
+            .in("id_djen", ids)
+            .limit(50000),
+          supabase
+            .from("publicacoes_djen")
+            .select("id_djen, coordenacao_id, created_at")
+            .gte("data_disponibilizacao", inicioDispoTs)
+            .lte("data_disponibilizacao", fimDispoTs)
+            .in("id_djen", ids)
+            .limit(50000),
+        ]);
+        if (!as.error) auditServRows.push(...((as.data || []) as AuditRow[]));
+        else console.warn("[comparador] audit servidor:", as.error.message);
+        if (!ab.error) auditBrowRows.push(...((ab.data || []) as AuditRow[]));
+        else console.warn("[comparador] audit browser:", ab.error.message);
+      }
+      const groupAudit = (rows: AuditRow[]) => {
+        const map = new Map<string, AuditRow[]>();
+        for (const r of rows) {
+          if (!r.id_djen) continue;
+          const arr = map.get(r.id_djen) || [];
+          arr.push(r);
+          map.set(r.id_djen, arr);
+        }
+        return map;
+      };
+      const auditServById = groupAudit(auditServRows);
+      const auditBrowById = groupAudit(auditBrowRows);
+
       const provavelCausa = (origem: "so_servidor" | "so_browser", r: Row): string => {
         const cid = r.coordenacao_id || "sem_coord";
         if (origem === "so_servidor") {
@@ -748,6 +792,37 @@ export function useComparadorAnalise() {
         const cap = r.created_at || "";
         if (cap && cap > ultima) return "browser_capturou_depois_da_ultima_execucao_servidor";
         return "possivel_proxy_vazio_ou_api_instavel";
+      };
+
+      const auditExclusiva = (origem: "so_servidor" | "so_browser", r: Row) => {
+        const id = r.id_djen || "";
+        const cid = r.coordenacao_id || "sem_coord";
+        const sameMap = origem === "so_servidor" ? auditServById : auditBrowById;
+        const otherMap = origem === "so_servidor" ? auditBrowById : auditServById;
+        const sameRows = id ? (sameMap.get(id) || []).filter((x) => (x.coordenacao_id || "sem_coord") !== cid) : [];
+        const otherRows = id ? (otherMap.get(id) || []).filter((x) => (x.coordenacao_id || "sem_coord") !== cid) : [];
+        const coords = (rows: AuditRow[]) => Array.from(new Set(rows.map((x) => coordNome.get(x.coordenacao_id || "") || "Sem coordenação"))).join(" | ") || null;
+        const caps = (rows: AuditRow[]) => Array.from(new Set(rows.map((x) => x.created_at || "").filter(Boolean))).sort().join(" | ") || null;
+        const provavel = provavelCausa(origem, r);
+        const motivo = otherRows.length > 0
+          ? origem === "so_servidor"
+            ? "browser_tem_em_outra_coord_mas_nao_resgatou_para_coord_alvo"
+            : "servidor_tem_em_outra_coord_mas_nao_resgatou_para_coord_alvo"
+          : sameRows.length > 0
+            ? origem === "so_servidor"
+              ? "servidor_tem_em_outra_coord_e_coord_alvo_sem_equivalente_browser"
+              : "browser_tem_em_outra_coord_e_coord_alvo_sem_equivalente_servidor"
+            : provavel;
+        return {
+          provavel_causa: provavel,
+          motivo_exato: motivo,
+          existe_na_mesma_origem_outra_coord: sameRows.length > 0,
+          coords_mesma_origem_outra_coord: coords(sameRows),
+          capturado_na_mesma_origem_em: caps(sameRows),
+          existe_na_outra_origem_outra_coord: otherRows.length > 0,
+          coords_outra_origem_outra_coord: coords(otherRows),
+          capturado_na_outra_origem_em: caps(otherRows),
+        };
       };
 
       const execInfoForRow = (r: Row) => {
