@@ -213,6 +213,7 @@ const AnaliseDjen = () => {
   const dataInicioDebounced = useDebouncedValue(dataInicio, 250);
   const dataFimDebounced = useDebouncedValue(dataFim, 250);
   const dataDisponibilizacaoDebounced = useDebouncedValue(dataDisponibilizacao, 250);
+  const dataPublicacaoDebounced = useDebouncedValue(dataPublicacao, 250);
   const filtroDataDisponibilizacaoAtivo = !!dataDisponibilizacaoDebounced;
   const filtroQualquerDataAtivo = !!dataInicioDebounced || !!dataFimDebounced || filtroDataDisponibilizacaoAtivo;
   const apenasHojeEfetivo = apenasHoje && !filtroDataDisponibilizacaoAtivo;
