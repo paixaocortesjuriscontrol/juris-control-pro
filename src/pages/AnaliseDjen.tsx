@@ -901,8 +901,11 @@ const AnaliseDjen = () => {
     if (focusFromErrata) {
       result = result.filter(p => focusFromErrata.ids.has(p.id));
     }
+    if (dataPublicacaoDebounced) {
+      result = result.filter((p: any) => (p.data_publicacao || '').slice(0, 10) === dataPublicacaoDebounced);
+    }
     return result;
-  }, [tipoOrigem, publicacoes, datajudAsPublicacoes, descartadasDedupData, deveRestringirPorCoordenacao, userCoordenacaoIds, focusFromErrata]);
+  }, [tipoOrigem, publicacoes, datajudAsPublicacoes, descartadasDedupData, deveRestringirPorCoordenacao, userCoordenacaoIds, focusFromErrata, dataPublicacaoDebounced]);
 
   // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
   // Também considera `isFetching` para evitar mostrar "Nenhuma publicação encontrada"
