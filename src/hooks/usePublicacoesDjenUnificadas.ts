@@ -357,7 +357,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         q = q.neq('motivo_descarte', 'termo_nao_encontrado');
 
         if (!buscaPorProcessoCount) {
-          q = aplicarFiltroDataPublicacaoHojeBrt(q, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
+          q = aplicarFiltroDataCapturaBrt(q, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
           if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
           if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         } else {
@@ -755,7 +755,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             .order('created_at', { ascending: false });
 
           if (!buscaPorProcessoList) {
-            queryDescartadas = aplicarFiltroDataPublicacaoHojeBrt(queryDescartadas, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
+            queryDescartadas = aplicarFiltroDataCapturaBrt(queryDescartadas, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
           } else {
             queryDescartadas = queryDescartadas.ilike('processo_numero', `%${termoDigitsList}%`);
           }
@@ -876,7 +876,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           .order('created_at', { ascending: false });
 
         if (filtros.tipoOrigem !== 'djet-pautas') {
-          queryTermos = aplicarFiltroDataPublicacaoHojeBrt(queryTermos, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
+          queryTermos = aplicarFiltroDataCapturaBrt(queryTermos, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
         }
         // Para DJET Pautas, `data_disponibilizacao` é gravada como meia-noite UTC
         // (semântica de DATE, não de timestamp local). Usar o range BRT (03:00→02:59 UTC)
@@ -1034,7 +1034,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           `)
           .order('created_at', { ascending: false });
 
-        queryProcessos = aplicarFiltroDataPublicacaoHojeBrt(queryProcessos, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
+        queryProcessos = aplicarFiltroDataCapturaBrt(queryProcessos, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
         if (dataDisponibilizacaoInicio) queryProcessos = queryProcessos.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
         if (dataDisponibilizacaoFim) queryProcessos = queryProcessos.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         // Per-user tracking: lida filter handled client-side via mergeWithLeituras
@@ -1131,7 +1131,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           `)
           .order('created_at', { ascending: false });
 
-        queryDescartadas = aplicarFiltroDataPublicacaoHojeBrt(queryDescartadas, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
+        queryDescartadas = aplicarFiltroDataCapturaBrt(queryDescartadas, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
         if (dataDisponibilizacaoInicio) queryDescartadas = queryDescartadas.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
         if (dataDisponibilizacaoFim) queryDescartadas = queryDescartadas.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         if (filtros.coordenacaoId) queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
