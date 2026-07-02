@@ -3721,7 +3721,11 @@ const AnaliseDjen = () => {
   // filtros estavam ativos, a tela trocava para "contadores da lista" e
   // contava apenas as publicações da página atual, gerando totalizadores
   // incoerentes (especialmente o "Total no período").
-  const usarContadoresDaLista = false;
+  // Quando o filtro client-side `data_publicacao` está ativo, os totais do
+  // servidor (que não conhecem esse filtro) ficam incoerentes com a lista.
+  // Nesse caso, os cards passam a contar a partir de allPublicacoes,
+  // que já reflete o filtro aplicado.
+  const usarContadoresDaLista = !!dataPublicacaoDebounced;
   const totalGeralFiltrado = usarContadoresDaLista
     ? totalListaVisivel
     : tipoOrigem === 'datajud'
