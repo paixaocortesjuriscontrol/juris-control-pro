@@ -56,7 +56,7 @@ const getHojeBrtISO = (): string => {
   return `${get('year')}-${get('month')}-${get('day')}`;
 };
 
-const aplicarFiltroDataCapturaBrt = <T extends any>(query: T, inicioUtc: string | null, fimUtc: string | null, apenasHoje?: boolean): T => {
+const aplicarFiltroDataCapturaBrt = <T extends any>(query: T, inicioUtc: string | null, fimUtc: string | null): T => {
   let q: any = query;
   if (inicioUtc) q = q.gte('created_at', inicioUtc);
   if (fimUtc) q = q.lte('created_at', fimUtc);
@@ -379,7 +379,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         q = q.neq('motivo_descarte', 'termo_nao_encontrado');
 
         if (!buscaPorProcessoCount) {
-          q = aplicarFiltroDataCapturaBrt(q, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
+          q = aplicarFiltroDataCapturaBrt(q, dataInicioFiltro, dataFimFiltro);
           if (dataDisponibilizacaoInicio) q = q.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
           if (dataDisponibilizacaoFim) q = q.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         } else {
@@ -713,7 +713,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
             .order('created_at', { ascending: false });
 
           if (!buscaPorProcessoList) {
-            queryDescartadas = aplicarFiltroDataCapturaBrt(queryDescartadas, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
+            queryDescartadas = aplicarFiltroDataCapturaBrt(queryDescartadas, dataInicioFiltro, dataFimFiltro);
           } else {
             queryDescartadas = queryDescartadas.ilike('processo_numero', `%${termoDigitsList}%`);
           }
@@ -827,7 +827,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           .order('created_at', { ascending: false });
 
         if (filtros.tipoOrigem !== 'djet-pautas') {
-          queryTermos = aplicarFiltroDataCapturaBrt(queryTermos, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
+          queryTermos = aplicarFiltroDataCapturaBrt(queryTermos, dataInicioFiltro, dataFimFiltro);
         }
         // Para DJET Pautas, `data_disponibilizacao` é gravada como meia-noite UTC
         // (semântica de DATE, não de timestamp local). Usar o range BRT (03:00→02:59 UTC)
@@ -1077,7 +1077,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           `)
           .order('created_at', { ascending: false });
 
-        queryDescartadas = aplicarFiltroDataCapturaBrt(queryDescartadas, dataInicioFiltro, dataFimFiltro, filtros.apenasHoje);
+        queryDescartadas = aplicarFiltroDataCapturaBrt(queryDescartadas, dataInicioFiltro, dataFimFiltro);
         if (dataDisponibilizacaoInicio) queryDescartadas = queryDescartadas.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
         if (dataDisponibilizacaoFim) queryDescartadas = queryDescartadas.lte('data_disponibilizacao', dataDisponibilizacaoFim);
         if (filtros.coordenacaoId) queryDescartadas = queryDescartadas.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
