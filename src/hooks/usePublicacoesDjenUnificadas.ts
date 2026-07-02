@@ -614,7 +614,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       // Problema atual: muitos duplicados podem "consumir" o .limit(500) e derrubar o total (ex: 124 -> 90)
       // + ficar lento por 3 queries + dedup no client.
       // Para coordenação ESPECÍFICA, usamos RPC que já devolve a lista deduplicada e paginada no servidor.
-        const canUseRpc = filtros.tipoOrigem !== 'descartada'
+        // Quando há filtro de leitura, ele precisa ser aplicado ANTES do LIMIT;
+        // senão a tela pode pegar 500 já lidas, filtrar no client e ficar vazia
+        // mesmo com milhares de não lidas nos totalizadores.
+        const canUseRpc = (filtros.dedupServidor === true || readStatus !== 'todas')
+          && filtros.tipoOrigem !== 'descartada'
           && filtros.tipoOrigem !== 'djet-pautas';
       if (canUseRpc) {
         try {
