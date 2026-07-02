@@ -496,9 +496,9 @@ const AnaliseDjenServidor = () => {
     apenasNaoLidas: execucaoFocada ? false : apenasNaoLidas,
     readStatus: execucaoFocada ? 'todas' : readStatus,
     apenasHoje: execucaoFocada ? false : apenasHojeEfetivo,
-    // 'todos' e 'normal' passam undefined para buscar termos e processos
-    // datajud é tratado separadamente. 'kurier' filtra no client pela fonte.
-    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud' || tipoOrigem === 'kurier') ? undefined : tipoOrigem as any,
+    // 'todos' e 'normal' passam undefined. datajud é tratado separadamente.
+    // Kurier vai para a RPC do servidor para não carregar "Todas" e filtrar só 500 no client.
+    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
     // Descartadas SÓ aparecem quando o filtro "Tipo de origem" está em
     // "descartada" (aba dedicada com RPC própria). Em qualquer outra aba,
     // mesmo buscando por número de processo, não misturamos descartadas
@@ -3725,10 +3725,9 @@ const AnaliseDjenServidor = () => {
   const totalProcessosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'processo').length;
   const totalDescartadasVisivel = allPublicacoes.filter(p => p.tipo_origem === 'descartada').length;
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
-  const totalKurierVisivel = useMemo(
-    () => mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length,
-    [mergedPublicacoes]
-  );
+  const totalKurierVisivel = tipoOrigem === 'kurier'
+    ? totalGeralFiltrado
+    : mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length;
   // PERFORMANCE/CORREÇÃO: o backend agora aplica os filtros de data de
   // disponibilização e tribunal nas RPCs de contagem (get_djen_stats_per_user).
   // Portanto sempre usamos os totais do servidor — eles já consideram esses
