@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, Sparkles, ListFilter, X } from "lucide-react";
+import { Clock, Sparkles, ListFilter, X, ChevronDown, ChevronRight } from "lucide-react";
+import { useState } from "react";
 import { useExecucoesDoDiaServidor, type ExecucaoDoDia } from "@/hooks/useExecucoesDoDiaServidor";
 
 interface Props {
@@ -35,6 +36,7 @@ export function ExecucoesDoDiaCard({
     coordenacaoId,
     dataDisponibilizacao,
   );
+  const [expanded, setExpanded] = useState(false);
 
   // Só faz sentido mostrar diferenças quando há 2+ execuções no dia
   if (!dataDisponibilizacao) return null;
@@ -43,25 +45,40 @@ export function ExecucoesDoDiaCard({
 
   return (
     <Card className="border-indigo-200 dark:border-indigo-900 bg-gradient-to-br from-indigo-50/70 to-purple-50/40 dark:from-indigo-950/30 dark:to-purple-950/20">
-      <CardHeader className="pb-2 px-3 md:px-6">
+      <CardHeader
+        className="pb-2 px-3 md:px-6 cursor-pointer select-none"
+        onClick={() => setExpanded((v) => !v)}
+      >
         <CardTitle className="text-sm md:text-base flex items-center gap-2">
+          {expanded ? (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          )}
           <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
           Execuções do dia{" "}
           <span className="text-muted-foreground font-normal">
             ({new Date(dataDisponibilizacao + "T12:00:00").toLocaleDateString("pt-BR")})
           </span>
+          <Badge variant="outline" className="text-[10px] ml-1">
+            {execs.length}
+          </Badge>
           {execucaoSelecionadaId && (
             <Button
               size="sm"
               variant="ghost"
               className="ml-auto h-7"
-              onClick={() => onSelecionarExecucao(null)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelecionarExecucao(null);
+              }}
             >
               <X className="h-3.5 w-3.5 mr-1" /> Limpar filtro
             </Button>
           )}
         </CardTitle>
       </CardHeader>
+      {expanded && (
       <CardContent className="px-3 md:px-6 pb-3 md:pb-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
           {execs.map((e) => {
@@ -123,6 +140,7 @@ export function ExecucoesDoDiaCard({
           })}
         </div>
       </CardContent>
+      )}
     </Card>
   );
 }
