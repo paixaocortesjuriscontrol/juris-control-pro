@@ -462,9 +462,9 @@ const AnaliseDjen = () => {
     apenasNaoLidas,
     readStatus,
     apenasHoje: apenasHojeEfetivo,
-    // 'todos' e 'normal' passam undefined para buscar termos e processos
-    // datajud é tratado separadamente. 'kurier' filtra no client pela fonte.
-    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud' || tipoOrigem === 'kurier') ? undefined : tipoOrigem as any,
+    // 'todos' e 'normal' passam undefined para buscar termos e processos.
+    // Kurier é filtrado no banco para não depender das primeiras 500 publicações gerais.
+    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
     // Descartadas SÓ aparecem quando o filtro "Tipo de origem" está em
     // "descartada" (aba dedicada com RPC própria). Em qualquer outra aba,
     // mesmo buscando por número de processo, não misturamos descartadas
