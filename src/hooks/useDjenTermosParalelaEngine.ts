@@ -1029,21 +1029,20 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(
   // filtro textual antes do validation fazia o Browser não resgatar exatamente
   // casos como OSMAR MENDES PAIXAO CORTES em TST/TJMS/TJDFT.
   const cols = 'id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id';
-  const collect = async (table: 'publicacoes_djen' | 'publicacoes_djen_servidor') => {
+  // ISOLAMENTO: Browser NUNCA lê publicacoes_djen_servidor. Resgate cross-coord
+  // usa apenas publicacoes_djen (fonte do próprio Browser).
+  const collect = async (table: 'publicacoes_djen') => {
     const batch = 1000;
     for (let from = 0; from <= 10000; from += batch) {
-      let query = (supabase as any)
+      const { data, error } = await (supabase as any)
         .from(table)
         .select(cols)
         .eq('tribunal', tribunal)
         .gte('data_disponibilizacao', `${diaYmd}T00:00:00.000Z`)
         .lte('data_disponibilizacao', `${diaYmd}T23:59:59.999Z`)
         .neq('coordenacao_id', mon.coordenacao_id)
+        .eq('status', 'encontrada')
         .range(from, from + batch - 1);
-
-      if (table === 'publicacoes_djen') query = query.eq('status', 'encontrada');
-
-      const { data, error } = await query;
       if (error) {
         console.warn(`[DJEN Paralela][${tribunal}] Falha ao resgatar de ${table}:`, error.message);
         return;
@@ -1090,7 +1089,6 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(
   };
 
   await collect('publicacoes_djen');
-  await collect('publicacoes_djen_servidor');
 
   return Array.from(resgatadas.values());
 }
