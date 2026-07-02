@@ -170,7 +170,8 @@ const CONFIG = {
   // Paridade direta com monitor-servidor/engines/paralela.js.
   delay_between_terms: 1000,
   delay_between_pages: 400,
-  delay_between_termos_or: 800,
+  delay_between_parte_or: 800,
+  delay_between_advogado_or: 1800,
   max_retries: 3,
   // Paridade com servidor: 429 → ~8s base (8000*(attempt+1)). 20s travava
   // o worker em retries longos a cada rate-limit isolado.
@@ -1498,7 +1499,7 @@ async function processarTermoEmTribunal(
         // instabilidade internamente (retries por página, streak de vazias).
         // Se chegou aqui com 0 itens, é ausência real na API.
         console.log(`[DJEN Paralela][${tribunal}] Busca por parte termo="${termoParte}": ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
-        await abortableDelay(CONFIG.delay_between_termos_or, signal);
+        await abortableDelay(CONFIG.delay_between_parte_or, signal);
       }
     } else {
       // Helper: busca por advogado com regra nova (nome primário, OAB fallback).
@@ -1565,7 +1566,7 @@ async function processarTermoEmTribunal(
             if (!parsed?.nome) continue;
             const mesmoNome = normalizar(parsed.nome) === normalizar(mon.termo_busca || '');
             if (mesmoNome) continue;
-            await abortableDelay(CONFIG.delay_between_termos_or, signal);
+            await abortableDelay(CONFIG.delay_between_advogado_or, signal);
             if (signal.aborted) break;
             try {
               await buscarAdvogado(parsed.nome, parsed.oabDigits, mon.uf, { __termoOrAdvogado: String(termoOr) });
