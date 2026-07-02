@@ -496,9 +496,9 @@ const AnaliseDjenServidor = () => {
     apenasNaoLidas: execucaoFocada ? false : apenasNaoLidas,
     readStatus: execucaoFocada ? 'todas' : readStatus,
     apenasHoje: execucaoFocada ? false : apenasHojeEfetivo,
-    // 'todos' e 'normal' passam undefined para buscar termos e processos
-    // datajud é tratado separadamente. 'kurier' filtra no client pela fonte.
-    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud' || tipoOrigem === 'kurier') ? undefined : tipoOrigem as any,
+    // 'todos' e 'normal' passam undefined. datajud é tratado separadamente.
+    // Kurier vai para a RPC do servidor para não carregar "Todas" e filtrar só 500 no client.
+    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
     // Descartadas SÓ aparecem quando o filtro "Tipo de origem" está em
     // "descartada" (aba dedicada com RPC própria). Em qualquer outra aba,
     // mesmo buscando por número de processo, não misturamos descartadas
@@ -510,6 +510,20 @@ const AnaliseDjenServidor = () => {
     desabilitarLista: tipoOrigem === 'datajud' || tipoOrigem === 'descartada',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
+
+  // No filtro de leitura "Todas", se o total do dia é pequeno o bastante,
+  // carregar o conjunto completo em background. Assim a tela deixa de ficar
+  // presa nos primeiros 500 registros quando o total é ~3-4 mil, mas mantém
+  // a renderização em blocos via `displayLimit` para não travar o navegador.
+  useEffect(() => {
+    if (execucaoFocada || tipoOrigem === 'datajud' || tipoOrigem === 'descartada') return;
+    if (readStatus !== 'todas') return;
+    const total = Number(totalHoje || 0);
+    const AUTO_LOAD_ALL_LIMIT = 5000;
+    if (total > listLimit && total <= AUTO_LOAD_ALL_LIMIT) {
+      setListLimit(total);
+    }
+  }, [execucaoFocada, tipoOrigem, readStatus, totalHoje, listLimit]);
 
   // === Login Kurier por publicação ===
       // O `kurier_login` é gravado na tabela `publicacoes_djen_servidor` no momento da captura,
@@ -655,6 +669,8 @@ const AnaliseDjenServidor = () => {
 
       const hojeBrt = getHojeBrtISO();
       const diaPauta = dataDisponibilizacaoDebounced || (apenasHoje ? hojeBrt : null);
+      const dataDispInicio = diaPauta ? `${diaPauta}T00:00:00Z` : null;
+      const dataDispFim = diaPauta ? `${diaPauta}T23:59:59.999Z` : null;
       const dataInicioFiltro = !diaPauta && dataInicioDebounced
         ? dateLocalToUTCRange(dataInicioDebounced, false)
         : null;
@@ -662,99 +678,31 @@ const AnaliseDjenServidor = () => {
         ? dateLocalToUTCRange(dataFimDebounced, true)
         : null;
 
-      let query = (supabase.from('publicacoes_djen_servidor') as any)
-        .select(`
-          id, id_djen, monitoramento_id, processo_numero, conteudo, data_publicacao,
-          data_disponibilizacao, fonte, tribunal, created_at, orgao, tipo_comunicacao,
-          meio, advogados_json, partes_json, polo_ativo, polo_passivo, coordenacao_id
-        `)
-        .eq('tipo_publicacao', 'pauta')
-        .order('created_at', { ascending: false });
-
-      if (diaPauta) {
-        query = query
-          .gte('data_disponibilizacao', `${diaPauta}T00:00:00Z`)
-          .lte('data_disponibilizacao', `${diaPauta}T23:59:59.999Z`);
-      } else {
-        query = aplicarFiltroDataPublicacaoHojeBrt(query, dataInicioFiltro, dataFimFiltro, false);
-      }
-      if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
-      if (!isAdmin && !coordenacaoFiltroEfetivo && userCoordenacaoIds.length > 0) {
-        query = query.in('coordenacao_id', userCoordenacaoIds);
-      }
-      if (monitoramentoId) query = query.eq('monitoramento_id', monitoramentoId);
-
-      const { data, error } = await query.limit(10000);
+      const { data, error } = await (supabase as any).rpc('get_djen_stats_servidor_per_user', {
+        p_coordenacao_id: coordenacaoFiltroEfetivo ?? null,
+        p_inicio: dataInicioFiltro,
+        p_fim: dataFimFiltro,
+        p_tipo_origem: 'djet-pautas',
+        p_search_query: termoBuscaDebounced || null,
+        p_monitoramento_id: monitoramentoId || null,
+        p_data_disponibilizacao_inicio: dataDispInicio,
+        p_data_disponibilizacao_fim: dataDispFim,
+        p_tribunal: tribunalFiltro || null,
+        p_dedup: true,
+        p_apenas_hoje: false,
+      });
       if (error) throw error;
-
-      let rows = (data || []) as any[];
-      if (diaPauta) {
-        rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === diaPauta);
-      }
-      if (termoBuscaDebounced) {
-        const termoLower = termoBuscaDebounced.toLowerCase();
-        const termoDigits = termoLower.replace(/\D/g, '');
-        rows = rows.filter((pub) => {
-          const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBuscaDebounced);
-          const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
-          const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
-            ? (() => { const digits = pub.processo_numero.replace(/\D/g, ''); return digits.includes(termoDigits) || termoDigits.includes(digits); })()
-            : false;
-          return matchConteudo || matchProcesso || matchProcessoDigits;
-        });
-      }
-
-      const mapped = rows.map((pub: any): PublicacaoUnificada => ({
-        id: pub.id,
-        id_djen: pub.id_djen ?? null,
-        tipo_origem: 'termo',
-        processo_id: null,
-        processo_numero: pub.processo_numero,
-        conteudo: pub.conteudo,
-        data_publicacao: pub.data_publicacao,
-        data_disponibilizacao: pub.data_disponibilizacao,
-        fonte: pub.fonte,
-        lida: false,
-        created_at: pub.created_at,
-        monitoramento_id: pub.monitoramento_id,
-        monitoramento_termo: null,
-        monitoramento_descricao: null,
-        monitoramento_tipo: null,
-        monitoramento_oab: null,
-        monitoramento_uf: null,
-        coordenacao_id: pub.coordenacao_id ?? null,
-        coordenacao_nome: null,
-        polo_ativo: pub.polo_ativo || null,
-        polo_passivo: pub.polo_passivo || null,
-        tribunal: pub.tribunal ?? null,
-        orgao: pub.orgao || null,
-        tipo_comunicacao: pub.tipo_comunicacao || null,
-        meio: pub.meio || null,
-        advogados_json: Array.isArray(pub.advogados_json) ? pub.advogados_json : null,
-        partes_json: Array.isArray(pub.partes_json) ? pub.partes_json : null,
-      }));
-
-      const deduped = dedupePublicacoesDjen(mapped);
-      const ids = deduped.map((pub) => pub.id);
-      const readSet = new Set<string>();
-      if (ids.length > 0) {
-        const { data: leituras } = await (supabase as any).rpc('get_leituras_publicacoes', { p_ids: ids });
-        (leituras || []).forEach((l: any) => {
-          if (l.usuario_id === user.id) readSet.add(l.publicacao_id);
-        });
-      }
-
-      const total = readStatus === 'nao_lidas'
-        ? deduped.filter((pub) => !readSet.has(pub.id)).length
-        : readStatus === 'lidas'
-          ? deduped.filter((pub) => readSet.has(pub.id)).length
-          : deduped.length;
-
-      return { total };
+      const row = Array.isArray(data) ? data[0] : data;
+      const totalUnicas = Number(row?.total_unicas ?? 0);
+      const naoLidasUnicas = Number(row?.nao_lidas_unicas ?? 0);
+      if (readStatus === 'nao_lidas') return { total: naoLidasUnicas };
+      if (readStatus === 'lidas') return { total: Math.max(0, totalUnicas - naoLidasUnicas) };
+      return { total: totalUnicas };
     },
     // Sempre habilitado para manter o badge "Pautas DEJT" visível,
     // respeitando coordenação selecionada (ou todas as do usuário) e filtros.
     enabled: !!user?.id,
+    placeholderData: (previousData) => previousData,
     staleTime: 30_000,
   });
 
@@ -3651,7 +3599,7 @@ const AnaliseDjenServidor = () => {
 
   // Total de publicações ÚNICAS (após deduplicação por processo + data + conteúdo
   // ignorando intimados — mesma regra do botão "Resumo sem repetição"). Vem do
-  // servidor (RPC get_djen_stats_per_user → total_unicas) e respeita
+  // servidor (RPC get_djen_stats_servidor_per_user → total_unicas) e respeita
   // data_disponibilizacao + tribunal + termo + monitoramento. Evita reprocessar
   // milhares de linhas no navegador a cada keystroke.
   const totalUnicasFiltrado = tipoOrigem === 'datajud'
@@ -3725,12 +3673,11 @@ const AnaliseDjenServidor = () => {
   const totalProcessosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'processo').length;
   const totalDescartadasVisivel = allPublicacoes.filter(p => p.tipo_origem === 'descartada').length;
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
-  const totalKurierVisivel = useMemo(
-    () => mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length,
-    [mergedPublicacoes]
-  );
+  const totalKurierVisivel = tipoOrigem === 'kurier'
+    ? totalHoje
+    : mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length;
   // PERFORMANCE/CORREÇÃO: o backend agora aplica os filtros de data de
-  // disponibilização e tribunal nas RPCs de contagem (get_djen_stats_per_user).
+  // disponibilização e tribunal nas RPCs de contagem (get_djen_stats_servidor_per_user).
   // Portanto sempre usamos os totais do servidor — eles já consideram esses
   // filtros e a deduplicação por coordenação + id_djen. Antes, quando esses
   // filtros estavam ativos, a tela trocava para "contadores da lista" e
