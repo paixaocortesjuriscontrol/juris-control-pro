@@ -2233,91 +2233,42 @@ async function executarLoop(
     syncExecutionProgress({}, true);
 
     // ========================================================================
-    // ESTRATÉGIA "1 WORKER POR VPS" (pool exclusivo quando habilitado)
+    // FILAS COM PARIDADE DJEN SERVIDOR
     // ========================================================================
-    // Se houver VPS habilitada no pool, a Paralela NÃO usa o browser como via.
-    // Cada VPS representa um IP independente perante o PJE Comunica e recebe um
-    // worker dedicado. O browser direto fica apenas como fallback quando o pool
-    // está desligado ou sem VPS válida.
+    // 0) TST/STF/STJ/TRTs dos tipos principais
+    // 1) demais tribunais dos tipos principais
+    // 2) processo em qualquer tribunal
+    // Sem trava rígida entre bandas: worker livre puxa a melhor próxima unit,
+    // como o Servidor, evitando VPS ociosa enquanto outro shard ainda pagina.
+    type WorkUnit = PlannedUnit & { band: 0 | 1 | 2 };
 
-    // ========================================================================
-    // FILAS POR BANDA DE PRIORIDADE
-    // ========================================================================
-    // Banda 0 — TST (parte / advogado / palavra-chave): 1 unidade por
-    //          monitoramento, executadas em PARALELO entre as VPSs.
-    // Banda 1 — STF e STJ: 1 unidade por tribunal, agrupando TODOS os tipos
-    //          (parte → advogado → palavra-chave) e termos serialmente
-    //          dentro do mesmo worker. Diferentes tribunais podem rodar em
-    //          paralelo entre VPSs.
-    // Banda 2 — Demais tribunais: idem banda 1.
-    // Banda 3 — Tipo 'processo' em TODOS os tribunais: 1 unidade por
-    //          tribunal, sempre por último. Diferentes tribunais em paralelo.
-    //
-    // Workers só consomem da próxima banda quando a banda anterior está
-    // 100% drenada (sem unidades pendentes e sem unidades em processamento).
-    type UnitStep = { tipo: WorkerTipo; monIds: (string | null)[] };
-    type WorkUnit = { band: 0 | 1 | 2 | 3; tribunal: string; steps: UnitStep[]; viaId?: string };
-
-    const ORDEM_TIPOS_PRINCIPAIS: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave'];
-    const TRIBUNAIS_BAND1 = ['STF', 'STJ'];
+    const comparePriorityUnits = (a: WorkUnit, b: WorkUnit) =>
+      (a.shardIdx - b.shardIdx) ||
+      (tribunalPriorityRank(a.tribunal) - tribunalPriorityRank(b.tribunal)) ||
+      (tipoPriorityRank(a.tipo) - tipoPriorityRank(b.tipo)) ||
+      ((Number(b.total) || 0) - (Number(a.total) || 0));
 
     const filaBand0: WorkUnit[] = [];
     const filaBand1: WorkUnit[] = [];
     const filaBand2: WorkUnit[] = [];
-    const filaBand3: WorkUnit[] = [];
 
-    // Banda 0: TST paralelo (1 unidade por monitoramento, por tipo)
-    for (const tipo of ORDEM_TIPOS_PRINCIPAIS) {
-      const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
-      if (!tribsDoTipo.includes('TST')) continue;
-      const mons = (monsPorTipo.get(tipo) || []).filter((m) => {
-        const t = expandirTribunaisDoMon(m.tribunais);
-        return t.length === 0 || t.includes('TST');
-      });
-      for (const m of mons) {
-        if (unidadesJaConcluidas.has(trackKey(tipo, 'TST', m.id))) continue;
-        filaBand0.push({ band: 0, tribunal: 'TST', steps: [{ tipo, monIds: [m.id] }] });
-      }
+    for (const unit of plannedUnits) {
+      if (unidadesJaConcluidas.has(unit.id)) continue;
+      const band: 0 | 1 | 2 = unit.tipo === 'processo'
+        ? 2
+        : isTribunalPrioritario(unit.tribunal) && MAIN_TIPOS.includes(unit.tipo)
+          ? 0
+          : 1;
+      const target = { ...unit, band };
+      if (band === 0) filaBand0.push(target);
+      else if (band === 1) filaBand1.push(target);
+      else filaBand2.push(target);
     }
 
-    // Helper para bandas 1 e 2: cria UMA unidade independente por (tribunal, tipo).
-    // Assim, diferentes tipos do mesmo tribunal podem rodar em paralelo em workers
-    // distintos quando há slot livre, em vez de serem serializados num único worker.
-    // A ordem de empilhamento preserva a prioridade parte → advogado → palavra-chave.
-    const pushUnitsPorTipo = (fila: WorkUnit[], band: 1 | 2, trib: string) => {
-      for (const tipo of ORDEM_TIPOS_PRINCIPAIS) {
-        const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
-        if (!tribsDoTipo.includes(trib)) continue;
-        if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
-        fila.push({ band, tribunal: trib, steps: [{ tipo, monIds: [null] }] });
-      }
-    };
-
-    // Banda 1: STF e STJ — uma unidade por (tribunal, tipo)
-    for (const trib of TRIBUNAIS_BAND1) {
-      if (!tribunaisGlobalSet.has(trib)) continue;
-      pushUnitsPorTipo(filaBand1, 1, trib);
-    }
-
-    // Banda 2: demais tribunais (excluindo TST, STF, STJ) — uma unidade por (tribunal, tipo)
-    for (const trib of tribunais) {
-      if (trib === 'TST' || TRIBUNAIS_BAND1.includes(trib)) continue;
-      pushUnitsPorTipo(filaBand2, 2, trib);
-    }
-
-    // Banda 3: tipo 'processo' em todos os tribunais (sempre por último)
-    const tribsProcesso = tribunaisPorTipo.get('processo') || [];
-    for (const trib of tribsProcesso) {
-      if (unidadesJaConcluidas.has(trackKey('processo', trib))) continue;
-      filaBand3.push({ band: 3, tribunal: trib, steps: [{ tipo: 'processo', monIds: [null] }] });
-    }
-
-    const bands: WorkUnit[][] = [filaBand0, filaBand1, filaBand2, filaBand3];
+    const bands: WorkUnit[][] = [filaBand0, filaBand1, filaBand2];
+    for (const b of bands) b.sort(comparePriorityUnits);
     const totalUnidadesPendentes = bands.reduce((a, b) => a + b.length, 0);
-    const totalStepsPendentes = bands.reduce(
-      (a, b) => a + b.reduce((aa, u) => aa + u.steps.reduce((s, st) => s + st.monIds.length, 0), 0),
-      0,
-    );
+    const totalStepsPendentes = totalUnidadesPendentes;
     const unidadesConcluidasLista: string[] = Array.from(unidadesJaConcluidas);
 
     // Inicializa progresso por unidade (steps) para a barra refletir realidade.
