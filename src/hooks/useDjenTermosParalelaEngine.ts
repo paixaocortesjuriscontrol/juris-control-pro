@@ -805,6 +805,23 @@ function validarAdvogadoMetadados(pub: any, oab?: string, nome?: string): boolea
   return false;
 }
 
+/**
+ * Fallback simples: aceita quando o nome do advogado aparece como frase
+ * contígua no texto completo da publicação. Este validador só é usado
+ * quando a busca primária foi feita por `nomeAdvogado` (rota oficial do
+ * Comunica). A API já filtrou pelo nome, então se o item veio na resposta
+ * é porque o nome consta como advogado — mesmo em editais coletivos do
+ * TJDFT onde `advogados_json` vem vazio e a seção "Advogados:" está
+ * enterrada no meio de dezenas de processos.
+ */
+function validarAdvogadoNoConteudo(pub: any, nome?: string): boolean {
+  const nomeNorm = nome ? normalizar(nome) : '';
+  if (!nomeNorm) return false;
+  const textoNorm = normalizar(buildTextoCompleto(pub));
+  if (!textoNorm) return false;
+  return contemFrase(textoNorm, nomeNorm);
+}
+
 function validarParteMetadados(pub: any, nomeParte: string): boolean {
   const nomeNorm = normalizar(nomeParte);
   if (!nomeNorm) return false;
@@ -1007,12 +1024,15 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   if (tipo === 'advogado') {
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
     if (validarAdvogadoSecaoAdvogados(pub, mon.oab, mon.termo_busca)) return true;
+    // Fallback: nome como frase contígua no teor (a API já filtrou por nomeAdvogado)
+    if (validarAdvogadoNoConteudo(pub, mon.termo_busca)) return true;
     if (mon.termos_or?.length) {
       for (const t of mon.termos_or) {
         const p = parsearTermoOr(t);
         if (!p) continue;
         if (validarAdvogadoMetadados(pub, p.oabDigits, p.nome)) return true;
         if (validarAdvogadoSecaoAdvogados(pub, p.oabDigits, p.nome)) return true;
+        if (validarAdvogadoNoConteudo(pub, p.nome)) return true;
       }
     }
     return false;
