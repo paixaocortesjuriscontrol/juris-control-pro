@@ -54,7 +54,7 @@ function mapMonTipoToWorkerTipo(tipo: Monitoramento['tipo']): WorkerTipo {
 }
 
 function isShardTrackId(monId?: string | null): boolean {
-  return typeof monId === 'string' && monId.startsWith('__shard:');
+  return typeof monId === 'string' && monId.startsWith('shard');
 }
 
 function trackKey(tipo: WorkerTipo, tribunal: string, monId?: string | null, shardIdx?: number | null): string {
