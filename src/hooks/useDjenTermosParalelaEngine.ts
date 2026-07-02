@@ -83,6 +83,22 @@ function isTribunalPrioritario(tribunal: string): boolean {
   return t === 'TST' || t === 'STF' || t === 'STJ' || /^TRT\d{1,2}$/.test(t);
 }
 
+function isRecoverableVpsFailure(error: unknown): boolean {
+  const msg = String((error as any)?.message || error || '');
+  return /HTTP\s*5\d\d|Falha após|Falha ao buscar|Failed to fetch|Pool DJEN|proxy_slot_timeout|upstream_status|timeout/i.test(msg);
+}
+
+function getAlternativeProxyViaIds(currentViaId?: string | null, max = 2): string[] {
+  const slots = loadDjenProxyPool()
+    .filter((s) => s.enabled && s.id && s.baseUrl && s.token && s.id !== currentViaId)
+    .map((s) => s.id);
+  for (let i = slots.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [slots[i], slots[j]] = [slots[j], slots[i]];
+  }
+  return slots.slice(0, max);
+}
+
 export interface TrackProgress {
   tribunal: string;
   /** Tipo de busca dedicado a essa track (parte/advogado/palavra-chave/processo). */
@@ -1250,7 +1266,28 @@ async function processarTribunalTrack(
         }, monId);
 
         try {
-          const r = await processarTermoEmTribunal(grupo[0], diaYmd, tribunal, signal, viaId, tipo, monId);
+          let r: Awaited<ReturnType<typeof processarTermoEmTribunal>> | null = null;
+          try {
+            r = await processarTermoEmTribunal(grupo[0], diaYmd, tribunal, signal, viaId, tipo, monId);
+          } catch (firstErr: any) {
+            if (firstErr?.name === 'AbortError') throw firstErr;
+            if (!isRecoverableVpsFailure(firstErr)) throw firstErr;
+            const alternatives = getAlternativeProxyViaIds(viaId, 2);
+            let lastErr = firstErr;
+            for (const altViaId of alternatives) {
+              if (signal.aborted) break;
+              try {
+                updateTrack(tribunal, tipo, { mensagem: `↻ retry em outra VPS (${alternatives.indexOf(altViaId) + 1}/${alternatives.length})` }, monId);
+                r = await processarTermoEmTribunal(grupo[0], diaYmd, tribunal, signal, altViaId, tipo, monId);
+                break;
+              } catch (altErr: any) {
+                if (altErr?.name === 'AbortError') throw altErr;
+                lastErr = altErr;
+                if (!isRecoverableVpsFailure(altErr)) throw altErr;
+              }
+            }
+            if (!r) throw lastErr;
+          }
           acumNovas += r.novas;
           acumDup += r.duplicadas;
           acumDesc += r.descartadas;
@@ -1523,6 +1560,7 @@ async function processarTermoEmTribunal(
   } catch (e: any) {
     if (e?.name === 'AbortError') throw e;
     ultimoErro = e?.message || 'Falha de busca';
+    if (isRecoverableVpsFailure(e)) throw e;
   }
 
   if (signal.aborted) {
