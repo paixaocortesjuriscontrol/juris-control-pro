@@ -53,8 +53,34 @@ function mapMonTipoToWorkerTipo(tipo: Monitoramento['tipo']): WorkerTipo {
   return tipo as WorkerTipo;
 }
 
-function trackKey(tipo: WorkerTipo, tribunal: string, monId?: string | null): string {
+function isShardTrackId(monId?: string | null): boolean {
+  return typeof monId === 'string' && monId.startsWith('shard');
+}
+
+function trackKey(tipo: WorkerTipo, tribunal: string, monId?: string | null, shardIdx?: number | null): string {
+  if (typeof shardIdx === 'number' && Number.isFinite(shardIdx)) return `${tipo}|${tribunal}|shard${shardIdx}`;
   return monId ? `${tipo}|${tribunal}|${monId}` : `${tipo}|${tribunal}`;
+}
+
+function tribunalPriorityRank(tribunal: string): number {
+  const t = String(tribunal || '').toUpperCase();
+  if (t === 'TST') return 0;
+  if (t === 'STF') return 1;
+  if (t === 'STJ') return 2;
+  const trt = t.match(/^TRT(\d{1,2})$/);
+  if (trt) return 10 + Number(trt[1]);
+  const idx = TRIBUNAL_PRIORITY_ORDER.indexOf(t);
+  return idx >= 0 ? 100 + idx : 999;
+}
+
+function tipoPriorityRank(tipo: WorkerTipo): number {
+  const idx = WORKER_TIPOS_ORDER.indexOf(tipo);
+  return idx >= 0 ? idx : 99;
+}
+
+function isTribunalPrioritario(tribunal: string): boolean {
+  const t = String(tribunal || '').toUpperCase();
+  return t === 'TST' || t === 'STF' || t === 'STJ' || /^TRT\d{1,2}$/.test(t);
 }
 
 export interface TrackProgress {
@@ -141,17 +167,22 @@ interface Checkpoint {
 
 const MAX_CONCURRENCY = 5;
 const CONFIG = {
-  delay_between_terms: 2500,
-  // Paridade com monitor-servidor/engines/paralela.js (PAGE_DELAY_MS=800).
-  // 1800ms estava dobrando o custo de paginação e neutralizando o ganho
-  // de adicionar mais VPS ao pool.
-  delay_between_pages: 800,
-  delay_between_termos_or: 1800,
+  // Paridade direta com monitor-servidor/engines/paralela.js.
+  delay_between_terms: 1000,
+  delay_between_pages: 400,
+  delay_between_parte_or: 800,
+  delay_between_advogado_or: 1800,
   max_retries: 3,
   // Paridade com servidor: 429 → ~8s base (8000*(attempt+1)). 20s travava
   // o worker em retries longos a cada rate-limit isolado.
   retry_base_delay: 8000,
 };
+
+// Paridade com DJEN Servidor: grupos grandes são fatiados para que múltiplas
+// VPS processem o mesmo (tipo, tribunal) sem serializar tudo em uma única via.
+const SHARD_SIZE = 4;
+const SHARD_MIN = 2;
+const MAIN_TIPOS: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave'];
 
 // ============================================================================
 // AGRUPAMENTO POR HOST (anti rate-limit 429)
@@ -1225,7 +1256,7 @@ async function processarTribunalTrack(
   const monsParaEsseTrib = monitoramentos.filter(mon => {
     if (mapMonTipoToWorkerTipo(mon.tipo) !== tipo) return false;
     if (monIdsFilter?.length && !monIdsFilter.includes(mon.id)) return false;
-    if (monId && mon.id !== monId) return false;
+    if (monId && !isShardTrackId(monId) && mon.id !== monId) return false;
     const tribs = expandirTribunaisDoMon(mon.tribunais);
     // Se o monitoramento não tem tribunais (= todos), inclui esse tribunal.
     if (tribs.length === 0) return true;
@@ -1308,7 +1339,6 @@ async function processarTribunalTrack(
         }, monId);
 
         syncExecutionProgress();
-        await abortableDelay(CONFIG.delay_between_terms, signal);
       }
     }
 
@@ -1447,9 +1477,9 @@ async function processarTermoEmTribunal(
       onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via, monIdTrack),
       forceVia: forceViaOverride ?? undefined,
       fallbackToDirect: forceViaOverride === DIRECT_SLOT_ID,
-      // Igual ao DJEN Servidor: cada unit fica pinada em UMA VPS. Sem
-      // rotacionar chamadas do mesmo termo entre múltiplas VPS do pool.
-      fallbackToPool: false,
+      // Igual ao DJEN Servidor: se a VPS da unit falha com 5xx/timeout, tenta
+      // outra VPS do pool antes de desistir daquele par (mon, dia, tribunal).
+      fallbackToPool: true,
     });
     addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
@@ -1469,7 +1499,7 @@ async function processarTermoEmTribunal(
         // instabilidade internamente (retries por página, streak de vazias).
         // Se chegou aqui com 0 itens, é ausência real na API.
         console.log(`[DJEN Paralela][${tribunal}] Busca por parte termo="${termoParte}": ${resp.items.length} resultados, pages=${resp.pagesFetched}`);
-        await abortableDelay(CONFIG.delay_between_termos_or, signal);
+        await abortableDelay(CONFIG.delay_between_parte_or, signal);
       }
     } else {
       // Helper: busca por advogado com regra nova (nome primário, OAB fallback).
@@ -1536,7 +1566,7 @@ async function processarTermoEmTribunal(
             if (!parsed?.nome) continue;
             const mesmoNome = normalizar(parsed.nome) === normalizar(mon.termo_busca || '');
             if (mesmoNome) continue;
-            await abortableDelay(CONFIG.delay_between_termos_or, signal);
+            await abortableDelay(CONFIG.delay_between_advogado_or, signal);
             if (signal.aborted) break;
             try {
               await buscarAdvogado(parsed.nome, parsed.oabDigits, mon.uf, { __termoOrAdvogado: String(termoOr) });
@@ -2041,72 +2071,113 @@ async function executarLoop(
 
     // Checkpoint
     const cp = retomar ? loadCheckpoint() : null;
-    const runKey = `${dataInicioYmd}..${dataFimYmd}`;
-    // Chaves de unidade concluída no formato `${tipo}|${tribunal}` (v2).
-    // Checkpoints antigos (v1) só tinham siglas de tribunal e não casarão —
-    // o que apenas faz com que o retomar refaça aquele tipo/tribunal sem erro.
+    const monitoramentoIdsKey = [...(monitoramentoIds || [])]
+      .map((id) => String(id || '').trim())
+      .filter(Boolean)
+      .sort()
+      .join(',') || 'todos';
+    const runKey = `${dataInicioYmd}..${dataFimYmd}|coord:${coordenacaoId || 'todas'}|mon:${monitoramentoIdsKey}`;
+    // Checkpoint isolado por coordenação e filtro de monitoramentos, igual ao
+    // Servidor. Checkpoints antigos não casam e serão refeitos com segurança.
     const unidadesJaConcluidas = new Set<string>(
       cp && cp.runKey === runKey ? cp.tribunaisConcluidos : []
     );
 
-    // Inicializar tracks: 1 por (tipo, tribunal). Ordem: agrupado por tribunal
-    // (TST_parte, TST_adv, TST_kw, TST_proc, STF_parte, ...) para leitura natural.
-    const tracks: TrackProgress[] = [];
-    for (const trib of tribunais) {
-      for (const tipo of tiposAtivos) {
-        const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
-        if (!tribsDoTipo.includes(trib)) continue;
-        // Para tipo=parte: TST mantém 1 track por termo; demais tribunais
-        // ficam com 1 única track por tribunal e executam os termos em série.
-        const monsDoTipoNoTrib = (monsPorTipo.get(tipo) || []).filter((m) => {
-          const tribs = expandirTribunaisDoMon(m.tribunais);
-          return tribs.length === 0 || tribs.includes(trib);
-        });
-        // TST roda em paralelo entre VPSs para TODOS os tipos exceto
-        // 'processo' (que vai sempre na faixa final). Para isso cada
-        // monitoramento vira uma track própria. Demais tribunais agrupam
-        // todos os termos em UMA única track serial por (tipo, tribunal).
-        const tstParalelo = trib === 'TST' && tipo !== 'processo';
-        const trackTargets = tstParalelo
-          ? monsDoTipoNoTrib.map((mon) => ({ monId: mon.id, monLabel: mon.descricao || mon.termo_busca, total: datas.length }))
-          : [{
-              monId: null,
-              monLabel: monsDoTipoNoTrib.length > 1 ? `${monsDoTipoNoTrib.length} termos` : (monsDoTipoNoTrib[0]?.descricao || monsDoTipoNoTrib[0]?.termo_busca || null),
-              total: monsDoTipoNoTrib.length * datas.length,
-            }];
-        for (const target of trackTargets) {
-          const monId = target.monId;
-          const monLabel = target.monLabel;
-          const key = trackKey(tipo, trib, monId);
-          const jaConcluido = unidadesJaConcluidas.has(key);
-          const totalTrack = target.total;
-          tracks.push({
-            tribunal: trib,
-            tipo,
-            monId,
-            monLabel,
-            status: jaConcluido ? 'concluido' : 'pendente',
-            current: jaConcluido ? totalTrack : 0,
-            total: totalTrack,
-            novas: 0,
-            duplicadas: 0,
-            descartadas: 0,
-            mensagem: jaConcluido ? 'Já processado (checkpoint)' : 'Aguardando slot...',
-            termoAtual: tstParalelo ? monLabel : null,
-            diaAtual: null,
-            rateLimitHits: 0,
-            ultimoErro: null,
-            startedAt: null,
-            finishedAt: jaConcluido ? Date.now() : null,
-            lastViaId: null,
-            lastViaLabel: null,
-            lastViaKind: null,
-            callsDirect: 0,
-            callsByProxy: {},
-          });
-        }
+    type PlannedUnit = {
+      id: string;
+      cardKey: string;
+      tipo: WorkerTipo;
+      tribunal: string;
+      monId: string | null;
+      monitoramentoIds: string[];
+      label: string | null;
+      total: number;
+      shardIdx: number;
+      shardTotal: number;
+    };
+
+    const grupos = new Map<string, { tipo: WorkerTipo; tribunal: string; monitoramentos: Monitoramento[] }>();
+    for (const mon of monitoramentos) {
+      const tipo = mapMonTipoToWorkerTipo(mon.tipo);
+      const tribsDeclarados = expandirTribunaisDoMon(mon.tribunais);
+      const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
+      const tribsEfetivos = tribsDeclarados.length > 0 ? tribsDeclarados : tribsDoTipo;
+      for (const tribunal of tribsEfetivos) {
+        if (!tribsDoTipo.includes(tribunal)) continue;
+        const key = `${tipo}|${tribunal}`;
+        if (!grupos.has(key)) grupos.set(key, { tipo, tribunal, monitoramentos: [] });
+        grupos.get(key)!.monitoramentos.push(mon);
       }
     }
+
+    const plannedUnits: PlannedUnit[] = [];
+    const gruposOrdenados = Array.from(grupos.values()).sort((a, b) =>
+      (tribunalPriorityRank(a.tribunal) - tribunalPriorityRank(b.tribunal)) ||
+      (tipoPriorityRank(a.tipo) - tipoPriorityRank(b.tipo))
+    );
+    for (const grupo of gruposOrdenados) {
+      const totalMons = grupo.monitoramentos.length;
+      if (totalMons === 0) continue;
+      const cardKey = `${grupo.tipo}|${grupo.tribunal}`;
+      const deveShardear = totalMons > SHARD_MIN;
+      const chunks = deveShardear
+        ? chunkArray(grupo.monitoramentos, SHARD_SIZE)
+        : [grupo.monitoramentos];
+      chunks.forEach((chunk, idx) => {
+        const monId = deveShardear ? `shard${idx}` : null;
+        plannedUnits.push({
+          id: deveShardear ? `${cardKey}|shard${idx}` : cardKey,
+          cardKey,
+          tipo: grupo.tipo,
+          tribunal: grupo.tribunal,
+          monId,
+          monitoramentoIds: chunk.map((m) => m.id),
+          label: deveShardear
+            ? `${chunk.length} termos (${idx + 1}/${chunks.length})`
+            : totalMons > 1
+              ? `${totalMons} termos`
+              : (chunk[0]?.descricao || chunk[0]?.termo_busca || null),
+          total: chunk.length * datas.length,
+          shardIdx: idx,
+          shardTotal: chunks.length,
+        });
+      });
+    }
+
+    const plannedUnitIds = new Set(plannedUnits.map((u) => u.id));
+    const unidadesJaConcluidasValidas = new Set(
+      Array.from(unidadesJaConcluidas).filter((id) => plannedUnitIds.has(id)),
+    );
+
+    // Inicializar tracks exatamente no mesmo nível das units do Servidor:
+    // card pequeno = 1 unit por (tipo, tribunal); card grande = shards.
+    const tracks: TrackProgress[] = plannedUnits.map((unit) => {
+      const jaConcluido = unidadesJaConcluidasValidas.has(unit.id) || unidadesJaConcluidasValidas.has(trackKey(unit.tipo, unit.tribunal, unit.monId));
+      return {
+        tribunal: unit.tribunal,
+        tipo: unit.tipo,
+        monId: unit.monId,
+        monLabel: unit.label,
+        status: jaConcluido ? 'concluido' : 'pendente',
+        current: jaConcluido ? unit.total : 0,
+        total: unit.total,
+        novas: 0,
+        duplicadas: 0,
+        descartadas: 0,
+        mensagem: jaConcluido ? 'Já processado (checkpoint)' : 'Aguardando VPS...',
+        termoAtual: unit.shardTotal > 1 ? unit.label : null,
+        diaAtual: null,
+        rateLimitHits: 0,
+        ultimoErro: null,
+        startedAt: null,
+        finishedAt: jaConcluido ? Date.now() : null,
+        lastViaId: null,
+        lastViaLabel: null,
+        lastViaKind: null,
+        callsDirect: 0,
+        callsByProxy: {},
+      };
+    });
     const totalUnidades = tracks.length;
     const unidadesConcluidasInicial = tracks.filter(t => t.status === 'concluido').length;
     const totalWorkInicial = tracks.reduce((sum, t) => sum + Number(t.total || 0), 0);
@@ -2171,92 +2242,43 @@ async function executarLoop(
     syncExecutionProgress({}, true);
 
     // ========================================================================
-    // ESTRATÉGIA "1 WORKER POR VPS" (pool exclusivo quando habilitado)
+    // FILAS COM PARIDADE DJEN SERVIDOR
     // ========================================================================
-    // Se houver VPS habilitada no pool, a Paralela NÃO usa o browser como via.
-    // Cada VPS representa um IP independente perante o PJE Comunica e recebe um
-    // worker dedicado. O browser direto fica apenas como fallback quando o pool
-    // está desligado ou sem VPS válida.
+    // 0) TST/STF/STJ/TRTs dos tipos principais
+    // 1) demais tribunais dos tipos principais
+    // 2) processo em qualquer tribunal
+    // Sem trava rígida entre bandas: worker livre puxa a melhor próxima unit,
+    // como o Servidor, evitando VPS ociosa enquanto outro shard ainda pagina.
+    type WorkUnit = PlannedUnit & { band: 0 | 1 | 2 };
 
-    // ========================================================================
-    // FILAS POR BANDA DE PRIORIDADE
-    // ========================================================================
-    // Banda 0 — TST (parte / advogado / palavra-chave): 1 unidade por
-    //          monitoramento, executadas em PARALELO entre as VPSs.
-    // Banda 1 — STF e STJ: 1 unidade por tribunal, agrupando TODOS os tipos
-    //          (parte → advogado → palavra-chave) e termos serialmente
-    //          dentro do mesmo worker. Diferentes tribunais podem rodar em
-    //          paralelo entre VPSs.
-    // Banda 2 — Demais tribunais: idem banda 1.
-    // Banda 3 — Tipo 'processo' em TODOS os tribunais: 1 unidade por
-    //          tribunal, sempre por último. Diferentes tribunais em paralelo.
-    //
-    // Workers só consomem da próxima banda quando a banda anterior está
-    // 100% drenada (sem unidades pendentes e sem unidades em processamento).
-    type UnitStep = { tipo: WorkerTipo; monIds: (string | null)[] };
-    type WorkUnit = { band: 0 | 1 | 2 | 3; tribunal: string; steps: UnitStep[]; viaId?: string };
-
-    const ORDEM_TIPOS_PRINCIPAIS: WorkerTipo[] = ['parte', 'advogado', 'palavra-chave'];
-    const TRIBUNAIS_BAND1 = ['STF', 'STJ'];
+    const comparePriorityUnits = (a: WorkUnit, b: WorkUnit) =>
+      (a.shardIdx - b.shardIdx) ||
+      (tribunalPriorityRank(a.tribunal) - tribunalPriorityRank(b.tribunal)) ||
+      (tipoPriorityRank(a.tipo) - tipoPriorityRank(b.tipo)) ||
+      ((Number(b.total) || 0) - (Number(a.total) || 0));
 
     const filaBand0: WorkUnit[] = [];
     const filaBand1: WorkUnit[] = [];
     const filaBand2: WorkUnit[] = [];
-    const filaBand3: WorkUnit[] = [];
 
-    // Banda 0: TST paralelo (1 unidade por monitoramento, por tipo)
-    for (const tipo of ORDEM_TIPOS_PRINCIPAIS) {
-      const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
-      if (!tribsDoTipo.includes('TST')) continue;
-      const mons = (monsPorTipo.get(tipo) || []).filter((m) => {
-        const t = expandirTribunaisDoMon(m.tribunais);
-        return t.length === 0 || t.includes('TST');
-      });
-      for (const m of mons) {
-        if (unidadesJaConcluidas.has(trackKey(tipo, 'TST', m.id))) continue;
-        filaBand0.push({ band: 0, tribunal: 'TST', steps: [{ tipo, monIds: [m.id] }] });
-      }
+    for (const unit of plannedUnits) {
+      if (unidadesJaConcluidasValidas.has(unit.id)) continue;
+      const band: 0 | 1 | 2 = unit.tipo === 'processo'
+        ? 2
+        : isTribunalPrioritario(unit.tribunal) && MAIN_TIPOS.includes(unit.tipo)
+          ? 0
+          : 1;
+      const target = { ...unit, band };
+      if (band === 0) filaBand0.push(target);
+      else if (band === 1) filaBand1.push(target);
+      else filaBand2.push(target);
     }
 
-    // Helper para bandas 1 e 2: cria UMA unidade independente por (tribunal, tipo).
-    // Assim, diferentes tipos do mesmo tribunal podem rodar em paralelo em workers
-    // distintos quando há slot livre, em vez de serem serializados num único worker.
-    // A ordem de empilhamento preserva a prioridade parte → advogado → palavra-chave.
-    const pushUnitsPorTipo = (fila: WorkUnit[], band: 1 | 2, trib: string) => {
-      for (const tipo of ORDEM_TIPOS_PRINCIPAIS) {
-        const tribsDoTipo = tribunaisPorTipo.get(tipo) || [];
-        if (!tribsDoTipo.includes(trib)) continue;
-        if (unidadesJaConcluidas.has(trackKey(tipo, trib))) continue;
-        fila.push({ band, tribunal: trib, steps: [{ tipo, monIds: [null] }] });
-      }
-    };
-
-    // Banda 1: STF e STJ — uma unidade por (tribunal, tipo)
-    for (const trib of TRIBUNAIS_BAND1) {
-      if (!tribunaisGlobalSet.has(trib)) continue;
-      pushUnitsPorTipo(filaBand1, 1, trib);
-    }
-
-    // Banda 2: demais tribunais (excluindo TST, STF, STJ) — uma unidade por (tribunal, tipo)
-    for (const trib of tribunais) {
-      if (trib === 'TST' || TRIBUNAIS_BAND1.includes(trib)) continue;
-      pushUnitsPorTipo(filaBand2, 2, trib);
-    }
-
-    // Banda 3: tipo 'processo' em todos os tribunais (sempre por último)
-    const tribsProcesso = tribunaisPorTipo.get('processo') || [];
-    for (const trib of tribsProcesso) {
-      if (unidadesJaConcluidas.has(trackKey('processo', trib))) continue;
-      filaBand3.push({ band: 3, tribunal: trib, steps: [{ tipo: 'processo', monIds: [null] }] });
-    }
-
-    const bands: WorkUnit[][] = [filaBand0, filaBand1, filaBand2, filaBand3];
+    const bands: WorkUnit[][] = [filaBand0, filaBand1, filaBand2];
+    for (const b of bands) b.sort(comparePriorityUnits);
     const totalUnidadesPendentes = bands.reduce((a, b) => a + b.length, 0);
-    const totalStepsPendentes = bands.reduce(
-      (a, b) => a + b.reduce((aa, u) => aa + u.steps.reduce((s, st) => s + st.monIds.length, 0), 0),
-      0,
-    );
-    const unidadesConcluidasLista: string[] = Array.from(unidadesJaConcluidas);
+    const totalStepsPendentes = totalUnidadesPendentes;
+    const unidadesConcluidasLista: string[] = Array.from(unidadesJaConcluidasValidas);
 
     // Inicializa progresso por unidade (steps) para a barra refletir realidade.
     state.unitTotal = totalStepsPendentes + unidadesConcluidasLista.length;
@@ -2289,11 +2311,9 @@ async function executarLoop(
     const usandoPoolVps = viasProxy.length > 0;
 
     // ------------------------------------------------------------------
-    // FILA COMPARTILHADA (espelha DJEN Servidor):
-    // qualquer worker/VPS livre pega a próxima unidade da banda atual.
-    // Uma vez que a VPS pega a unit, ela processa até o fim SEM rotação
-    // (fallbackToPool=false garante isso). Assim nenhuma VPS fica ociosa
-    // enquanto houver unidades pendentes, e cada card fica com 1 VPS só.
+    // FILA COMPARTILHADA (espelha DJEN Servidor): qualquer VPS livre pega a
+    // próxima unidade prioritária; se uma via falhar com 5xx/timeout, a própria
+    // chamada pode tentar outra VPS do pool antes de desistir daquele par.
     // ------------------------------------------------------------------
 
     // Concorrência efetiva = mín(nº vias, nº unidades pendentes).
@@ -2304,10 +2324,9 @@ async function executarLoop(
         concorrenciaEfetiva,
         totalUnidadesPendentes,
         bandas: {
-          band0_TST: filaBand0.length,
-          band1_STF_STJ: filaBand1.length,
-          band2_outros: filaBand2.length,
-          band3_processo: filaBand3.length,
+          band0_prioritarios: filaBand0.length,
+          band1_outros: filaBand1.length,
+          band2_processo: filaBand2.length,
         },
         vias: vias.map(v => v.label),
         poolAtivo,
@@ -2315,7 +2334,7 @@ async function executarLoop(
     } catch {}
     updateProgress({
       concorrencia: concorrenciaEfetiva,
-      mensagem: `Banda 0/TST: ${filaBand0.length} • Banda 1/STF+STJ: ${filaBand1.length} • Banda 2/outros: ${filaBand2.length} • Banda 3/processo: ${filaBand3.length} — ${concorrenciaEfetiva} workers`,
+      mensagem: `Prioritários: ${filaBand0.length} • Outros: ${filaBand1.length} • Processo: ${filaBand2.length} — ${concorrenciaEfetiva} workers`,
     });
     syncExecutionProgress({
       pool_enabled: usandoPoolVps,
@@ -2324,25 +2343,22 @@ async function executarLoop(
     }, true);
 
     // ========================================================================
-    // DISPATCH POR BANDA — workers só avançam de banda quando a anterior
-    // está totalmente drenada (fila vazia + nenhum worker processando).
+    // DISPATCH PULL-DOWN — sem trava rígida entre bandas, igual ao Servidor.
     // ========================================================================
-    let bandAtual = 0;
-    const emProcessamentoPorBand = [0, 0, 0, 0];
+    const emProcessamentoPorBand = [0, 0, 0];
 
     const pickNextUnit = (_viaId: string): WorkUnit | null => {
       // Fila compartilhada: qualquer worker livre pega a próxima unidade
-      // respeitando a prioridade por banda (0→1→2→3).
+      // de maior prioridade disponível (0→1→2), sem esperar banda drenar.
       for (let b = 0; b < bands.length; b++) {
         if (bands[b].length > 0) {
-          bandAtual = b;
           return bands[b].shift() as WorkUnit;
         }
       }
       return null;
     };
 
-    const BAND_LABEL: Record<number, string> = { 0: 'TST', 1: 'STF/STJ', 2: 'outros', 3: 'processo' };
+    const BAND_LABEL: Record<number, string> = { 0: 'prioritários', 1: 'outros', 2: 'processo' };
 
     const worker = async (via: ViaSpec) => {
       let processed = 0;
@@ -2361,43 +2377,38 @@ async function executarLoop(
         processed++;
         emProcessamentoPorBand[unit.band]++;
         try {
-          for (const step of unit.steps) {
-            if (signal.aborted) break;
-            for (const monIdAtual of step.monIds) {
-              if (signal.aborted) break;
-              let unidadeOk = true;
-              try {
-                await processarTribunalTrack(unit.tribunal, step.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
-                const tr = state.progress.tracks.find(
-                  t => t.tribunal === unit.tribunal && t.tipo === step.tipo && (t.monId ?? null) === (monIdAtual ?? null),
-                );
-                if (tr?.status === 'erro') {
-                  throw new Error(tr.ultimoErro || tr.mensagem || 'Track terminou com erro');
-                }
-              } catch (e) {
-                unidadeOk = false;
-                console.error(`[DJEN Paralela][worker ${via.label}] erro ${step.tipo} ${unit.tribunal}${monIdAtual ? ` mon=${monIdAtual}` : ''}:`, e);
-              }
-              if (!unidadeOk) continue;
-              unidadesConcluidasLista.push(trackKey(step.tipo, unit.tribunal, monIdAtual));
-              state.unitDone = Math.min(state.unitTotal, state.unitDone + 1);
-              saveCheckpoint({
-                runKey,
-                dataInicioYmd,
-                dataFimYmd,
-                tribunaisConcluidos: unidadesConcluidasLista,
-                novas: state.progress.novas,
-                duplicadas: state.progress.duplicadas,
-                descartadas: state.progress.descartadas,
-                tempoInicio,
-              });
-              // Não força percentage aqui — deixa updateTrack recalcular com base
-              // em tracks concluídos (alinhado ao header "X/Y tribunais").
-              updateProgress({
-                mensagem: `Banda ${unit.band} (${BAND_LABEL[unit.band]}) — ${state.unitDone}/${state.unitTotal} unidades`,
-              });
-              syncExecutionProgress({}, true);
+          let unidadeOk = true;
+          try {
+            await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, unit.monId, unit.monitoramentoIds);
+            const tr = state.progress.tracks.find(
+              t => t.tribunal === unit.tribunal && t.tipo === unit.tipo && (t.monId ?? null) === (unit.monId ?? null),
+            );
+            if (tr?.status === 'erro') {
+              throw new Error(tr.ultimoErro || tr.mensagem || 'Track terminou com erro');
             }
+          } catch (e) {
+            unidadeOk = false;
+            console.error(`[DJEN Paralela][worker ${via.label}] erro ${unit.tipo} ${unit.tribunal}${unit.monId ? ` ${unit.monId}` : ''}:`, e);
+          }
+          if (!unidadeOk) continue;
+          unidadesConcluidasLista.push(unit.id);
+          state.unitDone = Math.min(state.unitTotal, state.unitDone + 1);
+          saveCheckpoint({
+            runKey,
+            dataInicioYmd,
+            dataFimYmd,
+            tribunaisConcluidos: unidadesConcluidasLista,
+            novas: state.progress.novas,
+            duplicadas: state.progress.duplicadas,
+            descartadas: state.progress.descartadas,
+            tempoInicio,
+          });
+          updateProgress({
+            mensagem: `Banda ${unit.band} (${BAND_LABEL[unit.band]}) — ${state.unitDone}/${state.unitTotal} unidades`,
+          });
+          syncExecutionProgress({}, true);
+          if (CONFIG.delay_between_terms > 0 && !signal.aborted) {
+            await abortableDelay(CONFIG.delay_between_terms, signal);
           }
         } finally {
           emProcessamentoPorBand[unit.band]--;

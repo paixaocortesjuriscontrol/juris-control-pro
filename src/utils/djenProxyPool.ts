@@ -19,7 +19,7 @@ const PJE_COMUNICA_BASE = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
 const STORAGE_POOL = "djen_proxy_pool";
 const STORAGE_ENABLED = "djen_proxy_pool_enabled";
 const OFFLINE_COOLDOWN_MS = 60_000;
-const PROXY_SLOT_TIMEOUT_MS = 25_000;
+const PROXY_SLOT_TIMEOUT_MS = 90_000;
 
 // Importa o cliente Supabase de forma lazy para evitar ciclo de import
 // e permitir que o pool funcione mesmo se a conexão falhar (cai pro cache local).
@@ -684,7 +684,11 @@ export async function fetchDjenViaPool(
         const alternatives = loadDjenProxyPool().filter(
           (s) => s.enabled && s.id !== slot.id && isOnline(s),
         );
-        for (const alt of alternatives) {
+        for (let i = alternatives.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [alternatives[i], alternatives[j]] = [alternatives[j], alternatives[i]];
+        }
+        for (const alt of alternatives.slice(0, 2)) {
           try {
             return await callProxyAsResponse(alt);
           } catch (altErr: any) {
