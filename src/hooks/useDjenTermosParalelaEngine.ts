@@ -2302,11 +2302,9 @@ async function executarLoop(
     const usandoPoolVps = viasProxy.length > 0;
 
     // ------------------------------------------------------------------
-    // FILA COMPARTILHADA (espelha DJEN Servidor):
-    // qualquer worker/VPS livre pega a próxima unidade da banda atual.
-    // Uma vez que a VPS pega a unit, ela processa até o fim SEM rotação
-    // (fallbackToPool=false garante isso). Assim nenhuma VPS fica ociosa
-    // enquanto houver unidades pendentes, e cada card fica com 1 VPS só.
+    // FILA COMPARTILHADA (espelha DJEN Servidor): qualquer VPS livre pega a
+    // próxima unidade prioritária; se uma via falhar com 5xx/timeout, a própria
+    // chamada pode tentar outra VPS do pool antes de desistir daquele par.
     // ------------------------------------------------------------------
 
     // Concorrência efetiva = mín(nº vias, nº unidades pendentes).
@@ -2317,10 +2315,9 @@ async function executarLoop(
         concorrenciaEfetiva,
         totalUnidadesPendentes,
         bandas: {
-          band0_TST: filaBand0.length,
-          band1_STF_STJ: filaBand1.length,
-          band2_outros: filaBand2.length,
-          band3_processo: filaBand3.length,
+          band0_prioritarios: filaBand0.length,
+          band1_outros: filaBand1.length,
+          band2_processo: filaBand2.length,
         },
         vias: vias.map(v => v.label),
         poolAtivo,
@@ -2328,7 +2325,7 @@ async function executarLoop(
     } catch {}
     updateProgress({
       concorrencia: concorrenciaEfetiva,
-      mensagem: `Banda 0/TST: ${filaBand0.length} • Banda 1/STF+STJ: ${filaBand1.length} • Banda 2/outros: ${filaBand2.length} • Banda 3/processo: ${filaBand3.length} — ${concorrenciaEfetiva} workers`,
+      mensagem: `Prioritários: ${filaBand0.length} • Outros: ${filaBand1.length} • Processo: ${filaBand2.length} — ${concorrenciaEfetiva} workers`,
     });
     syncExecutionProgress({
       pool_enabled: usandoPoolVps,
@@ -2337,15 +2334,14 @@ async function executarLoop(
     }, true);
 
     // ========================================================================
-    // DISPATCH POR BANDA — workers só avançam de banda quando a anterior
-    // está totalmente drenada (fila vazia + nenhum worker processando).
+    // DISPATCH PULL-DOWN — sem trava rígida entre bandas, igual ao Servidor.
     // ========================================================================
     let bandAtual = 0;
-    const emProcessamentoPorBand = [0, 0, 0, 0];
+    const emProcessamentoPorBand = [0, 0, 0];
 
     const pickNextUnit = (_viaId: string): WorkUnit | null => {
       // Fila compartilhada: qualquer worker livre pega a próxima unidade
-      // respeitando a prioridade por banda (0→1→2→3).
+      // de maior prioridade disponível (0→1→2), sem esperar banda drenar.
       for (let b = 0; b < bands.length; b++) {
         if (bands[b].length > 0) {
           bandAtual = b;
@@ -2355,7 +2351,7 @@ async function executarLoop(
       return null;
     };
 
-    const BAND_LABEL: Record<number, string> = { 0: 'TST', 1: 'STF/STJ', 2: 'outros', 3: 'processo' };
+    const BAND_LABEL: Record<number, string> = { 0: 'prioritários', 1: 'outros', 2: 'processo' };
 
     const worker = async (via: ViaSpec) => {
       let processed = 0;
@@ -2374,43 +2370,38 @@ async function executarLoop(
         processed++;
         emProcessamentoPorBand[unit.band]++;
         try {
-          for (const step of unit.steps) {
-            if (signal.aborted) break;
-            for (const monIdAtual of step.monIds) {
-              if (signal.aborted) break;
-              let unidadeOk = true;
-              try {
-                await processarTribunalTrack(unit.tribunal, step.tipo, monitoramentos, datas, signal, via.id, monIdAtual);
-                const tr = state.progress.tracks.find(
-                  t => t.tribunal === unit.tribunal && t.tipo === step.tipo && (t.monId ?? null) === (monIdAtual ?? null),
-                );
-                if (tr?.status === 'erro') {
-                  throw new Error(tr.ultimoErro || tr.mensagem || 'Track terminou com erro');
-                }
-              } catch (e) {
-                unidadeOk = false;
-                console.error(`[DJEN Paralela][worker ${via.label}] erro ${step.tipo} ${unit.tribunal}${monIdAtual ? ` mon=${monIdAtual}` : ''}:`, e);
-              }
-              if (!unidadeOk) continue;
-              unidadesConcluidasLista.push(trackKey(step.tipo, unit.tribunal, monIdAtual));
-              state.unitDone = Math.min(state.unitTotal, state.unitDone + 1);
-              saveCheckpoint({
-                runKey,
-                dataInicioYmd,
-                dataFimYmd,
-                tribunaisConcluidos: unidadesConcluidasLista,
-                novas: state.progress.novas,
-                duplicadas: state.progress.duplicadas,
-                descartadas: state.progress.descartadas,
-                tempoInicio,
-              });
-              // Não força percentage aqui — deixa updateTrack recalcular com base
-              // em tracks concluídos (alinhado ao header "X/Y tribunais").
-              updateProgress({
-                mensagem: `Banda ${unit.band} (${BAND_LABEL[unit.band]}) — ${state.unitDone}/${state.unitTotal} unidades`,
-              });
-              syncExecutionProgress({}, true);
+          let unidadeOk = true;
+          try {
+            await processarTribunalTrack(unit.tribunal, unit.tipo, monitoramentos, datas, signal, via.id, unit.monId, unit.monitoramentoIds);
+            const tr = state.progress.tracks.find(
+              t => t.tribunal === unit.tribunal && t.tipo === unit.tipo && (t.monId ?? null) === (unit.monId ?? null),
+            );
+            if (tr?.status === 'erro') {
+              throw new Error(tr.ultimoErro || tr.mensagem || 'Track terminou com erro');
             }
+          } catch (e) {
+            unidadeOk = false;
+            console.error(`[DJEN Paralela][worker ${via.label}] erro ${unit.tipo} ${unit.tribunal}${unit.monId ? ` ${unit.monId}` : ''}:`, e);
+          }
+          if (!unidadeOk) continue;
+          unidadesConcluidasLista.push(unit.id);
+          state.unitDone = Math.min(state.unitTotal, state.unitDone + 1);
+          saveCheckpoint({
+            runKey,
+            dataInicioYmd,
+            dataFimYmd,
+            tribunaisConcluidos: unidadesConcluidasLista,
+            novas: state.progress.novas,
+            duplicadas: state.progress.duplicadas,
+            descartadas: state.progress.descartadas,
+            tempoInicio,
+          });
+          updateProgress({
+            mensagem: `Banda ${unit.band} (${BAND_LABEL[unit.band]}) — ${state.unitDone}/${state.unitTotal} unidades`,
+          });
+          syncExecutionProgress({}, true);
+          if (CONFIG.delay_between_terms > 0 && !signal.aborted) {
+            await abortableDelay(CONFIG.delay_between_terms, signal);
           }
         } finally {
           emProcessamentoPorBand[unit.band]--;
