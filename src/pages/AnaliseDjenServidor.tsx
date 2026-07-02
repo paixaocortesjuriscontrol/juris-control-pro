@@ -3599,7 +3599,7 @@ const AnaliseDjenServidor = () => {
 
   // Total de publicações ÚNICAS (após deduplicação por processo + data + conteúdo
   // ignorando intimados — mesma regra do botão "Resumo sem repetição"). Vem do
-  // servidor (RPC get_djen_stats_per_user → total_unicas) e respeita
+  // servidor (RPC get_djen_stats_servidor_per_user → total_unicas) e respeita
   // data_disponibilizacao + tribunal + termo + monitoramento. Evita reprocessar
   // milhares de linhas no navegador a cada keystroke.
   const totalUnicasFiltrado = tipoOrigem === 'datajud'
@@ -3677,7 +3677,7 @@ const AnaliseDjenServidor = () => {
     ? totalHoje
     : mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length;
   // PERFORMANCE/CORREÇÃO: o backend agora aplica os filtros de data de
-  // disponibilização e tribunal nas RPCs de contagem (get_djen_stats_per_user).
+  // disponibilização e tribunal nas RPCs de contagem (get_djen_stats_servidor_per_user).
   // Portanto sempre usamos os totais do servidor — eles já consideram esses
   // filtros e a deduplicação por coordenação + id_djen. Antes, quando esses
   // filtros estavam ativos, a tela trocava para "contadores da lista" e
