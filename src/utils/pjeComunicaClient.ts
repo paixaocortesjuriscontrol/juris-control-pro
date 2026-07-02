@@ -183,8 +183,6 @@ function optimizeItem(item: any) {
     item?.id_djen ??
     item?.codigoComunicacao ??
     item?.codigo_comunicacao ??
-    item?.numeroComunicacao ??
-    item?.numero_comunicacao ??
     item?.idComunicacao ??
     item?.id_comunicacao ??
     item?.comunicacaoId ??
@@ -305,6 +303,9 @@ export async function buscarPjeComunicaNoBrowser(
     forceVia?: string;
     fallbackToDirect?: boolean;
     fallbackToPool?: boolean;
+    disableEdgeFallback?: boolean;
+    serverParity404AsError?: boolean;
+    disableClientAdvogadoFallbacks?: boolean;
   }
 ): Promise<PjeComunicaResponse> {
   // ── In-flight dedup: quando N workers disparam a MESMA query (ex.: 6 monitoramentos
@@ -349,6 +350,9 @@ async function _buscarPjeComunicaNoBrowserImpl(
     forceVia?: string;
     fallbackToDirect?: boolean;
     fallbackToPool?: boolean;
+    disableEdgeFallback?: boolean;
+    serverParity404AsError?: boolean;
+    disableClientAdvogadoFallbacks?: boolean;
   }
 ): Promise<PjeComunicaResponse> {
   // DEBUG: Log ALL params for troubleshooting
@@ -540,6 +544,9 @@ async function _buscarPjeComunicaNoBrowserImpl(
         const t = await resp.text().catch(() => "");
         // Se é 404, provavelmente não há dados para esse filtro - não é erro fatal
         if (resp.status === 404) {
+          if (options?.serverParity404AsError) {
+            throw new Error(`HTTP 404 ${t.slice(0, 120)}`);
+          }
           return {
             success: true,
             items: [],
@@ -624,7 +631,7 @@ async function _buscarPjeComunicaNoBrowserImpl(
     // 2) Fallback específico p/ advogado quando retornar vazio (sem erro HTTP).
     //    IMPORTANTE: nunca remover os parâmetros de OAB - eles são o filtro principal!
     //    Se removemos, a API pode retornar qualquer publicação.
-    if (params.tipo === 'advogado' && first.items.length === 0) {
+    if (params.tipo === 'advogado' && first.items.length === 0 && !options?.disableClientAdvogadoFallbacks) {
       const oab = String(params.oab || "").replace(/\D/g, "").trim();
       const ufRaw = params.uf ?? "";
       const uf = String(ufRaw).trim().toUpperCase();
@@ -693,7 +700,7 @@ async function _buscarPjeComunicaNoBrowserImpl(
 // ESTRATÉGIA HÍBRIDA: Se CORS bloqueou, usar Edge Function como proxy
   // Com a estratégia v6 (grupos OR), temos ~200-400 requisições ao invés de 13.000+
   // Isso torna o risco de WORKER_LIMIT (546) baixo e aceitável
-  if (corsBlocked) {
+  if (corsBlocked && !options?.disableEdgeFallback) {
     // REGRA ESTRITA: termos do tipo 'parte' NUNCA podem cair em fallback
     // por Edge Function — esse caminho historicamente traduzia a busca em
     // palavra-chave/texto, gerando capturas erradas, lentidão e 429.
@@ -787,6 +794,10 @@ export async function buscarPjeComunicaPaginado(
     forceVia?: string;
     fallbackToDirect?: boolean;
     fallbackToPool?: boolean;
+    disableEdgeFallback?: boolean;
+    serverParity404AsError?: boolean;
+    disableClientAdvogadoFallbacks?: boolean;
+    throwOnConsecutiveFailedPages?: boolean;
   }
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = options?.maxPages;
@@ -842,6 +853,9 @@ export async function buscarPjeComunicaPaginado(
             forceVia: options?.forceVia,
             fallbackToDirect: options?.fallbackToDirect,
             fallbackToPool: options?.fallbackToPool,
+            disableEdgeFallback: options?.disableEdgeFallback,
+            serverParity404AsError: options?.serverParity404AsError,
+            disableClientAdvogadoFallbacks: options?.disableClientAdvogadoFallbacks,
           }
         );
         return resp;
@@ -850,10 +864,11 @@ export async function buscarPjeComunicaPaginado(
         
         // Se foi cancelado, não tentar novamente
         if (e?.name === 'AbortError') throw e;
+        const msg = String(e?.message ?? '');
+        if (msg.includes('HTTP 404')) throw e;
         
         // Rate limited ou erro de rede - aguardar com backoff exponencial
         if (attempt < maxRetries - 1) {
-          const msg = String(e?.message ?? '');
           const is429 = msg.includes('HTTP 429') || msg.includes('Too Many');
           const isGateway = msg.includes('HTTP 504') || msg.includes('HTTP 502') || msg.includes('HTTP 503');
           // 429 precisa de backoff maior. 504/502/503 (Cloudflare gateway timeout)
@@ -959,11 +974,17 @@ export async function buscarPjeComunicaPaginado(
       failedStreak += 1;
       lastError = String(e?.message ?? 'Falha ao buscar página');
       console.warn(`[PJE Comunica] Falha na página ${p} após retries (${failedStreak}/${CONSECUTIVE_FAILED_PAGES_LIMIT}):`, e?.message);
+      if (continueUntilEmpty && /HTTP\s*404/.test(lastError) && failedStreak >= CONSECUTIVE_FAILED_PAGES_LIMIT) {
+        break;
+      }
       if (continueUntilEmpty && failedStreak < CONSECUTIVE_FAILED_PAGES_LIMIT) {
         if (delayMs > 0) {
           await abortableSleep(delayMs, options?.signal);
         }
         continue;
+      }
+      if (continueUntilEmpty && options?.throwOnConsecutiveFailedPages) {
+        throw e;
       }
       truncated = true;
       break;
