@@ -59,6 +59,41 @@ function resolveHorarioDoDia(horarios: (string | null)[] | null, weekday: number
   return v && v.trim() !== "" ? v : null;
 }
 
+function sanitizarHorarios(horarios: unknown[]): string[] {
+  return Array.from(new Set(
+    horarios
+      .map((h) => String(h || "").trim())
+      .filter((h) => /^([01]?\d|2[0-3]):[0-5]\d$/.test(h))
+      .map((h) => {
+        const [hh, mm] = h.split(":");
+        return `${hh.padStart(2, "0")}:${mm}`;
+      }),
+  )).sort().slice(0, 3);
+}
+
+function resolveHorariosDoDia(cfg: { horarios_execucao?: unknown; metadata?: unknown }, weekday: number): string[] {
+  const metadata = (cfg.metadata as Record<string, unknown> | null) || {};
+  const matriz = metadata.horarios_por_dia as unknown;
+  if (Array.isArray(matriz) && matriz.length === 7) {
+    const linha = matriz[weekday];
+    return Array.isArray(linha) ? sanitizarHorarios(linha) : [];
+  }
+  const arr = Array.isArray(cfg.horarios_execucao) ? cfg.horarios_execucao as unknown[] : [];
+  const legado = resolveHorarioDoDia(arr.map((h) => h == null ? null : String(h)), weekday);
+  return legado ? [legado] : [];
+}
+
+function slotNaJanela(horarios: string[], hour: number, minute: number): string | null {
+  const nowMin = hour * 60 + minute;
+  for (const horario of horarios) {
+    const [hh, mm] = horario.split(":").map(Number);
+    if (isNaN(hh) || isNaN(mm)) continue;
+    const tgtMin = hh * 60 + mm;
+    if (nowMin >= tgtMin && nowMin <= tgtMin + WINDOW_MIN) return horario;
+  }
+  return null;
+}
+
 function ymdToDdmmyyyy(ymd: string): string {
   const [y, m, d] = ymd.split("-");
   return `${d}/${m}/${y}`;
@@ -602,7 +637,7 @@ Deno.serve(async (req) => {
     const configTipo = persistMode === "servidor" ? "djet_pautas_servidor" : "djet_pautas";
     const { data: cfg, error: cfgErr } = await supabase
       .from(configTable)
-      .select("id, ativo, horarios_execucao")
+      .select("id, ativo, horarios_execucao, metadata")
       .eq("tipo", configTipo)
       .maybeSingle();
 
@@ -614,26 +649,20 @@ Deno.serve(async (req) => {
     }
 
     const now = brtNow();
+    let schedulerSlot: string | null = null;
 
     // 2) Janela de horário
     if (!force) {
       const wd = brtWeekday(now.ymd);
-      const horario = resolveHorarioDoDia(cfg.horarios_execucao as (string | null)[] | null, wd);
-      if (!horario) {
+      const horarios = resolveHorariosDoDia(cfg, wd);
+      if (horarios.length === 0) {
         return new Response(JSON.stringify({ skipped: "dia_desativado", weekday: wd }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const [hh, mm] = horario.split(":").map(Number);
-      if (isNaN(hh) || isNaN(mm)) {
-        return new Response(JSON.stringify({ skipped: "horario_invalido" }), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const nowMin = now.hour * 60 + now.minute;
-      const tgtMin = hh * 60 + mm;
-      if (nowMin < tgtMin || nowMin > tgtMin + WINDOW_MIN) {
-        return new Response(JSON.stringify({ skipped: "fora_janela", now: `${now.hour}:${now.minute}`, target: horario }), {
+      schedulerSlot = slotNaJanela(horarios, now.hour, now.minute);
+      if (!schedulerSlot) {
+        return new Response(JSON.stringify({ skipped: "fora_janela", now: `${now.hour}:${now.minute}`, target: horarios.join(", ") }), {
           status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -647,6 +676,7 @@ Deno.serve(async (req) => {
       .from("execucoes_agendadas")
       .select("id, status")
       .in("tipo", tiposExistentes)
+      .contains("detalhes", { scheduler_slot: schedulerSlot })
       .gte("iniciado_em", ymdStart)
       .lte("iniciado_em", ymdEnd)
       .limit(1);
@@ -665,6 +695,7 @@ Deno.serve(async (req) => {
         status: "executando",
         iniciado_em: new Date().toISOString(),
         detalhes: {
+          scheduler_slot: schedulerSlot,
           filtro: {
             coordenacaoId,
             monitoramentoIds: monitoramentoIds || null,
