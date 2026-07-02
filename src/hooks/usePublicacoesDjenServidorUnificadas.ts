@@ -278,7 +278,7 @@ export interface FiltrosUnificados {
   // - processo: publicações vindas de processos cadastrados
   // - descartada: auditoria
   // - todos: (legado) mantido por compatibilidade
-  tipoOrigem?: 'termo' | 'parte' | 'processo' | 'descartada' | 'djet-pautas' | 'todos';
+  tipoOrigem?: 'termo' | 'parte' | 'processo' | 'descartada' | 'djet-pautas' | 'kurier' | 'todos';
   incluirDescartadas?: boolean;
   /** Página atual (1-based). Default: 1. */
   page?: number;
@@ -699,25 +699,23 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
       const resultados: PublicacaoUnificada[] = [];
       const numerosProcessosTermo: string[] = [];
 
-      // ===== FAST PATH (RPC) =====
-      // Desativado nesta variante: a RPC `get_djen_publicacoes_unificadas` lê das
-      // tabelas do DJEN browser (`publicacoes_djen`/`publicacoes_djen_processos`).
-      // Nesta tela queremos APENAS publicações encontradas pelo servidor
-      // (`publicacoes_djen_servidor`), então caímos sempre no fallback abaixo.
-      const canUseRpc = false;
+      // ===== FAST PATH (RPC DO SERVIDOR) =====
+      // Lê exclusivamente `publicacoes_djen_servidor` e aplica leitura/dedup/filtros
+      // antes do LIMIT. Isso evita carregar 500 linhas já lidas e depois zerar a
+      // lista no client enquanto os totalizadores mostram itens pendentes.
+      const canUseRpc = filtros.tipoOrigem !== 'descartada';
       if (canUseRpc) {
         try {
-        console.debug(`[DJEN] RPC deduplicada — page=${page} pageSize=${pageSize} offset=${offsetGlobal}`);
+        console.debug(`[DJEN Servidor] RPC paginada — page=${page} pageSize=${pageSize} offset=${offsetGlobal}`);
 
         // PAGINAÇÃO REAL no servidor: filtros de tipo/leitura são aplicados ANTES
         // do LIMIT/OFFSET. Assim, se há 2.390 filtradas, as páginas serão
         // 500 + 500 + 500 + 500 + 390 — sem encolher depois no client.
         const { data: pageRows, error: pageError } = await (supabase as any)
-          .rpc('get_djen_publicacoes_unificadas', {
+          .rpc('get_djen_publicacoes_servidor_unificadas', {
             p_coordenacao_id: filtros.coordenacaoId ?? null,
             p_inicio: dataInicioFiltro ?? null,
             p_fim: dataFimFiltro ?? null,
-            p_apenas_nao_lidas: false, // Per-user tracking: always fetch all, filter client-side
             p_search_query: filtros.termoBusca ?? null,
             p_limit: pageSize,
             p_offset: offsetGlobal,
@@ -728,11 +726,12 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
             p_data_disponibilizacao_fim: dataDisponibilizacaoFim,
             p_tribunal: filtros.tribunal || null,
             p_dedup: filtros.dedupServidor === true,
+            p_apenas_hoje: filtros.apenasHoje === true,
           })
           .abortSignal(signal);
 
         if (pageError) {
-          throw new Error(`RPC get error: ${pageError.message || JSON.stringify(pageError)}`);
+          throw new Error(`RPC servidor get error: ${pageError.message || JSON.stringify(pageError)}`);
         }
 
         const rawRows: any[] = (pageRows || []) as any[];
@@ -741,6 +740,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         // mapear para o tipo do app
         const mapped: PublicacaoUnificada[] = rawRows.map((r) => ({
           id: r.id,
+          id_djen: r.id_djen ?? null,
           tipo_origem: r.tipo_origem,
           processo_id: r.processo_id,
           processo_numero: r.processo_numero,
