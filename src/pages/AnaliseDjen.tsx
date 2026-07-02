@@ -165,6 +165,7 @@ const AnaliseDjen = () => {
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [dataDisponibilizacao, setDataDisponibilizacao] = useState<string>("");
+  const [dataPublicacao, setDataPublicacao] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
   const [monitoramentoId, setMonitoramentoId] = useState<string>("");
   const [tribunalFiltro, setTribunalFiltro] = useState<string>("");
