@@ -1033,6 +1033,79 @@ function validarTermo(pub: any, mon: Monitoramento): boolean {
   return false;
 }
 
+async function buscarPublicacoesJaEncontradasEmOutraCoordenacaoBrowser(
+  mon: Monitoramento,
+  diaYmd: string,
+  tribunal: string,
+): Promise<any[]> {
+  if (!mon?.coordenacao_id) return [];
+  const tipo = mapMonTipoToWorkerTipo(mon.tipo);
+  if (!MAIN_TIPOS.includes(tipo)) return [];
+
+  const resgatadas = new Map<string, any>();
+  const BATCH = 1000;
+  let from = 0;
+
+  while (from <= 10000) {
+    const { data, error } = await supabase
+      .from('publicacoes_djen')
+      .select('id,id_djen,hash_conteudo,processo_numero,conteudo,data_disponibilizacao,data_publicacao,tribunal,fonte,orgao,tipo_comunicacao,meio,advogados_json,partes_json,coordenacao_id')
+      .eq('status', 'encontrada')
+      .eq('tribunal', tribunal)
+      .gte('data_disponibilizacao', `${diaYmd}T00:00:00.000Z`)
+      .lte('data_disponibilizacao', `${diaYmd}T23:59:59.999Z`)
+      .neq('coordenacao_id', mon.coordenacao_id)
+      .range(from, from + BATCH - 1);
+
+    if (error) {
+      console.warn('[DJEN Paralela] resgate cross-coord browser falhou:', error.message);
+      break;
+    }
+
+    const rows = data || [];
+    for (const row of rows as any[]) {
+      const candidato = {
+        ...row,
+        id: row.id_djen || row.id,
+        texto: row.conteudo,
+        teor: row.conteudo,
+        dataDisponibilizacao: row.data_disponibilizacao,
+        dataPublicacao: row.data_publicacao,
+        siglaTribunal: row.tribunal,
+        numeroProcesso: row.processo_numero,
+        numero_processo: row.processo_numero,
+        destinatarioadvogados: row.advogados_json,
+        advogados: row.advogados_json,
+        destinatarios: row.partes_json,
+        partes: row.partes_json,
+        __resgatadaDeOutraCoordenacao: row.coordenacao_id,
+        __resgatadaDeFonte: 'publicacoes_djen',
+      };
+
+      const dataDispReal = extrairDataDisponibilizacaoYmd(candidato);
+      if (dataDispReal && dataDispReal !== diaYmd) continue;
+      const exc = mon.tipo === 'parte'
+        ? temExclusaoEmPartes(candidato, mon.exclusoes)
+        : temExclusao(candidato, mon.exclusoes);
+      if (exc) continue;
+      if (!validarTermo(candidato, mon)) continue;
+      const concomitanteOk = mon.tipo === 'parte'
+        ? condicaoConcomitanteAtendidaEmPartes(candidato, mon.condicao_concomitante)
+        : condicaoConcomitanteAtendida(candidato, mon.condicao_concomitante);
+      if (!concomitanteOk) continue;
+
+      const idDjen = extrairIdDjen(candidato);
+      const key = idDjen ? `id_djen:${idDjen}` : `row:${row.id}`;
+      if (!resgatadas.has(key)) resgatadas.set(key, candidato);
+    }
+
+    if (rows.length < BATCH) break;
+    from += BATCH;
+  }
+
+  return Array.from(resgatadas.values());
+}
+
 function extrairAdvogadosEstruturados(pub: any): string[] {
   const result: string[] = [];
   const seen = new Set<string>();
