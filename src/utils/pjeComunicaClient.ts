@@ -307,6 +307,7 @@ export async function buscarPjeComunicaNoBrowser(
     fallbackToPool?: boolean;
     disableEdgeFallback?: boolean;
     serverParity404AsError?: boolean;
+    disableClientAdvogadoFallbacks?: boolean;
   }
 ): Promise<PjeComunicaResponse> {
   // ── In-flight dedup: quando N workers disparam a MESMA query (ex.: 6 monitoramentos
@@ -353,6 +354,7 @@ async function _buscarPjeComunicaNoBrowserImpl(
     fallbackToPool?: boolean;
     disableEdgeFallback?: boolean;
     serverParity404AsError?: boolean;
+    disableClientAdvogadoFallbacks?: boolean;
   }
 ): Promise<PjeComunicaResponse> {
   // DEBUG: Log ALL params for troubleshooting
@@ -631,7 +633,7 @@ async function _buscarPjeComunicaNoBrowserImpl(
     // 2) Fallback específico p/ advogado quando retornar vazio (sem erro HTTP).
     //    IMPORTANTE: nunca remover os parâmetros de OAB - eles são o filtro principal!
     //    Se removemos, a API pode retornar qualquer publicação.
-    if (params.tipo === 'advogado' && first.items.length === 0) {
+    if (params.tipo === 'advogado' && first.items.length === 0 && !options?.disableClientAdvogadoFallbacks) {
       const oab = String(params.oab || "").replace(/\D/g, "").trim();
       const ufRaw = params.uf ?? "";
       const uf = String(ufRaw).trim().toUpperCase();
@@ -796,6 +798,7 @@ export async function buscarPjeComunicaPaginado(
     fallbackToPool?: boolean;
     disableEdgeFallback?: boolean;
     serverParity404AsError?: boolean;
+    disableClientAdvogadoFallbacks?: boolean;
   }
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = options?.maxPages;
@@ -853,6 +856,7 @@ export async function buscarPjeComunicaPaginado(
             fallbackToPool: options?.fallbackToPool,
             disableEdgeFallback: options?.disableEdgeFallback,
             serverParity404AsError: options?.serverParity404AsError,
+            disableClientAdvogadoFallbacks: options?.disableClientAdvogadoFallbacks,
           }
         );
         return resp;
