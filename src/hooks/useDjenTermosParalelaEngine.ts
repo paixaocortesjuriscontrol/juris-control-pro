@@ -1019,32 +1019,38 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(
   tribunal: string,
 ): Promise<Record<string, unknown>[]> {
   if (!mon.coordenacao_id) return [];
-  if (!['parte', 'advogado', 'palavra-chave', 'nome'].includes(mon.tipo)) return [];
+  const tipo = mapMonTipoToWorkerTipo(mon.tipo);
+  if (!MAIN_TIPOS.includes(tipo)) return [];
 
   const resgatadas = new Map<string, Record<string, unknown>>();
-  const termosBusca = mon.tipo === 'parte'
-    ? termosDeParte(mon)
-    : [mon.termo_busca, ...(mon.termos_or || []).map((t) => parsearTermoOr(String(t))?.nome || String(t))]
-      .map((termo) => String(termo || '').trim())
-      .filter((termo, idx, arr) => termo && arr.findIndex((x) => normalizar(x) === normalizar(termo)) === idx);
 
-  for (const termo of termosBusca) {
-    const browserRes = await supabase
-      .from('publicacoes_djen')
-      .select('id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id')
-      .eq('status', 'encontrada')
-      .eq('tribunal', tribunal)
-      .gte('data_disponibilizacao', `${diaYmd}T00:00:00.000Z`)
-      .lte('data_disponibilizacao', `${diaYmd}T23:59:59.999Z`)
-      .neq('coordenacao_id', mon.coordenacao_id)
-      .ilike('conteudo', `%${termo}%`)
-      .limit(200);
+  // Paridade com o DJEN Servidor: não filtrar por ILIKE no SQL. Algumas
+  // comunicações de advogado só trazem o nome nos metadados estruturados; o
+  // filtro textual antes do validation fazia o Browser não resgatar exatamente
+  // casos como OSMAR MENDES PAIXAO CORTES em TST/TJMS/TJDFT.
+  const cols = 'id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id';
+  const collect = async (table: 'publicacoes_djen' | 'publicacoes_djen_servidor') => {
+    const batch = 1000;
+    for (let from = 0; from <= 10000; from += batch) {
+      let query = (supabase as any)
+        .from(table)
+        .select(cols)
+        .eq('tribunal', tribunal)
+        .gte('data_disponibilizacao', `${diaYmd}T00:00:00.000Z`)
+        .lte('data_disponibilizacao', `${diaYmd}T23:59:59.999Z`)
+        .neq('coordenacao_id', mon.coordenacao_id)
+        .range(from, from + batch - 1);
 
-    if (browserRes.error) {
-      console.warn(`[DJEN Paralela][${tribunal}] Falha ao resgatar (browser) para "${termo}":`, browserRes.error.message);
-    }
+      if (table === 'publicacoes_djen') query = query.eq('status', 'encontrada');
 
-    for (const row of ((browserRes.data || []) as any[])) {
+      const { data, error } = await query;
+      if (error) {
+        console.warn(`[DJEN Paralela][${tribunal}] Falha ao resgatar de ${table}:`, error.message);
+        return;
+      }
+
+      const rows = (data || []) as any[];
+      for (const row of rows) {
       const candidato = {
         ...row,
         id: row.id_djen ?? row.id,
@@ -1057,27 +1063,34 @@ async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(
         destinatarios: row.partes_json,
         partes: row.partes_json,
       };
-      const casa = mon.tipo === 'parte'
-        ? termosBusca.some((t) => validarParteMetadados(candidato, t) || validarParteSecaoPartes(candidato, t))
+      const casa = tipo === 'parte'
+        ? termosDeParte(mon).some((t) => validarParteMetadados(candidato, t) || validarParteSecaoPartes(candidato, t))
         : validarTermo(candidato, mon);
       if (!casa) continue;
-      const exc = mon.tipo === 'parte'
+      const exc = tipo === 'parte'
         ? temExclusaoEmPartes(candidato, mon.exclusoes)
         : temExclusao(candidato, mon.exclusoes);
       if (exc) continue;
-      const concomitanteOk = mon.tipo === 'parte'
+      const concomitanteOk = tipo === 'parte'
         ? condicaoConcomitanteAtendidaEmPartes(candidato, mon.condicao_concomitante)
         : condicaoConcomitanteAtendida(candidato, mon.condicao_concomitante);
       if (!concomitanteOk) continue;
-      const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${row.id}`;
+      const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${table}:${row.id}`;
       if (resgatadas.has(key)) continue;
       resgatadas.set(key, {
         ...candidato,
-        ...(mon.tipo === 'parte' ? { __matchedByNomeParte: true } : {}),
+        ...(tipo === 'parte' ? { __matchedByNomeParte: true } : {}),
         __resgatadaDeOutraCoordenacao: row.coordenacao_id,
+        __resgatadaDeFonte: table,
       });
     }
-  }
+
+      if (rows.length < batch) break;
+    }
+  };
+
+  await collect('publicacoes_djen');
+  await collect('publicacoes_djen_servidor');
 
   return Array.from(resgatadas.values());
 }
@@ -1326,6 +1339,25 @@ async function processarTribunalTrack(
           failedGroups += 1;
           ultimoErro = e?.message || String(e);
           console.warn(`[DJEN Paralela][${tribunal}] erro grupo:`, e?.message);
+        }
+
+        // Paridade com Servidor: se outra coordenação/fonte já capturou uma
+        // publicação válida no mesmo dia/tribunal, persistir também nesta
+        // coordenação. Isso corrige falhas de coleta da API PJE Comunica em que
+        // a chamada por nomeAdvogado não devolve itens que outra execução já viu.
+        try {
+          const resgatadas = await buscarPublicacoesJaEncontradasEmOutraCoordenacao(grupo[0], diaYmd, tribunal);
+          if (resgatadas.length > 0) {
+            const rr = await consolidarResultadosTermo(grupo[0], diaYmd, tribunal, resgatadas, 0, ultimoErro);
+            acumNovas += rr.novas;
+            acumDup += rr.duplicadas;
+            acumDesc += rr.descartadas;
+            ultimoErro = rr.ultimoErro ?? ultimoErro;
+            console.log(`[DJEN Paralela][${tribunal}] Resgate cross-coord: ${resgatadas.length} candidatas, ${rr.novas} novas`);
+          }
+        } catch (e: any) {
+          if (e?.name === 'AbortError') break;
+          console.warn(`[DJEN Paralela][${tribunal}] resgate cross-coord falhou:`, e?.message || e);
         }
 
         processed += grupo.length;
