@@ -528,6 +528,9 @@ Deno.serve(async (req) => {
     const matches: MatchOut[] = [];
     let totalBlocos = 0;
     const seg = makePautaStreamSegmenter();
+    let numPagesPdf = 0;
+    const pageStart = Math.max(1, Number(body.pageStart) || 1);
+    const pageEnd = body.pageEnd && Number(body.pageEnd) > 0 ? Number(body.pageEnd) : undefined;
 
     const processBloco = async (bloco: string) => {
       totalBlocos++;
@@ -559,7 +562,13 @@ Deno.serve(async (req) => {
     };
 
     try {
-      for await (const pageText of iteratePdfPages(fetched.bytes)) {
+      for await (
+        const pageText of iteratePdfPages(fetched.bytes, {
+          pageStart,
+          pageEnd,
+          onNumPages: (n) => { numPagesPdf = n; },
+        })
+      ) {
         for (const bloco of seg.push(pageText)) await processBloco(bloco);
       }
       for (const bloco of seg.end()) await processBloco(bloco);
@@ -575,12 +584,15 @@ Deno.serve(async (req) => {
           dataPublicacao: dataIso,
           totalBlocos,
           matches,
+          numPages: numPagesPdf,
+          pageStart,
+          pageEnd: pageEnd ?? numPagesPdf,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    console.log(`[DJET-Pautas] ${tribunal} ${body.dataDDMMYYYY}: ${totalBlocos} blocos`);
+    console.log(`[DJET-Pautas] ${tribunal} ${body.dataDDMMYYYY} p${pageStart}-${pageEnd ?? numPagesPdf}/${numPagesPdf}: ${totalBlocos} blocos, ${matches.length} match(es)`);
 
     return new Response(
       JSON.stringify({
@@ -589,6 +601,9 @@ Deno.serve(async (req) => {
         dataPublicacao: dataIso,
         totalBlocos,
         matches,
+        numPages: numPagesPdf,
+        pageStart,
+        pageEnd: pageEnd ?? numPagesPdf,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
