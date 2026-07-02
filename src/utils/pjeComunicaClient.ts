@@ -170,77 +170,120 @@ const getGlobalCooldownRemainingMs = (via?: string | null): number => {
 export const awaitPjeComunicaGlobalCooldown = (via?: string | null) => awaitGlobalCooldown(via);
 export const getPjeComunicaGlobalCooldownRemainingMs = (via?: string | null) => getGlobalCooldownRemainingMs(via);
 function optimizeItem(item: any) {
+  const obj = item?.comunicacao && typeof item.comunicacao === "object" ? item.comunicacao : item;
   // IMPORTANTE:
   // - Mantemos o objeto original (spread) para não perder metadados (advogados/partes/destinatários etc.)
   //   que alguns tribunais usam para a busca, mesmo quando o corpo (conteudo/texto/teor) vem “magro”.
   // - Ainda assim, limitamos os campos de texto para evitar explosão de memória.
-  const conteudo = typeof item?.conteudo === "string" ? item.conteudo.slice(0, MAX_TEXT_LENGTH) : undefined;
-  const texto = typeof item?.texto === "string" ? item.texto.slice(0, MAX_TEXT_LENGTH) : undefined;
-  const teor = typeof item?.teor === "string" ? item.teor.slice(0, MAX_TEXT_LENGTH) : undefined;
+  const conteudo = typeof obj?.conteudo === "string" ? obj.conteudo.slice(0, MAX_TEXT_LENGTH) : (typeof item?.conteudo === "string" ? item.conteudo.slice(0, MAX_TEXT_LENGTH) : undefined);
+  const texto = typeof obj?.texto === "string" ? obj.texto.slice(0, MAX_TEXT_LENGTH) : (typeof item?.texto === "string" ? item.texto.slice(0, MAX_TEXT_LENGTH) : undefined);
+  const teor = typeof obj?.teor === "string" ? obj.teor.slice(0, MAX_TEXT_LENGTH) : (typeof item?.teor === "string" ? item.teor.slice(0, MAX_TEXT_LENGTH) : undefined);
 
   const idDjen =
+    obj?.id ??
     item?.id ??
+    obj?.id_djen ??
     item?.id_djen ??
+    obj?.codigoComunicacao ??
     item?.codigoComunicacao ??
+    obj?.codigo_comunicacao ??
     item?.codigo_comunicacao ??
+    obj?.idComunicacao ??
     item?.idComunicacao ??
+    obj?.id_comunicacao ??
     item?.id_comunicacao ??
+    obj?.comunicacaoId ??
     item?.comunicacaoId ??
+    obj?.comunicacao_id ??
     item?.comunicacao_id ??
+    obj?.codigo ??
     item?.codigo ??
     null;
 
   return {
     ...item,
+    ...(obj && obj !== item ? obj : {}),
     id: idDjen,
     id_djen: idDjen != null ? String(idDjen) : item?.id_djen,
 
     // A API pode retornar campos em snake_case (ex: data_disponibilizacao)
     // ou em outras variações; normalizamos aqui para o pipeline do DJEN.
     dataDisponibilizacao:
+      obj?.dataDisponibilizacao ??
       item?.dataDisponibilizacao ??
+      obj?.data_disponibilizacao ??
       item?.data_disponibilizacao ??
+      obj?.datadisponibilizacao ??
       item?.datadisponibilizacao,
     dataPublicacao:
+      obj?.dataPublicacao ??
       item?.dataPublicacao ??
+      obj?.data_publicacao ??
       item?.data_publicacao ??
+      obj?.datapublicacao ??
       item?.datapublicacao,
-    codigoComunicacao: item?.codigoComunicacao ?? item?.codigo_comunicacao ?? item?.codigo,
-    numeroComunicacao: item?.numeroComunicacao ?? item?.numero_comunicacao,
-    tipoComunicacao: item?.tipoComunicacao,
+    codigoComunicacao: obj?.codigoComunicacao ?? item?.codigoComunicacao ?? obj?.codigo_comunicacao ?? item?.codigo_comunicacao ?? obj?.codigo ?? item?.codigo,
+    numeroComunicacao: obj?.numeroComunicacao ?? item?.numeroComunicacao ?? obj?.numero_comunicacao ?? item?.numero_comunicacao,
+    tipoComunicacao: obj?.tipoComunicacao ?? item?.tipoComunicacao,
     siglaTribunal:
+      obj?.siglaTribunal ??
       item?.siglaTribunal ??
+      obj?.sigla_tribunal ??
       item?.sigla_tribunal ??
+      obj?.siglaTribunalId ??
       item?.siglaTribunalId ??
+      obj?.sigla_tribunal_id ??
       item?.sigla_tribunal_id ??
+      obj?.tribunalSigla ??
       item?.tribunalSigla ??
+      obj?.tribunal_sigla ??
       item?.tribunal_sigla ??
+      obj?.tribunal ??
       item?.tribunal ??
+      obj?.sigla ??
       item?.sigla ??
+      obj?.sigla_orgao ??
       item?.sigla_orgao ??
+      obj?.siglaOrgao ??
       item?.siglaOrgao ??
       null,
     numeroProcesso:
+      obj?.numeroProcesso ??
       item?.numeroProcesso ??
+      obj?.numero_processo ??
       item?.numero_processo ??
+      obj?.processo_numero ??
       item?.processo_numero ??
+      obj?.processoNumero ??
       item?.processoNumero ??
+      obj?.processo ??
       item?.processo ??
+      obj?.Processo ??
       item?.Processo ??
+      obj?.numero ??
       item?.numero ??
       null,
 
     nomeOrgao:
+      obj?.nomeOrgao ??
       item?.nomeOrgao ??
+      obj?.nome_orgao ??
       item?.nome_orgao ??
+      obj?.orgao ??
       item?.orgao ??
+      obj?.nomeOrgaoJulgador ??
       item?.nomeOrgaoJulgador ??
+      obj?.nome_orgao_julgador ??
       item?.nome_orgao_julgador ??
       null,
     destinatarioNome:
+      obj?.destinatarioNome ??
       item?.destinatarioNome ??
+      obj?.destinatario_nome ??
       item?.destinatario_nome ??
+      obj?.nomeDestinatario ??
       item?.nomeDestinatario ??
+      obj?.nome_destinatario ??
       item?.nome_destinatario ??
       null,
 
