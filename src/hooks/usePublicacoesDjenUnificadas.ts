@@ -73,9 +73,8 @@ const aplicarFiltroDataPublicacaoHojeBrt = <T extends any>(query: T, inicioUtc: 
     const inicioDiaUtc = `${diaBrt}T00:00:00Z`;
     const fimDiaUtc = `${diaBrt}T23:59:59.999Z`;
     return (query as any).or(
-      // Kurier: usa a data de disponibilização; se ela não existir, cai para captura em BRT.
-      `and(fonte.eq.kurier,data_disponibilizacao.gte.${inicioDiaUtc},data_disponibilizacao.lte.${fimDiaUtc}),` +
-      `and(fonte.eq.kurier,data_disponibilizacao.is.null,created_at.gte.${inicioUtc},created_at.lte.${fimUtc}),` +
+      // Kurier: regra fixa é data de captura em BRT, não data_disponibilizacao.
+      `and(fonte.eq.kurier,created_at.gte.${inicioUtc},created_at.lte.${fimUtc}),` +
       // Demais fontes (inclui fonte NULL — publicacoes_djen_servidor não popula fonte):
       // data_publicacao ou data_disponibilizacao dentro do dia BRT. `fonte.neq.kurier` sozinho
       // ignoraria linhas com fonte NULL (NULL != 'kurier' é UNKNOWN em SQL), por isso o
@@ -921,6 +920,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           queryTermos = queryTermos.eq('monitoramento_id', filtros.monitoramentoId);
         }
 
+        if (filtros.tipoOrigem === 'kurier') {
+          queryTermos = queryTermos.eq('fonte', 'kurier');
+        }
+
         // Filtro "Por Parte": só monitoramentos tipo 'parte'
         if (filtros.tipoOrigem === 'parte') {
           queryTermos = (queryTermos as any).eq('monitoramento.tipo', 'parte');
@@ -1058,6 +1061,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         // Filtrar por coordenação NO BANCO para performance
         if (filtros.coordenacaoId) {
           queryProcessos = queryProcessos.eq('processo.coordenacao_id', filtros.coordenacaoId);
+        }
+
+        if (filtros.tipoOrigem === 'kurier') {
+          queryProcessos = queryProcessos.eq('fonte', 'kurier');
         }
 
         // Paginação real no fallback: usa range para a página solicitada.
