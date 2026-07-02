@@ -81,7 +81,10 @@ function comparePriorityUnits(a, b) {
 }
 
 function mapTipo(tipo) {
-  if (tipo === "nome" || tipo === "geral") return "palavra-chave";
+  // Legado: monitoramentos de advogado por nome foram gravados como tipo="nome".
+  // No PJE Comunica isso deve consultar `nomeAdvogado` (URL oficial), não `texto`.
+  if (tipo === "nome") return "advogado";
+  if (tipo === "geral") return "palavra-chave";
   return tipo || "palavra-chave";
 }
 
