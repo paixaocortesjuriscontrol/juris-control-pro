@@ -488,61 +488,92 @@ async function runJob(
           continue;
         }
         try {
-          // Retry transiente (HTTP 5xx) — DEJT às vezes devolve 546/503.
-          let resp: Response | null = null;
-          let lastStatus = 0;
-          for (let attempt = 0; attempt < 3; attempt++) {
-            resp = await fetch(`${supabaseUrl}/functions/v1/buscar-dejt-pautas`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${serviceKey}`,
-            "apikey": serviceKey,
-          },
-          body: JSON.stringify({
-            tribunal,
-            dataDDMMYYYY,
-            caderno: "judiciario",
-            monitoramentos: monsInput,
-          }),
-            });
-            lastStatus = resp.status;
-            if (resp.ok) break;
-            // 5xx ou 546 (timeout custom) → retenta
-            if (resp.status >= 500 || resp.status === 546) {
-              await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
-              continue;
+          // Chunk de páginas para não estourar o CPU limit da Edge Function
+          // em cadernos grandes (TRT1/TRT2/TRT5). Cada invocação processa até
+          // CHUNK_PAGES; o número real de páginas vem na 1ª resposta.
+          const CHUNK_PAGES = 100;
+          const MAX_CHUNKS = 40; // teto de segurança (~4000 páginas)
+          const matches: MatchOut[] = [];
+          let pageStart = 1;
+          let numPages = CHUNK_PAGES; // provisório; será atualizado após 1ª resposta
+          let chunkIdx = 0;
+          let ultimoStatus = 0;
+          let falhouChunk = false;
+
+          while (pageStart <= numPages && chunkIdx < MAX_CHUNKS) {
+            const pageEnd = Math.min(pageStart + CHUNK_PAGES - 1, numPages);
+            // Retry transiente (HTTP 5xx/546) por chunk
+            let resp: Response | null = null;
+            let lastStatus = 0;
+            for (let attempt = 0; attempt < 3; attempt++) {
+              resp = await fetch(`${supabaseUrl}/functions/v1/buscar-dejt-pautas`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${serviceKey}`,
+                  "apikey": serviceKey,
+                },
+                body: JSON.stringify({
+                  tribunal,
+                  dataDDMMYYYY,
+                  caderno: "judiciario",
+                  monitoramentos: monsInput,
+                  pageStart,
+                  pageEnd,
+                }),
+              });
+              lastStatus = resp.status;
+              if (resp.ok) break;
+              if (resp.status >= 500 || resp.status === 546) {
+                await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+                continue;
+              }
+              break;
             }
-            break;
+            ultimoStatus = lastStatus;
+            if (!resp || !resp.ok) {
+              falhouChunk = true;
+              console.error(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY} chunk p${pageStart}-${pageEnd}: HTTP ${lastStatus}`);
+              break;
+            }
+            const json = await resp.json();
+            const chunkMatches: MatchOut[] = (json?.matches || []).map((m: Record<string, unknown>) => ({
+              monitoramentoId: m.monitoramentoId as string,
+              termoMatch: m.termoMatch as string,
+              processo: (m.processo as string) ?? null,
+              conteudo: m.conteudo as string,
+              hash: m.hash as string,
+              dataPublicacao: m.dataPublicacao as string,
+              fonte: (m.fonte as string) || "dejt-pdf",
+              tribunal: (m.tribunal as string) || tribunal,
+            }));
+            matches.push(...chunkMatches);
+            const np = Number(json?.numPages) || 0;
+            if (np > 0) numPages = np;
+            item.mensagem = `${dataDDMMYYYY}: p.${pageStart}-${pageEnd}/${numPages || "?"}`;
+            await flushProgresso();
+            pageStart = pageEnd + 1;
+            chunkIdx++;
+            // Pausa entre chunks para dar respiro ao worker
+            if (pageStart <= numPages) await new Promise((r) => setTimeout(r, 200));
           }
-          if (!resp || !resp.ok) {
+
+          if (falhouChunk) {
             totalErros++;
             item.current += 1;
             item.status = "erro";
-            item.ultimoErro = descreverErroHttp(lastStatus);
+            item.ultimoErro = descreverErroHttp(ultimoStatus);
             item.mensagem = `${item.ultimoErro} em ${dataDDMMYYYY}`;
             await flushProgresso(true);
-            console.error(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY}: HTTP ${lastStatus}`);
             continue;
           }
-          const json = await resp.json();
-          const matches: MatchOut[] = (json?.matches || []).map((m: Record<string, unknown>) => ({
-          monitoramentoId: m.monitoramentoId as string,
-          termoMatch: m.termoMatch as string,
-          processo: (m.processo as string) ?? null,
-          conteudo: m.conteudo as string,
-          hash: m.hash as string,
-          dataPublicacao: m.dataPublicacao as string,
-          fonte: (m.fonte as string) || "dejt-pdf",
-          tribunal: (m.tribunal as string) || tribunal,
-        }));
           const { novas, duplicadas } = await persistMatches(supabase, matches, monitCoordMap, persistMode, execucaoServidorId);
           totalNovas += novas;
           totalDuplicadas += duplicadas;
           item.current += 1;
           item.novas += novas;
           item.duplicatas += duplicadas;
-          item.mensagem = `${dataDDMMYYYY}: ${matches.length} achado(s) · ${novas} nova(s)`;
+          item.mensagem = `${dataDDMMYYYY} (${numPages}p): ${matches.length} achado(s) · ${novas} nova(s)`;
           await flushProgresso();
           console.log(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY}: ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
         } catch (e) {
