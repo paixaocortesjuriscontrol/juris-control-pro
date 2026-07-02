@@ -571,11 +571,19 @@ async function _buscarPjeComunicaNoBrowserImpl(
         // 504 (Cloudflare Gateway Timeout) = origem PJE Comunica lenta. Aplicar
         // cooldown global curto para dar fôlego à API antes do próximo retry,
         // evitando martelar a origem e cascata de timeouts em paralelo.
-        if (resp.status === 504 || resp.status === 502 || resp.status === 503) {
+        if (
+          resp.status === 500 ||
+          resp.status === 502 ||
+          resp.status === 503 ||
+          resp.status === 504
+        ) {
           const viaId = (() => {
             try { return readPoolViaFromResponse(resp)?.id ?? null; } catch { return null; }
           })();
-          setGlobalCooldown(jitterMs(4000), viaId ?? options?.forceVia ?? null);
+          // 500 "sistema muito ocupado" = overload da origem. Cooldown maior
+          // para dar fôlego antes de martelar novamente.
+          const cooldown = resp.status === 500 ? 8000 : 4000;
+          setGlobalCooldown(jitterMs(cooldown), viaId ?? options?.forceVia ?? null);
         }
         throw new Error(`HTTP ${resp.status} ${t.slice(0, 120)}`);
       }
@@ -870,14 +878,17 @@ export async function buscarPjeComunicaPaginado(
         // Rate limited ou erro de rede - aguardar com backoff exponencial
         if (attempt < maxRetries - 1) {
           const is429 = msg.includes('HTTP 429') || msg.includes('Too Many');
+          const isOverload = msg.includes('HTTP 500') || msg.includes('muito ocupado');
           const isGateway = msg.includes('HTTP 504') || msg.includes('HTTP 502') || msg.includes('HTTP 503');
-          // 429 precisa de backoff maior. 504/502/503 (Cloudflare gateway timeout)
-          // devem usar delay curto: a origem PJE estava lenta, não bloqueada.
+          // 429 e 500 (overload) precisam de backoff maior. 502/503/504
+          // (Cloudflare gateway timeout) usa delay curto: origem só lenta.
           const baseDelay = is429
             ? Math.max(retryBaseDelay, 8000)
-            : isGateway
-              ? 3000
-              : retryBaseDelay;
+            : isOverload
+              ? Math.max(retryBaseDelay, 6000)
+              : isGateway
+                ? 3000
+                : retryBaseDelay;
           let waitTime = isGateway
             ? jitterMs(baseDelay * (attempt + 1))
             : jitterMs(baseDelay * Math.pow(2, attempt));
@@ -895,7 +906,7 @@ export async function buscarPjeComunicaPaginado(
             options?.onRateLimit?.(waitTime, attempt + 1, page);
           }
           console.log(
-            `[PJE Comunica] ${is429 ? 'Rate limit (429)' : isGateway ? 'Gateway timeout (504)' : 'Erro'} na página ${page}. ` +
+            `[PJE Comunica] ${is429 ? 'Rate limit (429)' : isOverload ? 'Overload (500)' : isGateway ? 'Gateway timeout (504)' : 'Erro'} na página ${page}. ` +
               `Aguardando ${waitTime}ms antes de retry ${attempt + 1}/${maxRetries}`
           );
           // Sleep abortável: se o usuário cancelar, interrompe imediatamente
