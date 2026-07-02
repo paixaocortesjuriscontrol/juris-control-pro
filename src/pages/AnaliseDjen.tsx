@@ -4023,7 +4023,7 @@ const AnaliseDjen = () => {
               )}
 
               <div className="space-y-1.5">
-                <Label className="text-xs md:text-sm">Data Disponibilização</Label>
+                <Label className="text-xs md:text-sm" title="Data de publicação (disponibilização) da comunicação">Data de Publicação</Label>
                 <Input
                   type="date"
                   value={dataDisponibilizacao}
