@@ -1255,7 +1255,7 @@ async function processarTribunalTrack(
   const monsParaEsseTrib = monitoramentos.filter(mon => {
     if (mapMonTipoToWorkerTipo(mon.tipo) !== tipo) return false;
     if (monIdsFilter?.length && !monIdsFilter.includes(mon.id)) return false;
-    if (monId && mon.id !== monId) return false;
+    if (monId && !isShardTrackId(monId) && mon.id !== monId) return false;
     const tribs = expandirTribunaisDoMon(mon.tribunais);
     // Se o monitoramento não tem tribunais (= todos), inclui esse tribunal.
     if (tribs.length === 0) return true;
