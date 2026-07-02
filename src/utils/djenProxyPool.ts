@@ -19,7 +19,7 @@ const PJE_COMUNICA_BASE = "https://comunicaapi.pje.jus.br/api/v1/comunicacao";
 const STORAGE_POOL = "djen_proxy_pool";
 const STORAGE_ENABLED = "djen_proxy_pool_enabled";
 const OFFLINE_COOLDOWN_MS = 60_000;
-const PROXY_SLOT_TIMEOUT_MS = 25_000;
+const PROXY_SLOT_TIMEOUT_MS = 90_000;
 
 // Importa o cliente Supabase de forma lazy para evitar ciclo de import
 // e permitir que o pool funcione mesmo se a conexão falhar (cai pro cache local).
