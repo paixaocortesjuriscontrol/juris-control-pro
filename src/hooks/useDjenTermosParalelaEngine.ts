@@ -1418,6 +1418,7 @@ async function processarTermoEmTribunal(
       disableEdgeFallback: true,
       disableClientAdvogadoFallbacks: true,
       serverParity404AsError: true,
+      throwOnConsecutiveFailedPages: true,
     });
     addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
