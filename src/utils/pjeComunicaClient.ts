@@ -183,8 +183,6 @@ function optimizeItem(item: any) {
     item?.id_djen ??
     item?.codigoComunicacao ??
     item?.codigo_comunicacao ??
-    item?.numeroComunicacao ??
-    item?.numero_comunicacao ??
     item?.idComunicacao ??
     item?.id_comunicacao ??
     item?.comunicacaoId ??
