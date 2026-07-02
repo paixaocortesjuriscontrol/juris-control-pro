@@ -364,7 +364,7 @@ export async function buscarPjeComunicaNoBrowser(
     s: String(params.siglaTribunal || '').toUpperCase(),
     di: params.dataInicio || '',
     df: params.dataFim || '',
-    p: params.page ?? 1,
+    p: params.page ?? 0,
     ps: params.pageSize ?? 50,
     fv: options?.forceVia || '',
   });
