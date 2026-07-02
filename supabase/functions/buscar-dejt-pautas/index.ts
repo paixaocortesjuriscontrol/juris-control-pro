@@ -225,7 +225,10 @@ const MAX_PDF_BYTES = 80 * 1024 * 1024; // 80 MB
  * imediatamente após o uso para manter RAM/CPU sob controle em cadernos grandes
  * (TRT1/TRT2/TRT5).
  */
-async function* iteratePdfPages(uint8: Uint8Array): AsyncGenerator<string> {
+async function* iteratePdfPages(
+  uint8: Uint8Array,
+  opts?: { pageStart?: number; pageEnd?: number; onNumPages?: (n: number) => void },
+): AsyncGenerator<string> {
   // IMPORTANTE: usar o mesmo pdfjs-dist do Browser. `unpdf` extraía texto
   // diferente em alguns DEJTs (ex.: TRT10), deixando pautas reais invisíveis
   // no Servidor embora aparecessem no Browser.
@@ -238,7 +241,10 @@ async function* iteratePdfPages(uint8: Uint8Array): AsyncGenerator<string> {
   }).promise;
   try {
     const numPages = pdf.numPages ?? 0;
-    for (let i = 1; i <= numPages; i++) {
+    if (opts?.onNumPages) opts.onNumPages(numPages);
+    const start = Math.max(1, opts?.pageStart ?? 1);
+    const end = Math.min(numPages, opts?.pageEnd ?? numPages);
+    for (let i = start; i <= end; i++) {
       try {
         const page = await pdf.getPage(i);
         try {
