@@ -222,11 +222,10 @@ const AnaliseDjenServidor = () => {
   const [descartadasPage, setDescartadasPage] = useState(1);
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
-  // O backend já entrega apenas as publicações ÚNICAS (flag persistido na tabela
-  // via trigger). Trazemos um teto bem alto para que a tela mostre TUDO de uma
-  // vez — sem precisar do botão "Carregar mais" para o caso típico (~1k-3k cards).
-  const INITIAL_LIST_LIMIT = 20000;
-  const LOAD_MORE_INCREMENT = 20000;
+  // Carrega a primeira página rapidamente. Não buscar milhares de publicações
+  // completas antes de renderizar — os totalizadores contam, a lista pagina.
+  const INITIAL_LIST_LIMIT = 500;
+  const LOAD_MORE_INCREMENT = 500;
   const [listLimit, setListLimit] = useState(INITIAL_LIST_LIMIT);
 
   // Paginação apenas de APRESENTAÇÃO (client-side): renderizar 12k+ cards
@@ -506,12 +505,8 @@ const AnaliseDjenServidor = () => {
     // com a listagem principal.
     incluirDescartadas: false,
     page: 1,
-    // PERFORMANCE: nunca pedir 100k linhas — o banco já filtra/dedupa/conta.
-    // A página atual usa paginação progressiva via `listLimit`, que cresce
-    // com o botão "Carregar mais". O backend agora aplica tribunal e
-    // data de disponibilização, então não precisamos baixar tudo para
-    // recalcular cards no cliente.
-    pageSize: Math.min(listLimit, 20000),
+    // PERFORMANCE: lista paginada; totalizadores ficam separados dos cards.
+    pageSize: listLimit,
     desabilitarLista: tipoOrigem === 'datajud' || tipoOrigem === 'descartada',
     desabilitarStats: tipoOrigem === 'datajud' || tipoOrigem === 'descartada' || tipoOrigem === 'djet-pautas',
   });
@@ -5140,7 +5135,7 @@ const AnaliseDjenServidor = () => {
                 Carregar mais {Math.min(DISPLAY_PAGE_SIZE, allPublicacoes.length - totalRenderizadoNaTela)}
               </Button>
             )}
-            {tipoOrigem !== 'descartada' && !visibleIdsSet && temMaisResultados && !coordenacaoFiltroEfetivo && (
+            {tipoOrigem !== 'descartada' && !visibleIdsSet && temMaisResultados && (
               <Button
                 type="button"
                 variant="outline"
