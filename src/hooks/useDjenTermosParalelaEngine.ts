@@ -1338,7 +1338,6 @@ async function processarTribunalTrack(
         }, monId);
 
         syncExecutionProgress();
-        await abortableDelay(CONFIG.delay_between_terms, signal);
       }
     }
 
@@ -1477,9 +1476,9 @@ async function processarTermoEmTribunal(
       onPoolVia: (via) => registrarViaTrack(tribunal, tipoTrack ?? mapMonTipoToWorkerTipo(mon.tipo), via, monIdTrack),
       forceVia: forceViaOverride ?? undefined,
       fallbackToDirect: forceViaOverride === DIRECT_SLOT_ID,
-      // Igual ao DJEN Servidor: cada unit fica pinada em UMA VPS. Sem
-      // rotacionar chamadas do mesmo termo entre múltiplas VPS do pool.
-      fallbackToPool: false,
+      // Igual ao DJEN Servidor: se a VPS da unit falha com 5xx/timeout, tenta
+      // outra VPS do pool antes de desistir daquele par (mon, dia, tribunal).
+      fallbackToPool: true,
     });
     addResults(resp.items, matchMeta);
     ultimoErro = resp.lastError ?? null;
