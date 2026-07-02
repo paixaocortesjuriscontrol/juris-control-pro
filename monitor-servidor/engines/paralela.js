@@ -832,11 +832,14 @@ function contemTermo(conteudo, mon, pub) {
   if (tipo === "advogado") {
     if (validarAdvogadoMetadados(pub, mon.oab, mon.termo_busca)) return true;
     if (validarAdvogadoSecaoAdvogados(pub, mon.oab, mon.termo_busca)) return true;
+    // Fallback: nome como frase contígua no teor (a API já filtrou por nomeAdvogado)
+    if (validarAdvogadoNoConteudo(pub, conteudo, mon.termo_busca)) return true;
     for (const t of mon.termos_or || []) {
       const p = parsearTermoOr(t);
       if (!p) continue;
       if (validarAdvogadoMetadados(pub, p.oabDigits, p.nome)) return true;
       if (validarAdvogadoSecaoAdvogados(pub, p.oabDigits, p.nome)) return true;
+      if (validarAdvogadoNoConteudo(pub, conteudo, p.nome)) return true;
     }
     return false;
   }
