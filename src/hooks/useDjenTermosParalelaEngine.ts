@@ -1446,10 +1446,24 @@ async function processarTermoEmTribunal(
     }
   };
 
+  const incluirResgatesOutraCoordenacao = async () => {
+    if (signal.aborted) return;
+    try {
+      const resgatadas = await buscarPublicacoesJaEncontradasEmOutraCoordenacaoBrowser(mon, diaYmd, tribunal);
+      if (resgatadas.length > 0) {
+        addResults(resgatadas, { __resgatadaCrossCoordBrowser: true });
+        console.log(`[DJEN Paralela][${tribunal}] Resgate cross-coord browser: ${resgatadas.length} candidata(s) para ${mon.termo_busca}`);
+      }
+    } catch (e: any) {
+      console.warn(`[DJEN Paralela][${tribunal}] resgate cross-coord browser erro:`, e?.message || e);
+    }
+  };
+
   // Caminho rápido: items vindos de uma busca agrupada (OR no palavraChave),
   // já pré-filtrados para casarem com este `mon`. Pula a chamada de rede.
   if (preloaded) {
     addResults(preloaded.items);
+    await incluirResgatesOutraCoordenacao();
     if (signal.aborted) {
       return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
     }
@@ -1635,6 +1649,12 @@ async function processarTermoEmTribunal(
     ultimoErro = e?.message || 'Falha de busca';
     if (isRecoverableVpsFailure(e)) throw e;
   }
+
+  if (signal.aborted) {
+    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+  }
+
+  await incluirResgatesOutraCoordenacao();
 
   if (signal.aborted) {
     return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
