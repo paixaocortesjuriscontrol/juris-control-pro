@@ -1059,6 +1059,7 @@ export function useComparadorAnalise() {
         if (bByKey.has(k)) continue;
         const meta = keyToBucket.get(k);
         const cid = meta?.coordenacaoId || (r.coordenacao_id || "sem_coord");
+        const audit = auditExclusiva("so_servidor", r);
         detalhes.push({
           coordenacaoId: cid,
           coordenacaoNome: coordNome.get(cid) || "Sem coordenação",
@@ -1076,7 +1077,7 @@ export function useComparadorAnalise() {
           execucao_servidor_status: null,
           execucao_servidor_agendada_para: null,
           execucao_servidor_finalizada_em: null,
-          provavel_causa: provavelCausa("so_servidor", r),
+          ...audit,
         });
       }
       for (const [k, r] of bByKey) {
@@ -1084,6 +1085,7 @@ export function useComparadorAnalise() {
         const meta = keyToBucket.get(k);
         const cid = meta?.coordenacaoId || (r.coordenacao_id || "sem_coord");
         const execInfo = execInfoForRow(r);
+        const audit = auditExclusiva("so_browser", r);
         detalhes.push({
           coordenacaoId: cid,
           coordenacaoNome: coordNome.get(cid) || "Sem coordenação",
@@ -1101,7 +1103,7 @@ export function useComparadorAnalise() {
           execucao_servidor_status: execInfo?.status || null,
           execucao_servidor_agendada_para: execInfo?.agendado_para || null,
           execucao_servidor_finalizada_em: execInfo?.finalizado_em || null,
-          provavel_causa: provavelCausa("so_browser", r),
+          ...audit,
         });
       }
       detalhes.sort((a, b) => {
