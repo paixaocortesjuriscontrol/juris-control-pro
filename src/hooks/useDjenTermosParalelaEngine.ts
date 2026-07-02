@@ -2335,7 +2335,6 @@ async function executarLoop(
     // ========================================================================
     // DISPATCH PULL-DOWN — sem trava rígida entre bandas, igual ao Servidor.
     // ========================================================================
-    let bandAtual = 0;
     const emProcessamentoPorBand = [0, 0, 0];
 
     const pickNextUnit = (_viaId: string): WorkUnit | null => {
@@ -2343,7 +2342,6 @@ async function executarLoop(
       // de maior prioridade disponível (0→1→2), sem esperar banda drenar.
       for (let b = 0; b < bands.length; b++) {
         if (bands[b].length > 0) {
-          bandAtual = b;
           return bands[b].shift() as WorkUnit;
         }
       }
