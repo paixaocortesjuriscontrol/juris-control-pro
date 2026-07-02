@@ -398,9 +398,11 @@ async function _buscarPjeComunicaNoBrowserImpl(
     qp.set("texto", texto);
   }
 
-  // 2) Melhorias para cobertura/precisão:
-  //    - Para advogado, preferir parâmetros nativos (numeroOab/ufOab), pois alguns tribunais
-  //      respondem melhor assim do que via texto "OAB 123 UF".
+  // 2) Advogado: espelhar a consulta oficial do Comunica.
+  //    Quando há `nomeAdvogado`, a rota primária deve enviar SOMENTE
+  //    `nomeAdvogado` (+ tribunal/data). Misturar `numeroOab/ufOab` na mesma
+  //    URL restringe o resultado da API e faz editais coletivos sumirem
+  //    (caso Osmar Mendes/TJDFT em 01/07/2026).
   if (params.tipo === "advogado") {
     // Normalização para evitar falhas silenciosas na API:
     // - OAB pode vir com máscara/pontuação
@@ -423,29 +425,19 @@ async function _buscarPjeComunicaNoBrowserImpl(
       qp.set("ufOab", "TODAS");
       qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado.trim()));
       console.log(`[PJE Comunica] Suplemento UF=TODAS → numeroOab=${oab}, ufOab=TODAS, nomeAdvogado=${normalizeAccents(nomeAdvogado)}`);
-    } else if (ufValida && oab) {
-      // UF específica: busca por OAB/UF + nomeAdvogado para cobertura máxima
-      qp.set("numeroOab", oab);
-      qp.set("ufOab", uf);
-      if (nomeAdvogado) {
-        // Normalizar acentos do nomeAdvogado — o parâmetro de busca da API aceita sem acentos
-        // e a busca funciona melhor assim (confirmado em testes manuais)
-        qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado.trim()));
-        console.log(`[PJE Comunica] UF=${uf} → buscando por numeroOab: ${oab}, ufOab: ${uf}, nomeAdvogado: ${normalizeAccents(nomeAdvogado)}`);
-      }
-    } else if (oab && nomeAdvogado) {
-      // UF "TODAS", lista de UFs ou sem UF: enviar APENAS nomeAdvogado (sem numeroOab).
+    } else if (nomeAdvogado) {
+      // Regra principal para QUALQUER UF: enviar APENAS nomeAdvogado.
       // CRÍTICO: Adicionar numeroOab junto com nomeAdvogado ALTERA os resultados da API,
       // fazendo publicações desaparecerem. A URL que funciona no portal oficial usa
-      // APENAS nomeAdvogado (ex: ?nomeAdvogado=OSMAR+MENDES+PAIXAO+CORTES&siglaTribunal=TST)
+      // APENAS nomeAdvogado (ex: ?siglaTribunal=TJDFT&...&nomeAdvogado=OSMAR...)
       qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado.trim()));
-      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando APENAS por nomeAdvogado: ${normalizeAccents(nomeAdvogado)} (sem numeroOab para não restringir resultados)`);
-    } else if (nomeAdvogado) {
-      // Sem OAB: busca só pelo nome — normalizar acentos para melhor cobertura
-      qp.set("nomeAdvogado", normalizeAccents(nomeAdvogado.trim()));
-      console.log(`[PJE Comunica] UF=${uf || 'vazio'} → buscando por nomeAdvogado: ${normalizeAccents(nomeAdvogado)}`);
+      console.log(`[PJE Comunica] Advogado → buscando APENAS por nomeAdvogado: ${normalizeAccents(nomeAdvogado)} (UF/OAB ignoradas na rota primária para não restringir resultados)`);
+    } else if (ufValida && oab) {
+      // Sem nome cadastrado: usar OAB/UF como último recurso.
+      qp.set("numeroOab", oab);
+      qp.set("ufOab", uf);
     } else if (oab) {
-      // Tem OAB mas sem UF e sem nome: enviar OAB sem UF como última tentativa
+      // Tem OAB mas sem UF e sem nome: enviar OAB sem UF como última tentativa.
       qp.set("numeroOab", oab);
     }
   }
@@ -647,24 +639,43 @@ async function _buscarPjeComunicaNoBrowserImpl(
       const ufValida = ufUnica && uf !== "TODAS" && uf !== "UNDEFINED";
       const nome = nomeAdvogado;
 
-      // UF=TODAS já usa a URL oficial cross-UF por nomeAdvogado.
-      // Não repetir a mesma página nem misturar `texto`/OAB, pois isso triplica
-      // chamadas, cria resultados inconsistentes e acelera 429 nas VPS.
+      // Se não há UF específica, não existe fallback OAB/UF seguro.
       if (!ufValida) {
         return first;
       }
 
-      // 2a) Tentar adicionar `nomeAdvogado` junto com OAB (portal oficial usa isso)
-      if (nome && oab) {
-        const qp2 = new URLSearchParams(qp);
-        qp2.set('nomeAdvogado', nome.trim());
+      // 2a) Fallback controlado: só se a rota oficial por nome voltou vazia,
+      // tentar OAB/UF separadamente. Nunca misturar com nomeAdvogado na mesma URL.
+      if (oab) {
+        const qp2 = new URLSearchParams();
+        qp2.set('numeroOab', oab);
+        qp2.set('ufOab', uf);
+        if (params.siglaTribunal) qp2.set('siglaTribunal', params.siglaTribunal);
+        if (params.dataInicio) qp2.set('dataDisponibilizacaoInicio', params.dataInicio);
+        if (params.dataFim) qp2.set('dataDisponibilizacaoFim', params.dataFim);
+        qp2.set('pagina', String(page));
+        qp2.set('tamanhoPagina', String(pageSize));
+        qp2.set('page', String(page));
+        qp2.set('size', String(pageSize));
+        qp2.set('itensPorPagina', String(pageSize));
+        console.log(`[PJE Comunica] Fallback advogado: rota OAB/UF separada numeroOab=${oab}, ufOab=${uf}`);
         const second = await doRequest(qp2);
         if (second.items.length > 0) return second;
       }
 
-      // 2b) Tentar adicionar `texto` junto com OAB (alguns tribunais aceitam melhor assim)
+      // 2b) Último fallback OAB/UF + texto, separado da rota por nome.
       if (texto && (oab || ufValida)) {
-        const qp3 = new URLSearchParams(qp);
+        const qp3 = new URLSearchParams();
+        if (oab) qp3.set('numeroOab', oab);
+        if (ufValida) qp3.set('ufOab', uf);
+        if (params.siglaTribunal) qp3.set('siglaTribunal', params.siglaTribunal);
+        if (params.dataInicio) qp3.set('dataDisponibilizacaoInicio', params.dataInicio);
+        if (params.dataFim) qp3.set('dataDisponibilizacaoFim', params.dataFim);
+        qp3.set('pagina', String(page));
+        qp3.set('tamanhoPagina', String(pageSize));
+        qp3.set('page', String(page));
+        qp3.set('size', String(pageSize));
+        qp3.set('itensPorPagina', String(pageSize));
         qp3.set('texto', texto);
         const third = await doRequest(qp3);
         if (third.items.length > 0) return third;
