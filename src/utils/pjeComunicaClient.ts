@@ -797,6 +797,7 @@ export async function buscarPjeComunicaPaginado(
     disableEdgeFallback?: boolean;
     serverParity404AsError?: boolean;
     disableClientAdvogadoFallbacks?: boolean;
+    throwOnConsecutiveFailedPages?: boolean;
   }
 ): Promise<PjeComunicaPaginatedResponse> {
   const maxPages = options?.maxPages;
@@ -981,6 +982,9 @@ export async function buscarPjeComunicaPaginado(
           await abortableSleep(delayMs, options?.signal);
         }
         continue;
+      }
+      if (continueUntilEmpty && options?.throwOnConsecutiveFailedPages) {
+        throw e;
       }
       truncated = true;
       break;
