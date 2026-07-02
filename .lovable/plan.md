@@ -1,35 +1,49 @@
-**Diagnóstico exato**
+Você tem razão: minha proposta anterior de “suplemento por texto” não era paridade com o Servidor.
 
-A diferença quase tripla não é uma diferença real entre Browser e Servidor. É erro de critério no totalizador da tela **Análise DJEN**:
+O diagnóstico correto é este:
 
-- A lista/print do Browser mostra **1.344** porque está contando publicações **capturadas hoje em BRT** (`created_at` de 02/07 BRT).
-- O totalizador/RPC passou a contar por **data_publicacao/data_disponibilizacao de hoje**, o que inclui publicações capturadas em execuções anteriores, mas com publicação/disponibilização em 02/07.
-- No banco, para 02/07/2026:
-  - Browser por captura BRT: **1.344**
-  - Browser por data de publicação/disponibilização: **3.925**
-  - Servidor por captura BRT: **1.347**
-  - Servidor por data de publicação/disponibilização: **3.930**
-- Ou seja: o “quase triplo” vem de misturar **data jurídica da publicação** com **data da captura/execução**.
+- O Servidor não precisou de busca suplementar.
+- O Servidor achou os 3 na Coordenação Dr. Thomás porque o motor do Servidor tem resgate entre coordenações dentro da própria tabela `publicacoes_djen_servidor`.
+- Os mesmos 3 `id_djen` já existem também no Browser em outras coordenações, mas não na Coordenação Dr. Thomás:
+  - `656901356` — Browser achou em Coordenação Santander Cível
+  - `656937583` — Browser achou em Coordenação Santander Cível e Santander Trabalhista
+  - `657205246` — Browser achou em Coordenação Dra. Vanessa Gomes - TST e Santander Trabalhista
+- Portanto, a diferença persiste porque o Browser não está aplicando o mesmo resgate cross-coordenação isolado que o Servidor aplica.
 
-**Plano de correção**
+Regra de isolamento mantida:
 
-1. **Padronizar “Somente Hoje” na Análise DJEN**
-   - Na tela Browser (`Análise DJEN`), usar `created_at` em BRT para o filtro “Somente Hoje”, igual ao número que a tela já está mostrando/listando.
-   - Manter o campo manual “Data Disponibilização” como filtro jurídico específico quando o usuário quiser buscar pela data da publicação.
+- Browser só pode ler/escrever `publicacoes_djen`.
+- Servidor só pode ler/escrever `publicacoes_djen_servidor`.
+- O comparador pode ler as duas apenas para diagnóstico visual/CSV.
 
-2. **Ajustar a RPC de totalizadores do Browser**
-   - Corrigir `get_djen_stats_per_user` para, quando não houver `dataDisponibilizacao` manual, contar por captura BRT (`created_at`) e não por `data_publicacao/data_disponibilizacao`.
-   - Preservar a regra Kurier: Kurier sempre por captura BRT.
+Plano de implementação:
 
-3. **Alinhar listagem e cards**
-   - Garantir que `totalHoje`, `Não Lidas`, `Por Termos` e “Publicações Únicas” usem o mesmo critério da lista.
-   - Evitar que os cards mostrem 3.900 enquanto a lista mostra 1.300.
+1. Corrigir o motor `DJEN Termos Browser` para ter o mesmo resgate cross-coordenação do Servidor, mas usando somente `publicacoes_djen`.
+   - Buscar, no mesmo dia e tribunal, publicações já capturadas por outras coordenações do próprio Browser.
+   - Validar novamente pelo mesmo monitoramento da coordenação alvo.
+   - Para advogado, continuar validando somente em advogados/metadados/seção Advogado(s).
+   - Persistir na coordenação alvo com `coordenacao_id` dela, sem usar a tabela do Servidor.
 
-4. **Não mexer no motor de busca**
-   - Não alterar execução DJEN, validação de termos, deduplicação do motor ou isolamento Browser/Servidor.
-   - A mudança é apenas de critério de filtro/contagem da tela de análise.
+2. Chamar esse resgate no mesmo ponto lógico do Servidor: após a busca principal do termo/tribunal/dia.
+   - Se a API não devolver a publicação diretamente para Dr. Thomás, mas ela já existir em outra coordenação do Browser, o Browser deve copiar/resgatar para Dr. Thomás.
+   - Isso espelha o motivo pelo qual o Servidor funciona.
 
-5. **Validação após implementar**
-   - Conferir no banco que a tela Browser volta a mostrar aproximadamente **1.344** para 02/07 BRT.
-   - Conferir que a tela Servidor fica próxima (**1.347**) usando o mesmo critério.
-   - Conferir que ao preencher manualmente “Data Disponibilização”, o filtro continua buscando pela data jurídica da publicação.
+3. Não adicionar busca suplementar por texto, não alterar parâmetros da API e não misturar tabelas.
+   - A rota de busca continua igual à do Servidor.
+   - A correção é de resgate isolado, não de nova estratégia de busca.
+
+4. Melhorar o CSV do comparador para explicar exatamente a diferença.
+   - Adicionar colunas de auditoria:
+     - `motivo_exato`
+     - `existe_na_mesma_origem_outra_coord`
+     - `coords_mesma_origem_outra_coord`
+     - `capturado_na_mesma_origem_em`
+     - `existe_na_outra_origem_outra_coord`
+     - `coords_outra_origem_outra_coord`
+   - Para este caso, o CSV deve indicar algo como:
+     - `browser_tem_em_outra_coord_mas_nao_resgatou_para_coord_alvo`
+     - e listar as coordenações Browser onde cada `id_djen` já existia.
+
+5. Resultado esperado após nova execução Browser da Coordenação Dr. Thomás:
+   - Os 3 `id_djen` devem ser resgatados de outras coordenações do próprio Browser para Dr. Thomás.
+   - O comparador deve reduzir a diferença `Só Servidor = 3` para `0`, se não houver nova instabilidade/dados novos no período.
