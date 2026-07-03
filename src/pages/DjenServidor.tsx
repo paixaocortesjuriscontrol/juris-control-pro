@@ -459,6 +459,7 @@ function ExecucoesPanel() {
       if (tipoFiltro !== "todos" && e.tipo !== tipoFiltro) return false;
       if (statusFiltro === "sucesso" && e.status !== "concluido") return false;
       if (statusFiltro === "cancelado" && e.status !== "cancelado") return false;
+      if (statusFiltro === "falhou" && e.status !== "falhou") return false;
       if (statusFiltro === "erro" && e.status !== "erro") return false;
       if (dataFiltro) {
         const ref = e.iniciado_em || e.agendado_para || e.created_at;
@@ -496,10 +497,10 @@ function ExecucoesPanel() {
             <Select value={statusFiltro} onValueChange={setStatusFiltro}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="cancelado">Cancelado</SelectItem>
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="sucesso">Sucesso</SelectItem>
                 <SelectItem value="cancelado">Cancelado</SelectItem>
+                <SelectItem value="falhou">Falhou</SelectItem>
                 <SelectItem value="erro">Com erro</SelectItem>
               </SelectContent>
             </Select>
