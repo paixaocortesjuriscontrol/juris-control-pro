@@ -762,6 +762,7 @@ export function useComparadorAnalise() {
         tribunal?: string | null;
         data_publicacao?: string | null;
         data_disponibilizacao?: string | null;
+        fonte?: string | null;
         created_at?: string | null;
       };
 
