@@ -1,72 +1,62 @@
-# Por que o DJEN Termos Servidor termina antes que o Browser
+## Diagnóstico
 
-Correção da análise anterior: os dois motores compartilham o **mesmo pool de 13 VPS** (`djen_proxy_pool` / `workers_djen_vps`) e o mesmo endpoint PJE Comunica. A diferença de velocidade **não é concorrência de rede** — é overhead de execução e política de espera no cliente.
+A busca DJEN Pautas Servidor **está passando a data BRT correta** (`2026-07-03`) para os DEJTs. Verificado:
 
-## Onde a diferença realmente aparece (código medido)
+- `brtNow()` em `executar-djet-pautas-agendado/index.ts:32-38` usa `toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" })` — sempre BRT.
+- A execução de hoje (`ac762183…`, `iniciado_em 12:00 UTC = 09:00 BRT`) tem `janela: { dataInicio: "2026-07-03", dataFim: "2026-07-03" }` — correto.
+- 41 publicações de pauta inseridas hoje.
 
-### 1. Delays "de segurança" só existem no Browser
-`useDjenTermosParalelaEngine.ts` → `CONFIG`:
-- `delay_between_terms: 1000 ms`
-- `delay_between_pages: 400 ms`
-- `delay_between_parte_or: 800 ms`
-- `delay_between_advogado_or: 1800 ms`
-- `retry_base_delay: 8000 ms`
+**Porém**: no banco, `publicacoes_djen_servidor.data_disponibilizacao` foi gravada como `2026-07-03 00:00:00+00` (meia-noite UTC). Como a coluna é `timestamptz` e o front renderiza em BRT (UTC-3), esse valor vira **02/07/2026 21:00 BRT** — daí a advogada vê "data de ontem".
 
-No `supabase/functions/monitorar-djen/index.ts` **não há delays entre termos/páginas/OR** — só `fetchWithRetry` com `baseDelay = 3000 ms` acionado *apenas em 429/erro*. Em uma busca típica isso soma centenas de segundos extras por coordenação no Browser.
+Causa: linha 283 grava `m.dataPublicacao` como string YMD (`"2026-07-03"`), que o Postgres interpreta como `00:00:00 UTC`. O mesmo acontece com `data_publicacao` na linha 284. Já existe convenção no projeto (memória `djen-publication-date-and-timezone-normalization`) de normalizar para **12:00 UTC** para que o dia BRT seja igual ao dia UTC.
 
-### 2. Serialização por "bucket de host" (só no Browser)
-Browser força `HOST_BUCKET_LIMITS['pje-comunica']` — mesmo com 13 VPS livres, só N workers podem bater no bucket lógico `pje-comunica` ao mesmo tempo. O Servidor não tem esse teto: cada invocação de `monitorar-djen` é isolada.
+## Plano
 
-### 3. Modelo de invocação das VPS
-- **Servidor**: dispara N Edge Functions/VPS em paralelo, cada uma processa seu shard end‑to‑end e grava direto no Postgres com service‑role. O disparador não espera round‑trip por chamada — é fan‑out.
-- **Browser**: `await` sequencial por unidade dentro do worker (`worker(v)`), com cooldown por VPS quando alguma dá 429 (linhas 1274‑1303). Um 429 em qualquer VPS pausa aquele worker inteiro.
+### 1. Corrigir gravação em `executar-djet-pautas-agendado/index.ts` (persistMatches)
 
-### 4. Custo de UI no Browser
-Para cada publicação encontrada o Browser:
-- faz `insert/upsert` unitário no Supabase (round‑trip do IP do usuário),
-- invalida React Query,
-- re‑renderiza o card de progresso (`concorrencia`, `mensagem`, contadores por tribunal),
-- valida no DOM/estado.
+Trocar as duas linhas do insert:
 
-O Servidor grava em lotes direto no Postgres, sem render nem invalidação.
+```ts
+data_disponibilizacao: m.dataPublicacao,
+data_publicacao: calcularDataPublicacaoYmd(m.dataPublicacao),
+```
 
-### 5. Rescues e validações extra em série
-Browser roda `validarAdvogadoNoContent`, Metadata Rescue e Cross‑coordination Rescue **no mesmo thread** do worker. O Servidor faz isso paralelo por shard.
+por:
 
-### 6. Recuperação de erros
-- Servidor: 4 tentativas com backoff a partir de 3 s.
-- Browser: `retry_base_delay: 8000 ms` + retentativa em outra VPS + cooldown local. Um único tribunal instável (STF hoje) drena minutos.
+```ts
+data_disponibilizacao: `${m.dataPublicacao}T12:00:00Z`,
+data_publicacao: `${calcularDataPublicacaoYmd(m.dataPublicacao)}T12:00:00Z`,
+```
 
-## Resumo
-Mesma frota de VPS, mesma API upstream. O Servidor é mais rápido porque **não tem delays de UX, não tem bucket‑lock por host lógico, dispara em fan‑out sem esperar round‑trip, grava em lote e não renderiza UI**. Somando, no Browser cada publicação custa ~1–2 s extras de espera artificial + overhead de UI/insert.
+Isso mantém o dia BRT igual ao dia UTC (12:00 UTC = 09:00 BRT, ambos = mesma data).
 
-## Plano para acelerar o Browser
+### 2. Backfill das pautas gravadas hoje com timestamp errado
 
-### A. Alinhar delays ao Servidor
-Em `src/hooks/useDjenTermosParalelaEngine.ts`:
-- `delay_between_terms`: 1000 → **0 ms** (Servidor não tem)
-- `delay_between_pages`: 400 → **0 ms**
-- `delay_between_parte_or`: 800 → **150 ms** (mantém margem mínima)
-- `delay_between_advogado_or`: 1800 → **300 ms**
-- `retry_base_delay`: 8000 → **3000 ms** (igual ao Servidor)
+Migração pontual para consertar as ~41 linhas de hoje (e ontem, se houver o mesmo problema):
 
-### B. Relaxar bucket lock quando há VPS livres
-- Se todas as chamadas passam por VPS distintas (IP distinto), **não contar contra o mesmo bucket** `pje-comunica`. Aplicar `HOST_BUCKET_LIMITS` apenas quando a via é `Direto` (sem VPS).
-- Ganho: elimina serialização artificial que hoje deixa VPS ociosas.
+```sql
+UPDATE publicacoes_djen_servidor
+SET data_disponibilizacao = date_trunc('day', data_disponibilizacao) + interval '12 hours',
+    data_publicacao       = date_trunc('day', data_publicacao)       + interval '12 hours'
+WHERE tipo_publicacao = 'pauta'
+  AND created_at > now() - interval '3 days'
+  AND extract(hour from data_disponibilizacao at time zone 'UTC') = 0;
+```
 
-### C. Fan‑out real por VPS
-- Trocar o modelo "worker sequencial por via" por **fila compartilhada com N=13 workers concorrentes**, um por VPS habilitada, sem `await` cruzado entre eles.
-- Um 429 numa VPS marca só aquela VPS em cooldown; as outras 12 continuam sem pausa.
+(Filtro `hour = 0` evita mexer em linhas já normalizadas.)
 
-### D. Insert em lote e progresso throttled
-- Acumular publicações em memória e fazer `upsert` a cada **50 itens ou 2 s**, o que vier primeiro.
-- Throttle do `setState` de progresso a **500 ms** (via `requestAnimationFrame`) — hoje re‑renderiza a cada publicação.
+### 3. Verificar simetria com Termos Servidor
 
-### E. Fast‑fail em tribunal sobrecarregado
-- Reaproveitar o classificador "Upstream Overload" do Servidor: se um tribunal (STF) retorna 500 "busy" 2× seguidas, marcar como *deferred* e re‑enfileirar no final, sem consumir workers.
+Ler rapidamente o insert de `publicacoes_djen_servidor` no motor de Termos para confirmar se ele já usa `T12:00:00Z`. Se estiver usando o mesmo padrão errado (YMD puro), aplicar a mesma correção — mas **sem alterar comportamento de busca**, só o formato do timestamp gravado.
 
-### O que NÃO muda
-- Pool de 13 VPS, endpoint PJE Comunica, tabelas oficiais (`publicacoes_djen`), regras parte × advogado estrito, dedupe, ordem STF por último.
+### 4. Verificação
 
-## Ganho esperado
-Com A+B+C+D o Browser deve rodar em **~30–40% do tempo atual**, próximo (não igual) ao Servidor. A diferença residual é o custo inevitável de UI + IP único do usuário para gravação no Supabase.
+- Rodar novo scheduler manualmente (`force: true`) para uma coordenação e conferir no banco que `data_disponibilizacao` fica `2026-07-03 12:00:00+00`.
+- No front, a pauta deve aparecer como `03/07/2026`.
+
+## O que NÃO muda
+
+- Lógica de busca DEJT / janela de datas / horários do dispatcher.
+- Regras de dedup, coordenação, `calcularDataPublicacaoYmd` (recesso, fins de semana).
+- Isolamento Browser × Servidor.
+- Nenhuma alteração no motor Termos além do ajuste de gravação (item 3), se for o caso.

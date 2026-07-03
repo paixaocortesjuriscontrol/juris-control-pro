@@ -280,8 +280,10 @@ async function persistMatches(
       monitoramento_id: m.monitoramentoId,
       coordenacao_id: monitCoordMap.get(m.monitoramentoId) ?? null,
       hash_conteudo: m.hash,
-      data_disponibilizacao: m.dataPublicacao,
-      data_publicacao: calcularDataPublicacaoYmd(m.dataPublicacao),
+      // Normaliza para 12:00 UTC (= 09:00 BRT) para que o dia BRT seja igual
+      // ao dia UTC — evita que o front, em BRT (UTC-3), renderize como "ontem".
+      data_disponibilizacao: `${m.dataPublicacao}T12:00:00Z`,
+      data_publicacao: `${calcularDataPublicacaoYmd(m.dataPublicacao)}T12:00:00Z`,
       processo_numero: m.processo,
       conteudo: m.conteudo,
       fonte: m.fonte,
