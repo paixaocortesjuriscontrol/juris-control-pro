@@ -560,6 +560,53 @@ const AnaliseDjenServidor = () => {
     },
   });
 
+  // Contagem server-side de Kurier respeitando os principais filtros. Sem isso,
+  // o card Kurier ficava travado no total contido nas primeiras 500 publicações
+  // da RPC unificada quando a aba atual não era "kurier".
+  const { data: totalKurierServer = 0 } = useQuery({
+    queryKey: [
+      'analise-djen-servidor-kurier-count',
+      coordenacaoFiltroEfetivo,
+      apenasHojeEfetivo,
+      dataInicioDebounced,
+      dataFimDebounced,
+      dataDisponibilizacaoDebounced,
+      dataPublicacaoDebounced,
+      tribunalFiltro,
+      readStatus,
+    ],
+    staleTime: 30_000,
+    queryFn: async () => {
+      let q = (supabase as any)
+        .from('publicacoes_djen_servidor')
+        .select('id', { count: 'exact', head: true })
+        .eq('fonte', 'kurier');
+      if (coordenacaoFiltroEfetivo) q = q.eq('coordenacao_id', coordenacaoFiltroEfetivo);
+      if (readStatus === 'nao_lidas') q = q.eq('lida', false);
+      else if (readStatus === 'lidas') q = q.eq('lida', true);
+      if (tribunalFiltro) q = q.eq('tribunal', tribunalFiltro);
+      if (apenasHojeEfetivo) {
+        const hojeBrt = getHojeBrtISO();
+        q = q.gte('created_at', dateLocalToUTCRange(hojeBrt, false))
+             .lte('created_at', dateLocalToUTCRange(hojeBrt, true));
+      } else {
+        if (dataInicioDebounced) q = q.gte('created_at', dateLocalToUTCRange(dataInicioDebounced, false));
+        if (dataFimDebounced) q = q.lte('created_at', dateLocalToUTCRange(dataFimDebounced, true));
+      }
+      if (dataDisponibilizacaoDebounced) {
+        q = q.gte('data_disponibilizacao', dateLocalToUTCRange(dataDisponibilizacaoDebounced, false))
+             .lte('data_disponibilizacao', dateLocalToUTCRange(dataDisponibilizacaoDebounced, true));
+      }
+      if (dataPublicacaoDebounced) {
+        q = q.gte('data_publicacao', dateLocalToUTCRange(dataPublicacaoDebounced, false))
+             .lte('data_publicacao', dateLocalToUTCRange(dataPublicacaoDebounced, true));
+      }
+      const { count, error } = await q;
+      if (error) return 0;
+      return count ?? 0;
+    },
+  });
+
   // ===== DataJud (CNJ) query =====
   const { data: datajudResults = [], isLoading: isLoadingDatajud } = useQuery({
     queryKey: ['datajud-movimentacoes', coordenacaoFiltroEfetivo, apenasHoje, dataInicioDebounced, dataFimDebounced, termoBuscaDebounced, monitoramentoId, readStatus],
