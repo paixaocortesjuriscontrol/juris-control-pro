@@ -321,27 +321,36 @@ export function useComparadorPublicacoes(opts: { dataInicio: string; dataFim: st
   return useQuery({
     queryKey: ["djen-servidor", "comparador", opts.dataInicio, opts.dataFim, opts.coordenacaoId || "todas"],
     queryFn: async () => {
-      let servQ = supabase
-        .from("publicacoes_djen_servidor")
-        .select("processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, tribunal")
-        .gte("dedup_data_ref", opts.dataInicio)
-        .lte("dedup_data_ref", opts.dataFim)
-        .not("id_djen", "is", null)
-        .limit(5000);
-      let browQ = supabase
-        .from("publicacoes_djen")
-        .select("processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, tribunal")
-        .gte("dedup_data_ref", opts.dataInicio)
-        .lte("dedup_data_ref", opts.dataFim)
-        .not("id_djen", "is", null)
-        .limit(5000);
-      if (opts.coordenacaoId) {
-        servQ = servQ.eq("coordenacao_id", opts.coordenacaoId);
-        browQ = browQ.eq("coordenacao_id", opts.coordenacaoId);
-      }
-      const [serv, brow] = await Promise.all([servQ, browQ]);
-      if (serv.error) throw serv.error;
-      if (brow.error) throw brow.error;
+      // Supabase aplica um teto de 1000 linhas por request; para períodos com
+      // muitas publicações precisamos paginar via .range() até esgotar.
+      const cols =
+        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, tribunal";
+      const fetchAll = async (table: "publicacoes_djen_servidor" | "publicacoes_djen") => {
+        const out: any[] = [];
+        const pageSize = 1000;
+        for (let offset = 0; offset < 100000; offset += pageSize) {
+          let q = (supabase as any)
+            .from(table)
+            .select(cols)
+            .gte("dedup_data_ref", opts.dataInicio)
+            .lte("dedup_data_ref", opts.dataFim)
+            .not("id_djen", "is", null)
+            .range(offset, offset + pageSize - 1);
+          if (opts.coordenacaoId) q = q.eq("coordenacao_id", opts.coordenacaoId);
+          const { data, error } = await q;
+          if (error) throw error;
+          const rows = (data || []) as any[];
+          out.push(...rows);
+          if (rows.length < pageSize) break;
+        }
+        return out;
+      };
+      const [servRows, browRows] = await Promise.all([
+        fetchAll("publicacoes_djen_servidor"),
+        fetchAll("publicacoes_djen"),
+      ]);
+      const serv = { data: servRows } as { data: any[] };
+      const brow = { data: browRows } as { data: any[] };
 
       const key = (r: {
         coordenacao_id?: string | null;
