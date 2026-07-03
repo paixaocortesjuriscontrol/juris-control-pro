@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Server, Activity, FileSearch, GitCompare, PlayCircle, Loader2, CalendarIcon, CheckCircle2, XCircle, Clock, StopCircle, Zap, Newspaper, Radar } from "lucide-react";
@@ -448,14 +449,67 @@ function WorkersPanel() {
 }
 
 function ExecucoesPanel() {
-  const { data: execs = [], isLoading } = useExecucoesServidor(100);
+  const { data: execs = [], isLoading } = useExecucoesServidor(500);
+  const [tipoFiltro, setTipoFiltro] = useState<string>("todos");
+  const [statusFiltro, setStatusFiltro] = useState<string>("todos");
+  const [dataFiltro, setDataFiltro] = useState<string>("");
+
+  const filtrados = useMemo(() => {
+    return execs.filter((e) => {
+      if (tipoFiltro !== "todos" && e.tipo !== tipoFiltro) return false;
+      if (statusFiltro === "sucesso" && e.status !== "concluido") return false;
+      if (statusFiltro === "erro" && e.status !== "erro") return false;
+      if (dataFiltro) {
+        const ref = e.iniciado_em || e.agendado_para || e.created_at;
+        if (!ref) return false;
+        // Compara pelo dia em BRT
+        const ymdBrt = new Date(ref).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+        if (ymdBrt !== dataFiltro) return false;
+      }
+      return true;
+    });
+  }, [execs, tipoFiltro, statusFiltro, dataFiltro]);
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4" /> Execuções ao vivo</CardTitle>
-        <CardDescription>Realtime — últimas 100 execuções</CardDescription>
+        <CardDescription>Realtime — últimas 500 execuções (aplicar filtros abaixo)</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap gap-2 items-end">
+          <div className="min-w-[180px]">
+            <label className="text-xs text-muted-foreground">Tipo</label>
+            <Select value={tipoFiltro} onValueChange={setTipoFiltro}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas</SelectItem>
+                <SelectItem value="djen_paralela_servidor">DJEN Termos</SelectItem>
+                <SelectItem value="djet_pautas_servidor">DJEN Pautas</SelectItem>
+                <SelectItem value="kurier_servidor">DJEN Kurier</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="min-w-[160px]">
+            <label className="text-xs text-muted-foreground">Status</label>
+            <Select value={statusFiltro} onValueChange={setStatusFiltro}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="sucesso">Sucesso</SelectItem>
+                <SelectItem value="erro">Com erro</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Data de execução (BRT)</label>
+            <Input type="date" value={dataFiltro} onChange={(e) => setDataFiltro(e.target.value)} />
+          </div>
+          {dataFiltro && (
+            <Button variant="ghost" size="sm" onClick={() => setDataFiltro("")}>Limpar data</Button>
+          )}
+          <Badge variant="outline">{filtrados.length} resultados</Badge>
+        </div>
         {isLoading ? (
           <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
@@ -473,9 +527,9 @@ function ExecucoesPanel() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {execs.map((e) => (
+              {filtrados.map((e) => (
                 <TableRow key={e.id}>
-                  <TableCell className="text-xs">{e.tipo}</TableCell>
+                  <TableCell className="text-xs">{LABELS[e.tipo] || e.tipo}</TableCell>
                   <TableCell>{statusBadge(e.status)}</TableCell>
                   <TableCell className="font-mono text-xs">{e.worker_id || "—"}</TableCell>
                   <TableCell className="text-xs">{fmtDate(e.agendado_para)}</TableCell>
