@@ -569,13 +569,14 @@ function ComparadorPanel() {
   const exportarRelatorioCsv = () => {
     if (!data) return;
     const header1 = "# Comparador DJEN Servidor x Browser — comparação independente por coordenação + id_djen. A mesma publicação em coordenações diferentes conta separadamente; dedup só remove repetição dentro da mesma coordenação.\n";
-    const cols1 = "coordenacao,total_servidor,total_browser,em_ambos,so_servidor,so_browser,duplicadas_servidor,duplicadas_browser,djen_unico\n";
+    const cols1 = "coordenacao,total_servidor,total_browser_djen,total_browser_oficial,em_ambos,so_servidor,so_browser,duplicadas_servidor,duplicadas_browser,djen_unico\n";
     const body1 = data.globalLinhas
       .map((l) =>
         [
           JSON.stringify(l.coordenacaoNome),
           l.totalServidor,
           l.totalBrowser,
+          l.totalBrowserOficial,
           l.emAmbos,
           l.soServidor,
           l.soBrowser,
@@ -601,14 +602,14 @@ function ComparadorPanel() {
       )
       .join("\n");
     const header2 = "\n\n# Resumo por fonte de busca (DJEN x Kurier x Pautas)\n";
-    const cols2 = "coordenacao,djen_servidor,djen_browser,djen_unico,kurier,pautas_tst\n";
+    const cols2 = "coordenacao,djen_servidor,djen_browser,djen_unico,kurier,pautas_tst,browser_oficial\n";
     const body2 = data.porFonte.linhas
       .map((l) => [
         JSON.stringify(l.coordenacaoNome),
-        l.djenServidor, l.djenBrowser, l.djenUnico, l.kurier, l.pautas ?? "",
+        l.djenServidor, l.djenBrowser, l.djenUnico, l.kurier, l.pautas ?? "", l.browserOficial,
       ].join(","))
       .join("\n");
-    const totais = `\n\n# Totais\nfonte,total\nDJEN_servidor,${data.porFonte.totais.djenServidor}\nDJEN_browser,${data.porFonte.totais.djenBrowser}\nDJEN_unico,${data.porFonte.totais.djenUnico}\nKurier,${data.porFonte.totais.kurier}\nPautas_TST,${data.porFonte.totais.pautas}\n`;
+    const totais = `\n\n# Totais\nfonte,total\nDJEN_servidor,${data.porFonte.totais.djenServidor}\nDJEN_browser,${data.porFonte.totais.djenBrowser}\nDJEN_unico,${data.porFonte.totais.djenUnico}\nKurier,${data.porFonte.totais.kurier}\nPautas_TST,${data.porFonte.totais.pautas}\nBrowser_oficial_analise_djen,${data.porFonte.totais.browserOficial}\n`;
     const header3 = "\n\n# Publicações exclusivas por origem (detalhamento auditável)\n";
     const cols3 = "coordenacao,origem,provavel_causa,motivo_exato,existe_na_mesma_origem_outra_coord,coords_mesma_origem_outra_coord,capturado_na_mesma_origem_em,existe_na_outra_origem_outra_coord,coords_outra_origem_outra_coord,capturado_na_outra_origem_em,tipo_pesquisa,termo_busca,monitoramento_id,tribunal,processo,data_publicacao,data_disponibilizacao,id_djen,capturado_em,execucao_id_servidor,execucao_servidor_status,execucao_servidor_agendada_para,execucao_servidor_finalizada_em\n";
     const body3 = (data.detalhes || [])
@@ -682,19 +683,19 @@ function ComparadorPanel() {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2"><GitCompare className="h-4 w-4" /> Comparador Servidor × Browser</CardTitle>
         <CardDescription>
-          O primeiro quadro e os cards são a comparação <strong>independente por coordenação</strong>, usando somente
-          <code> coordenação + id_djen</code>, sem separar advogado/parte/palavra-chave. A quebra por tipo é só
-          diagnóstico secundário do monitoramento que capturou a publicação.
+          O comparador usa <strong>data da captura (BRT)</strong>. O total “Browser oficial” é a mesma base da tela
+          Análise DJEN (<code>publicacoes_djen</code>, incluindo Kurier/Pautas); os cards “Servidor × Browser DJEN”
+          comparam apenas DJEN Termos por <code> coordenação + id_djen</code>.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex gap-2 items-end flex-wrap">
           <div>
-            <label className="text-xs text-muted-foreground">Início</label>
+            <label className="text-xs text-muted-foreground">Início captura (BRT)</label>
             <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">Fim</label>
+            <label className="text-xs text-muted-foreground">Fim captura (BRT)</label>
             <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
           </div>
           <div className="min-w-[220px]">
@@ -743,9 +744,10 @@ function ComparadorPanel() {
         )}
         {data && (
           <div className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
               <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total Servidor</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.totais.servidor}</CardContent></Card>
-              <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total Browser</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.totais.browser}</CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total Browser DJEN</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.totais.browser}</CardContent></Card>
+              <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Browser oficial Análise</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-primary">{data.totais.browserOficial}</CardContent></Card>
               <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Em ambos</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.totais.emAmbos}</CardContent></Card>
               <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Só Servidor</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-emerald-700">{data.totais.soServidor}</CardContent></Card>
               <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Só Browser</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-amber-700">{data.totais.soBrowser}</CardContent></Card>
@@ -762,7 +764,8 @@ function ComparadorPanel() {
                       <TableRow>
                         <TableHead>Coordenação</TableHead>
                         <TableHead className="text-right">Servidor</TableHead>
-                        <TableHead className="text-right">Browser</TableHead>
+                        <TableHead className="text-right">Browser DJEN</TableHead>
+                        <TableHead className="text-right">Browser oficial</TableHead>
                         <TableHead className="text-right">Em ambos</TableHead>
                         <TableHead className="text-right">Só Servidor</TableHead>
                         <TableHead className="text-right">Só Browser</TableHead>
@@ -777,6 +780,7 @@ function ComparadorPanel() {
                           <TableCell className="font-medium">{l.coordenacaoNome}</TableCell>
                           <TableCell className="text-right">{l.totalServidor}</TableCell>
                           <TableCell className="text-right">{l.totalBrowser}</TableCell>
+                          <TableCell className="text-right font-medium text-primary">{l.totalBrowserOficial}</TableCell>
                           <TableCell className="text-right">{l.emAmbos}</TableCell>
                           <TableCell className="text-right text-emerald-700">{l.soServidor}</TableCell>
                           <TableCell className="text-right text-amber-700">{l.soBrowser}</TableCell>
@@ -790,17 +794,18 @@ function ComparadorPanel() {
                 </div>
               )}
               <p className="text-[11px] text-muted-foreground">
-                Esta é a leitura principal: cada linha conta chaves únicas <code>coordenação + id_djen</code>; a mesma publicação em coordenações diferentes é contada separadamente.
+                Esta é a leitura principal do DJEN: cada linha conta chaves únicas <code>coordenação + id_djen</code>. A coluna “Browser oficial” mostra o total da tela Análise DJEN para a mesma data de captura BRT.
               </p>
             </div>
 
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">Resumo por fonte de busca</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">DJEN (único servidor+browser)</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-primary">{data.porFonte.totais.djenUnico}</CardContent></Card>
                 <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Kurier</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.porFonte.totais.kurier}</CardContent></Card>
                 <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Pautas TST {coordenacaoId ? "(N/A c/ filtro)" : ""}</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{coordenacaoId ? "—" : data.porFonte.totais.pautas}</CardContent></Card>
-                <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total geral</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.porFonte.totais.djenUnico + data.porFonte.totais.kurier + (coordenacaoId ? 0 : data.porFonte.totais.pautas)}</CardContent></Card>
+                <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Browser oficial Análise</CardTitle></CardHeader><CardContent className="text-xl font-semibold text-primary">{data.porFonte.totais.browserOficial}</CardContent></Card>
+                <Card><CardHeader className="pb-2"><CardTitle className="text-xs text-muted-foreground">Total geral oficial</CardTitle></CardHeader><CardContent className="text-xl font-semibold">{data.porFonte.totais.browserOficial + (coordenacaoId ? 0 : data.porFonte.totais.pautas)}</CardContent></Card>
               </div>
               {data.porFonte.linhas.length > 0 && (
                 <div className="border rounded-md overflow-x-auto">
@@ -813,6 +818,7 @@ function ComparadorPanel() {
                         <TableHead className="text-right">DJEN (único)</TableHead>
                         <TableHead className="text-right">Kurier</TableHead>
                         <TableHead className="text-right">Pautas TST</TableHead>
+                        <TableHead className="text-right">Browser oficial</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -824,6 +830,7 @@ function ComparadorPanel() {
                           <TableCell className="text-right font-medium text-primary">{l.djenUnico}</TableCell>
                           <TableCell className="text-right">{l.kurier}</TableCell>
                           <TableCell className="text-right text-muted-foreground">{l.pautas ?? "—"}</TableCell>
+                          <TableCell className="text-right font-medium text-primary">{l.browserOficial}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -831,7 +838,7 @@ function ComparadorPanel() {
                 </div>
               )}
               <p className="text-[11px] text-muted-foreground">
-                <strong>DJEN</strong> = comparador servidor × browser (chave dedupada). <strong>Kurier</strong> = registros únicos em <code>kurier_publicacoes_raw</code> recebidos no período, atribuídos por credencial → coordenação. <strong>Pautas TST</strong> = registros em <code>pautas_tst</code> com <code>data_julgamento</code> no período (sem coordenação — exibido apenas no total).
+                <strong>Browser oficial Análise</strong> = registros da tabela oficial <code>publicacoes_djen</code> por data de captura BRT, incluindo Kurier/Pautas, para bater com a tela Análise DJEN. <strong>DJEN</strong> = comparador servidor × browser apenas de DJEN Termos (chave dedupada). <strong>Pautas TST</strong> = registros em <code>pautas_tst</code> com <code>data_julgamento</code> no período (sem coordenação — exibido apenas no total).
               </p>
             </div>
 

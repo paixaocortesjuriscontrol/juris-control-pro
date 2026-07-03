@@ -3,6 +3,19 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// Converte YYYY-MM-DD (dia BRT) para UTC. As telas de Análise DJEN usam
+// created_at/captura em BRT quando o usuário filtra "hoje"/período; o
+// comparador precisa usar a mesma janela para não comparar com
+// data_disponibilizacao e mostrar números menores/diferentes.
+const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (isEnd) {
+    const nextDay = new Date(year, month - 1, day + 1);
+    return `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, "0")}-${String(nextDay.getDate()).padStart(2, "0")}T02:59:59.999Z`;
+  }
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T03:00:00Z`;
+};
+
 export interface ConfigServidor {
   id: string;
   tipo: string;
@@ -400,6 +413,7 @@ export interface ComparadorAnaliseRelatorio {
     coordenacaoNome: string;
     totalServidor: number;
     totalBrowser: number;
+    totalBrowserOficial: number;
     emAmbos: number;
     soServidor: number;
     soBrowser: number;
@@ -416,6 +430,7 @@ export interface ComparadorAnaliseRelatorio {
     soBrowser: number;
     duplicadasServidor: number;
     duplicadasBrowser: number;
+    browserOficial: number;
   };
   porFonte: {
     totais: {
@@ -424,6 +439,7 @@ export interface ComparadorAnaliseRelatorio {
       djenUnico: number; // união de servidor+browser
       kurier: number;
       pautas: number;
+      browserOficial: number;
     };
     linhas: Array<{
       coordenacaoId: string;
@@ -433,6 +449,7 @@ export interface ComparadorAnaliseRelatorio {
       djenUnico: number;
       kurier: number;
       pautas: number | null; // null = não atribuível por coord
+      browserOficial: number;
     }>;
   };
   detalhes: Array<{
@@ -494,36 +511,56 @@ export function useComparadorAnalise() {
       origem?: "todos" | "termos" | "pautas" | "kurier";
     }): Promise<ComparadorAnaliseRelatorio> => {
       const baseCols =
-        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, data_publicacao, tipo_publicacao, created_at, execucao_id";
-      const inicioDispoTs = `${opts.dataInicio}T00:00:00Z`;
-      const fimDispoTs = `${opts.dataFim}T23:59:59Z`;
+        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, data_publicacao, tipo_publicacao, fonte, created_at, execucao_id";
+      const inicioCapturaTs = dateLocalToUTCRange(opts.dataInicio, false);
+      const fimCapturaTs = dateLocalToUTCRange(opts.dataFim, true);
       const origem = opts.origem || "todos";
       let servQ = supabase
         .from("publicacoes_djen_servidor")
         .select(baseCols)
-        .gte("data_disponibilizacao", inicioDispoTs)
-        .lte("data_disponibilizacao", fimDispoTs)
+        .gte("created_at", inicioCapturaTs)
+        .lte("created_at", fimCapturaTs)
         .not("id_djen", "is", null)
         .limit(20000);
       let browQ = supabase
         .from("publicacoes_djen")
         .select(baseCols)
-        .gte("data_disponibilizacao", inicioDispoTs)
-        .lte("data_disponibilizacao", fimDispoTs)
+        .gte("created_at", inicioCapturaTs)
+        .lte("created_at", fimCapturaTs)
+        .in("status", ["encontrada", "duplicada"])
         .not("id_djen", "is", null)
+        .limit(20000);
+      // Total oficial da tela Análise DJEN: conta tudo que está em
+      // publicacoes_djen no período de captura BRT, incluindo Kurier/Pautas.
+      // Este número é separado da comparação DJEN Servidor × Browser, que deve
+      // continuar comparando DJEN com DJEN e não misturar fontes migradas.
+      let browserOfficialQ = supabase
+        .from("publicacoes_djen")
+        .select(baseCols)
+        .gte("created_at", inicioCapturaTs)
+        .lte("created_at", fimCapturaTs)
+        .in("status", ["encontrada", "duplicada"])
         .limit(20000);
       if (opts.coordenacaoId) {
         servQ = servQ.eq("coordenacao_id", opts.coordenacaoId);
         browQ = browQ.eq("coordenacao_id", opts.coordenacaoId);
+        browserOfficialQ = browserOfficialQ.eq("coordenacao_id", opts.coordenacaoId);
       }
 
       // Filtro por origem aplicado nas duas tabelas DJEN.
       // - termos: tudo que NÃO é pauta (intimacao + parte + nulos legados)
       // - pautas: somente tipo_publicacao='pauta'
       // - kurier: zera as linhas DJEN (kurier vem só do bloco kurier_publicacoes_raw)
-      if (origem === "termos") {
+      if (origem === "todos") {
+        // Kurier fica no bloco próprio/total oficial; não pode inflar o
+        // comparativo DJEN Browser contra DJEN Servidor.
+        browQ = browQ.or("fonte.is.null,fonte.neq.kurier");
+      } else if (origem === "termos") {
         servQ = servQ.or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta");
         browQ = browQ
+          .or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta")
+          .or("fonte.is.null,fonte.neq.kurier");
+        browserOfficialQ = browserOfficialQ
           .or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta")
           .or("fonte.is.null,fonte.neq.kurier");
       } else if (origem === "pautas") {
@@ -531,22 +568,20 @@ export function useComparadorAnalise() {
         browQ = browQ
           .eq("tipo_publicacao", "pauta")
           .or("fonte.is.null,fonte.neq.kurier");
+        browserOfficialQ = browserOfficialQ
+          .eq("tipo_publicacao", "pauta")
+          .or("fonte.is.null,fonte.neq.kurier");
       } else if (origem === "kurier") {
         // Não busca DJEN — força resultado vazio mantendo a query válida.
         servQ = servQ.eq("id_djen", "__NONE__");
         browQ = browQ.eq("id_djen", "__NONE__");
+        browserOfficialQ = browserOfficialQ.eq("fonte", "kurier");
       }
 
       // Filtros adicionais (kurier / pautas)
       const inicioTs = `${opts.dataInicio}T00:00:00Z`;
       const fimTs = `${opts.dataFim}T23:59:59Z`;
 
-      let kurierQ = supabase
-        .from("kurier_publicacoes_raw")
-        .select("id_kurier, credencial_id, recebida_em")
-        .gte("recebida_em", inicioTs)
-        .lte("recebida_em", fimTs)
-        .limit(50000);
       let pautasQ = supabase
         .from("pautas_tst")
         .select("id, processo_numero, data_julgamento")
@@ -556,9 +591,6 @@ export function useComparadorAnalise() {
 
       // Quando o usuário escolhe uma origem específica, zeramos os blocos
       // das outras fontes para evitar números confusos no resumo.
-      if (origem === "termos" || origem === "pautas") {
-        kurierQ = kurierQ.eq("id_kurier", "__NONE__");
-      }
       if (origem === "termos" || origem === "kurier") {
         pautasQ = pautasQ.eq("id", "00000000-0000-0000-0000-000000000000");
       }
@@ -578,22 +610,20 @@ export function useComparadorAnalise() {
         }
         return out;
       };
-      const [servRows, browRows, kurierRows, pautasRows, coords, monits, vincKurier] = await Promise.all([
+      const [servRows, browRows, browserOfficialRows, pautasRows, coords, monits] = await Promise.all([
         paginate(servQ),
         paginate(browQ),
-        paginate(kurierQ).catch((e) => { console.warn("[comparador] kurier:", e?.message); return []; }),
+        paginate(browserOfficialQ),
         paginate(pautasQ).catch((e) => { console.warn("[comparador] pautas:", e?.message); return []; }),
         supabase.from("coordenacoes").select("id, nome"),
         supabase.from("monitoramentos_djen").select("id, tipo, coordenacao_id, termo_busca, tribunais"),
-        supabase.from("kurier_credencial_coordenacoes").select("credencial_id, coordenacao_id"),
       ]);
       const serv = { data: servRows, error: null as any };
       const brow = { data: browRows, error: null as any };
-      const kurierRes = { data: kurierRows, error: null as any };
+      const browserOfficialRes = { data: browserOfficialRows, error: null as any };
       const pautasRes = { data: pautasRows, error: null as any };
       if (coords.error) throw coords.error;
       if (monits.error) throw monits.error;
-      if (vincKurier.error) console.warn("[comparador] kurier_credencial_coordenacoes:", vincKurier.error.message);
 
       const coordNome = new Map<string, string>(
         (coords.data || []).map((c: any) => [c.id, c.nome]),
@@ -732,6 +762,7 @@ export function useComparadorAnalise() {
         tribunal?: string | null;
         data_publicacao?: string | null;
         data_disponibilizacao?: string | null;
+        fonte?: string | null;
         created_at?: string | null;
       };
 
@@ -766,15 +797,15 @@ export function useComparadorAnalise() {
           supabase
             .from("publicacoes_djen_servidor")
             .select("id_djen, coordenacao_id, created_at")
-            .gte("data_disponibilizacao", inicioDispoTs)
-            .lte("data_disponibilizacao", fimDispoTs)
+            .gte("created_at", inicioCapturaTs)
+            .lte("created_at", fimCapturaTs)
             .in("id_djen", ids)
             .limit(50000),
           supabase
             .from("publicacoes_djen")
             .select("id_djen, coordenacao_id, created_at")
-            .gte("data_disponibilizacao", inicioDispoTs)
-            .lte("data_disponibilizacao", fimDispoTs)
+            .gte("created_at", inicioCapturaTs)
+            .lte("created_at", fimCapturaTs)
             .in("id_djen", ids)
             .limit(50000),
         ]);
@@ -983,34 +1014,21 @@ export function useComparadorAnalise() {
       void allKeys;
 
       // ============ Por fonte de busca (Kurier / Pautas / DJEN) ============
-      const credToCoords = new Map<string, string[]>();
-      for (const v of (vincKurier.data || []) as Array<{ credencial_id: string; coordenacao_id: string }>) {
-        const arr = credToCoords.get(v.credencial_id) || [];
-        arr.push(v.coordenacao_id);
-        credToCoords.set(v.credencial_id, arr);
-      }
-
-      // Kurier por coord — atribui cada publicação a todas as coords vinculadas
-      // à credencial; dedupe id_kurier por coord. Respeita filtro de coord se houver.
-      const kurierPorCoord = new Map<string, Set<string>>();
-      for (const k of (kurierRes.data || []) as Array<{ id_kurier: string; credencial_id: string }>) {
-        const coordsArr = credToCoords.get(k.credencial_id) || ["sem_coord"];
-        for (const cid of coordsArr) {
-          if (opts.coordenacaoId && cid !== opts.coordenacaoId) continue;
-          let s = kurierPorCoord.get(cid);
-          if (!s) { s = new Set(); kurierPorCoord.set(cid, s); }
-          s.add(k.id_kurier);
+      // A Análise DJEN oficial lê publicacoes_djen. Como Kurier servidor grava
+      // nessa tabela oficial, o comparador precisa exibir esse total oficial
+      // separado do comparativo DJEN Termos Servidor × Browser.
+      const browserOfficialRowsAll = (browserOfficialRes.data || []) as Row[];
+      const browserOficialPorCoord = new Map<string, number>();
+      const kurierPorCoord = new Map<string, number>();
+      for (const r of browserOfficialRowsAll) {
+        const cid = r.coordenacao_id || "sem_coord";
+        browserOficialPorCoord.set(cid, (browserOficialPorCoord.get(cid) || 0) + 1);
+        if ((r.fonte || "").toLowerCase() === "kurier") {
+          kurierPorCoord.set(cid, (kurierPorCoord.get(cid) || 0) + 1);
         }
       }
-      const kurierTotal = new Set<string>(
-        ((kurierRes.data || []) as Array<{ id_kurier: string; credencial_id: string }>)
-          .filter((k) => {
-            if (!opts.coordenacaoId) return true;
-            const arr = credToCoords.get(k.credencial_id) || [];
-            return arr.includes(opts.coordenacaoId);
-          })
-          .map((k) => k.id_kurier),
-      ).size;
+      const browserOficialTotal = browserOfficialRowsAll.length;
+      const kurierTotal = Array.from(kurierPorCoord.values()).reduce((sum, n) => sum + n, 0);
 
       // Pautas: global (sem coord). Quando há filtro de coord, omitimos pautas.
       const pautasTotal = opts.coordenacaoId ? 0 : ((pautasRes.data || []) as unknown[]).length;
@@ -1032,6 +1050,7 @@ export function useComparadorAnalise() {
         ...djenServPorCoord.keys(),
         ...djenBrowPorCoord.keys(),
         ...kurierPorCoord.keys(),
+        ...browserOficialPorCoord.keys(),
       ]);
       const fonteLinhas = Array.from(coordIdsFonte).map((cid) => {
         const sSet = djenServPorCoord.get(cid) || new Set<string>();
@@ -1043,14 +1062,16 @@ export function useComparadorAnalise() {
           djenServidor: sSet.size,
           djenBrowser: bSet.size,
           djenUnico: uni.size,
-          kurier: (kurierPorCoord.get(cid) || new Set<string>()).size,
+          kurier: kurierPorCoord.get(cid) || 0,
           pautas: null as number | null,
+          browserOficial: browserOficialPorCoord.get(cid) || 0,
         };
       }).sort((a, b) => a.coordenacaoNome.localeCompare(b.coordenacaoNome, "pt-BR"));
 
       const globalLinhas = Array.from(new Set<string>([
         ...djenServPorCoord.keys(),
         ...djenBrowPorCoord.keys(),
+        ...browserOficialPorCoord.keys(),
         ...duplicadasPorCoordServidor.keys(),
         ...duplicadasPorCoordBrowser.keys(),
       ])).map((cid) => {
@@ -1065,6 +1086,7 @@ export function useComparadorAnalise() {
           coordenacaoNome: coordNome.get(cid) || "Sem coordenação",
           totalServidor: sSet.size,
           totalBrowser: bSet.size,
+          totalBrowserOficial: browserOficialPorCoord.get(cid) || 0,
           emAmbos,
           soServidor,
           soBrowser,
@@ -1159,6 +1181,7 @@ export function useComparadorAnalise() {
           soBrowser: totSoBrow,
           duplicadasServidor: sumMap(duplicadasPorCoordServidor),
           duplicadasBrowser: sumMap(duplicadasPorCoordBrowser),
+          browserOficial: browserOficialTotal,
         },
         porFonte: {
           totais: {
@@ -1167,6 +1190,7 @@ export function useComparadorAnalise() {
             djenUnico: djenUnicoTotal,
             kurier: kurierTotal,
             pautas: pautasTotal,
+            browserOficial: browserOficialTotal,
           },
           linhas: fonteLinhas,
         },
