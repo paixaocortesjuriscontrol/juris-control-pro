@@ -563,21 +563,36 @@ export function useComparadorAnalise() {
         pautasQ = pautasQ.eq("id", "00000000-0000-0000-0000-000000000000");
       }
 
-      const [serv, brow, coords, monits, kurierRes, pautasRes, vincKurier] = await Promise.all([
-        servQ,
-        browQ,
+      // Paginação em blocos de 1000 para contornar o teto padrão do PostgREST.
+      // Sem isso, o comparador ficava travado nos primeiros 1000 registros de
+      // cada tabela e apresentava sempre os mesmos números.
+      const paginate = async (baseQuery: any) => {
+        const out: any[] = [];
+        const pageSize = 1000;
+        for (let offset = 0; offset < 200000; offset += pageSize) {
+          const { data, error } = await baseQuery.range(offset, offset + pageSize - 1);
+          if (error) throw error;
+          const rows = (data || []) as any[];
+          out.push(...rows);
+          if (rows.length < pageSize) break;
+        }
+        return out;
+      };
+      const [servRows, browRows, kurierRows, pautasRows, coords, monits, vincKurier] = await Promise.all([
+        paginate(servQ),
+        paginate(browQ),
+        paginate(kurierQ).catch((e) => { console.warn("[comparador] kurier:", e?.message); return []; }),
+        paginate(pautasQ).catch((e) => { console.warn("[comparador] pautas:", e?.message); return []; }),
         supabase.from("coordenacoes").select("id, nome"),
         supabase.from("monitoramentos_djen").select("id, tipo, coordenacao_id, termo_busca, tribunais"),
-        kurierQ,
-        pautasQ,
         supabase.from("kurier_credencial_coordenacoes").select("credencial_id, coordenacao_id"),
       ]);
-      if (serv.error) throw serv.error;
-      if (brow.error) throw brow.error;
+      const serv = { data: servRows, error: null as any };
+      const brow = { data: browRows, error: null as any };
+      const kurierRes = { data: kurierRows, error: null as any };
+      const pautasRes = { data: pautasRows, error: null as any };
       if (coords.error) throw coords.error;
       if (monits.error) throw monits.error;
-      if (kurierRes.error) console.warn("[comparador] kurier:", kurierRes.error.message);
-      if (pautasRes.error) console.warn("[comparador] pautas:", pautasRes.error.message);
       if (vincKurier.error) console.warn("[comparador] kurier_credencial_coordenacoes:", vincKurier.error.message);
 
       const coordNome = new Map<string, string>(
