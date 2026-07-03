@@ -723,6 +723,15 @@ export function useComparadorAnalise() {
         .in("status", ["concluido", "executando", "erro", "cancelado"])
         .limit(2000);
       const execRes = await execQ;
+      const execucoesPeriodoRes = await supabase
+        .from("execucoes_servidor")
+        .select("id, tipo, status, agendado_para, iniciado_em, finalizado_em, resultado")
+        .in("tipo", ["djen_paralela_servidor", "kurier_servidor", "djet_pautas_servidor"])
+        .gte("agendado_para", inicioCapturaTs)
+        .lte("agendado_para", fimCapturaTs)
+        .order("agendado_para", { ascending: true })
+        .limit(2000);
+      if (execucoesPeriodoRes.error) throw execucoesPeriodoRes.error;
       type ExecInfo = {
         id: string | null;
         status: string | null;
