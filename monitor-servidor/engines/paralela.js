@@ -672,7 +672,7 @@ async function registrarDescartadaServidor(sb, pub, mon, tribunal, dia, motivo, 
     execucao_id: execucaoId || null,
   };
   const { error } = await sb.from("publicacoes_djen_servidor").upsert(row, {
-    onConflict: "coordenacao_id,id_djen",
+    onConflict: "coordenacao_id,monitoramento_id,id_djen",
     ignoreDuplicates: true,
   });
   if (error) logDebug?.("paralela.descartada_persist_error", { monitoramentoId: mon.id, tribunal, dia, motivo, idDjen, error: error.message });
