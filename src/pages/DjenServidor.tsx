@@ -494,9 +494,12 @@ function ExecucoesPanel() {
 }
 
 function todayYmd(offsetDays = 0): string {
-  const d = new Date();
-  d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
+  const nowBrt = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  nowBrt.setDate(nowBrt.getDate() + offsetDays);
+  const y = nowBrt.getFullYear();
+  const m = String(nowBrt.getMonth() + 1).padStart(2, "0");
+  const d = String(nowBrt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function PublicacoesPanel() {
