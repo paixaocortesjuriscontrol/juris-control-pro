@@ -1050,6 +1050,7 @@ export function useComparadorAnalise() {
         ...djenServPorCoord.keys(),
         ...djenBrowPorCoord.keys(),
         ...kurierPorCoord.keys(),
+        ...browserOficialPorCoord.keys(),
       ]);
       const fonteLinhas = Array.from(coordIdsFonte).map((cid) => {
         const sSet = djenServPorCoord.get(cid) || new Set<string>();
@@ -1061,14 +1062,16 @@ export function useComparadorAnalise() {
           djenServidor: sSet.size,
           djenBrowser: bSet.size,
           djenUnico: uni.size,
-          kurier: (kurierPorCoord.get(cid) || new Set<string>()).size,
+          kurier: kurierPorCoord.get(cid) || 0,
           pautas: null as number | null,
+          browserOficial: browserOficialPorCoord.get(cid) || 0,
         };
       }).sort((a, b) => a.coordenacaoNome.localeCompare(b.coordenacaoNome, "pt-BR"));
 
       const globalLinhas = Array.from(new Set<string>([
         ...djenServPorCoord.keys(),
         ...djenBrowPorCoord.keys(),
+        ...browserOficialPorCoord.keys(),
         ...duplicadasPorCoordServidor.keys(),
         ...duplicadasPorCoordBrowser.keys(),
       ])).map((cid) => {
@@ -1083,6 +1086,7 @@ export function useComparadorAnalise() {
           coordenacaoNome: coordNome.get(cid) || "Sem coordenação",
           totalServidor: sSet.size,
           totalBrowser: bSet.size,
+          totalBrowserOficial: browserOficialPorCoord.get(cid) || 0,
           emAmbos,
           soServidor,
           soBrowser,
