@@ -1180,7 +1180,7 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       execucao_id: execucaoId || null,
     };
     // Não usar upsert aqui: a unicidade oficial é um índice parcial
-    // (coordenacao_id, id_djen) WHERE id_djen/coordenacao_id IS NOT NULL.
+    // (coordenacao_id, monitoramento_id, id_djen) WHERE campos-chave IS NOT NULL.
     // PostgREST não consegue inferir índice parcial via `onConflict`, então o
     // upsert falha e a publicação válida acabava contabilizada como descartada.
     // Como já consultamos a duplicidade acima, o caminho correto é INSERT e,
