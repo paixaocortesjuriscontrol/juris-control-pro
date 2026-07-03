@@ -796,15 +796,15 @@ export function useComparadorAnalise() {
           supabase
             .from("publicacoes_djen_servidor")
             .select("id_djen, coordenacao_id, created_at")
-            .gte("data_disponibilizacao", inicioDispoTs)
-            .lte("data_disponibilizacao", fimDispoTs)
+            .gte("created_at", inicioCapturaTs)
+            .lte("created_at", fimCapturaTs)
             .in("id_djen", ids)
             .limit(50000),
           supabase
             .from("publicacoes_djen")
             .select("id_djen, coordenacao_id, created_at")
-            .gte("data_disponibilizacao", inicioDispoTs)
-            .lte("data_disponibilizacao", fimDispoTs)
+            .gte("created_at", inicioCapturaTs)
+            .lte("created_at", fimCapturaTs)
             .in("id_djen", ids)
             .limit(50000),
         ]);
