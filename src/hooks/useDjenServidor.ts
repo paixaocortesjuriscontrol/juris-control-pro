@@ -452,6 +452,32 @@ export interface ComparadorAnaliseRelatorio {
       browserOficial: number;
     }>;
   };
+  diagnostico: {
+    janelaCapturaInicioUtc: string;
+    janelaCapturaFimUtc: string;
+    servidorDjenTermos: number;
+    browserDjenTermos: number;
+    browserOficial: number;
+    browserKurier: number;
+    browserPautas: number;
+    execucoesDjenServidor: number;
+    execucoesKurierServidor: number;
+    execucoesPautasServidor: number;
+    motivoDiferencaPrincipal: string;
+  };
+  execucoesServidor: Array<{
+    id: string;
+    tipo: string;
+    status: string | null;
+    agendado_para: string | null;
+    iniciado_em: string | null;
+    finalizado_em: string | null;
+    novas: number | null;
+    descartadas: number | null;
+    duplicatas: number | null;
+    monitoramentos: number | null;
+    vps: number | null;
+  }>;
   detalhes: Array<{
     coordenacaoId: string;
     coordenacaoNome: string;
