@@ -555,7 +555,7 @@ function PublicacoesPanel() {
 }
 
 function ComparadorPanel() {
-  const [dataInicio, setDataInicio] = useState(todayYmd(-7));
+  const [dataInicio, setDataInicio] = useState(todayYmd());
   const [dataFim, setDataFim] = useState(todayYmd());
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   const [origem, setOrigem] = useState<"todos" | "termos" | "pautas" | "kurier">("todos");
