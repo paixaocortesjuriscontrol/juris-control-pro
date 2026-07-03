@@ -1372,10 +1372,11 @@ async function run({ sb, payload, log, job }) {
       if (!statsCheckpointPorId.has(pi.id)) statsCheckpointPorId.set(pi.id, pi);
     }
   };
-  // Checkpoint: auto-retomada quando existe execução recente da MESMA janela
-  // que terminou em 'falhou'/'cancelado'/'erro' (ex.: reaper matou por heartbeat).
-  // Assim, ao clicar "Executar novamente" após falha, NÃO recomeça do zero.
-  // resetCheckpoint=true força recomeço total.
+  // Checkpoint: auto-retomada somente quando existe execução recente da MESMA
+  // janela que NÃO concluiu corretamente ('falhou'/'cancelado'/'erro').
+  // Execução concluída nunca é reaproveitada: clicar "Executar Servidor" deve
+  // refazer a busca real, não marcar tudo como "Já processado (checkpoint)".
+  // resetCheckpoint=true também força recomeço total.
   const forcarReset = !!payload?.resetCheckpoint;
   const usarCheckpoint = !forcarReset;
   if (!usarCheckpoint) {
@@ -1390,7 +1391,7 @@ async function run({ sb, payload, log, job }) {
       .from("execucoes_servidor")
       .select("id, status, payload, progresso, created_at")
       .eq("tipo", TIPO_ENGINE)
-      .in("status", ["cancelado", "erro", "concluido", "falhou"])
+      .in("status", ["cancelado", "erro", "falhou"])
       .order("created_at", { ascending: false })
       .limit(50);
     for (const ant of anteriores || []) {
