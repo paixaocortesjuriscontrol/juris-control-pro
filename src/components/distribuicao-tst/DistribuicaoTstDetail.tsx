@@ -73,6 +73,11 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const formRef = useRef<DistribuicaoTstFormHandle>(null);
   const bennerFormRef = useRef<DadosBennerFormHandle>(null);
   const [savingTop, setSavingTop] = useState(false);
+  // Lock reentrante para impedir que dois `handleSaveTop` rodem concorrentes
+  // (ex.: clicar "Salvar" e trocar de aba rapidamente). Sem isso, o segundo
+  // save podia sobrescrever o `reloadSavedRow` do primeiro e deixar a UI
+  // mostrando o valor antigo — origem do "às vezes não salva tudo".
+  const savingRef = useRef(false);
   const [saveVersion, setSaveVersion] = useState(0);
   const [prontoEnviar, setProntoEnviar] = useState(false);
   const [problemaJudit, setProblemaJudit] = useState(false);
@@ -339,6 +344,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   }, [bennerLoaded, processoNumero, fetchBennerByProcesso]);
 
   const handleSaveTop = async (options?: { silent?: boolean }): Promise<boolean> => {
+    if (savingRef.current) return false;
+    savingRef.current = true;
     setSavingTop(true);
     let saved = false;
     try {
@@ -454,6 +461,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       }
       return saved;
     } finally {
+      savingRef.current = false;
       setSavingTop(false);
     }
   };
@@ -591,7 +599,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         activationMode="manual"
         onValueChange={async (v) => {
           if (v === tab) return;
-          try { await handleSaveTop(); } catch { /* erros já são toastados em handleSaveTop */ }
+          // Auto-save silencioso ao trocar de aba: não toasta "Salvo!" em cada
+          // clique de aba — só o botão Salvar (superior) mostra confirmação.
+          try { await handleSaveTop({ silent: true }); } catch { /* erros já são toastados em handleSaveTop */ }
           setTab(v as any);
         }}
         className="w-full"
