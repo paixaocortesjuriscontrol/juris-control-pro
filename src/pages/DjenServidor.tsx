@@ -495,8 +495,10 @@ function ExecucoesPanel() {
             <Select value={statusFiltro} onValueChange={setStatusFiltro}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
+                <Select the exact content of the lines being replaced, not abbreviated>
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="sucesso">Sucesso</SelectItem>
+                <SelectItem value="cancelado">Cancelado</SelectItem>
                 <SelectItem value="erro">Com erro</SelectItem>
               </SelectContent>
             </Select>
