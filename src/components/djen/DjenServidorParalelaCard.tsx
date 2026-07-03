@@ -258,6 +258,25 @@ export function DjenServidorParalelaCard() {
     const payload: Record<string, unknown> = {
       dataInicio: ymd(dataInicio),
       dataFim: ymd(dataFim),
+      resetCheckpoint: true,
+    };
+    if (filtroCoordenacaoId) payload.coordenacaoId = filtroCoordenacaoId;
+    if (filtroMonitoramentoId) {
+      payload.monitoramentoIds = [filtroMonitoramentoId];
+    } else if (filtroTipo && monitoramentosFiltrados.length > 0) {
+      payload.monitoramentoIds = monitoramentosFiltrados.map((m) => m.id);
+    }
+    enfileirar.mutate({ tipo: "djen_paralela_servidor", payload });
+  }, [dataInicio, dataFim, enfileirar, filtroCoordenacaoId, filtroMonitoramentoId, filtroTipo, monitoramentosFiltrados]);
+
+  const handleRetomar = useCallback(() => {
+    if (!dataInicio || !dataFim) {
+      toast.error("Selecione data de início e fim");
+      return;
+    }
+    const payload: Record<string, unknown> = {
+      dataInicio: ymd(dataInicio),
+      dataFim: ymd(dataFim),
     };
     if (filtroCoordenacaoId) payload.coordenacaoId = filtroCoordenacaoId;
     if (filtroMonitoramentoId) {
@@ -440,7 +459,7 @@ export function DjenServidorParalelaCard() {
             Executar Servidor
           </Button>
           {(execStatus === "erro" || execStatus === "falhou" || execStatus === "cancelado") && (
-            <Button onClick={handleExecutar} disabled={isRunning || enfileirar.isPending} variant="outline" className="gap-2">
+            <Button onClick={handleRetomar} disabled={isRunning || enfileirar.isPending} variant="outline" className="gap-2">
               <RotateCcw className="h-4 w-4" />
               Retomar
             </Button>
