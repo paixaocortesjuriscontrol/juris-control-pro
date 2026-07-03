@@ -1181,6 +1181,7 @@ export function useComparadorAnalise() {
           soBrowser: totSoBrow,
           duplicadasServidor: sumMap(duplicadasPorCoordServidor),
           duplicadasBrowser: sumMap(duplicadasPorCoordBrowser),
+          browserOficial: browserOficialTotal,
         },
         porFonte: {
           totais: {
@@ -1189,6 +1190,7 @@ export function useComparadorAnalise() {
             djenUnico: djenUnicoTotal,
             kurier: kurierTotal,
             pautas: pautasTotal,
+            browserOficial: browserOficialTotal,
           },
           linhas: fonteLinhas,
         },
