@@ -179,6 +179,7 @@ function EngineCard({ cfg, onToggle, onConfig }: {
       dataInicio: ymd(dataInicio),
       dataFim: ymd(dataFim),
     };
+    if (isParalela) payload.resetCheckpoint = true;
     if (isParalela) {
       if (coordenacaoId) payload.coordenacaoId = coordenacaoId;
       if (monitoramentoId) payload.monitoramentoIds = [monitoramentoId];
