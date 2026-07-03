@@ -4148,10 +4148,10 @@ const AnaliseDjen = () => {
               <div className="space-y-1.5">
                 <Label className="text-xs md:text-sm">Período</Label>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant={filtroDia === 'hoje' ? 'default' : 'outline'} onClick={() => setFiltroDia('hoje')} disabled={tipoOrigem === 'descartada'}>
+                  <Button type="button" size="sm" variant={filtroDia === 'hoje' ? 'default' : 'outline'} onClick={() => setFiltroDia('hoje')}>
                     Somente Hoje
                   </Button>
-                  <Button type="button" size="sm" variant={filtroDia === 'todos' ? 'default' : 'outline'} onClick={() => setFiltroDia('todos')} disabled={tipoOrigem === 'descartada'}>
+                  <Button type="button" size="sm" variant={filtroDia === 'todos' ? 'default' : 'outline'} onClick={() => setFiltroDia('todos')}>
                     Todos os dias
                   </Button>
                 </div>
