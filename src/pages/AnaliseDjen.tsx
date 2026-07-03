@@ -512,6 +512,53 @@ const AnaliseDjen = () => {
     },
   });
 
+  // Contagem server-side de publicações Kurier respeitando os principais filtros.
+  // Sem isso, o card "Kurier" ficava travado no total que existia dentro das primeiras
+  // 500 publicações carregadas pela RPC unificada quando a aba atual não era "kurier".
+  const { data: totalKurierServer = 0 } = useQuery({
+    queryKey: [
+      'analise-djen-kurier-count',
+      coordenacaoFiltroEfetivo,
+      apenasHojeEfetivo,
+      dataInicioDebounced,
+      dataFimDebounced,
+      dataDisponibilizacaoDebounced,
+      dataPublicacaoDebounced,
+      tribunalFiltro,
+      readStatus,
+    ],
+    staleTime: 30_000,
+    queryFn: async () => {
+      let q = (supabase as any)
+        .from('publicacoes_djen')
+        .select('id', { count: 'exact', head: true })
+        .eq('fonte', 'kurier');
+      if (coordenacaoFiltroEfetivo) q = q.eq('coordenacao_id', coordenacaoFiltroEfetivo);
+      if (readStatus === 'nao_lidas') q = q.eq('lida', false);
+      else if (readStatus === 'lidas') q = q.eq('lida', true);
+      if (tribunalFiltro) q = q.eq('tribunal', tribunalFiltro);
+      if (apenasHojeEfetivo) {
+        const hojeBrt = getHojeBrtISO();
+        q = q.gte('created_at', dateLocalToUTCRange(hojeBrt, false))
+             .lte('created_at', dateLocalToUTCRange(hojeBrt, true));
+      } else {
+        if (dataInicioDebounced) q = q.gte('created_at', dateLocalToUTCRange(dataInicioDebounced, false));
+        if (dataFimDebounced) q = q.lte('created_at', dateLocalToUTCRange(dataFimDebounced, true));
+      }
+      if (dataDisponibilizacaoDebounced) {
+        q = q.gte('data_disponibilizacao', dateLocalToUTCRange(dataDisponibilizacaoDebounced, false))
+             .lte('data_disponibilizacao', dateLocalToUTCRange(dataDisponibilizacaoDebounced, true));
+      }
+      if (dataPublicacaoDebounced) {
+        q = q.gte('data_publicacao', dateLocalToUTCRange(dataPublicacaoDebounced, false))
+             .lte('data_publicacao', dateLocalToUTCRange(dataPublicacaoDebounced, true));
+      }
+      const { count, error } = await q;
+      if (error) return 0;
+      return count ?? 0;
+    },
+  });
+
   // ===== DataJud (CNJ) query =====
   const { data: datajudResults = [], isLoading: isLoadingDatajud } = useQuery({
     queryKey: ['datajud-movimentacoes', coordenacaoFiltroEfetivo, apenasHoje, dataInicioDebounced, dataFimDebounced, termoBuscaDebounced, monitoramentoId, readStatus],
@@ -3710,10 +3757,13 @@ const AnaliseDjen = () => {
   const totalProcessosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'processo').length;
   const totalDescartadasVisivel = allPublicacoes.filter(p => p.tipo_origem === 'descartada').length;
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
-  const totalKurierVisivel = useMemo(
-    () => mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length,
-    [mergedPublicacoes]
-  );
+  const totalKurierVisivel = useMemo(() => {
+    // Quando a aba Kurier está ativa, o total do servidor já corresponde exatamente
+    // ao filtro. Caso contrário, usamos a contagem paralela do banco para não ficar
+    // limitado às primeiras 500 publicações da RPC unificada.
+    if (tipoOrigem === 'kurier') return totalHoje;
+    return totalKurierServer || mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length;
+  }, [tipoOrigem, totalHoje, totalKurierServer, mergedPublicacoes]);
   // PERFORMANCE/CORREÇÃO: o backend agora aplica os filtros de data de
   // disponibilização e tribunal nas RPCs de contagem (get_djen_stats_per_user).
   // Portanto sempre usamos os totais do servidor — eles já consideram esses
