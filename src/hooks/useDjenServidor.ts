@@ -452,6 +452,32 @@ export interface ComparadorAnaliseRelatorio {
       browserOficial: number;
     }>;
   };
+  diagnostico: {
+    janelaCapturaInicioUtc: string;
+    janelaCapturaFimUtc: string;
+    servidorDjenTermos: number;
+    browserDjenTermos: number;
+    browserOficial: number;
+    browserKurier: number;
+    browserPautas: number;
+    execucoesDjenServidor: number;
+    execucoesKurierServidor: number;
+    execucoesPautasServidor: number;
+    motivoDiferencaPrincipal: string;
+  };
+  execucoesServidor: Array<{
+    id: string;
+    tipo: string;
+    status: string | null;
+    agendado_para: string | null;
+    iniciado_em: string | null;
+    finalizado_em: string | null;
+    novas: number | null;
+    descartadas: number | null;
+    duplicatas: number | null;
+    monitoramentos: number | null;
+    vps: number | null;
+  }>;
   detalhes: Array<{
     coordenacaoId: string;
     coordenacaoNome: string;
@@ -697,6 +723,15 @@ export function useComparadorAnalise() {
         .in("status", ["concluido", "executando", "erro", "cancelado"])
         .limit(2000);
       const execRes = await execQ;
+      const execucoesPeriodoRes = await supabase
+        .from("execucoes_servidor")
+        .select("id, tipo, status, agendado_para, iniciado_em, finalizado_em, resultado")
+        .in("tipo", ["djen_paralela_servidor", "kurier_servidor", "djet_pautas_servidor"])
+        .gte("agendado_para", inicioCapturaTs)
+        .lte("agendado_para", fimCapturaTs)
+        .order("agendado_para", { ascending: true })
+        .limit(2000);
+      if (execucoesPeriodoRes.error) throw execucoesPeriodoRes.error;
       type ExecInfo = {
         id: string | null;
         status: string | null;
@@ -1167,6 +1202,42 @@ export function useComparadorAnalise() {
         return (a.id_djen || a.key).localeCompare(b.id_djen || b.key, "pt-BR");
       });
 
+      const execucoesServidor = ((execucoesPeriodoRes.data || []) as Array<{
+        id: string;
+        tipo: string;
+        status: string | null;
+        agendado_para: string | null;
+        iniciado_em: string | null;
+        finalizado_em: string | null;
+        resultado?: Record<string, unknown> | null;
+      }>).map((e) => {
+        const r = e.resultado || {};
+        const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+        return {
+          id: e.id,
+          tipo: e.tipo,
+          status: e.status,
+          agendado_para: e.agendado_para,
+          iniciado_em: e.iniciado_em,
+          finalizado_em: e.finalizado_em,
+          novas: num(r.novas),
+          descartadas: num(r.descartadas),
+          duplicatas: num(r.duplicatas),
+          monitoramentos: num(r.monitoramentos),
+          vps: num(r.vps),
+        };
+      });
+      const countExec = (tipo: string) => execucoesServidor.filter((e) => e.tipo === tipo).length;
+      const browserKurier = browserOfficialRowsAll.filter((r) => (r.fonte || "").toLowerCase() === "kurier").length;
+      const browserPautas = browserOfficialRowsAll.filter((r: any) => {
+        const fonte = String(r.fonte || "").toLowerCase();
+        const tipo = String(r.tipo_publicacao || "").toLowerCase();
+        return fonte.includes("pauta") || tipo === "pauta";
+      }).length;
+      const motivoDiferencaPrincipal = browserOficialTotal > totServ
+        ? `A diferença principal é de fonte, não de DJEN Termos: o Browser oficial tem ${browserKurier} Kurier e ${browserPautas} Pautas no período. O comparativo DJEN Termos ficou Servidor ${totServ} × Browser ${totBrow}.`
+        : `No período, o total oficial do Browser não ficou acima do Servidor. O comparativo DJEN Termos ficou Servidor ${totServ} × Browser ${totBrow}.`;
+
       return {
         dataInicio: opts.dataInicio,
         dataFim: opts.dataFim,
@@ -1194,6 +1265,20 @@ export function useComparadorAnalise() {
           },
           linhas: fonteLinhas,
         },
+        diagnostico: {
+          janelaCapturaInicioUtc: inicioCapturaTs,
+          janelaCapturaFimUtc: fimCapturaTs,
+          servidorDjenTermos: totServ,
+          browserDjenTermos: totBrow,
+          browserOficial: browserOficialTotal,
+          browserKurier,
+          browserPautas,
+          execucoesDjenServidor: countExec("djen_paralela_servidor"),
+          execucoesKurierServidor: countExec("kurier_servidor"),
+          execucoesPautasServidor: countExec("djet_pautas_servidor"),
+          motivoDiferencaPrincipal,
+        },
+        execucoesServidor,
         detalhes,
         detalhesDuplicadas,
       };
