@@ -723,6 +723,14 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             const dv = (dado as any)?.[k];
             if (dv !== null && dv !== undefined && String(dv).trim() !== "") continue;
           }
+          // Nunca sobrescreve valor já persistido no registro (planilha/edição anterior).
+          const existingBase = base[k];
+          if (
+            existingBase !== null &&
+            existingBase !== undefined &&
+            !(typeof existingBase === "string" && existingBase.trim() === "") &&
+            !(Array.isArray(existingBase) && existingBase.length === 0)
+          ) continue;
           const vNorm = normalizeIaValueForField(k, v, String(base.reclamante || ""), String(base.reclamada || ""));
           if (vNorm === null || vNorm === undefined) continue;
           base[k] = vNorm; filled.add(k);
