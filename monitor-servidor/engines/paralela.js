@@ -1136,22 +1136,23 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       logDebug?.("paralela.descartada_filtro", { monitoramentoId: mon.id, coordenacaoId, tribunal, dia, idDjen, hashConteudo, temConteudo: !!conteudo, termo: mon.termo_busca, tipo: mon.tipo });
       continue;
     }
-    // Regra única de duplicidade do DJEN Servidor:
-    // dentro da MESMA coordenação, o mesmo id_djen só pode existir uma vez.
-    // Sem id_djen ou sem coordenação, sempre inserimos (o banco não tem como
-    // afirmar duplicidade) — duplicatas residuais ficam por conta da unique
-    // index parcial (coordenacao_id, id_djen) WHERE id_djen IS NOT NULL.
+    // Regra de duplicidade do DJEN Servidor (espelha o Browser):
+    // dentro da MESMA coordenação + MESMO monitoramento, o mesmo id_djen só
+    // pode existir uma vez. Assim, se um mesmo id_djen for capturado por
+    // monitoramentos diferentes (ex.: OSMAR/SANTANDER e Termo tipo processo),
+    // cada monitoramento mantém sua própria linha, igual ao Browser.
     let exists = null;
     let existsReason = null;
-    if (idDjen && coordenacaoId) {
+    if (idDjen && coordenacaoId && mon.id) {
       const { data } = await sb
         .from("publicacoes_djen_servidor")
         .select("id")
         .eq("coordenacao_id", coordenacaoId)
+        .eq("monitoramento_id", mon.id)
         .eq("id_djen", idDjen)
         .maybeSingle();
       exists = data || null;
-      if (exists) existsReason = "same_coordenacao_id_djen";
+      if (exists) existsReason = "same_coord_mon_id_djen";
     }
     if (exists) {
       stats.duplicatas++;
@@ -1192,8 +1193,8 @@ async function persistPublicacoes(sb, pubs, mon, tribunal, dia, execucaoId) {
       const isConflict = error.code === "23505" || msg.includes("duplicate key");
       if (isConflict) {
         let conflictQuery = sb.from("publicacoes_djen_servidor").select("id, monitoramento_id, coordenacao_id, id_djen, hash_conteudo, tribunal, data_disponibilizacao");
-        conflictQuery = idDjen && coordenacaoId
-          ? conflictQuery.eq("coordenacao_id", coordenacaoId).eq("id_djen", idDjen)
+        conflictQuery = idDjen && coordenacaoId && mon.id
+          ? conflictQuery.eq("coordenacao_id", coordenacaoId).eq("monitoramento_id", mon.id).eq("id_djen", idDjen)
           : conflictQuery.eq("id", "00000000-0000-0000-0000-000000000000");
         const { data: conflictRows } = await conflictQuery.limit(5);
         if (conflictRows && conflictRows.length > 0) {
