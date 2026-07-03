@@ -639,6 +639,15 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         if (isJuditField(k)) continue;
         const vNorm = normalizeIaValueForField(k, v, String(prev.reclamante || ""), String(prev.reclamada || ""));
         if (vNorm === null || vNorm === undefined) continue;
+        // Regra: IA NUNCA substitui campos já preenchidos pela advogada
+        // (ou vindos da planilha/registro salvo). Só preenche em branco.
+        const cur = (prev as any)[k];
+        const curEmpty =
+          cur === null ||
+          cur === undefined ||
+          (typeof cur === "string" && cur.trim() === "") ||
+          (Array.isArray(cur) && cur.length === 0);
+        if (!curEmpty) continue;
         next[k] = vNorm;
         filled.add(k);
       }
@@ -656,6 +665,17 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     for (const k of BENNER_EXTRA_FIELDS) {
       const v = (iaSugestao as any)?.[k];
       if (v === null || v === undefined) continue;
+      // Só sugere em campos Benner vazios — nunca sobrescreve o que já está
+      // preenchido (no form atual, no snapshot inicial do banco ou no bennerDado).
+      const curForm = (form as any)?.[k];
+      const curExtra = (bennerExtraRef.current as any)?.[k];
+      const curBenner = (bennerDadoRef.current as any)?.[k];
+      const isEmpty = (x: any) =>
+        x === null ||
+        x === undefined ||
+        (typeof x === "string" && x.trim() === "") ||
+        (Array.isArray(x) && x.length === 0);
+      if (!isEmpty(curForm) || !isEmpty(curExtra) || !isEmpty(curBenner)) continue;
       updates[k] = normalizeIaValueForField(k, v, String(form.reclamante || ""), String(form.reclamada || ""));
     }
     const keys = Object.keys(updates);
