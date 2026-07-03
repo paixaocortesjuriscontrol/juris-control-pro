@@ -843,6 +843,13 @@ function ComparadorPanel() {
             </div>
 
             <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+              <p><strong>Diagnóstico do período:</strong> {data.diagnostico.motivoDiferencaPrincipal}</p>
+              <p>
+                Execuções servidor na janela: DJEN Termos <strong>{data.diagnostico.execucoesDjenServidor}</strong>, Kurier servidor <strong>{data.diagnostico.execucoesKurierServidor}</strong>, Pautas servidor <strong>{data.diagnostico.execucoesPautasServidor}</strong>.
+                {data.diagnostico.execucoesKurierServidor === 0 && data.diagnostico.browserKurier > 0 && (
+                  <> Por isso o Browser oficial fica maior: há <strong>{data.diagnostico.browserKurier}</strong> publicações Kurier no Browser oficial, mas nenhuma execução Kurier servidor no dia analisado.</>
+                )}
+              </p>
               <p><strong>Como ler:</strong> os cinco cards acima (Total Servidor, Total Browser, Em ambos, Só Servidor, Só Browser) são a comparação <strong>por coordenação</strong> (chave <code>coordenação + id_djen</code>), independente do tipo de pesquisa.</p>
               <p>A tabela abaixo decompõe esses números pelo tipo do monitoramento que capturou cada publicação, só como diagnóstico — uma mesma publicação aparece em apenas um tipo por lado.</p>
               <p>• <strong>Servidor</strong>: publicações capturadas pelo pipeline da VPS (24/7).</p>
@@ -851,6 +858,42 @@ function ComparadorPanel() {
               <p>• <strong>Só Servidor</strong>: o pipeline da VPS encontrou, o navegador não — indica que o servidor está capturando casos extras.</p>
               <p>• <strong>Só Browser</strong>: o navegador encontrou e o servidor não — indica lacuna no pipeline da VPS para revisar.</p>
             </div>
+
+            {data.execucoesServidor.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold">Execuções servidor usadas no diagnóstico</h3>
+                <div className="border rounded-md overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Motor</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Agendado</TableHead>
+                        <TableHead>Finalizado</TableHead>
+                        <TableHead className="text-right">Novas</TableHead>
+                        <TableHead className="text-right">Descartadas</TableHead>
+                        <TableHead className="text-right">Duplicatas</TableHead>
+                        <TableHead className="text-right">Monitoramentos</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.execucoesServidor.map((e) => (
+                        <TableRow key={e.id}>
+                          <TableCell className="font-medium">{LABELS[e.tipo] || e.tipo}</TableCell>
+                          <TableCell>{statusBadge(e.status || "—")}</TableCell>
+                          <TableCell className="text-xs">{fmtDate(e.agendado_para)}</TableCell>
+                          <TableCell className="text-xs">{fmtDate(e.finalizado_em)}</TableCell>
+                          <TableCell className="text-right">{e.novas ?? "—"}</TableCell>
+                          <TableCell className="text-right">{e.descartadas ?? "—"}</TableCell>
+                          <TableCell className="text-right">{e.duplicatas ?? "—"}</TableCell>
+                          <TableCell className="text-right">{e.monitoramentos ?? "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
 
             {data.linhas.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma publicação no período para os critérios selecionados.</p>
