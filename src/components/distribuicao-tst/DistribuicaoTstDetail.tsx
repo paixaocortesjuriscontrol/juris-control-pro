@@ -599,7 +599,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         activationMode="manual"
         onValueChange={async (v) => {
           if (v === tab) return;
-          try { await handleSaveTop(); } catch { /* erros já são toastados em handleSaveTop */ }
+          // Auto-save silencioso ao trocar de aba: não toasta "Salvo!" em cada
+          // clique de aba — só o botão Salvar (superior) mostra confirmação.
+          try { await handleSaveTop({ silent: true }); } catch { /* erros já são toastados em handleSaveTop */ }
           setTab(v as any);
         }}
         className="w-full"
