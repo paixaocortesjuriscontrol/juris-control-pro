@@ -3757,10 +3757,13 @@ const AnaliseDjen = () => {
   const totalProcessosVisivel = allPublicacoes.filter(p => p.tipo_origem === 'processo').length;
   const totalDescartadasVisivel = allPublicacoes.filter(p => p.tipo_origem === 'descartada').length;
   const totalDatajudVisivel = allPublicacoes.filter(p => p.tipo_origem === 'datajud').length;
-  const totalKurierVisivel = useMemo(
-    () => mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length,
-    [mergedPublicacoes]
-  );
+  const totalKurierVisivel = useMemo(() => {
+    // Quando a aba Kurier está ativa, o total do servidor já corresponde exatamente
+    // ao filtro. Caso contrário, usamos a contagem paralela do banco para não ficar
+    // limitado às primeiras 500 publicações da RPC unificada.
+    if (tipoOrigem === 'kurier') return totalHoje;
+    return totalKurierServer || mergedPublicacoes.filter(p => (p.fonte || '').toLowerCase() === 'kurier').length;
+  }, [tipoOrigem, totalHoje, totalKurierServer, mergedPublicacoes]);
   // PERFORMANCE/CORREÇÃO: o backend agora aplica os filtros de data de
   // disponibilização e tribunal nas RPCs de contagem (get_djen_stats_per_user).
   // Portanto sempre usamos os totais do servidor — eles já consideram esses
