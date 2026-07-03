@@ -185,15 +185,17 @@ interface Checkpoint {
 
 const MAX_CONCURRENCY = 5;
 const CONFIG = {
-  // Paridade direta com monitor-servidor/engines/paralela.js.
-  delay_between_terms: 1000,
-  delay_between_pages: 400,
-  delay_between_parte_or: 800,
-  delay_between_advogado_or: 1800,
+  // Alinhado ao DJEN Servidor (supabase/functions/monitorar-djen), que NÃO
+  // aplica delays entre termos/páginas/OR — usa apenas backoff em 429/erro.
+  // Mantemos margens mínimas em OR (parte/advogado) para não estourar 429
+  // no mesmo host PJE Comunica sob 13 VPS.
+  delay_between_terms: 0,
+  delay_between_pages: 0,
+  delay_between_parte_or: 150,
+  delay_between_advogado_or: 300,
   max_retries: 4,
-  // Paridade com servidor: 429 → ~8s base (8000*(attempt+1)). 20s travava
-  // o worker em retries longos a cada rate-limit isolado.
-  retry_base_delay: 8000,
+  // Paridade real com servidor (fetchWithRetry baseDelay = 3000ms).
+  retry_base_delay: 3000,
 };
 
 // Paridade com DJEN Servidor: grupos grandes são fatiados para que múltiplas
