@@ -511,36 +511,56 @@ export function useComparadorAnalise() {
       origem?: "todos" | "termos" | "pautas" | "kurier";
     }): Promise<ComparadorAnaliseRelatorio> => {
       const baseCols =
-        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, data_publicacao, tipo_publicacao, created_at, execucao_id";
-      const inicioDispoTs = `${opts.dataInicio}T00:00:00Z`;
-      const fimDispoTs = `${opts.dataFim}T23:59:59Z`;
+        "processo_numero, dedup_processo_digits, dedup_data_ref, hash_conteudo, dedup_conteudo_key, id_djen, coordenacao_id, monitoramento_id, tribunal, data_disponibilizacao, data_publicacao, tipo_publicacao, fonte, created_at, execucao_id";
+      const inicioCapturaTs = dateLocalToUTCRange(opts.dataInicio, false);
+      const fimCapturaTs = dateLocalToUTCRange(opts.dataFim, true);
       const origem = opts.origem || "todos";
       let servQ = supabase
         .from("publicacoes_djen_servidor")
         .select(baseCols)
-        .gte("data_disponibilizacao", inicioDispoTs)
-        .lte("data_disponibilizacao", fimDispoTs)
+        .gte("created_at", inicioCapturaTs)
+        .lte("created_at", fimCapturaTs)
         .not("id_djen", "is", null)
         .limit(20000);
       let browQ = supabase
         .from("publicacoes_djen")
         .select(baseCols)
-        .gte("data_disponibilizacao", inicioDispoTs)
-        .lte("data_disponibilizacao", fimDispoTs)
+        .gte("created_at", inicioCapturaTs)
+        .lte("created_at", fimCapturaTs)
+        .in("status", ["encontrada", "duplicada"])
         .not("id_djen", "is", null)
+        .limit(20000);
+      // Total oficial da tela Análise DJEN: conta tudo que está em
+      // publicacoes_djen no período de captura BRT, incluindo Kurier/Pautas.
+      // Este número é separado da comparação DJEN Servidor × Browser, que deve
+      // continuar comparando DJEN com DJEN e não misturar fontes migradas.
+      let browserOfficialQ = supabase
+        .from("publicacoes_djen")
+        .select(baseCols)
+        .gte("created_at", inicioCapturaTs)
+        .lte("created_at", fimCapturaTs)
+        .in("status", ["encontrada", "duplicada"])
         .limit(20000);
       if (opts.coordenacaoId) {
         servQ = servQ.eq("coordenacao_id", opts.coordenacaoId);
         browQ = browQ.eq("coordenacao_id", opts.coordenacaoId);
+        browserOfficialQ = browserOfficialQ.eq("coordenacao_id", opts.coordenacaoId);
       }
 
       // Filtro por origem aplicado nas duas tabelas DJEN.
       // - termos: tudo que NÃO é pauta (intimacao + parte + nulos legados)
       // - pautas: somente tipo_publicacao='pauta'
       // - kurier: zera as linhas DJEN (kurier vem só do bloco kurier_publicacoes_raw)
-      if (origem === "termos") {
+      if (origem === "todos") {
+        // Kurier fica no bloco próprio/total oficial; não pode inflar o
+        // comparativo DJEN Browser contra DJEN Servidor.
+        browQ = browQ.or("fonte.is.null,fonte.neq.kurier");
+      } else if (origem === "termos") {
         servQ = servQ.or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta");
         browQ = browQ
+          .or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta")
+          .or("fonte.is.null,fonte.neq.kurier");
+        browserOfficialQ = browserOfficialQ
           .or("tipo_publicacao.is.null,tipo_publicacao.neq.pauta")
           .or("fonte.is.null,fonte.neq.kurier");
       } else if (origem === "pautas") {
@@ -548,22 +568,20 @@ export function useComparadorAnalise() {
         browQ = browQ
           .eq("tipo_publicacao", "pauta")
           .or("fonte.is.null,fonte.neq.kurier");
+        browserOfficialQ = browserOfficialQ
+          .eq("tipo_publicacao", "pauta")
+          .or("fonte.is.null,fonte.neq.kurier");
       } else if (origem === "kurier") {
         // Não busca DJEN — força resultado vazio mantendo a query válida.
         servQ = servQ.eq("id_djen", "__NONE__");
         browQ = browQ.eq("id_djen", "__NONE__");
+        browserOfficialQ = browserOfficialQ.eq("fonte", "kurier");
       }
 
       // Filtros adicionais (kurier / pautas)
       const inicioTs = `${opts.dataInicio}T00:00:00Z`;
       const fimTs = `${opts.dataFim}T23:59:59Z`;
 
-      let kurierQ = supabase
-        .from("kurier_publicacoes_raw")
-        .select("id_kurier, credencial_id, recebida_em")
-        .gte("recebida_em", inicioTs)
-        .lte("recebida_em", fimTs)
-        .limit(50000);
       let pautasQ = supabase
         .from("pautas_tst")
         .select("id, processo_numero, data_julgamento")
@@ -573,9 +591,6 @@ export function useComparadorAnalise() {
 
       // Quando o usuário escolhe uma origem específica, zeramos os blocos
       // das outras fontes para evitar números confusos no resumo.
-      if (origem === "termos" || origem === "pautas") {
-        kurierQ = kurierQ.eq("id_kurier", "__NONE__");
-      }
       if (origem === "termos" || origem === "kurier") {
         pautasQ = pautasQ.eq("id", "00000000-0000-0000-0000-000000000000");
       }
@@ -595,22 +610,20 @@ export function useComparadorAnalise() {
         }
         return out;
       };
-      const [servRows, browRows, kurierRows, pautasRows, coords, monits, vincKurier] = await Promise.all([
+      const [servRows, browRows, browserOfficialRows, pautasRows, coords, monits] = await Promise.all([
         paginate(servQ),
         paginate(browQ),
-        paginate(kurierQ).catch((e) => { console.warn("[comparador] kurier:", e?.message); return []; }),
+        paginate(browserOfficialQ),
         paginate(pautasQ).catch((e) => { console.warn("[comparador] pautas:", e?.message); return []; }),
         supabase.from("coordenacoes").select("id, nome"),
         supabase.from("monitoramentos_djen").select("id, tipo, coordenacao_id, termo_busca, tribunais"),
-        supabase.from("kurier_credencial_coordenacoes").select("credencial_id, coordenacao_id"),
       ]);
       const serv = { data: servRows, error: null as any };
       const brow = { data: browRows, error: null as any };
-      const kurierRes = { data: kurierRows, error: null as any };
+      const browserOfficialRes = { data: browserOfficialRows, error: null as any };
       const pautasRes = { data: pautasRows, error: null as any };
       if (coords.error) throw coords.error;
       if (monits.error) throw monits.error;
-      if (vincKurier.error) console.warn("[comparador] kurier_credencial_coordenacoes:", vincKurier.error.message);
 
       const coordNome = new Map<string, string>(
         (coords.data || []).map((c: any) => [c.id, c.nome]),
