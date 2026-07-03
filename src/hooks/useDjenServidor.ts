@@ -3,6 +3,19 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+// Converte YYYY-MM-DD (dia BRT) para UTC. As telas de Análise DJEN usam
+// created_at/captura em BRT quando o usuário filtra "hoje"/período; o
+// comparador precisa usar a mesma janela para não comparar com
+// data_disponibilizacao e mostrar números menores/diferentes.
+const dateLocalToUTCRange = (dateStr: string, isEnd: boolean): string => {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (isEnd) {
+    const nextDay = new Date(year, month - 1, day + 1);
+    return `${nextDay.getFullYear()}-${String(nextDay.getMonth() + 1).padStart(2, "0")}-${String(nextDay.getDate()).padStart(2, "0")}T02:59:59.999Z`;
+  }
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T03:00:00Z`;
+};
+
 export interface ConfigServidor {
   id: string;
   tipo: string;
@@ -400,6 +413,7 @@ export interface ComparadorAnaliseRelatorio {
     coordenacaoNome: string;
     totalServidor: number;
     totalBrowser: number;
+    totalBrowserOficial: number;
     emAmbos: number;
     soServidor: number;
     soBrowser: number;
@@ -416,6 +430,7 @@ export interface ComparadorAnaliseRelatorio {
     soBrowser: number;
     duplicadasServidor: number;
     duplicadasBrowser: number;
+    browserOficial: number;
   };
   porFonte: {
     totais: {
@@ -424,6 +439,7 @@ export interface ComparadorAnaliseRelatorio {
       djenUnico: number; // união de servidor+browser
       kurier: number;
       pautas: number;
+      browserOficial: number;
     };
     linhas: Array<{
       coordenacaoId: string;
@@ -433,6 +449,7 @@ export interface ComparadorAnaliseRelatorio {
       djenUnico: number;
       kurier: number;
       pautas: number | null; // null = não atribuível por coord
+      browserOficial: number;
     }>;
   };
   detalhes: Array<{
