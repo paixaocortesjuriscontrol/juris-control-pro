@@ -1014,34 +1014,21 @@ export function useComparadorAnalise() {
       void allKeys;
 
       // ============ Por fonte de busca (Kurier / Pautas / DJEN) ============
-      const credToCoords = new Map<string, string[]>();
-      for (const v of (vincKurier.data || []) as Array<{ credencial_id: string; coordenacao_id: string }>) {
-        const arr = credToCoords.get(v.credencial_id) || [];
-        arr.push(v.coordenacao_id);
-        credToCoords.set(v.credencial_id, arr);
-      }
-
-      // Kurier por coord — atribui cada publicação a todas as coords vinculadas
-      // à credencial; dedupe id_kurier por coord. Respeita filtro de coord se houver.
-      const kurierPorCoord = new Map<string, Set<string>>();
-      for (const k of (kurierRes.data || []) as Array<{ id_kurier: string; credencial_id: string }>) {
-        const coordsArr = credToCoords.get(k.credencial_id) || ["sem_coord"];
-        for (const cid of coordsArr) {
-          if (opts.coordenacaoId && cid !== opts.coordenacaoId) continue;
-          let s = kurierPorCoord.get(cid);
-          if (!s) { s = new Set(); kurierPorCoord.set(cid, s); }
-          s.add(k.id_kurier);
+      // A Análise DJEN oficial lê publicacoes_djen. Como Kurier servidor grava
+      // nessa tabela oficial, o comparador precisa exibir esse total oficial
+      // separado do comparativo DJEN Termos Servidor × Browser.
+      const browserOfficialRowsAll = (browserOfficialRes.data || []) as Row[];
+      const browserOficialPorCoord = new Map<string, number>();
+      const kurierPorCoord = new Map<string, number>();
+      for (const r of browserOfficialRowsAll) {
+        const cid = r.coordenacao_id || "sem_coord";
+        browserOficialPorCoord.set(cid, (browserOficialPorCoord.get(cid) || 0) + 1);
+        if ((r.fonte || "").toLowerCase() === "kurier") {
+          kurierPorCoord.set(cid, (kurierPorCoord.get(cid) || 0) + 1);
         }
       }
-      const kurierTotal = new Set<string>(
-        ((kurierRes.data || []) as Array<{ id_kurier: string; credencial_id: string }>)
-          .filter((k) => {
-            if (!opts.coordenacaoId) return true;
-            const arr = credToCoords.get(k.credencial_id) || [];
-            return arr.includes(opts.coordenacaoId);
-          })
-          .map((k) => k.id_kurier),
-      ).size;
+      const browserOficialTotal = browserOfficialRowsAll.length;
+      const kurierTotal = Array.from(kurierPorCoord.values()).reduce((sum, n) => sum + n, 0);
 
       // Pautas: global (sem coord). Quando há filtro de coord, omitimos pautas.
       const pautasTotal = opts.coordenacaoId ? 0 : ((pautasRes.data || []) as unknown[]).length;
