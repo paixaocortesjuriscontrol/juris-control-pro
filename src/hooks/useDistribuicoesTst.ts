@@ -153,6 +153,7 @@ export interface DistribuicaoTstFilters {
   status?: "todos" | "rascunho" | "pronto_envio" | "enviado" | "planilhado";
   emAnalise?: "todos" | "sim" | "nao" | "analisado";
   problemaJudit?: "todos" | "sim" | "nao";
+  acordo?: "todos" | "sim" | "nao";
   duplicado?: "todos" | "sim" | "nao";
   centralizador?: string;
   fonteImportacao?: string;
@@ -430,6 +431,8 @@ export async function fetchAllDistribuicaoTstIds(
     else if (filters.emAnalise === "analisado") query = query.eq("analisado", true);
     if (filters.problemaJudit === "sim") query = query.eq("problema_judit", true);
     else if (filters.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
+    if (filters.acordo === "sim") query = query.eq("acordo", true);
+    else if (filters.acordo === "nao") query = query.or("acordo.is.null,acordo.eq.false");
     if (filters.duplicado === "sim" && duplicateIds) query = query.in("id", duplicateIds);
     else if (filters.duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
     if (filters.fonteImportacao && filters.fonteImportacao !== "todas") {
@@ -487,6 +490,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.status && filters.status !== "todos") return true;
   if (filters.emAnalise && filters.emAnalise !== "todos") return true;
   if (filters.problemaJudit && filters.problemaJudit !== "todos") return true;
+  if (filters.acordo && filters.acordo !== "todos") return true;
   if (filters.duplicado && filters.duplicado !== "todos") return true;
   if (filters.centralizador && filters.centralizador !== "todos") return true;
   if (filters.fonteImportacao && filters.fonteImportacao !== "todas") return true;
@@ -650,6 +654,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     else if (filters.emAnalise === "analisado") query = query.eq("analisado", true);
     if (filters.problemaJudit === "sim") query = query.eq("problema_judit", true);
     else if (filters.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
+    if (filters.acordo === "sim") query = query.eq("acordo", true);
+    else if (filters.acordo === "nao") query = query.or("acordo.is.null,acordo.eq.false");
     if (filters.duplicado === "sim" && duplicateIds && !chunkIds) query = query.in("id", duplicateIds);
     else if (filters.duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
     if (filters.fonteImportacao && filters.fonteImportacao !== "todas") {
@@ -1018,6 +1024,8 @@ export async function fetchMesesDataRealFiltered(
     } else if (f.emAnalise === "analisado") query = query.eq("analisado", true);
     if (f.problemaJudit === "sim") query = query.eq("problema_judit", true);
     else if (f.problemaJudit === "nao") query = query.or("problema_judit.is.null,problema_judit.eq.false");
+    if (f.acordo === "sim") query = query.eq("acordo", true);
+    else if (f.acordo === "nao") query = query.or("acordo.is.null,acordo.eq.false");
     if (f.duplicado === "sim" && duplicateIds) query = query.in("id", duplicateIds);
     else if (f.duplicado === "nao") query = query.or("ic_duplicado.is.null,ic_duplicado.eq.false");
     if (f.fonteImportacao && f.fonteImportacao !== "todas") {

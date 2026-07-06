@@ -220,6 +220,7 @@ export default function DistribuicaoTst() {
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [filtroEmAnalise, setFiltroEmAnalise] = useState<string>("todos");
   const [filtroProblemaJudit, setFiltroProblemaJudit] = useState<string>("todos");
+  const [filtroAcordo, setFiltroAcordo] = useState<string>("todos");
   const [filtroDuplicado, setFiltroDuplicado] = useState<string>("todos");
   const [filtroFonteImportacao, setFiltroFonteImportacao] = useState<string>("todas");
   const [filtroProvasDigitais, setFiltroProvasDigitais] = useState<string>("todos");
@@ -277,6 +278,7 @@ export default function DistribuicaoTst() {
         status: filtroStatus !== "todos" ? (filtroStatus as any) : undefined,
         emAnalise: filtroEmAnalise !== "todos" ? (filtroEmAnalise as any) : undefined,
         problemaJudit: filtroProblemaJudit !== "todos" ? (filtroProblemaJudit as any) : undefined,
+        acordo: filtroAcordo !== "todos" ? (filtroAcordo as any) : undefined,
         duplicado: filtroDuplicado !== "todos" ? (filtroDuplicado as any) : undefined,
         fonteImportacao: filtroFonteImportacao !== "todas" ? filtroFonteImportacao : undefined,
         provasDigitais: filtroProvasDigitais !== "todos" ? (filtroProvasDigitais as any) : undefined,
@@ -286,7 +288,7 @@ export default function DistribuicaoTst() {
       });
     }, 400);
     return () => clearTimeout(timer);
-}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, filtroTagId, JSON.stringify(idsAllowedFromTag || [])]);
+}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, filtroTagId, JSON.stringify(idsAllowedFromTag || [])]);
 
   // IDs de processos com mais de um responsável, respeitando os demais filtros
   // (ignora filtro de responsável para que a contagem não se anule a si mesma).
@@ -459,7 +461,7 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" || filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagId !== "todas";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroProblemaJudit !== "todos" || filtroAcordo !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" || filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagId !== "todas";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -2048,13 +2050,25 @@ export default function DistribuicaoTst() {
               <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-blue-600">Status envio</Label>
                 <Select
-                  value={filtroProblemaJudit === "sim" ? "problema_judit" : filtroStatus}
+                  value={
+                    filtroProblemaJudit === "sim"
+                      ? "problema_judit"
+                      : filtroAcordo === "sim"
+                        ? "acordo"
+                        : filtroStatus
+                  }
                   onValueChange={(v) => {
                     if (v === "problema_judit") {
                       setFiltroProblemaJudit("sim");
+                      setFiltroAcordo("todos");
+                      setFiltroStatus("todos");
+                    } else if (v === "acordo") {
+                      setFiltroAcordo("sim");
+                      setFiltroProblemaJudit("todos");
                       setFiltroStatus("todos");
                     } else {
                       setFiltroProblemaJudit("todos");
+                      setFiltroAcordo("todos");
                       setFiltroStatus(v);
                     }
                   }}
@@ -2069,6 +2083,7 @@ export default function DistribuicaoTst() {
                     <SelectItem value="enviado">Enviado</SelectItem>
                     <SelectItem value="planilhado">Planilhado</SelectItem>
                     <SelectItem value="problema_judit">Problema Judit</SelectItem>
+                    <SelectItem value="acordo">Acordo</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
