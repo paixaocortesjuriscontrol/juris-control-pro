@@ -636,6 +636,36 @@ export default function PainelControle() {
         }
       }
 
+      // Responsável(is) selecionado(s)
+      if (painelFiltros.responsavelIds.length > 0) {
+        const rid = item.responsavel_id;
+        const cid = item.criado_por;
+        const envolvido = item.participantes?.some((p) => painelFiltros.responsavelIds.includes(p.usuario_id));
+        const isMatch =
+          (rid && painelFiltros.responsavelIds.includes(rid)) ||
+          (cid && painelFiltros.responsavelIds.includes(cid)) ||
+          envolvido;
+        if (!isMatch) return false;
+      }
+
+      // Período (data prevista/fatal conforme escolha em "Prazo")
+      if (painelFiltros.periodoInicio || painelFiltros.periodoFim) {
+        let dateStr: string | undefined;
+        if (item.origem === "tarefa") {
+          if (painelFiltros.dataFatal && !painelFiltros.dataPrevista) {
+            dateStr = item.data_fatal ?? item.data_vencimento ?? item.data_inicio;
+          } else {
+            dateStr = item.data_vencimento ?? item.data_fatal ?? item.data_inicio;
+          }
+        } else {
+          dateStr = item.data_inicio;
+        }
+        const d = (dateStr ?? "").slice(0, 10);
+        if (!d) return false;
+        if (painelFiltros.periodoInicio && d < painelFiltros.periodoInicio) return false;
+        if (painelFiltros.periodoFim && d > painelFiltros.periodoFim) return false;
+      }
+
       return true;
     });
   }, [itensAgenda, painelFiltros, user?.id]);
