@@ -502,7 +502,7 @@ async function runJob(
           let chunkIdx = 0;
           let ultimoStatus = 0;
           let falhouChunk = false;
-          let cadernoNaoAtualizado: { lastModified: string | null } | null = null;
+          let cadernoNaoAtualizado: { lastModified: string | null; dataDisponibilizacao?: string | null; dataPublicacaoLegal?: string | null } | null = null;
 
           while (pageStart <= numPages && chunkIdx < MAX_CHUNKS) {
             const pageEnd = Math.min(pageStart + CHUNK_PAGES - 1, numPages);
