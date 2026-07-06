@@ -207,3 +207,6 @@ verify_jwt = true
 
 [functions.judit-acompanhamento-especial]
 verify_jwt = false
+
+[functions.djen-browser-resgate-coordenacao]
+verify_jwt = true
