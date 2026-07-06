@@ -268,26 +268,80 @@ async function* iteratePdfPages(
   }
 }
 
+const MESES_PT: Record<string, string> = {
+  janeiro: "01",
+  fevereiro: "02",
+  marco: "03",
+  março: "03",
+  abril: "04",
+  maio: "05",
+  junho: "06",
+  julho: "07",
+  agosto: "08",
+  setembro: "09",
+  outubro: "10",
+  novembro: "11",
+  dezembro: "12",
+};
+
+function calcularDataPublicacaoYmd(dataDispYmd: string): string {
+  const base = new Date(`${dataDispYmd}T12:00:00Z`);
+  base.setUTCDate(base.getUTCDate() + 1);
+  const estaNoRecesso = (d: Date) => {
+    const mes = d.getUTCMonth();
+    const dia = d.getUTCDate();
+    return (mes === 11 && dia >= 20) || (mes === 0 && dia <= 6);
+  };
+  while (base.getUTCDay() === 0 || base.getUTCDay() === 6) {
+    base.setUTCDate(base.getUTCDate() + 1);
+  }
+  if (estaNoRecesso(base)) {
+    if (base.getUTCMonth() === 11) base.setUTCFullYear(base.getUTCFullYear() + 1);
+    base.setUTCMonth(0);
+    base.setUTCDate(7);
+    while (base.getUTCDay() === 0 || base.getUTCDay() === 6) {
+      base.setUTCDate(base.getUTCDate() + 1);
+    }
+  }
+  return base.toISOString().slice(0, 10);
+}
+
+function parseDataDisponibilizacaoYmd(text: string): string | null {
+  const compact = (text || "").replace(/\s+/g, " ");
+  const numeric = compact.match(/Data\s+da\s+disponibilizaç[aã]o\s*:\s*(?:[^,.:]+,\s*)?(\d{2})\/(\d{2})\/(\d{4})/i);
+  if (numeric) return `${numeric[3]}-${numeric[2]}-${numeric[1]}`;
+  const extenso = compact.match(/Data\s+da\s+disponibilizaç[aã]o\s*:\s*(?:[^,.:]+,\s*)?(\d{1,2})\s+de\s+([a-zç]+)\s+de\s+(\d{4})/i);
+  if (!extenso) return null;
+  const mes = MESES_PT[normalize(extenso[2]).replace("marco", "marco")];
+  if (!mes) return null;
+  return `${extenso[3]}-${mes}-${extenso[1].padStart(2, "0")}`;
+}
+
+async function extractDataDisponibilizacaoYmd(uint8: Uint8Array): Promise<string | null> {
+  try {
+    for await (const pageText of iteratePdfPages(uint8, { pageStart: 1, pageEnd: 1 })) {
+      const parsed = parseDataDisponibilizacaoYmd(pageText);
+      if (parsed) return parsed;
+    }
+  } catch (e) {
+    console.log("[DJET-Pautas] não foi possível ler a data interna do PDF:", (e as Error)?.message || e);
+  }
+  return null;
+}
+
 async function fetchPdf(
   tribunal: string,
   dataDDMMYYYY: string,
   caderno: DejtCaderno,
-): Promise<{ ok: true; bytes: Uint8Array; lastModified: string | null } | { ok: false; reason: string; lastModified?: string | null }> {
+): Promise<
+  | { ok: true; bytes: Uint8Array; lastModified: string | null; dataDisponibilizacao: string | null; dataPublicacaoLegal: string | null }
+  | { ok: false; reason: string; lastModified?: string | null; dataDisponibilizacao?: string | null; dataPublicacaoLegal?: string | null }
+> {
   const urls = buildDejtPdfUrls(tribunal, dataDDMMYYYY, caderno);
   if (urls.length === 0) {
     return { ok: false, reason: "tribunal-sem-url" };
   }
-  // Hoje em São Paulo (DEJT publica caderno do dia)
-  const todayBrt = new Date().toLocaleDateString("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-  }); // dd/mm/yyyy
-  const isToday = dataDDMMYYYY === todayBrt;
-  // Meia-noite BRT (UTC-3) do dia pedido — usada para validar Last-Modified.
-  // Ex.: dataDDMMYYYY = "06/07/2026" → 2026-07-06T00:00:00-03:00 = 2026-07-06T03:00:00Z
-  const [dReq, mReq, yReq] = dataDDMMYYYY.split("/");
-  const requestedDayStartMs = Number.isFinite(Number(yReq))
-    ? Date.parse(`${yReq}-${mReq}-${dReq}T03:00:00Z`)
-    : NaN;
+  const requestedIso = ddmmyyyyToIso(dataDDMMYYYY) || dataDDMMYYYY;
   for (const url of urls) {
     try {
       console.log(`[DJET-Pautas] tentando ${url}`);
@@ -322,31 +376,27 @@ async function fetchPdf(
         );
         return { ok: false, reason: "pdf-muito-grande" };
       }
-      // O endpoint público só serve o caderno vigente. Se a data pedida
-      // não é hoje, o PDF retornado é de outro dia — descarta.
-      if (!isToday) {
+      // A data juridicamente relevante do DEJT é a publicação no próximo dia
+      // útil após a disponibilização. Ex.: PDF disponibilizado em sex. 03/07
+      // é a edição publicada em seg. 06/07. Last-Modified sozinho é enganoso.
+      const dataDisponibilizacao = await extractDataDisponibilizacaoYmd(buf);
+      const dataPublicacaoLegal = dataDisponibilizacao
+        ? calcularDataPublicacaoYmd(dataDisponibilizacao)
+        : null;
+      if (dataDisponibilizacao && dataDisponibilizacao !== requestedIso && dataPublicacaoLegal !== requestedIso) {
         console.log(
-          `[DJET-Pautas] data ${dataDDMMYYYY} != hoje (${todayBrt}); ` +
-          `endpoint público só serve caderno vigente (last-modified=${lastMod}).`,
+          `[DJET-Pautas] caderno de outra data para pedido ${dataDDMMYYYY}: ` +
+          `disponibilização=${dataDisponibilizacao}, publicação=${dataPublicacaoLegal}, last-modified=${lastMod}`,
         );
-        return { ok: false, reason: "data-historica-indisponivel", lastModified: lastMod || null };
+        return {
+          ok: false,
+          reason: dataPublicacaoLegal && dataPublicacaoLegal < requestedIso ? "caderno-nao-atualizado" : "caderno-de-outra-data",
+          lastModified: lastMod || null,
+          dataDisponibilizacao,
+          dataPublicacaoLegal,
+        };
       }
-      // Valida Last-Modified: o endpoint diario.jt.jus.br serve o "caderno
-      // vigente" mesmo quando o TRT ainda não publicou o do dia — devolve o
-      // PDF do dia útil anterior. Sem essa checagem, o motor extrai as pautas
-      // do dia anterior, calcula hashes idênticos aos já persistidos e o
-      // resultado aparece 100% como "duplicata" no painel.
-      if (lastMod && Number.isFinite(requestedDayStartMs)) {
-        const lastModMs = Date.parse(lastMod);
-        if (Number.isFinite(lastModMs) && lastModMs < requestedDayStartMs) {
-          console.log(
-            `[DJET-Pautas] caderno ainda não atualizado para ${dataDDMMYYYY}: ` +
-            `last-modified=${lastMod} (< 00:00 BRT do dia pedido)`,
-          );
-          return { ok: false, reason: "caderno-nao-atualizado", lastModified: lastMod };
-        }
-      }
-      return { ok: true, bytes: buf, lastModified: lastMod || null };
+      return { ok: true, bytes: buf, lastModified: lastMod || null, dataDisponibilizacao, dataPublicacaoLegal };
     } catch (e) {
       console.log(`[DJET-Pautas] erro fetch ${url}:`, e);
     }
@@ -521,6 +571,8 @@ Deno.serve(async (req) => {
           sem_dados: true,
           motivo: fetched.reason,
           lastModified: fetched.lastModified ?? null,
+          dataDisponibilizacao: fetched.dataDisponibilizacao ?? null,
+          dataPublicacaoLegal: fetched.dataPublicacaoLegal ?? null,
           tribunal,
           dataPublicacao: dataIso,
           matches: [],
@@ -575,7 +627,7 @@ Deno.serve(async (req) => {
             processo: sub.processo,
             conteudo,
             hash,
-            dataPublicacao: dataIso,
+            dataPublicacao: fetched.dataDisponibilizacao || dataIso,
             fonte: "dejt-pdf",
             tribunal,
           });
@@ -621,6 +673,8 @@ Deno.serve(async (req) => {
         ok: true,
         tribunal,
         dataPublicacao: dataIso,
+        dataDisponibilizacao: fetched.dataDisponibilizacao || dataIso,
+        dataPublicacaoLegal: fetched.dataPublicacaoLegal || calcularDataPublicacaoYmd(fetched.dataDisponibilizacao || dataIso),
         totalBlocos,
         matches,
         numPages: numPagesPdf,
