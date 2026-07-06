@@ -22,6 +22,7 @@ import CofreSenhasPage from "@/pages/CofreSenhas";
 import RelatorioExecucoesPage from "@/pages/RelatorioExecucoes";
 import ComparacaoDjenDje from "@/components/configuracoes/ComparacaoDjenDje";
 import WorkersDjenVpsPanel from "@/components/configuracoes/WorkersDjenVpsPanel";
+import { MeuPerfilCard } from "@/components/configuracoes/MeuPerfilCard";
 // MonitoramentoDataJudCard removido - agora integrado no Dashboard via DataJudDashboardCard
 
 export default function Configuracoes() {
@@ -241,6 +242,8 @@ export default function Configuracoes() {
               Configure suas preferências de aparência e acesso
             </p>
           </div>
+
+          <MeuPerfilCard />
 
           <div className="grid gap-4 md:grid-cols-2">
             <Card className="hover:shadow-md transition-shadow cursor-pointer">

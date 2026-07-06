@@ -16,6 +16,56 @@ function stripHtml(html: string): string {
 }
 
 /**
+ * Extrai a seção "Parte(s):" do conteúdo da publicação e retorna
+ * uma lista de partes { nome, polo, is_advogado }.
+ * O conteúdo DJEN costuma ter o padrão:
+ *   "Parte(s): NOME (Autor) - ADV: DR. FULANO (OAB...)"
+ */
+function parsePartesFromConteudo(conteudo: string): Array<{
+  nome: string;
+  polo: string | null;
+  is_advogado: boolean;
+}> {
+  if (!conteudo) return [];
+  const texto = stripHtml(conteudo);
+  const m = texto.match(/Parte\(s\)\s*:\s*(.+?)(?:Advogado\(s\)|Advogados\s*:|$)/i);
+  if (!m) return [];
+  const bloco = m[1];
+  // separa por " - " ou ", " tolerante
+  const raw = bloco
+    .split(/\s(?:-|\|)\s|;|,\s+(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ])/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const partes: Array<{ nome: string; polo: string | null; is_advogado: boolean }> = [];
+  const vistas = new Set<string>();
+  for (const item of raw) {
+    // Detecta advogado por prefixo "ADV" ou " OAB "
+    const isAdv = /\b(ADV|OAB)\b/i.test(item);
+    // Detecta polo por parenteses (Autor|Réu|Reclamante|Reclamado|Requerente|Requerido|Exequente|Executado)
+    let polo: string | null = null;
+    const poloMatch = item.match(/\((autor|reclamante|requerente|exequente|réu|reclamado|requerido|executado|impetrante|impetrado)[^)]*\)/i);
+    if (poloMatch) {
+      const p = poloMatch[1].toLowerCase();
+      if (/autor|reclamante|requerente|exequente|impetrante/.test(p)) polo = "ativo";
+      else polo = "passivo";
+    }
+    // Nome = tudo antes do primeiro parênteses ou traço com ADV
+    const nome = item
+      .replace(/\s*\(.*?\).*/g, "")
+      .replace(/\s*-\s*ADV.*$/i, "")
+      .replace(/\s*OAB.*$/i, "")
+      .trim();
+    if (nome.length < 3 || nome.length > 200) continue;
+    const chave = nome.toLowerCase();
+    if (vistas.has(chave)) continue;
+    vistas.add(chave);
+    partes.push({ nome, polo, is_advogado: isAdv });
+  }
+  return partes;
+}
+
+/**
  * Busca um processo existente pelo número da publicação. Se não existir,
  * cria silenciosamente uma pasta + processo + responsável + movimentação inicial,
  * e marca a publicação como lida.
@@ -122,6 +172,25 @@ export async function ensureProcessoFromPublicacao(
       data_movimentacao: pub.data_publicacao || new Date().toISOString(),
     })
     .then(() => {}, () => {});
+
+  // Importar partes separadamente (uma por registro), best-effort
+  try {
+    const partes = parsePartesFromConteudo(pub.conteudo || "");
+    if (partes.length > 0) {
+      await supabase.from("processos_partes").insert(
+        partes.map((p) => ({
+          processo_id: processo!.id,
+          nome: p.nome,
+          polo: p.polo,
+          is_advogado: p.is_advogado,
+          fonte: "DJEN",
+          created_by: userId,
+        })),
+      );
+    }
+  } catch {
+    /* best-effort */
+  }
 
   return { id: processo!.id, numero: processo!.numero ?? numero };
 }
