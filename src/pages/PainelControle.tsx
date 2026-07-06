@@ -74,13 +74,13 @@ type ViewMode = "agenda" | "lista" | "prazos" | "audiencias" | "notificacoes";
 
 // Cores dos tipos
 const TIPO_CORES: Record<string, string> = {
-  evento: "bg-blue-500",
-  tarefa: "bg-amber-500",
-  tarefa_delegada: "bg-orange-500",
+  evento: "bg-green-500",
+  tarefa: "bg-blue-500",
+  tarefa_delegada: "bg-blue-600",
   prazo: "bg-red-500",
-  audiencia: "bg-purple-500",
-  prazo_parcela: "bg-emerald-500",
-  parcelamento: "bg-teal-500",
+  audiencia: "bg-yellow-500",
+  prazo_parcela: "bg-red-400",
+  parcelamento: "bg-emerald-500",
 };
 
 const TIPO_LABELS: Record<string, string> = {
