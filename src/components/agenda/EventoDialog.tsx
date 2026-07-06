@@ -90,6 +90,11 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const [processoId, setProcessoId] = useState("");
   const [processoSearch, setProcessoSearch] = useState("");
 
+  // Recorrência
+  const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
+  const [recorrenciaIntervalo, setRecorrenciaIntervalo] = useState<number>(1);
+  const [recorrenciaFim, setRecorrenciaFim] = useState<string>("");
+
   const { data: processos } = useQuery({
     queryKey: ["processos-evento-dialog", processoSearch],
     queryFn: async () => {
@@ -155,6 +160,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setModalidade((evento as any).modalidade || "");
       setObservacoes(evento.descricao || "");
       setProcessoId(evento.processo_id || "");
+      setRecorrenciaTipo((evento as any).recorrencia_tipo || "nenhuma");
+      setRecorrenciaIntervalo((evento as any).recorrencia_intervalo || 1);
+      setRecorrenciaFim(((evento as any).recorrencia_fim || "").slice(0, 10));
 
       const min = alertasEvento && alertasEvento.length > 0 ? alertasEvento[0] : 0;
       const { valor, unidade } = minutosParaUnidade(min);
@@ -194,6 +202,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setResponsaveisIds([]);
       setEnvolvidosIds([]);
       setMostrarEnvolvidos(false);
+      setRecorrenciaTipo("nenhuma");
+      setRecorrenciaIntervalo(1);
+      setRecorrenciaFim("");
     }
   }, [evento, open, alertasEvento, defaultProcessoId]);
 
@@ -240,6 +251,12 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       participantes_ids: responsaveisIds,
       alerta_minutos: alertas,
       enviar_whatsapp: alertas.length > 0,
+      recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
+      recorrencia_intervalo: recorrenciaTipo !== "nenhuma" ? recorrenciaIntervalo : null,
+      recorrencia_fim: recorrenciaTipo !== "nenhuma" && recorrenciaFim ? recorrenciaFim : null,
+      recorrencia_rrule: recorrenciaTipo !== "nenhuma"
+        ? `FREQ=${recorrenciaTipo.toUpperCase()};INTERVAL=${recorrenciaIntervalo}${recorrenciaFim ? `;UNTIL=${recorrenciaFim.replace(/-/g, "")}T235959Z` : ""}`
+        : null,
     } as any;
 
     try {
