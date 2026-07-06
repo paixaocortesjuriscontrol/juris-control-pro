@@ -595,6 +595,43 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               <Label htmlFor="observacoes" className="text-sm">
                 Observações
               </Label>
+              {/* Recorrência */}
+              <div className="mb-4">
+                <Label className="text-sm">Recorrência</Label>
+                <div className="flex gap-2 mt-1.5">
+                  <Select value={recorrenciaTipo} onValueChange={setRecorrenciaTipo}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nenhuma">Não se repete</SelectItem>
+                      <SelectItem value="daily">Diariamente</SelectItem>
+                      <SelectItem value="weekly">Semanalmente</SelectItem>
+                      <SelectItem value="monthly">Mensalmente</SelectItem>
+                      <SelectItem value="yearly">Anualmente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {recorrenciaTipo !== "nenhuma" && (
+                    <>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={recorrenciaIntervalo}
+                        onChange={(e) => setRecorrenciaIntervalo(parseInt(e.target.value) || 1)}
+                        className="w-20"
+                        title="A cada"
+                      />
+                      <Input
+                        type="date"
+                        value={recorrenciaFim}
+                        onChange={(e) => setRecorrenciaFim(e.target.value)}
+                        className="w-40"
+                        title="Até (opcional)"
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
               <Textarea
                 id="observacoes"
                 value={observacoes}
