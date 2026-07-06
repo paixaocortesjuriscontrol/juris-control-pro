@@ -261,6 +261,7 @@ export interface DistribuicaoTstFormHandle {
   runJudit: (comAnexos: boolean, forceRefresh?: boolean) => Promise<void>;
   isBuscando: () => boolean;
   save: (options?: { silent?: boolean }) => Promise<boolean | string>;
+  getValues: () => any;
 }
 
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
