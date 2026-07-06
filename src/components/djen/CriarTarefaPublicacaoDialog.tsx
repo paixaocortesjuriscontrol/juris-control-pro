@@ -892,6 +892,36 @@ export function CriarTarefaPublicacaoDialog({
                     </div>
                   )}
 
+                  {/* Toggle Tipo: Prazo vs Tarefa (item e) */}
+                  <FormField
+                    control={form.control}
+                    name="tipo_registro"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo</FormLabel>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            type="button"
+                            variant={field.value === "tarefa" ? "default" : "outline"}
+                            className={field.value === "tarefa" ? "bg-blue-600 hover:bg-blue-700" : ""}
+                            onClick={() => field.onChange("tarefa")}
+                          >
+                            Tarefa
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={field.value === "prazo" ? "default" : "outline"}
+                            className={field.value === "prazo" ? "bg-red-600 hover:bg-red-700" : ""}
+                            onClick={() => field.onChange("prazo")}
+                          >
+                            Prazo
+                          </Button>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
                   <FormField
                     control={form.control}
                     name="titulo"
