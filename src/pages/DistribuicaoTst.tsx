@@ -220,6 +220,7 @@ export default function DistribuicaoTst() {
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
   const [filtroEmAnalise, setFiltroEmAnalise] = useState<string>("todos");
   const [filtroProblemaJudit, setFiltroProblemaJudit] = useState<string>("todos");
+  const [filtroAcordo, setFiltroAcordo] = useState<string>("todos");
   const [filtroDuplicado, setFiltroDuplicado] = useState<string>("todos");
   const [filtroFonteImportacao, setFiltroFonteImportacao] = useState<string>("todas");
   const [filtroProvasDigitais, setFiltroProvasDigitais] = useState<string>("todos");
@@ -277,6 +278,7 @@ export default function DistribuicaoTst() {
         status: filtroStatus !== "todos" ? (filtroStatus as any) : undefined,
         emAnalise: filtroEmAnalise !== "todos" ? (filtroEmAnalise as any) : undefined,
         problemaJudit: filtroProblemaJudit !== "todos" ? (filtroProblemaJudit as any) : undefined,
+        acordo: filtroAcordo !== "todos" ? (filtroAcordo as any) : undefined,
         duplicado: filtroDuplicado !== "todos" ? (filtroDuplicado as any) : undefined,
         fonteImportacao: filtroFonteImportacao !== "todas" ? filtroFonteImportacao : undefined,
         provasDigitais: filtroProvasDigitais !== "todos" ? (filtroProvasDigitais as any) : undefined,
