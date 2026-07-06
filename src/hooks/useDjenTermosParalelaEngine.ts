@@ -185,14 +185,12 @@ interface Checkpoint {
 
 const MAX_CONCURRENCY = 5;
 const CONFIG = {
-  // Alinhado ao DJEN Servidor (supabase/functions/monitorar-djen), que NÃO
-  // aplica delays entre termos/páginas/OR — usa apenas backoff em 429/erro.
-  // Mantemos margens mínimas em OR (parte/advogado) para não estourar 429
-  // no mesmo host PJE Comunica sob 13 VPS.
-  delay_between_terms: 0,
-  delay_between_pages: 0,
-  delay_between_parte_or: 150,
-  delay_between_advogado_or: 300,
+  // Paridade com o DJEN Servidor VPS: mesmos espaçamentos padrão entre
+  // páginas, unidades e termos OR para não encerrar rápido demais em instabilidade.
+  delay_between_terms: 1000,
+  delay_between_pages: 400,
+  delay_between_parte_or: 800,
+  delay_between_advogado_or: 1800,
   max_retries: 4,
   // Paridade real com servidor (fetchWithRetry baseDelay = 3000ms).
   retry_base_delay: 3000,
@@ -1106,6 +1104,80 @@ function extrairPartesEstruturadas(pub: any): string[] {
     }
   }
   return result;
+}
+
+async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(
+  mon: Monitoramento,
+  diaYmd: string,
+  tribunal: string,
+): Promise<any[]> {
+  if (!mon?.coordenacao_id) return [];
+  const tipo = mapMonTipoToWorkerTipo(mon.tipo);
+  if (!MAIN_TIPOS.includes(tipo)) return [];
+
+  const resgatadas = new Map<string, any>();
+  const cols = 'id, id_djen, hash_conteudo, processo_numero, conteudo, data_disponibilizacao, data_publicacao, tribunal, fonte, orgao, tipo_comunicacao, meio, advogados_json, partes_json, coordenacao_id, status';
+  const BATCH = 1000;
+  let from = 0;
+
+  while (from <= 10000) {
+    const { data, error } = await supabase
+      .from('publicacoes_djen')
+      .select(cols)
+      .eq('status', 'encontrada')
+      .eq('tribunal', tribunal)
+      .gte('data_disponibilizacao', `${diaYmd}T00:00:00.000Z`)
+      .lte('data_disponibilizacao', `${diaYmd}T23:59:59.999Z`)
+      .neq('coordenacao_id', mon.coordenacao_id)
+      .range(from, from + BATCH - 1);
+
+    if (error) {
+      console.warn('[DJEN Paralela] resgate outra coordenação falhou:', error.message);
+      return Array.from(resgatadas.values());
+    }
+
+    const rows = data || [];
+    for (const row of rows) {
+      const candidato = {
+        ...row,
+        id: row.id_djen || row.id,
+        texto: row.conteudo,
+        conteudo: row.conteudo,
+        teor: row.conteudo,
+        dataDisponibilizacao: row.data_disponibilizacao,
+        dataPublicacao: row.data_publicacao,
+        siglaTribunal: row.tribunal,
+        tribunal: row.tribunal,
+        numeroProcesso: row.processo_numero,
+        numero_processo: row.processo_numero,
+        destinatarioadvogados: row.advogados_json,
+        advogados: row.advogados_json,
+        destinatarios: row.partes_json,
+        partes: row.partes_json,
+        __resgatadaDeOutraCoordenacao: row.coordenacao_id,
+        __resgatadaDeFonte: 'publicacoes_djen',
+      };
+
+      if (getSiglaTribunal(candidato) !== tribunal) continue;
+      if (!validarTermo(candidato, mon)) continue;
+      const exc = tipo === 'parte'
+        ? temExclusaoEmPartes(candidato, mon.exclusoes)
+        : temExclusao(candidato, mon.exclusoes);
+      if (exc) continue;
+      const concomitanteOk = tipo === 'parte'
+        ? condicaoConcomitanteAtendidaEmPartes(candidato, mon.condicao_concomitante)
+        : condicaoConcomitanteAtendida(candidato, mon.condicao_concomitante);
+      if (!concomitanteOk) continue;
+
+      const key = row.id_djen ? `id_djen:${row.id_djen}` : `row:${row.id}`;
+      if (!resgatadas.has(key)) resgatadas.set(key, candidato);
+    }
+
+    if (rows.length < BATCH) break;
+    from += BATCH;
+  }
+
+  return Array.from(resgatadas.values());
 }
 
 // ============================================================================
