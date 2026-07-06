@@ -440,7 +440,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         try {
           let q = (supabase
             .from('publicacoes_djen') as any)
-            .select('id, lida, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
+            .select('id, id_djen, lida, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
             .eq('tipo_publicacao', 'pauta');
           const pautaPubInicio = dataPublicacaoPautaInicio(filtros.dataDisponibilizacao, filtros.apenasHoje);
           const pautaPubFim = dataPublicacaoPautaFim(filtros.dataDisponibilizacao, filtros.apenasHoje);
@@ -465,6 +465,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           const dedupedRows = dedupePublicacoesDjen(
             (pautasRows || []).map((r: any) => ({
               id: r.id,
+              id_djen: r.id_djen ?? null,
               tipo_origem: 'termo',
               processo_id: null,
               processo_numero: r.processo_numero,
