@@ -185,14 +185,12 @@ interface Checkpoint {
 
 const MAX_CONCURRENCY = 5;
 const CONFIG = {
-  // Alinhado ao DJEN Servidor (supabase/functions/monitorar-djen), que NÃO
-  // aplica delays entre termos/páginas/OR — usa apenas backoff em 429/erro.
-  // Mantemos margens mínimas em OR (parte/advogado) para não estourar 429
-  // no mesmo host PJE Comunica sob 13 VPS.
-  delay_between_terms: 0,
-  delay_between_pages: 0,
-  delay_between_parte_or: 150,
-  delay_between_advogado_or: 300,
+  // Paridade com o DJEN Servidor VPS: mesmos espaçamentos padrão entre
+  // páginas, unidades e termos OR para não encerrar rápido demais em instabilidade.
+  delay_between_terms: 1000,
+  delay_between_pages: 400,
+  delay_between_parte_or: 800,
+  delay_between_advogado_or: 1800,
   max_retries: 4,
   // Paridade real com servidor (fetchWithRetry baseDelay = 3000ms).
   retry_base_delay: 3000,
@@ -1108,6 +1106,27 @@ function extrairPartesEstruturadas(pub: any): string[] {
   return result;
 }
 
+async function buscarPublicacoesJaEncontradasEmOutraCoordenacao(
+  mon: Monitoramento,
+  diaYmd: string,
+  tribunal: string,
+): Promise<any[]> {
+  if (!mon?.coordenacao_id) return [];
+  const tipo = mapMonTipoToWorkerTipo(mon.tipo);
+  if (!MAIN_TIPOS.includes(tipo)) return [];
+
+  const { data, error } = await supabase.functions.invoke('djen-browser-resgate-coordenacao', {
+    body: { monitoramentoId: mon.id, diaYmd, tribunal },
+  });
+
+  if (error) {
+    console.warn('[DJEN Paralela] resgate outra coordenação falhou:', error.message);
+    return [];
+  }
+
+  return Array.isArray((data as any)?.items) ? (data as any).items : [];
+}
+
 // ============================================================================
 // EXECUTION SYNC
 // ============================================================================
@@ -1400,10 +1419,19 @@ async function processarTermoEmTribunal(
     }
   };
 
+  const addResgatesOutraCoordenacao = async () => {
+    const resgates = await buscarPublicacoesJaEncontradasEmOutraCoordenacao(mon, diaYmd, tribunal);
+    if (resgates.length > 0) {
+      addResults(resgates, { __resgatadaDeOutraCoordenacaoBrowser: true });
+      console.log(`[DJEN Paralela][${tribunal}] Resgate outra coordenação: ${resgates.length} candidato(s) para "${mon.termo_busca}" em ${diaYmd}`);
+    }
+  };
+
   // Caminho rápido: items vindos de uma busca agrupada (OR no palavraChave),
   // já pré-filtrados para casarem com este `mon`. Pula a chamada de rede.
   if (preloaded) {
     addResults(preloaded.items);
+    await addResgatesOutraCoordenacao();
     if (signal.aborted) {
       return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
     }
@@ -1591,6 +1619,12 @@ async function processarTermoEmTribunal(
     ultimoErro = e?.message || 'Falha de busca';
     if (isRecoverableVpsFailure(e)) throw e;
   }
+
+  if (signal.aborted) {
+    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+  }
+
+  await addResgatesOutraCoordenacao();
 
   if (signal.aborted) {
     return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
