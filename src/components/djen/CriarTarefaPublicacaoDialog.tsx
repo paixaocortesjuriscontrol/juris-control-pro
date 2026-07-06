@@ -382,6 +382,12 @@ export function CriarTarefaPublicacaoDialog({
         queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-processo"] });
         queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
         queryClient.invalidateQueries({ queryKey: ["notificacoes-counts"] });
+        queryClient.invalidateQueries({ queryKey: ["andamentos-processo", publicacao.processo_id] });
+        queryClient.invalidateQueries({ queryKey: ["movimentacoes"] });
+        queryClient.invalidateQueries({ queryKey: ["intimacoes-detectadas"] });
+        queryClient.invalidateQueries({ queryKey: ["capturas-intimacoes"] });
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo", publicacao.processo_id] });
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen"] });
         refetchTarefas();
         setTarefaEditandoId(null);
         
@@ -506,6 +512,11 @@ export function CriarTarefaPublicacaoDialog({
       queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
       // Invalidar contagens de notificações
       queryClient.invalidateQueries({ queryKey: ["notificacoes-counts"] });
+      // Invalidar andamentos e intimações do processo
+      queryClient.invalidateQueries({ queryKey: ["andamentos-processo", publicacao.processo_id] });
+      queryClient.invalidateQueries({ queryKey: ["movimentacoes"] });
+      queryClient.invalidateQueries({ queryKey: ["intimacoes-detectadas"] });
+      queryClient.invalidateQueries({ queryKey: ["capturas-intimacoes"] });
       // Atualizar a lista de tarefas criadas no dialog
       refetchTarefas();
       
