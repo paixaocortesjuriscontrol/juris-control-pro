@@ -153,6 +153,7 @@ export interface DistribuicaoTstFilters {
   status?: "todos" | "rascunho" | "pronto_envio" | "enviado" | "planilhado";
   emAnalise?: "todos" | "sim" | "nao" | "analisado";
   problemaJudit?: "todos" | "sim" | "nao";
+  acordo?: "todos" | "sim" | "nao";
   duplicado?: "todos" | "sim" | "nao";
   centralizador?: string;
   fonteImportacao?: string;
