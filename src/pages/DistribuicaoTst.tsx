@@ -31,6 +31,7 @@ import { ResponsaveisSelector } from "@/components/distribuicao-tst/Responsaveis
 import { DelegarProcessosDialog } from "@/components/distribuicao-tst/DelegarProcessosDialog";
 import { DistribuirAutomaticoDialog } from "@/components/distribuicao-tst/DistribuirAutomaticoDialog";
 import { CopyButton } from "@/components/ui/copy-button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
