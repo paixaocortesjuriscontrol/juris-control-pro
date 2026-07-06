@@ -769,10 +769,11 @@ Deno.serve(async (req) => {
     }
 
     // 4) Cria registro de execução
+    const execucaoTipo = persistMode === "servidor" ? "djet_pautas_servidor" : "djet_pautas";
     const { data: exec, error: execErr } = await supabase
       .from("execucoes_agendadas")
       .insert({
-        tipo: "djet_pautas",
+        tipo: execucaoTipo,
         status: "executando",
         iniciado_em: new Date().toISOString(),
         detalhes: {
@@ -803,7 +804,7 @@ Deno.serve(async (req) => {
       task.catch((e) => console.error("[DJET-Pautas-Agendado] task error:", e));
     }
 
-    return new Response(JSON.stringify({ started: true, exec_id: exec.id, ymd: now.ymd }), {
+    return new Response(JSON.stringify({ started: true, exec_id: exec.id, tipo: execucaoTipo, ymd: now.ymd }), {
       status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

@@ -58,6 +58,7 @@ export interface ProgressoItem {
   novas?: number;
   descartadas?: number;
   duplicatas?: number;
+  diasSemPdf?: number;
   via?: {
     id?: string;
     label?: string;

@@ -57,6 +57,7 @@ const ITEM_STATUS: Record<string, string> = {
   executando: "bg-[hsl(var(--area-civil))]/15 text-[hsl(var(--area-civil))] border-[hsl(var(--area-civil))]/30",
   concluido: "bg-muted/60 text-muted-foreground border-border",
   concluido_com_resultado: "bg-[hsl(var(--status-active))]/15 text-[hsl(var(--status-active))] border-[hsl(var(--status-active))]/30",
+  sem_caderno: "bg-amber-500/15 text-amber-700 border-amber-500/30",
   erro: "bg-destructive/15 text-destructive border-destructive/30",
   cancelado: "bg-amber-500/15 text-amber-700 border-amber-500/30",
 };
@@ -356,23 +357,33 @@ function EngineCard({ cfg, onToggle, onConfig }: {
             )}
             {itens.length > 0 && (
               <div className="max-h-48 overflow-y-auto space-y-1 mt-2 pr-1">
-                {itens.slice().reverse().slice(0, 50).map((it) => (
+                {itens.slice().reverse().slice(0, 50).map((it) => {
+                  const statusKey = it.status === "concluido" && ((it.novas || 0) > 0 || (it.duplicatas || 0) > 0)
+                    ? "concluido_com_resultado"
+                    : it.status === "concluido" && (it.diasSemPdf || 0) > 0
+                      ? "sem_caderno"
+                      : it.status;
+                  return (
                   <div key={it.id} className="flex items-center gap-2 text-xs">
                     <Badge
                       variant="outline"
                       className={cn(
                         "text-[10px] px-1.5 py-0",
-                        ITEM_STATUS[it.status === "concluido" && ((it.novas || 0) > 0 || (it.duplicatas || 0) > 0) ? "concluido_com_resultado" : it.status]
+                        ITEM_STATUS[statusKey]
                       )}
                     >
-                      {it.status}
+                      {statusKey === "sem_caderno" ? "sem caderno" : it.status}
                     </Badge>
-                    <span className="truncate flex-1" title={it.label}>{it.label}</span>
+                    <span className="truncate flex-1" title={it.mensagem || it.label}>
+                      {it.label}
+                      {it.mensagem && <span className="text-muted-foreground"> · {it.mensagem}</span>}
+                    </span>
                     {it.status === "concluido" && (it.novas ?? 0) > 0 && (
                       <span className="text-emerald-600 font-medium">+{it.novas}</span>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
             {exec.erro && (
