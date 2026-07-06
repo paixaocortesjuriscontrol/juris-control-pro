@@ -2050,13 +2050,25 @@ export default function DistribuicaoTst() {
               <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-blue-600">Status envio</Label>
                 <Select
-                  value={filtroProblemaJudit === "sim" ? "problema_judit" : filtroStatus}
+                  value={
+                    filtroProblemaJudit === "sim"
+                      ? "problema_judit"
+                      : filtroAcordo === "sim"
+                        ? "acordo"
+                        : filtroStatus
+                  }
                   onValueChange={(v) => {
                     if (v === "problema_judit") {
                       setFiltroProblemaJudit("sim");
+                      setFiltroAcordo("todos");
+                      setFiltroStatus("todos");
+                    } else if (v === "acordo") {
+                      setFiltroAcordo("sim");
+                      setFiltroProblemaJudit("todos");
                       setFiltroStatus("todos");
                     } else {
                       setFiltroProblemaJudit("todos");
+                      setFiltroAcordo("todos");
                       setFiltroStatus(v);
                     }
                   }}
@@ -2071,6 +2083,7 @@ export default function DistribuicaoTst() {
                     <SelectItem value="enviado">Enviado</SelectItem>
                     <SelectItem value="planilhado">Planilhado</SelectItem>
                     <SelectItem value="problema_judit">Problema Judit</SelectItem>
+                    <SelectItem value="acordo">Acordo</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
