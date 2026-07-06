@@ -287,6 +287,7 @@ async function persistMatches(
       processo_numero: m.processo,
       conteudo: m.conteudo,
       fonte: m.fonte,
+      tribunal: m.tribunal,
       tipo_publicacao: "pauta",
     };
     if (persistMode === "servidor") {
@@ -501,6 +502,7 @@ async function runJob(
           let chunkIdx = 0;
           let ultimoStatus = 0;
           let falhouChunk = false;
+          let cadernoNaoAtualizado: { lastModified: string | null } | null = null;
 
           while (pageStart <= numPages && chunkIdx < MAX_CHUNKS) {
             const pageEnd = Math.min(pageStart + CHUNK_PAGES - 1, numPages);
@@ -539,6 +541,13 @@ async function runJob(
               break;
             }
             const json = await resp.json();
+            // Endpoint diario.jt.jus.br serve "caderno vigente" — quando o TRT
+            // ainda não publicou o do dia, devolve o do dia útil anterior.
+            // Neste caso não faz sentido continuar paginando o mesmo PDF.
+            if (json?.sem_dados && json?.motivo === "caderno-nao-atualizado") {
+              cadernoNaoAtualizado = { lastModified: (json?.lastModified as string | null) ?? null };
+              break;
+            }
             const chunkMatches: MatchOut[] = (json?.matches || []).map((m: Record<string, unknown>) => ({
               monitoramentoId: m.monitoramentoId as string,
               termoMatch: m.termoMatch as string,
@@ -558,6 +567,17 @@ async function runJob(
             chunkIdx++;
             // Pausa entre chunks para dar respiro ao worker
             if (pageStart <= numPages) await new Promise((r) => setTimeout(r, 200));
+          }
+
+          if (cadernoNaoAtualizado) {
+            item.current += 1;
+            item.diasSemPdf += 1;
+            const lm = cadernoNaoAtualizado.lastModified;
+            item.mensagem = lm
+              ? `Caderno ainda não publicado (last-modified: ${lm})`
+              : "Caderno ainda não publicado";
+            await flushProgresso(true);
+            continue;
           }
 
           if (falhouChunk) {
@@ -592,9 +612,17 @@ async function runJob(
       // Tribunal finalizado: se houve erro em qualquer dia, mantém vermelho no painel.
       if (item.status !== "cancelado") {
         item.status = item.ultimoErro ? "erro" : "concluido";
-        item.mensagem = item.ultimoErro
-          ? `Erro · ${item.ultimoErro}`
-          : `Concluído · ${item.novas} nova(s)`;
+        if (item.ultimoErro) {
+          item.mensagem = `Erro · ${item.ultimoErro}`;
+        } else if (item.novas === 0 && item.duplicatas === 0 && item.diasSemPdf > 0) {
+          // Todos os dias da janela vieram sem caderno publicado — não mascarar
+          // como "Concluído · 0 nova(s)".
+          item.mensagem = item.diasSemPdf === 1
+            ? "Caderno ainda não publicado"
+            : `Caderno ainda não publicado (${item.diasSemPdf} dia(s))`;
+        } else {
+          item.mensagem = `Concluído · ${item.novas} nova(s)`;
+        }
       }
       await flushProgresso(true);
     }
