@@ -874,6 +874,16 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
         .select("id");
       if (error) { toast.error("Erro ao atualizar: " + error.message); return false; }
       const rowsById = (updatedById as any[]) || [];
+      // DEBUG (temporário): confirma que o UPDATE incluiu tipo_recurso_banco.
+      try {
+        // eslint-disable-next-line no-console
+        console.info("[saveDado] UPDATE resultado", {
+          id,
+          rows: rowsById.length,
+          tipo_recurso_banco_no_payload: (payload as any).tipo_recurso_banco,
+          tipo_recurso_reclamante_no_payload: (payload as any).tipo_recurso_reclamante,
+        });
+      } catch {}
       if (rowsById.length > 0) {
         savedRowId = rowsById[0].id;
         rowId = savedRowId;
