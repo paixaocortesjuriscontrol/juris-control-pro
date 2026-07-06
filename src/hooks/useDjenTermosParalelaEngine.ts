@@ -101,6 +101,46 @@ function getAlternativeProxyViaIds(currentViaId?: string | null, max = 2): strin
   return slots.slice(0, max);
 }
 
+/**
+ * Watchdog: envolve uma tentativa de `processarTermoEmTribunal` num timeout
+ * hard. Alguns tribunais (notadamente STF) ocasionalmente ficam presos numa
+ * VPS lenta e o cliente paginado tem seu próprio timeout por página (90s),
+ * mas encadeando várias páginas + retries a chamada pode ficar minutos sem
+ * retornar — o que trava a track e o "Progresso global" em 99% aguardando
+ * essa última unidade. Este watchdog força o aborto (retry em outra VPS ou
+ * marcação como erro) depois de um teto configurável.
+ */
+const PROCESSAR_TERMO_WATCHDOG_MS = 3 * 60 * 1000; // 3 min por tentativa
+
+function withAttemptWatchdog<T>(
+  outerSignal: AbortSignal,
+  run: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number = PROCESSAR_TERMO_WATCHDOG_MS,
+): Promise<T> {
+  const ctrl = new AbortController();
+  const onOuterAbort = () => ctrl.abort();
+  if (outerSignal.aborted) ctrl.abort();
+  else outerSignal.addEventListener('abort', onOuterAbort, { once: true });
+  const timer = setTimeout(() => {
+    if (!ctrl.signal.aborted) {
+      // Marca a razão para diferenciar de cancelamento do usuário.
+      (ctrl as any)._watchdog = true;
+      ctrl.abort();
+    }
+  }, timeoutMs);
+  return run(ctrl.signal).finally(() => {
+    clearTimeout(timer);
+    outerSignal.removeEventListener('abort', onOuterAbort);
+  }).catch((err: any) => {
+    if ((ctrl as any)._watchdog && !outerSignal.aborted) {
+      const e = new Error(`watchdog timeout após ${Math.round(timeoutMs / 1000)}s (STF/tribunal lento)`);
+      (e as any).name = 'WatchdogTimeoutError';
+      throw e;
+    }
+    throw err;
+  });
+}
+
 export interface TrackProgress {
   tribunal: string;
   /** Tipo de busca dedicado a essa track (parte/advogado/palavra-chave/processo). */
@@ -1291,22 +1331,30 @@ async function processarTribunalTrack(
         try {
           let r: Awaited<ReturnType<typeof processarTermoEmTribunal>> | null = null;
           try {
-            r = await processarTermoEmTribunal(grupo[0], diaYmd, tribunal, signal, viaId, tipo, monId);
+            r = await withAttemptWatchdog(signal, (attemptSignal) =>
+              processarTermoEmTribunal(grupo[0], diaYmd, tribunal, attemptSignal, viaId, tipo, monId),
+            );
           } catch (firstErr: any) {
             if (firstErr?.name === 'AbortError') throw firstErr;
-            if (!isRecoverableVpsFailure(firstErr)) throw firstErr;
-            const alternatives = getAlternativeProxyViaIds(viaId, 2);
+            const isWatchdog = firstErr?.name === 'WatchdogTimeoutError';
+            if (!isWatchdog && !isRecoverableVpsFailure(firstErr)) throw firstErr;
+            // STF/tribunais lentos costumam precisar de mais alternativas —
+            // usamos até 4 VPSs alternativas antes de desistir do grupo.
+            const alternatives = getAlternativeProxyViaIds(viaId, 4);
             let lastErr = firstErr;
             for (const altViaId of alternatives) {
               if (signal.aborted) break;
               try {
                 updateTrack(tribunal, tipo, { mensagem: `↻ retry em outra VPS (${alternatives.indexOf(altViaId) + 1}/${alternatives.length})` }, monId);
-                r = await processarTermoEmTribunal(grupo[0], diaYmd, tribunal, signal, altViaId, tipo, monId);
+                r = await withAttemptWatchdog(signal, (attemptSignal) =>
+                  processarTermoEmTribunal(grupo[0], diaYmd, tribunal, attemptSignal, altViaId, tipo, monId),
+                );
                 break;
               } catch (altErr: any) {
                 if (altErr?.name === 'AbortError') throw altErr;
                 lastErr = altErr;
-                if (!isRecoverableVpsFailure(altErr)) throw altErr;
+                const altIsWatchdog = altErr?.name === 'WatchdogTimeoutError';
+                if (!altIsWatchdog && !isRecoverableVpsFailure(altErr)) throw altErr;
               }
             }
             if (!r) throw lastErr;
