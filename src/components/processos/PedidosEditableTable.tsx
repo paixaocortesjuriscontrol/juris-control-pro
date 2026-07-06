@@ -49,6 +49,128 @@ const emptyPedido: PedidoFormData = {
   observacao: "",
 };
 
+/**
+ * Formulário de Pedido — extraído para fora do componente pai.
+ * Isso evita que ele seja recriado a cada render, o que estava causando
+ * perda de foco no input "Pedido" (usuário não conseguia digitar).
+ */
+function PedidoFormFields({
+  data,
+  setData,
+}: {
+  data: PedidoFormData;
+  setData: (data: PedidoFormData) => void;
+}) {
+  return (
+    <div className="grid gap-4 py-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Pedido *</Label>
+          <Input
+            autoFocus
+            value={data.pedido}
+            onChange={(e) => setData({ ...data, pedido: e.target.value })}
+            placeholder="Nome do pedido"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Valor do Pedido (R$)</Label>
+          <CurrencyInput
+            value={data.valor_pedido}
+            onChange={(val) => setData({ ...data, valor_pedido: val })}
+            className="text-right"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Data</Label>
+        <Input
+          type="date"
+          value={data.data}
+          onChange={(e) => setData({ ...data, data: e.target.value })}
+        />
+      </div>
+
+      <div className="border rounded-lg p-4 space-y-4">
+        <h4 className="font-medium text-sm text-muted-foreground">1ª Instância - Sentença</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="sentenca"
+              checked={data.sentenca}
+              onCheckedChange={(checked) => setData({ ...data, sentenca: !!checked })}
+            />
+            <Label htmlFor="sentenca">Sentença favorável?</Label>
+          </div>
+          <div className="space-y-2">
+            <Label>Nome do Juiz</Label>
+            <Input
+              value={data.juiz_sentenca}
+              onChange={(e) => setData({ ...data, juiz_sentenca: e.target.value })}
+              placeholder="Nome do juiz"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="border rounded-lg p-4 space-y-4">
+        <h4 className="font-medium text-sm text-muted-foreground">2ª Instância - Acórdão</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="acordao"
+              checked={data.acordao}
+              onCheckedChange={(checked) => setData({ ...data, acordao: !!checked })}
+            />
+            <Label htmlFor="acordao">Acórdão favorável?</Label>
+          </div>
+          <div className="space-y-2">
+            <Label>Desembargador / Turma</Label>
+            <Input
+              value={data.desembargador_turma}
+              onChange={(e) => setData({ ...data, desembargador_turma: e.target.value })}
+              placeholder="Nome ou turma"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="border rounded-lg p-4 space-y-4">
+        <h4 className="font-medium text-sm text-muted-foreground">TST</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="tst"
+              checked={data.tst}
+              onCheckedChange={(checked) => setData({ ...data, tst: !!checked })}
+            />
+            <Label htmlFor="tst">TST favorável?</Label>
+          </div>
+          <div className="space-y-2">
+            <Label>Ministro / Turma / Sessão</Label>
+            <Input
+              value={data.ministro_turma_sessao}
+              onChange={(e) => setData({ ...data, ministro_turma_sessao: e.target.value })}
+              placeholder="Nome, turma ou sessão"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Observação</Label>
+        <Textarea
+          value={data.observacao}
+          onChange={(e) => setData({ ...data, observacao: e.target.value })}
+          placeholder="Observações adicionais..."
+          rows={2}
+        />
+      </div>
+    </div>
+  );
+}
+
 // Format number to Brazilian currency string (without R$ prefix for input)
 const formatCurrencyInput = (value: number | null): string => {
   if (value === null || value === undefined) return "";
@@ -241,130 +363,6 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
     return v;
   };
 
-  const PedidoFormFields = ({
-    data,
-    setData,
-  }: {
-    data: PedidoFormData;
-    setData: (data: PedidoFormData) => void;
-  }) => (
-    <div className="grid gap-4 py-4">
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Pedido *</Label>
-          <Input
-            value={data.pedido}
-            onChange={(e) => setData({ ...data, pedido: e.target.value })}
-            placeholder="Nome do pedido"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Valor do Pedido (R$)</Label>
-          <CurrencyInput
-            value={data.valor_pedido}
-            onChange={(val) => setData({ ...data, valor_pedido: val })}
-            className="text-right"
-          />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label>Lei</Label>
-          <Input
-            value={data.lei}
-            onChange={(e) => setData({ ...data, lei: e.target.value })}
-            placeholder="Ex: CLT Art. 457"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label>Data</Label>
-          <Input
-            type="date"
-            value={data.data}
-            onChange={(e) => setData({ ...data, data: e.target.value })}
-          />
-        </div>
-      </div>
-
-      <div className="border rounded-lg p-4 space-y-4">
-        <h4 className="font-medium text-sm text-muted-foreground">1ª Instância - Sentença</h4>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="sentenca"
-              checked={data.sentenca}
-              onCheckedChange={(checked) => setData({ ...data, sentenca: !!checked })}
-            />
-            <Label htmlFor="sentenca">Sentença favorável?</Label>
-          </div>
-          <div className="space-y-2">
-            <Label>Nome do Juiz</Label>
-            <Input
-              value={data.juiz_sentenca}
-              onChange={(e) => setData({ ...data, juiz_sentenca: e.target.value })}
-              placeholder="Nome do juiz"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="border rounded-lg p-4 space-y-4">
-        <h4 className="font-medium text-sm text-muted-foreground">2ª Instância - Acórdão</h4>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="acordao"
-              checked={data.acordao}
-              onCheckedChange={(checked) => setData({ ...data, acordao: !!checked })}
-            />
-            <Label htmlFor="acordao">Acórdão favorável?</Label>
-          </div>
-          <div className="space-y-2">
-            <Label>Desembargador / Turma</Label>
-            <Input
-              value={data.desembargador_turma}
-              onChange={(e) => setData({ ...data, desembargador_turma: e.target.value })}
-              placeholder="Nome ou turma"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="border rounded-lg p-4 space-y-4">
-        <h4 className="font-medium text-sm text-muted-foreground">TST</h4>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="tst"
-              checked={data.tst}
-              onCheckedChange={(checked) => setData({ ...data, tst: !!checked })}
-            />
-            <Label htmlFor="tst">TST favorável?</Label>
-          </div>
-          <div className="space-y-2">
-            <Label>Ministro / Turma / Sessão</Label>
-            <Input
-              value={data.ministro_turma_sessao}
-              onChange={(e) => setData({ ...data, ministro_turma_sessao: e.target.value })}
-              placeholder="Nome, turma ou sessão"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label>Observação</Label>
-        <Textarea
-          value={data.observacao}
-          onChange={(e) => setData({ ...data, observacao: e.target.value })}
-          placeholder="Observações adicionais..."
-          rows={2}
-        />
-      </div>
-    </div>
-  );
-
   // Editable table component for the popup
   const EditableTableContent = () => (
     <div className="overflow-x-auto max-h-[60vh]">
@@ -373,7 +371,6 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           <tr className="bg-muted border-b">
             <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r">Pedido</th>
             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-r w-24">Valor</th>
-            <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r w-20">Lei</th>
             <th className="px-2 py-2 text-center font-medium text-muted-foreground border-r w-28">Data</th>
             <th className="px-2 py-2 text-center font-medium text-muted-foreground border-r w-14">Sent.</th>
             <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r w-28">Juiz</th>
@@ -402,13 +399,6 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                       value={editData[pedido.id].valor_pedido}
                       onChange={(val) => updateField(pedido.id, "valor_pedido", val)}
                       className="h-7 text-xs px-1 text-right"
-                    />
-                  </td>
-                  <td className="px-1 py-0.5 border-r">
-                    <Input
-                      value={editData[pedido.id].lei}
-                      onChange={(e) => updateField(pedido.id, "lei", e.target.value)}
-                      className="h-7 text-xs px-1"
                     />
                   </td>
                   <td className="px-1 py-0.5 border-r">
@@ -478,7 +468,6 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                 <>
                   <td className="px-2 py-1.5 border-r font-medium">{pedido.pedido}</td>
                   <td className="px-2 py-1.5 border-r text-right tabular-nums">{formatCurrency(pedido.valor_pedido)}</td>
-                  <td className="px-2 py-1.5 border-r">{pedido.lei || "-"}</td>
                   <td className="px-2 py-1.5 border-r text-center">{formatDate(pedido.data)}</td>
                   <td className="px-2 py-1.5 border-r text-center">{pedido.sentenca ? "✓" : "-"}</td>
                   <td className="px-2 py-1.5 border-r">{pedido.juiz_sentenca || "-"}</td>
@@ -504,7 +493,6 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
         <tr className="bg-muted/50 border-b">
           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r whitespace-nowrap">Pedido</th>
           <th className="px-2 py-1.5 text-right font-medium text-muted-foreground border-r w-24 whitespace-nowrap">Valor</th>
-          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-20 whitespace-nowrap">Lei</th>
           <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-20 whitespace-nowrap">Data</th>
           <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-14 whitespace-nowrap">Sent.</th>
           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28 whitespace-nowrap">Juiz</th>
@@ -520,7 +508,6 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           <tr key={pedido.id} className={`border-b hover:bg-muted/30 ${idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
             <td className="px-2 py-1 border-r font-medium whitespace-nowrap">{pedido.pedido}</td>
             <td className="px-2 py-1 border-r text-right tabular-nums whitespace-nowrap">{formatCurrency(pedido.valor_pedido)}</td>
-            <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.lei || "-"}</td>
             <td className="px-2 py-1 border-r text-center whitespace-nowrap">{formatDate(pedido.data)}</td>
             <td className="px-2 py-1 border-r text-center">{pedido.sentenca ? "✓" : "-"}</td>
             <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.juiz_sentenca || "-"}</td>
