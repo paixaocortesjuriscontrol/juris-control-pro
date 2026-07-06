@@ -914,8 +914,8 @@ export default function PainelControle() {
                     Status: it.status,
                     "Data prevista": (it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10),
                     "Data fatal": (it.data_fatal ?? "").slice(0, 10),
-                    Responsável: it.responsavel_nome ?? "",
-                    Processo: it.processo_numero ?? "",
+                    Responsável: it.responsavel?.nome ?? "",
+                    Processo: it.processo?.numero ?? "",
                     Coordenação: (it as any).coordenacao_nome ?? "",
                   }));
                   const ws = XLSX.utils.json_to_sheet(rows);
