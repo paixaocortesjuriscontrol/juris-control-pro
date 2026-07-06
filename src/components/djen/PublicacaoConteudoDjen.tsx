@@ -664,6 +664,25 @@ export function PublicacaoConteudoDjen({
     : stripMetadataFromContent(conteudo);
   const conteudoParaExibir = formatConteudoParaExibicao(conteudoLimpo, true);
 
+  // Pautas DEJT vêm de PDF com quebras de linha "duras" a cada ~60 chars,
+  // o que faz o texto parecer não aproveitar a largura do card. Para essa
+  // fonte, colapsamos quebras simples em espaço, preservando parágrafos
+  // (linhas em branco) e itens de lista.
+  const conteudoFinal = (() => {
+    if (fonte !== 'dejt-pdf') return conteudoParaExibir;
+    return conteudoParaExibir
+      // normaliza CRLF
+      .replace(/\r\n/g, '\n')
+      // preserva quebras duplas como marcador de parágrafo
+      .replace(/\n{2,}/g, '\u0000')
+      // colapsa quebras simples em espaço (une linhas quebradas pelo PDF)
+      .replace(/([^\n])\n(?!\s*[-•*·]|\s*\d+[.)]\s)/g, '$1 ')
+      // remove espaços duplicados criados pela junção
+      .replace(/[ \t]{2,}/g, ' ')
+      // restaura parágrafos
+      .replace(/\u0000/g, '\n\n');
+  })();
+
   const [expandirGeralLocal, setExpandirGeralLocal] = useState(false);
   const expandirGeral = expandirGeralExterno ?? expandirGeralLocal;
   const controleLocal = expandirGeralExterno === undefined;
@@ -890,8 +909,8 @@ export function PublicacaoConteudoDjen({
             )}
           >
             {monitoramentoTipo === 'palavra-chave' && monitoramentoTermo
-              ? highlightTermInContent(conteudoParaExibir, monitoramentoTermo)
-              : conteudoParaExibir}
+              ? highlightTermInContent(conteudoFinal, monitoramentoTermo)
+              : conteudoFinal}
           </div>
         </main>
       </div>
