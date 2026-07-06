@@ -1472,10 +1472,19 @@ async function processarTermoEmTribunal(
     }
   };
 
+  const addResgatesOutraCoordenacao = async () => {
+    const resgates = await buscarPublicacoesJaEncontradasEmOutraCoordenacao(mon, diaYmd, tribunal);
+    if (resgates.length > 0) {
+      addResults(resgates, { __resgatadaDeOutraCoordenacaoBrowser: true });
+      console.log(`[DJEN Paralela][${tribunal}] Resgate outra coordenação: ${resgates.length} candidato(s) para "${mon.termo_busca}" em ${diaYmd}`);
+    }
+  };
+
   // Caminho rápido: items vindos de uma busca agrupada (OR no palavraChave),
   // já pré-filtrados para casarem com este `mon`. Pula a chamada de rede.
   if (preloaded) {
     addResults(preloaded.items);
+    await addResgatesOutraCoordenacao();
     if (signal.aborted) {
       return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
     }
@@ -1663,6 +1672,12 @@ async function processarTermoEmTribunal(
     ultimoErro = e?.message || 'Falha de busca';
     if (isRecoverableVpsFailure(e)) throw e;
   }
+
+  if (signal.aborted) {
+    return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
+  }
+
+  await addResgatesOutraCoordenacao();
 
   if (signal.aborted) {
     return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits, ultimoErro };
