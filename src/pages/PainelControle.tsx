@@ -950,55 +950,115 @@ export default function PainelControle() {
                 </div>
               </div>
 
-              <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800">
+              <Card
+                onClick={() =>
+                  setPainelFiltros((f) => ({
+                    ...f,
+                    classificacoes: f.classificacoes.includes("tarefa") ? [] : ["tarefa"],
+                  }))
+                }
+                className={cn(
+                  "cursor-pointer transition-shadow hover:shadow-md",
+                  "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800",
+                  painelFiltros.classificacoes.includes("tarefa") && "ring-2 ring-blue-500",
+                )}
+              >
                 <CardContent className="p-3 md:pt-4">
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm font-medium text-amber-600 dark:text-amber-400 truncate">Tarefas</p>
-                      <p className="text-xl md:text-3xl font-bold text-amber-700 dark:text-amber-300">{resumo.tarefas.total}</p>
+                      <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Tarefas</p>
+                      <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">{resumo.tarefas.total}</p>
                     </div>
-                    <ClipboardList className="w-6 h-6 md:w-10 md:h-10 text-amber-500/50 flex-shrink-0" />
+                    <ClipboardList className="w-6 h-6 md:w-10 md:h-10 text-blue-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800">
+              <Card
+                onClick={() =>
+                  setPainelFiltros((f) => ({
+                    ...f,
+                    classificacoes: f.classificacoes.includes("evento") ? [] : ["evento"],
+                  }))
+                }
+                className={cn(
+                  "cursor-pointer transition-shadow hover:shadow-md",
+                  "bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/30 border-green-200 dark:border-green-800",
+                  painelFiltros.classificacoes.includes("evento") && "ring-2 ring-green-500",
+                )}
+              >
                 <CardContent className="p-3 md:pt-4">
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Eventos</p>
-                      <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">{(eventosStats?.eventos.total ?? 0) + (resumo.eventosTarefa?.total ?? 0)}</p>
+                      <p className="text-xs md:text-sm font-medium text-green-700 dark:text-green-400 truncate">Eventos</p>
+                      <p className="text-xl md:text-3xl font-bold text-green-700 dark:text-green-300">{(eventosStats?.eventos.total ?? 0) + (resumo.eventosTarefa?.total ?? 0)}</p>
                     </div>
-                    <CalendarPlus className="w-6 h-6 md:w-10 md:h-10 text-blue-500/50 flex-shrink-0" />
+                    <CalendarPlus className="w-6 h-6 md:w-10 md:h-10 text-green-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/30 border-rose-200 dark:border-rose-800">
+              <Card
+                onClick={() =>
+                  setPainelFiltros((f) => ({
+                    ...f,
+                    classificacoes: f.classificacoes.includes("prazo") ? [] : ["prazo"],
+                  }))
+                }
+                className={cn(
+                  "cursor-pointer transition-shadow hover:shadow-md",
+                  "bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/50 dark:to-red-900/30 border-red-200 dark:border-red-800",
+                  painelFiltros.classificacoes.includes("prazo") && "ring-2 ring-red-500",
+                )}
+              >
                 <CardContent className="p-3 md:pt-4">
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm font-medium text-rose-600 dark:text-rose-400 truncate">Prazos</p>
-                      <p className="text-xl md:text-3xl font-bold text-rose-700 dark:text-rose-300">{resumo.prazos?.total ?? 0}</p>
+                      <p className="text-xs md:text-sm font-medium text-red-600 dark:text-red-400 truncate">Prazos</p>
+                      <p className="text-xl md:text-3xl font-bold text-red-700 dark:text-red-300">{resumo.prazos?.total ?? 0}</p>
                     </div>
-                    <Clock className="w-6 h-6 md:w-10 md:h-10 text-rose-500/50 flex-shrink-0" />
+                    <Clock className="w-6 h-6 md:w-10 md:h-10 text-red-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/30 border-purple-200 dark:border-purple-800">
+              <Card
+                onClick={() =>
+                  setPainelFiltros((f) => ({
+                    ...f,
+                    classificacoes: f.classificacoes.includes("audiencia") ? [] : ["audiencia"],
+                  }))
+                }
+                className={cn(
+                  "cursor-pointer transition-shadow hover:shadow-md",
+                  "bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-950/50 dark:to-yellow-900/30 border-yellow-200 dark:border-yellow-800",
+                  painelFiltros.classificacoes.includes("audiencia") && "ring-2 ring-yellow-500",
+                )}
+              >
                 <CardContent className="p-3 md:pt-4">
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm font-medium text-purple-600 dark:text-purple-400 truncate">Audiências</p>
-                      <p className="text-xl md:text-3xl font-bold text-purple-700 dark:text-purple-300">{resumo.audiencias.total}</p>
+                      <p className="text-xs md:text-sm font-medium text-yellow-700 dark:text-yellow-400 truncate">Audiências</p>
+                      <p className="text-xl md:text-3xl font-bold text-yellow-700 dark:text-yellow-300">{resumo.audiencias.total}</p>
                     </div>
-                    <Gavel className="w-6 h-6 md:w-10 md:h-10 text-purple-500/50 flex-shrink-0" />
+                    <Gavel className="w-6 h-6 md:w-10 md:h-10 text-yellow-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800">
+              <Card
+                onClick={() =>
+                  setPainelFiltros((f) => ({
+                    ...f,
+                    classificacoes: f.classificacoes.includes("parcelamento") ? [] : ["parcelamento"],
+                  }))
+                }
+                className={cn(
+                  "cursor-pointer transition-shadow hover:shadow-md",
+                  "bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800",
+                  painelFiltros.classificacoes.includes("parcelamento") && "ring-2 ring-emerald-500",
+                )}
+              >
                 <CardContent className="p-3 md:pt-4">
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
