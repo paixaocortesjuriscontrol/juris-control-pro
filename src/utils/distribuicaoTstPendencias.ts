@@ -199,7 +199,9 @@ export function getPendencias(row: any): Pendencia[] {
     row?.processo_outro_escritorio === true ||
     row?.segredo_justica === true ||
     row?.transito_julgado === true ||
-    recorrenteEhTerceiro(row)
+    recorrenteEhTerceiro(row) ||
+    row?.recurso_terceiro === true ||
+    eq(row?.recurso_terceiros, "SIM", "S")
   ) {
     return [];
   }
