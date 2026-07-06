@@ -493,7 +493,6 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
         <tr className="bg-muted/50 border-b">
           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r whitespace-nowrap">Pedido</th>
           <th className="px-2 py-1.5 text-right font-medium text-muted-foreground border-r w-24 whitespace-nowrap">Valor</th>
-          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-20 whitespace-nowrap">Lei</th>
           <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-20 whitespace-nowrap">Data</th>
           <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-14 whitespace-nowrap">Sent.</th>
           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28 whitespace-nowrap">Juiz</th>
@@ -509,7 +508,6 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           <tr key={pedido.id} className={`border-b hover:bg-muted/30 ${idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}>
             <td className="px-2 py-1 border-r font-medium whitespace-nowrap">{pedido.pedido}</td>
             <td className="px-2 py-1 border-r text-right tabular-nums whitespace-nowrap">{formatCurrency(pedido.valor_pedido)}</td>
-            <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.lei || "-"}</td>
             <td className="px-2 py-1 border-r text-center whitespace-nowrap">{formatDate(pedido.data)}</td>
             <td className="px-2 py-1 border-r text-center">{pedido.sentenca ? "✓" : "-"}</td>
             <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.juiz_sentenca || "-"}</td>
