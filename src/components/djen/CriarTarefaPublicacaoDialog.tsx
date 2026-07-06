@@ -627,13 +627,13 @@ export function CriarTarefaPublicacaoDialog({
                             {tarefa?.data_vencimento && (
                               <span className="flex items-center gap-1" title="Data prevista">
                                 <Calendar className="w-3 h-3" />
-                                {format(new Date(tarefa.data_vencimento), "dd/MM/yy")}
+                                {formatDateBR(tarefa.data_vencimento)}
                               </span>
                             )}
                             {tarefa?.data_fatal && (
                               <span className="flex items-center gap-1 text-destructive" title="Data fatal">
                                 <AlertTriangle className="w-3 h-3" />
-                                {format(new Date(tarefa.data_fatal), "dd/MM/yy")}
+                                {formatDateBR(tarefa.data_fatal)}
                               </span>
                             )}
                           </div>
