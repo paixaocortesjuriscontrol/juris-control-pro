@@ -1427,19 +1427,36 @@ async function processarTermoEmTribunal(
   // quando não há execucaoServidorId. Assim, cada coordenação/termo/tribunal
   // consulta pelo mesmo motor do Servidor, sem lógica divergente no navegador.
   if (!preloaded) {
-    const { data, error } = await supabase.functions.invoke('monitorar-djen', {
-      body: {
-        dataInicio: diaYmd,
-        dataFim: diaYmd,
-        coordenacaoId: mon.coordenacao_id ?? undefined,
-        monitoramentoIds: [mon.id],
-        tribunais: [tribunal],
-        skipServidorProgress: true,
-      },
-    });
-    if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
-    if (error) throw new Error(error.message || 'Falha ao executar DJEN Servidor pelo Browser');
-    if ((data as any)?.error) throw new Error(String((data as any).error));
+    // Retry com backoff para falhas transitórias de rede/edge runtime
+    // ("Failed to send a request to the Edge Function", 546 WORKER_LIMIT, etc.).
+    // Cada tentativa mantém o mesmo payload — o filtro por (mon.id × tribunal × dia)
+    // já limita o trabalho no edge function, então repetir é seguro.
+    const invokeBody = {
+      dataInicio: diaYmd,
+      dataFim: diaYmd,
+      coordenacaoId: mon.coordenacao_id ?? undefined,
+      monitoramentoIds: [mon.id],
+      tribunais: [tribunal],
+      skipServidorProgress: true,
+    };
+    const MAX_TENTATIVAS = 3;
+    let data: any = null;
+    let lastErr: string | null = null;
+    for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+      if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
+      const { data: d, error } = await supabase.functions.invoke('monitorar-djen', { body: invokeBody });
+      if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
+      const errMsg = error ? (error.message || String(error)) : ((d as any)?.error ? String((d as any).error) : null);
+      // Erros transitórios: falha de fetch / worker limit / timeout / 5xx.
+      const isTransiente = !!errMsg && /failed to send a request|failed to fetch|worker.?limit|timeout|network|502|503|504|546|context canceled/i.test(errMsg);
+      if (!errMsg) { data = d; lastErr = null; break; }
+      lastErr = errMsg;
+      if (!isTransiente || tentativa === MAX_TENTATIVAS) break;
+      // Backoff exponencial com jitter (400ms, 1200ms).
+      const delayMs = 400 * Math.pow(3, tentativa - 1) + Math.floor(Math.random() * 300);
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+    if (lastErr) throw new Error(lastErr);
     return {
       novas: Number((data as any)?.novas || 0),
       duplicadas: Number((data as any)?.duplicatas ?? (data as any)?.duplicadas ?? 0),
