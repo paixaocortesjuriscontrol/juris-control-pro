@@ -1518,6 +1518,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                   <SelectItem value="Reclamada">Reclamado</SelectItem>
                   <SelectItem value="Reclamante e Reclamada">Reclamante e Reclamado</SelectItem>
                   <SelectItem value="Terceiro">Terceiro</SelectItem>
+                  <SelectItem value="Reclamante e Terceiro">Reclamante e Terceiro</SelectItem>
+                  <SelectItem value="Reclamada e Terceiro">Reclamado e Terceiro</SelectItem>
+                  <SelectItem value="Reclamante, Reclamada e Terceiro">Reclamante, Reclamado e Terceiro</SelectItem>
                 </SelectContent>
               </Select>
             </div>
