@@ -188,6 +188,19 @@ function pendenciasMateriasAnalise(
 /** Retorna a lista de campos obrigatórios em aberto para `row`. */
 export function getPendencias(row: any): Pendencia[] {
   if (!row) return [];
+  // Situações em que o processo não exige preenchimento: Acordo, CEJUSC,
+  // Processo em outro escritório, Segredo de Justiça ou Trânsito em Julgado.
+  // Nesses casos "Verificar Pendências" e o Relatório de Pendências devem
+  // reportar Sem pendências mesmo que existam campos vazios.
+  if (
+    row?.acordo === true ||
+    row?.cejusc === true ||
+    row?.processo_outro_escritorio === true ||
+    row?.segredo_justica === true ||
+    row?.transito_julgado === true
+  ) {
+    return [];
+  }
   const out: Pendencia[] = [];
   for (const c of CAMPOS_OBRIGATORIOS) {
     if (c.requiredWhen && !c.requiredWhen(row)) continue;
