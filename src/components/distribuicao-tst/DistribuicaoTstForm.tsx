@@ -1340,7 +1340,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   );
 
   return (
-    <div className="space-y-6">
+    <div id="dtst-form-root" className="space-y-6">
       <div className="flex items-center gap-3">
         {iaResumo && (
           <div
