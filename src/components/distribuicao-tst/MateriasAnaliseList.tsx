@@ -8,6 +8,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { parseMateriasString } from "./MateriasMultiSelect";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 export type MateriaAnaliseItem = {
   materia: string;
@@ -69,6 +71,23 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
 
   const update = (idx: number, patch: Partial<MateriaAnaliseItem>) => {
     const next = rows.map((r, i) => (i === idx ? { ...r, ...patch } : r));
+    onChange(next);
+  };
+
+  const replicarLinha = (idx: number) => {
+    const src = rows[idx];
+    if (!src) return;
+    const next = rows.map((r, i) =>
+      i === idx
+        ? r
+        : {
+            ...r,
+            aparelhamento: src.aparelhamento,
+            chance_turma: src.chance_turma,
+            chance_relator: src.chance_relator,
+            chance_exito: src.chance_exito,
+          },
+    );
     onChange(next);
   };
 
@@ -145,20 +164,42 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
             </Select>
           </div>
           <div className="col-span-4 md:col-span-1">
-            <Select
-              value={row.chance_exito || "__none__"}
-              onValueChange={(v) => update(idx, { chance_exito: v === "__none__" ? null : v })}
-            >
-              <SelectTrigger className={`h-8 text-xs ${!row.chance_exito ? missingCls : ""}`}>
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Selecione</SelectItem>
-                {SIM_NAO_OPTS.map((o) => (
-                  <SelectItem key={o} value={o}>{o}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-1">
+              <Select
+                value={row.chance_exito || "__none__"}
+                onValueChange={(v) => update(idx, { chance_exito: v === "__none__" ? null : v })}
+              >
+                <SelectTrigger className={`h-8 text-xs ${!row.chance_exito ? missingCls : ""}`}>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Selecione</SelectItem>
+                  {SIM_NAO_OPTS.map((o) => (
+                    <SelectItem key={o} value={o}>{o}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {rows.length > 1 && (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        size="icon"
+                        onClick={() => replicarLinha(idx)}
+                        aria-label="Replicar valores desta linha para todas as matérias"
+                        className="h-6 w-6 shrink-0 rounded-full bg-green-600 hover:bg-green-700 text-white text-[10px] font-bold p-0 leading-none"
+                      >
+                        R
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="left" className="text-xs">
+                      Replicar Aparelhamento, Chance Turma, Chance Relator e Êxito desta linha para todas as outras matérias
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
           </div>
         </div>
       ))}
