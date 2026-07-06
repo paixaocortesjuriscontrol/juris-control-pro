@@ -1062,7 +1062,9 @@ export function CriarTarefaPublicacaoDialog({
                       disabled={loading}
                     >
                       {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                      {tarefaEditandoId ? "Salvar Alterações" : "Criar Tarefa"}
+                      {tarefaEditandoId
+                        ? "Salvar Alterações"
+                        : form.watch("tipo_registro") === "prazo" ? "Adicionar Prazo" : "Adicionar Tarefa"}
                     </Button>
                   </div>
                 </form>
