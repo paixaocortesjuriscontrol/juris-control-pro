@@ -272,7 +272,7 @@ async function fetchPdf(
   tribunal: string,
   dataDDMMYYYY: string,
   caderno: DejtCaderno,
-): Promise<{ ok: true; bytes: Uint8Array } | { ok: false; reason: string }> {
+): Promise<{ ok: true; bytes: Uint8Array; lastModified: string | null } | { ok: false; reason: string; lastModified?: string | null }> {
   const urls = buildDejtPdfUrls(tribunal, dataDDMMYYYY, caderno);
   if (urls.length === 0) {
     return { ok: false, reason: "tribunal-sem-url" };
@@ -282,6 +282,12 @@ async function fetchPdf(
     timeZone: "America/Sao_Paulo",
   }); // dd/mm/yyyy
   const isToday = dataDDMMYYYY === todayBrt;
+  // Meia-noite BRT (UTC-3) do dia pedido — usada para validar Last-Modified.
+  // Ex.: dataDDMMYYYY = "06/07/2026" → 2026-07-06T00:00:00-03:00 = 2026-07-06T03:00:00Z
+  const [dReq, mReq, yReq] = dataDDMMYYYY.split("/");
+  const requestedDayStartMs = Number.isFinite(Number(yReq))
+    ? Date.parse(`${yReq}-${mReq}-${dReq}T03:00:00Z`)
+    : NaN;
   for (const url of urls) {
     try {
       console.log(`[DJET-Pautas] tentando ${url}`);
@@ -323,9 +329,24 @@ async function fetchPdf(
           `[DJET-Pautas] data ${dataDDMMYYYY} != hoje (${todayBrt}); ` +
           `endpoint público só serve caderno vigente (last-modified=${lastMod}).`,
         );
-        return { ok: false, reason: "data-historica-indisponivel" };
+        return { ok: false, reason: "data-historica-indisponivel", lastModified: lastMod || null };
       }
-      return { ok: true, bytes: buf };
+      // Valida Last-Modified: o endpoint diario.jt.jus.br serve o "caderno
+      // vigente" mesmo quando o TRT ainda não publicou o do dia — devolve o
+      // PDF do dia útil anterior. Sem essa checagem, o motor extrai as pautas
+      // do dia anterior, calcula hashes idênticos aos já persistidos e o
+      // resultado aparece 100% como "duplicata" no painel.
+      if (lastMod && Number.isFinite(requestedDayStartMs)) {
+        const lastModMs = Date.parse(lastMod);
+        if (Number.isFinite(lastModMs) && lastModMs < requestedDayStartMs) {
+          console.log(
+            `[DJET-Pautas] caderno ainda não atualizado para ${dataDDMMYYYY}: ` +
+            `last-modified=${lastMod} (< 00:00 BRT do dia pedido)`,
+          );
+          return { ok: false, reason: "caderno-nao-atualizado", lastModified: lastMod };
+        }
+      }
+      return { ok: true, bytes: buf, lastModified: lastMod || null };
     } catch (e) {
       console.log(`[DJET-Pautas] erro fetch ${url}:`, e);
     }
