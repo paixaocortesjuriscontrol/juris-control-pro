@@ -502,7 +502,7 @@ async function runJob(
           let chunkIdx = 0;
           let ultimoStatus = 0;
           let falhouChunk = false;
-          let cadernoNaoAtualizado: { lastModified: string | null } | null = null;
+          let cadernoNaoAtualizado: { lastModified: string | null; dataDisponibilizacao?: string | null; dataPublicacaoLegal?: string | null } | null = null;
 
           while (pageStart <= numPages && chunkIdx < MAX_CHUNKS) {
             const pageEnd = Math.min(pageStart + CHUNK_PAGES - 1, numPages);
@@ -544,8 +544,12 @@ async function runJob(
             // Endpoint diario.jt.jus.br serve "caderno vigente" — quando o TRT
             // ainda não publicou o do dia, devolve o do dia útil anterior.
             // Neste caso não faz sentido continuar paginando o mesmo PDF.
-            if (json?.sem_dados && json?.motivo === "caderno-nao-atualizado") {
-              cadernoNaoAtualizado = { lastModified: (json?.lastModified as string | null) ?? null };
+            if (json?.sem_dados && (json?.motivo === "caderno-nao-atualizado" || json?.motivo === "caderno-de-outra-data")) {
+              cadernoNaoAtualizado = {
+                lastModified: (json?.lastModified as string | null) ?? null,
+                dataDisponibilizacao: (json?.dataDisponibilizacao as string | null) ?? null,
+                dataPublicacaoLegal: (json?.dataPublicacaoLegal as string | null) ?? null,
+              };
               break;
             }
             const chunkMatches: MatchOut[] = (json?.matches || []).map((m: Record<string, unknown>) => ({
@@ -573,8 +577,9 @@ async function runJob(
             item.current += 1;
             item.diasSemPdf += 1;
             const lm = cadernoNaoAtualizado.lastModified;
+            const dataInfo = cadernoNaoAtualizado.dataDisponibilizacao || cadernoNaoAtualizado.dataPublicacaoLegal;
             item.mensagem = lm
-              ? `Caderno ainda não publicado (last-modified: ${lm})`
+              ? `Caderno não corresponde ao dia (disp/pub: ${dataInfo || "—"}; last-modified: ${lm})`
               : "Caderno ainda não publicado";
             await flushProgresso(true);
             continue;

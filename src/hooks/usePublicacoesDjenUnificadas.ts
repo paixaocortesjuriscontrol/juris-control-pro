@@ -878,15 +878,13 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         if (filtros.tipoOrigem !== 'djet-pautas') {
           queryTermos = aplicarFiltroDataCapturaBrt(queryTermos, dataInicioFiltro, dataFimFiltro);
         }
-        // Para DJET Pautas, `data_disponibilizacao` é gravada como meia-noite UTC
-        // (semântica de DATE, não de timestamp local). Usar o range BRT (03:00→02:59 UTC)
-        // descarta as pautas porque a meia-noite UTC fica ANTES da janela. Quando o filtro
-        // for djet-pautas e houver data informada, comparamos contra a janela UTC do dia.
+        // Para DJET Pautas, o "dia da pauta" é a data legal de publicação do DEJT.
+        // Ex.: caderno disponibilizado em 03/07/2026 (sexta) tem publicação em 06/07/2026.
         if (filtros.tipoOrigem === 'djet-pautas' && (filtros.dataDisponibilizacao || filtros.apenasHoje)) {
           const diaPauta = filtros.dataDisponibilizacao || hojeBrt;
           queryTermos = queryTermos
-            .gte('data_disponibilizacao', `${diaPauta}T00:00:00Z`)
-            .lte('data_disponibilizacao', `${diaPauta}T23:59:59.999Z`);
+            .gte('data_publicacao', `${diaPauta}T00:00:00Z`)
+            .lte('data_publicacao', `${diaPauta}T23:59:59.999Z`);
         } else {
           if (dataDisponibilizacaoInicio) queryTermos = queryTermos.gte('data_disponibilizacao', dataDisponibilizacaoInicio);
           if (dataDisponibilizacaoFim) queryTermos = queryTermos.lte('data_disponibilizacao', dataDisponibilizacaoFim);
