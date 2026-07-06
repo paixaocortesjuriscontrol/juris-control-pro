@@ -2,6 +2,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +21,11 @@ export interface PainelFiltrosState {
   estouEnvolvido: boolean;
   // Status simplificado (radio do anexo)
   statusGroup: "todas" | "a_concluir" | "concluidas" | "canceladas";
+  // Período (data prevista / fatal conforme escolha em "Prazo")
+  periodoInicio: string; // yyyy-MM-dd
+  periodoFim: string;    // yyyy-MM-dd
+  // Responsáveis selecionados
+  responsavelIds: string[];
 }
 
 export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
@@ -28,6 +36,9 @@ export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
   souResponsavel: false,
   estouEnvolvido: false,
   statusGroup: "todas",
+  periodoInicio: "",
+  periodoFim: "",
+  responsavelIds: [],
 };
 
 const SITUACOES = [
@@ -69,6 +80,8 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
     filtros.situacoes.length > 0,
     filtros.classificacoes.length > 0,
     filtros.statusGroup !== "todas",
+    !!filtros.periodoInicio || !!filtros.periodoFim,
+    filtros.responsavelIds.length > 0,
   ].filter(Boolean).length;
 
   const toggleSituacao = (val: string) => {
@@ -105,8 +118,48 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-0" align="end">
+      <PopoverContent className="w-72 p-0" align="end">
         <div className="p-3 space-y-4 max-h-[70vh] overflow-y-auto">
+          {/* Período (data prevista/fatal conforme selecionado) */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Período
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Início</Label>
+                <Input
+                  type="date"
+                  value={filtros.periodoInicio}
+                  onChange={(e) => onChange({ ...filtros, periodoInicio: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px] text-muted-foreground">Fim</Label>
+                <Input
+                  type="date"
+                  value={filtros.periodoFim}
+                  onChange={(e) => onChange({ ...filtros, periodoFim: e.target.value })}
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Responsáveis */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Responsáveis
+            </p>
+            <PeoplePicker
+              selectedIds={filtros.responsavelIds}
+              onChange={(ids) => onChange({ ...filtros, responsavelIds: ids })}
+              placeholder="Filtrar por responsável"
+              emptyLabel="Todos os responsáveis"
+            />
+          </div>
+
           {/* Envolvimento */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
