@@ -2346,6 +2346,10 @@ export default function DistribuicaoTst() {
                       {(() => {
                         const status = String((d as any).status || "");
                         const emAnalise = !!(d as any).em_analise;
+                        const naoPrecisaFazer =
+                          (d as any).transito_julgado === true ||
+                          (d as any).processo_outro_escritorio === true ||
+                          (d as any).segredo_justica === true;
                         let color = "";
                         let label = "";
                         if (status === "pronto_envio") {
@@ -2354,6 +2358,9 @@ export default function DistribuicaoTst() {
                         } else if (emAnalise) {
                           color = "bg-amber-400";
                           label = "Em análise";
+                        } else if (naoPrecisaFazer) {
+                          color = "bg-slate-400";
+                          label = "Não precisa fazer";
                         } else {
                           color = "bg-red-500";
                           label = "A fazer";
