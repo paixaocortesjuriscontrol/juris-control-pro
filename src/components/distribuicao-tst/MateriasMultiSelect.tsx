@@ -14,6 +14,18 @@ import { useMateriasBenner } from "@/hooks/useMateriasBenner";
 
 const SEPARATOR = "; ";
 
+/** Rótulo especial: matéria não cadastrada no Santander. Serve apenas para
+ *  marcar o campo como preenchido (removendo a pendência) e habilitar o
+ *  preenchimento da observação. NÃO deve ser exportada na planilha de carga. */
+export const OUTRA_MATERIA_LABEL = "Outra Matéria";
+
+export function isOutraMateria(nome: string | null | undefined): boolean {
+  return (
+    (nome || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() ===
+    "outra materia"
+  );
+}
+
 function normalize(s: string): string {
   return (s || "")
     .normalize("NFD")
@@ -83,6 +95,9 @@ export function MateriasMultiSelect({
     );
   }, [dados, busca]);
 
+  const mostrarOutra = !normalize(busca) || normalize(OUTRA_MATERIA_LABEL).includes(normalize(busca));
+  const outraSelecionada = selectedSet.has(OUTRA_MATERIA_LABEL.toLowerCase());
+
   return (
     <div className="space-y-2">
       <Popover open={open} onOpenChange={setOpen}>
@@ -126,6 +141,24 @@ export function MateriasMultiSelect({
             ) : (
               <ScrollArea className="h-72">
                 <div className="p-1">
+                  {mostrarOutra && (
+                    <button
+                      type="button"
+                      onClick={() => toggle(OUTRA_MATERIA_LABEL)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground text-left border-b border-border/50 mb-1"
+                    >
+                      <Check
+                        className={cn(
+                          "h-4 w-4 shrink-0",
+                          outraSelecionada ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      <span className="truncate italic">{OUTRA_MATERIA_LABEL}</span>
+                      <Badge variant="outline" className="ml-auto text-[10px]">
+                        preencher observação
+                      </Badge>
+                    </button>
+                  )}
                   {filtrados.map((m) => {
                     const isSelected = selectedSet.has(m.nome.toLowerCase());
                     return (

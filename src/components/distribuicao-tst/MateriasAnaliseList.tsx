@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { parseMateriasString } from "./MateriasMultiSelect";
+import { isOutraMateria } from "./MateriasMultiSelect";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -50,7 +51,9 @@ export function reconcileMateriasAnalise(
   materias: string | null,
   current: MateriaAnaliseItem[] | null | undefined,
 ): MateriaAnaliseItem[] {
-  const list = parseMateriasString(materias);
+  // "Outra Matéria" é um marcador virtual (serve apenas para tirar a pendência
+  // e habilitar observação). Não gera linha de análise nem exige aparelhamento.
+  const list = parseMateriasString(materias).filter((n) => !isOutraMateria(n));
   const byKey = new Map<string, MateriaAnaliseItem>();
   for (const it of current || []) {
     if (!it || typeof it !== "object") continue;
