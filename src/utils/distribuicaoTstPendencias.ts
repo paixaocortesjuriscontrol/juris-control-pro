@@ -48,7 +48,7 @@ export const recorrenteEnvolveBanco = (row: any): boolean => {
 
 /** A parte recorrente é Terceiro? */
 export const recorrenteEhTerceiro = (row: any): boolean => {
-  return parteRec(row) === "TERCEIRO";
+  return parteRec(row).includes("TERCEIRO");
 };
 
 /** Mídia Negativa marcada como SIM? */
