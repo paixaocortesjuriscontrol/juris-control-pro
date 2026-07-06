@@ -49,6 +49,128 @@ const emptyPedido: PedidoFormData = {
   observacao: "",
 };
 
+/**
+ * Formulário de Pedido — extraído para fora do componente pai.
+ * Isso evita que ele seja recriado a cada render, o que estava causando
+ * perda de foco no input "Pedido" (usuário não conseguia digitar).
+ */
+function PedidoFormFields({
+  data,
+  setData,
+}: {
+  data: PedidoFormData;
+  setData: (data: PedidoFormData) => void;
+}) {
+  return (
+    <div className="grid gap-4 py-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Pedido *</Label>
+          <Input
+            autoFocus
+            value={data.pedido}
+            onChange={(e) => setData({ ...data, pedido: e.target.value })}
+            placeholder="Nome do pedido"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Valor do Pedido (R$)</Label>
+          <CurrencyInput
+            value={data.valor_pedido}
+            onChange={(val) => setData({ ...data, valor_pedido: val })}
+            className="text-right"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Data</Label>
+        <Input
+          type="date"
+          value={data.data}
+          onChange={(e) => setData({ ...data, data: e.target.value })}
+        />
+      </div>
+
+      <div className="border rounded-lg p-4 space-y-4">
+        <h4 className="font-medium text-sm text-muted-foreground">1ª Instância - Sentença</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="sentenca"
+              checked={data.sentenca}
+              onCheckedChange={(checked) => setData({ ...data, sentenca: !!checked })}
+            />
+            <Label htmlFor="sentenca">Sentença favorável?</Label>
+          </div>
+          <div className="space-y-2">
+            <Label>Nome do Juiz</Label>
+            <Input
+              value={data.juiz_sentenca}
+              onChange={(e) => setData({ ...data, juiz_sentenca: e.target.value })}
+              placeholder="Nome do juiz"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="border rounded-lg p-4 space-y-4">
+        <h4 className="font-medium text-sm text-muted-foreground">2ª Instância - Acórdão</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="acordao"
+              checked={data.acordao}
+              onCheckedChange={(checked) => setData({ ...data, acordao: !!checked })}
+            />
+            <Label htmlFor="acordao">Acórdão favorável?</Label>
+          </div>
+          <div className="space-y-2">
+            <Label>Desembargador / Turma</Label>
+            <Input
+              value={data.desembargador_turma}
+              onChange={(e) => setData({ ...data, desembargador_turma: e.target.value })}
+              placeholder="Nome ou turma"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="border rounded-lg p-4 space-y-4">
+        <h4 className="font-medium text-sm text-muted-foreground">TST</h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="tst"
+              checked={data.tst}
+              onCheckedChange={(checked) => setData({ ...data, tst: !!checked })}
+            />
+            <Label htmlFor="tst">TST favorável?</Label>
+          </div>
+          <div className="space-y-2">
+            <Label>Ministro / Turma / Sessão</Label>
+            <Input
+              value={data.ministro_turma_sessao}
+              onChange={(e) => setData({ ...data, ministro_turma_sessao: e.target.value })}
+              placeholder="Nome, turma ou sessão"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Observação</Label>
+        <Textarea
+          value={data.observacao}
+          onChange={(e) => setData({ ...data, observacao: e.target.value })}
+          placeholder="Observações adicionais..."
+          rows={2}
+        />
+      </div>
+    </div>
+  );
+}
+
 // Format number to Brazilian currency string (without R$ prefix for input)
 const formatCurrencyInput = (value: number | null): string => {
   if (value === null || value === undefined) return "";
