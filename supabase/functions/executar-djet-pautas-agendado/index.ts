@@ -612,9 +612,17 @@ async function runJob(
       // Tribunal finalizado: se houve erro em qualquer dia, mantém vermelho no painel.
       if (item.status !== "cancelado") {
         item.status = item.ultimoErro ? "erro" : "concluido";
-        item.mensagem = item.ultimoErro
-          ? `Erro · ${item.ultimoErro}`
-          : `Concluído · ${item.novas} nova(s)`;
+        if (item.ultimoErro) {
+          item.mensagem = `Erro · ${item.ultimoErro}`;
+        } else if (item.novas === 0 && item.duplicatas === 0 && item.diasSemPdf > 0) {
+          // Todos os dias da janela vieram sem caderno publicado — não mascarar
+          // como "Concluído · 0 nova(s)".
+          item.mensagem = item.diasSemPdf === 1
+            ? "Caderno ainda não publicado"
+            : `Caderno ainda não publicado (${item.diasSemPdf} dia(s))`;
+        } else {
+          item.mensagem = `Concluído · ${item.novas} nova(s)`;
+        }
       }
       await flushProgresso(true);
     }
