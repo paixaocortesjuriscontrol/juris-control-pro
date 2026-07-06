@@ -287,6 +287,7 @@ async function persistMatches(
       processo_numero: m.processo,
       conteudo: m.conteudo,
       fonte: m.fonte,
+      tribunal: m.tribunal,
       tipo_publicacao: "pauta",
     };
     if (persistMode === "servidor") {
