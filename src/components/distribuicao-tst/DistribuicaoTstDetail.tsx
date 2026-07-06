@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, Search, Save } from "lucide-react";
+import { AlertCircle } from "lucide-react";
+import { getPendencias } from "@/utils/distribuicaoTstPendencias";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -490,6 +492,90 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           >
             {savingTop ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
             Salvar
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              // Limpa marcações anteriores
+              const root = document.getElementById("dtst-form-root");
+              if (!root) {
+                toast.error("Formulário não encontrado.");
+                return;
+              }
+              root
+                .querySelectorAll<HTMLElement>("[data-pendencia-highlight='true']")
+                .forEach((el) => {
+                  el.removeAttribute("data-pendencia-highlight");
+                  el.classList.remove(
+                    "ring-2",
+                    "ring-red-500",
+                    "rounded-md",
+                    "bg-red-50",
+                    "dark:bg-red-950/20",
+                  );
+                });
+
+              // Monta um "row" combinando o estado do formulário e as flags
+              // controladas fora dele (trânsito, segredo etc.) para que
+              // `getPendencias` avalie o registro completo.
+              const formVals = (formRef.current?.getValues?.() as any) || {};
+              const row: any = {
+                ...formVals,
+                transito_julgado: transitoJulgado,
+                segredo_justica: segredoJustica,
+                processo_outro_escritorio: outroEscritorio,
+              };
+
+              const pend = getPendencias(row);
+              if (pend.length === 0) {
+                toast.success("Nenhuma pendência: todos os campos obrigatórios estão preenchidos.");
+                return;
+              }
+
+              // Normaliza rótulo para casar com o texto exibido no <Label>
+              // (que pode conter sufixos como o asterisco vermelho ou badges).
+              const norm = (s: string) =>
+                s
+                  .replace(/\s+/g, " ")
+                  .replace(/\*/g, "")
+                  .trim()
+                  .toLowerCase();
+
+              const labels = Array.from(root.querySelectorAll<HTMLElement>("label"));
+              let marcados = 0;
+              for (const p of pend) {
+                const alvo = norm(p.label);
+                const lbl = labels.find((l) => norm(l.textContent || "").startsWith(alvo));
+                if (!lbl) continue;
+                // Container do campo: procura ancestral com classe utilitária
+                // "space-y-2" (padrão adotado no formulário para o wrapper de
+                // cada input). Faz fallback para o pai imediato.
+                const container = (lbl.closest(".space-y-2") as HTMLElement | null) || lbl.parentElement;
+                if (!container) continue;
+                container.setAttribute("data-pendencia-highlight", "true");
+                container.classList.add(
+                  "ring-2",
+                  "ring-red-500",
+                  "rounded-md",
+                  "bg-red-50",
+                  "dark:bg-red-950/20",
+                );
+                marcados++;
+              }
+
+              // Rola o primeiro campo pendente para o topo da viewport.
+              const primeiro = root.querySelector<HTMLElement>("[data-pendencia-highlight='true']");
+              if (primeiro) primeiro.scrollIntoView({ behavior: "smooth", block: "center" });
+
+              toast.warning(
+                `${pend.length} pendência${pend.length > 1 ? "s" : ""} encontrada${pend.length > 1 ? "s" : ""}${marcados < pend.length ? ` (${marcados} destacada${marcados === 1 ? "" : "s"} no formulário)` : ""}.`,
+              );
+            }}
+          >
+            <AlertCircle className="w-4 h-4 mr-2" />
+            Verificar Pendências
           </Button>
           <div className="rounded-lg border border-border bg-card p-3 space-y-3 shadow-sm">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

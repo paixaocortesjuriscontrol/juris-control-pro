@@ -261,6 +261,7 @@ export interface DistribuicaoTstFormHandle {
   runJudit: (comAnexos: boolean, forceRefresh?: boolean) => Promise<void>;
   isBuscando: () => boolean;
   save: (options?: { silent?: boolean }) => Promise<boolean | string>;
+  getValues: () => any;
 }
 
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
@@ -1172,6 +1173,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     runJudit: (comAnexos: boolean, forceRefresh: boolean = false) => handleBuscarJudit(comAnexos, forceRefresh),
     isBuscando: () => buscandoJudit,
     save: (options?: { silent?: boolean }) => handleSave(options),
+    getValues: () => form,
   }), [buscandoJudit, form, dado, juditSessionFields, turmasTst, relatoresTst]);
 
   const handleSave = async (options?: { silent?: boolean }): Promise<boolean | string> => {
@@ -1338,7 +1340,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
   );
 
   return (
-    <div className="space-y-6">
+    <div id="dtst-form-root" className="space-y-6">
       <div className="flex items-center gap-3">
         {iaResumo && (
           <div
