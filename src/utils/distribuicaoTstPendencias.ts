@@ -189,7 +189,8 @@ function pendenciasMateriasAnalise(
 export function getPendencias(row: any): Pendencia[] {
   if (!row) return [];
   // Situações em que o processo não exige preenchimento: Acordo, CEJUSC,
-  // Processo em outro escritório, Segredo de Justiça ou Trânsito em Julgado.
+  // Processo em outro escritório, Segredo de Justiça, Trânsito em Julgado
+  // ou quando o Terceiro é a parte recorrente.
   // Nesses casos "Verificar Pendências" e o Relatório de Pendências devem
   // reportar Sem pendências mesmo que existam campos vazios.
   if (
@@ -197,7 +198,8 @@ export function getPendencias(row: any): Pendencia[] {
     row?.cejusc === true ||
     row?.processo_outro_escritorio === true ||
     row?.segredo_justica === true ||
-    row?.transito_julgado === true
+    row?.transito_julgado === true ||
+    recorrenteEhTerceiro(row)
   ) {
     return [];
   }
