@@ -31,6 +31,7 @@ import { ResponsaveisSelector } from "@/components/distribuicao-tst/Responsaveis
 import { DelegarProcessosDialog } from "@/components/distribuicao-tst/DelegarProcessosDialog";
 import { DistribuirAutomaticoDialog } from "@/components/distribuicao-tst/DistribuirAutomaticoDialog";
 import { CopyButton } from "@/components/ui/copy-button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
@@ -2332,15 +2333,48 @@ export default function DistribuicaoTst() {
                   onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
                 >
                   <TableCell className="align-middle" onClick={e => e.stopPropagation()}>
-                    <Checkbox
-                      checked={selectedIds.has(d.id)}
-                      onCheckedChange={(checked) => {
-                        const newSet = new Set(selectedIds);
-                        if (checked) newSet.add(d.id);
-                        else newSet.delete(d.id);
-                        setSelectedIds(newSet);
-                      }}
-                    />
+                    <div className="flex items-center gap-1.5">
+                      <Checkbox
+                        checked={selectedIds.has(d.id)}
+                        onCheckedChange={(checked) => {
+                          const newSet = new Set(selectedIds);
+                          if (checked) newSet.add(d.id);
+                          else newSet.delete(d.id);
+                          setSelectedIds(newSet);
+                        }}
+                      />
+                      {(() => {
+                        const status = String((d as any).status || "");
+                        const emAnalise = !!(d as any).em_analise;
+                        let color = "";
+                        let label = "";
+                        if (status === "pronto_envio") {
+                          color = "bg-emerald-500";
+                          label = "Pronto para enviar";
+                        } else if (emAnalise) {
+                          color = "bg-amber-400";
+                          label = "Em análise";
+                        } else {
+                          color = "bg-red-500";
+                          label = "A fazer";
+                        }
+                        return (
+                          <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  className={cn("inline-block w-2.5 h-2.5 rounded-full ring-1 ring-black/10", color)}
+                                  aria-label={label}
+                                />
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="text-xs">
+                                {label}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      })()}
+                    </div>
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_planilha || d.data_distribuicao_real)}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_real)}</TableCell>
