@@ -1,136 +1,68 @@
 
-# Plano — Correções abrangentes (Processos, Publicação, DJEN, Painel, Pedidos, Audiências)
+# Correção — DJET Pautas do DJEN Servidor com volume baixo
 
-Implementação em sequência, agrupada em blocos coerentes. Cada bloco é auto-contido e verificável.
+## Diagnóstico (o que está acontecendo hoje, 06/07/2026 — segunda-feira)
 
----
+Rodadas de hoje em `execucoes_agendadas` (tipo=`djet_pautas`):
 
-## Bloco 1 — Diálogo de Publicação (anexo 1)
+| Horário (UTC) | Modo      | Novas | Dup | TRTs com achado                       |
+| ------------- | --------- | ----- | --- | ------------------------------------- |
+| 12:00         | servidor  | 4     | 10  | TRT3, TRT4, TRT20, TRT23, TRT24       |
+| 12:30         | browser   | 4     | 10  | idem                                  |
+| 16:00         | servidor  | 0     | 14  | mesmos, todos dup                     |
+| 16:25         | browser   | 0     | 14  | mesmos, todos dup                     |
 
-Arquivo principal: `src/components/djen/PublicacaoDialog.tsx` (e formulário embutido de criação de tarefa).
+Nos logs de `buscar-dejt-pautas` os PDFs baixam OK e são lidos ("TRT23 06/07/2026 p1-100/58: 4 blocos, **21 match(es)**"; "TRT21 p1-100/21: 15 blocos, **0 match(es)**"). Ou seja, **os PDFs vieram, o pdf.js lê, mas o volume caiu de ~200/dia para 4**.
 
-- **a) Data verde de ontem**: a data mostrada no cartão verde ("Tarefas criadas") está usando `new Date()` local e/ou dia anterior por fuso. Trocar para `format(parseISO(prazo.data_prevista), "dd/MM/yy")` sem `new Date(string)`.
-- **b) Não fechar o modal ao criar prazo/tarefa**:
-  - Remover `onOpenChange(false)` do `onSuccess` do form embutido.
-  - Após criar, resetar campos e manter dialog aberto; mostrar toast e append no bloco "Tarefas criadas".
-  - Adicionar botão **"Adicionar"** (secundário) além de "Criar Tarefa" que faz o mesmo, mas com foco no primeiro campo após criar (criação contínua).
-- **c) Coordenação pré-selecionada**: usar novo campo `profiles.coordenacao_padrao_id`. Fallback: primeira coordenação do usuário via `membros_coordenacao`.
-- **d) Envolvidos igual aos Responsáveis**: substituir o seletor atual pelo mesmo componente `PeoplePicker`/`MultiUserSelect` usado em Responsáveis (com abas "Minha Resp. & Envolv." / "Tarefas a Concluir" conforme anexo 6). Padronizar visual e comportamento.
-- **e) Prazo vs Tarefa** (item mais estrutural — ver Bloco 2).
+Causa raiz identificada em `supabase/functions/buscar-dejt-pautas/index.ts` (função `fetchPdf`) + `_shared/dejtTribunais.ts`:
 
-## Bloco 2 — Separar Prazo de Tarefa (comportamento distinto)
+- A única URL usada é o caminho fixo `https://diario.jt.jus.br/cadernos/Diario_J_<ID>.pdf`. Esse endpoint **serve só o caderno vigente**, e por regra prática do DEJT **alguns TRTs (principalmente TRT1/TRT2/TRT5/TRT15 e demais grandes) só têm o caderno de segunda-feira publicado depois das 13–14h BRT**. Nossos slots agendados rodam 09:00, 09:30, 13:00 e 13:25 BRT.
+- Hoje o código faz `res.headers.get("last-modified")` **mas nunca compara com a data pedida** — se o servidor devolve o PDF de sexta (03/07) no request de segunda (06/07), a função aceita como se fosse o caderno de hoje. O motor então extrai as pautas de sexta, calcula os mesmos hashes de sexta, e o `persistMatches` marca tudo como duplicata. É exatamente o que vemos em TRT23 (21 matches → 9 dedup local → 0 novas / 9 dup) e TRT20.
+- `runJob` (`executar-djet-pautas-agendado`) também não distingue "PDF veio de outro dia" de "PDF é de hoje sem matches": ambos aparecem como `Concluído · 0 nova(s)` no painel, com `diasSemPdf: 0`. Isso mascara o problema no acompanhamento visual.
 
-Hoje ambos vivem em `tarefas`. Vamos:
+Ou seja: o volume real de hoje deve ser bem maior — só que o motor está lendo o caderno do dia útil anterior nos TRTs que ainda não publicaram, achando tudo duplicado e reportando "0 nova(s)".
 
-1. **Migration**: adicionar `tarefas.tipo_registro TEXT NOT NULL DEFAULT 'tarefa' CHECK (tipo_registro IN ('tarefa','prazo'))`. Backfill: registros com `data_fatal IS NOT NULL` → `'prazo'`.
-2. **Validações**:
-   - Prazo: `data_fatal` obrigatória; entra em Prazos Fatais e no Kanban de Prazos.
-   - Tarefa: `data_fatal` opcional; `data_prevista` obrigatória.
-3. **UI**:
-   - Formulário de criação com toggle Tipo (Prazo/Tarefa) que altera campos e validação.
-   - Card lateral "Pendências do Processo" (anexo 2): badge **PRAZO** (vermelho) vs **TAREFA** (azul); ordenação: prazos primeiro por proximidade da data_fatal.
-   - Detalhe: exibir corretamente "Fatal:" só para prazo.
-4. **Hooks**: `usePrazos` filtra `tipo_registro='prazo'`; `useTarefas` filtra `'tarefa'`. Query keys separadas.
+## Alterações
 
-## Bloco 3 — Pendências do Processo (anexo 2/3)
+### 1) `supabase/functions/buscar-dejt-pautas/index.ts` — validar `Last-Modified`
 
-Componente: `PendenciasProcesso*` (na tela `/processos/:id`).
+Em `fetchPdf`, depois de baixar o PDF e antes de retornar `{ ok: true, bytes }`, comparar o header `Last-Modified` com a data pedida em BRT:
 
-- **Diferenciar** Prazo × Tarefa via badge/cor.
-- **Mostrar audiências**: unir `audiencias_detectadas` + eventos manuais do processo, mesmo card "Pendências". Nova seção "Audiências" no card de pendências com badge amarelo.
-- **Aba Audiências**: corrigir a query — hoje ela não lista audiências criadas via `CriarAudienciaProcessoDialog`. Verificar filtro `processo_id` vs `numero_processo`. Padronizar por `processo_id` UUID.
-- **Aba Intimações**: revisar lógica (parâmetros de fetch, join com `intimacoes_detectadas`); garantir mesmo padrão dos outros cards.
+- Converter `dataDDMMYYYY` para meia-noite BRT (UTC-3).
+- Parsear `Last-Modified` como Date.
+- Se `lastMod < requestedDayStartBrt` → retornar `{ ok: false, reason: "caderno-nao-atualizado", lastModified }` (não descartar por erro, apenas sinalizar).
+- Se o header vier ausente/inválido, manter comportamento atual (aceitar), mas anexar `lastModified: null` no log.
 
-## Bloco 4 — Pub. DJEN e demais abas do processo
+Efeito: PDFs "de ontem servidos como vigente" deixam de virar dup silencioso — passam a ser sinalizados como sem-caderno-do-dia, exatamente como já fazemos para sábado/domingo.
 
-- Ao **salvar publicação vinculada** (dialog), invalidar queries de `publicacoes_djen_processos` e `publicacoes_djen` filtradas pelo `processo_id` para aparecer imediatamente na aba **Pub. DJEN**. Idem Andamentos, Redistribuições, Intimações.
-- **Intimações**: adicionar `ItemComentarios` (mesmo componente usado em tarefas/audiências) na visão de detalhe da intimação.
+### 2) `supabase/functions/executar-djet-pautas-agendado/index.ts` — propagar o motivo real
 
-## Bloco 5 — Análise DJEN (ações em lote e cards)
+Em `runJob`, dentro do loop de `pageStart`, quando a resposta do `buscar-dejt-pautas` vier com `sem_dados: true` e `motivo === "caderno-nao-atualizado"`:
 
-Arquivo: `src/pages/MonitoramentoDjen.tsx` + `AcoesEmLoteDialog`.
+- `item.diasSemPdf += 1`.
+- `item.mensagem = "Caderno ainda não publicado (last-modified: <data>)"`.
+- Não conta como erro, não incrementa `totalErros`.
+- Permite outra rodada mais tarde pegar o caderno atualizado (já temos até 3 slots no `metadata.horarios_por_dia`).
 
-- **Ações em lote respeitam seleção**: se houver seleção, aplicar apenas nas selecionadas; se vazio, exigir seleção (removendo comportamento "aplica em tudo").
-- **Cards clicáveis** (totais por status/tribunal/coordenação): ao clicar, filtrar a lista abaixo. Estado local + query params.
-- **Importar publicação → importar partes separadamente**: no fluxo `ensureProcessoFromPublicacao`, extrair a seção "Parte(s):" e criar/upsert em `processos_partes` **um registro por parte**, com `tipo_parte` inferido (autor/réu) quando possível; hoje está tudo em um único campo.
+Também expor `motivo` e `lastModified` no payload do primeiro chunk (o código já lê `json.numPages` do primeiro chunk — vamos ler `json.motivo` também e sair do loop de chunks se for `caderno-nao-atualizado`).
 
-## Bloco 6 — Processos & Casos (lista principal)
+### 3) `supabase/functions/executar-djet-pautas-agendado/index.ts` — gravar `tribunal` na pauta
 
-- **Remover botão "Importar"**.
-- **Corrigir botão "Exportar"**: gerar XLSX real das linhas visíveis (respeitando filtros ativos). Colunas mínimas: número, cliente, coordenação, situação, área, tribunal, última movimentação, valor.
-- **Judit**: corrigir mapeamento do preenchimento do formulário. Rever `useJuditPreencher` (ou equivalente): campos alvo (assunto, classe CNJ, área, órgão julgador, tribunal, instância, partes, vínculo/último cargo) e a estrutura de resposta.
+`persistMatches` monta `base` sem o campo `tribunal`, então `publicacoes_djen.tribunal` está NULL em todas as pautas. Incluir `tribunal: m.tribunal` no `base` (ambos os modos, browser e servidor). Facilita diagnóstico futuro por tribunal em SQL e no painel.
 
-## Bloco 7 — Pedidos (anexo 5)
+### 4) Ajuste opcional de horários — recomendação
 
-`PedidosEditableTable` / dialog "Novo Pedido":
-
-- Input "Pedido" não aceita digitação: provável `readOnly`/estado controlado sem `onChange`. Corrigir.
-- **Remover campo "Lei"** do formulário e da tabela (manter coluna se existir dado histórico, apenas não editar/exibir na criação).
-
-## Bloco 8 — Audiências
-
-- **Criar audiência a partir do processo**: verificar `AudienciaFormSimplificado.onSuccess`; hoje falha ao gravar (provavelmente `processo_id` ausente quando `defaultProcessoId` é passado). Corrigir persistência e revalidação da aba.
-- **Testar todos os tipos**: instrução, conciliação, una, telepresencial.
-- Aparecer no card **Pendências** com badge amarelo.
-
-## Bloco 9 — Eventos com recorrência
-
-- Migration: adicionar em `eventos_agenda`:
-  - `recorrencia_rrule TEXT NULL` (RFC 5545)
-  - `recorrencia_ate DATE NULL`
-- UI (`EventoDialog`): novo bloco "Recorrência" com presets (nenhuma, diária, semanal, mensal, anual) + "Até" (data limite). Gera RRULE.
-- Expansão em tempo de exibição (rrule.js) no calendário/painel; comentários/participantes ficam no registro-mãe.
-
-## Bloco 10 — Painel de Controle (anexo 6)
-
-`src/pages/Index.tsx` (Painel).
-
-- **Cards totalizadores clicáveis** e coloridos:
-  - Tarefas = **azul**
-  - Prazos = **vermelho**
-  - Audiências = **amarelo**
-  - Eventos = **verde**
-- Clique aplica filtro `tipo` na lista abaixo.
-- **Filtros melhorados**:
-  - Datas: dois `input[type=date]` com "Data Prevista de/até" e "Data Fatal de/até" (digitáveis).
-  - Responsável / Envolvido (`PeoplePicker` como no anexo 6).
-  - Coordenação (default = coordenação padrão do usuário).
-- **Exportar Excel**: botão "Gerar Excel" que respeita todos os filtros e exporta cada tipo em abas (Tarefas, Prazos, Audiências, Eventos) com colunas: título, processo, cliente, responsáveis, data prevista, data fatal, status, prioridade.
-
-## Bloco 11 — Perfil: coordenação padrão
-
-- Migration em `profiles`: `coordenacao_padrao_id UUID REFERENCES coordenacoes(id)`.
-- Tela **Configurações → Meu Perfil**: select de coordenações do usuário para definir a padrão.
-- Todos os formulários com campo Coordenação passam a usar esse valor como default (via novo hook `useCoordenacaoPadrao`).
-
----
+O agendamento hoje roda 06:00/09:00/13:00 BRT (`configuracoes_monitoramento_servidor.horarios_execucao` de `djet_pautas_servidor`). Para não perder cadernos de TRTs grandes que só publicam à tarde, incluir também **um slot 16:30 BRT** (via metadata `horarios_por_dia`). **Não vou aplicar isso agora** — é uma mudança de configuração que a Dra. precisa aprovar (custo de créditos). Deixo indicado.
 
 ## Detalhes técnicos
 
-### Migrations previstas
-1. `ALTER TABLE tarefas ADD COLUMN tipo_registro TEXT NOT NULL DEFAULT 'tarefa' CHECK (tipo_registro IN ('tarefa','prazo'));` + backfill + índice.
-2. `ALTER TABLE eventos_agenda ADD COLUMN recorrencia_rrule TEXT, ADD COLUMN recorrencia_ate DATE;`
-3. `ALTER TABLE profiles ADD COLUMN coordenacao_padrao_id UUID REFERENCES coordenacoes(id);`
-4. `ALTER TABLE pedidos_processo` (opcional) — manter `lei` no schema, apenas remover da UI.
+- `Last-Modified` do `diario.jt.jus.br` já vem no formato HTTP-date padrão ("Mon, 06 Jul 2026 12:34:56 GMT"), `new Date(header)` resolve. Se retornar `Invalid Date`, cair no comportamento antigo (aceitar).
+- Nova razão `"caderno-nao-atualizado"` — o front do painel de execução já lista `mensagem` do item, então basta o texto claro; não precisa de nova classe.
+- Nenhuma migração de banco. Só código de edge function e ajuste do inserto para preencher `tribunal`.
+- Backfill do `tribunal` nas pautas antigas não é necessário para o objetivo dessa correção; podemos rodar depois se quiser (script separado).
 
-### Bibliotecas
-- `rrule` (`bun add rrule`) para recorrência.
-- `xlsx`/SheetJS (já usado) para exportações.
+## Verificação
 
-### Arquivos-chave a tocar
-- `src/components/djen/PublicacaoDialog.tsx`
-- `src/components/prazos/*` (form + panel + card pendências)
-- `src/components/processos/*` (Pendências, aba Audiências, aba Intimações, aba Pub. DJEN, aba Pedidos, botões toolbar, Judit)
-- `src/pages/MonitoramentoDjen.tsx` + `AcoesEmLoteDialog`
-- `src/pages/Index.tsx` (Painel de Controle)
-- `src/components/agenda/EventoDialog.tsx`
-- `src/lib/ensureProcessoFromPublicacao.ts` (parsing de partes)
-- `src/hooks/usePrazos.ts`, `useTarefas.ts`, novo `useCoordenacaoPadrao.ts`
-- `src/pages/Configuracoes.tsx` (coordenação padrão)
-
-### Verificação
-Após cada bloco: build/typecheck automático + smoke via Playwright em `/painel-controle`, `/processos/:id`, dialog de publicação, e Análise DJEN.
-
----
-
-Confirma que posso seguir por essa ordem (Bloco 1 → 11)? Se quiser inverter alguma prioridade (ex: começar pelo Painel de Controle porque a Dra. usa mais), me avise antes de eu partir para a implementação.
+1. `curl` no endpoint TRT1 (`https://diario.jt.jus.br/cadernos/Diario_J_01.pdf`) e conferir `Last-Modified`. Se estiver em 03/07/2026, comprova o diagnóstico.
+2. Após deploy, disparar `executar-djet-pautas-agendado` com `{ "force": true }`. Esperado: TRTs cujo caderno ainda não subiu para hoje aparecem como "Caderno ainda não publicado" com `diasSemPdf ≥ 1`, e não como "Concluído · 0 nova(s)".
+3. Rodar novamente após 14h BRT e conferir que os mesmos TRTs agora achem matches (assumindo cadernos publicados).
