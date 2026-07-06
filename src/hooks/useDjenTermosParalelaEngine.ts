@@ -1422,11 +1422,11 @@ async function processarTermoEmTribunal(
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; ultimoErro: string | null }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
 
-  // STF: paridade operacional com o DJEN Servidor. O STF estava travando no
-  // cliente paginado do Browser; para este tribunal específico, delegamos para
+  // Paridade operacional com o DJEN Servidor: o Browser delega a captura para
   // a MESMA edge function/índice usado pelo Servidor, gravando em publicacoes_djen
-  // quando não há execucaoServidorId. Demais tribunais seguem no fluxo Browser.
-  if (!preloaded && String(tribunal || '').toUpperCase() === 'STF') {
+  // quando não há execucaoServidorId. Assim, cada coordenação/termo/tribunal
+  // consulta pelo mesmo motor do Servidor, sem lógica divergente no navegador.
+  if (!preloaded) {
     const { data, error } = await supabase.functions.invoke('monitorar-djen', {
       body: {
         dataInicio: diaYmd,
