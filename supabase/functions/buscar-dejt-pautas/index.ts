@@ -520,6 +520,7 @@ Deno.serve(async (req) => {
           ok: true,
           sem_dados: true,
           motivo: fetched.reason,
+          lastModified: fetched.lastModified ?? null,
           tribunal,
           dataPublicacao: dataIso,
           matches: [],
