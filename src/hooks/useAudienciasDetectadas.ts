@@ -357,6 +357,8 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
+      queryClient.invalidateQueries({ queryKey: ['audiencias-processo'] });
+      queryClient.invalidateQueries({ queryKey: ['audiencias-stats'] });
       toast.success('Audiência cadastrada com sucesso!');
     },
     onError: (error) => {
