@@ -188,7 +188,12 @@ function getValuesFromDado(d: DadoBenner): string[] {
   const materiasAnalise: Array<any> = [
     ...(Array.isArray((d as any).materias_analise_reclamante) ? (d as any).materias_analise_reclamante : []),
     ...(Array.isArray((d as any).materias_analise_banco) ? (d as any).materias_analise_banco : []),
-  ].filter((i) => i && i.materia);
+  ].filter((i) => {
+    if (!i || !i.materia) return false;
+    // "Outra Matéria" é marcador virtual — nunca aparece na planilha de carga.
+    const n = String(i.materia).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    return n !== "outra materia";
+  });
   const norm = (s: any) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
   const joinUnique = (items: any[]) => {
     const seen = new Set<string>();
