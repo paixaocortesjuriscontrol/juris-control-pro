@@ -3568,9 +3568,11 @@ export type Database = {
           modalidade: string | null
           numero_parcela: number | null
           processo_id: string | null
+          recorrencia_ate: string | null
           recorrencia_dias_semana: number[] | null
           recorrencia_fim: string | null
           recorrencia_intervalo: number | null
+          recorrencia_rrule: string | null
           recorrencia_tipo: string | null
           recorrente: boolean | null
           status: string
@@ -3595,9 +3597,11 @@ export type Database = {
           modalidade?: string | null
           numero_parcela?: number | null
           processo_id?: string | null
+          recorrencia_ate?: string | null
           recorrencia_dias_semana?: number[] | null
           recorrencia_fim?: string | null
           recorrencia_intervalo?: number | null
+          recorrencia_rrule?: string | null
           recorrencia_tipo?: string | null
           recorrente?: boolean | null
           status?: string
@@ -3622,9 +3626,11 @@ export type Database = {
           modalidade?: string | null
           numero_parcela?: number | null
           processo_id?: string | null
+          recorrencia_ate?: string | null
           recorrencia_dias_semana?: number[] | null
           recorrencia_fim?: string | null
           recorrencia_intervalo?: number | null
+          recorrencia_rrule?: string | null
           recorrencia_tipo?: string | null
           recorrente?: boolean | null
           status?: string
@@ -6420,6 +6426,7 @@ export type Database = {
           area_principal: string | null
           ativo: boolean
           avatar_url: string | null
+          coordenacao_padrao_id: string | null
           created_at: string
           email: string
           filial: string | null
@@ -6435,6 +6442,7 @@ export type Database = {
           area_principal?: string | null
           ativo?: boolean
           avatar_url?: string | null
+          coordenacao_padrao_id?: string | null
           created_at?: string
           email: string
           filial?: string | null
@@ -6450,6 +6458,7 @@ export type Database = {
           area_principal?: string | null
           ativo?: boolean
           avatar_url?: string | null
+          coordenacao_padrao_id?: string | null
           created_at?: string
           email?: string
           filial?: string | null
@@ -6461,7 +6470,15 @@ export type Database = {
           telefone?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_coordenacao_padrao_id_fkey"
+            columns: ["coordenacao_padrao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       prompts_ia_tst: {
         Row: {
@@ -7608,6 +7625,7 @@ export type Database = {
           responsavel_id: string | null
           situacao_processo: string | null
           status: Database["public"]["Enums"]["status_tarefa"]
+          tipo_registro: string
           tipo_tarefa: string | null
           titulo: string
           total_horas_timesheet: string | null
@@ -7659,6 +7677,7 @@ export type Database = {
           responsavel_id?: string | null
           situacao_processo?: string | null
           status?: Database["public"]["Enums"]["status_tarefa"]
+          tipo_registro?: string
           tipo_tarefa?: string | null
           titulo: string
           total_horas_timesheet?: string | null
@@ -7710,6 +7729,7 @@ export type Database = {
           responsavel_id?: string | null
           situacao_processo?: string | null
           status?: Database["public"]["Enums"]["status_tarefa"]
+          tipo_registro?: string
           tipo_tarefa?: string | null
           titulo?: string
           total_horas_timesheet?: string | null
