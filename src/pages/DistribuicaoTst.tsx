@@ -2385,11 +2385,7 @@ export default function DistribuicaoTst() {
                       const situacao = (d.situacao_processo || "").toLowerCase();
                        const isTransito = (d as any).transito_julgado === true;
                       const isAtivo = situacao.trim() === "ativo";
-                      const situacaoClass = isTransito
-                        ? "text-destructive font-semibold"
-                        : isAtivo
-                        ? "text-blue-600 dark:text-blue-400 font-semibold"
-                        : "";
+                      const situacaoClass = "";
                       if (cnjMatch) {
                         const numero = cnjMatch[1];
                         const resto = cnjMatch[2].trim();
