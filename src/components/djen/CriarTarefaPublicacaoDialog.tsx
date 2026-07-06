@@ -352,10 +352,11 @@ export function CriarTarefaPublicacaoDialog({
             titulo: values.titulo,
             descricao: values.descricao || null,
             tipo_tarefa: tipoFinal,
+            tipo_registro: values.tipo_registro,
             data_vencimento: values.data_vencimento,
             data_fatal: values.data_fatal || null,
             prioridade: values.prioridade,
-          })
+          } as any)
           .eq("id", tarefaEditandoId);
 
         if (error) throw error;
@@ -409,13 +410,14 @@ export function CriarTarefaPublicacaoDialog({
           titulo: values.titulo,
           descricao: values.descricao || null,
           tipo_tarefa: tipoFinal,
+          tipo_registro: values.tipo_registro,
           data_vencimento: values.data_vencimento,
           data_fatal: values.data_fatal || null,
           prioridade: values.prioridade,
           status: "pendente",
           criado_por: user.id,
           origem: "analise_djen",
-        })
+        } as any)
         .select()
         .single();
 
