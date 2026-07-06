@@ -371,7 +371,6 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           <tr className="bg-muted border-b">
             <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r">Pedido</th>
             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-r w-24">Valor</th>
-            <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r w-20">Lei</th>
             <th className="px-2 py-2 text-center font-medium text-muted-foreground border-r w-28">Data</th>
             <th className="px-2 py-2 text-center font-medium text-muted-foreground border-r w-14">Sent.</th>
             <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r w-28">Juiz</th>
@@ -400,13 +399,6 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                       value={editData[pedido.id].valor_pedido}
                       onChange={(val) => updateField(pedido.id, "valor_pedido", val)}
                       className="h-7 text-xs px-1 text-right"
-                    />
-                  </td>
-                  <td className="px-1 py-0.5 border-r">
-                    <Input
-                      value={editData[pedido.id].lei}
-                      onChange={(e) => updateField(pedido.id, "lei", e.target.value)}
-                      className="h-7 text-xs px-1"
                     />
                   </td>
                   <td className="px-1 py-0.5 border-r">
@@ -476,7 +468,6 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                 <>
                   <td className="px-2 py-1.5 border-r font-medium">{pedido.pedido}</td>
                   <td className="px-2 py-1.5 border-r text-right tabular-nums">{formatCurrency(pedido.valor_pedido)}</td>
-                  <td className="px-2 py-1.5 border-r">{pedido.lei || "-"}</td>
                   <td className="px-2 py-1.5 border-r text-center">{formatDate(pedido.data)}</td>
                   <td className="px-2 py-1.5 border-r text-center">{pedido.sentenca ? "✓" : "-"}</td>
                   <td className="px-2 py-1.5 border-r">{pedido.juiz_sentenca || "-"}</td>
