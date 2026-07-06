@@ -56,12 +56,12 @@ const getHojeBrtISO = (): string => {
   return `${get('year')}-${get('month')}-${get('day')}`;
 };
 
-const dataDisponibilizacaoPautaInicio = (dataDisponibilizacao?: string, apenasHoje?: boolean): string | null => {
+const dataPublicacaoPautaInicio = (dataDisponibilizacao?: string, apenasHoje?: boolean): string | null => {
   const dia = dataDisponibilizacao || (apenasHoje ? getHojeBrtISO() : null);
   return dia ? `${dia}T00:00:00Z` : null;
 };
 
-const dataDisponibilizacaoPautaFim = (dataDisponibilizacao?: string, apenasHoje?: boolean): string | null => {
+const dataPublicacaoPautaFim = (dataDisponibilizacao?: string, apenasHoje?: boolean): string | null => {
   const dia = dataDisponibilizacao || (apenasHoje ? getHojeBrtISO() : null);
   return dia ? `${dia}T23:59:59.999Z` : null;
 };
@@ -440,14 +440,14 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         try {
           let q = (supabase
             .from('publicacoes_djen') as any)
-            .select('id, lida, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
+            .select('id, id_djen, lida, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
             .eq('tipo_publicacao', 'pauta');
-          const pautaDispInicio = dataDisponibilizacaoPautaInicio(filtros.dataDisponibilizacao, filtros.apenasHoje);
-          const pautaDispFim = dataDisponibilizacaoPautaFim(filtros.dataDisponibilizacao, filtros.apenasHoje);
-          if (pautaDispInicio) q = q.gte('data_disponibilizacao', pautaDispInicio);
-          if (pautaDispFim) q = q.lte('data_disponibilizacao', pautaDispFim);
-          if (!pautaDispInicio && di) q = q.gte('created_at', di);
-          if (!pautaDispFim && df) q = q.lte('created_at', df);
+          const pautaPubInicio = dataPublicacaoPautaInicio(filtros.dataDisponibilizacao, filtros.apenasHoje);
+          const pautaPubFim = dataPublicacaoPautaFim(filtros.dataDisponibilizacao, filtros.apenasHoje);
+          if (pautaPubInicio) q = q.gte('data_publicacao', pautaPubInicio);
+          if (pautaPubFim) q = q.lte('data_publicacao', pautaPubFim);
+          if (!pautaPubInicio && di) q = q.gte('created_at', di);
+          if (!pautaPubFim && df) q = q.lte('created_at', df);
           if (filtros.coordenacaoId) q = q.eq('monitoramento.coordenacao_id', filtros.coordenacaoId);
           if (filtros.monitoramentoId) q = q.eq('monitoramento_id', filtros.monitoramentoId);
           const { data: pautasRows } = await q.limit(2000).abortSignal(signal);
@@ -465,6 +465,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           const dedupedRows = dedupePublicacoesDjen(
             (pautasRows || []).map((r: any) => ({
               id: r.id,
+              id_djen: r.id_djen ?? null,
               tipo_origem: 'termo',
               processo_id: null,
               processo_numero: r.processo_numero,
@@ -678,7 +679,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         // Em todas as views que NÃO sejam DJET Pautas, remover publicações
         // capturadas via DEJT (fonte 'dejt-pdf') para não misturar pautas
         // com intimações/processos do DJEN.
-        filteredByType = filteredByType.filter((p) => (p.fonte || '').toLowerCase() !== 'dejt-pdf');
+        if (filtros.tipoOrigem !== 'djet-pautas') {
+          filteredByType = filteredByType.filter((p) => (p.fonte || '').toLowerCase() !== 'dejt-pdf');
+        }
         if (filtros.monitoramentoId) {
           filteredByType = filteredByType.filter((p) => p.monitoramento_id === filtros.monitoramentoId);
         }
