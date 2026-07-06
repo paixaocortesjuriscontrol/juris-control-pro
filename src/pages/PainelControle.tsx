@@ -902,6 +902,33 @@ export default function PainelControle() {
                 </Button>
               </div>
               <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs gap-1"
+                onClick={async () => {
+                  const XLSX = await import("xlsx");
+                  const rows = itensPainelFiltrados.map((it) => ({
+                    Classificação: TIPO_LABELS[it.tipo as string] ?? it.tipo_tarefa ?? it.tipo,
+                    Título: it.titulo,
+                    Status: it.status,
+                    "Data prevista": (it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10),
+                    "Data fatal": (it.data_fatal ?? "").slice(0, 10),
+                    Responsável: it.responsavel_nome ?? "",
+                    Processo: it.processo_numero ?? "",
+                    Coordenação: (it as any).coordenacao_nome ?? "",
+                  }));
+                  const ws = XLSX.utils.json_to_sheet(rows);
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, "Atividades");
+                  const stamp = format(new Date(), "yyyy-MM-dd_HHmm");
+                  XLSX.writeFile(wb, `atividades_${stamp}.xlsx`);
+                }}
+                title="Exportar atividades filtradas para Excel"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Exportar
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" className="h-7 px-3 text-xs gap-1">
