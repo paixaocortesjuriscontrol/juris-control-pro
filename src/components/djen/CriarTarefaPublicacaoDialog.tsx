@@ -55,6 +55,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
+import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
+
+// Formata "YYYY-MM-DD" (ou ISO) como dd/MM/yy sem sofrer shift de timezone.
+function formatDateBR(dateString?: string | null): string {
+  if (!dateString) return "";
+  const onlyDate = String(dateString).slice(0, 10); // "YYYY-MM-DD"
+  const [y, m, d] = onlyDate.split("-");
+  if (!y || !m || !d) return "";
+  return `${d}/${m}/${y.slice(2)}`;
+}
 
 type TarefaSimples = { id: string; titulo: string; tipo_tarefa: string | null; status: string; responsavel_nome?: string; data_vencimento?: string | null; data_fatal?: string | null };
 
@@ -130,6 +140,7 @@ async function fetchTarefasPublicacao(publicacaoId: string, tipoOrigem: string |
 }
 
 const formSchema = z.object({
+  tipo_registro: z.enum(["tarefa", "prazo"]).default("tarefa"),
   tipo_tarefa: z.string().optional(),
   titulo: z.string().min(1, "Título é obrigatório").max(200),
   descricao: z.string().optional(),
@@ -137,7 +148,10 @@ const formSchema = z.object({
   data_vencimento: z.string().min(1, "Data prevista é obrigatória"),
   data_fatal: z.string().optional(),
   prioridade: z.enum(["baixa", "media", "alta", "urgente"]),
-});
+}).refine(
+  (d) => d.tipo_registro !== "prazo" || (d.data_fatal && d.data_fatal.length > 0),
+  { message: "Data fatal é obrigatória para prazos", path: ["data_fatal"] }
+);
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -178,6 +192,7 @@ export function CriarTarefaPublicacaoDialog({
   defaultProcessoId,
 }: CriarTarefaPublicacaoDialogProps) {
   const { user } = useAuth();
+  const { data: coordPadraoId } = useCoordenacaoPadrao();
   const queryClient = useQueryClient();
   const [loading, setLoading] = useState(false);
   const [observacoesIA, setObservacoesIA] = useState<string | null>(null);
@@ -193,6 +208,7 @@ export function CriarTarefaPublicacaoDialog({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      tipo_registro: "tarefa",
       tipo_tarefa: "INTIMAÇÃO",
       titulo: "",
       descricao: "",
@@ -210,6 +226,7 @@ export function CriarTarefaPublicacaoDialog({
       openedAtRef.current = Date.now();
 
       form.reset({
+        tipo_registro: "tarefa",
         tipo_tarefa: "TAREFA EQUIPE",
         titulo: "",
         descricao: "",
@@ -223,12 +240,21 @@ export function CriarTarefaPublicacaoDialog({
       setTarefaEditandoId(null);
       setResponsaveisIds([]);
       setEnvolvidosIds([]);
-      setCoordenacaoId("");
+      // Pré-seleciona coordenação padrão do usuário (item c)
+      setCoordenacaoId(coordPadraoId || "");
     }
-  }, [open, publicacao?.id, form]);
+  }, [open, publicacao?.id, form, coordPadraoId]);
+
+  // Se a coordenação padrão vier após o open, aplica
+  useEffect(() => {
+    if (open && coordPadraoId && !coordenacaoId) {
+      setCoordenacaoId(coordPadraoId);
+    }
+  }, [coordPadraoId, open, coordenacaoId]);
 
   const resetParaNovaTarefa = () => {
     form.reset({
+      tipo_registro: "tarefa",
       tipo_tarefa: "TAREFA EQUIPE",
       titulo: "",
       descricao: "",
