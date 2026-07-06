@@ -909,8 +909,8 @@ export function PublicacaoConteudoDjen({
             )}
           >
             {monitoramentoTipo === 'palavra-chave' && monitoramentoTermo
-              ? highlightTermInContent(conteudoParaExibir, monitoramentoTermo)
-              : conteudoParaExibir}
+              ? highlightTermInContent(conteudoFinal, monitoramentoTermo)
+              : conteudoFinal}
           </div>
         </main>
       </div>
