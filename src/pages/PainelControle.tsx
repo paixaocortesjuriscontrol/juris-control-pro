@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
+import { Download } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -635,6 +636,36 @@ export default function PainelControle() {
         }
       }
 
+      // Responsável(is) selecionado(s)
+      if (painelFiltros.responsavelIds.length > 0) {
+        const rid = item.responsavel_id;
+        const cid = item.criado_por;
+        const envolvido = item.participantes?.some((p) => painelFiltros.responsavelIds.includes(p.usuario_id));
+        const isMatch =
+          (rid && painelFiltros.responsavelIds.includes(rid)) ||
+          (cid && painelFiltros.responsavelIds.includes(cid)) ||
+          envolvido;
+        if (!isMatch) return false;
+      }
+
+      // Período (data prevista/fatal conforme escolha em "Prazo")
+      if (painelFiltros.periodoInicio || painelFiltros.periodoFim) {
+        let dateStr: string | undefined;
+        if (item.origem === "tarefa") {
+          if (painelFiltros.dataFatal && !painelFiltros.dataPrevista) {
+            dateStr = item.data_fatal ?? item.data_vencimento ?? item.data_inicio;
+          } else {
+            dateStr = item.data_vencimento ?? item.data_fatal ?? item.data_inicio;
+          }
+        } else {
+          dateStr = item.data_inicio;
+        }
+        const d = (dateStr ?? "").slice(0, 10);
+        if (!d) return false;
+        if (painelFiltros.periodoInicio && d < painelFiltros.periodoInicio) return false;
+        if (painelFiltros.periodoFim && d > painelFiltros.periodoFim) return false;
+      }
+
       return true;
     });
   }, [itensAgenda, painelFiltros, user?.id]);
@@ -871,6 +902,33 @@ export default function PainelControle() {
                 </Button>
               </div>
               <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs gap-1"
+                onClick={async () => {
+                  const XLSX = await import("xlsx");
+                  const rows = itensPainelFiltrados.map((it) => ({
+                    Classificação: TIPO_LABELS[it.tipo as string] ?? it.tipo_tarefa ?? it.tipo,
+                    Título: it.titulo,
+                    Status: it.status,
+                    "Data prevista": (it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10),
+                    "Data fatal": (it.data_fatal ?? "").slice(0, 10),
+                    Responsável: it.responsavel?.nome ?? "",
+                    Processo: it.processo?.numero ?? "",
+                    Coordenação: (it as any).coordenacao_nome ?? "",
+                  }));
+                  const ws = XLSX.utils.json_to_sheet(rows);
+                  const wb = XLSX.utils.book_new();
+                  XLSX.utils.book_append_sheet(wb, ws, "Atividades");
+                  const stamp = format(new Date(), "yyyy-MM-dd_HHmm");
+                  XLSX.writeFile(wb, `atividades_${stamp}.xlsx`);
+                }}
+                title="Exportar atividades filtradas para Excel"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Exportar
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" className="h-7 px-3 text-xs gap-1">

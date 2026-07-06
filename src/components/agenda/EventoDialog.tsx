@@ -90,6 +90,11 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const [processoId, setProcessoId] = useState("");
   const [processoSearch, setProcessoSearch] = useState("");
 
+  // Recorrência
+  const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
+  const [recorrenciaIntervalo, setRecorrenciaIntervalo] = useState<number>(1);
+  const [recorrenciaFim, setRecorrenciaFim] = useState<string>("");
+
   const { data: processos } = useQuery({
     queryKey: ["processos-evento-dialog", processoSearch],
     queryFn: async () => {
@@ -155,6 +160,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setModalidade((evento as any).modalidade || "");
       setObservacoes(evento.descricao || "");
       setProcessoId(evento.processo_id || "");
+      setRecorrenciaTipo((evento as any).recorrencia_tipo || "nenhuma");
+      setRecorrenciaIntervalo((evento as any).recorrencia_intervalo || 1);
+      setRecorrenciaFim(((evento as any).recorrencia_fim || "").slice(0, 10));
 
       const min = alertasEvento && alertasEvento.length > 0 ? alertasEvento[0] : 0;
       const { valor, unidade } = minutosParaUnidade(min);
@@ -194,6 +202,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setResponsaveisIds([]);
       setEnvolvidosIds([]);
       setMostrarEnvolvidos(false);
+      setRecorrenciaTipo("nenhuma");
+      setRecorrenciaIntervalo(1);
+      setRecorrenciaFim("");
     }
   }, [evento, open, alertasEvento, defaultProcessoId]);
 
@@ -240,6 +251,12 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       participantes_ids: responsaveisIds,
       alerta_minutos: alertas,
       enviar_whatsapp: alertas.length > 0,
+      recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
+      recorrencia_intervalo: recorrenciaTipo !== "nenhuma" ? recorrenciaIntervalo : null,
+      recorrencia_fim: recorrenciaTipo !== "nenhuma" && recorrenciaFim ? recorrenciaFim : null,
+      recorrencia_rrule: recorrenciaTipo !== "nenhuma"
+        ? `FREQ=${recorrenciaTipo.toUpperCase()};INTERVAL=${recorrenciaIntervalo}${recorrenciaFim ? `;UNTIL=${recorrenciaFim.replace(/-/g, "")}T235959Z` : ""}`
+        : null,
     } as any;
 
     try {
@@ -578,6 +595,43 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               <Label htmlFor="observacoes" className="text-sm">
                 Observações
               </Label>
+              {/* Recorrência */}
+              <div className="mb-4">
+                <Label className="text-sm">Recorrência</Label>
+                <div className="flex gap-2 mt-1.5">
+                  <Select value={recorrenciaTipo} onValueChange={setRecorrenciaTipo}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="nenhuma">Não se repete</SelectItem>
+                      <SelectItem value="daily">Diariamente</SelectItem>
+                      <SelectItem value="weekly">Semanalmente</SelectItem>
+                      <SelectItem value="monthly">Mensalmente</SelectItem>
+                      <SelectItem value="yearly">Anualmente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {recorrenciaTipo !== "nenhuma" && (
+                    <>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={recorrenciaIntervalo}
+                        onChange={(e) => setRecorrenciaIntervalo(parseInt(e.target.value) || 1)}
+                        className="w-20"
+                        title="A cada"
+                      />
+                      <Input
+                        type="date"
+                        value={recorrenciaFim}
+                        onChange={(e) => setRecorrenciaFim(e.target.value)}
+                        className="w-40"
+                        title="Até (opcional)"
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
               <Textarea
                 id="observacoes"
                 value={observacoes}
