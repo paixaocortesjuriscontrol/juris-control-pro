@@ -194,7 +194,17 @@ function textoPartes(pub: any): string {
 }
 
 function validarTermo(pub: any, mon: Monitoramento): boolean {
-  const tipo = mon.tipo === "nome" ? "advogado" : mon.tipo === "geral" ? "palavra-chave" : mon.tipo;
+  if (mon.tipo === "geral") {
+    const termos = [mon.termo_busca, ...(mon.termos_or || [])].map((t) => String(t || "").trim()).filter(Boolean);
+    const textoNorm = normalizar(buildTextoCompleto(pub));
+    const pn = String(pub?.numeroProcesso || pub?.numero_processo || pub?.processo_numero || pub?.processo || "").replace(/\D/g, "");
+    return termos.some((t) => {
+      const td = t.replace(/\D/g, "");
+      return contemFrase(textoNorm, normalizar(t)) || validarParte(pub, t) || validarAdvogado(pub, t) || (!!td && pn.includes(td));
+    });
+  }
+
+  const tipo = mon.tipo === "nome" ? "advogado" : mon.tipo;
   if (tipo === "parte") {
     if (validarParte(pub, mon.termo_busca)) return true;
     return (mon.termos_or || []).some((t) => validarParte(pub, t));
