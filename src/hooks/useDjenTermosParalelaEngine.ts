@@ -1422,6 +1422,33 @@ async function processarTermoEmTribunal(
 ): Promise<{ novas: number; duplicadas: number; descartadas: number; rateLimitHits: number; ultimoErro: string | null }> {
   if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
 
+  // Paridade operacional com o DJEN Servidor: o Browser delega a captura para
+  // a MESMA edge function/índice usado pelo Servidor, gravando em publicacoes_djen
+  // quando não há execucaoServidorId. Assim, cada coordenação/termo consulta a
+  // fonte própria do Servidor e não depende do cliente paginado do navegador.
+  if (!preloaded) {
+    const { data, error } = await supabase.functions.invoke('monitorar-djen', {
+      body: {
+        dataInicio: diaYmd,
+        dataFim: diaYmd,
+        coordenacaoId: mon.coordenacao_id ?? undefined,
+        monitoramentoIds: [mon.id],
+        tribunais: [tribunal],
+        skipServidorProgress: true,
+      },
+    });
+    if (signal.aborted) return { novas: 0, duplicadas: 0, descartadas: 0, rateLimitHits: 0, ultimoErro: null };
+    if (error) throw new Error(error.message || 'Falha ao executar DJEN Servidor pelo Browser');
+    if ((data as any)?.error) throw new Error(String((data as any).error));
+    return {
+      novas: Number((data as any)?.novas || 0),
+      duplicadas: Number((data as any)?.duplicatas ?? (data as any)?.duplicadas ?? 0),
+      descartadas: Number((data as any)?.descartadas || 0),
+      rateLimitHits: 0,
+      ultimoErro: null,
+    };
+  }
+
   // `nome` é legado no banco para "advogado por nome". Para casar com a URL
   // oficial do Comunica, deve virar `nomeAdvogado`, não `texto`.
   const tipo: PjeSearchType = mon.tipo === 'parte'
