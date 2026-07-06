@@ -1,62 +1,136 @@
-## Diagnóstico
 
-A busca DJEN Pautas Servidor **está passando a data BRT correta** (`2026-07-03`) para os DEJTs. Verificado:
+# Plano — Correções abrangentes (Processos, Publicação, DJEN, Painel, Pedidos, Audiências)
 
-- `brtNow()` em `executar-djet-pautas-agendado/index.ts:32-38` usa `toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" })` — sempre BRT.
-- A execução de hoje (`ac762183…`, `iniciado_em 12:00 UTC = 09:00 BRT`) tem `janela: { dataInicio: "2026-07-03", dataFim: "2026-07-03" }` — correto.
-- 41 publicações de pauta inseridas hoje.
+Implementação em sequência, agrupada em blocos coerentes. Cada bloco é auto-contido e verificável.
 
-**Porém**: no banco, `publicacoes_djen_servidor.data_disponibilizacao` foi gravada como `2026-07-03 00:00:00+00` (meia-noite UTC). Como a coluna é `timestamptz` e o front renderiza em BRT (UTC-3), esse valor vira **02/07/2026 21:00 BRT** — daí a advogada vê "data de ontem".
+---
 
-Causa: linha 283 grava `m.dataPublicacao` como string YMD (`"2026-07-03"`), que o Postgres interpreta como `00:00:00 UTC`. O mesmo acontece com `data_publicacao` na linha 284. Já existe convenção no projeto (memória `djen-publication-date-and-timezone-normalization`) de normalizar para **12:00 UTC** para que o dia BRT seja igual ao dia UTC.
+## Bloco 1 — Diálogo de Publicação (anexo 1)
 
-## Plano
+Arquivo principal: `src/components/djen/PublicacaoDialog.tsx` (e formulário embutido de criação de tarefa).
 
-### 1. Corrigir gravação em `executar-djet-pautas-agendado/index.ts` (persistMatches)
+- **a) Data verde de ontem**: a data mostrada no cartão verde ("Tarefas criadas") está usando `new Date()` local e/ou dia anterior por fuso. Trocar para `format(parseISO(prazo.data_prevista), "dd/MM/yy")` sem `new Date(string)`.
+- **b) Não fechar o modal ao criar prazo/tarefa**:
+  - Remover `onOpenChange(false)` do `onSuccess` do form embutido.
+  - Após criar, resetar campos e manter dialog aberto; mostrar toast e append no bloco "Tarefas criadas".
+  - Adicionar botão **"Adicionar"** (secundário) além de "Criar Tarefa" que faz o mesmo, mas com foco no primeiro campo após criar (criação contínua).
+- **c) Coordenação pré-selecionada**: usar novo campo `profiles.coordenacao_padrao_id`. Fallback: primeira coordenação do usuário via `membros_coordenacao`.
+- **d) Envolvidos igual aos Responsáveis**: substituir o seletor atual pelo mesmo componente `PeoplePicker`/`MultiUserSelect` usado em Responsáveis (com abas "Minha Resp. & Envolv." / "Tarefas a Concluir" conforme anexo 6). Padronizar visual e comportamento.
+- **e) Prazo vs Tarefa** (item mais estrutural — ver Bloco 2).
 
-Trocar as duas linhas do insert:
+## Bloco 2 — Separar Prazo de Tarefa (comportamento distinto)
 
-```ts
-data_disponibilizacao: m.dataPublicacao,
-data_publicacao: calcularDataPublicacaoYmd(m.dataPublicacao),
-```
+Hoje ambos vivem em `tarefas`. Vamos:
 
-por:
+1. **Migration**: adicionar `tarefas.tipo_registro TEXT NOT NULL DEFAULT 'tarefa' CHECK (tipo_registro IN ('tarefa','prazo'))`. Backfill: registros com `data_fatal IS NOT NULL` → `'prazo'`.
+2. **Validações**:
+   - Prazo: `data_fatal` obrigatória; entra em Prazos Fatais e no Kanban de Prazos.
+   - Tarefa: `data_fatal` opcional; `data_prevista` obrigatória.
+3. **UI**:
+   - Formulário de criação com toggle Tipo (Prazo/Tarefa) que altera campos e validação.
+   - Card lateral "Pendências do Processo" (anexo 2): badge **PRAZO** (vermelho) vs **TAREFA** (azul); ordenação: prazos primeiro por proximidade da data_fatal.
+   - Detalhe: exibir corretamente "Fatal:" só para prazo.
+4. **Hooks**: `usePrazos` filtra `tipo_registro='prazo'`; `useTarefas` filtra `'tarefa'`. Query keys separadas.
 
-```ts
-data_disponibilizacao: `${m.dataPublicacao}T12:00:00Z`,
-data_publicacao: `${calcularDataPublicacaoYmd(m.dataPublicacao)}T12:00:00Z`,
-```
+## Bloco 3 — Pendências do Processo (anexo 2/3)
 
-Isso mantém o dia BRT igual ao dia UTC (12:00 UTC = 09:00 BRT, ambos = mesma data).
+Componente: `PendenciasProcesso*` (na tela `/processos/:id`).
 
-### 2. Backfill das pautas gravadas hoje com timestamp errado
+- **Diferenciar** Prazo × Tarefa via badge/cor.
+- **Mostrar audiências**: unir `audiencias_detectadas` + eventos manuais do processo, mesmo card "Pendências". Nova seção "Audiências" no card de pendências com badge amarelo.
+- **Aba Audiências**: corrigir a query — hoje ela não lista audiências criadas via `CriarAudienciaProcessoDialog`. Verificar filtro `processo_id` vs `numero_processo`. Padronizar por `processo_id` UUID.
+- **Aba Intimações**: revisar lógica (parâmetros de fetch, join com `intimacoes_detectadas`); garantir mesmo padrão dos outros cards.
 
-Migração pontual para consertar as ~41 linhas de hoje (e ontem, se houver o mesmo problema):
+## Bloco 4 — Pub. DJEN e demais abas do processo
 
-```sql
-UPDATE publicacoes_djen_servidor
-SET data_disponibilizacao = date_trunc('day', data_disponibilizacao) + interval '12 hours',
-    data_publicacao       = date_trunc('day', data_publicacao)       + interval '12 hours'
-WHERE tipo_publicacao = 'pauta'
-  AND created_at > now() - interval '3 days'
-  AND extract(hour from data_disponibilizacao at time zone 'UTC') = 0;
-```
+- Ao **salvar publicação vinculada** (dialog), invalidar queries de `publicacoes_djen_processos` e `publicacoes_djen` filtradas pelo `processo_id` para aparecer imediatamente na aba **Pub. DJEN**. Idem Andamentos, Redistribuições, Intimações.
+- **Intimações**: adicionar `ItemComentarios` (mesmo componente usado em tarefas/audiências) na visão de detalhe da intimação.
 
-(Filtro `hour = 0` evita mexer em linhas já normalizadas.)
+## Bloco 5 — Análise DJEN (ações em lote e cards)
 
-### 3. Verificar simetria com Termos Servidor
+Arquivo: `src/pages/MonitoramentoDjen.tsx` + `AcoesEmLoteDialog`.
 
-Ler rapidamente o insert de `publicacoes_djen_servidor` no motor de Termos para confirmar se ele já usa `T12:00:00Z`. Se estiver usando o mesmo padrão errado (YMD puro), aplicar a mesma correção — mas **sem alterar comportamento de busca**, só o formato do timestamp gravado.
+- **Ações em lote respeitam seleção**: se houver seleção, aplicar apenas nas selecionadas; se vazio, exigir seleção (removendo comportamento "aplica em tudo").
+- **Cards clicáveis** (totais por status/tribunal/coordenação): ao clicar, filtrar a lista abaixo. Estado local + query params.
+- **Importar publicação → importar partes separadamente**: no fluxo `ensureProcessoFromPublicacao`, extrair a seção "Parte(s):" e criar/upsert em `processos_partes` **um registro por parte**, com `tipo_parte` inferido (autor/réu) quando possível; hoje está tudo em um único campo.
 
-### 4. Verificação
+## Bloco 6 — Processos & Casos (lista principal)
 
-- Rodar novo scheduler manualmente (`force: true`) para uma coordenação e conferir no banco que `data_disponibilizacao` fica `2026-07-03 12:00:00+00`.
-- No front, a pauta deve aparecer como `03/07/2026`.
+- **Remover botão "Importar"**.
+- **Corrigir botão "Exportar"**: gerar XLSX real das linhas visíveis (respeitando filtros ativos). Colunas mínimas: número, cliente, coordenação, situação, área, tribunal, última movimentação, valor.
+- **Judit**: corrigir mapeamento do preenchimento do formulário. Rever `useJuditPreencher` (ou equivalente): campos alvo (assunto, classe CNJ, área, órgão julgador, tribunal, instância, partes, vínculo/último cargo) e a estrutura de resposta.
 
-## O que NÃO muda
+## Bloco 7 — Pedidos (anexo 5)
 
-- Lógica de busca DEJT / janela de datas / horários do dispatcher.
-- Regras de dedup, coordenação, `calcularDataPublicacaoYmd` (recesso, fins de semana).
-- Isolamento Browser × Servidor.
-- Nenhuma alteração no motor Termos além do ajuste de gravação (item 3), se for o caso.
+`PedidosEditableTable` / dialog "Novo Pedido":
+
+- Input "Pedido" não aceita digitação: provável `readOnly`/estado controlado sem `onChange`. Corrigir.
+- **Remover campo "Lei"** do formulário e da tabela (manter coluna se existir dado histórico, apenas não editar/exibir na criação).
+
+## Bloco 8 — Audiências
+
+- **Criar audiência a partir do processo**: verificar `AudienciaFormSimplificado.onSuccess`; hoje falha ao gravar (provavelmente `processo_id` ausente quando `defaultProcessoId` é passado). Corrigir persistência e revalidação da aba.
+- **Testar todos os tipos**: instrução, conciliação, una, telepresencial.
+- Aparecer no card **Pendências** com badge amarelo.
+
+## Bloco 9 — Eventos com recorrência
+
+- Migration: adicionar em `eventos_agenda`:
+  - `recorrencia_rrule TEXT NULL` (RFC 5545)
+  - `recorrencia_ate DATE NULL`
+- UI (`EventoDialog`): novo bloco "Recorrência" com presets (nenhuma, diária, semanal, mensal, anual) + "Até" (data limite). Gera RRULE.
+- Expansão em tempo de exibição (rrule.js) no calendário/painel; comentários/participantes ficam no registro-mãe.
+
+## Bloco 10 — Painel de Controle (anexo 6)
+
+`src/pages/Index.tsx` (Painel).
+
+- **Cards totalizadores clicáveis** e coloridos:
+  - Tarefas = **azul**
+  - Prazos = **vermelho**
+  - Audiências = **amarelo**
+  - Eventos = **verde**
+- Clique aplica filtro `tipo` na lista abaixo.
+- **Filtros melhorados**:
+  - Datas: dois `input[type=date]` com "Data Prevista de/até" e "Data Fatal de/até" (digitáveis).
+  - Responsável / Envolvido (`PeoplePicker` como no anexo 6).
+  - Coordenação (default = coordenação padrão do usuário).
+- **Exportar Excel**: botão "Gerar Excel" que respeita todos os filtros e exporta cada tipo em abas (Tarefas, Prazos, Audiências, Eventos) com colunas: título, processo, cliente, responsáveis, data prevista, data fatal, status, prioridade.
+
+## Bloco 11 — Perfil: coordenação padrão
+
+- Migration em `profiles`: `coordenacao_padrao_id UUID REFERENCES coordenacoes(id)`.
+- Tela **Configurações → Meu Perfil**: select de coordenações do usuário para definir a padrão.
+- Todos os formulários com campo Coordenação passam a usar esse valor como default (via novo hook `useCoordenacaoPadrao`).
+
+---
+
+## Detalhes técnicos
+
+### Migrations previstas
+1. `ALTER TABLE tarefas ADD COLUMN tipo_registro TEXT NOT NULL DEFAULT 'tarefa' CHECK (tipo_registro IN ('tarefa','prazo'));` + backfill + índice.
+2. `ALTER TABLE eventos_agenda ADD COLUMN recorrencia_rrule TEXT, ADD COLUMN recorrencia_ate DATE;`
+3. `ALTER TABLE profiles ADD COLUMN coordenacao_padrao_id UUID REFERENCES coordenacoes(id);`
+4. `ALTER TABLE pedidos_processo` (opcional) — manter `lei` no schema, apenas remover da UI.
+
+### Bibliotecas
+- `rrule` (`bun add rrule`) para recorrência.
+- `xlsx`/SheetJS (já usado) para exportações.
+
+### Arquivos-chave a tocar
+- `src/components/djen/PublicacaoDialog.tsx`
+- `src/components/prazos/*` (form + panel + card pendências)
+- `src/components/processos/*` (Pendências, aba Audiências, aba Intimações, aba Pub. DJEN, aba Pedidos, botões toolbar, Judit)
+- `src/pages/MonitoramentoDjen.tsx` + `AcoesEmLoteDialog`
+- `src/pages/Index.tsx` (Painel de Controle)
+- `src/components/agenda/EventoDialog.tsx`
+- `src/lib/ensureProcessoFromPublicacao.ts` (parsing de partes)
+- `src/hooks/usePrazos.ts`, `useTarefas.ts`, novo `useCoordenacaoPadrao.ts`
+- `src/pages/Configuracoes.tsx` (coordenação padrão)
+
+### Verificação
+Após cada bloco: build/typecheck automático + smoke via Playwright em `/painel-controle`, `/processos/:id`, dialog de publicação, e Análise DJEN.
+
+---
+
+Confirma que posso seguir por essa ordem (Bloco 1 → 11)? Se quiser inverter alguma prioridade (ex: começar pelo Painel de Controle porque a Dra. usa mais), me avise antes de eu partir para a implementação.
