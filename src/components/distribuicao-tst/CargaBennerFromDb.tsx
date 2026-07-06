@@ -479,7 +479,12 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         const materiasAnalise: Array<any> = [
           ...(Array.isArray((d as any).materias_analise_reclamante) ? (d as any).materias_analise_reclamante : []),
           ...(Array.isArray((d as any).materias_analise_banco) ? (d as any).materias_analise_banco : []),
-        ].filter((it: any) => it && it.materia);
+        ].filter((it: any) => {
+          if (!it || !it.materia) return false;
+          // "Outra Matéria" é marcador virtual — nunca sai na planilha de carga.
+          const n = String(it.materia).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+          return n !== "outra materia";
+        });
         const normMat = (s: any) =>
           String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
         const joinUniqueMat = (items: any[]) => {
