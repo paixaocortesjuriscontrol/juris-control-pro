@@ -1331,22 +1331,30 @@ async function processarTribunalTrack(
         try {
           let r: Awaited<ReturnType<typeof processarTermoEmTribunal>> | null = null;
           try {
-            r = await processarTermoEmTribunal(grupo[0], diaYmd, tribunal, signal, viaId, tipo, monId);
+            r = await withAttemptWatchdog(signal, (attemptSignal) =>
+              processarTermoEmTribunal(grupo[0], diaYmd, tribunal, attemptSignal, viaId, tipo, monId),
+            );
           } catch (firstErr: any) {
             if (firstErr?.name === 'AbortError') throw firstErr;
-            if (!isRecoverableVpsFailure(firstErr)) throw firstErr;
-            const alternatives = getAlternativeProxyViaIds(viaId, 2);
+            const isWatchdog = firstErr?.name === 'WatchdogTimeoutError';
+            if (!isWatchdog && !isRecoverableVpsFailure(firstErr)) throw firstErr;
+            // STF/tribunais lentos costumam precisar de mais alternativas —
+            // usamos até 4 VPSs alternativas antes de desistir do grupo.
+            const alternatives = getAlternativeProxyViaIds(viaId, 4);
             let lastErr = firstErr;
             for (const altViaId of alternatives) {
               if (signal.aborted) break;
               try {
                 updateTrack(tribunal, tipo, { mensagem: `↻ retry em outra VPS (${alternatives.indexOf(altViaId) + 1}/${alternatives.length})` }, monId);
-                r = await processarTermoEmTribunal(grupo[0], diaYmd, tribunal, signal, altViaId, tipo, monId);
+                r = await withAttemptWatchdog(signal, (attemptSignal) =>
+                  processarTermoEmTribunal(grupo[0], diaYmd, tribunal, attemptSignal, altViaId, tipo, monId),
+                );
                 break;
               } catch (altErr: any) {
                 if (altErr?.name === 'AbortError') throw altErr;
                 lastErr = altErr;
-                if (!isRecoverableVpsFailure(altErr)) throw altErr;
+                const altIsWatchdog = altErr?.name === 'WatchdogTimeoutError';
+                if (!altIsWatchdog && !isRecoverableVpsFailure(altErr)) throw altErr;
               }
             }
             if (!r) throw lastErr;
