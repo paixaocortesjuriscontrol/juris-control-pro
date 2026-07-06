@@ -772,17 +772,37 @@ const Processos = () => {
                   <CheckSquare className="w-4 h-4 mr-2" />
                   <span className="hidden sm:inline">Selecionar</span>
                 </Button>
-                <Button variant="outline" className="flex-1 sm:flex-none">
-                  <Download className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Exportar</span>
-                </Button>
-                <Button 
+                <Button
                   variant="outline"
                   className="flex-1 sm:flex-none"
-                  onClick={() => navigate("/importar")}
+                  onClick={async () => {
+                    try {
+                      const XLSX = await import("xlsx");
+                      const rows = (processos || []).map((p: any) => ({
+                        Numero: p.numero || "",
+                        Assunto: p.assunto || "",
+                        Cliente: p.cliente_nome || p.cliente?.nome || "",
+                        Coordenacao: p.coordenacao_nome || p.coordenacao?.nome || "",
+                        Situacao: p.situacao || p.status || "",
+                        Area: p.area || "",
+                        Tribunal: p.tribunal || "",
+                        Instancia: p.instancia || "",
+                        Orgao_Julgador: p.orgao_julgador || "",
+                        Data_Distribuicao: p.data_distribuicao || "",
+                        Valor_Causa: p.valor_causa || "",
+                      }));
+                      const ws = XLSX.utils.json_to_sheet(rows);
+                      const wb = XLSX.utils.book_new();
+                      XLSX.utils.book_append_sheet(wb, ws, "Processos");
+                      const stamp = new Date().toISOString().slice(0, 10);
+                      XLSX.writeFile(wb, `processos_${stamp}.xlsx`);
+                    } catch (e) {
+                      console.error("Erro ao exportar:", e);
+                    }
+                  }}
                 >
-                  <FileText className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Importar</span>
+                  <Download className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Exportar</span>
                 </Button>
                 <Button 
                   className="bg-primary hover:bg-primary/90 flex-1 sm:flex-none"
