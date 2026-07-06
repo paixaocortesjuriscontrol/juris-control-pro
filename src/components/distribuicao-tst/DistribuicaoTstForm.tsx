@@ -1297,6 +1297,20 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     };
     const bennerDiff = buildBennerDiff();
 
+    // DEBUG (temporário): log do Tipo de Recurso do Banco no momento do
+    // salvamento, para investigar reports de "campo volta vazio ao salvar".
+    // Mostra o valor que está indo no payload E o valor atual do state.
+    try {
+      // eslint-disable-next-line no-console
+      console.info("[DistribuicaoTst][save] tipo_recurso_banco →", {
+        formValue: (form as any).tipo_recurso_banco,
+        payloadValue: (payload as any).tipo_recurso_banco,
+        parte_recorrente: (payload as any).parte_recorrente,
+        recordId: activeRecordIdRef.current || dado?.id || null,
+        processo: payload.processo_numero,
+      });
+    } catch {}
+
     // IMPORTANTE: persistir PRIMEIRO os campos exclusivos do Dados Benner
     // (Análise/Risco, Julgamento, Resultado, etc.) e SÓ DEPOIS salvar a
     // Distribuição. A save da distribuição aciona um reloadSavedRow no parent
