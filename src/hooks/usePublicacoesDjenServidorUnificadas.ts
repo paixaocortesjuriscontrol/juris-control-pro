@@ -556,7 +556,8 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
       // Lê exclusivamente `publicacoes_djen_servidor` e aplica leitura/dedup/filtros
       // antes do LIMIT. Isso evita carregar 500 linhas já lidas e depois zerar a
       // lista no client enquanto os totalizadores mostram itens pendentes.
-      const canUseRpc = filtros.tipoOrigem !== 'descartada';
+      const canUseRpc = filtros.tipoOrigem !== 'descartada'
+        && filtros.tipoOrigem !== 'djet-pautas';
       if (canUseRpc) {
         try {
         console.debug(`[DJEN Servidor] RPC paginada — page=${page} pageSize=${pageSize} offset=${offsetGlobal}`);
@@ -636,7 +637,9 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         // Em todas as views que NÃO sejam DJET Pautas, remover publicações
         // capturadas via DEJT (fonte 'dejt-pdf') para não misturar pautas
         // com intimações/processos do DJEN.
-        filteredByType = filteredByType.filter((p) => (p.fonte || '').toLowerCase() !== 'dejt-pdf');
+        if (filtros.tipoOrigem !== 'djet-pautas') {
+          filteredByType = filteredByType.filter((p) => (p.fonte || '').toLowerCase() !== 'dejt-pdf');
+        }
         if (filtros.monitoramentoId) {
           filteredByType = filteredByType.filter((p) => p.monitoramento_id === filtros.monitoramentoId);
         }

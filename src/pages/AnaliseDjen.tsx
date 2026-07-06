@@ -669,6 +669,8 @@ const AnaliseDjen = () => {
       if (!user?.id) return { total: 0 };
 
       const hojeBrt = getHojeBrtISO();
+      // Para DEJT Pautas, o dia exibido na análise é a data legal de publicação.
+      // Ex.: caderno disponibilizado em 03/07/2026 publica legalmente em 06/07/2026.
       const diaPauta = dataDisponibilizacaoDebounced || (apenasHoje ? hojeBrt : null);
       const dataInicioFiltro = !diaPauta && dataInicioDebounced
         ? dateLocalToUTCRange(dataInicioDebounced, false)
@@ -692,8 +694,8 @@ const AnaliseDjen = () => {
 
       if (diaPauta) {
         query = query
-          .gte('data_disponibilizacao', `${diaPauta}T00:00:00Z`)
-          .lte('data_disponibilizacao', `${diaPauta}T23:59:59.999Z`);
+          .gte('data_publicacao', `${diaPauta}T00:00:00Z`)
+          .lte('data_publicacao', `${diaPauta}T23:59:59.999Z`);
       } else {
         if (dataInicioFiltro) query = query.gte('created_at', dataInicioFiltro);
         if (dataFimFiltro) query = query.lte('created_at', dataFimFiltro);
@@ -709,7 +711,7 @@ const AnaliseDjen = () => {
 
       let rows = (data || []) as any[];
       if (diaPauta) {
-        rows = rows.filter((pub) => pub.data_disponibilizacao?.slice(0, 10) === diaPauta);
+        rows = rows.filter((pub) => pub.data_publicacao?.slice(0, 10) === diaPauta);
       }
       if (termoBuscaDebounced) {
         const termoLower = termoBuscaDebounced.toLowerCase();
@@ -3634,8 +3636,9 @@ const AnaliseDjen = () => {
     }
     if (dataDisponibilizacao) {
       result = result.filter(pub => {
-        if (!pub.data_disponibilizacao) return false;
-        const pubDate = pub.data_disponibilizacao.slice(0, 10);
+        const dataFiltro = tipoOrigem === 'djet-pautas' ? pub.data_publicacao : pub.data_disponibilizacao;
+        if (!dataFiltro) return false;
+        const pubDate = dataFiltro.slice(0, 10);
         return pubDate === dataDisponibilizacao;
       });
     }
@@ -3665,8 +3668,9 @@ const AnaliseDjen = () => {
     let base = mergedPublicacoes;
     if (dataDisponibilizacao) {
       base = base.filter(pub => {
-        if (!pub.data_disponibilizacao) return false;
-        return pub.data_disponibilizacao.slice(0, 10) === dataDisponibilizacao;
+        const dataFiltro = tipoOrigem === 'djet-pautas' ? pub.data_publicacao : pub.data_disponibilizacao;
+        if (!dataFiltro) return false;
+        return dataFiltro.slice(0, 10) === dataDisponibilizacao;
       });
     }
     if (tribunalFiltro) {
@@ -3679,7 +3683,7 @@ const AnaliseDjen = () => {
       });
     }
     return Math.max(0, base.length - allPublicacoes.length);
-  }, [ocultarDuplicadas, mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, allPublicacoes.length]);
+  }, [ocultarDuplicadas, mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, tipoOrigem, allPublicacoes.length]);
 
   // Total de publicações ÚNICAS (após deduplicação por processo + data + conteúdo
   // ignorando intimados — mesma regra do botão "Resumo sem repetição"). Vem do

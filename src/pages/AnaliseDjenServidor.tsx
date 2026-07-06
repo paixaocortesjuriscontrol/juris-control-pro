@@ -717,9 +717,9 @@ const AnaliseDjenServidor = () => {
       if (!user?.id) return { total: 0 };
 
       const hojeBrt = getHojeBrtISO();
+      // Para DEJT Pautas, o dia exibido na análise é a data legal de publicação.
+      // Ex.: caderno disponibilizado em 03/07/2026 publica legalmente em 06/07/2026.
       const diaPauta = dataDisponibilizacaoDebounced || (apenasHoje ? hojeBrt : null);
-      const dataDispInicio = diaPauta ? `${diaPauta}T00:00:00Z` : null;
-      const dataDispFim = diaPauta ? `${diaPauta}T23:59:59.999Z` : null;
       const dataInicioFiltro = !diaPauta && dataInicioDebounced
         ? dateLocalToUTCRange(dataInicioDebounced, false)
         : null;
@@ -727,26 +727,89 @@ const AnaliseDjenServidor = () => {
         ? dateLocalToUTCRange(dataFimDebounced, true)
         : null;
 
-      const { data, error } = await (supabase as any).rpc('get_djen_stats_servidor_per_user', {
-        p_coordenacao_id: coordenacaoFiltroEfetivo ?? null,
-        p_inicio: dataInicioFiltro,
-        p_fim: dataFimFiltro,
-        p_tipo_origem: 'djet-pautas',
-        p_search_query: termoBuscaDebounced || null,
-        p_monitoramento_id: monitoramentoId || null,
-        p_data_disponibilizacao_inicio: dataDispInicio,
-        p_data_disponibilizacao_fim: dataDispFim,
-        p_tribunal: tribunalFiltro || null,
-        p_dedup: true,
-        p_apenas_hoje: false,
-      });
+      let query = (supabase.from('publicacoes_djen_servidor') as any)
+        .select('id, id_djen, processo_numero, conteudo, data_publicacao, data_disponibilizacao, fonte, created_at, monitoramento_id, coordenacao_id, tribunal', { count: 'exact' })
+        .eq('tipo_publicacao', 'pauta');
+
+      if (diaPauta) {
+        query = query
+          .gte('data_publicacao', `${diaPauta}T00:00:00Z`)
+          .lte('data_publicacao', `${diaPauta}T23:59:59.999Z`);
+      } else {
+        if (dataInicioFiltro) query = query.gte('created_at', dataInicioFiltro);
+        if (dataFimFiltro) query = query.lte('created_at', dataFimFiltro);
+      }
+      if (coordenacaoFiltroEfetivo) query = query.eq('coordenacao_id', coordenacaoFiltroEfetivo);
+      if (!isAdmin && !coordenacaoFiltroEfetivo && userCoordenacaoIds.length > 0) {
+        query = query.in('coordenacao_id', userCoordenacaoIds);
+      }
+      if (monitoramentoId) query = query.eq('monitoramento_id', monitoramentoId);
+      if (tribunalFiltro) query = query.ilike('tribunal', `%${tribunalFiltro}%`);
+
+      const { data, error } = await query.limit(10000);
       if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : data;
-      const totalUnicas = Number(row?.total_unicas ?? 0);
-      const naoLidasUnicas = Number(row?.nao_lidas_unicas ?? 0);
-      if (readStatus === 'nao_lidas') return { total: naoLidasUnicas };
-      if (readStatus === 'lidas') return { total: Math.max(0, totalUnicas - naoLidasUnicas) };
-      return { total: totalUnicas };
+
+      let rows = (data || []) as any[];
+      if (diaPauta) {
+        rows = rows.filter((pub) => pub.data_publicacao?.slice(0, 10) === diaPauta);
+      }
+      if (termoBuscaDebounced) {
+        const termoLower = termoBuscaDebounced.toLowerCase();
+        const termoDigits = termoLower.replace(/\D/g, '');
+        rows = rows.filter((pub) => {
+          const matchConteudo = conteudoContemFraseExata(pub.conteudo, termoBuscaDebounced);
+          const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
+          const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
+            ? (() => { const digits = pub.processo_numero.replace(/\D/g, ''); return digits.includes(termoDigits) || termoDigits.includes(digits); })()
+            : false;
+          return matchConteudo || matchProcesso || matchProcessoDigits;
+        });
+      }
+
+      const mapped = rows.map((pub: any): PublicacaoUnificada => ({
+        id: pub.id,
+        id_djen: pub.id_djen ?? null,
+        tipo_origem: 'termo',
+        processo_id: null,
+        processo_numero: pub.processo_numero,
+        conteudo: pub.conteudo,
+        data_publicacao: pub.data_publicacao,
+        data_disponibilizacao: pub.data_disponibilizacao,
+        fonte: pub.fonte ?? 'dejt-pdf',
+        lida: false,
+        created_at: pub.created_at,
+        monitoramento_id: pub.monitoramento_id,
+        monitoramento_termo: null,
+        monitoramento_descricao: null,
+        monitoramento_tipo: null,
+        monitoramento_oab: null,
+        monitoramento_uf: null,
+        coordenacao_id: pub.coordenacao_id,
+        coordenacao_nome: null,
+        polo_ativo: null,
+        polo_passivo: null,
+        tribunal: pub.tribunal ?? null,
+        orgao: null,
+        tipo_comunicacao: null,
+        meio: null,
+        advogados_json: [],
+        partes_json: [],
+      }));
+      const deduped = dedupePublicacoesDjen(mapped);
+      const ids = deduped.map((pub) => pub.id);
+      const readSet = new Set<string>();
+      if (ids.length > 0) {
+        const { data: leituras } = await (supabase as any).rpc('get_leituras_publicacoes', { p_ids: ids });
+        (leituras || []).forEach((l: any) => {
+          if (l.usuario_id === user.id) readSet.add(l.publicacao_id);
+        });
+      }
+      const total = readStatus === 'nao_lidas'
+        ? deduped.filter((pub) => !readSet.has(pub.id)).length
+        : readStatus === 'lidas'
+          ? deduped.filter((pub) => readSet.has(pub.id)).length
+          : deduped.length;
+      return { total };
     },
     // Sempre habilitado para manter o badge "Pautas DEJT" visível,
     // respeitando coordenação selecionada (ou todas as do usuário) e filtros.
@@ -3599,8 +3662,9 @@ const AnaliseDjenServidor = () => {
     }
     if (dataDisponibilizacao) {
       result = result.filter(pub => {
-        if (!pub.data_disponibilizacao) return false;
-        const pubDate = pub.data_disponibilizacao.slice(0, 10);
+        const dataFiltro = tipoOrigem === 'djet-pautas' ? pub.data_publicacao : pub.data_disponibilizacao;
+        if (!dataFiltro) return false;
+        const pubDate = dataFiltro.slice(0, 10);
         return pubDate === dataDisponibilizacao;
       });
     }
@@ -3633,8 +3697,9 @@ const AnaliseDjenServidor = () => {
     let base = mergedPublicacoes;
     if (dataDisponibilizacao) {
       base = base.filter(pub => {
-        if (!pub.data_disponibilizacao) return false;
-        return pub.data_disponibilizacao.slice(0, 10) === dataDisponibilizacao;
+        const dataFiltro = tipoOrigem === 'djet-pautas' ? pub.data_publicacao : pub.data_disponibilizacao;
+        if (!dataFiltro) return false;
+        return dataFiltro.slice(0, 10) === dataDisponibilizacao;
       });
     }
     if (tribunalFiltro) {
@@ -3647,7 +3712,7 @@ const AnaliseDjenServidor = () => {
       });
     }
     return Math.max(0, base.length - allPublicacoes.length);
-  }, [ocultarDuplicadas, mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, allPublicacoes.length]);
+  }, [ocultarDuplicadas, mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, tipoOrigem, allPublicacoes.length]);
 
   // Total de publicações ÚNICAS (após deduplicação por processo + data + conteúdo
   // ignorando intimados — mesma regra do botão "Resumo sem repetição"). Vem do
