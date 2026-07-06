@@ -1743,6 +1743,7 @@ export type Database = {
       dados_benner: {
         Row: {
           aba_origem: string | null
+          acordo: boolean | null
           analisado: boolean
           analisado_em: string | null
           analisado_por: string | null
@@ -1864,6 +1865,7 @@ export type Database = {
         }
         Insert: {
           aba_origem?: string | null
+          acordo?: boolean | null
           analisado?: boolean
           analisado_em?: string | null
           analisado_por?: string | null
@@ -1985,6 +1987,7 @@ export type Database = {
         }
         Update: {
           aba_origem?: string | null
+          acordo?: boolean | null
           analisado?: boolean
           analisado_em?: string | null
           analisado_por?: string | null

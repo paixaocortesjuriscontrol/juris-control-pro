@@ -86,6 +86,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [segredoJustica, setSegredoJustica] = useState(false);
   const [recursoTerceiro, setRecursoTerceiro] = useState(false);
   const [cejusc, setCejusc] = useState(false);
+  const [acordo, setAcordo] = useState(false);
 
   useEffect(() => {
     setCurrentDado(normalizeDado(dado));
@@ -332,6 +333,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     setSegredoJustica(!!(bennerDado as any)?.segredo_justica);
     setRecursoTerceiro(!!(bennerDado as any)?.recurso_terceiro);
     setCejusc(!!(bennerDado as any)?.cejusc);
+    setAcordo(!!(bennerDado as any)?.acordo);
   }, [bennerDado]);
 
   // Carrega o registro Benner ao abrir o detalhe (independente da aba), para
@@ -416,12 +418,14 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       const currentSegredo = !!(bennerDado as any)?.segredo_justica;
       const currentRecursoT = !!(bennerDado as any)?.recurso_terceiro;
       const currentCejusc = !!(bennerDado as any)?.cejusc;
+      const currentAcordo = !!(bennerDado as any)?.acordo;
       if (
         currentTransito !== transitoJulgado ||
         currentOutro !== outroEscritorio ||
         currentSegredo !== segredoJustica ||
         currentRecursoT !== recursoTerceiro ||
-        currentCejusc !== cejusc
+        currentCejusc !== cejusc ||
+        currentAcordo !== acordo
       ) {
         const targetId = (bennerDado as any)?.id || currentDado?.id;
         if (targetId) {
@@ -441,6 +445,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           }
           if (currentCejusc !== cejusc) {
             payload.cejusc = cejusc;
+          }
+          if (currentAcordo !== acordo) {
+            payload.acordo = acordo;
           }
           const { error: updErr } = await supabase
             .from("dados_benner" as any)
@@ -548,6 +555,10 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               <div className="flex items-center justify-between gap-2">
                 <Label className="text-xs font-medium leading-tight text-teal-700 dark:text-teal-400">CEJUSC</Label>
                 <Switch checked={cejusc} onCheckedChange={setCejusc} />
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs font-medium leading-tight text-emerald-700 dark:text-emerald-400">Acordo</Label>
+                <Switch checked={acordo} onCheckedChange={setAcordo} />
               </div>
             </div>
           </div>
