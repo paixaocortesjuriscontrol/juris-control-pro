@@ -490,6 +490,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.status && filters.status !== "todos") return true;
   if (filters.emAnalise && filters.emAnalise !== "todos") return true;
   if (filters.problemaJudit && filters.problemaJudit !== "todos") return true;
+  if (filters.acordo && filters.acordo !== "todos") return true;
   if (filters.duplicado && filters.duplicado !== "todos") return true;
   if (filters.centralizador && filters.centralizador !== "todos") return true;
   if (filters.fonteImportacao && filters.fonteImportacao !== "todas") return true;
