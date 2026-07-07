@@ -67,6 +67,7 @@ export function AudienciaFormSimplificado({
     observacoes: defaultObservacoes ?? "",
     data_audiencia: defaultDataAudiencia ?? "",
   });
+  const [situacao, setSituacao] = useState<string>("pendente");
   const [processoNumero, setProcessoNumero] = useState(defaultProcessoNumero ?? "");
   const [processoId, setProcessoId] = useState<string | undefined>(defaultProcessoId);
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
