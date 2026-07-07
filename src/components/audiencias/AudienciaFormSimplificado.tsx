@@ -425,6 +425,16 @@ export function AudienciaFormSimplificado({
         </div>
       )}
 
+      <div className="space-y-1.5">
+        <Label className="text-sm">Observações</Label>
+        <Textarea
+          value={form.observacoes}
+          onChange={(e) => set("observacoes", e.target.value)}
+          placeholder="Digite observações sobre a audiência"
+          rows={4}
+        />
+      </div>
+
       <div className="flex justify-end gap-2 pt-2 border-t">
         {onCancel && (
           <Button type="button" variant="ghost" onClick={onCancel}>
