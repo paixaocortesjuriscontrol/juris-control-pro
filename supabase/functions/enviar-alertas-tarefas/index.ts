@@ -68,9 +68,9 @@ serve(async (req) => {
         // 1) Tarefas (inclui prazo, audiência etc conforme tipo_tarefa)
         const { data: tarefas } = await supabase
           .from("tarefas")
-          .select("id, titulo, data_vencimento, hora_prevista, processo:processos(numero), coordenacao_id")
+          .select("id, titulo, data_vencimento, hora_prevista, processo:processos!inner(numero, coordenacao_id)")
           .eq("tipo_tarefa", cfg.tipo_tarefa)
-          .eq("coordenacao_id", cfg.coordenacao_id)
+          .eq("processo.coordenacao_id", cfg.coordenacao_id)
           .eq("data_vencimento", alvo)
           .neq("status", "concluida");
         (tarefas ?? []).forEach((t: any) => itens.push({
@@ -98,8 +98,8 @@ serve(async (req) => {
         if (cfg.tipo_tarefa === "OUTROS") {
           const { data: eventos } = await supabase
             .from("eventos_agenda")
-            .select("id, titulo, data_inicio, coordenacao_id, status")
-            .eq("coordenacao_id", cfg.coordenacao_id)
+            .select("id, titulo, data_inicio, status, processo:processos!inner(coordenacao_id)")
+            .eq("processo.coordenacao_id", cfg.coordenacao_id)
             .gte("data_inicio", `${alvo}T00:00:00`)
             .lte("data_inicio", `${alvo}T23:59:59`)
             .neq("status", "concluido");
