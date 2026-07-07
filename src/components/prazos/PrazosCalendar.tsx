@@ -154,7 +154,7 @@ export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido, onUpdate
     let hasCumprido = false;
 
     dayPrazos.forEach((prazo) => {
-      if (prazo.status === "cumprido") {
+      if (isItemTratado(prazo)) {
         hasCumprido = true;
       } else {
         const dataVencimento = parseISO(prazo.data_vencimento);
