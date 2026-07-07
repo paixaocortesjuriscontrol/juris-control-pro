@@ -569,19 +569,43 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   };
 
   const headerInline = (
-    <div className="px-4 pt-4 sm:px-6 sm:pt-5 pb-3 shrink-0 border-b">
+    <div className="px-4 pt-4 sm:px-6 sm:pt-5 pb-3 shrink-0 border-b flex items-center justify-between gap-3">
       <h3 className="text-base font-semibold flex items-center gap-2">
         <Calendar className="w-5 h-5 text-primary" />
         Parcelamento
       </h3>
+      <div className="flex items-center gap-2">
+        <Label className="text-xs text-muted-foreground">Situação</Label>
+        <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+          <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pendente">⏳ Pendente</SelectItem>
+            <SelectItem value="concluido">✔️ Concluído</SelectItem>
+            <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
   const headerDialog = (
     <DialogHeader className="px-4 pt-4 sm:px-6 sm:pt-6 pb-2 shrink-0">
-      <DialogTitle className="flex items-center gap-2">
-        <Calendar className="w-5 h-5 text-primary" />
-        Parcelamento
-      </DialogTitle>
+      <div className="flex items-center justify-between gap-3">
+        <DialogTitle className="flex items-center gap-2">
+          <Calendar className="w-5 h-5 text-primary" />
+          Parcelamento
+        </DialogTitle>
+        <div className="flex items-center gap-2">
+          <Label className="text-xs text-muted-foreground">Situação</Label>
+          <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+            <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pendente">⏳ Pendente</SelectItem>
+              <SelectItem value="concluido">✔️ Concluído</SelectItem>
+              <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
     </DialogHeader>
   );
 
@@ -591,34 +615,6 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
 
         <div className="flex-1 overflow-y-auto px-4 sm:px-6">
           <form onSubmit={handleSubmit} className="space-y-4 pb-4">
-            {/* Situação + Observações (topo) */}
-            <div className="rounded-md border bg-muted/30 p-3 grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label className="text-sm">Situação</Label>
-                <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                    <SelectItem value="concluido">✔️ Concluído</SelectItem>
-                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="descricao" className="text-sm">Observações</Label>
-                <Textarea
-                  id="descricao"
-                  value={formData.descricao}
-                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                  placeholder="Detalhes adicionais do parcelamento"
-                  rows={6}
-                  className="mt-1.5"
-                />
-              </div>
-            </div>
-
             {/* Título do Parcelamento */}
             <div>
               <Label htmlFor="titulo" className="flex items-center gap-1.5">
@@ -1046,6 +1042,18 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
             </div>
 
             <ItemComentarios tipo="evento" itemId={evento?.id} />
+
+            <div>
+              <Label htmlFor="descricao" className="text-sm">Observações</Label>
+              <Textarea
+                id="descricao"
+                value={formData.descricao}
+                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                placeholder="Detalhes adicionais do parcelamento"
+                rows={4}
+                className="mt-1.5"
+              />
+            </div>
           </form>
         </div>
 

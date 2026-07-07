@@ -164,42 +164,29 @@ export function AudienciaFormSimplificado({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {!hideTitleHeader && (
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
+        <div className="flex items-center justify-between gap-4">
+          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground flex items-center gap-2">
+            <Tag className="h-4 w-4 text-muted-foreground" />
             Audiência
           </h3>
-          <Tag className="h-4 w-4 text-muted-foreground" />
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">Situação</Label>
+            <Select value={situacao} onValueChange={setSituacao}>
+              <SelectTrigger className="h-9 w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                <SelectItem value="confirmado">✅ Confirmado</SelectItem>
+                <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
+                <SelectItem value="tratado">✔️ Tratado</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       )}
-
-      {/* Situação + Observações (topo) */}
-      <div className="rounded-md border bg-muted/30 p-3 grid gap-4 md:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label className="text-sm">Situação</Label>
-          <Select value={situacao} onValueChange={setSituacao}>
-            <SelectTrigger className="h-10">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="pendente">⏳ Pendente</SelectItem>
-              <SelectItem value="confirmado">✅ Confirmado</SelectItem>
-              <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
-              <SelectItem value="tratado">✔️ Tratado</SelectItem>
-              <SelectItem value="cancelado">❌ Cancelado</SelectItem>
-              <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-sm">Observações</Label>
-          <Textarea
-            value={form.observacoes}
-            onChange={(e) => set("observacoes", e.target.value)}
-            placeholder="Digite observações sobre a audiência"
-            rows={6}
-          />
-        </div>
-      </div>
 
       <div className="space-y-1.5">
         <Label className="text-sm">
@@ -437,6 +424,16 @@ export function AudienciaFormSimplificado({
           />
         </div>
       )}
+
+      <div className="space-y-1.5">
+        <Label className="text-sm">Observações</Label>
+        <Textarea
+          value={form.observacoes}
+          onChange={(e) => set("observacoes", e.target.value)}
+          placeholder="Digite observações sobre a audiência"
+          rows={4}
+        />
+      </div>
 
       <div className="flex justify-end gap-2 pt-2 border-t">
         {onCancel && (
