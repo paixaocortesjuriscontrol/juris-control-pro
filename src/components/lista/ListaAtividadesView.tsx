@@ -744,16 +744,11 @@ export default function ListaAtividadesView({
                 <colgroup>
                   <col className="w-9" />
                   <col />
-                  {false ? (
-                    <col className="w-[72px]" />
-                  ) : (
-                    <>
-                      <col className="w-[160px]" />
-                      <col className="w-[140px]" />
-                      <col className="w-[110px]" />
-                      <col className="w-[72px]" />
-                    </>
-                  )}
+                  <col className="w-[200px]" />
+                  <col className="w-[180px]" />
+                  <col className="w-[130px]" />
+                  <col className="w-[110px]" />
+                  <col className="w-[80px]" />
                 </colgroup>
                 <TableHeader className="bg-muted/60 sticky top-0 z-10">
                   <TableRow className="h-9">
@@ -770,27 +765,19 @@ export default function ListaAtividadesView({
                         aria-label="Selecionar todos"
                       />
                     </TableHead>
-                    <TableHead
-                      colSpan={3}
-                      className="h-9 font-semibold w-full text-left"
-                    >
-                      Atividade
-                    </TableHead>
-                    {true && (
-                      <TableHead className="h-9 font-semibold whitespace-nowrap w-px text-left">
-                        Status
-                      </TableHead>
-                    )}
-                    <TableHead className="h-9 font-semibold w-px whitespace-nowrap text-right pr-3">
-                      Ações
-                    </TableHead>
+                    <TableHead className="h-9 font-semibold text-left">Atividade</TableHead>
+                    <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Responsável</TableHead>
+                    <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Datas</TableHead>
+                    <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Prioridade</TableHead>
+                    <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Status</TableHead>
+                    <TableHead className="h-9 font-semibold whitespace-nowrap text-right pr-3">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     Array.from({ length: 10 }).map((_, i) => (
                       <TableRow key={i}>
-                        <TableCell colSpan={6}>
+                        <TableCell colSpan={7}>
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
                       </TableRow>
@@ -798,7 +785,7 @@ export default function ListaAtividadesView({
                   ) : rows.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={7}
                         className="h-32 text-center text-muted-foreground"
                       >
                         Nenhuma atividade encontrada.
@@ -826,8 +813,7 @@ export default function ListaAtividadesView({
                               onCheckedChange={() => toggleOne(r.id)}
                             />
                           </TableCell>
-                          <TableCell colSpan={3} className="py-3 align-top">
-                            <div className="flex min-w-0 flex-col gap-2">
+                          <TableCell className="py-3 align-top">
                             <div className="flex flex-col gap-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-mono text-[11px] text-primary font-semibold">
@@ -836,15 +822,6 @@ export default function ListaAtividadesView({
                                 <Badge variant="outline" className="font-normal text-[10px] px-1.5 py-0">
                                   {TIPO_LABELS[item.tipo]}
                                 </Badge>
-                                <Badge
-                                  variant="outline"
-                                  className={cn(
-                                    "font-normal text-[10px] px-1.5 py-0",
-                                    PRIO_BADGE[r.prioridade] || "",
-                                  )}
-                                >
-                                  {PRIO_LABEL[r.prioridade] || r.prioridade}
-                                </Badge>
                               </div>
                               <div className="font-medium text-sm text-foreground break-words leading-snug flex items-center gap-1.5">
                                 <TratadoCheck tratado={isItemTratado({ ...item, ...r })} />
@@ -852,40 +829,54 @@ export default function ListaAtividadesView({
                               </div>
                               {r.processo?.numero && (
                                 <div className="text-[11px] text-muted-foreground font-mono break-words">
-                                  Processo: {r.processo.numero}
+                                  {r.processo.numero}
                                   {r.processo.assunto ? ` — ${r.processo.assunto}` : ""}
                                 </div>
                               )}
-                            </div>
-                            {true && (
-                              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[11px] text-muted-foreground">
-                                <div className="flex items-center gap-1.5">
-                                  {r.responsavel?.nome ? (
-                                    <>
-                                      <div className="h-6 w-6 rounded-full bg-primary/15 text-primary text-[10px] font-semibold flex items-center justify-center shrink-0">
-                                        {initials(r.responsavel.nome)}
-                                      </div>
-                                      <span className="max-w-[180px] truncate text-foreground">
-                                        {r.responsavel.nome}
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <span>Responsável: —</span>
-                                  )}
+                              {(r as any).observacoes && (
+                                <div className="text-[11px] text-muted-foreground break-words line-clamp-2">
+                                  {(r as any).observacoes}
                                 </div>
-                                <div className="flex flex-col gap-0.5">
-                                  <div className="flex items-center gap-1 font-medium text-foreground">
-                                    <CalendarIcon className="h-3 w-3 text-destructive" />
-                                    <span className="text-muted-foreground">Fatal:</span>
-                                    <span>{fmtDate(item.data_fatal || item.data_vencimento || item.data_inicio)}</span>
-                                  </div>
-                                  <div className="pl-4">Base: {fmtDate((r as Prazo).data_base)}</div>
-                                </div>
-                              </div>
-                            )}
+                              )}
                             </div>
                           </TableCell>
-                          {true && (
+                          <TableCell className="py-3 align-top">
+                            {r.responsavel?.nome ? (
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="h-7 w-7 rounded-full bg-primary/15 text-primary text-[10px] font-semibold flex items-center justify-center shrink-0">
+                                  {initials(r.responsavel.nome)}
+                                </div>
+                                <span className="text-xs text-foreground truncate">
+                                  {r.responsavel.nome}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="py-3 align-top text-[11px]">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1 font-medium text-foreground">
+                                <CalendarIcon className="h-3 w-3 text-destructive" />
+                                <span className="text-muted-foreground">Fatal:</span>
+                                <span>{fmtDate(item.data_fatal || item.data_vencimento || item.data_inicio)}</span>
+                              </div>
+                              <div className="text-muted-foreground">
+                                Base: {fmtDate((r as Prazo).data_base)}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3 align-top">
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "font-normal text-[10px] px-1.5 py-0",
+                                PRIO_BADGE[r.prioridade] || "",
+                              )}
+                            >
+                              {PRIO_LABEL[r.prioridade] || r.prioridade || "—"}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="py-3 align-top">
                             <div className="flex items-center gap-1.5">
                               <span
@@ -897,7 +888,6 @@ export default function ListaAtividadesView({
                               <span className="capitalize">{r.status}</span>
                             </div>
                           </TableCell>
-                          )}
                           <TableCell className="py-3 align-top text-right pr-3" data-stop>
                             <div className="flex items-center justify-end gap-0.5">
                               <Button
