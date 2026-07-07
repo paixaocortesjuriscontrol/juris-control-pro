@@ -591,6 +591,34 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
 
         <div className="flex-1 overflow-y-auto px-4 sm:px-6">
           <form onSubmit={handleSubmit} className="space-y-4 pb-4">
+            {/* Situação + Observações (topo) */}
+            <div className="rounded-md border bg-muted/30 p-3 grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label className="text-sm">Situação</Label>
+                <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                    <SelectItem value="concluido">✔️ Concluído</SelectItem>
+                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="descricao" className="text-sm">Observações</Label>
+                <Textarea
+                  id="descricao"
+                  value={formData.descricao}
+                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                  placeholder="Detalhes adicionais do parcelamento"
+                  rows={6}
+                  className="mt-1.5"
+                />
+              </div>
+            </div>
+
             {/* Título do Parcelamento */}
             <div>
               <Label htmlFor="titulo" className="flex items-center gap-1.5">
