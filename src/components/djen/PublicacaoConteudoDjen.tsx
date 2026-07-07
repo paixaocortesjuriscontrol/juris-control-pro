@@ -761,7 +761,15 @@ export function PublicacaoConteudoDjen({
       {/* Cabeçalho no estilo DJEN: número do processo à esquerda (azul), botões à direita */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border">
         <h2 className="text-base md:text-lg font-semibold text-primary shrink-0">
-          Processo {formatProcessoNumero(processoNumero)}
+          Processo {(() => {
+            const formatted = formatProcessoNumero(processoNumero);
+            if (formatted && formatted !== "-") return formatted;
+            const partes = Array.isArray(partesJson) ? partesJson : [];
+            const isSigiloso = partes.some((p: any) =>
+              /sigilo/i.test(typeof p === "string" ? p : JSON.stringify(p ?? ""))
+            ) || /processo\s+sigiloso|segredo\s+de\s+justi[çc]a/i.test(conteudo || "");
+            return isSigiloso ? "sob segredo de justiça" : "-";
+          })()}
         </h2>
         <div className="flex items-center gap-1.5">
           {controleLocal && (
