@@ -10,9 +10,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
-import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
 import { useConfigEnvioAlertas } from "@/hooks/useConfigEnvioAlertas";
 import { Mail, MessageSquare, Loader2, Save, Trash2 } from "lucide-react";
+
+const TIPOS_ALERTA = ["PRAZO", "TAREFA EQUIPE", "AUDIÊNCIA", "PARCELAMENTO RECORRENTE"] as const;
+const TIPOS_ALERTA_LABELS: Record<string, string> = {
+  "PRAZO": "Prazo",
+  "TAREFA EQUIPE": "Tarefa",
+  "AUDIÊNCIA": "Audiência",
+  "PARCELAMENTO RECORRENTE": "Parcelamento Recorrente",
+};
 
 interface Props {
   open: boolean;
