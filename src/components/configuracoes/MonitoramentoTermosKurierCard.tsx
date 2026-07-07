@@ -46,6 +46,7 @@ export function MonitoramentoTermosKurierCard() {
   const qc = useQueryClient();
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillDate, setBackfillDate] = useState<Date | undefined>(new Date());
+  const [reprocessAllRunning, setReprocessAllRunning] = useState(false);
   const runBackfillDescartados = async () => {
     if (backfillRunning) return;
     setBackfillRunning(true);
@@ -84,6 +85,59 @@ export function MonitoramentoTermosKurierCard() {
       await qc.invalidateQueries({ queryKey: ["publicacoes-unificadas"] });
     } finally {
       setBackfillRunning(false);
+    }
+  };
+  // Reprocessa TODOS os raws do dia (independente de motivo_descarte).
+  // Útil quando publicações de um dia foram apagadas por engano em
+  // publicacoes_djen — os payloads brutos ficam preservados em
+  // kurier_publicacoes_raw e podem ser recriados a partir daqui. Não
+  // consome a fila da Kurier e não chama a API externa.
+  const runReprocessAllRaw = async () => {
+    if (reprocessAllRunning) return;
+    const dataYmd = backfillDate ? format(backfillDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+    const confirmar = window.confirm(
+      `Reprocessar TODOS os payloads brutos do dia ${dataYmd}?\n\nIsso recria publicações em publicacoes_djen a partir de kurier_publicacoes_raw. As já existentes são ignoradas por dedup.`,
+    );
+    if (!confirmar) return;
+    setReprocessAllRunning(true);
+    try {
+      const { data: creds, error: credsErr } = await supabase
+        .from("kurier_credenciais")
+        .select("id, login")
+        .eq("ativo", true);
+      if (credsErr) throw credsErr;
+      if (!creds?.length) { toast.warning("Nenhuma credencial Kurier ativa"); return; }
+      toast.info(`Reprocessando ${creds.length} credenciais para ${dataYmd}…`);
+      let totalNovas = 0;
+      let totalDuplicadas = 0;
+      let totalDescartadas = 0;
+      const erros: string[] = [];
+      for (const c of creds) {
+        try {
+          const { data, error } = await supabase.functions.invoke("kurier-consultar-publicacoes", {
+            body: {
+              credencial_id: c.id,
+              backfill_raw: true,
+              backfill_motivo: "todos",
+              backfill_date: dataYmd,
+            },
+          });
+          if (error) { erros.push(`${c.login}: ${error.message}`); continue; }
+          totalNovas += Number((data as any)?.total_novas || 0);
+          totalDuplicadas += Number((data as any)?.total_duplicadas || 0);
+          totalDescartadas += Number((data as any)?.total_descartadas || 0);
+        } catch (e: any) {
+          erros.push(`${c.login}: ${String(e?.message ?? e)}`);
+        }
+      }
+      if (erros.length) toast.error(`Reprocessamento com ${erros.length} erro(s). Ex.: ${erros[0]}`);
+      toast.success(`Reprocessamento concluído. Novas: ${totalNovas}, duplicadas: ${totalDuplicadas}, descartadas: ${totalDescartadas}.`);
+      await qc.invalidateQueries({ queryKey: ["publicacoes-djen"] });
+      await qc.invalidateQueries({ queryKey: ["publicacoes-unificadas"] });
+    } catch (e: any) {
+      toast.error(`Falha: ${String(e?.message ?? e)}`);
+    } finally {
+      setReprocessAllRunning(false);
     }
   };
   const [baseUrlDraft, setBaseUrlDraft] = useState<string | null>(null);
