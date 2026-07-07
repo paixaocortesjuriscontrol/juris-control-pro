@@ -289,6 +289,8 @@ export function PrazoDialog({
       processo_id: defaultProcessoId || prazo?.processo_id || null,
       responsavel_id: responsaveisIds[0],
       observacoes: observacoes.trim() || undefined,
+      status: situacao,
+      data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
       // Preserva o tipo original quando estamos editando uma tarefa/prazo
       // existente. Só fixa "PRAZO" quando é uma criação nova a partir deste
       // diálogo. Isso impede que editar uma tarefa via TarefaDetalhesPanel
