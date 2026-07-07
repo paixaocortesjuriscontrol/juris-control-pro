@@ -1439,7 +1439,9 @@ async function processarTermoEmTribunal(
       tribunais: [tribunal],
       skipServidorProgress: true,
     };
-    const MAX_TENTATIVAS = 3;
+    // Retry moderado: 2 tentativas no total (1 retry). Mais que isso amplifica
+    // sobrecarga do runtime quando o Edge Function já está congestionado.
+    const MAX_TENTATIVAS = 2;
     let data: any = null;
     let lastErr: string | null = null;
     for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
