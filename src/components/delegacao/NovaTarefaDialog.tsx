@@ -723,16 +723,40 @@ export function NovaTarefaDialog({
 
   const Header = (
     inline ? (
-      <div className="px-6 pt-5 pb-3 shrink-0 border-b">
+      <div className="px-6 pt-5 pb-3 shrink-0 border-b flex items-center justify-between gap-3">
         <h3 className="text-base font-semibold flex items-center gap-2">
           Tarefa
         </h3>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Situação</span>
+          <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+            <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pendente">⏳ Pendente</SelectItem>
+              <SelectItem value="cumprido">✔️ Concluída</SelectItem>
+              <SelectItem value="cancelado">❌ Cancelada</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
     ) : (
       <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
-        <DialogTitle className="flex items-center gap-2">
-          Tarefa
-        </DialogTitle>
+        <div className="flex items-center justify-between gap-3">
+          <DialogTitle className="flex items-center gap-2">
+            Tarefa
+          </DialogTitle>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Situação</span>
+            <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+              <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                <SelectItem value="cumprido">✔️ Concluída</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelada</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </DialogHeader>
     )
   );
@@ -749,40 +773,6 @@ export function NovaTarefaDialog({
           )}
           <Form {...form}>
             <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {/* Situação + Observações (topo) */}
-              <div className="rounded-md border bg-muted/30 p-3 grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <FormLabel>Situação</FormLabel>
-                  <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                      <SelectItem value="cumprido">✔️ Concluída</SelectItem>
-                      <SelectItem value="cancelado">❌ Cancelada</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <FormField
-                  control={form.control}
-                  name="descricao"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Observações</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Detalhes adicionais sobre a tarefa..."
-                          rows={6}
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
               <FormField
                 control={form.control}
                 name="titulo"
