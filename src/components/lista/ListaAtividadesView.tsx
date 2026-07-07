@@ -899,56 +899,71 @@ export default function ListaAtividadesView({
                             />
                           </TableCell>
                           <TableCell className="py-3 align-top">
-                            <div className="flex flex-col gap-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-mono text-[11px] text-primary font-semibold">
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-mono text-[10px] text-primary font-semibold">
                                   {r.identificador_projuris || r.processo?.numero || "—"}
                                 </span>
-                                <Badge variant="outline" className="font-normal text-[10px] px-1.5 py-0">
+                                <Badge variant="outline" className="font-normal text-[9px] px-1 py-0">
                                   {TIPO_LABELS[item.tipo]}
                                 </Badge>
                               </div>
-                              <div className="font-medium text-sm text-foreground break-words leading-snug flex items-center gap-1.5">
+                              <div className="font-medium text-xs text-foreground break-words leading-snug flex items-center gap-1">
                                 <TratadoCheck tratado={isItemTratado({ ...item, ...r })} />
                                 <span>{r.titulo}</span>
                               </div>
-                              {r.processo?.numero && (
-                                <div className="text-[11px] text-muted-foreground font-mono break-words">
-                                  {r.processo.numero}
-                                  {r.processo.assunto ? ` — ${r.processo.assunto}` : ""}
+                              {r.processo?.assunto && (
+                                <div className="text-[10px] text-muted-foreground break-words">
+                                  {r.processo.assunto}
+                                </div>
+                              )}
+                              {(r as any).partes_ativas && (
+                                <div className="text-[10px] text-muted-foreground break-words line-clamp-1">
+                                  <span className="font-medium text-foreground/70">Cliente:</span> {(r as any).partes_ativas}
                                 </div>
                               )}
                               {(r as any).observacoes && (
-                                <div className="text-[11px] text-muted-foreground break-words line-clamp-2">
+                                <div className="text-[10px] text-muted-foreground break-words line-clamp-2">
                                   {(r as any).observacoes}
                                 </div>
                               )}
                             </div>
                           </TableCell>
                           <TableCell className="py-3 align-top">
-                            {r.responsavel?.nome ? (
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className="h-7 w-7 rounded-full bg-primary/15 text-primary text-[10px] font-semibold flex items-center justify-center shrink-0">
-                                  {initials(r.responsavel.nome)}
-                                </div>
-                                <span className="text-xs text-foreground truncate">
-                                  {r.responsavel.nome}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            )}
+                            {renderResponsavel(r)}
                           </TableCell>
                           <TableCell className="py-3 align-top text-[11px]">
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-1 font-medium text-foreground">
-                                <CalendarIcon className="h-3 w-3 text-destructive" />
-                                <span className="text-muted-foreground">Fatal:</span>
-                                <span>{fmtDate(item.data_fatal || item.data_vencimento || item.data_inicio)}</span>
+                                <CalendarIcon className="h-3 w-3 text-destructive shrink-0" />
+                                <span className="text-muted-foreground shrink-0">Fatal:</span>
+                                <span>{fmtDateTime(item.data_fatal || item.data_vencimento || item.data_inicio, (r as any).hora_fatal)}</span>
                               </div>
                               <div className="text-muted-foreground">
-                                Base: {fmtDate((r as Prazo).data_base)}
+                                Base: {fmtDateTime((r as Prazo).data_base)}
                               </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3 align-top text-[11px]">
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              {(r as any).local && (
+                                <div className="text-foreground break-words line-clamp-1">
+                                  <span className="text-muted-foreground">Local:</span> {(r as any).local}
+                                </div>
+                              )}
+                              {(r as any).orgao && (
+                                <div className="text-foreground break-words line-clamp-1">
+                                  <span className="text-muted-foreground">Órgão:</span> {(r as any).orgao}
+                                </div>
+                              )}
+                              {(r as any).orgao_julgador && (
+                                <div className="text-foreground break-words line-clamp-1">
+                                  <span className="text-muted-foreground">Órgão:</span> {(r as any).orgao_julgador}
+                                </div>
+                              )}
+                              {!(r as any).local && !(r as any).orgao && !(r as any).orgao_julgador && (
+                                <span className="text-muted-foreground">—</span>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="py-3 align-top">
@@ -970,7 +985,7 @@ export default function ListaAtividadesView({
                                   STATUS_DOT[r.status],
                                 )}
                               />
-                              <span className="capitalize">{r.status}</span>
+                              <span className="capitalize text-[11px]">{r.status}</span>
                             </div>
                           </TableCell>
                           <TableCell className="py-3 align-top text-right pr-3" data-stop>
