@@ -47,6 +47,14 @@ export function MonitoramentoTermosKurierCard() {
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillDate, setBackfillDate] = useState<Date | undefined>(new Date());
   const [reprocessAllRunning, setReprocessAllRunning] = useState(false);
+  const [reprocessProgress, setReprocessProgress] = useState<{
+    atual: number;
+    total: number;
+    credAtual: string;
+    novas: number;
+    duplicadas: number;
+    descartadas: number;
+  } | null>(null);
   const runBackfillDescartados = async () => {
     if (backfillRunning) return;
     setBackfillRunning(true);
@@ -100,6 +108,7 @@ export function MonitoramentoTermosKurierCard() {
     );
     if (!confirmar) return;
     setReprocessAllRunning(true);
+    setReprocessProgress({ atual: 0, total: 0, credAtual: "", novas: 0, duplicadas: 0, descartadas: 0 });
     try {
       const { data: creds, error: credsErr } = await supabase
         .from("kurier_credenciais")
@@ -112,7 +121,10 @@ export function MonitoramentoTermosKurierCard() {
       let totalDuplicadas = 0;
       let totalDescartadas = 0;
       const erros: string[] = [];
-      for (const c of creds) {
+      setReprocessProgress({ atual: 0, total: creds.length, credAtual: "", novas: 0, duplicadas: 0, descartadas: 0 });
+      for (let i = 0; i < creds.length; i++) {
+        const c = creds[i];
+        setReprocessProgress({ atual: i, total: creds.length, credAtual: c.login, novas: totalNovas, duplicadas: totalDuplicadas, descartadas: totalDescartadas });
         try {
           const { data, error } = await supabase.functions.invoke("kurier-consultar-publicacoes", {
             body: {
@@ -129,6 +141,7 @@ export function MonitoramentoTermosKurierCard() {
         } catch (e: any) {
           erros.push(`${c.login}: ${String(e?.message ?? e)}`);
         }
+        setReprocessProgress({ atual: i + 1, total: creds.length, credAtual: c.login, novas: totalNovas, duplicadas: totalDuplicadas, descartadas: totalDescartadas });
       }
       if (erros.length) toast.error(`Reprocessamento com ${erros.length} erro(s). Ex.: ${erros[0]}`);
       toast.success(`Reprocessamento concluído. Novas: ${totalNovas}, duplicadas: ${totalDuplicadas}, descartadas: ${totalDescartadas}.`);
@@ -138,6 +151,7 @@ export function MonitoramentoTermosKurierCard() {
       toast.error(`Falha: ${String(e?.message ?? e)}`);
     } finally {
       setReprocessAllRunning(false);
+      setTimeout(() => setReprocessProgress(null), 8000);
     }
   };
   const [baseUrlDraft, setBaseUrlDraft] = useState<string | null>(null);
