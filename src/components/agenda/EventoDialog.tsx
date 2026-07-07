@@ -648,6 +648,18 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
 
             <ItemComentarios tipo="evento" itemId={evento?.id} />
 
+            <div>
+              <Label htmlFor="observacoes" className="text-sm">Observações</Label>
+              <Textarea
+                id="observacoes"
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                placeholder="Digite observações sobre o evento"
+                rows={4}
+                className="mt-1.5"
+              />
+            </div>
+
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
               <Button
                 type="button"
