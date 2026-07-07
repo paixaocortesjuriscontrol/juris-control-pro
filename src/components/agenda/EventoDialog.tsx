@@ -245,6 +245,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       titulo: titulo.trim(),
       descricao: observacoes || undefined,
       tipo: "evento",
+      status: situacao,
+      concluido_em: situacao === "concluido" ? new Date().toISOString() : null,
       data_inicio: inicioISO,
       data_fim: fimISO,
       dia_inteiro: diaInteiro,
