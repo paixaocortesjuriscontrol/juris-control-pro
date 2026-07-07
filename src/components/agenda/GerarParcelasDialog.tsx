@@ -260,6 +260,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         // horário base para disparo dos lembretes (quando não há hora de vencimento)
         hora_alerta: format(dataInicioSP, "HH:mm") || prev.hora_alerta || "09:00",
       }));
+      setSituacao(((evento as any).status as any) || "pendente");
 
       // Carregar valores e datas individuais das parcelas existentes
       if (parcelasExistentes && parcelasExistentes.length > 0) {
