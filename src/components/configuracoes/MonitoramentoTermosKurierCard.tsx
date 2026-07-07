@@ -433,6 +433,31 @@ export function MonitoramentoTermosKurierCard() {
             <span className="font-mono"> kurier</span>. Duplicadas são marcadas automaticamente.
           </p>
 
+          {reprocessProgress && (
+            <div className="space-y-2 rounded-md border p-3 bg-muted/30">
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  {reprocessAllRunning && <Loader2 className="h-4 w-4 animate-spin" />}
+                  <span className="font-medium">
+                    Reprocessando brutos {reprocessProgress.atual}/{reprocessProgress.total || "…"}
+                  </span>
+                  {reprocessProgress.credAtual && (
+                    <span className="text-muted-foreground">· {reprocessProgress.credAtual}</span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {!reprocessAllRunning && "concluído"}
+                </div>
+              </div>
+              <Progress value={reprocessProgress.total ? (reprocessProgress.atual / reprocessProgress.total) * 100 : 0} />
+              <div className="flex gap-3 text-xs text-muted-foreground">
+                <span><strong className="text-foreground">{reprocessProgress.novas}</strong> novas</span>
+                <span><strong className="text-foreground">{reprocessProgress.duplicadas}</strong> duplicadas</span>
+                <span><strong className="text-foreground">{reprocessProgress.descartadas}</strong> descartadas</span>
+              </div>
+            </div>
+          )}
+
           {progress.status !== "idle" && (
             <div className="space-y-3">
               <div className="flex items-center justify-between text-sm">
