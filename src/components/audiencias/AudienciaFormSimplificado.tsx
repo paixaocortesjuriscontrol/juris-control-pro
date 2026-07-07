@@ -172,6 +172,35 @@ export function AudienciaFormSimplificado({
         </div>
       )}
 
+      {/* Situação + Observações (topo) */}
+      <div className="rounded-md border bg-muted/30 p-3 grid gap-4 md:grid-cols-2">
+        <div className="space-y-1.5">
+          <Label className="text-sm">Situação</Label>
+          <Select value={situacao} onValueChange={setSituacao}>
+            <SelectTrigger className="h-10">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pendente">⏳ Pendente</SelectItem>
+              <SelectItem value="confirmado">✅ Confirmado</SelectItem>
+              <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
+              <SelectItem value="tratado">✔️ Tratado</SelectItem>
+              <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+              <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm">Observações</Label>
+          <Textarea
+            value={form.observacoes}
+            onChange={(e) => set("observacoes", e.target.value)}
+            placeholder="Digite observações sobre a audiência"
+            rows={6}
+          />
+        </div>
+      </div>
+
       <div className="space-y-1.5">
         <Label className="text-sm">
           Título da audiência<span className="text-destructive">*</span>
