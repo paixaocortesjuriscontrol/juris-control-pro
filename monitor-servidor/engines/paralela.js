@@ -287,9 +287,23 @@ function sanitizeMetadataArray(arr) {
   const out = [];
   for (const item of arr) {
     if (!item || typeof item !== "object") continue;
-    const nome = sanitizeMetadataName(item.nome ?? item.nomeAdvogado ?? item.nomeParte ?? item.name);
+    // A API PJE Comunica devolve `destinatarioadvogados` como
+    // `{ id, advogado_id, advogado: { nome, numero_oab, uf_oab } }`. O nome
+    // fica aninhado em `.advogado`, não no topo do item. Desaninhamos aqui
+    // para não perder o array inteiro (sigilosos e outros itens acabavam
+    // com advogados_json=[]).
+    const aninhado = item.advogado && typeof item.advogado === "object" ? item.advogado : null;
+    const nome = sanitizeMetadataName(
+      item.nome ?? item.nomeAdvogado ?? item.nomeParte ?? item.name ?? aninhado?.nome ?? aninhado?.nomeAdvogado
+    );
     if (!nome) continue;
-    out.push({ ...item, nome });
+    const extra = aninhado
+      ? {
+          numero_oab: item.numero_oab ?? aninhado.numero_oab ?? aninhado.numeroOab ?? null,
+          uf_oab: item.uf_oab ?? aninhado.uf_oab ?? aninhado.ufOab ?? null,
+        }
+      : {};
+    out.push({ ...item, ...extra, nome });
   }
   return out;
 }
