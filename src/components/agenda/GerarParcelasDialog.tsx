@@ -1042,6 +1042,18 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
             </div>
 
             <ItemComentarios tipo="evento" itemId={evento?.id} />
+
+            <div>
+              <Label htmlFor="descricao" className="text-sm">Observações</Label>
+              <Textarea
+                id="descricao"
+                value={formData.descricao}
+                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                placeholder="Detalhes adicionais do parcelamento"
+                rows={4}
+                className="mt-1.5"
+              />
+            </div>
           </form>
         </div>
 
