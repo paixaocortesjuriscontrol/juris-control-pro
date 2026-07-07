@@ -344,6 +344,7 @@ export function NovaTarefaDialog({
       setResponsaveisIds([]);
       setEnvolvidosIds([]);
       setMostrarEnvolvidos(false);
+      setSituacao("pendente");
     })();
   }, [open, processoPreSelecionado, form, coordenacoes, tarefaParaEditar]);
 
