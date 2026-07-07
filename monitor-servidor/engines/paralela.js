@@ -1794,7 +1794,11 @@ async function run({ sb, payload, log, job }) {
     while (!cancelled) {
       const unit = pickNext();
       if (!unit) {
-        if (bandAtual < bands.length && inBand[bandAtual] > 0) { await delay(500); continue; }
+        const emVoo = inBand[0] + inBand[1] + inBand[2] + inBand[3];
+        const stfPendente = bands[3].length > 0;
+        // Aguarda: (a) qualquer unit em voo, ou (b) STF pendente esperando
+        // as bandas 0/1/2 drenarem para liberar o gate.
+        if (emVoo > 0 || stfPendente) { await delay(500); continue; }
         break;
       }
       inBand[unit.band]++;
