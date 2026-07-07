@@ -623,15 +623,10 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               )}
             </div>
 
-            {/* Observações */}
+            {/* Recorrência */}
             <div>
-              <Label htmlFor="observacoes" className="text-sm">
-                Observações
-              </Label>
-              {/* Recorrência */}
-              <div className="mb-4">
-                <Label className="text-sm">Recorrência</Label>
-                <div className="flex gap-2 mt-1.5">
+              <Label className="text-sm">Recorrência</Label>
+              <div className="flex gap-2 mt-1.5">
                   <Select value={recorrenciaTipo} onValueChange={setRecorrenciaTipo}>
                     <SelectTrigger className="flex-1">
                       <SelectValue />
@@ -663,16 +658,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                       />
                     </>
                   )}
-                </div>
               </div>
-              <Textarea
-                id="observacoes"
-                value={observacoes}
-                onChange={(e) => setObservacoes(e.target.value)}
-                placeholder="Digite observações sobre o evento"
-                rows={3}
-                className="mt-1.5"
-              />
             </div>
 
             <ItemComentarios tipo="evento" itemId={evento?.id} />
