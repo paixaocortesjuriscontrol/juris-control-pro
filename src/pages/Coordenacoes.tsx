@@ -416,6 +416,14 @@ const Coordenacoes = () => {
                           <FileSpreadsheet className="w-4 h-4 mr-1" />
                           <span className="hidden sm:inline">Pautas Excel</span>
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setConfigAlertasDialog(true)}
+                        >
+                          <BellRing className="w-4 h-4 mr-1" />
+                          <span className="hidden sm:inline">Configurar Alertas</span>
+                        </Button>
                       </>
                     )}
                     <Button 
