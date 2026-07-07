@@ -460,36 +460,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
 
           {/* Status e Providências */}
           <div className="border-t pt-4 mt-4">
-            <h3 className="text-sm font-medium mb-3">Status e Providências</h3>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="status">Situação</Label>
-                <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                    <SelectItem value="confirmado">✅ Confirmado</SelectItem>
-                    <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
-                    <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
-                    <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="observacoes">Observações</Label>
-                <Input
-                  id="observacoes"
-                  value={formData.observacoes}
-                  onChange={(e) => handleChange("observacoes", e.target.value)}
-                  placeholder="Observações gerais"
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2 mt-4">
+            <h3 className="text-sm font-medium mb-3">Providências Tomadas</h3>
+            <div className="space-y-2">
               <Label htmlFor="providencias_tomadas">Providências Tomadas</Label>
               <Textarea
                 id="providencias_tomadas"
