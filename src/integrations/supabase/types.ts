@@ -1447,6 +1447,56 @@ export type Database = {
           },
         ]
       }
+      config_envio_alertas_tarefas: {
+        Row: {
+          ativo: boolean
+          canal_email: boolean
+          canal_whatsapp: boolean
+          coordenacao_id: string
+          created_at: string
+          created_by: string | null
+          destinatarios_ids: string[]
+          dias_antes: number[]
+          id: string
+          tipo_tarefa: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          canal_email?: boolean
+          canal_whatsapp?: boolean
+          coordenacao_id: string
+          created_at?: string
+          created_by?: string | null
+          destinatarios_ids?: string[]
+          dias_antes?: number[]
+          id?: string
+          tipo_tarefa: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          canal_email?: boolean
+          canal_whatsapp?: boolean
+          coordenacao_id?: string
+          created_at?: string
+          created_by?: string | null
+          destinatarios_ids?: string[]
+          dias_antes?: number[]
+          id?: string
+          tipo_tarefa?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_envio_alertas_tarefas_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       configuracoes_carga_benner: {
         Row: {
           coordenacao_id: string | null
