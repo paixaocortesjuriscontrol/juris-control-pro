@@ -393,16 +393,6 @@ export function AudienciaFormSimplificado({
       </div>
 
       <div className="space-y-1.5">
-        <Label className="text-sm">Observações</Label>
-        <Textarea
-          value={form.observacoes}
-          onChange={(e) => set("observacoes", e.target.value)}
-          placeholder="Digite observações sobre a audiência"
-          rows={3}
-        />
-      </div>
-
-      <div className="space-y-1.5">
         <Label className="text-sm">
           Responsáveis<span className="text-destructive">*</span>
         </Label>
