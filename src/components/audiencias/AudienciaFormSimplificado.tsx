@@ -42,6 +42,11 @@ const empty = {
   local_audiencia: "",
   modalidade: "",
   observacoes: "",
+  vara_camara: "",
+  comarca: "",
+  polo_ativo: "",
+  cliente: "",
+  terceirizado: "",
 };
 
 export function AudienciaFormSimplificado({
@@ -137,6 +142,11 @@ export function AudienciaFormSimplificado({
       local_audiencia: form.local_audiencia || undefined,
       modalidade: form.modalidade || undefined,
       observacoes: form.observacoes || undefined,
+      vara_camara: form.vara_camara || undefined,
+      comarca: form.comarca || undefined,
+      polo_ativo: form.polo_ativo || undefined,
+      cliente: form.cliente || undefined,
+      terceirizado: form.terceirizado || undefined,
       status: "pendente",
       advogados_ids: responsaveisIds,
       envolvidos_ids: envolvidosIds,
@@ -275,6 +285,52 @@ export function AudienciaFormSimplificado({
           <Input
             value={form.sala_forum}
             onChange={(e) => set("sala_forum", e.target.value)}
+            className="h-10"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-sm">Vara / Câmara / Turma</Label>
+          <Input
+            value={form.vara_camara}
+            onChange={(e) => set("vara_camara", e.target.value)}
+            className="h-10"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm">Comarca</Label>
+          <Input
+            value={form.comarca}
+            onChange={(e) => set("comarca", e.target.value)}
+            className="h-10"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-sm">Polo ativo</Label>
+          <Input
+            value={form.polo_ativo}
+            onChange={(e) => set("polo_ativo", e.target.value)}
+            className="h-10"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm">Cliente</Label>
+          <Input
+            value={form.cliente}
+            onChange={(e) => set("cliente", e.target.value)}
+            className="h-10"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm">Terceirizada</Label>
+          <Input
+            value={form.terceirizado}
+            onChange={(e) => set("terceirizado", e.target.value)}
             className="h-10"
           />
         </div>
