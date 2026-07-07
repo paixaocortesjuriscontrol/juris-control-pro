@@ -429,6 +429,32 @@ export function PrazoDialog({
           )}
         </div>
 
+        {/* Situação + Observações (topo) */}
+        <div className="rounded-md border bg-muted/30 p-3 grid gap-4 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className="text-sm">Situação</Label>
+            <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+              <SelectTrigger className="h-10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                <SelectItem value="cumprido">✔️ Cumprido</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">Observações</Label>
+            <Textarea
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              placeholder="Digite observações sobre o prazo"
+              rows={6}
+            />
+          </div>
+        </div>
+
         <div className="space-y-1.5">
           <Label className="text-sm">
             Título do prazo<span className="text-destructive">*</span>
