@@ -287,9 +287,23 @@ function sanitizeMetadataArray(arr) {
   const out = [];
   for (const item of arr) {
     if (!item || typeof item !== "object") continue;
-    const nome = sanitizeMetadataName(item.nome ?? item.nomeAdvogado ?? item.nomeParte ?? item.name);
+    // A API PJE Comunica devolve `destinatarioadvogados` como
+    // `{ id, advogado_id, advogado: { nome, numero_oab, uf_oab } }`. O nome
+    // fica aninhado em `.advogado`, não no topo do item. Desaninhamos aqui
+    // para não perder o array inteiro (sigilosos e outros itens acabavam
+    // com advogados_json=[]).
+    const aninhado = item.advogado && typeof item.advogado === "object" ? item.advogado : null;
+    const nome = sanitizeMetadataName(
+      item.nome ?? item.nomeAdvogado ?? item.nomeParte ?? item.name ?? aninhado?.nome ?? aninhado?.nomeAdvogado
+    );
     if (!nome) continue;
-    out.push({ ...item, nome });
+    const extra = aninhado
+      ? {
+          numero_oab: item.numero_oab ?? aninhado.numero_oab ?? aninhado.numeroOab ?? null,
+          uf_oab: item.uf_oab ?? aninhado.uf_oab ?? aninhado.ufOab ?? null,
+        }
+      : {};
+    out.push({ ...item, ...extra, nome });
   }
   return out;
 }
@@ -1263,6 +1277,133 @@ async function persistirResgatesOutraCoordenacao(sb, mon, tribunal, dia, execuca
   return { ...stats, resgatadas: resgatadas.length };
 }
 
+// ============================================================
+// Enriquecimento pós-execução: para linhas gravadas nesta execução com
+// processo_numero NULL (ex.: publicações sigilosas onde a API oscilou e
+// devolveu o item sem o campo), refazemos UMA chamada por
+// (monitoramento, tribunal, dia) direto na API PJE Comunica e completamos
+// processo_numero + advogados_json + orgao/meio/tipo_comunicacao.
+// ============================================================
+async function enriquecerPublicacoesFaltantesDaExecucao(sb, execucaoId, slots, signal, log) {
+  if (!execucaoId || !Array.isArray(slots) || slots.length === 0) {
+    return { atualizadas: 0, tentativas: 0, grupos: 0 };
+  }
+  const { data: nullRows, error } = await sb
+    .from("publicacoes_djen_servidor")
+    .select("id, id_djen, tribunal, data_disponibilizacao, monitoramento_id, coordenacao_id, advogados_json, orgao, meio, tipo_comunicacao, processo_numero")
+    .eq("execucao_id", execucaoId)
+    .is("processo_numero", null)
+    .not("id_djen", "is", null)
+    .limit(1000);
+  if (error) {
+    log?.("paralela.enrich_select_error", { execucaoId, message: error.message });
+    return { atualizadas: 0, tentativas: 0, grupos: 0 };
+  }
+  if (!nullRows || nullRows.length === 0) return { atualizadas: 0, tentativas: 0, grupos: 0 };
+
+  const monIds = [...new Set(nullRows.map((r) => r.monitoramento_id).filter(Boolean))];
+  const { data: mons } = await sb
+    .from("monitoramentos_djen")
+    .select("id, tipo, termo_busca, termos_or, oab, uf, tribunais, coordenacao_id")
+    .in("id", monIds);
+  const monById = new Map((mons || []).map((m) => [m.id, m]));
+
+  const groups = new Map();
+  for (const row of nullRows) {
+    if (!row.monitoramento_id || !row.tribunal || !row.data_disponibilizacao) continue;
+    const dia = String(row.data_disponibilizacao).slice(0, 10);
+    const key = `${row.monitoramento_id}|${row.tribunal}|${dia}`;
+    let g = groups.get(key);
+    if (!g) {
+      g = { monId: row.monitoramento_id, tribunal: row.tribunal, dia, rows: [] };
+      groups.set(key, g);
+    }
+    g.rows.push(row);
+  }
+
+  let atualizadas = 0;
+  let tentativas = 0;
+  let slotIdx = 0;
+  for (const grp of groups.values()) {
+    if (signal?.aborted) break;
+    const mon = monById.get(grp.monId);
+    if (!mon) continue;
+    // Só faz sentido re-buscar quando temos parâmetros para bater com o item
+    const tipo = mapTipo(mon.tipo);
+    if (!MAIN_TIPOS.includes(tipo)) continue;
+    tentativas++;
+    const slot = slots[slotIdx++ % slots.length];
+    try {
+      const params = baseParams(mon, grp.dia, grp.tribunal);
+      const items = await buscarPaginado(slot, params, signal);
+      const byId = new Map();
+      for (const it of items) {
+        const idj = getIdDjen(it);
+        if (idj) byId.set(String(idj), it);
+      }
+      for (const row of grp.rows) {
+        if (signal?.aborted) break;
+        const item = byId.get(String(row.id_djen));
+        if (!item) continue;
+        const conteudoRef = getConteudo(item);
+        const numero = extractProcesso(item, conteudoRef);
+        const metadata = metadataFromRaw(item);
+        const patch = {};
+        if (numero && !row.processo_numero) patch.processo_numero = String(numero).trim();
+        const advVazio =
+          !row.advogados_json ||
+          (Array.isArray(row.advogados_json) && row.advogados_json.length === 0);
+        if (advVazio && Array.isArray(metadata.advogados_json) && metadata.advogados_json.length > 0) {
+          patch.advogados_json = metadata.advogados_json;
+        }
+        if (!row.orgao && metadata.orgao) patch.orgao = metadata.orgao;
+        if (!row.tipo_comunicacao && metadata.tipo_comunicacao) patch.tipo_comunicacao = metadata.tipo_comunicacao;
+        if (!row.meio && metadata.meio) patch.meio = metadata.meio;
+        if (Object.keys(patch).length === 0) continue;
+        const { error: upErr } = await sb
+          .from("publicacoes_djen_servidor")
+          .update(patch)
+          .eq("id", row.id);
+        if (upErr) {
+          log?.("paralela.enrich_update_error", { id: row.id, message: upErr.message });
+          continue;
+        }
+        // Espelhar na tabela unificada (o mirror trigger é AFTER INSERT,
+        // não roda em UPDATE). Casamos por id_djen + coordenação + fonte.
+        if (row.coordenacao_id && row.id_djen) {
+          const patchUnif = { ...patch };
+          const { error: upUnifErr } = await sb
+            .from("publicacoes_djen")
+            .update(patchUnif)
+            .eq("id_djen", row.id_djen)
+            .eq("coordenacao_id", row.coordenacao_id)
+            .eq("fonte", "servidor");
+          if (upUnifErr) {
+            log?.("paralela.enrich_update_unificada_error", { id: row.id, idDjen: row.id_djen, message: upUnifErr.message });
+          }
+        }
+        atualizadas++;
+      }
+    } catch (e) {
+      log?.("paralela.enrich_group_error", {
+        monId: grp.monId,
+        tribunal: grp.tribunal,
+        dia: grp.dia,
+        e: String(e?.message || e).slice(0, 200),
+      });
+    }
+    if (PAGE_DELAY_MS > 0) await delay(PAGE_DELAY_MS, signal);
+  }
+  log?.("paralela.enrich_done", {
+    execucaoId,
+    grupos: groups.size,
+    tentativas,
+    atualizadas,
+    linhasNull: nullRows.length,
+  });
+  return { atualizadas, tentativas, grupos: groups.size };
+}
+
 async function run({ sb, payload, log, job }) {
   const dataInicio = payload?.dataInicio || payload?.diarioYmd || ymdToday();
   const dataFim = payload?.dataFim || payload?.diarioYmd || dataInicio;
@@ -1847,6 +1988,18 @@ async function run({ sb, payload, log, job }) {
   }
   await flushProgresso(true);
   log("paralela.done", { monitoramentos: itens.length, novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros });
+
+  // Pós-execução: enriquece linhas gravadas com processo_numero NULL
+  // refazendo UMA consulta por (monitoramento, tribunal, dia) direto na API
+  // PJE Comunica. Não falha a execução se der erro — best-effort.
+  if (!cancelled && job?.id) {
+    try {
+      const enrich = await enriquecerPublicacoesFaltantesDaExecucao(sb, job.id, slots, signal, log);
+      log("paralela.enrich_summary", enrich);
+    } catch (e) {
+      log("paralela.enrich_fatal", { e: String(e?.message || e).slice(0, 300) });
+    }
+  }
 
   return { novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, monitoramentos: itens.length, dataInicio, dataFim, vps: slots.length };
 }
