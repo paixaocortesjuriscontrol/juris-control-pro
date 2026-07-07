@@ -1439,7 +1439,9 @@ async function processarTermoEmTribunal(
       tribunais: [tribunal],
       skipServidorProgress: true,
     };
-    const MAX_TENTATIVAS = 3;
+    // Retry moderado: 2 tentativas no total (1 retry). Mais que isso amplifica
+    // sobrecarga do runtime quando o Edge Function já está congestionado.
+    const MAX_TENTATIVAS = 2;
     let data: any = null;
     let lastErr: string | null = null;
     for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
@@ -2414,8 +2416,23 @@ async function executarLoop(
     // chamada pode tentar outra VPS do pool antes de desistir daquele par.
     // ------------------------------------------------------------------
 
-    // Concorrência efetiva = mín(nº vias, nº unidades pendentes).
-    const concorrenciaEfetiva = Math.max(1, Math.min(vias.length, totalUnidadesPendentes || 1));
+    // Concorrência efetiva.
+    //
+    // IMPORTANTE: cada unidade acaba invocando a edge function `monitorar-djen`
+    // (ver processarTermoEmTribunal → supabase.functions.invoke). Cada invoke
+    // pode durar minutos (varre múltiplas páginas do PJE Comunica). Concorrência
+    // muito alta (ex.: 13 workers × 3 tentativas com backoff) satura o runtime
+    // Edge Functions (WORKER_LIMIT/546), fazendo TODOS os preflights OPTIONS
+    // travarem 150s e retornarem 504 — resultado observado em produção: 0
+    // publicações salvas.
+    //
+    // Teto conservador de 4 workers concorrentes independentemente do número
+    // de VPS habilitadas.
+    const CONCORRENCIA_MAX_EDGE = 4;
+    const concorrenciaEfetiva = Math.max(
+      1,
+      Math.min(vias.length, CONCORRENCIA_MAX_EDGE, totalUnidadesPendentes || 1),
+    );
     try {
       console.log('[DJEN Paralela] 🚀 Spawning workers (bandas)', {
         viasDisponiveis: vias.length,
