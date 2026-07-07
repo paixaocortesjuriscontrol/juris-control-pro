@@ -60,6 +60,9 @@ verify_jwt = false
 [functions.backfill-djen-job]
 verify_jwt = false
 
+[functions.djen-backfill-processo-numero]
+verify_jwt = true
+
 [functions.enviar-whatsapp-zapi]
 verify_jwt = true
 
