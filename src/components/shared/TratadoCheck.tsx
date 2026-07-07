@@ -54,6 +54,8 @@ export function isItemTratado(item: {
     "paga",
     "finalizado",
     "finalizada",
+    "conferido",
+    "conferida",
   ]);
 
   return [item.status, item.status_tst, item.situacao].some((value) => tratados.has(normalize(value)));
