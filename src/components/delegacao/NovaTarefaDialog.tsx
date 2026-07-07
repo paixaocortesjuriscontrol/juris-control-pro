@@ -525,6 +525,8 @@ export function NovaTarefaDialog({
           hora_fatal: values.hora_fatal || null,
           link_local: values.local || null,
           prioridade: values.prioridade,
+          status: situacao,
+          data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
         };
 
         if (values.tipo_vinculo === "sem_vinculo") {
@@ -578,7 +580,7 @@ export function NovaTarefaDialog({
         hora_fatal: values.hora_fatal || null,
         link_local: values.local || null,
         prioridade: values.prioridade,
-        status: "pendente",
+        status: situacao,
         criado_por: userData?.id || null,
       }).select("id").single();
 
