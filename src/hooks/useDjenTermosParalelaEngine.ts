@@ -2350,7 +2350,11 @@ async function executarLoop(
     // 2) processo em qualquer tribunal
     // Sem trava rígida entre bandas: worker livre puxa a melhor próxima unit,
     // como o Servidor, evitando VPS ociosa enquanto outro shard ainda pagina.
-    type WorkUnit = PlannedUnit & { band: 0 | 1 | 2 };
+    // Band 3 = STF: SEMPRE por último. Só entra em execução depois que todas
+    // as unidades das bandas 0/1/2 terminarem (fila drenada E sem workers em
+    // andamento). Regra pedida pelo usuário: STF não pode rodar em paralelo
+    // com nada — costuma travar por longos períodos e prejudica os demais.
+    type WorkUnit = PlannedUnit & { band: 0 | 1 | 2 | 3 };
 
     const comparePriorityUnits = (a: WorkUnit, b: WorkUnit) =>
       (a.shardIdx - b.shardIdx) ||
@@ -2361,21 +2365,26 @@ async function executarLoop(
     const filaBand0: WorkUnit[] = [];
     const filaBand1: WorkUnit[] = [];
     const filaBand2: WorkUnit[] = [];
+    const filaBand3: WorkUnit[] = [];
 
     for (const unit of plannedUnits) {
       if (unidadesJaConcluidasValidas.has(unit.id)) continue;
-      const band: 0 | 1 | 2 = unit.tipo === 'processo'
-        ? 2
-        : isTribunalPrioritario(unit.tribunal) && MAIN_TIPOS.includes(unit.tipo)
-          ? 0
-          : 1;
+      const isStf = String(unit.tribunal || '').toUpperCase() === 'STF';
+      const band: 0 | 1 | 2 | 3 = isStf
+        ? 3
+        : unit.tipo === 'processo'
+          ? 2
+          : isTribunalPrioritario(unit.tribunal) && MAIN_TIPOS.includes(unit.tipo)
+            ? 0
+            : 1;
       const target = { ...unit, band };
       if (band === 0) filaBand0.push(target);
       else if (band === 1) filaBand1.push(target);
-      else filaBand2.push(target);
+      else if (band === 2) filaBand2.push(target);
+      else filaBand3.push(target);
     }
 
-    const bands: WorkUnit[][] = [filaBand0, filaBand1, filaBand2];
+    const bands: WorkUnit[][] = [filaBand0, filaBand1, filaBand2, filaBand3];
     for (const b of bands) b.sort(comparePriorityUnits);
     const totalUnidadesPendentes = bands.reduce((a, b) => a + b.length, 0);
     const totalStepsPendentes = totalUnidadesPendentes;
@@ -2450,7 +2459,7 @@ async function executarLoop(
     } catch {}
     updateProgress({
       concorrencia: concorrenciaEfetiva,
-      mensagem: `Prioritários: ${filaBand0.length} • Outros: ${filaBand1.length} • Processo: ${filaBand2.length} — ${concorrenciaEfetiva} workers`,
+      mensagem: `Prioritários: ${filaBand0.length} • Outros: ${filaBand1.length} • Processo: ${filaBand2.length} • STF (último): ${filaBand3.length} — ${concorrenciaEfetiva} workers`,
     });
     syncExecutionProgress({
       pool_enabled: usandoPoolVps,
@@ -2461,20 +2470,25 @@ async function executarLoop(
     // ========================================================================
     // DISPATCH PULL-DOWN — sem trava rígida entre bandas, igual ao Servidor.
     // ========================================================================
-    const emProcessamentoPorBand = [0, 0, 0];
+    const emProcessamentoPorBand = [0, 0, 0, 0];
 
     const pickNextUnit = (_viaId: string): WorkUnit | null => {
-      // Fila compartilhada: qualquer worker livre pega a próxima unidade
-      // de maior prioridade disponível (0→1→2), sem esperar banda drenar.
-      for (let b = 0; b < bands.length; b++) {
+      // Fila compartilhada para bandas 0..2 (sem trava rígida entre elas).
+      // Banda 3 (STF) é gate rígido: só é servida quando bandas 0/1/2 estão
+      // vazias E nenhum worker ainda processa unidades dessas bandas.
+      for (let b = 0; b < 3; b++) {
         if (bands[b].length > 0) {
           return bands[b].shift() as WorkUnit;
         }
       }
+      const outrasEmVoo = emProcessamentoPorBand[0] + emProcessamentoPorBand[1] + emProcessamentoPorBand[2];
+      if (outrasEmVoo === 0 && bands[3].length > 0) {
+        return bands[3].shift() as WorkUnit;
+      }
       return null;
     };
 
-    const BAND_LABEL: Record<number, string> = { 0: 'prioritários', 1: 'outros', 2: 'processo' };
+    const BAND_LABEL: Record<number, string> = { 0: 'prioritários', 1: 'outros', 2: 'processo', 3: 'STF (último)' };
 
     const worker = async (via: ViaSpec) => {
       let processed = 0;
@@ -2483,7 +2497,10 @@ async function executarLoop(
       while (!signal.aborted) {
         const unit = pickNextUnit(via.id);
         if (!unit) {
-          if (emProcessamentoPorBand.some((n) => n > 0)) {
+          // Ainda há trabalho em voo (0..2) ou STF aguardando drenar.
+          const stfPendente = bands[3].length > 0;
+          const outrasEmVoo = emProcessamentoPorBand[0] + emProcessamentoPorBand[1] + emProcessamentoPorBand[2];
+          if (emProcessamentoPorBand.some((n) => n > 0) || (stfPendente && outrasEmVoo > 0)) {
             await new Promise((r) => setTimeout(r, 500));
             continue;
           }
