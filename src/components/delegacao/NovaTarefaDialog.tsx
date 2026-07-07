@@ -279,6 +279,7 @@ export function NovaTarefaDialog({
         });
         setSearchProcesso(processoNumero);
         setResponsaveisIds(respIds.length > 0 ? respIds : responsavelPrincipal ? [responsavelPrincipal] : []);
+        setSituacao((tarefaParaEditar.status as any) || "pendente");
         // Carregar envolvidos existentes
         const { data: envs } = await supabase
           .from("tarefa_envolvidos")
