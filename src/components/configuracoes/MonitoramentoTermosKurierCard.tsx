@@ -457,6 +457,18 @@ export function MonitoramentoTermosKurierCard() {
                 <div className="text-xs text-muted-foreground">
                   {!reprocessAllRunning && "concluído"}
                 </div>
+                {reprocessAllRunning && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => {
+                      reprocessCancelRef.current = true;
+                      toast.info("Cancelando após a credencial atual…");
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                )}
               </div>
               <Progress value={reprocessProgress.total ? (reprocessProgress.atual / reprocessProgress.total) * 100 : 0} />
               <div className="flex gap-3 text-xs text-muted-foreground">
