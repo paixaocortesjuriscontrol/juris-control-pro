@@ -862,7 +862,7 @@ export default function ListaAtividadesView({
                   {isLoading ? (
                     Array.from({ length: 10 }).map((_, i) => (
                       <TableRow key={i}>
-                        <TableCell colSpan={7}>
+                        <TableCell colSpan={8}>
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
                       </TableRow>
@@ -870,7 +870,7 @@ export default function ListaAtividadesView({
                   ) : rows.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={8}
                         className="h-32 text-center text-muted-foreground"
                       >
                         Nenhuma atividade encontrada.
