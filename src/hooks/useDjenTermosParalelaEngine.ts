@@ -1439,9 +1439,9 @@ async function processarTermoEmTribunal(
       tribunais: [tribunal],
       skipServidorProgress: true,
     };
-    // Retry moderado: 2 tentativas no total (1 retry). Mais que isso amplifica
-    // sobrecarga do runtime quando o Edge Function já está congestionado.
-    const MAX_TENTATIVAS = 2;
+    // Retry alinhado ao motor do Servidor (supabase/functions/monitorar-djen/config.ts:
+    // max_n=3, n_base_delay_ms=2000). Servidor funciona com esses valores; espelhamos.
+    const MAX_TENTATIVAS = 3;
     let data: any = null;
     let lastErr: string | null = null;
     for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
@@ -1454,8 +1454,9 @@ async function processarTermoEmTribunal(
       if (!errMsg) { data = d; lastErr = null; break; }
       lastErr = errMsg;
       if (!isTransiente || tentativa === MAX_TENTATIVAS) break;
-      // Backoff exponencial com jitter (400ms, 1200ms).
-      const delayMs = 400 * Math.pow(3, tentativa - 1) + Math.floor(Math.random() * 300);
+      // Backoff exponencial com jitter — base 2000ms como Servidor
+      // (tentativas: ~2000ms, ~4000ms).
+      const delayMs = 2000 * Math.pow(2, tentativa - 1) + Math.floor(Math.random() * 500);
       await new Promise((r) => setTimeout(r, delayMs));
     }
     if (lastErr) throw new Error(lastErr);
