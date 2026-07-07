@@ -215,6 +215,7 @@ export default function ListaAtividadesView({
     },
   });
 
+
   // Sincroniza com o escopo forçado (vindo do Painel de Controle, por ex.)
   useEffect(() => {
     if (forcedCoordenacaoId !== undefined) {
@@ -424,6 +425,88 @@ export default function ListaAtividadesView({
   const total = usingExternalItems ? (externalItems?.length || 0) : (result?.count || 0);
   const isLoading = usingExternalItems ? externalLoading : queryLoading;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  // Lookup de criadores para eventos que não têm responsável nem participante
+  const criadorIds = useMemo(() => {
+    const ids = new Set<string>();
+    rows.forEach((r: any) => {
+      if (!r.responsavel?.nome && !r.participantes?.length && r.criado_por) {
+        ids.add(r.criado_por);
+      }
+    });
+    return [...ids];
+  }, [rows]);
+
+  const { data: criadoresLookup } = useQuery({
+    queryKey: ["lista-criadores-lookup", criadorIds],
+    queryFn: async () => {
+      if (criadorIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase.from("profiles").select("id,nome").in("id", criadorIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((p: any) => { map[p.id] = p.nome; });
+      return map;
+    },
+    enabled: criadorIds.length > 0,
+  });
+
+  function fmtDateTime(dateStr?: string | null, horaStr?: string | null) {
+    if (!dateStr) return "—";
+    try {
+      const d = parseISO(dateStr);
+      const dataFmt = format(d, "dd/MM/yyyy", { locale: ptBR });
+      if (horaStr) return `${dataFmt} ${horaStr}`;
+      const timePart = dateStr.includes("T") ? dateStr.split("T")[1] : "";
+      if (timePart && timePart !== "00:00:00" && timePart !== "00:00") {
+        const t = timePart.slice(0, 5);
+        return `${dataFmt} ${t}`;
+      }
+      return dataFmt;
+    } catch {
+      return "—";
+    }
+  }
+
+  function renderResponsavel(row: any) {
+    if (row.responsavel?.nome) {
+      return (
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="h-6 w-6 rounded-full bg-primary/15 text-primary text-[9px] font-semibold flex items-center justify-center shrink-0">
+            {initials(row.responsavel.nome)}
+          </div>
+          <span className="text-[11px] text-foreground truncate">{row.responsavel.nome}</span>
+        </div>
+      );
+    }
+    const parts = row.participantes as { usuario?: { nome: string } }[] | undefined;
+    if (parts && parts.length > 0) {
+      const nomes = parts.filter((p: any) => p.usuario?.nome).map((p: any) => p.usuario.nome);
+      const nome = nomes[0];
+      if (nome) {
+        return (
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-6 w-6 rounded-full bg-primary/15 text-primary text-[9px] font-semibold flex items-center justify-center shrink-0">
+              {initials(nome)}
+            </div>
+            <span className="text-[11px] text-foreground truncate">
+              {nome}{nomes.length > 1 ? ` +${nomes.length - 1}` : ""}
+            </span>
+          </div>
+        );
+      }
+    }
+    const criadorNome = row.criador?.nome ?? criadoresLookup?.[row.criado_por];
+    if (criadorNome) {
+      return (
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="h-6 w-6 rounded-full bg-muted text-muted-foreground text-[9px] font-semibold flex items-center justify-center shrink-0">
+            {initials(criadorNome)}
+          </div>
+          <span className="text-[11px] text-muted-foreground truncate">{criadorNome}</span>
+        </div>
+      );
+    }
+    return <span className="text-muted-foreground text-[11px]">—</span>;
+  }
 
   const selectableRows = rows.filter((r) => tarefaToAgendaItem(r).origem === "tarefa" && !String(r.id).startsWith("prazo-tst-"));
   const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selected.has(r.id));
@@ -743,11 +826,12 @@ export default function ListaAtividadesView({
               <Table className="text-xs w-full table-fixed">
                 <colgroup>
                   <col className="w-9" />
-                  <col />
-                  <col className="w-[200px]" />
-                  <col className="w-[180px]" />
-                  <col className="w-[130px]" />
-                  <col className="w-[110px]" />
+                  <col className="w-[280px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[160px]" />
+                  <col className="w-[140px]" />
+                  <col className="w-[120px]" />
+                  <col className="w-[100px]" />
                   <col className="w-[80px]" />
                 </colgroup>
                 <TableHeader className="bg-muted/60 sticky top-0 z-10">
@@ -768,6 +852,7 @@ export default function ListaAtividadesView({
                     <TableHead className="h-9 font-semibold text-left">Atividade</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Responsável</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Datas</TableHead>
+                    <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Local / Parte</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Prioridade</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Status</TableHead>
                     <TableHead className="h-9 font-semibold whitespace-nowrap text-right pr-3">Ações</TableHead>
@@ -777,7 +862,7 @@ export default function ListaAtividadesView({
                   {isLoading ? (
                     Array.from({ length: 10 }).map((_, i) => (
                       <TableRow key={i}>
-                        <TableCell colSpan={7}>
+                        <TableCell colSpan={8}>
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
                       </TableRow>
@@ -785,7 +870,7 @@ export default function ListaAtividadesView({
                   ) : rows.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={7}
+                        colSpan={8}
                         className="h-32 text-center text-muted-foreground"
                       >
                         Nenhuma atividade encontrada.
@@ -814,56 +899,71 @@ export default function ListaAtividadesView({
                             />
                           </TableCell>
                           <TableCell className="py-3 align-top">
-                            <div className="flex flex-col gap-1 min-w-0">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-mono text-[11px] text-primary font-semibold">
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-mono text-[10px] text-primary font-semibold">
                                   {r.identificador_projuris || r.processo?.numero || "—"}
                                 </span>
-                                <Badge variant="outline" className="font-normal text-[10px] px-1.5 py-0">
+                                <Badge variant="outline" className="font-normal text-[9px] px-1 py-0">
                                   {TIPO_LABELS[item.tipo]}
                                 </Badge>
                               </div>
-                              <div className="font-medium text-sm text-foreground break-words leading-snug flex items-center gap-1.5">
+                              <div className="font-medium text-xs text-foreground break-words leading-snug flex items-center gap-1">
                                 <TratadoCheck tratado={isItemTratado({ ...item, ...r })} />
                                 <span>{r.titulo}</span>
                               </div>
-                              {r.processo?.numero && (
-                                <div className="text-[11px] text-muted-foreground font-mono break-words">
-                                  {r.processo.numero}
-                                  {r.processo.assunto ? ` — ${r.processo.assunto}` : ""}
+                              {r.processo?.assunto && (
+                                <div className="text-[10px] text-muted-foreground break-words">
+                                  {r.processo.assunto}
+                                </div>
+                              )}
+                              {(r as any).partes_ativas && (
+                                <div className="text-[10px] text-muted-foreground break-words line-clamp-1">
+                                  <span className="font-medium text-foreground/70">Cliente:</span> {(r as any).partes_ativas}
                                 </div>
                               )}
                               {(r as any).observacoes && (
-                                <div className="text-[11px] text-muted-foreground break-words line-clamp-2">
+                                <div className="text-[10px] text-muted-foreground break-words line-clamp-2">
                                   {(r as any).observacoes}
                                 </div>
                               )}
                             </div>
                           </TableCell>
                           <TableCell className="py-3 align-top">
-                            {r.responsavel?.nome ? (
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div className="h-7 w-7 rounded-full bg-primary/15 text-primary text-[10px] font-semibold flex items-center justify-center shrink-0">
-                                  {initials(r.responsavel.nome)}
-                                </div>
-                                <span className="text-xs text-foreground truncate">
-                                  {r.responsavel.nome}
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            )}
+                            {renderResponsavel(r)}
                           </TableCell>
                           <TableCell className="py-3 align-top text-[11px]">
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-1 font-medium text-foreground">
-                                <CalendarIcon className="h-3 w-3 text-destructive" />
-                                <span className="text-muted-foreground">Fatal:</span>
-                                <span>{fmtDate(item.data_fatal || item.data_vencimento || item.data_inicio)}</span>
+                                <CalendarIcon className="h-3 w-3 text-destructive shrink-0" />
+                                <span className="text-muted-foreground shrink-0">Fatal:</span>
+                                <span>{fmtDateTime(item.data_fatal || item.data_vencimento || item.data_inicio, (r as any).hora_fatal)}</span>
                               </div>
                               <div className="text-muted-foreground">
-                                Base: {fmtDate((r as Prazo).data_base)}
+                                Base: {fmtDateTime((r as Prazo).data_base)}
                               </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-3 align-top text-[11px]">
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              {(r as any).local && (
+                                <div className="text-foreground break-words line-clamp-1">
+                                  <span className="text-muted-foreground">Local:</span> {(r as any).local}
+                                </div>
+                              )}
+                              {(r as any).orgao && (
+                                <div className="text-foreground break-words line-clamp-1">
+                                  <span className="text-muted-foreground">Órgão:</span> {(r as any).orgao}
+                                </div>
+                              )}
+                              {(r as any).orgao_julgador && (
+                                <div className="text-foreground break-words line-clamp-1">
+                                  <span className="text-muted-foreground">Órgão:</span> {(r as any).orgao_julgador}
+                                </div>
+                              )}
+                              {!(r as any).local && !(r as any).orgao && !(r as any).orgao_julgador && (
+                                <span className="text-muted-foreground">—</span>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="py-3 align-top">
@@ -885,7 +985,7 @@ export default function ListaAtividadesView({
                                   STATUS_DOT[r.status],
                                 )}
                               />
-                              <span className="capitalize">{r.status}</span>
+                              <span className="capitalize text-[11px]">{r.status}</span>
                             </div>
                           </TableCell>
                           <TableCell className="py-3 align-top text-right pr-3" data-stop>
