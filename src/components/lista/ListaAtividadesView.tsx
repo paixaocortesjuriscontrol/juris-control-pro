@@ -845,8 +845,9 @@ export default function ListaAtividadesView({
                                   {PRIO_LABEL[r.prioridade] || r.prioridade}
                                 </Badge>
                               </div>
-                              <div className="font-medium text-sm text-foreground break-words leading-snug">
-                                {r.titulo}
+                              <div className="font-medium text-sm text-foreground break-words leading-snug flex items-center gap-1.5">
+                                <TratadoCheck tratado={r.status === "cumprido" || r.status === "concluido" || r.status === "tratado"} />
+                                <span>{r.titulo}</span>
                               </div>
                               {r.processo?.numero && (
                                 <div className="text-[11px] text-muted-foreground font-mono break-words">
