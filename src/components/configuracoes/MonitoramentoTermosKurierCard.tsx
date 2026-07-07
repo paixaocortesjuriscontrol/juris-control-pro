@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
@@ -47,6 +47,7 @@ export function MonitoramentoTermosKurierCard() {
   const [backfillRunning, setBackfillRunning] = useState(false);
   const [backfillDate, setBackfillDate] = useState<Date | undefined>(new Date());
   const [reprocessAllRunning, setReprocessAllRunning] = useState(false);
+  const reprocessCancelRef = useRef(false);
   const [reprocessProgress, setReprocessProgress] = useState<{
     atual: number;
     total: number;
@@ -107,6 +108,7 @@ export function MonitoramentoTermosKurierCard() {
       `Reprocessar TODOS os payloads brutos do dia ${dataYmd}?\n\nIsso recria publicações em publicacoes_djen a partir de kurier_publicacoes_raw. As já existentes são ignoradas por dedup.`,
     );
     if (!confirmar) return;
+    reprocessCancelRef.current = false;
     setReprocessAllRunning(true);
     setReprocessProgress({ atual: 0, total: 0, credAtual: "", novas: 0, duplicadas: 0, descartadas: 0 });
     try {
@@ -123,6 +125,10 @@ export function MonitoramentoTermosKurierCard() {
       const erros: string[] = [];
       setReprocessProgress({ atual: 0, total: creds.length, credAtual: "", novas: 0, duplicadas: 0, descartadas: 0 });
       for (let i = 0; i < creds.length; i++) {
+        if (reprocessCancelRef.current) {
+          toast.warning(`Cancelado pelo usuário após ${i}/${creds.length} credenciais.`);
+          break;
+        }
         const c = creds[i];
         setReprocessProgress({ atual: i, total: creds.length, credAtual: c.login, novas: totalNovas, duplicadas: totalDuplicadas, descartadas: totalDescartadas });
         try {
@@ -144,13 +150,16 @@ export function MonitoramentoTermosKurierCard() {
         setReprocessProgress({ atual: i + 1, total: creds.length, credAtual: c.login, novas: totalNovas, duplicadas: totalDuplicadas, descartadas: totalDescartadas });
       }
       if (erros.length) toast.error(`Reprocessamento com ${erros.length} erro(s). Ex.: ${erros[0]}`);
-      toast.success(`Reprocessamento concluído. Novas: ${totalNovas}, duplicadas: ${totalDuplicadas}, descartadas: ${totalDescartadas}.`);
+      if (!reprocessCancelRef.current) {
+        toast.success(`Reprocessamento concluído. Novas: ${totalNovas}, duplicadas: ${totalDuplicadas}, descartadas: ${totalDescartadas}.`);
+      }
       await qc.invalidateQueries({ queryKey: ["publicacoes-djen"] });
       await qc.invalidateQueries({ queryKey: ["publicacoes-unificadas"] });
     } catch (e: any) {
       toast.error(`Falha: ${String(e?.message ?? e)}`);
     } finally {
       setReprocessAllRunning(false);
+      reprocessCancelRef.current = false;
       setTimeout(() => setReprocessProgress(null), 8000);
     }
   };
