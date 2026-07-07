@@ -148,7 +148,7 @@ export function AudienciaFormSimplificado({
       polo_ativo: form.polo_ativo || undefined,
       cliente: form.cliente || undefined,
       terceirizado: form.terceirizado || undefined,
-      status: "pendente",
+      status: situacao,
       advogados_ids: responsaveisIds,
       envolvidos_ids: envolvidosIds,
     };
