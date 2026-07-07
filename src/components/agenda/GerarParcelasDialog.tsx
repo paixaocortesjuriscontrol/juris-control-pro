@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
+import { Textarea } from "@/components/ui/textarea";
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
 import {
   Select,
@@ -57,6 +58,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = !!evento;
+  const [situacao, setSituacao] = useState<"pendente" | "concluido" | "cancelado">("pendente");
   
   const [formData, setFormData] = useState({
     titulo: "",
@@ -259,6 +261,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         // horário base para disparo dos lembretes (quando não há hora de vencimento)
         hora_alerta: format(dataInicioSP, "HH:mm") || prev.hora_alerta || "09:00",
       }));
+      setSituacao(((evento as any).status as any) || "pendente");
 
       // Carregar valores e datas individuais das parcelas existentes
       if (parcelasExistentes && parcelasExistentes.length > 0) {
@@ -283,6 +286,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
       setProcessoIds(defaultProcessoId ? [defaultProcessoId] : []);
       setValoresIndividuais([]);
       setDatasIndividuais([]);
+      setSituacao("pendente");
     }
   }, [evento, open, parcelasExistentes, alertasParcelaMinutos, defaultProcessoId]);
 
@@ -397,6 +401,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
               total_parcelas: formData.totalParcelas,
               enviar_whatsapp: formData.enviar_whatsapp,
               recorrente: true, // Parcelamento é recorrente até terminar
+              status: situacao,
+              concluido_em: situacao === "concluido" ? new Date().toISOString() : null,
             })
             .eq("id", evento.id);
 
@@ -466,7 +472,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
             data_inicio: `${formData.dataVencimento}T${formData.hora_alerta || "09:00"}:00-03:00`,
             dia_inteiro: true,
             criado_por: user.id,
-            status: "pendente",
+            status: situacao,
             total_parcelas: formData.totalParcelas,
             processo_id: processoIds[0] || null,
             enviar_whatsapp: formData.enviar_whatsapp,
@@ -585,6 +591,34 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
 
         <div className="flex-1 overflow-y-auto px-4 sm:px-6">
           <form onSubmit={handleSubmit} className="space-y-4 pb-4">
+            {/* Situação + Observações (topo) */}
+            <div className="rounded-md border bg-muted/30 p-3 grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label className="text-sm">Situação</Label>
+                <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                    <SelectItem value="concluido">✔️ Concluído</SelectItem>
+                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="descricao" className="text-sm">Observações</Label>
+                <Textarea
+                  id="descricao"
+                  value={formData.descricao}
+                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                  placeholder="Detalhes adicionais do parcelamento"
+                  rows={6}
+                  className="mt-1.5"
+                />
+              </div>
+            </div>
+
             {/* Título do Parcelamento */}
             <div>
               <Label htmlFor="titulo" className="flex items-center gap-1.5">
@@ -597,17 +631,6 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                 onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
                 placeholder="Ex: Parcelamento Eduardo - Acordo Trabalhista"
                 required
-              />
-            </div>
-
-            {/* Descrição */}
-            <div>
-              <Label htmlFor="descricao">Descrição (opcional)</Label>
-              <Input
-                id="descricao"
-                value={formData.descricao}
-                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                placeholder="Detalhes adicionais do parcelamento"
               />
             </div>
 

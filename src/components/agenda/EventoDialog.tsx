@@ -89,6 +89,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
 
   const [processoId, setProcessoId] = useState("");
   const [processoSearch, setProcessoSearch] = useState("");
+  const [situacao, setSituacao] = useState<"pendente" | "concluido" | "cancelado">("pendente");
 
   // Recorrência
   const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
@@ -163,6 +164,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setRecorrenciaTipo((evento as any).recorrencia_tipo || "nenhuma");
       setRecorrenciaIntervalo((evento as any).recorrencia_intervalo || 1);
       setRecorrenciaFim(((evento as any).recorrencia_fim || "").slice(0, 10));
+      setSituacao(((evento as any).status as any) || "pendente");
 
       const min = alertasEvento && alertasEvento.length > 0 ? alertasEvento[0] : 0;
       const { valor, unidade } = minutosParaUnidade(min);
@@ -202,6 +204,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setResponsaveisIds([]);
       setEnvolvidosIds([]);
       setMostrarEnvolvidos(false);
+      setSituacao("pendente");
       setRecorrenciaTipo("nenhuma");
       setRecorrenciaIntervalo(1);
       setRecorrenciaFim("");
@@ -242,6 +245,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       titulo: titulo.trim(),
       descricao: observacoes || undefined,
       tipo: "evento",
+      status: situacao,
+      concluido_em: situacao === "concluido" ? new Date().toISOString() : null,
       data_inicio: inicioISO,
       data_fim: fimISO,
       dia_inteiro: diaInteiro,
@@ -350,6 +355,34 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             </div>
             <ScrollArea className="flex-1 px-6">
               <form onSubmit={handleSubmit} className="space-y-5 pb-6" id="evento-form-content">
+            {/* Situação + Observações (topo) */}
+            <div className="rounded-md border bg-muted/30 p-3 grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label className="text-sm">Situação</Label>
+                <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                    <SelectItem value="concluido">✔️ Concluído</SelectItem>
+                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="observacoes" className="text-sm">Observações</Label>
+                <Textarea
+                  id="observacoes"
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)}
+                  placeholder="Digite observações sobre o evento"
+                  rows={6}
+                  className="mt-1.5"
+                />
+              </div>
+            </div>
+
             {/* Título */}
             <div>
               <Label htmlFor="titulo" className="text-sm">
@@ -590,15 +623,10 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               )}
             </div>
 
-            {/* Observações */}
+            {/* Recorrência */}
             <div>
-              <Label htmlFor="observacoes" className="text-sm">
-                Observações
-              </Label>
-              {/* Recorrência */}
-              <div className="mb-4">
-                <Label className="text-sm">Recorrência</Label>
-                <div className="flex gap-2 mt-1.5">
+              <Label className="text-sm">Recorrência</Label>
+              <div className="flex gap-2 mt-1.5">
                   <Select value={recorrenciaTipo} onValueChange={setRecorrenciaTipo}>
                     <SelectTrigger className="flex-1">
                       <SelectValue />
@@ -630,16 +658,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                       />
                     </>
                   )}
-                </div>
               </div>
-              <Textarea
-                id="observacoes"
-                value={observacoes}
-                onChange={(e) => setObservacoes(e.target.value)}
-                placeholder="Digite observações sobre o evento"
-                rows={3}
-                className="mt-1.5"
-              />
             </div>
 
             <ItemComentarios tipo="evento" itemId={evento?.id} />

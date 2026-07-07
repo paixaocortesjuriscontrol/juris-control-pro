@@ -196,6 +196,7 @@ export function PrazoDialog({
   const [observacoes, setObservacoes] = useState("");
   const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
 
   // data base = data da publicação (se houver) ou hoje
   const dataBase = useMemo<Date>(() => {
@@ -222,6 +223,7 @@ export function PrazoDialog({
       setObservacoes(prazo.observacoes || "");
       setDataFatal((prazo as any).data_fatal ? parseISO((prazo as any).data_fatal) : undefined);
       setCoordenacaoId("");
+      setSituacao(((prazo as any).status as any) || "pendente");
       (async () => {
         const processoId = defaultProcessoId || prazo.processo_id;
         const [{ data: resps }, { data: envs }, { data: proc }] = await Promise.all([
@@ -252,6 +254,7 @@ export function PrazoDialog({
       setObservacoes("");
       setDataFatal(undefined);
       setCoordenacaoId("");
+      setSituacao("pendente");
     }
   }, [open, prazo?.id]);
 
@@ -286,6 +289,8 @@ export function PrazoDialog({
       processo_id: defaultProcessoId || prazo?.processo_id || null,
       responsavel_id: responsaveisIds[0],
       observacoes: observacoes.trim() || undefined,
+      status: situacao,
+      data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
       // Preserva o tipo original quando estamos editando uma tarefa/prazo
       // existente. Só fixa "PRAZO" quando é uma criação nova a partir deste
       // diálogo. Isso impede que editar uma tarefa via TarefaDetalhesPanel
@@ -422,6 +427,32 @@ export function PrazoDialog({
           ) : (
             <Tag className="h-4 w-4 text-muted-foreground" />
           )}
+        </div>
+
+        {/* Situação + Observações (topo) */}
+        <div className="rounded-md border bg-muted/30 p-3 grid gap-4 md:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label className="text-sm">Situação</Label>
+            <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+              <SelectTrigger className="h-10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                <SelectItem value="cumprido">✔️ Cumprido</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">Observações</Label>
+            <Textarea
+              value={observacoes}
+              onChange={(e) => setObservacoes(e.target.value)}
+              placeholder="Digite observações sobre o prazo"
+              rows={6}
+            />
+          </div>
         </div>
 
         <div className="space-y-1.5">
@@ -613,15 +644,6 @@ export function PrazoDialog({
           </div>
         )}
 
-        <div className="space-y-1.5">
-          <Label className="text-sm">Observações</Label>
-          <Textarea
-            value={observacoes}
-            onChange={(e) => setObservacoes(e.target.value)}
-            placeholder="Digite observações sobre o prazo"
-            rows={3}
-          />
-        </div>
       </div>
 
       <div className="flex justify-end gap-2 px-5 py-3 border-t bg-muted/30">

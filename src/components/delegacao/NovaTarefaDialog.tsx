@@ -117,6 +117,7 @@ export function NovaTarefaDialog({
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const [analiseVisualizando, setAnaliseVisualizando] = useState<AnexoComAnalise | null>(null);
+  const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -278,6 +279,7 @@ export function NovaTarefaDialog({
         });
         setSearchProcesso(processoNumero);
         setResponsaveisIds(respIds.length > 0 ? respIds : responsavelPrincipal ? [responsavelPrincipal] : []);
+        setSituacao((tarefaParaEditar.status as any) || "pendente");
         // Carregar envolvidos existentes
         const { data: envs } = await supabase
           .from("tarefa_envolvidos")
@@ -342,6 +344,7 @@ export function NovaTarefaDialog({
       setResponsaveisIds([]);
       setEnvolvidosIds([]);
       setMostrarEnvolvidos(false);
+      setSituacao("pendente");
     })();
   }, [open, processoPreSelecionado, form, coordenacoes, tarefaParaEditar]);
 
@@ -522,6 +525,8 @@ export function NovaTarefaDialog({
           hora_fatal: values.hora_fatal || null,
           link_local: values.local || null,
           prioridade: values.prioridade,
+          status: situacao,
+          data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
         };
 
         if (values.tipo_vinculo === "sem_vinculo") {
@@ -575,7 +580,7 @@ export function NovaTarefaDialog({
         hora_fatal: values.hora_fatal || null,
         link_local: values.local || null,
         prioridade: values.prioridade,
-        status: "pendente",
+        status: situacao,
         criado_por: userData?.id || null,
       }).select("id").single();
 
@@ -744,6 +749,40 @@ export function NovaTarefaDialog({
           )}
           <Form {...form}>
             <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {/* Situação + Observações (topo) */}
+              <div className="rounded-md border bg-muted/30 p-3 grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <FormLabel>Situação</FormLabel>
+                  <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                      <SelectItem value="cumprido">✔️ Concluída</SelectItem>
+                      <SelectItem value="cancelado">❌ Cancelada</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <FormField
+                  control={form.control}
+                  name="descricao"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Observações</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Detalhes adicionais sobre a tarefa..."
+                          rows={6}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 control={form.control}
                 name="titulo"
@@ -1031,26 +1070,6 @@ export function NovaTarefaDialog({
                     <FormLabel>Local/Link</FormLabel>
                     <FormControl>
                       <Input placeholder="Local ou link da tarefa" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* Descrição */}
-              <FormField
-                control={form.control}
-                name="descricao"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Descrição</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Detalhes adicionais sobre a tarefa..."
-                        className="resize-none"
-                        rows={4}
-                        {...field}
-                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
