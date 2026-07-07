@@ -189,7 +189,6 @@ export function PautasExcelDialog({
           coordenacao_id: coordenacaoId,
           area: "trabalhista",
           status: "ativo",
-          created_by: user.id,
         })
         .select("id, numero")
         .single();
