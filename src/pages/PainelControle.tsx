@@ -430,6 +430,74 @@ export default function PainelControle() {
     staleTime: 30000,
   });
 
+  // Audiências vindas de audiencias_detectadas (fonte real do calendário)
+  const { data: audienciasDetStats } = useQuery({
+    queryKey: [
+      "painel-controle-audiencias-det-stats",
+      tabMode,
+      hoje_str,
+      user?.id,
+      membrosIdsParaResumo,
+      isAdmin,
+      adminCoordFilter,
+      coordenacoesUsuario,
+    ],
+    queryFn: async () => {
+      const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
+      if (!user?.id) return empty;
+
+      let q = supabase
+        .from("audiencias_detectadas")
+        .select("data_audiencia, status, criado_por, coordenacao_id, id")
+        .not("data_audiencia", "is", null)
+        .neq("status", "cumprido");
+
+      if (tabMode === "escritorio") {
+        if (isAdmin) {
+          if (adminCoordFilter !== "todas") {
+            q = q.eq("coordenacao_id", adminCoordFilter);
+          }
+          // admin sem filtro: tudo
+        } else if (coordenacoesUsuario.length > 0) {
+          q = q.in("coordenacao_id", coordenacoesUsuario);
+        } else {
+          return empty;
+        }
+      } else {
+        // pessoal: criado por mim OU vinculado (advogado/envolvido)
+        const [{ data: audAdvs }, { data: audEnv }] = await Promise.all([
+          supabase.from("audiencias_advogados").select("audiencia_id").eq("advogado_id", user.id),
+          supabase.from("audiencia_envolvidos").select("audiencia_id").eq("usuario_id", user.id),
+        ]);
+        const ids = [
+          ...new Set([
+            ...(audAdvs ?? []).map((a: any) => a.audiencia_id),
+            ...(audEnv ?? []).map((a: any) => a.audiencia_id),
+          ]),
+        ];
+        if (ids.length > 0) {
+          q = q.or(`criado_por.eq.${user.id},id.in.(${ids.join(",")})`);
+        } else {
+          q = q.eq("criado_por", user.id);
+        }
+      }
+
+      const { data, error } = await q;
+      if (error) {
+        console.error("[audienciasDetStats] erro:", error);
+        return empty;
+      }
+      const hoje_d = new Date(hoje_str + "T00:00:00");
+      const rows = data || [];
+      const atrasadas = rows.filter((r: any) => r.data_audiencia && new Date(String(r.data_audiencia).slice(0, 10) + "T00:00:00") < hoje_d).length;
+      const hoje_count = rows.filter((r: any) => String(r.data_audiencia ?? "").slice(0, 10) === hoje_str).length;
+      const futuras = rows.filter((r: any) => r.data_audiencia && new Date(String(r.data_audiencia).slice(0, 10) + "T00:00:00") > hoje_d).length;
+      return { atrasadas, hoje: hoje_count, futuras, total: rows.length };
+    },
+    enabled: !!user?.id && resumoStatsReady,
+    staleTime: 30000,
+  });
+
   // IDs dos processos das coordenações do usuário (para filtrar intimações e andamentos)
   const { data: processosIds = [] } = useQuery({
     queryKey: ["painel-controle-processos-ids", tabMode, coordenacoesUsuario, isAdmin, adminCoordFilter],
@@ -474,8 +542,12 @@ export default function PainelControle() {
   const resumo = useMemo(() => {
     const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
     if (!resumoStats) return { tarefas: empty, prazos: empty, audiencias: empty, eventosTarefa: empty };
-    return resumoStats as any;
-  }, [resumoStats]);
+    const base = resumoStats as any;
+    return {
+      ...base,
+      audiencias: audienciasDetStats ?? base.audiencias ?? empty,
+    };
+  }, [resumoStats, audienciasDetStats]);
 
   // Intimações pendentes — filtradas por processos da coordenação (ou todas para admin sem coordenação)
   const { data: intimacoesPendentes = 0 } = useQuery({
