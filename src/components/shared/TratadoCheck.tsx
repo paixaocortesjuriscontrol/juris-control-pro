@@ -26,18 +26,37 @@ export function TratadoCheck({ tratado, className, size = 14, title = "Tratado" 
 /** Retorna true se o item da agenda unificada estiver marcado como tratado/concluído. */
 export function isItemTratado(item: {
   status?: string | null;
+  status_tst?: string | null;
   situacao?: string | null;
   origem?: string | null;
+  data_cumprimento?: string | null;
+  concluido_em?: string | null;
+  tratado_em?: string | null;
+  prazo_fatal_conferido?: boolean | null;
 }): boolean {
-  const s = (item.status ?? "").toLowerCase();
-  const situ = (item.situacao ?? "").toLowerCase();
-  return (
-    s === "concluido" ||
-    s === "concluida" ||
-    s === "cumprido" ||
-    s === "tratado" ||
-    situ === "tratado" ||
-    situ === "concluido" ||
-    situ === "concluida"
-  );
+  if (item.prazo_fatal_conferido || item.data_cumprimento || item.concluido_em || item.tratado_em) return true;
+
+  const normalize = (value?: string | null) =>
+    (value ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+
+  const tratados = new Set([
+    "concluido",
+    "concluida",
+    "cumprido",
+    "cumprida",
+    "tratado",
+    "tratada",
+    "pago",
+    "paga",
+    "finalizado",
+    "finalizada",
+    "conferido",
+    "conferida",
+  ]);
+
+  return [item.status, item.status_tst, item.situacao].some((value) => tratados.has(normalize(value)));
 }

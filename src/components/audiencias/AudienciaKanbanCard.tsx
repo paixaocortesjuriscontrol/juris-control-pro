@@ -4,7 +4,7 @@ import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, FileText, MapPin, Building, Eye, Pencil, CheckCircle, XCircle, ListChecks, MoreVertical } from "lucide-react";
-import { TratadoCheck } from "@/components/shared/TratadoCheck";
+import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface Props {
@@ -53,7 +53,7 @@ export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTa
       {/* Header: processo + urgency badge */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          <TratadoCheck tratado={audiencia.status === "tratado"} />
+          <TratadoCheck tratado={isItemTratado(audiencia)} />
           <p className="text-xs font-mono font-semibold text-foreground truncate">
             {audiencia.processo_numero || "Sem nº"}
           </p>

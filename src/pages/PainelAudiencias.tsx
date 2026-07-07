@@ -35,7 +35,7 @@ export default function PainelAudiencias({ embedded = false }: PainelAudienciasP
   const { user } = useAuth();
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("pendente");
+  const [statusFilter, setStatusFilter] = useState("todos");
   const [coordenacaoFilter, setCoordenacaoFilter] = useState<string | null>(null);
   const [selectedAudiencia, setSelectedAudiencia] = useState<AudienciaDetectada | null>(null);
   const [editingAudiencia, setEditingAudiencia] = useState<AudienciaDetectada | null>(null);

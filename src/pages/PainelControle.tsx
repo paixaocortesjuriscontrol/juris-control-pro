@@ -25,7 +25,6 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
-  CheckCircle2,
   FileText,
   Plus,
 } from "lucide-react";
@@ -42,7 +41,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
 import { ClipboardList, CalendarPlus, Clock, Gavel, Coins } from "lucide-react";
-import { isItemTratado } from "@/components/shared/TratadoCheck";
+import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -682,7 +681,7 @@ export default function PainelControle() {
       // Status (grupo simplificado)
       if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
         const st = (item.status ?? "").toLowerCase();
-        const concluido = st === "cumprido" || st === "concluido";
+        const concluido = isItemTratado(item);
         const cancelado = st === "cancelado";
         if (painelFiltros.statusGroup === "a_concluir" && (concluido || cancelado)) return false;
         if (painelFiltros.statusGroup === "concluidas" && !concluido) return false;
@@ -1351,7 +1350,7 @@ export default function PainelControle() {
                                   title={item.titulo}
                                 >
                                   {isConcluido ? (
-                                    <CheckCircle2 className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0" />
+                                    <TratadoCheck tratado size={10} className="text-current dark:text-current" />
                                   ) : (
                                     <FileText className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0 opacity-90" />
                                   )}
@@ -1414,7 +1413,7 @@ export default function PainelControle() {
                                             }}
                                           >
                                             {isConcluido ? (
-                                              <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+                                              <TratadoCheck tratado size={12} className="text-current dark:text-current" />
                                             ) : (
                                               <FileText className="w-3 h-3 flex-shrink-0 opacity-90" />
                                             )}
