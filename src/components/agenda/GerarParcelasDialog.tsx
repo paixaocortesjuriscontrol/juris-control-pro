@@ -634,17 +634,6 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
               />
             </div>
 
-            {/* Descrição */}
-            <div>
-              <Label htmlFor="descricao">Descrição (opcional)</Label>
-              <Input
-                id="descricao"
-                value={formData.descricao}
-                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                placeholder="Detalhes adicionais do parcelamento"
-              />
-            </div>
-
             {/* Vincular Processos (múltiplos) */}
             <div className="border rounded-lg p-4 space-y-3">
               <Label className="font-medium flex items-center gap-2">
