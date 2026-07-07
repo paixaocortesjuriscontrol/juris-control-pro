@@ -57,6 +57,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = !!evento;
+  const [situacao, setSituacao] = useState<"pendente" | "concluido" | "cancelado">("pendente");
   
   const [formData, setFormData] = useState({
     titulo: "",
