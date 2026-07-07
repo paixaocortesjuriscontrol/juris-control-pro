@@ -108,9 +108,9 @@ export function ConfigAlertasEnvioDialog({ open, onClose, coordenacaoId, coorden
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TIPOS_TAREFA.map((t) => (
+                {TIPOS_ALERTA.map((t) => (
                   <SelectItem key={t} value={t}>
-                    {TIPOS_TAREFA_LABELS[t] || t}
+                    {TIPOS_ALERTA_LABELS[t] || t}
                     {configs.some((c) => c.tipo_tarefa === t && c.ativo) && (
                       <Badge variant="secondary" className="ml-2 text-[10px]">configurado</Badge>
                     )}
