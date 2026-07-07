@@ -1,45 +1,57 @@
-## Recuperar publicações Kurier de 07/07
+## Problema
 
-Os 2404 payloads brutos estão preservados em `kurier_publicacoes_raw`. Vou fazer o replay a partir deles.
+No motor **Servidor** (`monitor-servidor/engines/paralela.js`), STF é classificado como prioritário junto com TST/STJ/TRTs (linha 66) e cai na `band0`. O `pickNext()` (linhas 1586-1598) não tem gate — qualquer worker livre puxa STF em paralelo com os outros tribunais. Por isso o STF continua rodando antes de tudo terminar.
 
-### 1. Modo `replay_raw` em `kurier-consultar-publicacoes`
+A regra "STF por último" já existe no motor Browser (`useDjenTermosParalelaEngine.ts`, banda 3 com gate rígido); falta espelhar no Servidor.
 
-Em `supabase/functions/kurier-consultar-publicacoes/index.ts`, aceitar:
+## Correção
 
-```json
-{ "replay_raw": true, "data_inicio": "YYYY-MM-DD", "data_fim": "YYYY-MM-DD", "credencial_id": "<opcional>" }
-```
+Criar **banda 3 exclusiva do STF** no Servidor, com gate rígido: só é servida quando bandas 0/1/2 estão vazias **e** sem nenhuma unit em voo.
 
-Quando `replay_raw=true`:
-- Pula toda chamada HTTP à API Kurier.
-- Lê `kurier_publicacoes_raw` na janela BRT (por `created_at`), paginado 500/500, opcional filtro por `credencial_id`.
-- Para cada linha, reaproveita **o mesmo bloco de normalização + INSERT em `publicacoes_djen`** que já existe (linhas ~876–1015). Nada de reimplementar lógica em paralelo.
-- Dedup natural (`origem='kurier' + id_externo`) evita duplicar se alguma sobrou.
-- Não reinsere em `kurier_publicacoes_raw`; só atualiza `publicacao_djen_id` da linha raw com o novo UUID.
-- Retorna `{ replayed, novas, duplicadas, descartadas }` no mesmo formato dos outros modos.
+### Alterações em `monitor-servidor/engines/paralela.js`
 
-### 2. Botão "Reprocessar dia" no card Kurier
+1. **`isTribunalPrioritario`** (linhas 64-67): remover STF — passa a valer só para TST/STJ/TRTs.
 
-Em `src/components/configuracoes/MonitoramentoTermosKurierCard.tsx`, adicionar um bloco novo abaixo do "Executar Kurier":
+2. **Classificação em bandas** (linhas 1559-1573):
+   - Adicionar `band3 = []`.
+   - No loop: se `item.tribunal === 'STF'` e `MAIN_TIPOS.includes(item.tipo)`, vai para `band3`. Caso contrário mantém band0/band1/band2 atuais.
+   - Incluir `band3` em `bands` e ordenar com `comparePriorityUnits`.
 
-- Campo `<Input type="date">` com valor default = hoje (BRT).
-- Botão **"Reprocessar dia (a partir do bruto)"** que chama:
-  ```ts
-  supabase.functions.invoke("kurier-consultar-publicacoes", {
-    body: { replay_raw: true, data_inicio: dia, data_fim: dia }
-  })
-  ```
-- Toast com o resumo devolvido (`X novas, Y duplicadas, Z descartadas`).
-- Texto de ajuda curto: "Reprocessa payloads já baixados da Kurier neste dia. Use quando as publicações foram apagadas por engano — não consome a fila da Kurier."
+3. **Retry injetado** (linhas 1640-1642): mesma regra — STF cai em band3.
 
-### 3. Verificação após você clicar
+4. **`inBand`** (linha 1585): passar de `[0,0,0]` para `[0,0,0,0]`.
 
-Depois do replay, confiro:
-- `SELECT COUNT(*) FROM publicacoes_djen WHERE origem='kurier' AND data_publicacao::date='2026-07-07'`
-- Tela Análise DJEN mostrando as publicações de novo.
+5. **`pickNext()`** (linhas 1586-1598): gate rígido para band3.
+   ```js
+   const pickNext = () => {
+     for (let b = 0; b < 3; b++) {
+       if (bands[b].length > 0) { bandAtual = b; return bands[b].shift(); }
+     }
+     // STF (band3) só libera quando 0/1/2 vazias E sem units em voo
+     if (bands[3].length > 0 && inBand[0] + inBand[1] + inBand[2] === 0) {
+       bandAtual = 3;
+       return bands[3].shift();
+     }
+     return null;
+   };
+   ```
 
-### Escopo estrito
+6. **Loop do worker** (linhas 1784-1789): aguardar quando ainda há STF pendente ou units em voo, em vez de encerrar.
+   ```js
+   if (!unit) {
+     const emVoo = inBand[0] + inBand[1] + inBand[2] + inBand[3];
+     const stfPendente = bands[3].length > 0;
+     if (emVoo > 0 || stfPendente) { await delay(500); continue; }
+     break;
+   }
+   ```
 
-- Não toco em `kurier_publicacoes_raw` além do `UPDATE publicacao_djen_id`.
-- Não chamo a API Kurier, não altero fila, não altero `confirmada`.
-- Modo padrão da função continua inalterado.
+7. **Log inicial** (linha 1601): incluir `stf: band3.length` em `bandas` para visibilidade.
+
+Nada muda em Browser, edge functions, banco ou UI.
+
+## Detalhes técnicos
+
+- `inBand` já é incrementado/decrementado no worker (linhas 1790-1792), então o gate funciona sem ajustes extras.
+- Retries pendentes de STF também respeitam a nova classificação.
+- Dentro da band3, `comparePriorityUnits` mantém a ordenação por shard já existente.
