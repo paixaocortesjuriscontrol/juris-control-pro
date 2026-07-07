@@ -113,6 +113,7 @@ export default function PainelControle() {
   const [tarefaEditando, setTarefaEditando] = useState<any | null>(null);
   const [prazoEditando, setPrazoEditando] = useState<any | null>(null);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
+  const [somenteHoje, setSomenteHoje] = useState(false);
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
 
@@ -738,9 +739,25 @@ export default function PainelControle() {
         if (painelFiltros.periodoFim && d > painelFiltros.periodoFim) return false;
       }
 
+      // Filtro "Somente Hoje"
+      if (somenteHoje) {
+        let dateStr: string | undefined;
+        if (item.origem === "tarefa") {
+          if (painelFiltros.dataFatal && !painelFiltros.dataPrevista) {
+            dateStr = item.data_fatal ?? item.data_vencimento ?? item.data_inicio;
+          } else {
+            dateStr = item.data_vencimento ?? item.data_fatal ?? item.data_inicio;
+          }
+        } else {
+          dateStr = item.data_inicio;
+        }
+        const d = (dateStr ?? "").slice(0, 10);
+        if (d !== hoje_str) return false;
+      }
+
       return true;
     });
-  }, [itensAgenda, painelFiltros, user?.id]);
+  }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str]);
 
   // Mapa de itens por dia (chave: "YYYY-MM-DD")
   // Concluídas aparecem no final de cada dia, pendentes primeiro
@@ -909,6 +926,15 @@ export default function PainelControle() {
                 Escritório
               </Button>
             </div>
+            <Button
+              size="sm"
+              variant={somenteHoje ? "default" : "outline"}
+              className="h-7 px-3 text-xs"
+              onClick={() => setSomenteHoje((v) => !v)}
+              title="Exibir apenas itens de hoje"
+            >
+              Somente Hoje
+            </Button>
             {/* Filtro de coordenação para admin no modo escritório - desktop inline */}
             {isAdmin && tabMode === "escritorio" && (
               <div className="hidden md:block">

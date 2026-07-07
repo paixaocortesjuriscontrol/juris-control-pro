@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -61,19 +65,54 @@ export function PeoplePicker({
   icon = "user",
 }: Props) {
   const [open, setOpen] = useState(false);
+  const { user } = useAuth();
+  const { isAdmin } = useUserRole();
+  const { data: coordPadraoId } = useCoordenacaoPadrao();
   const [coordFiltro, setCoordFiltro] = useState<string>("todas");
+  const [coordFiltroTouched, setCoordFiltroTouched] = useState(false);
 
+  // Coordenações: admin vê todas; demais veem apenas as suas (membro ou coordenador)
   const { data: coordenacoes = [] } = useQuery({
-    queryKey: ["people-picker-coords"],
+    queryKey: ["people-picker-coords", user?.id, isAdmin],
+    enabled: !!user?.id,
     queryFn: async () => {
+      if (isAdmin) {
+        const { data, error } = await supabase
+          .from("coordenacoes")
+          .select(`id, nome, membros:membros_coordenacao(usuario_id)`)
+          .order("nome");
+        if (error) throw error;
+        return (data || []) as Coord[];
+      }
+      const [membros, coordenador] = await Promise.all([
+        supabase.from("membros_coordenacao").select("coordenacao_id").eq("usuario_id", user!.id),
+        supabase.from("coordenacoes").select("id").eq("coordenador_id", user!.id),
+      ]);
+      const ids = Array.from(new Set([
+        ...((membros.data || []).map((m: any) => m.coordenacao_id)),
+        ...((coordenador.data || []).map((c: any) => c.id)),
+      ]));
+      if (ids.length === 0) return [];
       const { data, error } = await supabase
         .from("coordenacoes")
         .select(`id, nome, membros:membros_coordenacao(usuario_id)`)
+        .in("id", ids)
         .order("nome");
       if (error) throw error;
       return (data || []) as Coord[];
     },
   });
+
+  // Pré-seleciona coordenação padrão do usuário assim que estiver disponível
+  useEffect(() => {
+    if (coordFiltroTouched) return;
+    if (isAdmin) return;
+    if (!coordenacoes.length) return;
+    const alvo = coordPadraoId && coordenacoes.some((c) => c.id === coordPadraoId)
+      ? coordPadraoId
+      : coordenacoes[0].id;
+    if (alvo && coordFiltro !== alvo) setCoordFiltro(alvo);
+  }, [isAdmin, coordPadraoId, coordenacoes, coordFiltroTouched]);
 
   const { data: usuarios = [] } = useQuery({
     queryKey: ["people-picker-usuarios"],
@@ -89,11 +128,18 @@ export function PeoplePicker({
   });
 
   const filtrados = useMemo(() => {
-    if (coordFiltro === "todas") return usuarios;
+    if (coordFiltro === "todas") {
+      // Não-admin sem coordenação selecionada: restringe aos membros de suas coordenações
+      if (!isAdmin && coordenacoes.length > 0) {
+        const ids = new Set(coordenacoes.flatMap((c) => (c.membros || []).map((m) => m.usuario_id)));
+        return usuarios.filter((u) => ids.has(u.id));
+      }
+      return usuarios;
+    }
     const c = coordenacoes.find((x) => x.id === coordFiltro);
     const ids = new Set((c?.membros || []).map((m) => m.usuario_id));
     return usuarios.filter((u) => ids.has(u.id));
-  }, [usuarios, coordenacoes, coordFiltro]);
+  }, [usuarios, coordenacoes, coordFiltro, isAdmin]);
 
   const selecionados = usuarios.filter((u) => selectedIds.includes(u.id));
   const Icon = icon === "users" ? Users : UserPlus;
@@ -158,7 +204,10 @@ export function PeoplePicker({
             <Command>
               <CommandInput placeholder="Buscar pessoa..." className="h-9" />
               <div className="px-2 py-1.5 border-b">
-                <Select value={coordFiltro} onValueChange={setCoordFiltro}>
+                <Select
+                  value={coordFiltro}
+                  onValueChange={(v) => { setCoordFiltroTouched(true); setCoordFiltro(v); }}
+                >
                   <SelectTrigger className="h-8 text-xs">
                     <SelectValue placeholder="Filtrar por coordenação" />
                   </SelectTrigger>
