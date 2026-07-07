@@ -89,6 +89,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
 
   const [processoId, setProcessoId] = useState("");
   const [processoSearch, setProcessoSearch] = useState("");
+  const [situacao, setSituacao] = useState<"pendente" | "concluido" | "cancelado">("pendente");
 
   // Recorrência
   const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
