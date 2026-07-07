@@ -891,13 +891,16 @@ export default function PainelControle() {
       title="Painel de Controle"
       headerActions={
         <div className="flex items-center gap-2">
-          <BuscaGlobalPainel />
-          <Button asChild variant="outline" size="sm">
-            <Link to="/dashboard">Dashboard</Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/painel-intimacoes">Painel Intimações</Link>
-          </Button>
+          {isAdmin && (
+            <Button asChild variant="outline" size="sm">
+              <Link to="/dashboard">Dashboard</Link>
+            </Button>
+          )}
+          {isAdmin && (
+            <Button asChild variant="outline" size="sm">
+              <Link to="/painel-intimacoes">Painel Intimações</Link>
+            </Button>
+          )}
           <Button asChild variant="outline" size="sm">
             <Link to="/painel-equipe">Painel da Equipe</Link>
           </Button>
