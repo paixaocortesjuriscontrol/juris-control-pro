@@ -215,6 +215,89 @@ export default function ListaAtividadesView({
     },
   });
 
+  // Lookup de criadores para eventos que não têm responsável nem participante
+  const criadorIds = useMemo(() => {
+    const ids = new Set<string>();
+    rows.forEach((r: any) => {
+      if (!r.responsavel?.nome && !r.participantes?.length && r.criado_por) {
+        ids.add(r.criado_por);
+      }
+    });
+    return [...ids];
+  }, [rows]);
+
+  const { data: criadoresLookup } = useQuery({
+    queryKey: ["lista-criadores-lookup", criadorIds],
+    queryFn: async () => {
+      if (criadorIds.length === 0) return {} as Record<string, string>;
+      const { data } = await supabase.from("profiles").select("id,nome").in("id", criadorIds);
+      const map: Record<string, string> = {};
+      (data || []).forEach((p: any) => { map[p.id] = p.nome; });
+      return map;
+    },
+    enabled: criadorIds.length > 0,
+  });
+
+  function fmtDateTime(dateStr?: string | null, horaStr?: string | null) {
+    if (!dateStr) return "—";
+    try {
+      const d = parseISO(dateStr);
+      const dataFmt = format(d, "dd/MM/yyyy", { locale: ptBR });
+      if (horaStr) return `${dataFmt} ${horaStr}`;
+      // Se dateStr tiver hora (ex: eventos)
+      const timePart = dateStr.includes("T") ? dateStr.split("T")[1] : "";
+      if (timePart && timePart !== "00:00:00" && timePart !== "00:00") {
+        const t = timePart.slice(0, 5);
+        return `${dataFmt} ${t}`;
+      }
+      return dataFmt;
+    } catch {
+      return "—";
+    }
+  }
+
+  function renderResponsavel(row: any) {
+    if (row.responsavel?.nome) {
+      return (
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="h-6 w-6 rounded-full bg-primary/15 text-primary text-[9px] font-semibold flex items-center justify-center shrink-0">
+            {initials(row.responsavel.nome)}
+          </div>
+          <span className="text-[11px] text-foreground truncate">{row.responsavel.nome}</span>
+        </div>
+      );
+    }
+    const parts = row.participantes as { usuario?: { nome: string } }[] | undefined;
+    if (parts && parts.length > 0) {
+      const nomes = parts.filter((p: any) => p.usuario?.nome).map((p: any) => p.usuario.nome);
+      const nome = nomes[0];
+      if (nome) {
+        return (
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-6 w-6 rounded-full bg-primary/15 text-primary text-[9px] font-semibold flex items-center justify-center shrink-0">
+              {initials(nome)}
+            </div>
+            <span className="text-[11px] text-foreground truncate">
+              {nome}{nomes.length > 1 ? ` +${nomes.length - 1}` : ""}
+            </span>
+          </div>
+        );
+      }
+    }
+    const criadorNome = row.criador?.nome ?? criadoresLookup?.[row.criado_por];
+    if (criadorNome) {
+      return (
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="h-6 w-6 rounded-full bg-muted text-muted-foreground text-[9px] font-semibold flex items-center justify-center shrink-0">
+            {initials(criadorNome)}
+          </div>
+          <span className="text-[11px] text-muted-foreground truncate">{criadorNome}</span>
+        </div>
+      );
+    }
+    return <span className="text-muted-foreground text-[11px]">—</span>;
+  }
+
   // Sincroniza com o escopo forçado (vindo do Painel de Controle, por ex.)
   useEffect(() => {
     if (forcedCoordenacaoId !== undefined) {
