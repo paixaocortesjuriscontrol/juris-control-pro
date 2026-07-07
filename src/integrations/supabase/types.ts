@@ -6551,6 +6551,7 @@ export type Database = {
           hash_conteudo: string
           id: string
           id_djen: string | null
+          id_kurier: string | null
           importada_de_descartada: boolean | null
           kurier_login: string | null
           lida: boolean
@@ -6586,6 +6587,7 @@ export type Database = {
           hash_conteudo: string
           id?: string
           id_djen?: string | null
+          id_kurier?: string | null
           importada_de_descartada?: boolean | null
           kurier_login?: string | null
           lida?: boolean
@@ -6621,6 +6623,7 @@ export type Database = {
           hash_conteudo?: string
           id?: string
           id_djen?: string | null
+          id_kurier?: string | null
           importada_de_descartada?: boolean | null
           kurier_login?: string | null
           lida?: boolean
