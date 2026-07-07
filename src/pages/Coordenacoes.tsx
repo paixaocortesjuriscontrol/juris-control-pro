@@ -668,6 +668,13 @@ const Coordenacoes = () => {
             coordenacaoId={selectedCoord.id}
             coordenacaoNome={selectedCoord.nome}
           />
+
+          <ConfigAlertasEnvioDialog
+            open={configAlertasDialog}
+            onClose={() => setConfigAlertasDialog(false)}
+            coordenacaoId={selectedCoord.id}
+            coordenacaoNome={selectedCoord.nome}
+          />
         </>
       )}
 
