@@ -4247,7 +4247,7 @@ const AnaliseDjen = () => {
                       </button>
                     )}
                   </div>
-                  {lotesRecentes.length > 0 && (
+                  {lotesRecentes.length > 0 && tipoOrigem === 'descartada' && (
                     <Button
                       type="button"
                       size="sm"
