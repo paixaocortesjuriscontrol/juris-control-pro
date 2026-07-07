@@ -164,6 +164,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setRecorrenciaTipo((evento as any).recorrencia_tipo || "nenhuma");
       setRecorrenciaIntervalo((evento as any).recorrencia_intervalo || 1);
       setRecorrenciaFim(((evento as any).recorrencia_fim || "").slice(0, 10));
+      setSituacao(((evento as any).status as any) || "pendente");
 
       const min = alertasEvento && alertasEvento.length > 0 ? alertasEvento[0] : 0;
       const { valor, unidade } = minutosParaUnidade(min);
@@ -203,6 +204,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setResponsaveisIds([]);
       setEnvolvidosIds([]);
       setMostrarEnvolvidos(false);
+      setSituacao("pendente");
       setRecorrenciaTipo("nenhuma");
       setRecorrenciaIntervalo(1);
       setRecorrenciaFim("");
