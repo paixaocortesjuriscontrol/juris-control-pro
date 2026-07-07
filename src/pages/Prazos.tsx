@@ -75,6 +75,7 @@ import { format, parseISO, differenceInDays, isAfter, startOfDay } from "date-fn
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 
 const prioridadeLabels: Record<string, string> = {
   baixa: "Baixa",
@@ -241,7 +242,7 @@ const Prazos = () => {
   };
 
   const getStatusBadge = (prazo: Prazo) => {
-    if (prazo.status === "cumprido") {
+    if (isItemTratado(prazo)) {
       return (
         <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
           <CheckCircle2 className="w-3 h-3 mr-1" />
@@ -274,7 +275,7 @@ const Prazos = () => {
   };
 
   const getDiasRestantes = (prazo: Prazo) => {
-    if (prazo.status === "cumprido") return null;
+    if (isItemTratado(prazo)) return null;
     if (!prazo.data_vencimento) return <span className="text-muted-foreground">-</span>;
 
     const today = startOfDay(new Date());
@@ -607,7 +608,10 @@ const Prazos = () => {
                         >
                           <TableCell>
                             <div className="max-w-[250px]">
-                              <p className="font-medium truncate">{prazo.titulo}</p>
+                              <p className="font-medium truncate inline-flex items-center gap-1.5 max-w-full">
+                                <TratadoCheck tratado={isItemTratado(prazo)} />
+                                <span className="truncate">{prazo.titulo}</span>
+                              </p>
                               {prazo.descricao && (
                                 <p className="text-xs text-muted-foreground truncate">
                                   {prazo.descricao}

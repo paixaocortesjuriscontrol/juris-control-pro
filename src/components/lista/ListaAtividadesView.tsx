@@ -21,7 +21,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { TratadoCheck } from "@/components/shared/TratadoCheck";
+import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 import {
   Select,
   SelectContent,
@@ -847,7 +847,7 @@ export default function ListaAtividadesView({
                                 </Badge>
                               </div>
                               <div className="font-medium text-sm text-foreground break-words leading-snug flex items-center gap-1.5">
-                                <TratadoCheck tratado={r.status === "cumprido" || r.status === "concluido" || r.status === "tratado"} />
+                                <TratadoCheck tratado={isItemTratado({ ...item, ...r })} />
                                 <span>{r.titulo}</span>
                               </div>
                               {r.processo?.numero && (

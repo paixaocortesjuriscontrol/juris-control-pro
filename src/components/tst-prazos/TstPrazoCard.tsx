@@ -3,6 +3,7 @@ import { differenceInCalendarDays } from "date-fns";
 import { ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 
 interface Props {
   processo: ProcessoTst;
@@ -21,9 +22,12 @@ export function TstPrazoCard({ processo, onClick }: Props) {
       className="bg-card border border-border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow space-y-2"
     >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-mono font-semibold text-foreground truncate flex-1">
-          {processo.numero || "Sem nº"}
-        </p>
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <TratadoCheck tratado={isItemTratado(processo)} />
+          <p className="text-xs font-mono font-semibold text-foreground truncate">
+            {processo.numero || "Sem nº"}
+          </p>
+        </div>
       </div>
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
         <span>{processo.data_fatal || "Sem prazo"}</span>

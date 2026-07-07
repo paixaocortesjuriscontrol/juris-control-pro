@@ -18,6 +18,7 @@ export interface ProcessoTst {
   multa_custas_tst: string | null;
   responsavel_tst: string | null;
   data_fatal: string | null;
+  prazo_fatal_conferido: boolean | null;
   status_tst: string | null;
   status: string;
   created_at: string;
@@ -51,7 +52,7 @@ const TST_SELECT = `
   id, numero, coordenacao_id, polo_ativo, polo_passivo,
   dossie_tst, equipe_tst, decisao_tst, formulario_tst,
   providencias_tst, deposito_judicial_tst, preparo_tst,
-  multa_custas_tst, responsavel_tst, data_fatal,
+  multa_custas_tst, responsavel_tst, data_fatal, prazo_fatal_conferido,
   status_tst, status, created_at, updated_at
 `;
 

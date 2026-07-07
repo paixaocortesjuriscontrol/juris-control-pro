@@ -682,7 +682,7 @@ export default function PainelControle() {
       // Status (grupo simplificado)
       if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
         const st = (item.status ?? "").toLowerCase();
-        const concluido = st === "cumprido" || st === "concluido";
+        const concluido = isItemTratado(item);
         const cancelado = st === "cancelado";
         if (painelFiltros.statusGroup === "a_concluir" && (concluido || cancelado)) return false;
         if (painelFiltros.statusGroup === "concluidas" && !concluido) return false;

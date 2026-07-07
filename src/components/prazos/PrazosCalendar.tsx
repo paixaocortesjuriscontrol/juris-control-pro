@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 import type { Prazo } from "@/hooks/usePrazos";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -83,7 +84,7 @@ export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido, onUpdate
   };
 
   const getPrazoStatus = (prazo: Prazo) => {
-    if (prazo.status === "cumprido") return "cumprido";
+    if (isItemTratado(prazo)) return "cumprido";
     const today = startOfDay(new Date());
     const dataVencimento = parseISO(prazo.data_vencimento);
     if (isAfter(today, dataVencimento)) return "atrasado";
@@ -92,7 +93,7 @@ export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido, onUpdate
 
   // Drag and Drop handlers
   const handleDragStart = (e: DragEvent<HTMLDivElement>, prazo: Prazo) => {
-    if (prazo.status === "cumprido") {
+    if (isItemTratado(prazo)) {
       e.preventDefault();
       return;
     }
@@ -334,7 +335,10 @@ export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido, onUpdate
                                 {getStatusIcon(status)}
                                 <div className="flex-1 min-w-0">
                                   <p className="font-medium text-sm truncate">
-                                    {prazo.titulo}
+                                      <span className="inline-flex items-center gap-1.5 min-w-0 max-w-full">
+                                        <TratadoCheck tratado={isItemTratado(prazo)} />
+                                        <span className="truncate">{prazo.titulo}</span>
+                                      </span>
                                   </p>
                                   <p className="text-xs text-muted-foreground truncate">
                                     {prazo.processo?.numero}
@@ -430,7 +434,10 @@ export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido, onUpdate
                           <GripVertical className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                         )}
                         {getStatusIcon(status)}
-                        <span className="font-medium text-sm">{prazo.titulo}</span>
+                         <span className="font-medium text-sm inline-flex items-center gap-1.5 min-w-0">
+                           <TratadoCheck tratado={isItemTratado(prazo)} />
+                           <span className="truncate">{prazo.titulo}</span>
+                         </span>
                       </div>
                       <Badge 
                         variant="outline" 
