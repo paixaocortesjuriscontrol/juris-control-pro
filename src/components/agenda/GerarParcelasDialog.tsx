@@ -284,6 +284,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
       setProcessoIds(defaultProcessoId ? [defaultProcessoId] : []);
       setValoresIndividuais([]);
       setDatasIndividuais([]);
+      setSituacao("pendente");
     }
   }, [evento, open, parcelasExistentes, alertasParcelaMinutos, defaultProcessoId]);
 
