@@ -1334,7 +1334,7 @@ export default function PainelControle() {
                             {/* Itens do dia */}
                             <div className="space-y-0.5">
                               {visiveis.map((item) => {
-                                const isConcluido = item.status === "cumprido" || item.status === "concluido";
+                                const isConcluido = isItemTratado(item);
                                 return (
                                 <div
                                   key={item.id}
@@ -1397,7 +1397,7 @@ export default function PainelControle() {
                                     <ScrollArea className="h-64">
                                       <div className="space-y-1 p-2">
                                         {itens.slice(MAX_VISIBLE).map((item) => {
-                                          const isConcluido = item.status === "cumprido" || item.status === "concluido";
+                                          const isConcluido = isItemTratado(item);
                                           return (
                                           <div
                                             key={item.id}
