@@ -1989,6 +1989,18 @@ async function run({ sb, payload, log, job }) {
   await flushProgresso(true);
   log("paralela.done", { monitoramentos: itens.length, novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros });
 
+  // Pós-execução: enriquece linhas gravadas com processo_numero NULL
+  // refazendo UMA consulta por (monitoramento, tribunal, dia) direto na API
+  // PJE Comunica. Não falha a execução se der erro — best-effort.
+  if (!cancelled && job?.id) {
+    try {
+      const enrich = await enriquecerPublicacoesFaltantesDaExecucao(sb, job.id, slots, signal, log);
+      log("paralela.enrich_summary", enrich);
+    } catch (e) {
+      log("paralela.enrich_fatal", { e: String(e?.message || e).slice(0, 300) });
+    }
+  }
+
   return { novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, monitoramentos: itens.length, dataInicio, dataFim, vps: slots.length };
 }
 
