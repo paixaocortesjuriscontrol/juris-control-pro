@@ -397,10 +397,22 @@ export function PrazoDialog({
   const FormContent = (
     <form onSubmit={handleSubmit} className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto p-5 space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
             Prazo
           </h3>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">Situação</Label>
+            <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+              <SelectTrigger className="h-9 w-[160px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                <SelectItem value="cumprido">✔️ Cumprido</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+              </SelectContent>
+            </Select>
           {hasPublicacao ? (
             <BotaoPreencherIA
               conteudo={publicacaoEfetiva?.conteudo}
@@ -427,31 +439,6 @@ export function PrazoDialog({
           ) : (
             <Tag className="h-4 w-4 text-muted-foreground" />
           )}
-        </div>
-
-        {/* Situação + Observações (topo) */}
-        <div className="rounded-md border bg-muted/30 p-3 grid gap-4 md:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label className="text-sm">Situação</Label>
-            <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
-              <SelectTrigger className="h-10">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                <SelectItem value="cumprido">✔️ Cumprido</SelectItem>
-                <SelectItem value="cancelado">❌ Cancelado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-sm">Observações</Label>
-            <Textarea
-              value={observacoes}
-              onChange={(e) => setObservacoes(e.target.value)}
-              placeholder="Digite observações sobre o prazo"
-              rows={6}
-            />
           </div>
         </div>
 
