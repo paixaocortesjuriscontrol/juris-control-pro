@@ -71,7 +71,7 @@ import { Sparkles } from "lucide-react";
 const TIME_ZONE = "America/Sao_Paulo";
 
 type TabMode = "pessoal" | "escritorio";
-type ViewMode = "agenda" | "lista" | "prazos" | "audiencias" | "notificacoes";
+type ViewMode = "agenda" | "lista" | "kanban" | "prazos" | "audiencias" | "notificacoes";
 
 // Cores dos tipos
 const TIPO_CORES: Record<string, string> = {
@@ -974,6 +974,15 @@ export default function PainelControle() {
                 >
                   Em Lista
                 </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "kanban" ? "default" : "outline"}
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setViewMode("kanban")}
+                  title="Visão em Kanban (obedece os filtros)"
+                >
+                  Kanban
+                </Button>
                 {([
                   { key: "prazo",         label: "Prazos" },
                   { key: "audiencia",     label: "Audiências" },
@@ -1265,6 +1274,17 @@ export default function PainelControle() {
         ) : viewMode === "prazos" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
             <TstPrazos embedded />
+          </div>
+        ) : viewMode === "kanban" ? (
+          <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
+            {(() => {
+              const c = painelFiltros.classificacoes;
+              // Se um único tipo estiver selecionado, mostra o kanban correspondente.
+              if (c.length === 1 && c[0] === "prazo") return <TstPrazos embedded />;
+              if (c.length === 1 && c[0] === "audiencia") return <PainelAudiencias embedded />;
+              // Default: audiências (kanban principal). Usuário troca o tipo pelos chips.
+              return <PainelAudiencias embedded />;
+            })()}
           </div>
         ) : viewMode === "audiencias" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
