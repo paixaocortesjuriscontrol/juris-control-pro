@@ -542,8 +542,12 @@ export default function PainelControle() {
   const resumo = useMemo(() => {
     const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
     if (!resumoStats) return { tarefas: empty, prazos: empty, audiencias: empty, eventosTarefa: empty };
-    return resumoStats as any;
-  }, [resumoStats]);
+    const base = resumoStats as any;
+    return {
+      ...base,
+      audiencias: audienciasDetStats ?? base.audiencias ?? empty,
+    };
+  }, [resumoStats, audienciasDetStats]);
 
   // Intimações pendentes — filtradas por processos da coordenação (ou todas para admin sem coordenação)
   const { data: intimacoesPendentes = 0 } = useQuery({
