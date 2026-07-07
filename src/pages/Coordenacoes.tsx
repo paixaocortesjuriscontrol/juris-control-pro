@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -28,6 +28,7 @@ import { DistribuirProcessoDialog } from "@/components/coordenacoes/DistribuirPr
 import { DelegarTarefaDialog } from "@/components/coordenacoes/DelegarTarefaDialog";
 import { DelegarTarefaLoteDialog } from "@/components/coordenacoes/DelegarTarefaLoteDialog";
 import { ReatribuirProcessoDialog } from "@/components/coordenacoes/ReatribuirProcessoDialog";
+import { PautasExcelDialog } from "@/components/coordenacoes/PautasExcelDialog";
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -68,6 +69,7 @@ const Coordenacoes = () => {
   const [delegarTarefaDialog, setDelegarTarefaDialog] = useState(false);
   const [delegarTarefaLoteDialog, setDelegarTarefaLoteDialog] = useState(false);
   const [reatribuirDialog, setReatribuirDialog] = useState(false);
+  const [pautasExcelDialog, setPautasExcelDialog] = useState(false);
   const [transferirDialog, setTransferirDialog] = useState(false);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null);
@@ -404,6 +406,14 @@ const Coordenacoes = () => {
                           <ListChecks className="w-4 h-4 mr-1" />
                           <span className="hidden sm:inline">Tarefa em Lote</span>
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPautasExcelDialog(true)}
+                        >
+                          <FileSpreadsheet className="w-4 h-4 mr-1" />
+                          <span className="hidden sm:inline">Pautas Excel</span>
+                        </Button>
                       </>
                     )}
                     <Button 
@@ -640,6 +650,13 @@ const Coordenacoes = () => {
             onOpenChange={setReatribuirDialog}
             coordenacaoId={selectedCoord.id}
             membros={selectedCoord.membros}
+          />
+
+          <PautasExcelDialog
+            open={pautasExcelDialog}
+            onOpenChange={setPautasExcelDialog}
+            coordenacaoId={selectedCoord.id}
+            coordenacaoNome={selectedCoord.nome}
           />
         </>
       )}
