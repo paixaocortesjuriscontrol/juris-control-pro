@@ -196,6 +196,7 @@ export function PrazoDialog({
   const [observacoes, setObservacoes] = useState("");
   const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
 
   // data base = data da publicação (se houver) ou hoje
   const dataBase = useMemo<Date>(() => {
