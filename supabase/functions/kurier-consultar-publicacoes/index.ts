@@ -1004,13 +1004,13 @@ Deno.serve(async (req: Request) => {
             }
             const { data: insPub, error: pubErr } = jaExiste ? { data: null, error: null } : await admin
               .from(pubTable)
-              .upsert({
+              .insert({
                 ...basePayload,
                 id_djen: idDjen,
                 hash_conteudo: hashConteudo,
                 monitoramento_id: matched.id,
                 coordenacao_id: matched.coordenacao_id ?? null,
-              }, { onConflict: "coordenacao_id,id_kurier", ignoreDuplicates: true })
+              })
               .select("id")
               .maybeSingle();
 
@@ -1037,7 +1037,7 @@ Deno.serve(async (req: Request) => {
                 recebida_em: new Date().toISOString(),
               });
             } else {
-              // upsert ignoreDuplicates devolve null quando linha já existia
+              // insert sem retorno inesperado: trata como duplicado para não inflar contagem
               totalDuplicadas++;
             }
           } else if (capturaTotalCoords.length === 0) {
@@ -1076,13 +1076,13 @@ Deno.serve(async (req: Request) => {
             }
             const { data: insCt, error: ctErr } = await admin
               .from(pubTable)
-              .upsert({
+              .insert({
                 ...basePayload,
                 id_djen: idDjen,
                 hash_conteudo: hashConteudo,
                 monitoramento_id: ct.monit_id,
                 coordenacao_id: ct.id,
-              }, { onConflict: "coordenacao_id,id_kurier", ignoreDuplicates: true })
+              })
               .select("id")
               .maybeSingle();
             if (ctErr) {
