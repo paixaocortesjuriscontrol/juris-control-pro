@@ -1550,18 +1550,23 @@ async function run({ sb, payload, log, job }) {
   }, 30_000);
 
   // Prioridade original restaurada:
-  //   0) TST/STF/STJ/TRTs dos tipos principais
+  //   0) TST/STJ/TRTs dos tipos principais
   //   1) demais tribunais dos tipos principais
   //   2) processo (qualquer tribunal)
-  // Antes, TST sozinho ocupava a banda 0 com dezenas de shards e só depois
-  // liberava STF/STJ/TRTs. Isso dava a sensação correta de "10 VPS ativas",
-  // mas atrasava o avanço global: o usuário via horas sem a priorização antiga.
-  const band0 = []; // TST/STF/STJ/TRTs principais
+  //   3) STF — SEMPRE por último. Gate rígido: só entra em execução depois
+  //      que TODAS as unidades das bandas 0/1/2 terminarem (fila drenada E
+  //      sem workers em andamento nelas). Regra do usuário: STF costuma
+  //      travar por longos períodos e não pode rodar em paralelo com nada.
+  const band0 = []; // TST/STJ/TRTs principais
   const band1 = []; // demais tribunais principais
   const band2 = []; // processo (qualquer tribunal)
+  const band3 = []; // STF (último)
   for (const item of itens) {
     if (item.status === "concluido") continue;
-    if (item.tipo === "processo") {
+    const isStf = String(item.tribunal || "").toUpperCase() === "STF";
+    if (isStf) {
+      band3.push({ band: 3, item, monIds: item.monitoramentoIds });
+    } else if (item.tipo === "processo") {
       band2.push({ band: 2, item, monIds: item.monitoramentoIds });
     } else if (isTribunalPrioritario(item.tribunal) && MAIN_TIPOS.includes(item.tipo)) {
       band0.push({ band: 0, item, monIds: item.monitoramentoIds });
@@ -1569,7 +1574,7 @@ async function run({ sb, payload, log, job }) {
       band1.push({ band: 1, item, monIds: item.monitoramentoIds });
     }
   }
-  const bands = [band0, band1, band2];
+  const bands = [band0, band1, band2, band3];
   for (const b of bands) b.sort(comparePriorityUnits);
 
   // Acumula totais já vindos do checkpoint
@@ -1582,23 +1587,27 @@ async function run({ sb, payload, log, job }) {
     }
   }
   let bandAtual = 0;
-  const inBand = [0, 0, 0];
+  const inBand = [0, 0, 0, 0];
   const pickNext = () => {
-    // Sem trava entre bandas: pega o item da banda de maior prioridade
-    // que ainda tenha itens pendentes. Workers livres não esperam mais
-    // a banda atual drenar antes de avançar (ex.: enquanto 1 VPS roda
-    // os 31 termos do STF, as outras 7 VPS já podem atacar TRTs/TRFs).
-    for (let b = 0; b < bands.length; b++) {
+    // Bandas 0..2 continuam com fila compartilhada (sem trava rígida entre
+    // elas). Banda 3 (STF) é gate rígido: só é servida quando bandas 0/1/2
+    // estão vazias E nenhum worker ainda processa unidades dessas bandas.
+    for (let b = 0; b < 3; b++) {
       if (bands[b].length > 0) {
         bandAtual = b;
         return bands[b].shift();
       }
     }
+    const outrasEmVoo = inBand[0] + inBand[1] + inBand[2];
+    if (outrasEmVoo === 0 && bands[3].length > 0) {
+      bandAtual = 3;
+      return bands[3].shift();
+    }
     return null;
   };
 
   await flushProgresso(true);
-  log("paralela.pool", { vias: slots.length, totalItens: itens.length, bandas: { prioritarios: band0.length, outros: band1.length, processo: band2.length } });
+  log("paralela.pool", { vias: slots.length, totalItens: itens.length, bandas: { prioritarios: band0.length, outros: band1.length, processo: band2.length, stf_ultimo: band3.length } });
 
   // === RETRY: refila falhas pendentes do mesmo dia BRT como units extras ===
   // Em vez do loop serial bloqueante de 1 VPS, injeta cada falha pendente
@@ -1637,7 +1646,9 @@ async function run({ sb, payload, log, job }) {
         };
         itens.push(syntheticItem);
         const unit = { item: syntheticItem, monIds: [monId] };
-        if (isTribunalPrioritario(tribunal) && MAIN_TIPOS.includes(tipoMon)) { unit.band = 0; band0.push(unit); band0.sort(comparePriorityUnits); }
+        const isStfRetry = String(tribunal || "").toUpperCase() === "STF";
+        if (isStfRetry) { unit.band = 3; band3.push(unit); band3.sort(comparePriorityUnits); }
+        else if (isTribunalPrioritario(tribunal) && MAIN_TIPOS.includes(tipoMon)) { unit.band = 0; band0.push(unit); band0.sort(comparePriorityUnits); }
         else if (tipoMon === "processo") { unit.band = 2; band2.push(unit); band2.sort(comparePriorityUnits); }
         else { unit.band = 1; band1.push(unit); band1.sort(comparePriorityUnits); }
       }
@@ -1784,7 +1795,12 @@ async function run({ sb, payload, log, job }) {
     while (!cancelled) {
       const unit = pickNext();
       if (!unit) {
-        if (bandAtual < bands.length && inBand[bandAtual] > 0) { await delay(500); continue; }
+        // Ainda há workers em voo em qualquer banda, ou STF aguardando o
+        // dreno das bandas 0/1/2 — aguarda antes de encerrar.
+        const anyInFlight = inBand[0] + inBand[1] + inBand[2] + inBand[3] > 0;
+        const stfPendente = bands[3].length > 0;
+        const outrasEmVoo = inBand[0] + inBand[1] + inBand[2];
+        if (anyInFlight || (stfPendente && outrasEmVoo > 0)) { await delay(500); continue; }
         break;
       }
       inBand[unit.band]++;
