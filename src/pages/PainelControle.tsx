@@ -42,6 +42,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
 import { ClipboardList, CalendarPlus, Clock, Gavel, Coins } from "lucide-react";
+import { isItemTratado } from "@/components/shared/TratadoCheck";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -771,8 +772,8 @@ export default function PainelControle() {
     // Ordenar: pendentes/atrasados primeiro, concluídos por último
     map.forEach((itens, key) => {
       map.set(key, [
-        ...itens.filter(i => i.status !== "cumprido" && i.status !== "concluido"),
-        ...itens.filter(i => i.status === "cumprido" || i.status === "concluido"),
+        ...itens.filter(i => !isItemTratado(i)),
+        ...itens.filter(i => isItemTratado(i)),
       ]);
     });
     return map;
@@ -791,7 +792,7 @@ export default function PainelControle() {
   };
 
   const handleConcluirItem = async (item: ItemAgendaUnificado) => {
-    const isConcluido = item.status === "concluido" || item.status === "cumprido";
+    const isConcluido = isItemTratado(item);
     const nextStatus = isConcluido ? "pendente" : "concluido";
     const concluidoEm = isConcluido ? null : new Date().toISOString();
 
