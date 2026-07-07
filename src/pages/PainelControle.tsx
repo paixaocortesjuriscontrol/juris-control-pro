@@ -739,9 +739,25 @@ export default function PainelControle() {
         if (painelFiltros.periodoFim && d > painelFiltros.periodoFim) return false;
       }
 
+      // Filtro "Somente Hoje"
+      if (somenteHoje) {
+        let dateStr: string | undefined;
+        if (item.origem === "tarefa") {
+          if (painelFiltros.dataFatal && !painelFiltros.dataPrevista) {
+            dateStr = item.data_fatal ?? item.data_vencimento ?? item.data_inicio;
+          } else {
+            dateStr = item.data_vencimento ?? item.data_fatal ?? item.data_inicio;
+          }
+        } else {
+          dateStr = item.data_inicio;
+        }
+        const d = (dateStr ?? "").slice(0, 10);
+        if (d !== hoje_str) return false;
+      }
+
       return true;
     });
-  }, [itensAgenda, painelFiltros, user?.id]);
+  }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str]);
 
   // Mapa de itens por dia (chave: "YYYY-MM-DD")
   // Concluídas aparecem no final de cada dia, pendentes primeiro
