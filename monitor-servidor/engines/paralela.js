@@ -353,10 +353,31 @@ function nextBusinessDateYmd(dateLike) {
 
 function extractProcesso(pub, conteudo) {
   const obj = rawObj(pub);
-  const explicit = obj?.numeroProcesso || obj?.processo || pub?.numeroProcesso || pub?.processo || null;
-  if (explicit) return String(explicit);
-  const m = String(conteudo || "").match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
-  return m ? m[0] : null;
+  const explicit =
+    obj?.numeroProcesso ||
+    obj?.numero_processo ||
+    obj?.numeroprocessounico ||
+    obj?.numeroProcessoUnico ||
+    obj?.processoNumero ||
+    obj?.processo_numero ||
+    obj?.processo ||
+    obj?.numero ||
+    pub?.numeroProcesso ||
+    pub?.numero_processo ||
+    pub?.processo ||
+    null;
+  if (explicit) return String(explicit).trim();
+  const texto = String(conteudo || "");
+  // 1) CNJ padrão (20 dígitos, segmento único)
+  let m = texto.match(/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/);
+  if (m) return m[0];
+  // 2) Formato legado TJ (ex.: 0838260-19.2023.814.0301)
+  m = texto.match(/\d{7}-\d{2}\.\d{4}\.\d{3}\.\d{4}/);
+  if (m) return m[0];
+  // 3) Rótulo "Processo/Nº: <valor>" com dígitos, pontos, hífens e barras
+  m = texto.match(/Processo\s*(?:N[º°o]?\.?)?\s*:?\s*([\d][\d\-\.\/]{9,25}\d)/i);
+  if (m) return m[1];
+  return null;
 }
 
 function metadataFromRaw(pub) {

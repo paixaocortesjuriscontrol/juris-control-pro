@@ -49,6 +49,8 @@ export function extractProcessoNumero(conteudo: string, explicitNumero?: string 
   const patterns = [
     /(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/,
     /Processo\s*(?:n[º°]?\.?\s*)?(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/i,
+    /(\d{7}-\d{2}\.\d{4}\.\d{3}\.\d{4})/,
+    /Processo\s*(?:N[º°o]?\.?)?\s*:?\s*([\d][\d\-\.\/]{9,25}\d)/i,
     /(\d{7}\/\d{4})/,
   ];
   
