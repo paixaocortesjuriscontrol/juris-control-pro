@@ -355,6 +355,34 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             </div>
             <ScrollArea className="flex-1 px-6">
               <form onSubmit={handleSubmit} className="space-y-5 pb-6" id="evento-form-content">
+            {/* Situação + Observações (topo) */}
+            <div className="rounded-md border bg-muted/30 p-3 grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label className="text-sm">Situação</Label>
+                <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+                  <SelectTrigger className="mt-1.5">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                    <SelectItem value="concluido">✔️ Concluído</SelectItem>
+                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="observacoes" className="text-sm">Observações</Label>
+                <Textarea
+                  id="observacoes"
+                  value={observacoes}
+                  onChange={(e) => setObservacoes(e.target.value)}
+                  placeholder="Digite observações sobre o evento"
+                  rows={6}
+                  className="mt-1.5"
+                />
+              </div>
+            </div>
+
             {/* Título */}
             <div>
               <Label htmlFor="titulo" className="text-sm">
