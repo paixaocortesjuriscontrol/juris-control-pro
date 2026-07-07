@@ -1559,9 +1559,13 @@ async function run({ sb, payload, log, job }) {
   const band0 = []; // TST/STF/STJ/TRTs principais
   const band1 = []; // demais tribunais principais
   const band2 = []; // processo (qualquer tribunal)
+  const band3 = []; // STF: SEMPRE por último (gate rígido)
   for (const item of itens) {
     if (item.status === "concluido") continue;
-    if (item.tipo === "processo") {
+    const isStf = String(item.tribunal || "").toUpperCase() === "STF";
+    if (isStf && MAIN_TIPOS.includes(item.tipo)) {
+      band3.push({ band: 3, item, monIds: item.monitoramentoIds });
+    } else if (item.tipo === "processo") {
       band2.push({ band: 2, item, monIds: item.monitoramentoIds });
     } else if (isTribunalPrioritario(item.tribunal) && MAIN_TIPOS.includes(item.tipo)) {
       band0.push({ band: 0, item, monIds: item.monitoramentoIds });
@@ -1569,7 +1573,7 @@ async function run({ sb, payload, log, job }) {
       band1.push({ band: 1, item, monIds: item.monitoramentoIds });
     }
   }
-  const bands = [band0, band1, band2];
+  const bands = [band0, band1, band2, band3];
   for (const b of bands) b.sort(comparePriorityUnits);
 
   // Acumula totais já vindos do checkpoint
@@ -1582,23 +1586,27 @@ async function run({ sb, payload, log, job }) {
     }
   }
   let bandAtual = 0;
-  const inBand = [0, 0, 0];
+  const inBand = [0, 0, 0, 0];
   const pickNext = () => {
-    // Sem trava entre bandas: pega o item da banda de maior prioridade
-    // que ainda tenha itens pendentes. Workers livres não esperam mais
-    // a banda atual drenar antes de avançar (ex.: enquanto 1 VPS roda
-    // os 31 termos do STF, as outras 7 VPS já podem atacar TRTs/TRFs).
-    for (let b = 0; b < bands.length; b++) {
+    // Bandas 0/1/2: sem trava entre si, workers livres avançam.
+    for (let b = 0; b < 3; b++) {
       if (bands[b].length > 0) {
         bandAtual = b;
         return bands[b].shift();
       }
     }
+    // Banda 3 = STF: gate rígido. Só é servida quando 0/1/2 estão vazias
+    // E nenhuma unit está em voo nessas bandas. Regra pedida pelo usuário:
+    // STF nunca roda em paralelo com nada; sempre por último.
+    if (bands[3].length > 0 && inBand[0] + inBand[1] + inBand[2] === 0) {
+      bandAtual = 3;
+      return bands[3].shift();
+    }
     return null;
   };
 
   await flushProgresso(true);
-  log("paralela.pool", { vias: slots.length, totalItens: itens.length, bandas: { prioritarios: band0.length, outros: band1.length, processo: band2.length } });
+  log("paralela.pool", { vias: slots.length, totalItens: itens.length, bandas: { prioritarios: band0.length, outros: band1.length, processo: band2.length, stf: band3.length } });
 
   // === RETRY: refila falhas pendentes do mesmo dia BRT como units extras ===
   // Em vez do loop serial bloqueante de 1 VPS, injeta cada falha pendente
@@ -1637,7 +1645,9 @@ async function run({ sb, payload, log, job }) {
         };
         itens.push(syntheticItem);
         const unit = { item: syntheticItem, monIds: [monId] };
-        if (isTribunalPrioritario(tribunal) && MAIN_TIPOS.includes(tipoMon)) { unit.band = 0; band0.push(unit); band0.sort(comparePriorityUnits); }
+        const isStfRetry = String(tribunal || "").toUpperCase() === "STF";
+        if (isStfRetry && MAIN_TIPOS.includes(tipoMon)) { unit.band = 3; band3.push(unit); band3.sort(comparePriorityUnits); }
+        else if (isTribunalPrioritario(tribunal) && MAIN_TIPOS.includes(tipoMon)) { unit.band = 0; band0.push(unit); band0.sort(comparePriorityUnits); }
         else if (tipoMon === "processo") { unit.band = 2; band2.push(unit); band2.sort(comparePriorityUnits); }
         else { unit.band = 1; band1.push(unit); band1.sort(comparePriorityUnits); }
       }
@@ -1784,7 +1794,11 @@ async function run({ sb, payload, log, job }) {
     while (!cancelled) {
       const unit = pickNext();
       if (!unit) {
-        if (bandAtual < bands.length && inBand[bandAtual] > 0) { await delay(500); continue; }
+        const emVoo = inBand[0] + inBand[1] + inBand[2] + inBand[3];
+        const stfPendente = bands[3].length > 0;
+        // Aguarda: (a) qualquer unit em voo, ou (b) STF pendente esperando
+        // as bandas 0/1/2 drenarem para liberar o gate.
+        if (emVoo > 0 || stfPendente) { await delay(500); continue; }
         break;
       }
       inBand[unit.band]++;
