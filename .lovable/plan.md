@@ -1,82 +1,84 @@
-## Objetivo
+# Plano de Implementação
 
-Adicionar botão **"Pautas Excel"** na tela **Coordenações** (ao lado de Atribuir / Reatribuir / Delegar Tarefa / Tarefa em Lote / Adicionar) que importa a planilha de pautas do modelo `EQUIPE_BEATRIZ_-_PAUTA_JULHO.xlsx`, cadastra os processos ausentes em **Processos e Casos** e cria as audiências vinculadas — todas aparecendo no **Painel de Controle** (Kanban de audiências) exatamente como uma inclusão manual.
+## 1) Check verde ✅ em itens tratados (Painel de Controle)
 
-## Colunas da planilha modelo (aba única, header na linha 1)
+Locais afetados: cards do resumo, listas (tarefas/prazos/eventos/audiências) e calendário.
 
-`DATA · HORA · NÚMERO DO PROCESSO · FORO · VT/CÂMARA · Local · COMARCA · UF · PÓLO ATIVO · CLIENTE · TERCEIRIZADA · TIPO · TELEPRESENCIAL · OBSERVAÇÕES/PROVIDÊNCIAS`
+- **Tarefas/Prazos**: exibir `CheckCircle2` verde ao lado do título quando `status = 'concluida'` ou `situacao = 'tratado'`.
+- **Audiências (`audiencias_detectadas`)**: check verde quando `status_tratamento = 'tratado'`.
+- **Eventos (`eventos_agenda`)**: check verde quando `status = 'concluido'`.
+- **Calendário do Painel**: adicionar badge/ícone verde no dia do evento quando todos os itens do dia estiverem tratados; itens individuais mostram ✅ na tooltip/popover.
+- Componente reutilizável `<TratadoCheck />` para manter consistência visual.
 
-## Mapeamento planilha → banco
+## 2) Pré-selecionar Coordenação padrão do usuário logado
 
-**Processos** (criados se `numero` normalizado não existir na coordenação):
-- `numero` ← NÚMERO DO PROCESSO (mascarado)
-- `tribunal` ← FORO · `orgao_julgador`/`vara` ← VT/CÂMARA
-- `comarca` ← COMARCA · `uf` ← UF · `polo_ativo` ← PÓLO ATIVO
-- `coordenacao_id` ← coordenação atual · `status` = `ativo` · `area` = `Trabalhista`
+Em todos os formulários que têm `CoordenacaoSelect` para adicionar responsável/colaborador/envolvido:
+- Buscar `membros_coordenacao` do usuário logado, ordenado pela criação (a primeira/principal).
+- Aplicar como `defaultValue` nos formulários: tarefa, evento, audiência, prazo, delegação, vincular.
+- Criar hook `useCoordenacaoPadraoUsuario()` para centralizar.
 
-**Audiências** (`audiencias_detectadas`, sempre criadas — 1 linha = 1 audiência):
-- `data_audiencia` ← DATA + HORA (timezone America/Sao_Paulo)
-- `hora` ← HORA · `titulo` ← TIPO (ex.: "UNA PRESENCIAL")
-- `processo_id`/`processo_numero` ← processo (existente ou recém-criado)
-- `forum` ← FORO · `vara_camara`/`sala_forum` ← VT/CÂMARA
-- `local_audiencia` ← Local (se ≠ "PENDENTE"/"TELEPRESENCIAL") · `comarca` ← COMARCA
-- `polo_ativo` ← PÓLO ATIVO · `cliente` ← CLIENTE · `terceirizado` ← TERCEIRIZADA
-- `modalidade` ← TELEPRESENCIAL (`Presencial`/`Virtual`) — link Zoom vai para `observacoes`
-- `observacoes` ← OBSERVAÇÕES/PROVIDÊNCIAS (concat com link se houver)
-- `coordenacao_id`, `criado_por`, `status='pendente'`, `origem='pauta_excel'`
-- `advogados_ids` (via `audiencias_advogados`) ← responsáveis selecionados no diálogo
+## 3) Filtro por tipo em "Prazos Fatais"
 
-## Verificação de campos
+Na página `PrazosFatais` (kanban integrado):
+- Adicionar `<Select>` no topo com opções: Todos, Tarefa, Prazo, Evento, Audiência, Publicação.
+- Filtro aplicado antes de distribuir os itens nas colunas do Kanban.
+- Persistir no state local (sem URL param nesta fase).
 
-Todos os campos já existem no schema — **não há migration**. O `EditarAudienciaDialog` já expõe `vara_camara`, `polo_ativo`, `cliente`, `terceirizado`. O formulário manual (`AudienciaFormSimplificado`) hoje **não** coleta esses campos; será atualizado para paridade com a importação e a edição.
+## 4) Configuração de alertas por Coordenação (E-mail + WhatsApp por tipo)
 
-## UX do diálogo Pautas Excel
+Nova tela acessada por botão **"Configurar Alertas"** em `Coordenacoes.tsx` (ao lado do "Pautas Excel"), abrindo dialog `ConfigAlertasEnvioDialog`.
 
-1. Upload da planilha (drag-drop, aceita `.xlsx`).
-2. Preview em tabela com contagem de linhas válidas / com erro (linha sem número de processo ou sem data é rejeitada).
-3. Chip **"Coordenação: {atual}"** (readonly — usa a coordenação da tela).
-4. **PeoplePicker obrigatório** "Responsáveis pelas audiências" — aplicado a todas as audiências da importação; bloqueio de importar se vazio.
-5. Aviso na linha: `Processo novo` (verde) ou `Processo existente` (cinza) baseado em consulta prévia.
-6. Botão **Importar** → progress bar sequencial (upsert processo → insert audiência → insert responsáveis).
-7. Resumo final: `X processos criados · Y processos reutilizados · Z audiências criadas · N erros`.
+**Estrutura da config (por tipo de tarefa)**:
+- Tipo (PRAZO, AUDIÊNCIA, EVENTO, TAREFA EQUIPE, etc. — usar `TIPOS_TAREFA`).
+- Canais: `email`, `whatsapp`, ou ambos.
+- Régua de dias: checkboxes "No dia", "1 dia antes", "2 dias antes", "3 dias antes", "5 dias antes", "7 dias antes" + campo custom "Outros dias" (lista separada por vírgula).
+- Destinatários: multi-select de membros da coordenação (reaproveita PeoplePicker).
 
-## Arquivos a criar / alterar
-
-**Criar**
-- `src/components/coordenacoes/PautasExcelDialog.tsx` — dialog completo (upload, parser, preview, PeoplePicker de responsáveis, execução em lote).
-- `src/lib/pautasExcelParser.ts` — leitura via `xlsx`, normalização de data+hora, máscara CNJ, split modalidade/link, detecção de linhas vazias.
-
-**Alterar**
-- `src/pages/Coordenacoes.tsx` — botão `Pautas Excel` (ícone `FileSpreadsheet`) entre "Tarefa em Lote" e "Adicionar"; state + render do dialog.
-- `src/components/audiencias/AudienciaFormSimplificado.tsx` — adicionar campos `comarca`, `vara_camara`, `polo_ativo`, `cliente`, `terceirizado` (bloco "Detalhes do processo/audiência" colapsável) e persistir via `criarAudiencia` (o hook já aceita esses campos via `NovaAudiencia` — confirmar/estender tipo).
-- `src/hooks/useAudienciasDetectadas.ts` (se necessário) — estender `NovaAudiencia` com os cinco campos acima; a persistência já grava em colunas existentes.
-
-## Fluxo técnico
-
-```text
-xlsx → parser → linhas válidas
-       │
-       ├─ pré-consulta: SELECT id, numero FROM processos WHERE numero IN (...) AND coordenacao_id=?
-       │
-       ├─ INSERT processos ausentes  → mapa numero→id
-       │
-       └─ para cada linha:
-            INSERT audiencias_detectadas (processo_id, ..., criado_por, coordenacao_id)
-            INSERT audiencias_advogados  (audiencia_id, advogado_id) × responsáveis
+**Nova tabela** `config_envio_alertas_tarefas`:
 ```
+id uuid, coordenacao_id uuid, tipo_tarefa text,
+canal_email bool, canal_whatsapp bool,
+dias_antes int[],                  -- [0,1,2,3,5,7,...]
+destinatarios_ids uuid[],
+ativo bool, created_by, created_at, updated_at
+UNIQUE(coordenacao_id, tipo_tarefa)
+```
++ GRANTS + RLS por membros da coordenação.
 
-O Painel de Controle já consulta `audiencias_detectadas` filtrando por `coordenacao_id`, então as audiências criadas aparecem automaticamente sem alterar a página.
+Reusa a integração WhatsApp já configurada em `AlertasCoordenacaoCard` (mesmo provider/edge function de envio).
 
-## Regras de normalização
+## 5) Edge function diária de envio (sem browser aberto)
 
-- Número CNJ: manter apenas dígitos, aplicar máscara `0000000-00.0000.0.00.0000` (skip se ≠ 20 dígitos e logar como erro).
-- `TELEPRESENCIAL` = `PRESENCIAL` → modalidade `Presencial`; `TELEPRESENCIAL` → `Virtual`; qualquer outro → observação bruta e modalidade em branco.
-- Local `PENDENTE` ou `TELEPRESENCIAL` → não preenche `local_audiencia`.
-- `TERCEIRIZADA` = `NÃO` → grava `null`.
-- Duplicidade de audiência (mesmo processo + mesma data/hora) → skip com aviso na tela.
+**Nova edge function** `enviar-alertas-tarefas` (Supabase Edge + cron `pg_cron` diário às 07:00 BRT):
+- Lê `config_envio_alertas_tarefas` ativas.
+- Para cada config, calcula alvos: itens de `tarefas`, `eventos_agenda`, `audiencias_detectadas` cuja data cai exatamente em `hoje + N` para cada N em `dias_antes`.
+- Filtra apenas itens da `coordenacao_id` e do `tipo_tarefa` correspondente (tarefas: `tipo_tarefa`; audiências: tipo AUDIÊNCIA; eventos: mapear).
+- Deduplica via `historico_alertas_enviados` (não reenviar mesmo `referencia_id + canal + destinatario + data`).
+- Envia:
+  - **E-mail**: via provider já configurado no projeto.
+  - **WhatsApp**: mesma integração usada por `AlertasCoordenacaoCard` (DJEN).
+- Grava sucesso/falha em `historico_alertas_enviados`.
+- Cron via `pg_cron` + `pg_net` chamando a function 1x ao dia.
 
-## Não incluído neste plano
+## 6) Datas sempre visíveis no Kanban
 
-- Ajustes visuais no Kanban do Painel de Controle.
-- Criação de partes (`processos_partes`) — apenas `polo_ativo` textual no processo, seguindo o padrão atual da importação de audiências.
-- Alertas automáticos — herdam a configuração padrão de alertas de audiência da coordenação.
+- `AudienciasKanbanBoard` / `AudienciaKanbanCard`: mover `data_audiencia` (formatada `dd/MM/yyyy HH:mm`) para linha fixa abaixo do título — não em tooltip nem em hover.
+- Mesma alteração no Kanban de Prazos Fatais (`PrazosFataisKanban`) e no TST Kanban se aplicável: badge com data sempre visível.
+
+## Detalhes técnicos
+
+- Types: usar constantes já existentes (`TIPOS_TAREFA`, `TIPOS_TAREFA_LABELS`).
+- RLS: policies iguais ao padrão de `alertas_coordenacao_djen` (membros da coordenação + admin).
+- Sem quebra de schema em tabelas existentes; só uma nova tabela.
+- Frontend usa `useMutation` com `await queryClient.invalidateQueries` antes de fechar modais (padrão do projeto).
+- Componente `<TratadoCheck size="sm" />` em `src/components/shared/`.
+
+## Ordem de execução
+
+1. Migration da nova tabela + GRANTS + RLS.
+2. `<TratadoCheck />` e integração nos cards/listas/calendário do Painel (item 1).
+3. Hook `useCoordenacaoPadraoUsuario` + aplicação nos forms (item 2).
+4. Filtro por tipo em Prazos Fatais (item 3).
+5. Datas visíveis nos Kanbans (item 6).
+6. Dialog `ConfigAlertasEnvioDialog` + botão em `Coordenacoes` (item 4).
+7. Edge function `enviar-alertas-tarefas` + cron (item 5).
