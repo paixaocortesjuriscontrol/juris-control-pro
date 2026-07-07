@@ -33,7 +33,7 @@ const DIA_LABEL: Record<number, string> = { 0: "No dia", 1: "1 dia antes", 2: "2
 
 export function ConfigAlertasEnvioDialog({ open, onClose, coordenacaoId, coordenacaoNome }: Props) {
   const { configs, isLoading, salvar, remover } = useConfigEnvioAlertas(coordenacaoId);
-  const [tipoSelecionado, setTipoSelecionado] = useState<string>(TIPOS_TAREFA[0]);
+  const [tipoSelecionado, setTipoSelecionado] = useState<string>(TIPOS_ALERTA[0]);
   const [canalEmail, setCanalEmail] = useState(false);
   const [canalWhatsApp, setCanalWhatsApp] = useState(false);
   const [diasSelecionados, setDiasSelecionados] = useState<number[]>([0]);
@@ -211,7 +211,7 @@ export function ConfigAlertasEnvioDialog({ open, onClose, coordenacaoId, coorden
                       className="cursor-pointer"
                       onClick={() => setTipoSelecionado(c.tipo_tarefa)}
                     >
-                      {TIPOS_TAREFA_LABELS[c.tipo_tarefa] || c.tipo_tarefa}
+                      {TIPOS_ALERTA_LABELS[c.tipo_tarefa] || c.tipo_tarefa}
                       {c.ativo ? " ✓" : " ✗"}
                     </Badge>
                   ))}
