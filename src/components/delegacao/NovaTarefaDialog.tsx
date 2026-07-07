@@ -1076,26 +1076,6 @@ export function NovaTarefaDialog({
                 )}
               />
 
-              {/* Descrição */}
-              <FormField
-                control={form.control}
-                name="descricao"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Descrição</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Detalhes adicionais sobre a tarefa..."
-                        className="resize-none"
-                        rows={4}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               {/* Anexos - Sempre disponível */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
