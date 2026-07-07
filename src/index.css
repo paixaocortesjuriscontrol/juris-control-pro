@@ -199,6 +199,32 @@
     @apply bg-clip-text text-transparent;
     background-image: var(--gradient-gold);
   }
+
+  /* Auto-shrink card content inside audiência kanban columns
+     according to column width (container query) — never cuts content. */
+  .audiencia-kanban-col {
+    container-type: inline-size;
+  }
+  .audiencia-kanban-col :where(p, span, h3, .badge, [class*="text-"]) {
+    white-space: normal !important;
+    text-overflow: clip !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .audiencia-kanban-col .truncate {
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+  .audiencia-kanban-col {
+    font-size: clamp(0.62rem, 3.6cqi, 0.85rem);
+  }
+  .audiencia-kanban-col p,
+  .audiencia-kanban-col span,
+  .audiencia-kanban-col h3 {
+    font-size: inherit;
+  }
+
   
   .animate-fade-in {
     animation: fadeIn 0.5s ease-out forwards;
