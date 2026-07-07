@@ -598,8 +598,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         // Quando há filtro de leitura, ele precisa ser aplicado ANTES do LIMIT;
         // senão a tela pode pegar 500 já lidas, filtrar no client e ficar vazia
         // mesmo com milhares de não lidas nos totalizadores.
-        const canUseRpc = (filtros.dedupServidor === true || readStatus !== 'todas' || filtros.tipoOrigem === 'kurier')
-          && filtros.tipoOrigem !== 'descartada'
+        const canUseRpc = filtros.tipoOrigem !== 'descartada'
           && filtros.tipoOrigem !== 'djet-pautas';
       if (canUseRpc) {
         try {
