@@ -1184,6 +1184,24 @@ export function NovaTarefaDialog({
 
               <ItemComentarios tipo="tarefa" itemId={tarefaParaEditar?.id} />
 
+              <FormField
+                control={form.control}
+                name="descricao"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Observações</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Detalhes adicionais sobre a tarefa..."
+                        rows={4}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
             </form>
           </Form>
         </div>
