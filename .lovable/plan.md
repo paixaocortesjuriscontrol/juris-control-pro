@@ -1,61 +1,45 @@
-## Objetivo
+## Recuperar publicações Kurier de 07/07
 
-Fazer o motor "DJEN Servidor" (VPS) gravar diretamente nas tabelas do "DJEN Local":
-- Publicações válidas → `publicacoes_djen` (em vez de `publicacoes_djen_servidor`)
-- Publicações descartadas → `publicacoes_djen_descartadas` (mesma tabela do Local — hoje o Servidor só ignora)
+Os 2404 payloads brutos estão preservados em `kurier_publicacoes_raw`. Vou fazer o replay a partir deles.
 
-Toda a UI de Análise DJEN (Local) já lê `publicacoes_djen`, então o resultado do Servidor passa a aparecer nas mesmas telas do Local, unificado.
+### 1. Modo `replay_raw` em `kurier-consultar-publicacoes`
 
-## Onde mexer
+Em `supabase/functions/kurier-consultar-publicacoes/index.ts`, aceitar:
 
-### Único arquivo tocado
-`supabase/functions/monitorar-djen/index.ts`
-
-#### 1) `targetTable` (linha 519)
-Antes:
-```ts
-const targetTable = persistMode.servidor ? 'publicacoes_djen_servidor' : 'publicacoes_djen';
-```
-Depois:
-```ts
-const targetTable = 'publicacoes_djen';
+```json
+{ "replay_raw": true, "data_inicio": "YYYY-MM-DD", "data_fim": "YYYY-MM-DD", "credencial_id": "<opcional>" }
 ```
 
-#### 2) Metadata do insert (linhas 549-552)
-Manter `execucao_id` também no fluxo Servidor (coluna já existe em `publicacoes_djen`). Remover o `origem = 'servidor'` (a coluna não existe no destino; o Local usa `fonte`, deixamos `null` como hoje):
-```ts
-if (persistMode.servidor) {
-  insertRow.execucao_id = persistMode.execucaoServidorId ?? null;
-}
-```
+Quando `replay_raw=true`:
+- Pula toda chamada HTTP à API Kurier.
+- Lê `kurier_publicacoes_raw` na janela BRT (por `created_at`), paginado 500/500, opcional filtro por `credencial_id`.
+- Para cada linha, reaproveita **o mesmo bloco de normalização + INSERT em `publicacoes_djen`** que já existe (linhas ~876–1015). Nada de reimplementar lógica em paralelo.
+- Dedup natural (`origem='kurier' + id_externo`) evita duplicar se alguma sobrou.
+- Não reinsere em `kurier_publicacoes_raw`; só atualiza `publicacao_djen_id` da linha raw com o novo UUID.
+- Retorna `{ replayed, novas, duplicadas, descartadas }` no mesmo formato dos outros modos.
 
-#### 3) Conflict target do upsert (linhas 556-558)
-Ativar o upsert `(coordenacao_id, id_djen)` para os dois fluxos — o unique index `uq_pub_djen_coord_iddjen` já existe em `publicacoes_djen`:
-```ts
-let onConflictCols: string | undefined;
-if (coordenacaoId && idDjen) onConflictCols = 'coordenacao_id,id_djen';
-```
+### 2. Botão "Reprocessar dia" no card Kurier
 
-#### 4) Descartadas (linhas 471-486 e 497-512)
-Remover os dois `if (!persistMode.servidor)` — Servidor passa a gravar em `publicacoes_djen_descartadas` igual ao Local.
+Em `src/components/configuracoes/MonitoramentoTermosKurierCard.tsx`, adicionar um bloco novo abaixo do "Executar Kurier":
 
-### O que NÃO muda
-- Tabelas `execucoes_servidor`, `workers_djen_vps`, progresso ao vivo, cancelamento — tudo continua igual.
-- `publicacoes_djen_servidor` fica intocada (dados antigos preservados; ninguém escreve mais lá pelo motor).
-- Motor Paralela (browser) e comparador — inalterados.
-- Frontend — inalterado; as telas do Local já cobrem tudo.
+- Campo `<Input type="date">` com valor default = hoje (BRT).
+- Botão **"Reprocessar dia (a partir do bruto)"** que chama:
+  ```ts
+  supabase.functions.invoke("kurier-consultar-publicacoes", {
+    body: { replay_raw: true, data_inicio: dia, data_fim: dia }
+  })
+  ```
+- Toast com o resumo devolvido (`X novas, Y duplicadas, Z descartadas`).
+- Texto de ajuda curto: "Reprocessa payloads já baixados da Kurier neste dia. Use quando as publicações foram apagadas por engano — não consome a fila da Kurier."
 
-## Efeitos práticos
+### 3. Verificação após você clicar
 
-- Deduplicação passa a ser cruzada: se o Local já capturou algo antes, o Servidor cai no unique `(coordenacao_id, id_djen)` e conta como duplicata. Isso é o comportamento desejado por "gravar nas tabelas do Local".
-- Contagem em `useDjenServidor` (`execucoesDjenServidor`, progresso) segue funcionando — lê `execucoes_servidor`, não a tabela de publicações.
-- Alertas de coordenação, resumo IA, marcação de lidas — tudo já opera sobre `publicacoes_djen` e passa a incluir as publicações do Servidor automaticamente.
+Depois do replay, confiro:
+- `SELECT COUNT(*) FROM publicacoes_djen WHERE origem='kurier' AND data_publicacao::date='2026-07-07'`
+- Tela Análise DJEN mostrando as publicações de novo.
 
-## Memória de projeto a atualizar depois do build
+### Escopo estrito
 
-Substituir a regra atual "DJEN Servidor é isolado do Browser: motor nunca lê/escreve `publicacoes_djen`" pela nova regra: **motor DJEN (Servidor e Browser) grava em `publicacoes_djen` e `publicacoes_djen_descartadas`. `publicacoes_djen_servidor` é legado (somente leitura histórica).**
-
-## Risco / rollback
-
-- Rollback: reverter as ~4 mudanças no arquivo. Nada de schema, nada de dados apagados.
-- Nenhum GRANT novo necessário (edge function usa service_role).
+- Não toco em `kurier_publicacoes_raw` além do `UPDATE publicacao_djen_id`.
+- Não chamo a API Kurier, não altero fila, não altero `confirmada`.
+- Modo padrão da função continua inalterado.
