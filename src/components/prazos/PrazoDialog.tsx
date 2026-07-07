@@ -644,15 +644,6 @@ export function PrazoDialog({
           </div>
         )}
 
-        <div className="space-y-1.5">
-          <Label className="text-sm">Observações</Label>
-          <Textarea
-            value={observacoes}
-            onChange={(e) => setObservacoes(e.target.value)}
-            placeholder="Digite observações sobre o prazo"
-            rows={3}
-          />
-        </div>
       </div>
 
       <div className="flex justify-end gap-2 px-5 py-3 border-t bg-muted/30">
