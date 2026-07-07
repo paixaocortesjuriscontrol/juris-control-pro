@@ -211,38 +211,6 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
 
   const formBody = (
     <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Situação (topo) e Observações */}
-          <div className="rounded-md border bg-muted/30 p-3">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="status">Situação</Label>
-                <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                    <SelectItem value="confirmado">✅ Confirmado</SelectItem>
-                    <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
-                    <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
-                    <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="observacoes">Observações</Label>
-                <Textarea
-                  id="observacoes"
-                  value={formData.observacoes}
-                  onChange={(e) => handleChange("observacoes", e.target.value)}
-                  placeholder="Observações gerais"
-                  rows={4}
-                />
-              </div>
-            </div>
-          </div>
-
           {/* Dados Principais */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
