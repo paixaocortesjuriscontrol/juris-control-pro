@@ -329,10 +329,22 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
           )}
 
           <div className={cn("flex flex-col min-h-0", hasPublicacao ? "w-full lg:w-[520px] bg-background" : "flex-1")}>
-            <div className="flex items-center justify-between px-6 pt-5 pb-2 shrink-0">
+            <div className="flex items-center justify-between gap-3 px-6 pt-5 pb-2 shrink-0">
               <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
                 Evento
               </h3>
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Situação</Label>
+                <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+                  <SelectTrigger className="h-9 w-[160px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                    <SelectItem value="concluido">✔️ Concluído</SelectItem>
+                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
               {hasPublicacao && (
                 <BotaoPreencherIA
                   conteudo={publicacao?.conteudo}
@@ -352,37 +364,10 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   }}
                 />
               )}
+              </div>
             </div>
             <ScrollArea className="flex-1 px-6">
               <form onSubmit={handleSubmit} className="space-y-5 pb-6" id="evento-form-content">
-            {/* Situação + Observações (topo) */}
-            <div className="rounded-md border bg-muted/30 p-3 grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label className="text-sm">Situação</Label>
-                <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
-                  <SelectTrigger className="mt-1.5">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                    <SelectItem value="concluido">✔️ Concluído</SelectItem>
-                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="observacoes" className="text-sm">Observações</Label>
-                <Textarea
-                  id="observacoes"
-                  value={observacoes}
-                  onChange={(e) => setObservacoes(e.target.value)}
-                  placeholder="Digite observações sobre o evento"
-                  rows={6}
-                  className="mt-1.5"
-                />
-              </div>
-            </div>
-
             {/* Título */}
             <div>
               <Label htmlFor="titulo" className="text-sm">
