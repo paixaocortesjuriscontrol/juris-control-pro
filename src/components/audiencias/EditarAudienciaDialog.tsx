@@ -211,38 +211,6 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
 
   const formBody = (
     <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Situação (topo) e Observações */}
-          <div className="rounded-md border bg-muted/30 p-3">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="status">Situação</Label>
-                <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione o status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                    <SelectItem value="confirmado">✅ Confirmado</SelectItem>
-                    <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
-                    <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
-                    <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="observacoes">Observações</Label>
-                <Textarea
-                  id="observacoes"
-                  value={formData.observacoes}
-                  onChange={(e) => handleChange("observacoes", e.target.value)}
-                  placeholder="Observações gerais"
-                  rows={4}
-                />
-              </div>
-            </div>
-          </div>
-
           {/* Dados Principais */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
@@ -475,6 +443,17 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
 
           <ItemComentarios tipo="audiencia" itemId={audiencia?.id} />
 
+          <div className="space-y-2">
+            <Label htmlFor="observacoes">Observações</Label>
+            <Textarea
+              id="observacoes"
+              value={formData.observacoes}
+              onChange={(e) => handleChange("observacoes", e.target.value)}
+              placeholder="Observações gerais"
+              rows={4}
+            />
+          </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
@@ -499,8 +478,22 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   if (inline) {
     return (
       <div className="h-full flex flex-col bg-background overflow-hidden">
-        <div className="px-4 pt-4 sm:px-6 sm:pt-5 pb-3 shrink-0 border-b">
+        <div className="px-4 pt-4 sm:px-6 sm:pt-5 pb-3 shrink-0 border-b flex items-center justify-between gap-3">
           <h3 className="text-base font-semibold">Audiência</h3>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs text-muted-foreground">Situação</Label>
+            <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
+              <SelectTrigger className="h-9 w-[180px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                <SelectItem value="confirmado">✅ Confirmado</SelectItem>
+                <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
+                <SelectItem value="tratado">✔️ Tratado</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
           {formBody}
@@ -513,7 +506,23 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Audiência</DialogTitle>
+          <div className="flex items-center justify-between gap-3">
+            <DialogTitle>Audiência</DialogTitle>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Situação</Label>
+              <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
+                <SelectTrigger className="h-9 w-[180px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                  <SelectItem value="confirmado">✅ Confirmado</SelectItem>
+                  <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
+                  <SelectItem value="tratado">✔️ Tratado</SelectItem>
+                  <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                  <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </DialogHeader>
         {formBody}
       </DialogContent>
