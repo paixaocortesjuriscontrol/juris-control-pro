@@ -449,6 +449,46 @@ export default function ListaAtividadesView({
     enabled: criadorIds.length > 0,
   });
 
+  // Lookup dos advogados vinculados às audiências visíveis (audiencias_advogados)
+  const audienciaIds = useMemo(() => {
+    const ids = new Set<string>();
+    rows.forEach((r: any) => {
+      const rid = String(r.id ?? "");
+      if (rid.startsWith("audiencia-det-")) {
+        ids.add(rid.replace("audiencia-det-", ""));
+      }
+    });
+    return [...ids];
+  }, [rows]);
+
+  const { data: audienciaAdvogadosLookup } = useQuery({
+    queryKey: ["lista-audiencia-advogados", audienciaIds],
+    queryFn: async () => {
+      const map: Record<string, string[]> = {};
+      if (audienciaIds.length === 0) return map;
+      const { data: rels } = await supabase
+        .from("audiencias_advogados")
+        .select("audiencia_id, advogado_id")
+        .in("audiencia_id", audienciaIds);
+      const advIds = [...new Set((rels || []).map((r: any) => r.advogado_id))];
+      if (advIds.length === 0) return map;
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id,nome")
+        .in("id", advIds);
+      const nameById: Record<string, string> = {};
+      (profs || []).forEach((p: any) => { nameById[p.id] = p.nome; });
+      (rels || []).forEach((r: any) => {
+        const nome = nameById[r.advogado_id];
+        if (!nome) return;
+        if (!map[r.audiencia_id]) map[r.audiencia_id] = [];
+        if (!map[r.audiencia_id].includes(nome)) map[r.audiencia_id].push(nome);
+      });
+      return map;
+    },
+    enabled: audienciaIds.length > 0,
+  });
+
   function fmtDateTime(dateStr?: string | null, horaStr?: string | null) {
     if (!dateStr) return "—";
     try {
@@ -467,6 +507,26 @@ export default function ListaAtividadesView({
   }
 
   function renderResponsavel(row: any) {
+    // Audiências: sempre priorizar os advogados vinculados (não o criador)
+    const rid = String(row.id ?? "");
+    if (rid.startsWith("audiencia-det-")) {
+      const audId = rid.replace("audiencia-det-", "");
+      const nomes = audienciaAdvogadosLookup?.[audId] || [];
+      if (nomes.length > 0) {
+        const nome = nomes[0];
+        return (
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-6 w-6 rounded-full bg-primary/15 text-primary text-[9px] font-semibold flex items-center justify-center shrink-0">
+              {initials(nome)}
+            </div>
+            <span className="text-[11px] text-foreground truncate">
+              {nome}{nomes.length > 1 ? ` +${nomes.length - 1}` : ""}
+            </span>
+          </div>
+        );
+      }
+      return <span className="text-muted-foreground text-[11px]">—</span>;
+    }
     if (row.responsavel?.nome) {
       return (
         <div className="flex items-center gap-2 min-w-0">
