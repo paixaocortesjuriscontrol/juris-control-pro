@@ -1100,14 +1100,13 @@ Deno.serve(async (req: Request) => {
                 id_kurier: idKEff,
                 credencial_id: cred.id,
                 login_usado: cred.login,
-            } else {
-              totalDuplicadas++;
-            }
                 payload: p as any,
                 publicacao_djen_id: insCt.id,
                 motivo_descarte: null,
                 recebida_em: new Date().toISOString(),
               });
+            } else {
+              totalDuplicadas++;
             }
           }
         } else {
