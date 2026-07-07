@@ -404,6 +404,15 @@ export function MonitoramentoTermosKurierCard() {
               {backfillRunning ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
               Recuperar descartados (fora janela)
             </Button>
+            <Button
+              variant="secondary"
+              onClick={() => void runReprocessAllRaw()}
+              disabled={reprocessAllRunning}
+              title="Reprocessa TODOS os payloads brutos deste dia (kurier_publicacoes_raw). Use quando as publicações do dia foram apagadas por engano."
+            >
+              {reprocessAllRunning ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
+              Reprocessar dia (todos brutos)
+            </Button>
           </div>
           <p className="text-xs text-muted-foreground">
             Consulta o endpoint personalizado da Kurier para o período escolhido, registra o total recebido e envia os matches para a tela Análise DJEN com origem
