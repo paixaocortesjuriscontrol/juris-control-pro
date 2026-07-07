@@ -400,6 +400,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
               total_parcelas: formData.totalParcelas,
               enviar_whatsapp: formData.enviar_whatsapp,
               recorrente: true, // Parcelamento é recorrente até terminar
+              status: situacao,
+              concluido_em: situacao === "concluido" ? new Date().toISOString() : null,
             })
             .eq("id", evento.id);
 
@@ -469,7 +471,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
             data_inicio: `${formData.dataVencimento}T${formData.hora_alerta || "09:00"}:00-03:00`,
             dia_inteiro: true,
             criado_por: user.id,
-            status: "pendente",
+            status: situacao,
             total_parcelas: formData.totalParcelas,
             processo_id: processoIds[0] || null,
             enviar_whatsapp: formData.enviar_whatsapp,
