@@ -713,14 +713,22 @@ Deno.serve(async (req: Request) => {
         // Carrega payloads de descartes anteriores (já confirmados na fila Kurier)
         // para reprocessar com a lógica atual. NÃO faz chamada à API.
         const dataAlvo = backfill_date ?? hojeYmd;
-        const { data: rawDescartados, error: rawDescErr } = await admin
+        // `backfill_motivo === "todos"` carrega TODOS os raws do dia daquela
+        // credencial, independente de motivo_descarte (inclusive raws bem-sucedidos
+        // cujas publicações foram apagadas por engano). Nesse caso a dedup natural
+        // por origem+id_externo em publicacoes_djen evita duplicar as que ainda
+        // existirem.
+        let rawQuery = admin
           .from("kurier_publicacoes_raw")
           .select("payload")
           .eq("credencial_id", cred.id)
-          .eq("motivo_descarte", backfill_motivo)
           .gte("created_at", `${dataAlvo}T00:00:00Z`)
           .lt("created_at", `${dataAlvo}T23:59:59.999Z`)
           .limit(10000);
+        if (backfill_motivo !== "todos") {
+          rawQuery = rawQuery.eq("motivo_descarte", backfill_motivo);
+        }
+        const { data: rawDescartados, error: rawDescErr } = await rawQuery;
         if (rawDescErr) {
           ultimoErro = `backfill load raw lote ${lote}: ${rawDescErr.message}`;
           break;
