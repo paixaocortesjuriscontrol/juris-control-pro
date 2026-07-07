@@ -223,6 +223,7 @@ export function PrazoDialog({
       setObservacoes(prazo.observacoes || "");
       setDataFatal((prazo as any).data_fatal ? parseISO((prazo as any).data_fatal) : undefined);
       setCoordenacaoId("");
+      setSituacao(((prazo as any).status as any) || "pendente");
       (async () => {
         const processoId = defaultProcessoId || prazo.processo_id;
         const [{ data: resps }, { data: envs }, { data: proc }] = await Promise.all([
@@ -253,6 +254,7 @@ export function PrazoDialog({
       setObservacoes("");
       setDataFatal(undefined);
       setCoordenacaoId("");
+      setSituacao("pendente");
     }
   }, [open, prazo?.id]);
 
