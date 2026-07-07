@@ -826,11 +826,12 @@ export default function ListaAtividadesView({
               <Table className="text-xs w-full table-fixed">
                 <colgroup>
                   <col className="w-9" />
-                  <col />
-                  <col className="w-[200px]" />
-                  <col className="w-[180px]" />
-                  <col className="w-[130px]" />
-                  <col className="w-[110px]" />
+                  <col className="w-[280px]" />
+                  <col className="w-[150px]" />
+                  <col className="w-[160px]" />
+                  <col className="w-[140px]" />
+                  <col className="w-[120px]" />
+                  <col className="w-[100px]" />
                   <col className="w-[80px]" />
                 </colgroup>
                 <TableHeader className="bg-muted/60 sticky top-0 z-10">
@@ -851,6 +852,7 @@ export default function ListaAtividadesView({
                     <TableHead className="h-9 font-semibold text-left">Atividade</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Responsável</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Datas</TableHead>
+                    <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Local / Parte</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Prioridade</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Status</TableHead>
                     <TableHead className="h-9 font-semibold whitespace-nowrap text-right pr-3">Ações</TableHead>
