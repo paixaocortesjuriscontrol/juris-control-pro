@@ -469,7 +469,6 @@ async function processPublicationFromIndex(
     }
     
     if (!rescuedId) {
-      if (!persistMode.servidor) {
       await supabase.from('publicacoes_djen_descartadas').insert({
         monitoramento_id: monitoramento.id,
         coordenacao_id: (monitoramento as any).coordenacao_id ?? null,
@@ -483,7 +482,6 @@ async function processPublicationFromIndex(
         motivo_descarte: `condicao_concomitante: ${monitoramento.condicao_concomitante || ''}`.trim(),
         ...metadataDescartada,
       });
-      }
 
       stats.descartadas++;
       return;
@@ -495,7 +493,6 @@ async function processPublicationFromIndex(
   const motivoExclusao = shouldExclude(conteudo, monitoramento.exclusoes || [], metadataDescartada.partes_json, metadataDescartada.advogados_json);
 
   if (motivoExclusao) {
-    if (!persistMode.servidor) {
     await supabase.from('publicacoes_djen_descartadas').insert({
       monitoramento_id: monitoramento.id,
       coordenacao_id: (monitoramento as any).coordenacao_id ?? null,
@@ -509,14 +506,13 @@ async function processPublicationFromIndex(
       motivo_descarte: `Termo de exclusão: ${motivoExclusao}`,
       ...metadataDescartada,
     });
-    }
 
     stats.descartadas++;
     return;
   }
 
   const coordenacaoId = (monitoramento as any).coordenacao_id ?? null;
-  const targetTable = persistMode.servidor ? 'publicacoes_djen_servidor' : 'publicacoes_djen';
+  const targetTable = 'publicacoes_djen';
 
   // Pré-checagem isolada por fluxo: duplicidade DJEN é somente coordenação + id_djen.
   let existing: { id: string } | null = null;
@@ -547,16 +543,13 @@ async function processPublicationFromIndex(
     ...metadataDescartada,
   };
   if (persistMode.servidor) {
-    insertRow.origem = 'servidor';
     insertRow.execucao_id = persistMode.execucaoServidorId ?? null;
   }
 
   // Upsert isolado por coordenação + id_djen. Conteúdo/hash nunca colapsam
   // comunicações DJEN distintas.
   let onConflictCols: string | undefined;
-  if (persistMode.servidor && coordenacaoId) {
-    if (idDjen) onConflictCols = 'coordenacao_id,id_djen';
-  }
+  if (coordenacaoId && idDjen) onConflictCols = 'coordenacao_id,id_djen';
 
   const insertQuery = onConflictCols
     ? supabase.from(targetTable).upsert(insertRow, { onConflict: onConflictCols, ignoreDuplicates: true }).select('id')
