@@ -48,8 +48,10 @@ export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTa
     }
   };
 
+  const tratado = isItemTratado(audiencia);
+
   return (
-    <div className="bg-card border border-border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow space-y-2">
+    <div className={`rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow space-y-2 ${tratado ? 'bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800' : 'bg-card border border-border'}`}>
       {/* Header: processo + urgency badge */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
