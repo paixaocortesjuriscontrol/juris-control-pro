@@ -926,6 +926,15 @@ export default function PainelControle() {
                 Escritório
               </Button>
             </div>
+            <Button
+              size="sm"
+              variant={somenteHoje ? "default" : "outline"}
+              className="h-7 px-3 text-xs"
+              onClick={() => setSomenteHoje((v) => !v)}
+              title="Exibir apenas itens de hoje"
+            >
+              Somente Hoje
+            </Button>
             {/* Filtro de coordenação para admin no modo escritório - desktop inline */}
             {isAdmin && tabMode === "escritorio" && (
               <div className="hidden md:block">
