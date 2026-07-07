@@ -891,13 +891,16 @@ export default function PainelControle() {
       title="Painel de Controle"
       headerActions={
         <div className="flex items-center gap-2">
-          <BuscaGlobalPainel />
-          <Button asChild variant="outline" size="sm">
-            <Link to="/dashboard">Dashboard</Link>
-          </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/painel-intimacoes">Painel Intimações</Link>
-          </Button>
+          {isAdmin && (
+            <Button asChild variant="outline" size="sm">
+              <Link to="/dashboard">Dashboard</Link>
+            </Button>
+          )}
+          {isAdmin && (
+            <Button asChild variant="outline" size="sm">
+              <Link to="/painel-intimacoes">Painel Intimações</Link>
+            </Button>
+          )}
           <Button asChild variant="outline" size="sm">
             <Link to="/painel-equipe">Painel da Equipe</Link>
           </Button>
@@ -971,32 +974,44 @@ export default function PainelControle() {
                 >
                   Em Lista
                 </Button>
+                {([
+                  { key: "prazo",         label: "Prazos" },
+                  { key: "audiencia",     label: "Audiências" },
+                  { key: "tarefa",        label: "Tarefas" },
+                  { key: "evento",        label: "Eventos" },
+                  { key: "parcelamento",  label: "Parcelamentos" },
+                ] as const).map((f) => {
+                  const active =
+                    painelFiltros.classificacoes.length === 1 &&
+                    painelFiltros.classificacoes[0] === f.key;
+                  return (
+                    <Button
+                      key={f.key}
+                      size="sm"
+                      variant={active ? "default" : "outline"}
+                      className="h-7 px-3 text-xs"
+                      onClick={() =>
+                        setPainelFiltros((s) => ({
+                          ...s,
+                          classificacoes: active ? [] : [f.key],
+                        }))
+                      }
+                      title={`Somente ${f.label}`}
+                    >
+                      {f.label}
+                    </Button>
+                  );
+                })}
                 <Button
                   size="sm"
-                  variant={viewMode === "prazos" ? "default" : "outline"}
+                  variant={painelFiltros.classificacoes.length === 0 ? "default" : "outline"}
                   className="h-7 px-3 text-xs"
-                  onClick={() => setViewMode("prazos")}
-                  title="Prazos Fatais"
+                  onClick={() =>
+                    setPainelFiltros((s) => ({ ...s, classificacoes: [] }))
+                  }
+                  title="Todos os tipos"
                 >
-                  Prazos Fatais
-                </Button>
-                <Button
-                  size="sm"
-                  variant={viewMode === "audiencias" ? "default" : "outline"}
-                  className="h-7 px-3 text-xs"
-                  onClick={() => setViewMode("audiencias")}
-                  title="Painel de Audiências"
-                >
-                  Audiências
-                </Button>
-                <Button
-                  size="sm"
-                  variant={viewMode === "notificacoes" ? "default" : "outline"}
-                  className="h-7 px-3 text-xs"
-                  onClick={() => setViewMode("notificacoes")}
-                  title="Notificações"
-                >
-                  Notificações
+                  Tudo
                 </Button>
               </div>
               <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />

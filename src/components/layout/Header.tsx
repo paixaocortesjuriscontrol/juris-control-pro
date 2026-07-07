@@ -20,6 +20,7 @@ import { toast } from "sonner";
 import { NotificacoesDropdown } from "./NotificacoesDropdown";
 import { AlterarSenhaDialog } from "./AlterarSenhaDialog";
 import { Badge } from "@/components/ui/badge";
+import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 
 import { ReactNode } from "react";
 
@@ -101,6 +102,11 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
         {subtitle && (
           <p className="text-xs lg:text-sm text-muted-foreground hidden sm:block">{subtitle}</p>
         )}
+      </div>
+
+      {/* Busca global fixa em todas as telas */}
+      <div className="hidden md:block flex-1 max-w-xl mx-4">
+        <BuscaGlobalPainel />
       </div>
 
       <div className="flex items-center gap-2 lg:gap-4">

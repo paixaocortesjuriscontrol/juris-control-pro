@@ -12,12 +12,11 @@ interface Column {
 }
 
 const columns: Column[] = [
-  { key: "sem-data", label: "Sem Data", color: "text-slate-500", bgColor: "bg-slate-500/10 border-slate-500/30", filter: (a) => getDaysUntil(a.data_audiencia) === null },
-  { key: "5+", label: "Mais de 5 dias", color: "text-green-600", bgColor: "bg-green-500/10 border-green-500/30", filter: (a) => { const d = getDaysUntil(a.data_audiencia); return d !== null && d >= 5; } },
-  { key: "4", label: "4 dias", color: "text-yellow-600", bgColor: "bg-yellow-500/10 border-yellow-500/30", filter: (a) => getDaysUntil(a.data_audiencia) === 4 },
+  { key: "5+", label: "Mais de 5 dias", color: "text-green-600", bgColor: "bg-green-500/10 border-green-500/30", filter: (a) => { const d = getDaysUntil(a.data_audiencia); return d !== null && d > 5; } },
+  { key: "4", label: "4 dias", color: "text-yellow-600", bgColor: "bg-yellow-500/10 border-yellow-500/30", filter: (a) => { const d = getDaysUntil(a.data_audiencia); return d !== null && d >= 4 && d <= 5; } },
   { key: "3", label: "3 dias", color: "text-orange-600", bgColor: "bg-orange-500/10 border-orange-500/30", filter: (a) => getDaysUntil(a.data_audiencia) === 3 },
   { key: "2", label: "2 dias", color: "text-red-400", bgColor: "bg-red-400/10 border-red-400/30", filter: (a) => getDaysUntil(a.data_audiencia) === 2 },
-  { key: "fatal", label: "Urgente", color: "text-red-600", bgColor: "bg-red-600/10 border-red-600/30", filter: (a) => { const d = getDaysUntil(a.data_audiencia); return d !== null && d <= 1; } },
+  { key: "hoje", label: "Hoje", color: "text-red-600", bgColor: "bg-red-600/10 border-red-600/30", filter: (a) => { const d = getDaysUntil(a.data_audiencia); return d !== null && d <= 1; } },
 ];
 
 interface Props {
@@ -36,11 +35,15 @@ export function AudienciasKanbanBoard({ audiencias, onDetalhes, onEditar, onCria
 
   return (
     <div className="flex-1 min-h-0 overflow-hidden pb-2">
-      <div className="grid grid-cols-1 gap-3 min-h-0 md:grid-cols-6 h-full">
+      <div className="grid grid-cols-1 gap-3 min-h-0 md:grid-cols-5 h-full">
         {orderedColumns.map((col) => {
           const items = audiencias.filter((a) => col.filter(a));
           return (
-            <div key={col.key} className={`flex min-w-0 flex-col rounded-lg border ${col.bgColor} min-h-[300px] overflow-hidden`}>
+            <div
+              key={col.key}
+              className={`flex min-w-0 flex-col rounded-lg border ${col.bgColor} min-h-[300px] overflow-hidden audiencia-kanban-col`}
+              style={{ containerType: "inline-size" } as React.CSSProperties}
+            >
               <div className={`px-3 py-2 border-b ${col.bgColor}`}>
                 <h3 className={`text-sm font-semibold ${col.color} truncate`}>{col.label}</h3>
                 <span className="text-xs text-muted-foreground">{items.length} audiência(s)</span>
