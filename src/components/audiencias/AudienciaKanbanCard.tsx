@@ -4,6 +4,7 @@ import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, FileText, MapPin, Building, Eye, Pencil, CheckCircle, XCircle, ListChecks, MoreVertical } from "lucide-react";
+import { TratadoCheck } from "@/components/shared/TratadoCheck";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface Props {
@@ -24,7 +25,7 @@ export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTa
     try {
       const date = parseISO(dateStr);
       if (!isValid(date)) return "S/D";
-      return format(date, "dd/MM/yy", { locale: ptBR });
+      return format(date, "dd/MM/yyyy", { locale: ptBR });
     } catch {
       return dateStr;
     }
@@ -51,18 +52,21 @@ export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTa
     <div className="bg-card border border-border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow space-y-2">
       {/* Header: processo + urgency badge */}
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-mono font-semibold text-foreground truncate flex-1">
-          {audiencia.processo_numero || "Sem nº"}
-        </p>
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          <TratadoCheck tratado={audiencia.status === "tratado"} />
+          <p className="text-xs font-mono font-semibold text-foreground truncate">
+            {audiencia.processo_numero || "Sem nº"}
+          </p>
+        </div>
         {getStatusBadge(audiencia.status)}
       </div>
 
-      {/* Date, time and urgency badge */}
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
-        <Calendar className="w-3 h-3" />
-        <span>{formatDate(audiencia.data_audiencia)}</span>
-        {audiencia.hora && <span>às {audiencia.hora}</span>}
-        <Badge variant={daysUntil !== null && daysUntil <= 1 ? "destructive" : "secondary"} className="text-[10px] px-1.5 py-0 leading-tight">
+      {/* Date, time and urgency badge — sempre visíveis */}
+      <div className="flex items-center gap-1.5 text-xs flex-wrap bg-muted/40 rounded px-1.5 py-1">
+        <Calendar className="w-3.5 h-3.5 text-primary" />
+        <span className="font-semibold text-foreground">{formatDate(audiencia.data_audiencia)}</span>
+        {audiencia.hora && <span className="font-medium text-foreground">às {audiencia.hora}</span>}
+        <Badge variant={daysUntil !== null && daysUntil <= 1 ? "destructive" : "secondary"} className="text-[10px] px-1.5 py-0 leading-tight ml-auto">
           {daysUntil === null ? "S/D" : daysUntil <= 0 ? "VENCIDO" : `${daysUntil}d`}
         </Badge>
       </div>
