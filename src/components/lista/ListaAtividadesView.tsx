@@ -554,17 +554,6 @@ export default function ListaAtividadesView({
         );
       }
     }
-    const criadorNome = row.criador?.nome ?? criadoresLookup?.[row.criado_por];
-    if (criadorNome) {
-      return (
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="h-6 w-6 rounded-full bg-muted text-muted-foreground text-[9px] font-semibold flex items-center justify-center shrink-0">
-            {initials(criadorNome)}
-          </div>
-          <span className="text-[11px] text-muted-foreground truncate">{criadorNome}</span>
-        </div>
-      );
-    }
     return <span className="text-muted-foreground text-[11px]">—</span>;
   }
 
