@@ -13,6 +13,7 @@ import {
   FileText,
   Upload as UploadIcon,
   Building2,
+  Search,
 } from "lucide-react";
 
 const tools = [
@@ -27,6 +28,7 @@ const tools = [
   { label: "Corrigir Planilha", path: "/corrigir-planilha", icon: FileText, description: "Higienizar e corrigir planilhas." },
   { label: "Importações Distribuição TST", path: "/admin-tst/importacoes-distribuicao", icon: UploadIcon, description: "Cargas e atualizações em massa da Distribuição TST (planilhas e PDFs) com layout documentado." },
   { label: "Verificar Outro Escritório", path: "/admin-tst/outro-escritorio", icon: Building2, description: "Importar planilha de migração, verificar processos na base e marcar como Outro Escritório." },
+  { label: "Busca Publicação", path: "/admin-tst/busca-publicacao", icon: Search, description: "Buscar publicações no DJEN a partir de uma planilha de processos, período e tribunais. Roda nas VPS do servidor." },
 ];
 
 export default function AdminTst() {
