@@ -6,6 +6,7 @@ const ENGINES = {
   djen_paralela_servidor: require("./engines/paralela"),
   kurier_servidor: require("./engines/kurier"),
   djet_pautas_servidor: require("./engines/pautas"),
+  busca_publicacao_servidor: require("./engines/buscaProcessos"),
 };
 
 const WORKER_BASE = process.env.WORKER_ID_BASE || "hostinger-01";
