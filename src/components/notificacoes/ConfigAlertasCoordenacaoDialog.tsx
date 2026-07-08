@@ -205,8 +205,8 @@ export function ConfigAlertasCoordenacaoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
+        <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-primary" />
             Configurar Alertas — {coordenacaoNome}
@@ -217,8 +217,8 @@ export function ConfigAlertasCoordenacaoDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="painel" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+        <Tabs defaultValue="painel" className="w-full flex-1 min-h-0 flex flex-col">
+          <TabsList className="grid w-full grid-cols-2 mx-6 mb-2 shrink-0" style={{ width: "calc(100% - 3rem)" }}>
             <TabsTrigger value="painel" className="gap-2">
               <BellRing className="h-4 w-4" /> Notificações do Painel
             </TabsTrigger>
@@ -228,9 +228,9 @@ export function ConfigAlertasCoordenacaoDialog({
           </TabsList>
 
           {/* ========= ABA 1: NOTIFICAÇÕES DO PAINEL ========= */}
-          <TabsContent value="painel">
-            <ScrollArea className="max-h-[60vh] pr-4">
-              <div className="space-y-6 pt-2">
+          <TabsContent value="painel" className="flex-1 min-h-0 flex flex-col mt-0">
+            <ScrollArea className="flex-1 min-h-0 px-6">
+              <div className="space-y-6 pt-2 pb-4 pr-4">
                 <Alert>
                   <Users className="h-4 w-4" />
                   <AlertDescription>
@@ -400,7 +400,7 @@ export function ConfigAlertasCoordenacaoDialog({
                 </div>
               </div>
             </ScrollArea>
-            <DialogFooter className="gap-2 pt-4">
+            <DialogFooter className="gap-2 p-4 border-t shrink-0 bg-background">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
@@ -412,9 +412,9 @@ export function ConfigAlertasCoordenacaoDialog({
           </TabsContent>
 
           {/* ========= ABA 2: ENVIOS ========= */}
-          <TabsContent value="envios">
-            <ScrollArea className="max-h-[60vh] pr-4">
-              <div className="space-y-4 pt-2">
+          <TabsContent value="envios" className="flex-1 min-h-0 flex flex-col mt-0">
+            <ScrollArea className="flex-1 min-h-0 px-6">
+              <div className="space-y-4 pt-2 pb-4 pr-4">
                 <Alert>
                   <Users className="h-4 w-4" />
                   <AlertDescription>
@@ -538,7 +538,7 @@ export function ConfigAlertasCoordenacaoDialog({
                 )}
               </div>
             </ScrollArea>
-            <DialogFooter className="gap-2 pt-4 sm:justify-between">
+            <DialogFooter className="gap-2 p-4 border-t shrink-0 bg-background sm:justify-between">
               <div>
                 {configEnvioAtual && (
                   <Button
