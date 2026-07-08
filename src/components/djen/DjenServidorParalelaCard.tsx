@@ -270,22 +270,27 @@ export function DjenServidorParalelaCard() {
   }, [dataInicio, dataFim, enfileirar, filtroCoordenacaoId, filtroMonitoramentoId, filtroTipo, monitoramentosFiltrados]);
 
   const handleRetomar = useCallback(() => {
-    if (!dataInicio || !dataFim) {
-      toast.error("Selecione data de início e fim");
+    const payloadAnterior = (exec?.payload || {}) as Record<string, unknown>;
+    const dataInicioRetomada = typeof payloadAnterior.dataInicio === "string"
+      ? payloadAnterior.dataInicio
+      : ymd(dataInicio);
+    const dataFimRetomada = typeof payloadAnterior.dataFim === "string"
+      ? payloadAnterior.dataFim
+      : ymd(dataFim) || dataInicioRetomada;
+
+    if (!dataInicioRetomada || !dataFimRetomada) {
+      toast.error("Não foi possível identificar o período da execução anterior");
       return;
     }
     const payload: Record<string, unknown> = {
-      dataInicio: ymd(dataInicio),
-      dataFim: ymd(dataFim),
+      ...payloadAnterior,
+      dataInicio: dataInicioRetomada,
+      dataFim: dataFimRetomada,
+      retomar: true,
+      resetCheckpoint: false,
     };
-    if (filtroCoordenacaoId) payload.coordenacaoId = filtroCoordenacaoId;
-    if (filtroMonitoramentoId) {
-      payload.monitoramentoIds = [filtroMonitoramentoId];
-    } else if (filtroTipo && monitoramentosFiltrados.length > 0) {
-      payload.monitoramentoIds = monitoramentosFiltrados.map((m) => m.id);
-    }
     enfileirar.mutate({ tipo: "djen_paralela_servidor", payload });
-  }, [dataInicio, dataFim, enfileirar, filtroCoordenacaoId, filtroMonitoramentoId, filtroTipo, monitoramentosFiltrados]);
+  }, [dataInicio, dataFim, enfileirar, exec?.payload]);
 
   const handleForcarParada = useCallback(() => {
     if (exec?.id && isRunning) cancelar.mutate(exec.id);
