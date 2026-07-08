@@ -605,16 +605,18 @@ export function DashboardCoordenacoes({
               </div>
             )}
           </div>
-      </div>
 
-      {selectedCoordConfig && (
-        <ConfigAlertasCoordenacaoDialog
-          open={configDialogOpen}
-          onOpenChange={setConfigDialogOpen}
-          coordenacaoId={selectedCoordConfig.id}
-          coordenacaoNome={selectedCoordConfig.nome}
-        />
-      )}
-    </>
+          {selectedCoordConfig && (
+            <div className="xl:sticky xl:top-4 xl:self-start">
+              <ConfigAlertasCoordenacaoPanel
+                key={selectedCoordConfig.id}
+                coordenacaoId={selectedCoordConfig.id}
+                coordenacaoNome={selectedCoordConfig.nome}
+                onClose={() => setSelectedCoordConfig(null)}
+              />
+            </div>
+          )}
+        </div>
+    </div>
   );
 }
