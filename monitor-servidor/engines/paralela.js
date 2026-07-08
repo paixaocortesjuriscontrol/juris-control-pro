@@ -1521,9 +1521,16 @@ async function run({ sb, payload, log, job }) {
   const unidadesConcluidasCheckpoint = new Set();
   const statsCheckpointPorId = new Map();
   const monitoramentosAtuais = new Set(lista.map((m) => m.id));
+  const itemIdsAtuais = new Set(itens.map((i) => String(i.id)));
+  const cardKeysAtuais = new Set(itens.map((i) => String(i.cardKey || i.id)));
   const absorverProgressoCheckpoint = (progresso) => {
     for (const rawKey of progresso?.checkpoint?.unidadesConcluidas || []) {
       const key = String(rawKey);
+      const cardKeyDoShard = key.replace(/\|shard\d+$/, "");
+      if (itemIdsAtuais.has(key) || cardKeysAtuais.has(key) || cardKeysAtuais.has(cardKeyDoShard)) {
+        unidadesConcluidasCheckpoint.add(key);
+        continue;
+      }
       const monId = key.split("|")[2] || null;
       if (!monId || monitoramentosAtuais.has(monId)) unidadesConcluidasCheckpoint.add(key);
     }
@@ -1549,25 +1556,35 @@ async function run({ sb, payload, log, job }) {
     const selfRunKey = job?.progresso?.checkpoint?.runKey;
     if (!selfRunKey || selfRunKey === runKey) absorverProgressoCheckpoint(job?.progresso);
 
+    const statusCheckpoint = payload?.retomar === true
+      ? ["cancelado", "erro", "falhou", "timeout", "concluido"]
+      : ["cancelado", "erro", "falhou", "timeout"];
     const { data: anteriores } = await sb
       .from("execucoes_servidor")
       .select("id, status, payload, progresso, created_at")
       .eq("tipo", TIPO_ENGINE)
-      .in("status", ["cancelado", "erro", "falhou"])
+      .in("status", statusCheckpoint)
       .order("created_at", { ascending: false })
       .limit(50);
     for (const ant of anteriores || []) {
       if (!isSameRunWindow(ant, runKey, dataInicio, dataFim, coordenacaoId, monitoramentoIdsFiltro, job?.id)) continue;
       absorverProgressoCheckpoint(ant.progresso);
     }
+    const statsAplicadas = new Set();
     for (const item of itens) {
-      if (!unidadesConcluidasCheckpoint.has(item.id)) continue;
-      const prev = statsCheckpointPorId.get(item.id);
+      const matchedCheckpointKey = unidadesConcluidasCheckpoint.has(item.id)
+        ? item.id
+        : (item.cardKey && unidadesConcluidasCheckpoint.has(item.cardKey) ? item.cardKey : null);
+      if (!matchedCheckpointKey) continue;
+      const prev = statsCheckpointPorId.get(item.id) || (item.cardKey ? statsCheckpointPorId.get(item.cardKey) : null);
+      const statsKey = prev?.id || matchedCheckpointKey;
+      const copiarStats = !!prev && !statsAplicadas.has(statsKey);
       item.status = "concluido";
       item.current = item.total;
-      item.novas = Number(prev?.novas) || 0;
-      item.descartadas = Number(prev?.descartadas) || 0;
-      item.duplicatas = Number(prev?.duplicatas) || 0;
+      item.novas = copiarStats ? (Number(prev?.novas) || 0) : 0;
+      item.descartadas = copiarStats ? (Number(prev?.descartadas) || 0) : 0;
+      item.duplicatas = copiarStats ? (Number(prev?.duplicatas) || 0) : 0;
+      if (copiarStats) statsAplicadas.add(statsKey);
       item.mensagem = "Já processado (checkpoint)";
       checkpointPulados++;
     }
@@ -2001,7 +2018,7 @@ async function run({ sb, payload, log, job }) {
     }
   }
 
-  return { novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, monitoramentos: itens.length, dataInicio, dataFim, vps: slots.length };
+  return { novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, monitoramentos: itens.length, dataInicio, dataFim, vps: slots.length, cancelado: cancelled };
 }
 
 module.exports = { run };
