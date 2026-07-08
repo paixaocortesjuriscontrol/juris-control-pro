@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, BellRing } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -29,7 +29,6 @@ import { DelegarTarefaDialog } from "@/components/coordenacoes/DelegarTarefaDial
 import { DelegarTarefaLoteDialog } from "@/components/coordenacoes/DelegarTarefaLoteDialog";
 import { ReatribuirProcessoDialog } from "@/components/coordenacoes/ReatribuirProcessoDialog";
 import { PautasExcelDialog } from "@/components/coordenacoes/PautasExcelDialog";
-import { ConfigAlertasEnvioDialog } from "@/components/coordenacoes/ConfigAlertasEnvioDialog";
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -71,7 +70,6 @@ const Coordenacoes = () => {
   const [delegarTarefaLoteDialog, setDelegarTarefaLoteDialog] = useState(false);
   const [reatribuirDialog, setReatribuirDialog] = useState(false);
   const [pautasExcelDialog, setPautasExcelDialog] = useState(false);
-  const [configAlertasDialog, setConfigAlertasDialog] = useState(false);
   const [transferirDialog, setTransferirDialog] = useState(false);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null);
@@ -416,14 +414,6 @@ const Coordenacoes = () => {
                           <FileSpreadsheet className="w-4 h-4 mr-1" />
                           <span className="hidden sm:inline">Pautas Excel</span>
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setConfigAlertasDialog(true)}
-                        >
-                          <BellRing className="w-4 h-4 mr-1" />
-                          <span className="hidden sm:inline">Configurar Alertas</span>
-                        </Button>
                       </>
                     )}
                     <Button 
@@ -669,12 +659,6 @@ const Coordenacoes = () => {
             coordenacaoNome={selectedCoord.nome}
           />
 
-          <ConfigAlertasEnvioDialog
-            open={configAlertasDialog}
-            onClose={() => setConfigAlertasDialog(false)}
-            coordenacaoId={selectedCoord.id}
-            coordenacaoNome={selectedCoord.nome}
-          />
         </>
       )}
 
