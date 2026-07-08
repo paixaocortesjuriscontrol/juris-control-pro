@@ -902,6 +902,9 @@ export default function PainelControle() {
               <Link to="/dashboard">Dashboard</Link>
             </Button>
           )}
+          <Button asChild variant="outline" size="sm">
+            <Link to="/notificacoes">Notificações</Link>
+          </Button>
           {isAdmin && (
             <Button asChild variant="outline" size="sm">
               <Link to="/painel-intimacoes">Painel Intimações</Link>
