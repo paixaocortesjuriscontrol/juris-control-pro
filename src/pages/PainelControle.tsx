@@ -260,8 +260,6 @@ export default function PainelControle() {
     if (isAdminOrCoordinator && coordenacoesUsuario.length > 0) {
       return {
         responsavelIds: membrosDasCoordenacoes.length > 0 ? membrosDasCoordenacoes : undefined,
-        coordenacaoIds: coordenacoesUsuario,
-        strictCoordenacaoIsolation: true,
         fetchAll: false,
         ...dateRange,
       };
@@ -335,12 +333,6 @@ export default function PainelControle() {
           .neq("status", "cumprido");
       } else if (tabMode === "escritorio" && isAdmin && membrosIdsParaResumo.length === 0) {
         // Admin escritório sem filtro: vê tudo
-      } else if (tabMode === "escritorio" && !isAdmin && isAdminOrCoordinator && coordenacoesUsuario.length > 0) {
-        q = supabase
-          .from("tarefas")
-          .select(`${baseSelect}, processo:processos!inner(coordenacao_id)`)
-          .in("processo.coordenacao_id", coordenacoesUsuario)
-          .neq("status", "cumprido");
       } else if (membrosIdsParaResumo.length > 0) {
         if (tabMode === "pessoal") {
           const ids = membrosIdsParaResumo.join(",");
