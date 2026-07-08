@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,12 +32,33 @@ interface Props {
 }
 
 export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionChange }: Props) {
+  const { user } = useAuth();
+  const { isAdmin } = useUserRole();
   const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
 
-  // Buscar coordenações com membros
+  // Buscar coordenações com membros — admin vê todas; demais somente as suas
   const { data: coordenacoes = [] } = useQuery({
-    queryKey: ["coordenacoes-com-membros"],
+    queryKey: ["coordenacoes-com-membros", user?.id, isAdmin],
+    enabled: !!user?.id,
     queryFn: async () => {
+      if (!isAdmin) {
+        const [membros, coord] = await Promise.all([
+          supabase.from("membros_coordenacao").select("coordenacao_id").eq("usuario_id", user!.id),
+          supabase.from("coordenacoes").select("id").eq("coordenador_id", user!.id),
+        ]);
+        const ids = Array.from(new Set([
+          ...((membros.data || []).map((m: any) => m.coordenacao_id)),
+          ...((coord.data || []).map((c: any) => c.id)),
+        ]));
+        if (ids.length === 0) return [] as Coordenacao[];
+        const { data, error } = await supabase
+          .from("coordenacoes")
+          .select(`id, nome, membros:membros_coordenacao(usuario_id)`)
+          .in("id", ids)
+          .order("nome");
+        if (error) throw error;
+        return (data || []) as Coordenacao[];
+      }
       const { data, error } = await supabase
         .from("coordenacoes")
         .select(`
@@ -68,6 +91,10 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
   // Filtrar advogados por coordenação
   const advogadosFiltrados = useMemo(() => {
     if (coordenacaoFiltro === "todas") {
+      if (!isAdmin && coordenacoes.length > 0) {
+        const ids = new Set(coordenacoes.flatMap((c) => (c.membros || []).map((m) => m.usuario_id)));
+        return todosAdvogados.filter((a) => ids.has(a.id));
+      }
       return todosAdvogados;
     }
 
@@ -76,7 +103,7 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
 
     const membrosIds = coordenacao.membros.map(m => m.usuario_id);
     return todosAdvogados.filter(a => membrosIds.includes(a.id));
-  }, [todosAdvogados, coordenacoes, coordenacaoFiltro]);
+  }, [todosAdvogados, coordenacoes, coordenacaoFiltro, isAdmin]);
 
   const toggleAdvogado = (advogadoId: string) => {
     if (selectedAdvogados.includes(advogadoId)) {
@@ -139,7 +166,9 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
             <SelectValue placeholder="Filtrar por coordenação" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="todas">Todas as coordenações</SelectItem>
+            {isAdmin && (
+              <SelectItem value="todas">Todas as coordenações</SelectItem>
+            )}
             {coordenacoes.map(coord => (
               <SelectItem key={coord.id} value={coord.id}>
                 {coord.nome} ({coord.membros.length} membros)
