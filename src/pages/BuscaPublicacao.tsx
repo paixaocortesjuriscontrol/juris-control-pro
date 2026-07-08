@@ -53,7 +53,15 @@ export default function BuscaPublicacao() {
   const processados = Number(progresso?.processados || 0);
   const totalPubl = Number(progresso?.total_publicacoes || 0);
   const totalProcExec = Number(progresso?.total_processos || totalProcessos || 1);
-  const pct = totalProcExec > 0 ? Math.min(100, Math.round((processados / totalProcExec) * 100)) : 0;
+  const totalTarefas = Number(progresso?.total_tarefas || 0);
+  const tarefasFeitas = Number(progresso?.tarefas_feitas || 0);
+  const errosProgresso = Number(progresso?.erros || 0);
+  const vpsAtivas = Number(progresso?.vps_ativas || 0);
+  const vias: Array<{ label: string; processo?: string; tribunal?: string }> = Array.isArray(progresso?.vias) ? progresso.vias : [];
+  const itens: Array<{ id: string; label: string; via?: string; status: string; novas?: number; mensagem?: string | null }> = Array.isArray(progresso?.itens) ? progresso.itens : [];
+  const pct = totalTarefas > 0
+    ? Math.min(100, Math.round((tarefasFeitas / totalTarefas) * 100))
+    : (totalProcExec > 0 ? Math.min(100, Math.round((processados / totalProcExec) * 100)) : 0);
 
   const running = status === "executando" || status === "pendente";
   const finished = status === "concluido" || status === "cancelado" || status === "erro";
@@ -312,9 +320,67 @@ export default function BuscaPublicacao() {
                 <Badge variant={running ? "default" : finished ? "secondary" : "outline"}>{status || "-"}</Badge>
                 <span className="text-muted-foreground">Processados: {processados} / {totalProcExec}</span>
                 <span className="text-muted-foreground">Publicações: {totalPubl}</span>
+                {totalTarefas > 0 && (
+                  <span className="text-muted-foreground">Tarefas: {tarefasFeitas} / {totalTarefas}</span>
+                )}
+                {vpsAtivas > 0 && <Badge variant="outline">{vpsAtivas} VPS</Badge>}
+                {errosProgresso > 0 && <span className="text-destructive text-xs">{errosProgresso} erro(s)</span>}
                 {execucao.worker_id && <span className="text-xs text-muted-foreground">Worker: {execucao.worker_id}</span>}
               </div>
-              <Progress value={pct} />
+              <Progress value={pct} className="h-2" />
+              <div className="text-xs text-muted-foreground text-right">{pct}%</div>
+
+              {vias.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase">VPS em execução ({vias.length})</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
+                    {vias.map((v) => (
+                      <div key={v.label} className="flex items-center gap-2 text-xs border rounded px-2 py-1">
+                        <Loader2 className="w-3 h-3 animate-spin text-primary shrink-0" />
+                        <span className="font-medium shrink-0">{v.label}</span>
+                        <span className="text-muted-foreground truncate">
+                          {v.processo} · {v.tribunal}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {itens.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase">Últimas tarefas</p>
+                  <ScrollArea className="max-h-56 border rounded p-2">
+                    <div className="space-y-1">
+                      {itens.slice().reverse().slice(0, 80).map((it) => (
+                        <div key={it.id} className="flex items-center gap-2 text-xs">
+                          <Badge
+                            variant="outline"
+                            className={
+                              it.status === "erro"
+                                ? "text-[10px] px-1.5 py-0 border-destructive text-destructive"
+                                : (it.novas || 0) > 0
+                                  ? "text-[10px] px-1.5 py-0 border-emerald-500 text-emerald-600"
+                                  : "text-[10px] px-1.5 py-0"
+                            }
+                          >
+                            {it.status}
+                          </Badge>
+                          {it.via && <span className="text-muted-foreground shrink-0">{it.via}</span>}
+                          <span className="truncate flex-1" title={it.mensagem || it.label}>
+                            {it.label}
+                            {it.mensagem && <span className="text-destructive"> · {it.mensagem}</span>}
+                          </span>
+                          {(it.novas || 0) > 0 && (
+                            <span className="text-emerald-600 font-medium">+{it.novas}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+
               {execucao.erro && (
                 <ScrollArea className="max-h-40 border rounded p-2 text-xs bg-destructive/5">
                   <pre className="whitespace-pre-wrap">{execucao.erro}</pre>
