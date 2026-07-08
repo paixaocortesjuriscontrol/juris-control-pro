@@ -117,11 +117,11 @@ export default function TstPrazos({ embedded = false }: TstPrazosProps = {}) {
     <div className="flex flex-col h-full gap-4">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Prazos Fatais</h1>
+            <h1 className="text-2xl font-bold text-foreground">Prazos</h1>
             <p className="text-sm text-muted-foreground">
               {coordenacoes.length === 1 && !isAdmin
                 ? coordenacoes[0].nome
-                : "Kanban de prazos fatais por coordenação"}
+                : "Kanban de prazos por coordenação"}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -186,5 +186,5 @@ export default function TstPrazos({ embedded = false }: TstPrazosProps = {}) {
     </div>
   );
 
-  return embedded ? body : <MainLayout title="Prazos Fatais">{body}</MainLayout>;
+  return embedded ? body : <MainLayout title="Prazos">{body}</MainLayout>;
 }

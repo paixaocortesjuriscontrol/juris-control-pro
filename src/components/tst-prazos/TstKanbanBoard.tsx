@@ -41,7 +41,11 @@ export function TstKanbanBoard({ prazos, onCardClick }: Props) {
         {orderedColumns.map((col) => {
           const items = prazos.filter((p) => col.filter(p));
           return (
-            <div key={col.key} className={`flex min-w-0 flex-col rounded-lg border ${col.bgColor} min-h-[300px] overflow-hidden`}>
+            <div
+              key={col.key}
+              className={`flex min-w-0 flex-col rounded-lg border ${col.bgColor} min-h-[300px] overflow-hidden audiencia-kanban-col`}
+              style={{ containerType: "inline-size" } as React.CSSProperties}
+            >
               <div className={`px-3 py-2 border-b ${col.bgColor}`}>
                 <h3 className={`text-sm font-semibold ${col.color} truncate`}>{col.label}</h3>
                 <span className="text-xs text-muted-foreground">{items.length} processo(s)</span>
