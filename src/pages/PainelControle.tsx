@@ -1301,14 +1301,14 @@ export default function PainelControle() {
               const c = painelFiltros.classificacoes;
               // Se um único tipo estiver selecionado, mostra o kanban correspondente.
               if (c.length === 1 && c[0] === "prazo") return <TstPrazos embedded />;
-              if (c.length === 1 && c[0] === "audiencia") return <PainelAudiencias embedded />;
+              if (c.length === 1 && c[0] === "audiencia") return <PainelAudiencias embedded statusFilter={situacaoFilter} onStatusFilterChange={setSituacaoFilter} />;
               // Default: audiências (kanban principal). Usuário troca o tipo pelos chips.
-              return <PainelAudiencias embedded />;
+              return <PainelAudiencias embedded statusFilter={situacaoFilter} onStatusFilterChange={setSituacaoFilter} />;
             })()}
           </div>
         ) : viewMode === "audiencias" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
-            <PainelAudiencias embedded />
+            <PainelAudiencias embedded statusFilter={situacaoFilter} onStatusFilterChange={setSituacaoFilter} />
           </div>
         ) : viewMode === "notificacoes" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
