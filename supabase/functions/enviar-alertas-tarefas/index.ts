@@ -7,6 +7,7 @@ const corsHeaders = {
 };
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "JurisControl <alertas@juriscontrol.adv.br>";
 
 async function enviarEmailResend(to: string, subject: string, texto: string): Promise<{ ok: boolean; erro?: string }> {
   if (!RESEND_API_KEY) return { ok: false, erro: "RESEND_API_KEY não configurada" };
@@ -21,7 +22,7 @@ async function enviarEmailResend(to: string, subject: string, texto: string): Pr
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "JurisControl <onboarding@resend.dev>",
+        from: EMAIL_FROM,
         to: [to],
         subject,
         html,
