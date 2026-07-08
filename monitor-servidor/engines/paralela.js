@@ -2018,7 +2018,7 @@ async function run({ sb, payload, log, job }) {
     }
   }
 
-  return { novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, monitoramentos: itens.length, dataInicio, dataFim, vps: slots.length };
+  return { novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, monitoramentos: itens.length, dataInicio, dataFim, vps: slots.length, cancelado: cancelled };
 }
 
 module.exports = { run };
