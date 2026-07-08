@@ -212,7 +212,9 @@ export function PeoplePicker({
                     <SelectValue placeholder="Filtrar por coordenação" />
                   </SelectTrigger>
                   <SelectContent className="z-[60]">
-                    <SelectItem value="todas">Todas as coordenações</SelectItem>
+                    {isAdmin && (
+                      <SelectItem value="todas">Todas as coordenações</SelectItem>
+                    )}
                     {coordenacoes.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.nome}
