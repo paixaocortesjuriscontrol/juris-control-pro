@@ -114,6 +114,7 @@ export default function PainelControle() {
   const [prazoEditando, setPrazoEditando] = useState<any | null>(null);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
   const [somenteHoje, setSomenteHoje] = useState(false);
+  const [situacaoFilter, setSituacaoFilter] = useState<string>("todos");
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
 
