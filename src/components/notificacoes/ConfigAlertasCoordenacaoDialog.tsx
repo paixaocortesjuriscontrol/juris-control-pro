@@ -191,8 +191,8 @@ export function ConfigAlertasCoordenacaoPanel({
   };
 
   return (
-    <Card className="flex flex-col overflow-hidden shadow-lg border-primary/30">
-      <CardHeader className="pb-3 shrink-0 bg-muted/30 border-b">
+    <Card className="shadow-lg border-primary/30">
+      <CardHeader className="pb-3 bg-muted/30 border-b">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -209,8 +209,8 @@ export function ConfigAlertasCoordenacaoPanel({
         </div>
       </CardHeader>
 
-        <Tabs defaultValue="painel" className="w-full flex-1 min-h-0 flex flex-col">
-          <TabsList className="grid grid-cols-2 mx-4 mt-3 mb-2 shrink-0">
+        <Tabs defaultValue="painel" className="w-full">
+          <TabsList className="grid grid-cols-2 mx-4 mt-3 mb-2 w-auto">
             <TabsTrigger value="painel" className="gap-2">
               <BellRing className="h-4 w-4" /> Notificações do Painel
             </TabsTrigger>
@@ -220,9 +220,9 @@ export function ConfigAlertasCoordenacaoPanel({
           </TabsList>
 
           {/* ========= ABA 1: NOTIFICAÇÕES DO PAINEL ========= */}
-          <TabsContent value="painel" className="flex-1 min-h-0 flex flex-col mt-0">
-            <ScrollArea className="flex-1 min-h-0 px-4 max-h-[60vh]">
-              <div className="space-y-6 pt-2 pb-4 pr-4">
+          <TabsContent value="painel" className="mt-0">
+            <div className="px-4">
+              <div className="space-y-6 pt-2 pb-4">
                 <Alert>
                   <Users className="h-4 w-4" />
                   <AlertDescription>
@@ -391,8 +391,8 @@ export function ConfigAlertasCoordenacaoPanel({
                   </div>
                 </div>
               </div>
-            </ScrollArea>
-            <div className="flex justify-end gap-2 p-3 border-t shrink-0 bg-background">
+            </div>
+            <div className="flex justify-end gap-2 p-3 border-t bg-background">
               <Button variant="outline" onClick={onClose}>
                 Cancelar
               </Button>
@@ -404,9 +404,9 @@ export function ConfigAlertasCoordenacaoPanel({
           </TabsContent>
 
           {/* ========= ABA 2: ENVIOS ========= */}
-          <TabsContent value="envios" className="flex-1 min-h-0 flex flex-col mt-0">
-            <ScrollArea className="flex-1 min-h-0 px-4 max-h-[60vh]">
-              <div className="space-y-4 pt-2 pb-4 pr-4">
+          <TabsContent value="envios" className="mt-0">
+            <div className="px-4">
+              <div className="space-y-4 pt-2 pb-4">
                 <Alert>
                   <Users className="h-4 w-4" />
                   <AlertDescription>
@@ -529,8 +529,8 @@ export function ConfigAlertasCoordenacaoPanel({
                   </div>
                 )}
               </div>
-            </ScrollArea>
-            <div className="flex flex-wrap gap-2 p-3 border-t shrink-0 bg-background justify-between">
+            </div>
+            <div className="flex flex-wrap gap-2 p-3 border-t bg-background justify-between">
               <div>
                 {configEnvioAtual && (
                   <Button
