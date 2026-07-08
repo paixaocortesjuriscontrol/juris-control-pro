@@ -44,6 +44,7 @@ export default function PainelAudiencias({ embedded = false }: PainelAudienciasP
   const [observacoes, setObservacoes] = useState("");
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [criarTarefaAudiencia, setCriarTarefaAudiencia] = useState<AudienciaDetectada | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("lista");
 
   const { exportarExcel } = useExportarAudiencias();
 
