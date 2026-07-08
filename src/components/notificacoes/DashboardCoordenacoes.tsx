@@ -321,8 +321,7 @@ export function DashboardCoordenacoes({
   }
 
   return (
-    <>
-      <div className="space-y-4">
+    <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
@@ -333,13 +332,25 @@ export function DashboardCoordenacoes({
           </Badge>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+        <div className={cn(
+          "grid gap-4",
+          selectedCoordConfig
+            ? "grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px]"
+            : ""
+        )}>
+          <div className={cn(
+            "grid grid-cols-1 gap-3 md:gap-4",
+            selectedCoordConfig
+              ? "sm:grid-cols-2"
+              : "sm:grid-cols-2 lg:grid-cols-3"
+          )}>
             {coordenacoesStats.map((coord) => (
               <Card
                 key={coord.id}
                 className={cn(
                   "cursor-pointer transition-all hover:shadow-md",
                   selectedCoordenacaoId === coord.id && "ring-2 ring-primary",
+                  selectedCoordConfig?.id === coord.id && "ring-2 ring-primary",
                   coord.total > 0 && coord.total <= 5 && "border-amber-500/50",
                   coord.total > 5 && "border-red-500/50"
                 )}
