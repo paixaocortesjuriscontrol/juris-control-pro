@@ -939,6 +939,20 @@ export default function PainelControle() {
             >
               Somente Hoje
             </Button>
+            <Select value={situacaoFilter} onValueChange={setSituacaoFilter}>
+              <SelectTrigger className="h-7 w-[160px] text-xs" title="Filtrar por situação">
+                <SelectValue placeholder="Situação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="pendente">⏳ Pendentes</SelectItem>
+                <SelectItem value="confirmado">✅ Confirmados</SelectItem>
+                <SelectItem value="reagendado">🔄 Reagendados</SelectItem>
+                <SelectItem value="tratado">✔️ Tratados</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelados</SelectItem>
+                <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
+              </SelectContent>
+            </Select>
             {/* Filtro de coordenação para admin no modo escritório - desktop inline */}
             {isAdmin && tabMode === "escritorio" && (
               <div className="hidden md:block">
