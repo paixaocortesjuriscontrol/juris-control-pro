@@ -1,12 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { useConfigEnvioAlertas } from "@/hooks/useConfigEnvioAlertas";
@@ -34,6 +26,7 @@ import {
   Trash2,
   BellRing,
   ClipboardList,
+  X,
 } from "lucide-react";
 import {
   useConfigAlertasCoordenacao,
@@ -43,10 +36,9 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Props {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   coordenacaoId: string;
   coordenacaoNome: string;
+  onClose: () => void;
 }
 
 const TIPOS_ENVIO = ["PRAZO", "TAREFA EQUIPE", "AUDIÊNCIA", "PARCELAMENTO RECORRENTE"] as const;
@@ -66,11 +58,10 @@ const DIA_LABEL: Record<number, string> = {
   7: "7 dias antes",
 };
 
-export function ConfigAlertasCoordenacaoDialog({
-  open,
-  onOpenChange,
+export function ConfigAlertasCoordenacaoPanel({
   coordenacaoId,
   coordenacaoNome,
+  onClose,
 }: Props) {
   const { getConfigByCoordenacao, salvarConfig } = useConfigAlertasCoordenacao();
 
@@ -85,10 +76,6 @@ export function ConfigAlertasCoordenacaoDialog({
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) {
-      if (loadedFor !== null) setLoadedFor(null);
-      return;
-    }
     if (loadedFor === coordenacaoId) return;
     const config = getConfigByCoordenacao(coordenacaoId);
     if (config) {
@@ -109,7 +96,7 @@ export function ConfigAlertasCoordenacaoDialog({
       setDiasSemana([1, 2, 3, 4, 5]);
     }
     setLoadedFor(coordenacaoId);
-  }, [open, coordenacaoId, getConfigByCoordenacao, loadedFor]);
+  }, [coordenacaoId, getConfigByCoordenacao, loadedFor]);
 
   const toggleTipoAlerta = (tipo: string) => {
     setTiposAlerta((prev) =>
@@ -133,7 +120,7 @@ export function ConfigAlertasCoordenacaoDialog({
         horario_fim: horarioFim,
         dias_semana: diasSemana,
       },
-      { onSuccess: () => onOpenChange(false) }
+      { onSuccess: () => onClose() }
     );
   };
 
