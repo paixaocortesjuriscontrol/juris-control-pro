@@ -756,9 +756,14 @@ export default function PainelControle() {
         if (d !== hoje_str) return false;
       }
 
+      // Filtro rápido de Situação (global)
+      if (situacaoFilter && situacaoFilter !== "todos") {
+        if ((item.status ?? "").toLowerCase() !== situacaoFilter) return false;
+      }
+
       return true;
     });
-  }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str]);
+  }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter]);
 
   // Mapa de itens por dia (chave: "YYYY-MM-DD")
   // Concluídas aparecem no final de cada dia, pendentes primeiro
