@@ -109,11 +109,11 @@ serve(async (req) => {
         if (cfg.tipo_tarefa === "AUDIÊNCIA") {
           const { data: audiencias } = await supabase
             .from("audiencias_detectadas")
-            .select("id, processo_numero, data_audiencia, hora, cliente, status_tratamento")
+            .select("id, processo_numero, data_audiencia, hora, cliente, status")
             .eq("coordenacao_id", cfg.coordenacao_id)
             .gte("data_audiencia", alvoIni)
             .lte("data_audiencia", alvoFim)
-            .neq("status_tratamento", "tratado");
+            .not("status", "in", "(tratado,ignorado,cancelado)");
           (audiencias ?? []).forEach((a: any) => itens.push({
             id: a.id, titulo: `Audiência ${a.cliente ?? a.processo_numero ?? ""}`.trim(),
             data: a.data_audiencia, hora: a.hora, processo: a.processo_numero, origem: "audiencia",
