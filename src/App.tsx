@@ -82,6 +82,7 @@ import ClassificacaoTst from "./pages/ClassificacaoTst";
 import IaResponde from "./pages/IaResponde";
 import AdminTst from "./pages/AdminTst";
 import AdminTstImportacoes from "./pages/AdminTstImportacoes";
+import AdminTstOutroEscritorio from "./pages/AdminTstOutroEscritorio";
 import DjenLocal from "./pages/DjenLocal";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 
@@ -190,6 +191,7 @@ function App() {
               <Route path="/ia-responde" element={<AdminRoute><IaResponde /></AdminRoute>} />
               <Route path="/admin-tst" element={<ProtectedRoute><AdminTst /></ProtectedRoute>} />
               <Route path="/admin-tst/importacoes-distribuicao" element={<ProtectedRoute><AdminTstImportacoes /></ProtectedRoute>} />
+              <Route path="/admin-tst/outro-escritorio" element={<AdminRoute><AdminTstOutroEscritorio /></AdminRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>
