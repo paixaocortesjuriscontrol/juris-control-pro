@@ -830,6 +830,65 @@ export type Database = {
           },
         ]
       }
+      buscas_publicacao_resultados: {
+        Row: {
+          conteudo: string | null
+          created_at: string
+          data_disponibilizacao: string | null
+          data_publicacao: string | null
+          dedupe_key: string
+          execucao_id: string
+          id: string
+          id_djen: string | null
+          orgao: string | null
+          processo_digitos: string
+          processo_original: string
+          raw_json: Json | null
+          tipo_comunicacao: string | null
+          tribunal: string | null
+        }
+        Insert: {
+          conteudo?: string | null
+          created_at?: string
+          data_disponibilizacao?: string | null
+          data_publicacao?: string | null
+          dedupe_key: string
+          execucao_id: string
+          id?: string
+          id_djen?: string | null
+          orgao?: string | null
+          processo_digitos: string
+          processo_original: string
+          raw_json?: Json | null
+          tipo_comunicacao?: string | null
+          tribunal?: string | null
+        }
+        Update: {
+          conteudo?: string | null
+          created_at?: string
+          data_disponibilizacao?: string | null
+          data_publicacao?: string | null
+          dedupe_key?: string
+          execucao_id?: string
+          id?: string
+          id_djen?: string | null
+          orgao?: string | null
+          processo_digitos?: string
+          processo_original?: string
+          raw_json?: Json | null
+          tipo_comunicacao?: string | null
+          tribunal?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "buscas_publicacao_resultados_execucao_id_fkey"
+            columns: ["execucao_id"]
+            isOneToOne: false
+            referencedRelation: "execucoes_servidor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       capturas_intimacoes: {
         Row: {
           ativo: boolean
