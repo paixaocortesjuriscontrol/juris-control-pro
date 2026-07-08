@@ -232,10 +232,27 @@ export default function BuscaPublicacao() {
               )}
             </div>
             {totalProcessos > 0 && (
-              <div className="flex gap-2 flex-wrap">
-                <Badge variant="secondary">{totalProcessos} processo(s)</Badge>
-                <Badge variant="secondary">{totalProcessos - invalidos} válidos</Badge>
-                {invalidos > 0 && <Badge variant="destructive">{invalidos} inválido(s) (CNJ ≠ 20 dígitos)</Badge>}
+              <div className="space-y-2">
+                <div className="flex gap-2 flex-wrap">
+                  <Badge variant="secondary">{totalProcessos} processo(s)</Badge>
+                  <Badge variant="secondary">{totalProcessos - invalidos} válidos</Badge>
+                  {invalidos > 0 && <Badge variant="destructive">{invalidos} inválido(s) (CNJ ≠ 20 dígitos)</Badge>}
+                </div>
+                <ScrollArea className="max-h-56 border rounded p-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                    {processos.map((p) => (
+                      <div key={p.processo_digitos} className="flex items-center gap-2 text-xs">
+                        <span className="font-mono text-muted-foreground">{p.processo_digitos}</span>
+                        <span className="truncate">{p.processo_original}</span>
+                        {!p.valido && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1 text-destructive border-destructive">
+                            inválido
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
               </div>
             )}
           </CardContent>
