@@ -191,21 +191,26 @@ export function ConfigAlertasCoordenacaoPanel({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
-          <DialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-primary" />
-            Configurar Alertas — {coordenacaoNome}
-          </DialogTitle>
-          <DialogDescription>
-            Central única de alertas desta coordenação: notificações do painel e envios automáticos
-            de prazos, tarefas e audiências.
-          </DialogDescription>
-        </DialogHeader>
+    <Card className="flex flex-col overflow-hidden shadow-lg border-primary/30">
+      <CardHeader className="pb-3 shrink-0 bg-muted/30 border-b">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="h-5 w-5 text-primary shrink-0" />
+              <span className="truncate">Configurar Alertas — {coordenacaoNome}</span>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Notificações do painel e envios automáticos de prazos, tarefas e audiências.
+            </p>
+          </div>
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose} aria-label="Fechar">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      </CardHeader>
 
         <Tabs defaultValue="painel" className="w-full flex-1 min-h-0 flex flex-col">
-          <TabsList className="grid w-full grid-cols-2 mx-6 mb-2 shrink-0" style={{ width: "calc(100% - 3rem)" }}>
+          <TabsList className="grid grid-cols-2 mx-4 mt-3 mb-2 shrink-0">
             <TabsTrigger value="painel" className="gap-2">
               <BellRing className="h-4 w-4" /> Notificações do Painel
             </TabsTrigger>
@@ -216,7 +221,7 @@ export function ConfigAlertasCoordenacaoPanel({
 
           {/* ========= ABA 1: NOTIFICAÇÕES DO PAINEL ========= */}
           <TabsContent value="painel" className="flex-1 min-h-0 flex flex-col mt-0">
-            <ScrollArea className="flex-1 min-h-0 px-6">
+            <ScrollArea className="flex-1 min-h-0 px-4 max-h-[60vh]">
               <div className="space-y-6 pt-2 pb-4 pr-4">
                 <Alert>
                   <Users className="h-4 w-4" />
@@ -387,20 +392,20 @@ export function ConfigAlertasCoordenacaoPanel({
                 </div>
               </div>
             </ScrollArea>
-            <DialogFooter className="gap-2 p-4 border-t shrink-0 bg-background">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <div className="flex justify-end gap-2 p-3 border-t shrink-0 bg-background">
+              <Button variant="outline" onClick={onClose}>
                 Cancelar
               </Button>
               <Button onClick={handleSalvarPainel} disabled={salvarConfig.isPending}>
                 {salvarConfig.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Salvar Notificações do Painel
               </Button>
-            </DialogFooter>
+            </div>
           </TabsContent>
 
           {/* ========= ABA 2: ENVIOS ========= */}
           <TabsContent value="envios" className="flex-1 min-h-0 flex flex-col mt-0">
-            <ScrollArea className="flex-1 min-h-0 px-6">
+            <ScrollArea className="flex-1 min-h-0 px-4 max-h-[60vh]">
               <div className="space-y-4 pt-2 pb-4 pr-4">
                 <Alert>
                   <Users className="h-4 w-4" />
@@ -525,7 +530,7 @@ export function ConfigAlertasCoordenacaoPanel({
                 )}
               </div>
             </ScrollArea>
-            <DialogFooter className="gap-2 p-4 border-t shrink-0 bg-background sm:justify-between">
+            <div className="flex flex-wrap gap-2 p-3 border-t shrink-0 bg-background justify-between">
               <div>
                 {configEnvioAtual && (
                   <Button
@@ -540,7 +545,7 @@ export function ConfigAlertasCoordenacaoPanel({
                 )}
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)}>
+                <Button variant="outline" onClick={onClose}>
                   Fechar
                 </Button>
                 <Button
@@ -555,10 +560,9 @@ export function ConfigAlertasCoordenacaoPanel({
                   Salvar Alertas
                 </Button>
               </div>
-            </DialogFooter>
+            </div>
           </TabsContent>
         </Tabs>
-      </DialogContent>
-    </Dialog>
+    </Card>
   );
 }
