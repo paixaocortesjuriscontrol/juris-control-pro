@@ -29,7 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useConfigAlertasCoordenacao } from "@/hooks/useConfigAlertasCoordenacao";
-import { ConfigAlertasCoordenacaoDialog } from "./ConfigAlertasCoordenacaoDialog";
+import { ConfigAlertasCoordenacaoPanel } from "./ConfigAlertasCoordenacaoDialog";
 import { cn } from "@/lib/utils";
 import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 import { startOfDay, parseISO, isBefore, isAfter } from "date-fns";
@@ -222,7 +222,6 @@ export function DashboardCoordenacoes({
     }));
   };
 
-  const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedCoordConfig, setSelectedCoordConfig] = useState<{ id: string; nome: string } | null>(null);
 
   // Calcular estatísticas por coordenação - usando counts no banco (consistente e sem cap/timeout)
@@ -308,8 +307,7 @@ export function DashboardCoordenacoes({
   }, [coordenacoesFiltradas, countsByCoord, prazosUrgentes, tarefasPendentes, configs, matchesPeriodo, matchesSearch, membrosCoordenacao]);
 
   const handleOpenConfig = (coord: { id: string; nome: string }) => {
-    setSelectedCoordConfig(coord);
-    setConfigDialogOpen(true);
+    setSelectedCoordConfig((prev) => (prev?.id === coord.id ? null : coord));
   };
 
   if (loadingCoord || loadingRole || loadingCounts) {
