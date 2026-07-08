@@ -1521,9 +1521,16 @@ async function run({ sb, payload, log, job }) {
   const unidadesConcluidasCheckpoint = new Set();
   const statsCheckpointPorId = new Map();
   const monitoramentosAtuais = new Set(lista.map((m) => m.id));
+  const itemIdsAtuais = new Set(itens.map((i) => String(i.id)));
+  const cardKeysAtuais = new Set(itens.map((i) => String(i.cardKey || i.id)));
   const absorverProgressoCheckpoint = (progresso) => {
     for (const rawKey of progresso?.checkpoint?.unidadesConcluidas || []) {
       const key = String(rawKey);
+      const cardKeyDoShard = key.replace(/\|shard\d+$/, "");
+      if (itemIdsAtuais.has(key) || cardKeysAtuais.has(key) || cardKeysAtuais.has(cardKeyDoShard)) {
+        unidadesConcluidasCheckpoint.add(key);
+        continue;
+      }
       const monId = key.split("|")[2] || null;
       if (!monId || monitoramentosAtuais.has(monId)) unidadesConcluidasCheckpoint.add(key);
     }
