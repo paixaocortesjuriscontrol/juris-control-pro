@@ -6,6 +6,38 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+
+async function enviarEmailResend(to: string, subject: string, texto: string): Promise<{ ok: boolean; erro?: string }> {
+  if (!RESEND_API_KEY) return { ok: false, erro: "RESEND_API_KEY não configurada" };
+  try {
+    const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111;white-space:pre-wrap">${
+      texto.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    }</div>`;
+    const resp = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "JurisControl <onboarding@resend.dev>",
+        to: [to],
+        subject,
+        html,
+      }),
+    });
+    if (!resp.ok) {
+      const t = await resp.text();
+      return { ok: false, erro: `resend ${resp.status}: ${t.slice(0,300)}` };
+    }
+    await resp.json().catch(() => null);
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, erro: String(e?.message ?? e) };
+  }
+}
+
 interface Config {
   id: string;
   coordenacao_id: string;
@@ -148,71 +180,66 @@ serve(async (req) => {
           : `⏰ Alertas para ${dataStr} (em ${nDias} dia${nDias > 1 ? "s" : ""}) — ${cfg.tipo_tarefa}`;
         const corpoTexto = `${cabecalho}\n\n${linhas}\n\nTotal: ${itens.length} item(ns)`;
 
-        // Enviar por canal para cada destinatário
-        for (const d of dests) {
-          // Dedupe
-          const refKey = `${cfg.id}:${alvo}:${nDias}`;
+        // Dedupe key: mesmo dia BRT + destinatário + canal + tipo (rota "referencia_id" é uuid → não serve; usamos janela por dia)
+        const inicioDiaBrtUtc = new Date(Date.now() - 3 * 60 * 60 * 1000);
+        inicioDiaBrtUtc.setUTCHours(0, 0, 0, 0);
+        const inicioJanelaUtc = new Date(inicioDiaBrtUtc.getTime() + 3 * 60 * 60 * 1000).toISOString();
+        const tag = `[${cfg.id.slice(0,8)}|${alvo}|d${nDias}]`;
+        const subject = `${cabecalho}`;
 
+        for (const d of dests) {
           if (cfg.canal_whatsapp && d.telefone) {
-            try {
-              const { data: jaEnviado } = await supabase
-                .from("historico_alertas_enviados")
-                .select("id")
-                .eq("coordenacao_id", cfg.coordenacao_id)
-                .eq("canal", "whatsapp")
-                .eq("destinatario", d.telefone)
-                .eq("referencia_id", refKey)
-                .maybeSingle();
-              if (!jaEnviado) {
-                const resp = await supabase.functions.invoke("enviar-whatsapp-zapi", {
-                  body: { telefones: [d.telefone], mensagem: corpoTexto, tipo: "lembrete" },
-                });
-                const ok = !resp.error;
-                await supabase.from("historico_alertas_enviados").insert({
-                  coordenacao_id: cfg.coordenacao_id,
-                  tipo_alerta: cfg.tipo_tarefa,
-                  canal: "whatsapp",
-                  destinatario: d.telefone,
-                  conteudo: corpoTexto.slice(0, 2000),
-                  referencia_id: refKey,
-                  status: ok ? "enviado" : "falha",
-                  erro: ok ? null : String(resp.error?.message ?? "erro"),
-                });
-                if (ok) totalEnviados++; else totalFalhas++;
-              }
-            } catch (e) {
-              console.error("whatsapp err", e);
-              totalFalhas++;
+            const { data: jaEnviado } = await supabase
+              .from("historico_alertas_enviados")
+              .select("id")
+              .eq("coordenacao_id", cfg.coordenacao_id)
+              .eq("canal", "whatsapp")
+              .eq("destinatario", d.telefone)
+              .eq("tipo_alerta", cfg.tipo_tarefa)
+              .gte("enviado_em", inicioJanelaUtc)
+              .ilike("conteudo", `%${tag}%`)
+              .maybeSingle();
+            if (!jaEnviado) {
+              const resp = await supabase.functions.invoke("enviar-whatsapp-zapi", {
+                body: { telefones: [d.telefone], mensagem: corpoTexto, tipo: "lembrete" },
+              });
+              const ok = !resp.error;
+              await supabase.from("historico_alertas_enviados").insert({
+                coordenacao_id: cfg.coordenacao_id,
+                tipo_alerta: cfg.tipo_tarefa,
+                canal: "whatsapp",
+                destinatario: d.telefone,
+                conteudo: `${tag}\n${corpoTexto}`.slice(0, 2000),
+                status: ok ? "enviado" : "falha",
+                erro: ok ? null : String(resp.error?.message ?? "erro"),
+              });
+              if (ok) totalEnviados++; else totalFalhas++;
             }
           }
 
           if (cfg.canal_email && d.email) {
-            try {
-              const { data: jaEnviado } = await supabase
-                .from("historico_alertas_enviados")
-                .select("id")
-                .eq("coordenacao_id", cfg.coordenacao_id)
-                .eq("canal", "email")
-                .eq("destinatario", d.email)
-                .eq("referencia_id", refKey)
-                .maybeSingle();
-              if (!jaEnviado) {
-                // Grava no histórico — envio efetivo depende de provider já configurado no projeto.
-                // Se não houver provider de e-mail próprio, este item permanece "pendente" para revisão.
-                await supabase.from("historico_alertas_enviados").insert({
-                  coordenacao_id: cfg.coordenacao_id,
-                  tipo_alerta: cfg.tipo_tarefa,
-                  canal: "email",
-                  destinatario: d.email,
-                  conteudo: corpoTexto.slice(0, 2000),
-                  referencia_id: refKey,
-                  status: "pendente",
-                  erro: "Envio de e-mail requer configuração de provider",
-                });
-              }
-            } catch (e) {
-              console.error("email err", e);
-              totalFalhas++;
+            const { data: jaEnviado } = await supabase
+              .from("historico_alertas_enviados")
+              .select("id")
+              .eq("coordenacao_id", cfg.coordenacao_id)
+              .eq("canal", "email")
+              .eq("destinatario", d.email)
+              .eq("tipo_alerta", cfg.tipo_tarefa)
+              .gte("enviado_em", inicioJanelaUtc)
+              .ilike("conteudo", `%${tag}%`)
+              .maybeSingle();
+            if (!jaEnviado) {
+              const r = await enviarEmailResend(d.email, subject, corpoTexto);
+              await supabase.from("historico_alertas_enviados").insert({
+                coordenacao_id: cfg.coordenacao_id,
+                tipo_alerta: cfg.tipo_tarefa,
+                canal: "email",
+                destinatario: d.email,
+                conteudo: `${tag}\n${corpoTexto}`.slice(0, 2000),
+                status: r.ok ? "enviado" : "falha",
+                erro: r.ok ? null : (r.erro ?? "erro"),
+              });
+              if (r.ok) totalEnviados++; else totalFalhas++;
             }
           }
         }
