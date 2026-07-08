@@ -44,6 +44,7 @@ export default function PainelAudiencias({ embedded = false }: PainelAudienciasP
   const [observacoes, setObservacoes] = useState("");
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [criarTarefaAudiencia, setCriarTarefaAudiencia] = useState<AudienciaDetectada | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("lista");
 
   const { exportarExcel } = useExportarAudiencias();
 
@@ -196,19 +197,54 @@ export default function PainelAudiencias({ embedded = false }: PainelAudienciasP
 
   const body = (
     <>
-    <Tabs defaultValue="lista" className="space-y-6">
-        {isAdmin && (
-          <TabsList className="flex-wrap h-auto gap-1">
-            <TabsTrigger value="lista" className="gap-2">
-              <Calendar className="h-4 w-4" />
-              Lista de Audiências
-            </TabsTrigger>
-            <TabsTrigger value="relatorio" className="gap-2">
-              <FileSpreadsheet className="h-4 w-4" />
-              Relatório Diretoria
-            </TabsTrigger>
-          </TabsList>
-        )}
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <div className="flex flex-wrap items-center gap-2">
+          {isAdmin && (
+            <>
+              <TabsList className="h-auto gap-1">
+                <TabsTrigger value="relatorio" className="gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Relatório Diretoria
+                </TabsTrigger>
+              </TabsList>
+              {activeTab === "relatorio" && (
+                <Button variant="ghost" size="sm" onClick={() => setActiveTab("lista")}>
+                  Voltar
+                </Button>
+              )}
+              {activeTab === "lista" && (
+                <Select value={coordenacaoFilter || "todas"} onValueChange={setCoordenacaoFilter}>
+                  <SelectTrigger className="w-[240px] h-9">
+                    <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder="Coordenação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as coordenações</SelectItem>
+                    {coordenacoes.map((coord) => (
+                      <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </>
+          )}
+          {activeTab === "lista" && (
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue placeholder="Situação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="pendente">⏳ Pendentes</SelectItem>
+                <SelectItem value="confirmado">✅ Confirmados</SelectItem>
+                <SelectItem value="reagendado">🔄 Reagendados</SelectItem>
+                <SelectItem value="tratado">✔️ Tratados</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelados</SelectItem>
+                <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </div>
 
         <TabsContent value="lista" className="space-y-6">
           {/* Stats Cards */}
@@ -262,110 +298,17 @@ export default function PainelAudiencias({ embedded = false }: PainelAudienciasP
             </Card>
           </div>
 
-          {/* Filters and Actions */}
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por processo, cliente, advogado..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            {isMobile ? (
-              <div className="relative w-full">
-                <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <select
-                  value={coordenacaoFilter || "todas"}
-                  onChange={(e) => setCoordenacaoFilter(e.target.value)}
-                  className="h-10 w-full rounded-md border border-input bg-background pl-10 pr-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                >
-                  <option value="todas">Todas as coordenações</option>
-                  {coordenacoes.map((coord) => (
-                    <option key={coord.id} value={coord.id}>
-                      {coord.nome}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <Select value={coordenacaoFilter || "todas"} onValueChange={setCoordenacaoFilter}>
-                <SelectTrigger className="w-full md:w-[280px]">
-                  <Users className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <SelectValue placeholder="Coordenação" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todas">Todas as coordenações</SelectItem>
-                  {coordenacoes.map((coord) => (
-                    <SelectItem key={coord.id} value={coord.id}>
-                      {coord.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            {isMobile ? (
-              <div className="relative w-full">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                >
-                  <option value="todos">Todos</option>
-                  <option value="pendente">⏳ Pendentes</option>
-                  <option value="confirmado">✅ Confirmados</option>
-                  <option value="reagendado">🔄 Reagendados</option>
-                  <option value="tratado">✔️ Tratados</option>
-                  <option value="cancelado">❌ Cancelados</option>
-                  <option value="ignorado">🚫 Ignorados</option>
-                </select>
-              </div>
-            ) : (
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full md:w-[180px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="pendente">⏳ Pendentes</SelectItem>
-                  <SelectItem value="confirmado">✅ Confirmados</SelectItem>
-                  <SelectItem value="reagendado">🔄 Reagendados</SelectItem>
-                  <SelectItem value="tratado">✔️ Tratados</SelectItem>
-                  <SelectItem value="cancelado">❌ Cancelados</SelectItem>
-                  <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-            <div className="flex gap-2">
+          {isAdmin && (
+            <div className="flex justify-end gap-2">
               <Button variant="outline" size="icon" className="md:hidden" onClick={() => setImportDialogOpen(true)}>
                 <Upload className="h-4 w-4" />
-              </Button>
-              <Button 
-                variant="outline" 
-                size="icon"
-                className="md:hidden"
-                onClick={() => exportarExcel(audiencias)}
-                disabled={audiencias.length === 0}
-              >
-                <Download className="h-4 w-4" />
               </Button>
               <Button variant="outline" className="hidden md:flex" onClick={() => setImportDialogOpen(true)}>
                 <Upload className="h-4 w-4 mr-2" />
                 Importar
               </Button>
-              <Button 
-                variant="outline" 
-                className="hidden md:flex"
-                onClick={() => exportarExcel(audiencias)}
-                disabled={audiencias.length === 0}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Exportar
-              </Button>
             </div>
-          </div>
+          )}
 
           {/* Audiências Kanban */}
           <div className="pb-8">
