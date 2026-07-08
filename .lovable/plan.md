@@ -1,84 +1,54 @@
-# Plano de Implementação
+# Verificação "Outro Escritório" — Admin TST
 
-## 1) Check verde ✅ em itens tratados (Painel de Controle)
+## Objetivo
+Nova tela dentro de **Admin TST** que:
+1. Recebe upload de planilha no formato: `Identificador Dossiê | Processo | Equipe` (cabeçalho na linha 1).
+2. Verifica cada processo contra `dados_benner` (campo `processo`, normalização por dígitos do CNJ).
+3. Para os encontrados, marca `processo_outro_escritorio = true`.
+4. Gera relatório Excel com situação linha a linha.
 
-Locais afetados: cards do resumo, listas (tarefas/prazos/eventos/audiências) e calendário.
+## Arquivos
 
-- **Tarefas/Prazos**: exibir `CheckCircle2` verde ao lado do título quando `status = 'concluida'` ou `situacao = 'tratado'`.
-- **Audiências (`audiencias_detectadas`)**: check verde quando `status_tratamento = 'tratado'`.
-- **Eventos (`eventos_agenda`)**: check verde quando `status = 'concluido'`.
-- **Calendário do Painel**: adicionar badge/ícone verde no dia do evento quando todos os itens do dia estiverem tratados; itens individuais mostram ✅ na tooltip/popover.
-- Componente reutilizável `<TratadoCheck />` para manter consistência visual.
+**Novo:** `src/pages/AdminTstOutroEscritorio.tsx`
+- Card com botão de upload (.xlsx/.xls) usando `xlsx`.
+- Parse da planilha (SheetJS) — lê 1ª aba, pula linhas vazias, normaliza número do processo (só dígitos, 20 chars).
+- Barra de progresso durante lookup em lote.
+- Preview em tabela dos resultados (encontrados x não encontrados) + botão "Baixar Relatório".
+- Toggle "Marcar encontrados como Outro Escritório" (default: ligado) — só executa update se marcado.
 
-## 2) Pré-selecionar Coordenação padrão do usuário logado
+**Novo:** `src/lib/outroEscritorioProcessor.ts`
+- `processarPlanilhaOutroEscritorio(rows, { marcarFlag }) => resultado`
+- Fluxo:
+  1. Extrai `{ dossie, processo, equipe }` de cada linha (ignora linha vazia).
+  2. Em lotes de 500, busca em `dados_benner`:
+     ```
+     select id, processo, dossie, equipe, situacao_processo,
+            data_distribuicao_real, data_distribuicao_planilha,
+            status_distribuicao, em_analise, processo_outro_escritorio
+       .in('processo', batch)
+     ```
+  3. Carrega responsáveis via `loadResponsaveisMap` (já existe em `useDistribuicaoResponsaveis`).
+  4. Se `marcarFlag`, faz `update({ processo_outro_escritorio: true }).in('id', encontradosIds)` em lotes de 200.
+  5. Monta linhas do relatório.
 
-Em todos os formulários que têm `CoordenacaoSelect` para adicionar responsável/colaborador/envolvido:
-- Buscar `membros_coordenacao` do usuário logado, ordenado pela criação (a primeira/principal).
-- Aplicar como `defaultValue` nos formulários: tarefa, evento, audiência, prazo, delegação, vincular.
-- Criar hook `useCoordenacaoPadraoUsuario()` para centralizar.
+**Novo:** `src/lib/relatorioOutroEscritorioExcel.ts`
+- Gera XLSX com colunas: Dossiê | Processo | Equipe | Situação (Encontrado/Não encontrado) | Situação do Processo | Data Distribuição (DD/MM/YYYY) | Responsável | Em Análise (Sim/Não) | Status Envio.
+- Para não encontrados, colunas de detalhe ficam vazias; Situação = "Não encontrado".
+- Nome do arquivo: `relatorio-outro-escritorio-YYYY-MM-DD-HH-mm-ss.xlsx`.
 
-## 3) Filtro por tipo em "Prazos Fatais"
+**Editar:** `src/pages/AdminTst.tsx`
+- Adicionar card/botão "Verificar Outro Escritório" no menu de Admin TST.
 
-Na página `PrazosFatais` (kanban integrado):
-- Adicionar `<Select>` no topo com opções: Todos, Tarefa, Prazo, Evento, Audiência, Publicação.
-- Filtro aplicado antes de distribuir os itens nas colunas do Kanban.
-- Persistir no state local (sem URL param nesta fase).
+**Editar:** `src/App.tsx`
+- Registrar rota `/admin-tst/outro-escritorio` protegida por `AdminRoute`.
 
-## 4) Configuração de alertas por Coordenação (E-mail + WhatsApp por tipo)
+## Regras
+- Normalização de processo: `String(v).replace(/\D/g,'')`; comparar por dígitos. Para o `.in()` do Supabase precisamos do valor exato armazenado → estratégia: buscar por lista original + fallback com `like` por dígitos quando não achar (ou buscar todos os processos únicos e comparar em memória via mapa por dígitos, opção mais robusta para variações de formatação).
+- Não altera `situacao_processo`, `status_distribuicao` nem outros campos — só `processo_outro_escritorio`.
+- Se `processo_outro_escritorio` já era `true`, ainda considera "encontrado" e reporta.
 
-Nova tela acessada por botão **"Configurar Alertas"** em `Coordenacoes.tsx` (ao lado do "Pautas Excel"), abrindo dialog `ConfigAlertasEnvioDialog`.
+## Banco
+Nenhuma migração — campo `processo_outro_escritorio` já existe em `dados_benner`.
 
-**Estrutura da config (por tipo de tarefa)**:
-- Tipo (PRAZO, AUDIÊNCIA, EVENTO, TAREFA EQUIPE, etc. — usar `TIPOS_TAREFA`).
-- Canais: `email`, `whatsapp`, ou ambos.
-- Régua de dias: checkboxes "No dia", "1 dia antes", "2 dias antes", "3 dias antes", "5 dias antes", "7 dias antes" + campo custom "Outros dias" (lista separada por vírgula).
-- Destinatários: multi-select de membros da coordenação (reaproveita PeoplePicker).
-
-**Nova tabela** `config_envio_alertas_tarefas`:
-```
-id uuid, coordenacao_id uuid, tipo_tarefa text,
-canal_email bool, canal_whatsapp bool,
-dias_antes int[],                  -- [0,1,2,3,5,7,...]
-destinatarios_ids uuid[],
-ativo bool, created_by, created_at, updated_at
-UNIQUE(coordenacao_id, tipo_tarefa)
-```
-+ GRANTS + RLS por membros da coordenação.
-
-Reusa a integração WhatsApp já configurada em `AlertasCoordenacaoCard` (mesmo provider/edge function de envio).
-
-## 5) Edge function diária de envio (sem browser aberto)
-
-**Nova edge function** `enviar-alertas-tarefas` (Supabase Edge + cron `pg_cron` diário às 07:00 BRT):
-- Lê `config_envio_alertas_tarefas` ativas.
-- Para cada config, calcula alvos: itens de `tarefas`, `eventos_agenda`, `audiencias_detectadas` cuja data cai exatamente em `hoje + N` para cada N em `dias_antes`.
-- Filtra apenas itens da `coordenacao_id` e do `tipo_tarefa` correspondente (tarefas: `tipo_tarefa`; audiências: tipo AUDIÊNCIA; eventos: mapear).
-- Deduplica via `historico_alertas_enviados` (não reenviar mesmo `referencia_id + canal + destinatario + data`).
-- Envia:
-  - **E-mail**: via provider já configurado no projeto.
-  - **WhatsApp**: mesma integração usada por `AlertasCoordenacaoCard` (DJEN).
-- Grava sucesso/falha em `historico_alertas_enviados`.
-- Cron via `pg_cron` + `pg_net` chamando a function 1x ao dia.
-
-## 6) Datas sempre visíveis no Kanban
-
-- `AudienciasKanbanBoard` / `AudienciaKanbanCard`: mover `data_audiencia` (formatada `dd/MM/yyyy HH:mm`) para linha fixa abaixo do título — não em tooltip nem em hover.
-- Mesma alteração no Kanban de Prazos Fatais (`PrazosFataisKanban`) e no TST Kanban se aplicável: badge com data sempre visível.
-
-## Detalhes técnicos
-
-- Types: usar constantes já existentes (`TIPOS_TAREFA`, `TIPOS_TAREFA_LABELS`).
-- RLS: policies iguais ao padrão de `alertas_coordenacao_djen` (membros da coordenação + admin).
-- Sem quebra de schema em tabelas existentes; só uma nova tabela.
-- Frontend usa `useMutation` com `await queryClient.invalidateQueries` antes de fechar modais (padrão do projeto).
-- Componente `<TratadoCheck size="sm" />` em `src/components/shared/`.
-
-## Ordem de execução
-
-1. Migration da nova tabela + GRANTS + RLS.
-2. `<TratadoCheck />` e integração nos cards/listas/calendário do Painel (item 1).
-3. Hook `useCoordenacaoPadraoUsuario` + aplicação nos forms (item 2).
-4. Filtro por tipo em Prazos Fatais (item 3).
-5. Datas visíveis nos Kanbans (item 6).
-6. Dialog `ConfigAlertasEnvioDialog` + botão em `Coordenacoes` (item 4).
-7. Edge function `enviar-alertas-tarefas` + cron (item 5).
+## Permissão
+Rota protegida por `AdminRoute` (admin ou coordenador), consistente com o restante do Admin TST.
