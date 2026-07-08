@@ -4,15 +4,16 @@
 // infraestrutura genérica (proxyPool -> djenFetch) para chamar a API PJE
 // Comunica por número de processo em uma lista de tribunais e período.
 
-const { djenFetch } = require("../proxyPool");
+const { djenFetchSlot, loadPool } = require("../proxyPool");
 
 const TIPO_ENGINE = "busca_publicacao_servidor";
-const ENGINE_VERSION = "2026-07-08-busca-publicacao-v1";
+const ENGINE_VERSION = "2026-07-08-busca-publicacao-v2-parallel";
 
 const PAGE_DELAY_MS = Math.max(0, Number(process.env.BUSCA_PUBL_PAGE_DELAY_MS || 300));
-const PROC_DELAY_MS = Math.max(0, Number(process.env.BUSCA_PUBL_PROC_DELAY_MS || 200));
-const PROGRESS_EVERY = Math.max(1, Number(process.env.BUSCA_PUBL_PROGRESS_EVERY || 3));
+const TASK_DELAY_MS = Math.max(0, Number(process.env.BUSCA_PUBL_TASK_DELAY_MS || 100));
+const PROGRESS_EVERY_MS = Math.max(500, Number(process.env.BUSCA_PUBL_PROGRESS_MS || 1500));
 const INSERT_BATCH = 200;
+const MAX_ITENS_LOG = 200;
 
 const delay = (ms, signal) => new Promise((resolve) => {
   if (!ms || ms <= 0 || signal?.aborted) return resolve();
@@ -83,7 +84,7 @@ function hashConteudo(processoDig, disp, conteudo) {
   return `h${(h >>> 0).toString(36)}`;
 }
 
-async function buscarPaginado(sb, params, signal) {
+async function buscarPaginado(slot, params, signal) {
   const all = [];
   const seen = new Set();
   const EMPTY_STREAK_LIMIT = 2;
@@ -106,7 +107,7 @@ async function buscarPaginado(sb, params, signal) {
     let out;
     let lastErr;
     for (let attempt = 0; attempt < 4; attempt++) {
-      out = await djenFetch(sb, query, signal).catch((e) => { lastErr = e; return null; });
+      out = await djenFetchSlot(slot, query, signal).catch((e) => { lastErr = e; return null; });
       if (out && out.status !== 429 && out.status < 500) break;
       await delay(out?.status === 429 ? 8000 * (attempt + 1) : 3000 * (attempt + 1), signal);
     }
@@ -162,6 +163,11 @@ async function run({ sb, payload, log, job }) {
     return { ok: false, engine: TIPO_ENGINE, version: ENGINE_VERSION, motivo: "payload_invalido" };
   }
 
+  const slots = await loadPool(sb);
+  if (!slots || slots.length === 0) {
+    return { ok: false, engine: TIPO_ENGINE, version: ENGINE_VERSION, motivo: "sem_vps_ativas" };
+  }
+
   // Polling leve para cancelamento (status='cancelado' na execucoes_servidor)
   const cancelChecker = setInterval(async () => {
     try {
@@ -175,9 +181,20 @@ async function run({ sb, payload, log, job }) {
   }, 5000);
 
   const totalProcessos = processos.length;
+  const totalTribunais = tribunais.length;
+  const totalTarefas = totalProcessos * totalTribunais;
+  let tarefasFeitas = 0;
   let processados = 0;
   let totalPublicacoes = 0;
+  let erros = 0;
   const bufferInsert = [];
+  const itensLog = []; // últimos eventos concluídos por (proc,tribunal)
+  const atualPorVia = new Map(); // slot.label -> { processo, tribunal, iniciado_em }
+  // Contador por processo (quantos tribunais restam) para marcar processados
+  const restanteProc = new Map();
+  for (const p of processos) {
+    restanteProc.set(String(p?.processo_digitos || ""), totalTribunais);
+  }
 
   const flushBuffer = async () => {
     if (bufferInsert.length === 0) return;
@@ -189,13 +206,20 @@ async function run({ sb, payload, log, job }) {
   };
 
   const atualizarProgresso = async (extra = {}) => {
+    const vias = Array.from(atualPorVia.entries()).map(([label, v]) => ({ label, ...v }));
     const progresso = {
       engine: TIPO_ENGINE,
       version: ENGINE_VERSION,
       total_processos: totalProcessos,
       processados,
       total_publicacoes: totalPublicacoes,
-      tribunais_count: tribunais.length,
+      tribunais_count: totalTribunais,
+      total_tarefas: totalTarefas,
+      tarefas_feitas: tarefasFeitas,
+      erros,
+      vps_ativas: slots.length,
+      vias,
+      itens: itensLog.slice(-MAX_ITENS_LOG),
       data_inicio: dataInicio,
       data_fim: dataFim,
       ...extra,
@@ -211,18 +235,44 @@ async function run({ sb, payload, log, job }) {
   };
 
   await atualizarProgresso();
+  // Throttle de progresso para não sobrecarregar o postgres
+  let lastProgressAt = 0;
+  const marcarProgressoTalvez = async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastProgressAt < PROGRESS_EVERY_MS) return;
+    lastProgressAt = now;
+    await atualizarProgresso();
+  };
+
+  // Fila de tarefas (processo × tribunal)
+  const fila = [];
+  for (const proc of processos) {
+    const digitos = String(proc?.processo_digitos || "").replace(/\D/g, "");
+    const original = String(proc?.processo_original || proc?.processo || digitos || "");
+    if (!digitos) {
+      // Já contabiliza como processado; nada para pesquisar.
+      processados++;
+      tarefasFeitas += totalTribunais;
+      restanteProc.delete("");
+      continue;
+    }
+    for (const tribunal of tribunais) {
+      fila.push({ digitos, original, tribunal });
+    }
+  }
+
+  let cursor = 0;
+  const nextTask = () => (cursor < fila.length ? fila[cursor++] : null);
 
   try {
-    for (const proc of processos) {
-      if (signal.aborted) break;
-      const digitos = String(proc?.processo_digitos || "").replace(/\D/g, "");
-      const original = String(proc?.processo_original || proc?.processo || digitos || "");
-      if (!digitos) {
-        processados++;
-        continue;
-      }
-      for (const tribunal of tribunais) {
-        if (signal.aborted) break;
+    // Um worker por VPS ativa
+    const worker = async (slot) => {
+      const via = slot.label || slot.id;
+      while (!signal.aborted) {
+        const task = nextTask();
+        if (!task) break;
+        const { digitos, original, tribunal } = task;
+        atualPorVia.set(via, { processo: original, tribunal, iniciado_em: new Date().toISOString() });
         const params = {
           numeroProcesso: digitos,
           siglaTribunal: tribunal,
@@ -230,12 +280,17 @@ async function run({ sb, payload, log, job }) {
           dataDisponibilizacaoFim: dataFim,
         };
         let items = [];
+        let taskStatus = "concluido";
+        let taskErro = null;
         try {
-          items = await buscarPaginado(sb, params, signal);
+          items = await buscarPaginado(slot, params, signal);
         } catch (e) {
-          log("busca_publicacao_page_error", { processo: digitos, tribunal, e: e.message });
-          continue;
+          taskStatus = "erro";
+          taskErro = e.message;
+          erros += 1;
+          log("busca_publicacao_page_error", { processo: digitos, tribunal, via, e: e.message });
         }
+        let novasNesta = 0;
         for (const it of items) {
           const idDjen = getIdDjen(it);
           const dispRaw = getDataDisponibilizacao(it);
@@ -259,16 +314,29 @@ async function run({ sb, payload, log, job }) {
             dedupe_key: dedupe,
           });
           totalPublicacoes++;
+          novasNesta++;
           if (bufferInsert.length >= INSERT_BATCH) await flushBuffer();
         }
-        if (PROC_DELAY_MS > 0) await delay(PROC_DELAY_MS, signal);
+        tarefasFeitas += 1;
+        const restantes = (restanteProc.get(digitos) || 0) - 1;
+        restanteProc.set(digitos, restantes);
+        if (restantes <= 0) processados += 1;
+        itensLog.push({
+          id: `${digitos}-${tribunal}-${Date.now()}`,
+          label: `${original} · ${tribunal}`,
+          via,
+          status: taskStatus,
+          novas: novasNesta,
+          mensagem: taskErro,
+        });
+        if (itensLog.length > MAX_ITENS_LOG) itensLog.splice(0, itensLog.length - MAX_ITENS_LOG);
+        await marcarProgressoTalvez();
+        if (TASK_DELAY_MS > 0) await delay(TASK_DELAY_MS, signal);
       }
-      processados++;
-      if (processados % PROGRESS_EVERY === 0) {
-        await flushBuffer();
-        await atualizarProgresso();
-      }
-    }
+      atualPorVia.delete(via);
+    };
+
+    await Promise.all(slots.map((s) => worker(s)));
 
     await flushBuffer();
     await atualizarProgresso();
@@ -280,6 +348,8 @@ async function run({ sb, payload, log, job }) {
       total_processos: totalProcessos,
       processados,
       total_publicacoes: totalPublicacoes,
+      erros,
+      vps_utilizadas: slots.length,
       cancelado: signal.aborted,
     };
   } finally {
