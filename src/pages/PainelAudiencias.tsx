@@ -30,14 +30,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import { cn } from "@/lib/utils";
 
-interface PainelAudienciasProps { embedded?: boolean }
-export default function PainelAudiencias({ embedded = false }: PainelAudienciasProps = {}) {
+interface PainelAudienciasProps {
+  embedded?: boolean;
+  statusFilter?: string;
+  onStatusFilterChange?: (v: string) => void;
+}
+export default function PainelAudiencias({ embedded = false, statusFilter: statusFilterProp, onStatusFilterChange }: PainelAudienciasProps = {}) {
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("todos");
+  const [statusFilterLocal, setStatusFilterLocal] = useState("todos");
+  const statusFilter = statusFilterProp ?? statusFilterLocal;
+  const setStatusFilter = onStatusFilterChange ?? setStatusFilterLocal;
+  const statusFilterControlled = statusFilterProp !== undefined;
   const [coordenacaoFilter, setCoordenacaoFilter] = useState<string | null>(null);
   const [selectedAudiencia, setSelectedAudiencia] = useState<AudienciaDetectada | null>(null);
   const [editingAudiencia, setEditingAudiencia] = useState<AudienciaDetectada | null>(null);
@@ -228,7 +235,7 @@ export default function PainelAudiencias({ embedded = false }: PainelAudienciasP
               )}
             </>
           )}
-          {activeTab === "lista" && (
+          {activeTab === "lista" && !statusFilterControlled && (
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[180px] h-9">
                 <SelectValue placeholder="Situação" />

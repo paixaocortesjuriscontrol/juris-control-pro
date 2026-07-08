@@ -114,6 +114,7 @@ export default function PainelControle() {
   const [prazoEditando, setPrazoEditando] = useState<any | null>(null);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
   const [somenteHoje, setSomenteHoje] = useState(false);
+  const [situacaoFilter, setSituacaoFilter] = useState<string>("todos");
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
 
@@ -755,9 +756,14 @@ export default function PainelControle() {
         if (d !== hoje_str) return false;
       }
 
+      // Filtro rápido de Situação (global)
+      if (situacaoFilter && situacaoFilter !== "todos") {
+        if ((item.status ?? "").toLowerCase() !== situacaoFilter) return false;
+      }
+
       return true;
     });
-  }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str]);
+  }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter]);
 
   // Mapa de itens por dia (chave: "YYYY-MM-DD")
   // Concluídas aparecem no final de cada dia, pendentes primeiro
@@ -938,6 +944,20 @@ export default function PainelControle() {
             >
               Somente Hoje
             </Button>
+            <Select value={situacaoFilter} onValueChange={setSituacaoFilter}>
+              <SelectTrigger className="h-7 w-[160px] text-xs" title="Filtrar por situação">
+                <SelectValue placeholder="Situação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="pendente">⏳ Pendentes</SelectItem>
+                <SelectItem value="confirmado">✅ Confirmados</SelectItem>
+                <SelectItem value="reagendado">🔄 Reagendados</SelectItem>
+                <SelectItem value="tratado">✔️ Tratados</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelados</SelectItem>
+                <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
+              </SelectContent>
+            </Select>
             {/* Filtro de coordenação para admin no modo escritório - desktop inline */}
             {isAdmin && tabMode === "escritorio" && (
               <div className="hidden md:block">
@@ -1281,14 +1301,14 @@ export default function PainelControle() {
               const c = painelFiltros.classificacoes;
               // Se um único tipo estiver selecionado, mostra o kanban correspondente.
               if (c.length === 1 && c[0] === "prazo") return <TstPrazos embedded />;
-              if (c.length === 1 && c[0] === "audiencia") return <PainelAudiencias embedded />;
+              if (c.length === 1 && c[0] === "audiencia") return <PainelAudiencias embedded statusFilter={situacaoFilter} onStatusFilterChange={setSituacaoFilter} />;
               // Default: audiências (kanban principal). Usuário troca o tipo pelos chips.
-              return <PainelAudiencias embedded />;
+              return <PainelAudiencias embedded statusFilter={situacaoFilter} onStatusFilterChange={setSituacaoFilter} />;
             })()}
           </div>
         ) : viewMode === "audiencias" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
-            <PainelAudiencias embedded />
+            <PainelAudiencias embedded statusFilter={situacaoFilter} onStatusFilterChange={setSituacaoFilter} />
           </div>
         ) : viewMode === "notificacoes" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
