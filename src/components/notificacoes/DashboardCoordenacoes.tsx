@@ -332,18 +332,16 @@ export function DashboardCoordenacoes({
           </Badge>
         </div>
 
-        <div className={cn(
-          "grid gap-4",
-          selectedCoordConfig
-            ? "grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px]"
-            : ""
-        )}>
-          <div className={cn(
-            "grid grid-cols-1 gap-3 md:gap-4",
-            selectedCoordConfig
-              ? "sm:grid-cols-2"
-              : "sm:grid-cols-2 lg:grid-cols-3"
-          )}>
+        <div className="space-y-4">
+          {selectedCoordConfig && (
+            <ConfigAlertasCoordenacaoPanel
+              key={selectedCoordConfig.id}
+              coordenacaoId={selectedCoordConfig.id}
+              coordenacaoNome={selectedCoordConfig.nome}
+              onClose={() => setSelectedCoordConfig(null)}
+            />
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
             {coordenacoesStats.map((coord) => (
               <Card
                 key={coord.id}
@@ -605,17 +603,6 @@ export function DashboardCoordenacoes({
               </div>
             )}
           </div>
-
-          {selectedCoordConfig && (
-            <div className="xl:sticky xl:top-4 xl:self-start">
-              <ConfigAlertasCoordenacaoPanel
-                key={selectedCoordConfig.id}
-                coordenacaoId={selectedCoordConfig.id}
-                coordenacaoNome={selectedCoordConfig.nome}
-                onClose={() => setSelectedCoordConfig(null)}
-              />
-            </div>
-          )}
         </div>
     </div>
   );
