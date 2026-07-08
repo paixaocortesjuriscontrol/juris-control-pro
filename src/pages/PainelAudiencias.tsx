@@ -13,6 +13,7 @@ import { useAudienciasDetectadas, AudienciaDetectada } from "@/hooks/useAudienci
 import { useExportarAudiencias } from "@/hooks/useExportarAudiencias";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { format, parseISO, isValid, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -33,6 +34,7 @@ interface PainelAudienciasProps { embedded?: boolean }
 export default function PainelAudiencias({ embedded = false }: PainelAudienciasProps = {}) {
   const isMobile = useIsMobile();
   const { user } = useAuth();
+  const { isAdmin } = useUserRole();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
@@ -195,24 +197,18 @@ export default function PainelAudiencias({ embedded = false }: PainelAudienciasP
   const body = (
     <>
     <Tabs defaultValue="lista" className="space-y-6">
-        <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="lista" className="gap-2">
-            <Calendar className="h-4 w-4" />
-            Lista de Audiências
-          </TabsTrigger>
-          <TabsTrigger value="cadastro" className="gap-2">
-            <Plus className="h-4 w-4" />
-            Cadastrar Audiência
-          </TabsTrigger>
-          <TabsTrigger value="relatorio" className="gap-2">
-            <FileSpreadsheet className="h-4 w-4" />
-            Relatório Diretoria
-          </TabsTrigger>
-          <TabsTrigger value="configuracoes" className="gap-2">
-            <Settings className="h-4 w-4" />
-            Configurações
-          </TabsTrigger>
-        </TabsList>
+        {isAdmin && (
+          <TabsList className="flex-wrap h-auto gap-1">
+            <TabsTrigger value="lista" className="gap-2">
+              <Calendar className="h-4 w-4" />
+              Lista de Audiências
+            </TabsTrigger>
+            <TabsTrigger value="relatorio" className="gap-2">
+              <FileSpreadsheet className="h-4 w-4" />
+              Relatório Diretoria
+            </TabsTrigger>
+          </TabsList>
+        )}
 
         <TabsContent value="lista" className="space-y-6">
           {/* Stats Cards */}
@@ -411,16 +407,8 @@ export default function PainelAudiencias({ embedded = false }: PainelAudienciasP
           </div>
         </TabsContent>
 
-        <TabsContent value="cadastro">
-          <CadastroAudienciaForm />
-        </TabsContent>
-
         <TabsContent value="relatorio">
           <RelatorioAudienciasDiretoria />
-        </TabsContent>
-
-        <TabsContent value="configuracoes">
-          <ConfigAlertasAudienciasTab />
         </TabsContent>
       </Tabs>
 
