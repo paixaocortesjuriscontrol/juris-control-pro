@@ -83,6 +83,7 @@ import IaResponde from "./pages/IaResponde";
 import AdminTst from "./pages/AdminTst";
 import AdminTstImportacoes from "./pages/AdminTstImportacoes";
 import AdminTstOutroEscritorio from "./pages/AdminTstOutroEscritorio";
+import BuscaPublicacao from "./pages/BuscaPublicacao";
 import DjenLocal from "./pages/DjenLocal";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 
