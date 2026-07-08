@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,6 +35,7 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
   const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
+  const [coordenacaoFiltroTouched, setCoordenacaoFiltroTouched] = useState(false);
 
   // Buscar coordenações com membros — admin vê todas; demais somente as suas
   const { data: coordenacoes = [] } = useQuery({
@@ -73,6 +74,14 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
     },
   });
 
+  useEffect(() => {
+    if (isAdmin || coordenacaoFiltroTouched || !coordenacoes.length) return;
+    const primeiraCoordenacao = coordenacoes[0]?.id;
+    if (primeiraCoordenacao && coordenacaoFiltro !== primeiraCoordenacao) {
+      setCoordenacaoFiltro(primeiraCoordenacao);
+    }
+  }, [isAdmin, coordenacaoFiltroTouched, coordenacoes, coordenacaoFiltro]);
+
   // Buscar todos os advogados ativos
   const { data: todosAdvogados = [] } = useQuery({
     queryKey: ["advogados-ativos"],
@@ -91,7 +100,7 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
   // Filtrar advogados por coordenação
   const advogadosFiltrados = useMemo(() => {
     if (coordenacaoFiltro === "todas") {
-      if (!isAdmin && coordenacoes.length > 0) {
+      if (!isAdmin) {
         const ids = new Set(coordenacoes.flatMap((c) => (c.membros || []).map((m) => m.usuario_id)));
         return todosAdvogados.filter((a) => ids.has(a.id));
       }
@@ -99,7 +108,7 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
     }
 
     const coordenacao = coordenacoes.find(c => c.id === coordenacaoFiltro);
-    if (!coordenacao) return todosAdvogados;
+    if (!coordenacao) return isAdmin ? todosAdvogados : [];
 
     const membrosIds = coordenacao.membros.map(m => m.usuario_id);
     return todosAdvogados.filter(a => membrosIds.includes(a.id));
@@ -161,7 +170,13 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
       {/* Filtro por coordenação */}
       <div className="flex items-center gap-2">
         <Filter className="h-4 w-4 text-muted-foreground" />
-        <Select value={coordenacaoFiltro} onValueChange={setCoordenacaoFiltro}>
+        <Select
+          value={coordenacaoFiltro}
+          onValueChange={(value) => {
+            setCoordenacaoFiltroTouched(true);
+            setCoordenacaoFiltro(value);
+          }}
+        >
           <SelectTrigger className="flex-1">
             <SelectValue placeholder="Filtrar por coordenação" />
           </SelectTrigger>
