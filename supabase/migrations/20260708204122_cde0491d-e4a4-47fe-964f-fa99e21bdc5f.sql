@@ -1,0 +1,2 @@
+CREATE POLICY "Autenticados inserem execucoes servidor" ON public.execucoes_servidor FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Autenticados atualizam execucoes servidor" ON public.execucoes_servidor FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
