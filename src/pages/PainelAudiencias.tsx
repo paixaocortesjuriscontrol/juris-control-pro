@@ -197,19 +197,54 @@ export default function PainelAudiencias({ embedded = false }: PainelAudienciasP
 
   const body = (
     <>
-    <Tabs defaultValue="lista" className="space-y-6">
-        {isAdmin && (
-          <TabsList className="flex-wrap h-auto gap-1">
-            <TabsTrigger value="lista" className="gap-2">
-              <Calendar className="h-4 w-4" />
-              Lista de Audiências
-            </TabsTrigger>
-            <TabsTrigger value="relatorio" className="gap-2">
-              <FileSpreadsheet className="h-4 w-4" />
-              Relatório Diretoria
-            </TabsTrigger>
-          </TabsList>
-        )}
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <div className="flex flex-wrap items-center gap-2">
+          {isAdmin && (
+            <>
+              <TabsList className="h-auto gap-1">
+                <TabsTrigger value="relatorio" className="gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Relatório Diretoria
+                </TabsTrigger>
+              </TabsList>
+              {activeTab === "relatorio" && (
+                <Button variant="ghost" size="sm" onClick={() => setActiveTab("lista")}>
+                  Voltar
+                </Button>
+              )}
+              {activeTab === "lista" && (
+                <Select value={coordenacaoFilter || "todas"} onValueChange={setCoordenacaoFilter}>
+                  <SelectTrigger className="w-[240px] h-9">
+                    <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+                    <SelectValue placeholder="Coordenação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todas">Todas as coordenações</SelectItem>
+                    {coordenacoes.map((coord) => (
+                      <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </>
+          )}
+          {activeTab === "lista" && (
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue placeholder="Situação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="pendente">⏳ Pendentes</SelectItem>
+                <SelectItem value="confirmado">✅ Confirmados</SelectItem>
+                <SelectItem value="reagendado">🔄 Reagendados</SelectItem>
+                <SelectItem value="tratado">✔️ Tratados</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelados</SelectItem>
+                <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </div>
 
         <TabsContent value="lista" className="space-y-6">
           {/* Stats Cards */}
