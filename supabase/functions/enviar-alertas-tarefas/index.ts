@@ -6,6 +6,38 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+
+async function enviarEmailResend(to: string, subject: string, texto: string): Promise<{ ok: boolean; erro?: string }> {
+  if (!RESEND_API_KEY) return { ok: false, erro: "RESEND_API_KEY não configurada" };
+  try {
+    const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111;white-space:pre-wrap">${
+      texto.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    }</div>`;
+    const resp = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "JurisControl <onboarding@resend.dev>",
+        to: [to],
+        subject,
+        html,
+      }),
+    });
+    if (!resp.ok) {
+      const t = await resp.text();
+      return { ok: false, erro: `resend ${resp.status}: ${t.slice(0,300)}` };
+    }
+    await resp.json().catch(() => null);
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, erro: String(e?.message ?? e) };
+  }
+}
+
 interface Config {
   id: string;
   coordenacao_id: string;
