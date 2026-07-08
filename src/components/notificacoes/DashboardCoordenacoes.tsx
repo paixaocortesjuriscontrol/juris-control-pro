@@ -29,7 +29,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
 import { useConfigAlertasCoordenacao } from "@/hooks/useConfigAlertasCoordenacao";
-import { ConfigAlertasCoordenacaoDialog } from "./ConfigAlertasCoordenacaoDialog";
+import { ConfigAlertasCoordenacaoPanel } from "./ConfigAlertasCoordenacaoDialog";
 import { cn } from "@/lib/utils";
 import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 import { startOfDay, parseISO, isBefore, isAfter } from "date-fns";
@@ -222,7 +222,6 @@ export function DashboardCoordenacoes({
     }));
   };
 
-  const [configDialogOpen, setConfigDialogOpen] = useState(false);
   const [selectedCoordConfig, setSelectedCoordConfig] = useState<{ id: string; nome: string } | null>(null);
 
   // Calcular estatísticas por coordenação - usando counts no banco (consistente e sem cap/timeout)
@@ -308,8 +307,7 @@ export function DashboardCoordenacoes({
   }, [coordenacoesFiltradas, countsByCoord, prazosUrgentes, tarefasPendentes, configs, matchesPeriodo, matchesSearch, membrosCoordenacao]);
 
   const handleOpenConfig = (coord: { id: string; nome: string }) => {
-    setSelectedCoordConfig(coord);
-    setConfigDialogOpen(true);
+    setSelectedCoordConfig((prev) => (prev?.id === coord.id ? null : coord));
   };
 
   if (loadingCoord || loadingRole || loadingCounts) {
@@ -323,8 +321,7 @@ export function DashboardCoordenacoes({
   }
 
   return (
-    <>
-      <div className="space-y-4">
+    <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
@@ -335,13 +332,25 @@ export function DashboardCoordenacoes({
           </Badge>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+        <div className={cn(
+          "grid gap-4",
+          selectedCoordConfig
+            ? "grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px]"
+            : ""
+        )}>
+          <div className={cn(
+            "grid grid-cols-1 gap-3 md:gap-4",
+            selectedCoordConfig
+              ? "sm:grid-cols-2"
+              : "sm:grid-cols-2 lg:grid-cols-3"
+          )}>
             {coordenacoesStats.map((coord) => (
               <Card
                 key={coord.id}
                 className={cn(
                   "cursor-pointer transition-all hover:shadow-md",
                   selectedCoordenacaoId === coord.id && "ring-2 ring-primary",
+                  selectedCoordConfig?.id === coord.id && "ring-2 ring-primary",
                   coord.total > 0 && coord.total <= 5 && "border-amber-500/50",
                   coord.total > 5 && "border-red-500/50"
                 )}
@@ -596,16 +605,18 @@ export function DashboardCoordenacoes({
               </div>
             )}
           </div>
-      </div>
 
-      {selectedCoordConfig && (
-        <ConfigAlertasCoordenacaoDialog
-          open={configDialogOpen}
-          onOpenChange={setConfigDialogOpen}
-          coordenacaoId={selectedCoordConfig.id}
-          coordenacaoNome={selectedCoordConfig.nome}
-        />
-      )}
-    </>
+          {selectedCoordConfig && (
+            <div className="xl:sticky xl:top-4 xl:self-start">
+              <ConfigAlertasCoordenacaoPanel
+                key={selectedCoordConfig.id}
+                coordenacaoId={selectedCoordConfig.id}
+                coordenacaoNome={selectedCoordConfig.nome}
+                onClose={() => setSelectedCoordConfig(null)}
+              />
+            </div>
+          )}
+        </div>
+    </div>
   );
 }
