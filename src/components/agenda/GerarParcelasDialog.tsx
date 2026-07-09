@@ -61,7 +61,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = !!evento;
   const [situacao, setSituacao] = useState<"pendente" | "concluido" | "cancelado">("pendente");
-  const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
+  const { precisaSelecionar, unicaCoordenacaoId, coordenacoes: coordenacoesUsuario, isAdmin } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   
   const [formData, setFormData] = useState({
@@ -79,26 +79,23 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   });
   
   // Estados para busca de processo (suporta múltiplos vínculos)
-  const [coordenacaoProcessoFiltro, setCoordenacaoProcessoFiltro] = useState<string>("todas");
+  const [coordenacaoProcessoFiltro, setCoordenacaoProcessoFiltro] = useState<string>(unicaCoordenacaoId ?? "todas");
   const [processoSearch, setProcessoSearch] = useState("");
   const [processoIds, setProcessoIds] = useState<string[]>([]);
-  
+
   // Estados para participantes
-  const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
+  const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>(unicaCoordenacaoId ?? "todas");
   const [participanteSearch, setParticipanteSearch] = useState("");
 
-  // Query para buscar coordenações
-  const { data: coordenacoes } = useQuery({
-    queryKey: ["coordenacoes-parcelas"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("coordenacoes")
-        .select("id, nome")
-        .order("nome");
-      if (error) throw error;
-      return data;
-    },
-  });
+  // Coordenações visíveis para o usuário (admin vê todas; membros veem só as suas)
+  const coordenacoes = coordenacoesUsuario;
+
+  // Auto-seleção quando o usuário tem apenas uma coordenação
+  useEffect(() => {
+    if (!unicaCoordenacaoId) return;
+    setCoordenacaoProcessoFiltro((v) => (v === "todas" ? unicaCoordenacaoId : v));
+    setCoordenacaoFiltro((v) => (v === "todas" ? unicaCoordenacaoId : v));
+  }, [unicaCoordenacaoId]);
 
   // Query para buscar processos com filtro por coordenação
   const { data: processos } = useQuery({
