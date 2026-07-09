@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-q
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { startOfDay, parseISO, differenceInDays } from "date-fns";
+import { startOfDay, parseISO, differenceInDays, addDays, addMonths, addYears } from "date-fns";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
