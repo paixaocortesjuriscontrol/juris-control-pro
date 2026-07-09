@@ -386,7 +386,12 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                       if (occ >= windowStart && occ <= hardStop) ocorrencias.push(occ);
                     }
                   } else {
-                    ocorrencias.push(new Date(cursor));
+                    if (tipo === "weekdays") {
+                      const dow = cursor.getDay();
+                      if (dow !== 0 && dow !== 6) ocorrencias.push(new Date(cursor));
+                    } else {
+                      ocorrencias.push(new Date(cursor));
+                    }
                   }
                 }
                 // avança conforme a frequência
