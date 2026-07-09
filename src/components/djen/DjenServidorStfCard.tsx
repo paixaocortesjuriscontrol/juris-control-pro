@@ -1,6 +1,6 @@
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Landmark, Loader2, PlayCircle, StopCircle, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Landmark, Loader2, PlayCircle, StopCircle, Clock, CheckCircle2, XCircle, Server } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import {
   useConfiguracoesServidor,
   useEnfileirarManual,
   useExecucaoServidorAoVivo,
+  type ProgressoItem,
 } from "@/hooks/useDjenServidor";
 import { HorariosDoDiaPicker } from "@/components/djen/HorariosDoDiaPicker";
 import { DiasSemanaPicker, DIAS_SEMANA_DEFAULT } from "@/components/djen/DiasSemanaPicker";
@@ -29,6 +30,25 @@ const STATUS_LABEL: Record<string, { label: string; cls: string; icon: JSX.Eleme
   erro: { label: "Erro", cls: "text-destructive bg-destructive/10", icon: <XCircle className="h-4 w-4" /> },
   idle: { label: "Aguardando", cls: "text-muted-foreground bg-muted/50", icon: <Clock className="h-4 w-4" /> },
 };
+
+const TRACK_COLORS: Record<string, string> = {
+  pendente: "bg-muted/50 text-muted-foreground border-border",
+  executando: "bg-[hsl(var(--area-civil))]/15 text-[hsl(var(--area-civil))] border-[hsl(var(--area-civil))]/30",
+  concluido: "bg-muted/60 text-muted-foreground border-border",
+  concluido_com_resultado: "bg-[hsl(var(--status-active))]/15 text-[hsl(var(--status-active))] border-[hsl(var(--status-active))]/30",
+  erro: "bg-destructive/15 text-destructive border-destructive/30",
+  cancelado: "bg-amber-500/15 text-amber-700 border-amber-500/30",
+};
+
+function statusPct(item: ProgressoItem): number {
+  if (typeof item.current === "number" && typeof item.total === "number" && item.total > 0) {
+    return Math.min(100, Math.round((item.current / item.total) * 100));
+  }
+  if (item.status === "concluido") return 100;
+  if (item.status === "erro" || item.status === "cancelado") return 100;
+  if (item.status === "executando") return 50;
+  return 0;
+}
 
 export function DjenServidorStfCard() {
   const { data: configs = [], toggle, updateConfig } = useConfiguracoesServidor();
@@ -79,8 +99,13 @@ export function DjenServidorStfCard() {
   const isRunning = execStatus === "pendente" || execStatus === "executando";
   const statusCfg = STATUS_LABEL[execStatus] || STATUS_LABEL.idle;
   const progress = exec?.progresso as any;
-  const total = progress?.totalItens ?? 0;
-  const done = progress?.concluidos ?? 0;
+  const tracks = ((progress?.itens || []) as ProgressoItem[]).map((t) =>
+    execStatus === "cancelado" && (t.status === "executando" || t.status === "pendente")
+      ? { ...t, status: "cancelado" as const, mensagem: "Cancelado pelo usuário" }
+      : t
+  );
+  const total = progress?.totalItens ?? tracks.length;
+  const done = progress?.concluidos ?? tracks.filter((t) => ["concluido", "erro", "cancelado"].includes(t.status)).length;
   const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
   const novas = Number(progress?.novas ?? exec?.resultado?.novas ?? 0);
   const descartadas = Number(progress?.descartadas ?? exec?.resultado?.descartadas ?? 0);
@@ -162,6 +187,43 @@ export function DjenServidorStfCard() {
               <div className="rounded bg-emerald-500/10 text-emerald-700 px-2 py-1 text-center">Novas: <strong>{novas}</strong></div>
               <div className="rounded bg-amber-500/10 text-amber-700 px-2 py-1 text-center">Descartadas: <strong>{descartadas}</strong></div>
               <div className="rounded bg-muted px-2 py-1 text-center">Duplicatas: <strong>{duplicatas}</strong></div>
+            </div>
+          </div>
+        )}
+
+        {tracks.length > 0 && (
+          <div className="max-h-[1200px] overflow-y-auto pr-1">
+            <h4 className="text-sm font-semibold sticky top-0 bg-card py-1 z-10">Monitoramentos ({tracks.length})</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+              {tracks.map((track) => {
+                const p = statusPct(track);
+                const hasAchados = (track.novas || 0) > 0 || (track.duplicatas || 0) > 0;
+                const key = track.status === "concluido" && hasAchados ? "concluido_com_resultado" : track.status;
+                const cls = TRACK_COLORS[key] || TRACK_COLORS.pendente;
+                return (
+                  <div key={track.id} className={cn("border rounded-md p-2 space-y-1", cls)}>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono font-bold text-xs">STF</span>
+                        {track.tipo && <Badge variant="outline" className="text-xs capitalize">{track.tipo}</Badge>}
+                        <Badge variant="outline" className="text-xs capitalize">{track.status}</Badge>
+                        <span className="text-[11px] truncate max-w-[38ch] opacity-80" title={track.label}>{track.label}</span>
+                        {track.status === "executando" && <Loader2 className="h-3 w-3 animate-spin" />}
+                        <Badge variant="outline" className="text-[10px] gap-1 font-mono border-primary/50 text-primary bg-primary/10">
+                          <Server className="h-3 w-3" /> VPS
+                        </Badge>
+                      </div>
+                      <div className="text-xs tabular-nums whitespace-nowrap">{track.current ?? (p === 100 ? 1 : 0)}/{track.total ?? 1} • {p}%</div>
+                    </div>
+                    <Progress value={p} className="h-1.5" />
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="truncate flex-1 opacity-80">{track.mensagem || "—"}</span>
+                      <span className="whitespace-nowrap tabular-nums opacity-80">✅{track.novas || 0} ♻️{track.duplicatas || 0} ❌{track.descartadas || 0}</span>
+                    </div>
+                    {track.erro && <p className="text-xs text-destructive italic">⚠ {track.erro}</p>}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
