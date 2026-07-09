@@ -356,13 +356,20 @@ function passaValidacao(mon, pub) {
     const pDigitos = String(processo).replace(/\D/g, "");
     match = digitos.length >= 15 && pDigitos.includes(digitos);
   } else {
-    match = contemFrase(texto, termoPrincipal);
+    // A busca pública do STF não é frase-exata: para termos com várias palavras
+    // ela devolve documentos onde todas aparecem, mesmo separadas (ex. hospitais,
+    // clínicas, agência/estado). Portanto a validação STF precisa aceitar esse
+    // mesmo critério para não descartar tudo que o próprio STF retornou.
+    match = contemTermoStf(texto, termoPrincipal, { fallbackTodasPalavras: true });
   }
 
   // Termos OR: se houver, basta 1 match (incluindo o principal)
   const termosOr = Array.isArray(mon.termos_or) ? mon.termos_or.filter(Boolean) : [];
   if (!match && termosOr.length > 0) {
-    match = termosOr.some((t) => contemFrase(texto, t));
+    match = termosOr.some((t) => {
+      const parsed = parsearTermoOr(t);
+      return contemTermoStf(texto, parsed?.nome || t, { fallbackTodasPalavras: true });
+    });
   }
   if (!match) return { ok: false, motivo: "sem_match" };
 
@@ -377,7 +384,7 @@ function passaValidacao(mon, pub) {
   if (cond) {
     const partes = cond.split("|").map((s) => s.trim()).filter(Boolean);
     for (const p of partes) {
-      if (!contemFrase(texto, p)) return { ok: false, motivo: `sem concomitante: ${p}` };
+      if (!contemTermoStf(texto, p, { fallbackTodasPalavras: true })) return { ok: false, motivo: `sem concomitante: ${p}` };
     }
   }
 
