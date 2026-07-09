@@ -495,46 +495,6 @@ export default function PainelControle() {
     staleTime: 30000,
   });
 
-  // IDs dos processos das coordenações do usuário (para filtrar intimações e andamentos)
-  const { data: processosIds = [] } = useQuery({
-    queryKey: ["painel-controle-processos-ids", tabMode, coordenacoesUsuario, isAdmin, adminCoordFilter],
-    queryFn: async () => {
-      if (!user?.id) return [];
-
-      // Escritório: admin vê tudo ou filtra por coordenação selecionada
-      if (tabMode === "escritorio") {
-        if (isAdmin) {
-          if (adminCoordFilter !== "todas") {
-            const { data } = await supabase
-              .from("processos")
-              .select("id")
-              .eq("coordenacao_id", adminCoordFilter);
-            return (data || []).map((p) => p.id);
-          }
-          return []; // sem filtro
-        }
-
-        // Coordenador/usuário: filtra pelas coordenações vinculadas
-        if (coordenacoesUsuario.length > 0) {
-          const { data } = await supabase
-            .from("processos")
-            .select("id")
-            .in("coordenacao_id", coordenacoesUsuario);
-          return (data || []).map((p) => p.id);
-        }
-        return [];
-      }
-
-      // Pessoal: processos onde é responsável
-      const { data } = await supabase
-        .from("processos")
-        .select("id")
-        .eq("advogado_responsavel_id", user.id);
-      return (data || []).map((p) => p.id);
-    },
-    enabled: !!user?.id,
-  });
-
   // ===== CARDS DE RESUMO — usa resumoStats (query direta sem limite de página) =====
   const resumo = useMemo(() => {
     const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
