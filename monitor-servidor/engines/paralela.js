@@ -1766,6 +1766,11 @@ async function run({ sb, payload, log, job }) {
   }
   let bandAtual = 0;
   const inBand = [0, 0, 0, 0];
+  // Circuit breaker STF (por execução): se STF acumular 5xx, abre e pula
+  // as demais units STF em vez de gastar 90-180s cada em erro.
+  const STF_5XX_LIMIT = 3;
+  let stfErros5xx = 0;
+  let stfCircuitOpen = false;
   const pickNext = () => {
     // Bandas 0/1/2: sem trava entre si, workers livres avançam.
     for (let b = 0; b < 3; b++) {
@@ -1806,6 +1811,14 @@ async function run({ sb, payload, log, job }) {
           await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key).catch(() => {});
           continue;
         }
+        // STF: PJE Comunica devolve HTTP 500 sistematicamente para STF.
+        // Refilar STF apenas repete o loop de erro em toda execução.
+        // Marca como resolvido e NÃO injeta unit de retry.
+        if (String(tribunal || "").toUpperCase() === "STF") {
+          await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key).catch(() => {});
+          log("paralela.retry_stf_ignorada", { tribunal, monId, dia });
+          continue;
+        }
         const syntheticItem = {
           id: `retry|${tribunal}|${monId}|${dia}`,
           label: `RETRY ${mon.descricao || mon.termo_busca || tribunal}`,
@@ -1837,6 +1850,16 @@ async function run({ sb, payload, log, job }) {
 
   const processUnit = async (unit, slot) => {
     const item = unit.item;
+    // Circuit breaker STF: se já acumulamos 5xx suficientes de STF nesta
+    // execução, todas as próximas units STF viram no-op (concluídas com
+    // mensagem informativa). Evita ocupar VPS por 90-180s cada em erro.
+    if (stfCircuitOpen && String(item.tribunal || "").toUpperCase() === "STF") {
+      item.status = "concluido";
+      item.current = item.total;
+      item.mensagem = "STF indisponível (HTTP 500 persistente na PJE Comunica) — pulado";
+      await flushProgresso();
+      return;
+    }
     item.status = "executando";
     item.via = { id: slot.id, label: slot.label || slot.url };
     item.mensagem = `${item.tribunal}: processando via ${item.via.label}`;
@@ -1919,6 +1942,23 @@ async function run({ sb, payload, log, job }) {
             }
           } catch (e) {
             if (cancelled || signal.aborted || String(e?.message || e).includes("cancel")) throw e;
+            const errMsg = String(e?.message || e || "");
+            const is5xx = /HTTP\s*5\d\d/.test(errMsg) || /Falha ao consultar VPS/.test(errMsg);
+            const isStf = String(item.tribunal || "").toUpperCase() === "STF";
+            if (isStf && is5xx) {
+              // Não refila STF em 5xx: PJE Comunica devolve 500 sistemático
+              // para STF; refilar apenas gera o loop de RETRY visível ao user.
+              stfErros5xx += 1;
+              if (!stfCircuitOpen && stfErros5xx >= STF_5XX_LIMIT) {
+                stfCircuitOpen = true;
+                log("paralela.stf_circuit_open", { erros_5xx: stfErros5xx, limite: STF_5XX_LIMIT });
+              }
+              item.erro = errMsg.slice(0, 500);
+              log("paralela.par_error", { tribunal: item.tribunal, monId, dia, e: item.erro, skipRefila: true });
+              item.current += 1;
+              await flushProgresso();
+              continue;
+            }
             await recordFalha(sb, {
               tipo: TIPO_ENGINE,
               execucaoId: job?.id || null,
