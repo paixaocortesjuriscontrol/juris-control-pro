@@ -93,14 +93,28 @@ function normalize(s: string): string {
 function collapseLetterSpacing(s: string): string {
   if (!s) return s;
   let out = s;
-  // Junta pontuação típica de CNJ ("- 61" → "-61", "2011 . 5" → "2011.5")
-  out = out.replace(/(\d)\s*([.\-])\s*(\d)/g, "$1$2$3");
-  // Colapsa sequências de tokens de 1 char alfanumérico separados por espaço
-  // exigindo pelo menos 3 tokens (para não juntar "a b" acidentalmente).
-  out = out.replace(
-    /(?:\b[A-Za-z0-9]\b)(?:\s+\b[A-Za-z0-9]\b){2,}/g,
-    (m) => m.replace(/\s+/g, ""),
+  const LETRA = "A-Za-zÀ-ÖØ-öø-ÿ0-9";
+  // 1) Runs de 3+ letras/dígitos isolados separados por 1 espaço
+  //    ("o s m a r" → "osmar", "p o d e r ã o" → "poderão", "0 0 0 0 0 3 9" → "0000039").
+  //    Preserva múltiplos espaços entre palavras.
+  const runLetras = new RegExp(
+    `(?<![${LETRA}])[${LETRA}](?: [${LETRA}](?![${LETRA}])){2,}`,
+    "g",
   );
+  // 2) Runs de 2+ dígitos isolados ("6 1" → "61", "0 5" → "05").
+  const runDigitos = /(?<!\d)\d(?: \d(?!\d))+/g;
+  // 3) Pontuação de CNJ entre dígitos com pelo menos um espaço vizinho
+  //    ("39 - 6" → "39-6", "2011 . 5" → "2011.5", "5 . 05" → "5.05").
+  //    Exige pelo menos 1 espaço em algum lado para NÃO tocar CNPJ/valores
+  //    já bem-formados como "1.5".
+  const punctCnj = /(\d)(?:\s+([.\-])\s*|\s*([.\-])\s+)(\d)/g;
+  for (let i = 0; i < 6; i++) {
+    const prev = out;
+    out = out.replace(runLetras, (m) => m.replace(/ /g, ""));
+    out = out.replace(runDigitos, (m) => m.replace(/ /g, ""));
+    out = out.replace(punctCnj, (_m, a, b, c, d) => `${a}${b || c}${d}`);
+    if (out === prev) break;
+  }
   return out;
 }
 
