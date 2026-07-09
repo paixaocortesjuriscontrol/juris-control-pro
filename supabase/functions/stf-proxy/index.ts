@@ -74,11 +74,16 @@ async function ensureCsrf(force = false) {
     r = await fetch(`${STF_BASE}/ultimo-dje`, { method: 'GET', headers: STF_HEADERS_BROWSER });
   } catch (e) {
     console.log(`[stf-proxy] csrf fetch nativo falhou: ${(e as Error).message}, tentando undici...`);
-    r = await undiciFetch(`${STF_BASE}/ultimo-dje`, {
-      method: 'GET',
-      headers: STF_HEADERS_BROWSER,
-      dispatcher: insecureAgent,
-    }) as unknown as Response;
+    try {
+      r = await undiciFetch(`${STF_BASE}/ultimo-dje`, {
+        method: 'GET',
+        headers: STF_HEADERS_BROWSER,
+        dispatcher: insecureAgent,
+      }) as unknown as Response;
+    } catch (u) {
+      console.log(`[stf-proxy] csrf undici falhou: ${(u as any)?.stack || (u as Error).message}`);
+      throw u;
+    }
   }
   await r.text();
   mergeSessionCookies(r.headers);
