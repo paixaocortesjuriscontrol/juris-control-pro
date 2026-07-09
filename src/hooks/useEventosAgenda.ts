@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 
 export interface EventoAgenda {
   id: string;
@@ -272,9 +273,11 @@ export function useCreateEvento() {
 
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
-      queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+      await queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      await queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
       toast.success("Evento criado com sucesso!");
     },
     onError: (error: Error) => {
@@ -347,9 +350,11 @@ export function useUpdateEvento() {
 
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
-      queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+      await queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      await queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
       toast.success("Evento atualizado!");
     },
     onError: (error: Error) => {

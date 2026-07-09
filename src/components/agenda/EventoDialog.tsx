@@ -249,6 +249,20 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
     const minutosAlerta = (alertaValor || 0) * unidadeInfo.multiplicador;
     const alertas = minutosAlerta > 0 ? [minutosAlerta] : [];
 
+    let recorrenciaFimCalculada = recorrenciaFim;
+    const numeroOcorrencias = parseInt(recorrenciaOcorrencias);
+    if (recorrenciaTipo !== "nenhuma" && numeroOcorrencias > 0 && dataInicio) {
+      const base = parseISO(dataInicio);
+      const step = Math.max(1, recorrenciaIntervalo);
+      const offset = (numeroOcorrencias - 1) * step;
+      let fim = base;
+      if (recorrenciaTipo === "daily") fim = addDays(base, offset);
+      else if (recorrenciaTipo === "weekly") fim = addWeeks(base, offset);
+      else if (recorrenciaTipo === "monthly") fim = addMonths(base, offset);
+      else if (recorrenciaTipo === "yearly") fim = addYears(base, offset);
+      recorrenciaFimCalculada = format(fim, "yyyy-MM-dd");
+    }
+
     const payload = {
       titulo: titulo.trim(),
       descricao: observacoes || undefined,
@@ -268,9 +282,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       recorrente: recorrenciaTipo !== "nenhuma",
       recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
       recorrencia_intervalo: recorrenciaTipo !== "nenhuma" ? recorrenciaIntervalo : null,
-      recorrencia_fim: recorrenciaTipo !== "nenhuma" && recorrenciaFim ? recorrenciaFim : null,
+      recorrencia_fim: recorrenciaTipo !== "nenhuma" && recorrenciaFimCalculada ? recorrenciaFimCalculada : null,
       recorrencia_rrule: recorrenciaTipo !== "nenhuma"
-        ? `FREQ=${recorrenciaTipo.toUpperCase()};INTERVAL=${recorrenciaIntervalo}${recorrenciaFim ? `;UNTIL=${recorrenciaFim.replace(/-/g, "")}T235959Z` : ""}`
+        ? `FREQ=${recorrenciaTipo.toUpperCase()};INTERVAL=${recorrenciaIntervalo}${recorrenciaFimCalculada ? `;UNTIL=${recorrenciaFimCalculada.replace(/-/g, "")}T235959Z` : ""}`
         : null,
     } as any;
 
@@ -633,7 +647,13 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs text-muted-foreground">Frequência</Label>
-                  <Select value={recorrenciaTipo} onValueChange={setRecorrenciaTipo}>
+                  <Select
+                    value={recorrenciaTipo}
+                    onValueChange={(value) => {
+                      setRecorrenciaTipo(value);
+                      setRecorrenciaIntervalo(1);
+                    }}
+                  >
                     <SelectTrigger className="mt-1">
                       <SelectValue />
                     </SelectTrigger>
@@ -648,30 +668,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                 </div>
                 {recorrenciaTipo !== "nenhuma" && (
                   <div>
-                    <Label className="text-xs text-muted-foreground">A cada</Label>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Input
-                        type="number"
-                        min={1}
-                        value={recorrenciaIntervalo}
-                        onChange={(e) => setRecorrenciaIntervalo(parseInt(e.target.value) || 1)}
-                        className="w-20"
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        {recorrenciaTipo === "daily" && "dia(s)"}
-                        {recorrenciaTipo === "weekly" && "semana(s)"}
-                        {recorrenciaTipo === "monthly" && "mês(es)"}
-                        {recorrenciaTipo === "yearly" && "ano(s)"}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-              {recorrenciaTipo !== "nenhuma" && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
                     <Label className="text-xs text-muted-foreground">
-                      Repetir por (nº de ocorrências)
+                      Quantas vezes deve aparecer?
                     </Label>
                     <Input
                       type="number"
@@ -684,8 +682,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                         const n = parseInt(v);
                         if (n && n > 0 && dataInicio) {
                           const base = parseISO(dataInicio);
-                          const step = Math.max(1, recorrenciaIntervalo);
-                          const offset = (n - 1) * step;
+                          const offset = n - 1;
                           let fim = base;
                           if (recorrenciaTipo === "daily") fim = addDays(base, offset);
                           else if (recorrenciaTipo === "weekly") fim = addWeeks(base, offset);
@@ -697,6 +694,10 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                       className="mt-1"
                     />
                   </div>
+                )}
+              </div>
+              {recorrenciaTipo !== "nenhuma" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <Label className="text-xs text-muted-foreground">Ou até a data</Label>
                     <Input
@@ -710,7 +711,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                     />
                   </div>
                   <p className="text-xs text-muted-foreground sm:col-span-2">
-                    Preencha <strong>nº de ocorrências</strong> <em>ou</em> a <strong>data final</strong>. Sem um dos dois, o evento se repete indefinidamente e só aparecerão as ocorrências dentro do intervalo visível no calendário.
+                    Ex.: para aparecer por 9 dias seguidos, escolha <strong>Diariamente</strong> e informe <strong>9</strong>.
                   </p>
                 </div>
               )}

@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-q
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { startOfDay, parseISO, differenceInDays, addDays, addMonths, addYears } from "date-fns";
+import { startOfDay, endOfDay, parseISO, differenceInDays, addDays, addMonths, addYears } from "date-fns";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -85,6 +85,15 @@ const PAGE_SIZE = 1000; // Supabase default limit
 export const AGENDA_INFINITE_QUERY_KEY = "agenda-unificada-infinite-v1" as const;
 
 const normalizeDedupText = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
+
+const normalizeRecorrenciaTipo = (tipo: string | null | undefined) => {
+  const normalized = String(tipo ?? "").toLowerCase().trim();
+  if (["daily", "diaria", "diário", "diario"].includes(normalized)) return "daily";
+  if (["weekly", "semanal"].includes(normalized)) return "weekly";
+  if (["monthly", "mensal"].includes(normalized)) return "monthly";
+  if (["yearly", "annual", "anual"].includes(normalized)) return "yearly";
+  return normalized;
+};
 
 /**
  * Alguns registros podem existir duplicados no banco (ex.: importações, DJEN, etc.).
@@ -345,14 +354,18 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             const windowStart = filters.dataInicio ?? new Date(today.getFullYear(), today.getMonth() - 1, 1);
             const windowEnd =
               filters.dataFim ?? new Date(today.getFullYear(), today.getMonth() + 3, 0, 23, 59, 59);
-            const recorrenciaFim = evento.recorrencia_fim ? parseISO(evento.recorrencia_fim) : null;
+            const recorrenciaFim = evento.recorrencia_fim
+              ? String(evento.recorrencia_fim).length <= 10
+                ? endOfDay(parseISO(evento.recorrencia_fim))
+                : parseISO(evento.recorrencia_fim)
+              : null;
             const hardStop = recorrenciaFim && recorrenciaFim < windowEnd ? recorrenciaFim : windowEnd;
 
             const ocorrencias: Date[] = [];
             if (!isRecorrente) {
               ocorrencias.push(dataOriginal);
             } else {
-              const tipo = String(evento.recorrencia_tipo).toLowerCase();
+              const tipo = normalizeRecorrenciaTipo(evento.recorrencia_tipo);
               const intervalo = Math.max(1, Number(evento.recorrencia_intervalo || 1));
               const diasSemana: number[] | null = Array.isArray(evento.recorrencia_dias_semana)
                 ? evento.recorrencia_dias_semana
@@ -364,7 +377,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
               while (cursor <= hardStop && safety < MAX) {
                 safety++;
                 if (cursor >= windowStart) {
-                  if (tipo === "semanal" && diasSemana && diasSemana.length > 0) {
+                  if (tipo === "weekly" && diasSemana && diasSemana.length > 0) {
                     // expandir os dias marcados dentro da semana do cursor
                     for (const d of diasSemana) {
                       const diff = ((d - cursor.getDay()) + 7) % 7;
@@ -376,10 +389,10 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                   }
                 }
                 // avança conforme a frequência
-                if (tipo === "diaria" || tipo === "diario") cursor = addDays(cursor, intervalo);
-                else if (tipo === "semanal") cursor = addDays(cursor, 7 * intervalo);
-                else if (tipo === "mensal") cursor = addMonths(cursor, intervalo);
-                else if (tipo === "anual") cursor = addYears(cursor, intervalo);
+                if (tipo === "daily") cursor = addDays(cursor, intervalo);
+                else if (tipo === "weekly") cursor = addDays(cursor, 7 * intervalo);
+                else if (tipo === "monthly") cursor = addMonths(cursor, intervalo);
+                else if (tipo === "yearly") cursor = addYears(cursor, intervalo);
                 else break;
               }
 
