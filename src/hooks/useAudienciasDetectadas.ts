@@ -302,8 +302,18 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
         .single();
 
       if (config && audienciaCriada) {
-        // Criar lembretes automáticos baseados na configuração
-        const lembretes = (config.lembretes_minutos || []).map((minutos: number) => ({
+        // Criar lembretes automáticos baseados na configuração global
+        const minutosSet = new Set<number>((config.lembretes_minutos || []).filter((n: any) => Number.isFinite(n) && n > 0));
+
+        // Somar o alerta digitado no form ("Alertas internos de antecedência")
+        const alertaValor = Number(novaAudiencia.alerta_valor || 0);
+        if (alertaValor > 0) {
+          const unidade = novaAudiencia.alerta_unidade || 'horas_antes';
+          const mult = unidade === 'minutos_antes' ? 1 : unidade === 'dias_antes' ? 1440 : 60;
+          minutosSet.add(alertaValor * mult);
+        }
+
+        const lembretes = Array.from(minutosSet).map((minutos) => ({
           audiencia_id: audienciaCriada.id,
           minutos_antes: minutos,
           enviado: false,
