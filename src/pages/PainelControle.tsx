@@ -388,19 +388,24 @@ export default function PainelControle() {
 
   // Eventos e Parcelamentos a partir de eventos_agenda
   const { data: eventosStats } = useQuery({
-    queryKey: ["painel-controle-eventos-stats", tabMode, hoje_str, membrosIdsParaResumo, isAdmin, adminCoordFilter],
+    queryKey: ["painel-controle-eventos-stats", tabMode, hoje_str, membrosIdsParaResumo, isAdmin, adminCoordFilter, processosIds],
     queryFn: async () => {
       const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
       if (!user?.id) return { eventos: empty, parcelamentos: empty };
       let q = supabase
         .from("eventos_agenda")
-        .select("data_inicio, tipo, status, criado_por")
+        .select("data_inicio, tipo, status, criado_por, processo_id")
         .neq("status", "cumprido");
       if (tabMode === "pessoal") {
         q = q.eq("criado_por", user.id);
       } else if (isAdmin && adminCoordFilter !== "todas") {
-        // sem filtro de coordenação direto em eventos_agenda; usa criado_por dos membros
-        if (membrosIdsParaResumo.length > 0) q = q.in("criado_por", membrosIdsParaResumo);
+        // Admin com coordenação selecionada: TODOS os eventos vinculados a
+        // processos da coordenação, independente de quem criou.
+        if (processosIds.length > 0) {
+          q = q.in("processo_id", processosIds);
+        } else {
+          return { eventos: empty, parcelamentos: empty };
+        }
       } else if (!isAdmin && membrosIdsParaResumo.length > 0) {
         q = q.in("criado_por", membrosIdsParaResumo);
       }
