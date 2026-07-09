@@ -97,11 +97,34 @@ function ymdToEpochMs(ymd, endOfDay) {
   return Date.UTC(y, m - 1, d, 3, 0, 0, 0);
 }
 
+const NAMED_ENTITIES = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", sect: "§",
+  aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
+  Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú",
+  atilde: "ã", otilde: "õ", Atilde: "Ã", Otilde: "Õ",
+  acirc: "â", ecirc: "ê", icirc: "î", ocirc: "ô", ucirc: "û",
+  Acirc: "Â", Ecirc: "Ê", Icirc: "Î", Ocirc: "Ô", Ucirc: "Û",
+  agrave: "à", Agrave: "À", uuml: "ü", Uuml: "Ü",
+  ccedil: "ç", Ccedil: "Ç", ntilde: "ñ", Ntilde: "Ñ",
+  ordf: "ª", ordm: "º", deg: "°", middot: "·", hellip: "…",
+  ldquo: '"', rdquo: '"', lsquo: "'", rsquo: "'", mdash: "—", ndash: "–",
+};
+
+function decodeLooseEntities(s) {
+  return String(s || "")
+    .replace(/&([a-zA-Z]+)\s*;?/g, (m, name) => (NAMED_ENTITIES[name] ?? m))
+    .replace(/&#(\d+)\s*;?/g, (_m, n) => { try { return String.fromCodePoint(+n); } catch { return _m; } })
+    .replace(/&#x([0-9a-fA-F]+)\s*;?/g, (_m, n) => { try { return String.fromCodePoint(parseInt(n, 16)); } catch { return _m; } });
+}
+
 function normalize(s) {
   return String(s || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[&\/\\]/g, " ")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    .replace(/[^0-9a-z\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -113,13 +136,51 @@ function contemFrase(texto, frase) {
   return t.includes(f);
 }
 
+function contemTodasPalavras(texto, termo) {
+  const t = normalize(texto);
+  const palavras = normalize(termo)
+    .split(" ")
+    .map((p) => p.trim())
+    .filter((p) => p.length >= 3);
+  if (palavras.length === 0) return false;
+  return palavras.every((p) => new RegExp(`(?:^|\\s)${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s|$)`).test(t));
+}
+
+function contemTermoStf(texto, termo, { fallbackTodasPalavras = false } = {}) {
+  return contemFrase(texto, termo) || (fallbackTodasPalavras && contemTodasPalavras(texto, termo));
+}
+
+function parsearTermoOr(raw) {
+  const t = String(raw || "").trim();
+  if (!t) return null;
+  let m = t.match(/^(\d{3,6})\s*\/\s*(.+)$/);
+  if (m) return { oabDigits: m[1], nome: m[2].trim() };
+  m = t.match(/^(.+?)\s*\/\s*(\d{3,6})$/);
+  if (m) return { oabDigits: m[2], nome: m[1].trim() };
+  const clean = t
+    .replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, "")
+    .replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, "")
+    .replace(/^Adv\.?\s*/i, "")
+    .trim();
+  return clean ? { nome: clean } : null;
+}
+
 function stripTags(html) {
-  return String(html || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return decodeLooseEntities(String(html || "")
+    .replace(/<head[\s\S]*?<\/head>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\s*\/(p|div|tr|li|h[1-6])\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, " "))
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function stringifyStfValue(value) {
   if (!value) return "";
-  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (typeof value === "string" || typeof value === "number") return stripTags(String(value));
   if (Array.isArray(value)) return value.map(stringifyStfValue).filter(Boolean).join(" ");
   if (typeof value === "object") {
     return [
@@ -295,13 +356,20 @@ function passaValidacao(mon, pub) {
     const pDigitos = String(processo).replace(/\D/g, "");
     match = digitos.length >= 15 && pDigitos.includes(digitos);
   } else {
-    match = contemFrase(texto, termoPrincipal);
+    // A busca pública do STF não é frase-exata: para termos com várias palavras
+    // ela devolve documentos onde todas aparecem, mesmo separadas (ex. hospitais,
+    // clínicas, agência/estado). Portanto a validação STF precisa aceitar esse
+    // mesmo critério para não descartar tudo que o próprio STF retornou.
+    match = contemTermoStf(texto, termoPrincipal, { fallbackTodasPalavras: true });
   }
 
   // Termos OR: se houver, basta 1 match (incluindo o principal)
   const termosOr = Array.isArray(mon.termos_or) ? mon.termos_or.filter(Boolean) : [];
   if (!match && termosOr.length > 0) {
-    match = termosOr.some((t) => contemFrase(texto, t));
+    match = termosOr.some((t) => {
+      const parsed = parsearTermoOr(t);
+      return contemTermoStf(texto, parsed?.nome || t, { fallbackTodasPalavras: true });
+    });
   }
   if (!match) return { ok: false, motivo: "sem_match" };
 
@@ -316,7 +384,7 @@ function passaValidacao(mon, pub) {
   if (cond) {
     const partes = cond.split("|").map((s) => s.trim()).filter(Boolean);
     for (const p of partes) {
-      if (!contemFrase(texto, p)) return { ok: false, motivo: `sem concomitante: ${p}` };
+      if (!contemTermoStf(texto, p, { fallbackTodasPalavras: true })) return { ok: false, motivo: `sem concomitante: ${p}` };
     }
   }
 
