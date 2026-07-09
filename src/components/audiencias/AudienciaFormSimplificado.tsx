@@ -212,6 +212,14 @@ export function AudienciaFormSimplificado({
         />
       </div>
 
+      {precisaSelecionar && (
+        <CoordenacaoSelect
+          value={coordenacaoId}
+          onChange={setCoordenacaoId}
+          required
+        />
+      )}
+
       {showProcessoField && (
         <div className="space-y-1.5">
           <Label className="text-sm">Processo</Label>
