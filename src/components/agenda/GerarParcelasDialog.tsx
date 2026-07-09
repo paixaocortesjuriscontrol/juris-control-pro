@@ -623,6 +623,13 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
 
         <div className="flex-1 overflow-y-auto px-4 sm:px-6">
           <form onSubmit={handleSubmit} className="space-y-4 pb-4">
+            {precisaSelecionar && (
+              <CoordenacaoSelect
+                value={coordenacaoId}
+                onChange={setCoordenacaoId}
+                required
+              />
+            )}
             {/* Título do Parcelamento */}
             <div>
               <Label htmlFor="titulo" className="flex items-center gap-1.5">
