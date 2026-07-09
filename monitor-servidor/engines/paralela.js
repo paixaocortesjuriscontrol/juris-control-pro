@@ -1806,6 +1806,14 @@ async function run({ sb, payload, log, job }) {
           await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key).catch(() => {});
           continue;
         }
+        // STF: PJE Comunica devolve HTTP 500 sistematicamente para STF.
+        // Refilar STF apenas repete o loop de erro em toda execução.
+        // Marca como resolvido e NÃO injeta unit de retry.
+        if (String(tribunal || "").toUpperCase() === "STF") {
+          await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key).catch(() => {});
+          log("paralela.retry_stf_ignorada", { tribunal, monId, dia });
+          continue;
+        }
         const syntheticItem = {
           id: `retry|${tribunal}|${monId}|${dia}`,
           label: `RETRY ${mon.descricao || mon.termo_busca || tribunal}`,
