@@ -73,6 +73,51 @@ function normalize(s: string): string {
     .trim();
 }
 
+/**
+ * Muitos cadernos DEJT (notoriamente TRT5, TRT1, TRT2) são gerados com
+ * "letter-spacing" no PDF, o que a extração pdfjs devolve como caracteres
+ * isolados separados por espaço:
+ *   "P E L O   A P L I C A T I V O   J T E"
+ *   "O S M A R   M E N D E S   P A I X A O"
+ *   "0 0 0 0 0 3 9 - 6 1 . 2 0 1 1 . 5 . 0 5 . 0 0 2 9"
+ *
+ * Sem tratamento, o regex de CNJ não casa (não vira sub-bloco por processo)
+ * e o match de termos falha ("o s m a r m e n d e s" ≠ "osmar mendes").
+ *
+ * Esta função:
+ *  1. Junta pontuação de CNJ que ficou separada dos dígitos por espaços
+ *     (ex.: "0000039 - 61 . 2011" → "0000039-61.2011").
+ *  2. Colapsa runs de 3+ letras/dígitos isolados separados por espaço único
+ *     ("o s m a r" → "osmar", "0 0 0 0 0 3 9" → "0000039").
+ */
+function collapseLetterSpacing(s: string): string {
+  if (!s) return s;
+  let out = s;
+  const LETRA = "A-Za-zÀ-ÖØ-öø-ÿ0-9";
+  // 1) Runs de 3+ letras/dígitos isolados separados por 1 espaço
+  //    ("o s m a r" → "osmar", "p o d e r ã o" → "poderão", "0 0 0 0 0 3 9" → "0000039").
+  //    Preserva múltiplos espaços entre palavras.
+  const runLetras = new RegExp(
+    `(?<![${LETRA}])[${LETRA}](?: [${LETRA}](?![${LETRA}])){2,}`,
+    "g",
+  );
+  // 2) Runs de 2+ dígitos isolados ("6 1" → "61", "0 5" → "05").
+  const runDigitos = /(?<!\d)\d(?: \d(?!\d))+/g;
+  // 3) Pontuação de CNJ entre dígitos com pelo menos um espaço vizinho
+  //    ("39 - 6" → "39-6", "2011 . 5" → "2011.5", "5 . 05" → "5.05").
+  //    Exige pelo menos 1 espaço em algum lado para NÃO tocar CNPJ/valores
+  //    já bem-formados como "1.5".
+  const punctCnj = /(\d)(?:\s+([.\-])\s*|\s*([.\-])\s+)(\d)/g;
+  for (let i = 0; i < 6; i++) {
+    const prev = out;
+    out = out.replace(runLetras, (m) => m.replace(/ /g, ""));
+    out = out.replace(runDigitos, (m) => m.replace(/ /g, ""));
+    out = out.replace(punctCnj, (_m, a, b, c, d) => `${a}${b || c}${d}`);
+    if (out === prev) break;
+  }
+  return out;
+}
+
 // Dedup de pautas: remove rodapé de intimados/destinatários/partes APENAS para
 // efeito de cálculo da chave de comparação. O `conteudo` gravado segue completo.
 const PAUTA_STRIP_INTIMADOS_RE = /(Intimad[ao]|Destinat[áa]rio|Advogad[ao]|Parte|Reclamante|Reclamad[ao]|Autor|R[eé]u|Requerente|Requerid[ao])\s*\(?s?\)?\s*:/i;
@@ -606,8 +651,12 @@ Deno.serve(async (req) => {
     const pageStart = Math.max(1, Number(body.pageStart) || 1);
     const pageEnd = body.pageEnd && Number(body.pageEnd) > 0 ? Number(body.pageEnd) : undefined;
 
-    const processBloco = async (bloco: string) => {
+    const processBloco = async (rawBloco: string) => {
       totalBlocos++;
+      // Alguns cadernos (TRT5, TRT1, TRT2) vêm com letter-spacing no PDF.
+      // Colapsa "O S M A R" → "OSMAR" e "0 0 0 0 0 3 9" → "0000039" antes
+      // do split por CNJ e do match de termos.
+      const bloco = collapseLetterSpacing(rawBloco);
       // Quebra o bloco em sub-blocos por processo (igual ao engine browser)
       // para casar termos individualmente por CNJ, e não no bloco inteiro.
       const subBlocos = splitBlocoByProcessos(bloco);
