@@ -89,6 +89,7 @@ const normalizeDedupText = (value: string) => value.replace(/\s+/g, " ").trim().
 const normalizeRecorrenciaTipo = (tipo: string | null | undefined) => {
   const normalized = String(tipo ?? "").toLowerCase().trim();
   if (["daily", "diaria", "diário", "diario"].includes(normalized)) return "daily";
+  if (["weekdays", "uteis", "úteis", "dias_uteis", "dias-uteis", "business", "businessdays"].includes(normalized)) return "weekdays";
   if (["weekly", "semanal"].includes(normalized)) return "weekly";
   if (["monthly", "mensal"].includes(normalized)) return "monthly";
   if (["yearly", "annual", "anual"].includes(normalized)) return "yearly";
@@ -390,6 +391,12 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                 }
                 // avança conforme a frequência
                 if (tipo === "daily") cursor = addDays(cursor, intervalo);
+                else if (tipo === "weekdays") {
+                  // Avança 1 dia por vez até cair em dia útil (Seg–Sex)
+                  do {
+                    cursor = addDays(cursor, 1);
+                  } while (cursor.getDay() === 0 || cursor.getDay() === 6);
+                }
                 else if (tipo === "weekly") cursor = addDays(cursor, 7 * intervalo);
                 else if (tipo === "monthly") cursor = addMonths(cursor, intervalo);
                 else if (tipo === "yearly") cursor = addYears(cursor, intervalo);
