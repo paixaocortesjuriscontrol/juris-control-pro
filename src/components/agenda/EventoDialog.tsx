@@ -626,11 +626,13 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             </div>
 
             {/* Recorrência */}
-            <div>
-              <Label className="text-sm">Recorrência</Label>
-              <div className="flex gap-2 mt-1.5">
+            <div className="rounded-md border p-3 space-y-3">
+              <Label className="text-sm font-medium">Recorrência</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Frequência</Label>
                   <Select value={recorrenciaTipo} onValueChange={setRecorrenciaTipo}>
-                    <SelectTrigger className="flex-1">
+                    <SelectTrigger className="mt-1">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -641,26 +643,75 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                       <SelectItem value="yearly">Anualmente</SelectItem>
                     </SelectContent>
                   </Select>
-                  {recorrenciaTipo !== "nenhuma" && (
-                    <>
+                </div>
+                {recorrenciaTipo !== "nenhuma" && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">A cada</Label>
+                    <div className="flex items-center gap-2 mt-1">
                       <Input
                         type="number"
                         min={1}
                         value={recorrenciaIntervalo}
                         onChange={(e) => setRecorrenciaIntervalo(parseInt(e.target.value) || 1)}
                         className="w-20"
-                        title="A cada"
                       />
-                      <Input
-                        type="date"
-                        value={recorrenciaFim}
-                        onChange={(e) => setRecorrenciaFim(e.target.value)}
-                        className="w-40"
-                        title="Até (opcional)"
-                      />
-                    </>
-                  )}
+                      <span className="text-sm text-muted-foreground">
+                        {recorrenciaTipo === "daily" && "dia(s)"}
+                        {recorrenciaTipo === "weekly" && "semana(s)"}
+                        {recorrenciaTipo === "monthly" && "mês(es)"}
+                        {recorrenciaTipo === "yearly" && "ano(s)"}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
+              {recorrenciaTipo !== "nenhuma" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Repetir por (nº de ocorrências)
+                    </Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      placeholder="Ex.: 9"
+                      value={recorrenciaOcorrencias}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setRecorrenciaOcorrencias(v);
+                        const n = parseInt(v);
+                        if (n && n > 0 && dataInicio) {
+                          const base = parseISO(dataInicio);
+                          const step = Math.max(1, recorrenciaIntervalo);
+                          const offset = (n - 1) * step;
+                          let fim = base;
+                          if (recorrenciaTipo === "daily") fim = addDays(base, offset);
+                          else if (recorrenciaTipo === "weekly") fim = addWeeks(base, offset);
+                          else if (recorrenciaTipo === "monthly") fim = addMonths(base, offset);
+                          else if (recorrenciaTipo === "yearly") fim = addYears(base, offset);
+                          setRecorrenciaFim(format(fim, "yyyy-MM-dd"));
+                        }
+                      }}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Ou até a data</Label>
+                    <Input
+                      type="date"
+                      value={recorrenciaFim}
+                      onChange={(e) => {
+                        setRecorrenciaFim(e.target.value);
+                        setRecorrenciaOcorrencias("");
+                      }}
+                      className="mt-1"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground sm:col-span-2">
+                    Preencha <strong>nº de ocorrências</strong> <em>ou</em> a <strong>data final</strong>. Sem um dos dois, o evento se repete indefinidamente e só aparecerão as ocorrências dentro do intervalo visível no calendário.
+                  </p>
+                </div>
+              )}
             </div>
 
             <ItemComentarios tipo="evento" itemId={evento?.id} />
