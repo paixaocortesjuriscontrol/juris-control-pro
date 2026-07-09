@@ -245,16 +245,18 @@ async function processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execu
       if (!validacao.ok) {
         descartadas++;
         // Registra descarte para relatório (idempotente por (monitoramento_id, hash_conteudo))
-        await sb.from("publicacoes_djen_descartadas").insert({
-          monitoramento_id: mon.id,
-          coordenacao_id: mon.coordenacao_id || null,
-          hash_conteudo: hash,
-          processo_numero,
-          conteudo: texto_limpo.slice(0, 8000),
-          fonte: "stf",
-          motivo_descarte: validacao.motivo,
-          data_publicacao: parseDate(pub.publicacao || pub.divulgacao),
-        }).catch(() => {});
+        try {
+          await sb.from("publicacoes_djen_descartadas").insert({
+            monitoramento_id: mon.id,
+            coordenacao_id: mon.coordenacao_id || null,
+            hash_conteudo: hash,
+            processo_numero,
+            conteudo: texto_limpo.slice(0, 8000),
+            fonte: "stf",
+            motivo_descarte: validacao.motivo,
+            data_publicacao: parseDate(pub.publicacao || pub.divulgacao),
+          });
+        } catch (_) {}
         continue;
       }
 
@@ -310,14 +312,15 @@ async function run({ sb, payload, log, job }) {
   const totais = { totalItens: monitoramentos.length, concluidos: 0, novas: 0, duplicatas: 0, descartadas: 0, itens: [] };
   const escreverProgresso = async (patch) => {
     if (!job?.id) return;
-    await sb
-      .from("execucoes_servidor")
-      .update({
-        progresso: { ...totais, ...patch, janela: { dataInicio, dataFim } },
-        progresso_atualizado_em: new Date().toISOString(),
-      })
-      .eq("id", job.id)
-      .catch(() => {});
+    try {
+      await sb
+        .from("execucoes_servidor")
+        .update({
+          progresso: { ...totais, ...patch, janela: { dataInicio, dataFim } },
+          progresso_atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", job.id);
+    } catch (_) {}
   };
 
   await escreverProgresso({});
