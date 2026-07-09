@@ -212,7 +212,12 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         }
 
         if (filters.dataInicio) {
-          queryEventos = queryEventos.gte("data_inicio", filters.dataInicio.toISOString());
+          // Eventos recorrentes que começaram antes da janela precisam ser incluídos
+          // para que a expansão de ocorrências no cliente cubra o intervalo pedido.
+          const diIso = filters.dataInicio.toISOString();
+          queryEventos = queryEventos.or(
+            `data_inicio.gte.${diIso},recorrente.eq.true`
+          );
         }
 
         if (filters.dataFim) {
@@ -259,7 +264,10 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             queryEventosFallback = queryEventosFallback.eq("status", filters.status === "pendente" ? "pendente" : filters.status);
           }
           if (filters.dataInicio) {
-            queryEventosFallback = queryEventosFallback.gte("data_inicio", filters.dataInicio.toISOString());
+            const diIso = filters.dataInicio.toISOString();
+            queryEventosFallback = queryEventosFallback.or(
+              `data_inicio.gte.${diIso},recorrente.eq.true`
+            );
           }
           if (filters.dataFim) {
             queryEventosFallback = queryEventosFallback.lte("data_inicio", filters.dataFim.toISOString());
