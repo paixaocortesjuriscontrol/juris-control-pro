@@ -40,20 +40,74 @@ const STF_HEADERS_BROWSER = {
 
 const insecureAgent = new Agent({ connect: { rejectUnauthorized: false } });
 
+let sessionCookie: string | null = null;
+let sessionXsrf: string | null = null;
+
+function parseSetCookie(headers: Headers): Record<string, string> {
+  const jar: Record<string, string> = {};
+  const raw = headers.get('set-cookie');
+  if (!raw) return jar;
+  for (const part of raw.split(/,(?=\s*[^;=]+=[^;]+)/g)) {
+    const first = part.trim().split(';')[0];
+    const eq = first.indexOf('=');
+    if (eq > 0) jar[first.slice(0, eq)] = first.slice(eq + 1);
+  }
+  return jar;
+}
+
+function mergeSessionCookies(headers: Headers) {
+  const jar = parseSetCookie(headers);
+  if (jar['XSRF-TOKEN']) sessionXsrf = jar['XSRF-TOKEN'];
+  const entries = Object.entries(jar);
+  if (entries.length) sessionCookie = entries.map(([k, v]) => `${k}=${v}`).join('; ');
+}
+
+async function ensureCsrf(force = false) {
+  if (!force && sessionCookie && sessionXsrf) return;
+  const r = await undiciFetch(`${STF_BASE}/ultimo-dje`, {
+    method: 'GET',
+    headers: STF_HEADERS_BROWSER,
+    dispatcher: insecureAgent,
+  });
+  await r.text();
+  mergeSessionCookies(r.headers);
+  if (!sessionXsrf) throw new Error('stf_csrf_indisponivel');
+}
+
 /**
  * Tenta múltiplas estratégias para alcançar o STF:
  * 1) fetch nativo do Deno (com cadeia TLS oficial)
  * 2) undici com TLS relaxado (fallback para ICP-Brasil)
  */
 async function tentarFetch(url: string, method: 'GET' | 'POST', body?: string) {
+  const headers = { ...STF_HEADERS_BROWSER } as Record<string, string>;
+  if (method === 'POST') {
+    await ensureCsrf();
+    if (sessionCookie) headers['Cookie'] = sessionCookie;
+    if (sessionXsrf) headers['X-XSRF-TOKEN'] = sessionXsrf;
+  }
+
   // Estratégia 1: fetch nativo (Deno)
   try {
     const r = await fetch(url, {
       method,
-      headers: STF_HEADERS_BROWSER,
+      headers,
       body,
     });
     const text = await r.text();
+    mergeSessionCookies(r.headers);
+    if (method === 'POST' && (r.status === 403 || /CSRF/i.test(text))) {
+      await ensureCsrf(true);
+      const retryHeaders = { ...headers, Cookie: sessionCookie ?? '', 'X-XSRF-TOKEN': sessionXsrf ?? '' };
+      const retry = await fetch(url, { method, headers: retryHeaders, body });
+      const retryText = await retry.text();
+      mergeSessionCookies(retry.headers);
+      return {
+        text: retryText,
+        status: retry.status,
+        contentType: retry.headers.get('content-type') ?? 'application/json',
+      };
+    }
     if (r.status < 500) {
       return {
         text,
@@ -69,11 +123,12 @@ async function tentarFetch(url: string, method: 'GET' | 'POST', body?: string) {
   // Estratégia 2: undici com TLS relaxado
   const r = await undiciFetch(url, {
     method,
-    headers: STF_HEADERS_BROWSER,
+    headers,
     body,
     dispatcher: insecureAgent,
   });
   const text = await r.text();
+  mergeSessionCookies(r.headers);
   return {
     text,
     status: r.status,

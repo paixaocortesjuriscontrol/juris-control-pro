@@ -8,7 +8,7 @@ const https = require("https");
 
 const TIPO_ENGINE = "djen_stf_servidor";
 const STF_URL = "https://digital.stf.jus.br/decisoes-publicacoes/api/public/publicacoes";
-const STF_CSRF_URL = "https://digital.stf.jus.br/publico/publicacoes";
+const STF_CSRF_URL = "https://digital.stf.jus.br/decisoes-publicacoes/api/public/ultimo-dje";
 const PAGE_DELAY_MS = Math.max(0, Number(process.env.STF_PAGE_DELAY_MS || 800));
 const PAGE_SIZE = 50;
 const MAX_PAGES = 30;
@@ -63,12 +63,25 @@ function httpGet(url) {
 async function ensureCsrf(force = false) {
   if (!force && sessionCookies && sessionXsrf) return;
   const res = await httpGet(STF_CSRF_URL);
+  if (res.status < 200 || res.status >= 300) throw new Error(`stf_csrf_http_${res.status}`);
   const jar = parseSetCookies(res.headers);
   if (jar["XSRF-TOKEN"]) sessionXsrf = jar["XSRF-TOKEN"];
   const parts = [];
   for (const [k, v] of Object.entries(jar)) parts.push(`${k}=${v}`);
   if (parts.length) sessionCookies = parts.join("; ");
   if (!sessionXsrf) throw new Error("stf_csrf_indisponivel");
+}
+
+function sanitizeTermoStfApi(s) {
+  // O endpoint STF valida termo com /^[a-zA-Z\d\,\-\s]{0,2010}$/.
+  // Enviar acentos/apóstrofos/etc. causa 422 e a execução termina sem achados.
+  return String(s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z\d,\-\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 2010);
 }
 
 function todayBrtYmd() {
@@ -211,6 +224,15 @@ function extractTextoLimpo(pub) {
   return stripTags(pub.texto || pub.textoPublicacao || pub.conteudo || pub.ementa || "");
 }
 
+function buildTextoValidacao(pub) {
+  return [
+    extractTextoLimpo(pub),
+    extractProcessoNumero(pub),
+    pub.tipo,
+    extractRelator(pub),
+  ].filter(Boolean).join(" ");
+}
+
 function extractStfId(pub) {
   const raw = pub.id ?? pub.publicacaoId ?? pub.processoId ?? "";
   return raw ? String(raw) : null;
@@ -231,7 +253,7 @@ function parseDate(v) {
 }
 
 function passaValidacao(mon, pub) {
-  const texto = extractTextoLimpo(pub);
+  const texto = buildTextoValidacao(pub);
   const processo = extractProcessoNumero(pub);
   const termoPrincipal = mon.termo_busca || "";
   const tipo = mon.tipo === "nome" ? "advogado" : mon.tipo === "geral" ? "palavra-chave" : mon.tipo || "palavra-chave";
@@ -291,9 +313,11 @@ async function processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execu
   let duplicatas = 0;
 
   for (const termo of termos) {
+    const termoApi = tipo === "processo" ? termo.replace(/\D/g, "") : sanitizeTermoStfApi(termo);
+    if (!termoApi) continue;
     const params = tipo === "processo"
-      ? { termo: "", processo: termo.replace(/\D/g, ""), dataInicio, dataFim, log }
-      : { termo, processo: "", dataInicio, dataFim, log };
+      ? { termo: "", processo: termoApi, dataInicio, dataFim, log }
+      : { termo: termoApi, processo: "", dataInicio, dataFim, log };
 
     const publicacoes = await buscarTodasPaginas(params);
 
