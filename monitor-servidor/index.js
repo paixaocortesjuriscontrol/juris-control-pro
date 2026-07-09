@@ -7,6 +7,7 @@ const ENGINES = {
   kurier_servidor: require("./engines/kurier"),
   djet_pautas_servidor: require("./engines/pautas"),
   busca_publicacao_servidor: require("./engines/buscaProcessos"),
+  djen_stf_servidor: require("./engines/stfServidor"),
 };
 
 const WORKER_BASE = process.env.WORKER_ID_BASE || "hostinger-01";
