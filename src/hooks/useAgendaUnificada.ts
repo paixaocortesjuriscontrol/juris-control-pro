@@ -217,7 +217,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           // para que a expansão de ocorrências no cliente cubra o intervalo pedido.
           const diIso = filters.dataInicio.toISOString();
           queryEventos = queryEventos.or(
-            `data_inicio.gte.${diIso},recorrente.eq.true`
+            `data_inicio.gte.${diIso},recorrente.eq.true,recorrencia_tipo.not.is.null`
           );
         }
 
@@ -267,7 +267,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           if (filters.dataInicio) {
             const diIso = filters.dataInicio.toISOString();
             queryEventosFallback = queryEventosFallback.or(
-              `data_inicio.gte.${diIso},recorrente.eq.true`
+              `data_inicio.gte.${diIso},recorrente.eq.true,recorrencia_tipo.not.is.null`
             );
           }
           if (filters.dataFim) {
@@ -335,7 +335,9 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           for (const evento of eventosFiltered) {
             // Datas efetivas para o evento: original + expansão de recorrência
             const parcelamentoOuGrupo = !!(evento as any).grupo_parcelas;
-            const isRecorrente = !!evento.recorrente && !!evento.recorrencia_tipo && !parcelamentoOuGrupo;
+            // Tolera casos legados em que a coluna `recorrente` não foi marcada,
+            // mas `recorrencia_tipo` está preenchido.
+            const isRecorrente = !!evento.recorrencia_tipo && !parcelamentoOuGrupo;
             const dataOriginal = parseISO(evento.data_inicio);
             const dataFimEvento = evento.data_fim ? parseISO(evento.data_fim) : null;
             const duracaoMs = dataFimEvento ? dataFimEvento.getTime() - dataOriginal.getTime() : 0;
