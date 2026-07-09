@@ -1,67 +1,100 @@
-## Regra única (aplicada aos 5 formulários do botão "+ Adicionar")
+# Motor STF Servidor — mesmas 13 VPS + regras do DJEN Termos
 
-Regra do seletor "Coordenação":
+## Contexto (fonte)
+STF **não** publica no DJEN/PJe Comunica. Publica só no DJE-STF (`digital.stf.jus.br`). Por isso o motor DJEN Termos Servidor nunca retorna STF — é limitação da fonte, não bug.
 
-- **Admin** OU **usuário com >1 coordenação** → mostra o select (obrigatório escolher).
-- **Usuário com exatamente 1 coordenação** → **não** mostra o select. O sistema vincula automaticamente à coordenação do usuário logado, tanto na inclusão quanto na edição.
-- Formulários afetados: **Tarefa, Evento, Prazo, Audiência, Parcelamento recorrente**.
-- Ao abrir o form, os pickers de **processo** e **responsáveis** já vêm filtrados pela coordenação vinculada (única do usuário, ou a selecionada no topo do form).
+Já existe:
+- `supabase/functions/stf-proxy` — proxy TLS ICP-Brasil + CORS
+- `src/utils/stfDigitalClient.ts` — `buscarPublicacoesStf`, `buscarTodasPaginasStf`
+- Tabela `publicacoes_stf` (17 colunas, com `monitoramento_id`, `coordenacao_id`, `stf_id`, `hash_conteudo`, `fonte`, `lida`)
+- Pool de 13 VPS em `djen_proxy_pool` e daemon `monitor-servidor/`
 
-## Banco (migração)
+## Paridade obrigatória com DJEN Termos Servidor
 
-Adicionar coluna `coordenacao_id uuid` (FK → `coordenacoes.id`, `ON DELETE SET NULL`) nas tabelas que hoje não têm:
+Espelha `monitor-servidor/engines/paralela.js` (Termos) e `buscaProcessos.js` (padrão de workers por VPS):
 
-- `public.tarefas`
-- `public.eventos_agenda`
+1. **Nas 13 VPS**: novo engine `monitor-servidor/engines/stf.js`, rodando dentro do mesmo daemon. Round-robin de monitoramentos entre as VPS via `loadPool(sb)` (mesmo pool usado por Termos). Não usa `djenFetchSlot` — usa cliente HTTP direto para `https://digital.stf.jus.br/decisoes-publicacoes/api/public/publicacoes` (o cert ICP-Brasil já está resolvido pelo Node nas VPS; nenhuma rota nova precisa ser adicionada no `djen-proxy/server.js`).
+2. **Data**: `dataInicio = dataFim = hoje BRT (YYYY-MM-DD)` — mesma janela diária do DJEN Termos Servidor.
+3. **Paginação `continueUntilEmpty`**: mesma lógica de Termos — 2 páginas vazias consecutivas OU `added===0` por 3 páginas encerra. `pageSize=50`, `maxPages=30`, delay entre páginas configurável (`STF_PAGE_DELAY_MS`, default 800ms).
+4. **Termos**:
+   - `palavra-chave`: expressão inteira normalizada (sem fatiar — regra `djen-keyword-no-slicing`).
+   - `parte`: nome no campo `termo` (STF público não tem filtro de parte). Validação local exige match em `poloAtivo/poloPassivo/partes` OU no `texto_limpo`.
+   - `advogado`: nome no `termo` (STF público não tem OAB). Variantes de nome conforme `djen-search-variants-logic-v4`.
+   - `processo`: só dígitos no campo `processo`.
+5. **Validação estrita** com `contemFraseExata` (`src/utils/djenTermoMatch.ts`), aplicando também `termos_or`, `exclusoes` e `condicao_concomitante` — idêntico a Termos Servidor.
+6. **Dedup**: `stf_id` (primário) + `hash_conteudo = sha256(processo|texto_limpo.slice(0,4000))`.
+7. **Persistência**:
+   - Aprovadas → `publicacoes_stf` (upsert por `(coordenacao_id, stf_id, fonte)`, `ignoreDuplicates=true`).
+   - Rejeitadas → `publicacoes_djen_descartadas` com `fonte='stf'` + `motivo_descarte` (mesma tela de descartadas usada hoje).
+8. **Execução registrada** em `execucoes_agendadas` com `tipo='stf_servidor'` (novo valor no CHECK) — aparece no `RelatorioExecucoes.tsx`.
 
-(`audiencias_detectadas` já tem `coordenacao_id`; parcelamento é linha em `eventos_agenda`; prazo TST é derivado de `processos.data_fatal` e não muda de tabela.)
+## Opt-in por monitoramento (idêntico ao DJEN Termos)
 
-Trigger `BEFORE INSERT OR UPDATE` em `tarefas` e `eventos_agenda`:
+- Nova coluna `monitoramentos_djen.busca_stf_ativa boolean DEFAULT false`.
+- Motor STF só processa monitoramentos com `ativo=true AND arquivado=false AND busca_stf_ativa=true`.
+- Compatível com todos os tipos de monitoramento existentes (palavra-chave, parte, advogado, processo).
 
-1. Se `processo_id` presente → `coordenacao_id := processos.coordenacao_id`.
-2. Senão, se `coordenacao_id` veio no payload → mantém.
-3. Senão, deriva da coordenação do `criado_por` via `membros_coordenacao` (pega a única; se houver mais de uma e nenhuma foi enviada, deixa NULL — o front garante o valor nesse caso).
+## Configuração de horários (igual DJEN Termos Servidor)
 
-Backfill: preencher `coordenacao_id` das linhas existentes via `processos.coordenacao_id`; onde não houver processo, via `membros_coordenacao` do `criado_por` (só quando o usuário tem exatamente uma coordenação).
+- Nova tabela `configuracoes_monitoramento_stf` (espelho de `configuracoes_monitoramento_servidor`):
+  colunas: `id`, `coordenacao_id`, `ativo`, `horarios` (jsonb array de "HH:MM"), `dias_semana` (jsonb), `criado_por`, timestamps.
+  RLS: leitura/escrita por membros da coordenação; `service_role` full.
+- `pg_cron` a cada 15min chama `monitorar-stf-servidor` (edge function despachante), que:
+  - Lê `configuracoes_monitoramento_stf`, decide quais coordenações estão dentro do horário/dia da semana configurado.
+  - Enfileira job em `execucoes_servidor` com `tipo='stf_servidor'` (o daemon do `monitor-servidor` já processa fila; basta registrar o novo engine em `monitor-servidor/index.js`).
+- Fallback: também pode ser disparado manualmente pela UI (botão "Executar agora").
 
-Índices: `idx_tarefas_coordenacao_id`, `idx_eventos_agenda_coordenacao_id`.
+## Alterações
 
-## Front (mesmo padrão em todos os 5 forms)
+### 1. Migração (`supabase--migration`)
+- `ALTER TABLE monitoramentos_djen ADD COLUMN busca_stf_ativa boolean NOT NULL DEFAULT false;`
+- CREATE TABLE `configuracoes_monitoramento_stf` (+ GRANTs + RLS + policies + trigger `updated_at`).
+- Expandir CHECK de `execucoes_agendadas.tipo` para incluir `'stf_servidor'`.
+- Expandir CHECK de `execucoes_servidor.tipo` (se existir) para `'stf_servidor'`.
+- Índice único em `publicacoes_stf(coordenacao_id, stf_id, fonte)` se ainda não existir.
+- Expandir CHECK de `publicacoes_djen_descartadas.fonte` para aceitar `'stf'` (se restrito).
 
-Novo hook utilitário `useCoordenacoesDoUsuario()` (baseado em `useUserRole` + `membros_coordenacao`) que retorna:
+### 2. Daemon VPS (`monitor-servidor/`)
+- Novo arquivo `monitor-servidor/engines/stf.js`: `run({ sb, payload, log, job })` com `TIPO_ENGINE='stf_servidor'`. Workers em paralelo (um por slot da pool), payload `{ monitoramento_ids: [...] }`. Faz fetch direto a `digital.stf.jus.br`.
+- Registrar engine em `monitor-servidor/index.js` (mesmo mecanismo de `buscaProcessos.js`/`paralela.js`/`pautas.js`).
+- Reload das 13 VPS (`pm2 restart monitor-servidor`).
 
+### 3. Edge Function `monitorar-stf-servidor` (despachante)
+- Lê `configuracoes_monitoramento_stf`, decide se está no horário.
+- Para cada coordenação elegível, agrupa `monitoramentos_djen` com `busca_stf_ativa=true` e insere um job em `execucoes_servidor` (`tipo='stf_servidor'`, `payload.monitoramento_ids`).
+- Daemon pega o job e roda o engine STF.
+
+### 4. `pg_cron` (via `supabase--insert`, não migração — contém URL/anon key)
+- Cron `*/15 * * * *` → `net.http_post` para `monitorar-stf-servidor`.
+
+### 5. Frontend
+- `src/hooks/useMonitoramentosDjen.ts`: adicionar `busca_stf_ativa` ao tipo, aos `insert` e `update`.
+- `src/pages/MonitoramentoDjen.tsx`: checkbox "Também buscar no STF" no form de criar/editar (default: desligado).
+- Nova aba/página `MonitoramentoStfServidor.tsx` (espelho da tela de config do DJEN Termos Servidor): edita `configuracoes_monitoramento_stf` (ativo, horários, dias) + botão "Executar agora" que invoca `monitorar-stf-servidor` forçando execução imediata.
+- Hook `usePublicacoesStf.ts` (lista, marcar como lida) — mesmo padrão de `useMonitoramentosDjen`.
+- `RelatorioExecucoes.tsx`: label "STF Servidor" para `tipo='stf_servidor'`.
+- Feed DJEN: badge "STF" nas linhas oriundas de `publicacoes_stf`.
+
+## Fluxo
+
+```text
+cron */15min ─► monitorar-stf-servidor (edge)
+                     │ verifica horário/dia em configuracoes_monitoramento_stf
+                     │ agrupa monitoramentos com busca_stf_ativa=true
+                     ▼
+              execucoes_servidor (tipo='stf_servidor')
+                     │
+                     ▼
+      monitor-servidor daemon (13 VPS, round-robin)
+                     │  engines/stf.js — paginação continueUntilEmpty
+                     │  fetch digital.stf.jus.br (data=hoje BRT)
+                     │  validação contemFraseExata + exclusões + concomitante
+                     ▼
+      publicacoes_stf (aprovadas)  +  publicacoes_djen_descartadas (fonte='stf')
+                     +
+              execucoes_agendadas (tipo='stf_servidor')
 ```
-{ isAdmin, coordenacoes: [...], unicaCoordenacaoId, precisaSelecionar }
-```
 
-- `precisaSelecionar = isAdmin || coordenacoes.length > 1`.
-- `unicaCoordenacaoId = coordenacoes.length === 1 ? coordenacoes[0].id : null`.
-
-Em cada dialog (`NovaTarefaDialog`, `EventoDialog`, `PrazoDialog`/prazo do menu Adicionar, `CadastroAudienciaForm`/`AudienciaFormSimplificado`, `GerarParcelasDialog`):
-
-1. Ler `useCoordenacoesDoUsuario()`.
-2. Renderizar o `<CoordenacaoSelect>` apenas quando `precisaSelecionar === true`.
-3. Quando **oculto**, injetar `unicaCoordenacaoId` no state do form no mount e usá-lo diretamente no insert/update.
-4. Quando **visível**, manter comportamento atual (obrigatório escolher). Para admin, se houver processo vinculado, pré-selecionar a coordenação do processo — mas o admin pode trocar.
-5. Nos pickers de **processo** e **responsáveis**, aplicar filtro por `coordenacao_id` do valor efetivo (unica ou selecionada).
-6. Enviar `coordenacao_id` no `insert`/`update` de `tarefas` e `eventos_agenda`. O trigger reconcilia com o processo, se houver.
-7. Na edição, se o registro veio sem `coordenacao_id` (dado antigo), preencher com `unicaCoordenacaoId` do usuário logado quando `!precisaSelecionar`.
-
-## Impacto no filtro do admin (Painel de Controle)
-
-Como `tarefas` e `eventos_agenda` passam a ter `coordenacao_id` próprio, o filtro do admin "Escritório → Coordenação X" volta a encontrar itens sem processo. Ajustes:
-
-- `useAgendaUnificada.ts`: adicionar `OR tarefas.coordenacao_id = X` e `OR eventos_agenda.coordenacao_id = X` ao filtro por coordenação (hoje só via `processos!inner.coordenacao_id`).
-- `PainelControle.tsx`: cards de resumo passam a filtrar por `coordenacao_id` direto na tabela também.
-
-## Fora do escopo
-
-- Redistribuir itens entre coordenações em massa.
-- Mexer em RLS existente (o novo caminho respeita as políticas atuais — usuário só vê a própria coordenação; admin vê tudo).
-- Redesign visual dos forms; apenas condicionar a exibição do campo Coordenação.
-
-## Resultado
-
-- Usuário com 1 coordenação: abre o "+ Adicionar", escolhe Tarefa/Evento/Prazo/Audiência/Parcelamento, **não vê** campo Coordenação, e o item já sai vinculado à coordenação dele — com processos e responsáveis filtrados para essa coordenação.
-- Usuário com várias coordenações ou admin: vê o select no topo, escolhe uma, e o resto do form segue essa escolha.
-- No painel do admin, ao filtrar por Escritório + Coordenação, os itens criados por esse fluxo aparecem, mesmo sem processo vinculado.
+## Fora de escopo agora
+- Alertas por e-mail STF (estrutura `alertas_coordenacao_djen` aponta hoje para `publicacoes_djen` — pode ser evolução).
+- Match por OAB estrito no STF (API pública não expõe filtro OAB).
