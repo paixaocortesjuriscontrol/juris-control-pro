@@ -20,6 +20,16 @@ const makeDedupKey = (pub: PublicacaoUnificada): string => {
   const idDjen = String(pub.id_djen ?? "").trim();
   if (idDjen) return `${coordenacao}|id_djen|${idDjen}`;
 
+  // Pautas DEJT/PDF não têm id_djen. Para elas, o banco já calcula uma chave
+  // estável por coordenação + processo + data de referência. Sem isso, duas
+  // execuções da mesma pauta aparecem como linhas diferentes porque o fallback
+  // antigo usava o id UUID do registro.
+  const dedupKey = String(pub.dedup_key ?? "").trim();
+  if (dedupKey) return `${coordenacao}|dedup_key|${dedupKey}`;
+
+  const dedupConteudoKey = String(pub.dedup_conteudo_key ?? "").trim();
+  if (dedupConteudoKey) return `${coordenacao}|dedup_conteudo_key|${dedupConteudoKey}`;
+
   // Sem id_djen não há base segura para afirmar duplicidade no DJEN/PJE.
   // Mantemos cada linha como registro próprio.
   return `${coordenacao}|sem-id-djen|${pub.id}`;
