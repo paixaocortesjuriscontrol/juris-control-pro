@@ -17,6 +17,8 @@ import { useAudienciasDetectadas, NovaAudiencia } from "@/hooks/useAudienciasDet
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { supabase } from "@/integrations/supabase/client";
 import { formatProcessoNumero } from "@/lib/utils";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 
 type Props = {
   defaultProcessoNumero?: string;
@@ -61,6 +63,7 @@ export function AudienciaFormSimplificado({
   defaultDataAudiencia,
 }: Props) {
   const { criarAudiencia } = useAudienciasDetectadas();
+  const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const [form, setForm] = useState({
     ...empty,
     titulo: defaultTitulo ?? "",
@@ -73,8 +76,16 @@ export function AudienciaFormSimplificado({
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
+  const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   const [buscando, setBuscando] = useState(false);
   const autoBuscaRef = useRef(false);
+
+  useEffect(() => {
+    if (!coordenacaoId && unicaCoordenacaoId) {
+      setCoordenacaoId(unicaCoordenacaoId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unicaCoordenacaoId]);
 
   const set = (field: keyof typeof empty, v: any) =>
     setForm((p) => ({ ...p, [field]: v }));
@@ -151,6 +162,7 @@ export function AudienciaFormSimplificado({
       status: situacao,
       advogados_ids: responsaveisIds,
       envolvidos_ids: envolvidosIds,
+      coordenacao_id: coordenacaoId || undefined,
     };
 
     await criarAudiencia.mutateAsync(payload);
@@ -199,6 +211,14 @@ export function AudienciaFormSimplificado({
           autoFocus
         />
       </div>
+
+      {precisaSelecionar && (
+        <CoordenacaoSelect
+          value={coordenacaoId}
+          onChange={setCoordenacaoId}
+          required
+        />
+      )}
 
       {showProcessoField && (
         <div className="space-y-1.5">

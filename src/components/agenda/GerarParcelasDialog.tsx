@@ -31,6 +31,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EventoAgenda } from "@/hooks/useEventosAgenda";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 
 interface GerarParcelasDialogProps {
   open: boolean;
@@ -59,6 +61,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = !!evento;
   const [situacao, setSituacao] = useState<"pendente" | "concluido" | "cancelado">("pendente");
+  const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
+  const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   
   const [formData, setFormData] = useState({
     titulo: "",
@@ -262,6 +266,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         hora_alerta: format(dataInicioSP, "HH:mm") || prev.hora_alerta || "09:00",
       }));
       setSituacao(((evento as any).status as any) || "pendente");
+      setCoordenacaoId(((evento as any).coordenacao_id as string) || unicaCoordenacaoId || "");
 
       // Carregar valores e datas individuais das parcelas existentes
       if (parcelasExistentes && parcelasExistentes.length > 0) {
@@ -287,8 +292,9 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
       setValoresIndividuais([]);
       setDatasIndividuais([]);
       setSituacao("pendente");
+      setCoordenacaoId(unicaCoordenacaoId || "");
     }
-  }, [evento, open, parcelasExistentes, alertasParcelaMinutos, defaultProcessoId]);
+  }, [evento, open, parcelasExistentes, alertasParcelaMinutos, defaultProcessoId, unicaCoordenacaoId]);
 
   // Atualizar valores individuais quando muda total de parcelas ou valor padrão
   const atualizarValoresIndividuais = (novoPadrao?: string, novoTotal?: number) => {
@@ -398,6 +404,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
               // mantém o evento de parcelamento apontando para a data da 1ª parcela, mas com um horário base para alertas
               data_inicio: `${formData.dataVencimento}T${formData.hora_alerta || "09:00"}:00-03:00`,
               processo_id: processoIds[0] || null,
+              coordenacao_id: coordenacaoId || null,
               total_parcelas: formData.totalParcelas,
               enviar_whatsapp: formData.enviar_whatsapp,
               recorrente: true, // Parcelamento é recorrente até terminar
@@ -475,6 +482,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
             status: situacao,
             total_parcelas: formData.totalParcelas,
             processo_id: processoIds[0] || null,
+            coordenacao_id: coordenacaoId || null,
             enviar_whatsapp: formData.enviar_whatsapp,
             recorrente: true, // Parcelamento é recorrente até terminar
           })
@@ -615,6 +623,13 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
 
         <div className="flex-1 overflow-y-auto px-4 sm:px-6">
           <form onSubmit={handleSubmit} className="space-y-4 pb-4">
+            {precisaSelecionar && (
+              <CoordenacaoSelect
+                value={coordenacaoId}
+                onChange={setCoordenacaoId}
+                required
+              />
+            )}
             {/* Título do Parcelamento */}
             <div>
               <Label htmlFor="titulo" className="flex items-center gap-1.5">

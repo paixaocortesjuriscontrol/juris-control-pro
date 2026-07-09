@@ -91,6 +91,7 @@ export interface NovaAudiencia {
   dossie?: string;
   advogados_ids?: string[];
   envolvidos_ids?: string[];
+  coordenacao_id?: string;
 }
 
 interface AudienciasFiltros {

@@ -38,6 +38,7 @@ import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 
 type Unidade = "uteis" | "corridos";
 
@@ -91,6 +92,7 @@ export function PrazoDialog({
   const queryClient = useQueryClient();
   const createPrazo = useCreatePrazo();
   const updatePrazo = useUpdatePrazo();
+  const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
 
   // Quando editando um prazo existente, carregar publicação vinculada (se houver)
   // para mostrar no card esquerdo do dialog.
@@ -222,7 +224,7 @@ export function PrazoDialog({
       setAlertaUnidade(((prazo as any).alerta_unidade as Unidade) || "corridos");
       setObservacoes(prazo.observacoes || "");
       setDataFatal((prazo as any).data_fatal ? parseISO((prazo as any).data_fatal) : undefined);
-      setCoordenacaoId("");
+      setCoordenacaoId(((prazo as any).coordenacao_id as string) || "");
       setSituacao(((prazo as any).status as any) || "pendente");
       (async () => {
         const processoId = defaultProcessoId || prazo.processo_id;
@@ -238,7 +240,7 @@ export function PrazoDialog({
         const envIds = (envs || []).map((e: any) => e.usuario_id);
         setEnvolvidosIds(envIds);
         setMostrarEnvolvidos(envIds.length > 0);
-        setCoordenacaoId((proc as any)?.coordenacao_id || "");
+        setCoordenacaoId((prev) => prev || (proc as any)?.coordenacao_id || unicaCoordenacaoId || "");
       })();
     } else {
       setTitulo("");
@@ -253,10 +255,10 @@ export function PrazoDialog({
       setMostrarEnvolvidos(false);
       setObservacoes("");
       setDataFatal(undefined);
-      setCoordenacaoId("");
+      setCoordenacaoId(unicaCoordenacaoId || "");
       setSituacao("pendente");
     }
-  }, [open, prazo?.id]);
+  }, [open, prazo?.id, unicaCoordenacaoId]);
 
   // Auto-calcular data limite quando Prazo (dias) muda
   useEffect(() => {
@@ -303,6 +305,7 @@ export function PrazoDialog({
       alerta_dias: alertaDias > 0 ? alertaDias : null,
       alerta_unidade: alertaDias > 0 ? alertaUnidade : null,
       data_fatal: dataFatal ? format(dataFatal, "yyyy-MM-dd") : null,
+      coordenacao_id: coordenacaoId || null,
     };
 
     try {
@@ -578,11 +581,13 @@ export function PrazoDialog({
               </PopoverContent>
             </Popover>
           </div>
-          <CoordenacaoSelect
-            value={coordenacaoId}
-            onChange={setCoordenacaoId}
-            className="space-y-1.5"
-          />
+          {precisaSelecionar && (
+            <CoordenacaoSelect
+              value={coordenacaoId}
+              onChange={setCoordenacaoId}
+              className="space-y-1.5"
+            />
+          )}
         </div>
 
         <div className="space-y-1.5">

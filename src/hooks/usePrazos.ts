@@ -310,6 +310,7 @@ export function useCreateTarefa() {
       prazo_unidade?: "uteis" | "corridos" | null;
       alerta_dias?: number | null;
       alerta_unidade?: "uteis" | "corridos" | null;
+      coordenacao_id?: string | null;
     }) => {
       const { data, error } = await supabase
         .from("tarefas")
@@ -384,6 +385,7 @@ export function useUpdateTarefa() {
       prazo_unidade?: "uteis" | "corridos" | null;
       alerta_dias?: number | null;
       alerta_unidade?: "uteis" | "corridos" | null;
+      coordenacao_id?: string | null;
     }) => {
       const { data, error } = await supabase
         .from("tarefas")
