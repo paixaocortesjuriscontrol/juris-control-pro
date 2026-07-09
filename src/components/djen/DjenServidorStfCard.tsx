@@ -1,11 +1,14 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
-import { Landmark, Loader2, PlayCircle, StopCircle, Clock, CheckCircle2, XCircle, Server } from "lucide-react";
+import { Landmark, Loader2, PlayCircle, StopCircle, Clock, CheckCircle2, XCircle, Server, CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -57,6 +60,15 @@ export function DjenServidorStfCard() {
   const enfileirar = useEnfileirarManual();
   const cancelar = useCancelarExecucaoServidor();
 
+  const [dataInicio, setDataInicio] = useState<Date | undefined>();
+  const [dataFim, setDataFim] = useState<Date | undefined>();
+  useEffect(() => {
+    const hoje = new Date();
+    hoje.setHours(12, 0, 0, 0);
+    setDataInicio((v) => v || hoje);
+    setDataFim((v) => v || hoje);
+  }, []);
+
   const { data: contagemAtivos } = useQuery({
     queryKey: ["stf-servidor", "monitoramentos-ativos"],
     queryFn: async () => {
@@ -91,8 +103,18 @@ export function DjenServidorStfCard() {
   }, [cfg, updateConfig]);
 
   const handleExecutar = useCallback(() => {
-    enfileirar.mutate({ tipo: TIPO, payload: {} });
-  }, [enfileirar]);
+    if (!dataInicio || !dataFim) {
+      toast.error("Selecione data de início e fim");
+      return;
+    }
+    enfileirar.mutate({
+      tipo: TIPO,
+      payload: {
+        dataInicio: format(dataInicio, "yyyy-MM-dd"),
+        dataFim: format(dataFim, "yyyy-MM-dd"),
+      },
+    });
+  }, [enfileirar, dataInicio, dataFim]);
 
   const exec = live.data;
   const execStatus = exec?.status || "idle";
