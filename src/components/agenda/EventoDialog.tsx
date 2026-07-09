@@ -257,6 +257,16 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       const offset = (numeroOcorrencias - 1) * step;
       let fim = base;
       if (recorrenciaTipo === "daily") fim = addDays(base, offset);
+      else if (recorrenciaTipo === "weekdays") {
+        // Avança N-1 dias úteis (pula sábado e domingo)
+        let count = 0;
+        fim = base;
+        while (count < offset) {
+          fim = addDays(fim, 1);
+          const dow = fim.getDay();
+          if (dow !== 0 && dow !== 6) count++;
+        }
+      }
       else if (recorrenciaTipo === "weekly") fim = addWeeks(base, offset);
       else if (recorrenciaTipo === "monthly") fim = addMonths(base, offset);
       else if (recorrenciaTipo === "yearly") fim = addYears(base, offset);
@@ -660,6 +670,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                     <SelectContent>
                       <SelectItem value="nenhuma">Não se repete</SelectItem>
                       <SelectItem value="daily">Diariamente</SelectItem>
+                      <SelectItem value="weekdays">Dias úteis (Seg–Sex)</SelectItem>
                       <SelectItem value="weekly">Semanalmente</SelectItem>
                       <SelectItem value="monthly">Mensalmente</SelectItem>
                       <SelectItem value="yearly">Anualmente</SelectItem>
@@ -685,6 +696,15 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                           const offset = n - 1;
                           let fim = base;
                           if (recorrenciaTipo === "daily") fim = addDays(base, offset);
+                          else if (recorrenciaTipo === "weekdays") {
+                            let count = 0;
+                            fim = base;
+                            while (count < offset) {
+                              fim = addDays(fim, 1);
+                              const dow = fim.getDay();
+                              if (dow !== 0 && dow !== 6) count++;
+                            }
+                          }
                           else if (recorrenciaTipo === "weekly") fim = addWeeks(base, offset);
                           else if (recorrenciaTipo === "monthly") fim = addMonths(base, offset);
                           else if (recorrenciaTipo === "yearly") fim = addYears(base, offset);
