@@ -52,6 +52,7 @@ export interface NovoEvento {
   recorrencia_fim?: string;
   recorrencia_dias_semana?: number[];
   processo_id?: string;
+  coordenacao_id?: string | null;
   participantes_ids?: string[];
   alerta_minutos?: number[];
   enviar_whatsapp?: boolean;

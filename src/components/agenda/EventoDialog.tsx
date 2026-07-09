@@ -34,6 +34,8 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 
 interface EventoDialogProps {
   open: boolean;
@@ -71,6 +73,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
   const isEditing = !!evento;
+  const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
+  const [coordenacaoId, setCoordenacaoId] = useState<string>("");
 
   const [titulo, setTitulo] = useState("");
   const [dataInicio, setDataInicio] = useState("");
@@ -165,6 +169,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setRecorrenciaIntervalo((evento as any).recorrencia_intervalo || 1);
       setRecorrenciaFim(((evento as any).recorrencia_fim || "").slice(0, 10));
       setSituacao(((evento as any).status as any) || "pendente");
+      setCoordenacaoId(((evento as any).coordenacao_id as string) || unicaCoordenacaoId || "");
 
       const min = alertasEvento && alertasEvento.length > 0 ? alertasEvento[0] : 0;
       const { valor, unidade } = minutosParaUnidade(min);
@@ -208,8 +213,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setRecorrenciaTipo("nenhuma");
       setRecorrenciaIntervalo(1);
       setRecorrenciaFim("");
+      setCoordenacaoId(unicaCoordenacaoId || "");
     }
-  }, [evento, open, alertasEvento, defaultProcessoId]);
+  }, [evento, open, alertasEvento, defaultProcessoId, unicaCoordenacaoId]);
 
   const persistirRelacionamentos = async (eventoId: string) => {
     await supabase.from("evento_responsaveis").delete().eq("evento_id", eventoId);
@@ -253,6 +259,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       local: local || undefined,
       modalidade: modalidade || undefined,
       processo_id: processoId || undefined,
+      coordenacao_id: coordenacaoId || null,
       participantes_ids: responsaveisIds,
       alerta_minutos: alertas,
       enviar_whatsapp: alertas.length > 0,
@@ -557,6 +564,15 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
 
             {/* Processo (opcional) */}
             <div className="border rounded-lg p-3 space-y-2">
+              {precisaSelecionar && (
+                <div className="pb-2 border-b mb-2">
+                  <CoordenacaoSelect
+                    value={coordenacaoId}
+                    onChange={setCoordenacaoId}
+                    required
+                  />
+                </div>
+              )}
               <Label className="text-sm font-medium flex items-center gap-2">
                 <FileText className="w-4 h-4" />
                 Vincular processo (opcional)

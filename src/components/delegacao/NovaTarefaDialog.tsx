@@ -40,6 +40,7 @@ import { Badge } from "@/components/ui/badge";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { Label } from "@/components/ui/label";
 import { TarefaPublicacaoVinculada } from "@/components/shared/TarefaPublicacaoVinculada";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 
 type AnexoComAnalise = {
   file?: File;
@@ -120,6 +121,11 @@ export function NovaTarefaDialog({
   const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { precisaSelecionar, unicaCoordenacaoId, coordenacoes: coordenacoesUsuario } = useCoordenacoesDoUsuario();
+  // Se a prop não trouxer coordenações (ex.: chamadas antigas), usamos a lista do hook.
+  const coordenacoesDisponiveis = (coordenacoes && coordenacoes.length > 0)
+    ? coordenacoes
+    : coordenacoesUsuario.map((c) => ({ id: c.id, nome: c.nome, area: c.area || "" }));
   
   // Buscar usuário atual para salvar criado_por
   const { data: userData } = useQuery({
@@ -323,7 +329,7 @@ export function NovaTarefaDialog({
         }
         return;
       }
-      const coordenacaoInicial = coordenacoes.length === 1 ? coordenacoes[0].id : "";
+      const coordenacaoInicial = unicaCoordenacaoId || (coordenacoesDisponiveis.length === 1 ? coordenacoesDisponiveis[0].id : "");
       form.reset({
         tipo_vinculo: "processo",
         coordenacao_id: coordenacaoInicial,
@@ -346,7 +352,7 @@ export function NovaTarefaDialog({
       setMostrarEnvolvidos(false);
       setSituacao("pendente");
     })();
-  }, [open, processoPreSelecionado, form, coordenacoes, tarefaParaEditar]);
+  }, [open, processoPreSelecionado, form, coordenacoes, tarefaParaEditar, unicaCoordenacaoId]);
 
   const analisarDocumentoComIA = async (file: File): Promise<AnexoComAnalise['analise']> => {
     try {
@@ -534,6 +540,9 @@ export function NovaTarefaDialog({
         } else if (processoId) {
           updatePayload.processo_id = processoId;
         }
+        if (values.coordenacao_id) {
+          updatePayload.coordenacao_id = values.coordenacao_id;
+        }
 
         const { error: upErr } = await supabase
           .from("tarefas")
@@ -570,6 +579,7 @@ export function NovaTarefaDialog({
       // Criar a tarefa primeiro
       const { data: novaTarefa, error } = await supabase.from("tarefas").insert({
         processo_id: processoId,
+        coordenacao_id: values.coordenacao_id || null,
         responsavel_id: responsavelPrincipal,
         titulo: values.titulo,
         descricao: values.descricao || null,
@@ -814,31 +824,33 @@ export function NovaTarefaDialog({
                 )}
               />
 
-              {/* Coordenação */}
-              <FormField
-                control={form.control}
-                name="coordenacao_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Coordenação</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione a coordenação" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {coordenacoes.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.nome} - {c.area}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Coordenação — só aparece para admin ou usuário com mais de uma coordenação */}
+              {precisaSelecionar && (
+                <FormField
+                  control={form.control}
+                  name="coordenacao_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Coordenação</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione a coordenação" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {coordenacoesDisponiveis.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nome}{c.area ? ` - ${c.area}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
 
               {/* Processo (if tipo_vinculo === "processo") */}
               {tipoVinculo === "processo" && (

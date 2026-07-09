@@ -3667,6 +3667,7 @@ export type Database = {
       eventos_agenda: {
         Row: {
           concluido_em: string | null
+          coordenacao_id: string | null
           created_at: string
           criado_por: string
           data_fim: string | null
@@ -3696,6 +3697,7 @@ export type Database = {
         }
         Insert: {
           concluido_em?: string | null
+          coordenacao_id?: string | null
           created_at?: string
           criado_por: string
           data_fim?: string | null
@@ -3725,6 +3727,7 @@ export type Database = {
         }
         Update: {
           concluido_em?: string | null
+          coordenacao_id?: string | null
           created_at?: string
           criado_por?: string
           data_fim?: string | null
@@ -3753,6 +3756,13 @@ export type Database = {
           valor_parcela?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "eventos_agenda_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "eventos_agenda_processo_id_fkey"
             columns: ["processo_id"]
@@ -7698,6 +7708,7 @@ export type Database = {
           alerta_dias: number | null
           alerta_unidade: string | null
           concluido_por_nome: string | null
+          coordenacao_id: string | null
           created_at: string
           criado_por: string | null
           criado_por_nome: string | null
@@ -7750,6 +7761,7 @@ export type Database = {
           alerta_dias?: number | null
           alerta_unidade?: string | null
           concluido_por_nome?: string | null
+          coordenacao_id?: string | null
           created_at?: string
           criado_por?: string | null
           criado_por_nome?: string | null
@@ -7802,6 +7814,7 @@ export type Database = {
           alerta_dias?: number | null
           alerta_unidade?: string | null
           concluido_por_nome?: string | null
+          coordenacao_id?: string | null
           created_at?: string
           criado_por?: string | null
           criado_por_nome?: string | null
@@ -7851,6 +7864,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tarefas_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tarefas_processo_id_fkey"
             columns: ["processo_id"]
