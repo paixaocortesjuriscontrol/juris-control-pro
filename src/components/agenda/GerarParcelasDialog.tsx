@@ -31,6 +31,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EventoAgenda } from "@/hooks/useEventosAgenda";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 
 interface GerarParcelasDialogProps {
   open: boolean;
@@ -59,6 +61,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = !!evento;
   const [situacao, setSituacao] = useState<"pendente" | "concluido" | "cancelado">("pendente");
+  const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
+  const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   
   const [formData, setFormData] = useState({
     titulo: "",
