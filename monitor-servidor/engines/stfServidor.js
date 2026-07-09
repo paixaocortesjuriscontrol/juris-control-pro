@@ -97,11 +97,34 @@ function ymdToEpochMs(ymd, endOfDay) {
   return Date.UTC(y, m - 1, d, 3, 0, 0, 0);
 }
 
+const NAMED_ENTITIES = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", sect: "§",
+  aacute: "á", eacute: "é", iacute: "í", oacute: "ó", uacute: "ú",
+  Aacute: "Á", Eacute: "É", Iacute: "Í", Oacute: "Ó", Uacute: "Ú",
+  atilde: "ã", otilde: "õ", Atilde: "Ã", Otilde: "Õ",
+  acirc: "â", ecirc: "ê", icirc: "î", ocirc: "ô", ucirc: "û",
+  Acirc: "Â", Ecirc: "Ê", Icirc: "Î", Ocirc: "Ô", Ucirc: "Û",
+  agrave: "à", Agrave: "À", uuml: "ü", Uuml: "Ü",
+  ccedil: "ç", Ccedil: "Ç", ntilde: "ñ", Ntilde: "Ñ",
+  ordf: "ª", ordm: "º", deg: "°", middot: "·", hellip: "…",
+  ldquo: '"', rdquo: '"', lsquo: "'", rsquo: "'", mdash: "—", ndash: "–",
+};
+
+function decodeLooseEntities(s) {
+  return String(s || "")
+    .replace(/&([a-zA-Z]+)\s*;?/g, (m, name) => (NAMED_ENTITIES[name] ?? m))
+    .replace(/&#(\d+)\s*;?/g, (_m, n) => { try { return String.fromCodePoint(+n); } catch { return _m; } })
+    .replace(/&#x([0-9a-fA-F]+)\s*;?/g, (_m, n) => { try { return String.fromCodePoint(parseInt(n, 16)); } catch { return _m; } });
+}
+
 function normalize(s) {
   return String(s || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[&\/\\]/g, " ")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    .replace(/[^0-9a-z\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -114,12 +137,21 @@ function contemFrase(texto, frase) {
 }
 
 function stripTags(html) {
-  return String(html || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return decodeLooseEntities(String(html || "")
+    .replace(/<head[\s\S]*?<\/head>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\s*\/(p|div|tr|li|h[1-6])\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, " "))
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function stringifyStfValue(value) {
   if (!value) return "";
-  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (typeof value === "string" || typeof value === "number") return stripTags(String(value));
   if (Array.isArray(value)) return value.map(stringifyStfValue).filter(Boolean).join(" ");
   if (typeof value === "object") {
     return [
