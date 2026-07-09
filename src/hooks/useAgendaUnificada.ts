@@ -514,6 +514,8 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             }
             if (coordScopeIds.length > 0) {
               tarefasFiltradas = tarefasFiltradas.filter((t: any) => {
+                const direct = (t as any).coordenacao_id;
+                if (direct) return coordScopeIds.includes(direct);
                 const procCoord = t.processo && (t.processo as { coordenacao_id?: string | null }).coordenacao_id;
                 if (procCoord) return coordScopeIds.includes(procCoord);
                 if (filters.strictCoordenacaoIsolation) return false;
