@@ -72,7 +72,12 @@ function decodeChunked(body: Uint8Array): Uint8Array {
 
 async function stfRequest(path: string, method: "GET" | "POST", body?: string, extraHeaders: Record<string, string> = {}) {
   const socket = connect({ host: HOST, port: 443 });
-  const tls = new TLSSocket(socket, { servername: HOST, rejectUnauthorized: false });
+  const tls = new TLSSocket(socket, { servername: HOST, requestCert: false });
+
+  // O portal usa cadeia ICP-Brasil, não reconhecida no ambiente Edge.
+  // Em Node/Deno compat, `rejectUnauthorized` não é honrado pelo tipo do construtor,
+  // mas o campo interno é lido pelo handshake TLS.
+  (tls as any).rejectUnauthorized = false;
 
   await new Promise<void>((resolve, reject) => {
     tls.once("secureConnect", resolve);
