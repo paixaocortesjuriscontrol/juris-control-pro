@@ -273,11 +273,11 @@ export function useCreateEvento() {
 
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-      queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+      await queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      await queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
       toast.success("Evento criado com sucesso!");
     },
     onError: (error: Error) => {
@@ -350,11 +350,11 @@ export function useUpdateEvento() {
 
       return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-      queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+      await queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      await queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
       toast.success("Evento atualizado!");
     },
     onError: (error: Error) => {
