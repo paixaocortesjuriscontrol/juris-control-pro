@@ -451,6 +451,20 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
                 </label>
               </div>
 
+              <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 p-3">
+                <Switch
+                  id="busca-stf-ativa"
+                  checked={buscaStfAtiva}
+                  onCheckedChange={setBuscaStfAtiva}
+                />
+                <label htmlFor="busca-stf-ativa" className="cursor-pointer space-y-1 text-sm leading-none">
+                  <span className="font-medium">Também buscar no STF</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Quando ativo, o motor <strong>STF Servidor</strong> consulta o portal DJE-STF (digital.stf.jus.br) com este termo, nos horários configurados na tela do DJEN Servidor. O STF não publica no DJEN/PJe Comunica — é uma busca separada.
+                  </span>
+                </label>
+              </div>
+
               {tipo === 'advogado' ? (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
