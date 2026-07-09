@@ -17,6 +17,7 @@ export interface ItemAgendaUnificado {
   local: string | null;
   recorrente: boolean;
   recorrencia_tipo: string | null;
+  recorrencia_pai_id?: string | null;
   status: string;
   prioridade?: string;
   concluido_em: string | null;
