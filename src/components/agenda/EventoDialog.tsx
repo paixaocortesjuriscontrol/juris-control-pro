@@ -99,6 +99,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
   const [recorrenciaIntervalo, setRecorrenciaIntervalo] = useState<number>(1);
   const [recorrenciaFim, setRecorrenciaFim] = useState<string>("");
+  const [recorrenciaOcorrencias, setRecorrenciaOcorrencias] = useState<string>("");
 
   const { data: processos } = useQuery({
     queryKey: ["processos-evento-dialog", processoSearch],
