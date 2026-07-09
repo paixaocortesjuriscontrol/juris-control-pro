@@ -22,7 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, FileText, Search, X, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { parseISO } from "date-fns";
+import { parseISO, addDays, addWeeks, addMonths, addYears } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
