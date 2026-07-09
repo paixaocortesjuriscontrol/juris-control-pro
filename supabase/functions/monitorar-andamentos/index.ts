@@ -1289,17 +1289,9 @@ async function processBatch(supabase: any, execucaoId?: string): Promise<{
             });
           }
 
-          // Get all admins and coordinators to notify
-          const { data: adminUsers } = await supabase
-            .from('user_roles')
-            .select('user_id')
-            .in('role', ['admin', 'coordenador']);
-          
-          adminUsers?.forEach((u: any) => {
-            if (!usersToNotify.includes(u.user_id)) {
-              usersToNotify.push(u.user_id);
-            }
-          });
+          // Nota: NÃO notificar admins/coordenadores de OUTRAS coordenações.
+          // As notificações do sininho devem ser apenas para o responsável do
+          // processo e para os membros da coordenação do processo.
 
           // Batch notification inserts
           const notificationRows = usersToNotify.map(userId => ({
