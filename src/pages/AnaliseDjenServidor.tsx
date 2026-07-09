@@ -728,7 +728,7 @@ const AnaliseDjenServidor = () => {
         : null;
 
       let query = (supabase.from('publicacoes_djen_servidor') as any)
-        .select('id, id_djen, dedup_key, dedup_conteudo_key, processo_numero, conteudo, data_publicacao, data_disponibilizacao, fonte, created_at, monitoramento_id, coordenacao_id, tribunal', { count: 'exact' })
+        .select('id, id_djen, processo_numero, conteudo, data_publicacao, data_disponibilizacao, fonte, created_at, monitoramento_id, coordenacao_id, tribunal', { count: 'exact' })
         .eq('tipo_publicacao', 'pauta');
 
       if (diaPauta) {
@@ -769,8 +769,6 @@ const AnaliseDjenServidor = () => {
       const mapped = rows.map((pub: any): PublicacaoUnificada => ({
         id: pub.id,
         id_djen: pub.id_djen ?? null,
-        dedup_key: pub.dedup_key ?? null,
-        dedup_conteudo_key: pub.dedup_conteudo_key ?? null,
         tipo_origem: 'termo',
         processo_id: null,
         processo_numero: pub.processo_numero,
