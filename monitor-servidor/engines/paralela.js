@@ -1766,6 +1766,11 @@ async function run({ sb, payload, log, job }) {
   }
   let bandAtual = 0;
   const inBand = [0, 0, 0, 0];
+  // Circuit breaker STF (por execução): se STF acumular 5xx, abre e pula
+  // as demais units STF em vez de gastar 90-180s cada em erro.
+  const STF_5XX_LIMIT = 3;
+  let stfErros5xx = 0;
+  let stfCircuitOpen = false;
   const pickNext = () => {
     // Bandas 0/1/2: sem trava entre si, workers livres avançam.
     for (let b = 0; b < 3; b++) {
