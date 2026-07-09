@@ -377,8 +377,10 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         if (filters.fetchAll) {
           // Admin vendo todas - sem filtro
         } else if (coordScopeIds.length > 0) {
-          // Coordenador: vê todas as tarefas da(s) coordenação(ões), independente de criador/responsável
-          queryTarefas = queryTarefas.in("processo.coordenacao_id", coordScopeIds);
+          // Coordenador: vê todas as tarefas da(s) coordenação(ões), independente de criador/responsável.
+          // Usa o campo tarefas.coordenacao_id (sincronizado por trigger), assim tarefas sem processo
+          // também aparecem no escopo da coordenação.
+          queryTarefas = queryTarefas.in("coordenacao_id", coordScopeIds);
         } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
           if (filters.pessoal) {
             // Modo pessoal: tarefas onde o usuário é responsável OU criador
