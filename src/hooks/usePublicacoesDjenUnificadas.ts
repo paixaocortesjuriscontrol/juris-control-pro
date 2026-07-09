@@ -169,6 +169,8 @@ export interface LeituraUsuario {
 export interface PublicacaoUnificada {
   id: string;
   id_djen?: string | null;
+  dedup_key?: string | null;
+  dedup_conteudo_key?: string | null;
   tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud';
   processo_id: string | null;
   processo_numero: string | null;
@@ -440,8 +442,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         try {
           let q = (supabase
             .from('publicacoes_djen') as any)
-            .select('id, id_djen, lida, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
-            .eq('tipo_publicacao', 'pauta');
+            .select('id, id_djen, dedup_key, dedup_conteudo_key, lida, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
+            .eq('tipo_publicacao', 'pauta')
+            .eq('status', 'encontrada');
           const pautaPubInicio = dataPublicacaoPautaInicio(filtros.dataDisponibilizacao, filtros.apenasHoje);
           const pautaPubFim = dataPublicacaoPautaFim(filtros.dataDisponibilizacao, filtros.apenasHoje);
           if (pautaPubInicio) q = q.gte('data_publicacao', pautaPubInicio);
@@ -466,6 +469,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             (pautasRows || []).map((r: any) => ({
               id: r.id,
               id_djen: r.id_djen ?? null,
+              dedup_key: r.dedup_key ?? null,
+              dedup_conteudo_key: r.dedup_conteudo_key ?? null,
               tipo_origem: 'termo',
               processo_id: null,
               processo_numero: r.processo_numero,
@@ -854,6 +859,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           .select(`
             id,
             id_djen,
+            dedup_key,
+            dedup_conteudo_key,
             monitoramento_id,
             processo_numero,
             conteudo,
@@ -912,7 +919,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
         // Filtro "DJET Pautas": só publicações do caderno judiciário (DEJT)
         if (filtros.tipoOrigem === 'djet-pautas') {
-          queryTermos = (queryTermos as any).eq('tipo_publicacao', 'pauta');
+          queryTermos = (queryTermos as any)
+            .eq('tipo_publicacao', 'pauta')
+            .eq('status', 'encontrada');
         } else {
           // Demais filtros: oculta as pautas DJET para não misturar com intimações
           queryTermos = (queryTermos as any).or('tipo_publicacao.is.null,tipo_publicacao.neq.pauta');
@@ -969,6 +978,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           resultados.push({
             id: pub.id,
             id_djen: pub.id_djen ?? null,
+            dedup_key: pub.dedup_key ?? null,
+            dedup_conteudo_key: pub.dedup_conteudo_key ?? null,
             tipo_origem: 'termo',
             processo_id: processoId,
             processo_numero: pub.processo_numero,
