@@ -234,7 +234,6 @@ export default function PainelControle() {
     if (isAdmin) {
       if (adminCoordFilter !== "todas" && membrosCoordFiltrada.length > 0) {
         return {
-          responsavelIds: membrosCoordFiltrada,
           coordenacaoId: adminCoordFilter,
           strictCoordenacaoIsolation: true,
           fetchAll: false,
@@ -243,7 +242,6 @@ export default function PainelControle() {
       }
       if (adminCoordFilter !== "todas" && membrosFilterLoading) {
         return {
-          responsavelIds: [],
           coordenacaoId: adminCoordFilter,
           strictCoordenacaoIsolation: true,
           fetchAll: false,
