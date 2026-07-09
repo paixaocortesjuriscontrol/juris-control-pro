@@ -86,6 +86,15 @@ export const AGENDA_INFINITE_QUERY_KEY = "agenda-unificada-infinite-v1" as const
 
 const normalizeDedupText = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
 
+const normalizeRecorrenciaTipo = (tipo: string | null | undefined) => {
+  const normalized = String(tipo ?? "").toLowerCase().trim();
+  if (["daily", "diaria", "diário", "diario"].includes(normalized)) return "daily";
+  if (["weekly", "semanal"].includes(normalized)) return "weekly";
+  if (["monthly", "mensal"].includes(normalized)) return "monthly";
+  if (["yearly", "annual", "anual"].includes(normalized)) return "yearly";
+  return normalized;
+};
+
 /**
  * Alguns registros podem existir duplicados no banco (ex.: importações, DJEN, etc.).
  * Para não poluir a UI, deduplicamos por uma chave de negócio para tarefas.
@@ -352,7 +361,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             if (!isRecorrente) {
               ocorrencias.push(dataOriginal);
             } else {
-              const tipo = String(evento.recorrencia_tipo).toLowerCase();
+              const tipo = normalizeRecorrenciaTipo(evento.recorrencia_tipo);
               const intervalo = Math.max(1, Number(evento.recorrencia_intervalo || 1));
               const diasSemana: number[] | null = Array.isArray(evento.recorrencia_dias_semana)
                 ? evento.recorrencia_dias_semana
@@ -364,7 +373,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
               while (cursor <= hardStop && safety < MAX) {
                 safety++;
                 if (cursor >= windowStart) {
-                  if (tipo === "semanal" && diasSemana && diasSemana.length > 0) {
+                  if (tipo === "weekly" && diasSemana && diasSemana.length > 0) {
                     // expandir os dias marcados dentro da semana do cursor
                     for (const d of diasSemana) {
                       const diff = ((d - cursor.getDay()) + 7) % 7;
@@ -376,10 +385,10 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                   }
                 }
                 // avança conforme a frequência
-                if (tipo === "diaria" || tipo === "diario") cursor = addDays(cursor, intervalo);
-                else if (tipo === "semanal") cursor = addDays(cursor, 7 * intervalo);
-                else if (tipo === "mensal") cursor = addMonths(cursor, intervalo);
-                else if (tipo === "anual") cursor = addYears(cursor, intervalo);
+                if (tipo === "daily") cursor = addDays(cursor, intervalo);
+                else if (tipo === "weekly") cursor = addDays(cursor, 7 * intervalo);
+                else if (tipo === "monthly") cursor = addMonths(cursor, intervalo);
+                else if (tipo === "yearly") cursor = addYears(cursor, intervalo);
                 else break;
               }
 
