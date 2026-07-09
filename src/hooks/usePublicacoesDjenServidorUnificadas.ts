@@ -191,8 +191,6 @@ export interface LeituraUsuario {
 export interface PublicacaoUnificada {
   id: string;
   id_djen?: string | null;
-  dedup_key?: string | null;
-  dedup_conteudo_key?: string | null;
   tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud';
   processo_id: string | null;
   processo_numero: string | null;
@@ -811,8 +809,6 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           .select(`
             id,
             id_djen,
-            dedup_key,
-            dedup_conteudo_key,
             monitoramento_id,
             processo_numero,
             conteudo,
@@ -922,8 +918,6 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           resultados.push({
             id: pub.id,
             id_djen: pub.id_djen ?? null,
-            dedup_key: pub.dedup_key ?? null,
-            dedup_conteudo_key: pub.dedup_conteudo_key ?? null,
             tipo_origem: 'termo',
             processo_id: processoId,
             processo_numero: pub.processo_numero,
