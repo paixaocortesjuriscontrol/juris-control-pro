@@ -9,7 +9,9 @@ const ENGINE_VERSION = "2026-07-01-prioridade-original-wave";
 
 const TODOS_CIVEIS = ["TJAC","TJAL","TJAM","TJAP","TJBA","TJCE","TJDFT","TJES","TJGO","TJMA","TJMG","TJMS","TJMT","TJPA","TJPB","TJPE","TJPI","TJPR","TJRJ","TJRN","TJRO","TJRR","TJRS","TJSC","TJSE","TJSP","TJTO"];
 const TODOS_TRT = ["TST","TRT1","TRT2","TRT3","TRT4","TRT5","TRT6","TRT7","TRT8","TRT9","TRT10","TRT11","TRT12","TRT13","TRT14","TRT15","TRT16","TRT17","TRT18","TRT19","TRT20","TRT21","TRT22","TRT23","TRT24"];
-const TODOS_TRIBUNAIS = [...TODOS_TRT, "STJ", "TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6", ...TODOS_CIVEIS, "STF"];
+// STF removido: PJE Comunica devolve HTTP 500 sistematicamente para STF.
+// O motor paralelo `stfServidor` cobre STF via digital.stf.jus.br (opt-in por monitoramento).
+const TODOS_TRIBUNAIS = [...TODOS_TRT, "STJ", "TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6", ...TODOS_CIVEIS];
 const TIPO_ORDER = ["parte", "advogado", "palavra-chave", "processo"];
 const MAIN_TIPOS = ["parte", "advogado", "palavra-chave"];
 // Paridade com DJEN Termos Paralela do browser (src/hooks/useDjenTermosParalelaEngine.ts CONFIG):
@@ -207,7 +209,7 @@ function expandirTribunais(tribunais) {
     const t = String(raw || "").trim();
     if (t === "TODOS_CIVEIS") TODOS_CIVEIS.forEach((x) => set.add(x));
     else if (t === "TODOS_TRT") TODOS_TRT.forEach((x) => set.add(x));
-    else if (t) set.add(t);
+    else if (t && t.toUpperCase() !== "STF") set.add(t); // STF fora do DJEN
   }
   return set.size > 0 ? TODOS_TRIBUNAIS.filter((t) => set.has(t)) : TODOS_TRIBUNAIS;
 }
