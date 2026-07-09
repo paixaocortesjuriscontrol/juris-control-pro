@@ -100,7 +100,7 @@ import { jsPDF } from "jspdf";
 import { dedupePublicacoesDjen, stripDestinatarios } from "@/utils/djenDedup";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
-type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas' | 'kurier';
+type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas' | 'kurier' | 'stf';
 type FiltroDiaDjen = 'hoje' | 'todos';
 
 // Encurta nomes de turma/órgão como "5ª Turma do Tribunal Superior do Trabalho" → "5ª Turma".
@@ -466,7 +466,9 @@ const AnaliseDjen = () => {
     apenasHoje: apenasHojeEfetivo,
     // 'todos' e 'normal' passam undefined para buscar termos e processos.
     // Kurier é filtrado no banco para não depender das primeiras 500 publicações gerais.
-    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud') ? undefined : tipoOrigem as any,
+    // 'stf' também passa undefined: filtramos client-side por tribunal=STF
+    // sobre as publicações DJEN já carregadas.
+    tipoOrigem: (tipoOrigem === 'todos' || tipoOrigem === 'normal' || tipoOrigem === 'datajud' || tipoOrigem === 'stf') ? undefined : tipoOrigem as any,
     // Descartadas SÓ aparecem quando o filtro "Tipo de origem" está em
     // "descartada" (aba dedicada com RPC própria). Em qualquer outra aba,
     // mesmo buscando por número de processo, não misturamos descartadas
@@ -3637,6 +3639,12 @@ const AnaliseDjen = () => {
     if (tipoOrigem === 'kurier') {
       result = result.filter(pub => (pub.fonte || '').toLowerCase() === 'kurier');
     }
+    if (tipoOrigem === 'stf') {
+      result = result.filter(pub => {
+        const t = (pub.tribunal || pub.fonte || '').toString().toUpperCase();
+        return /(?:^|[^A-Z0-9])STF(?:[^A-Z0-9]|$)/.test(t);
+      });
+    }
     if (dataDisponibilizacao) {
       result = result.filter(pub => {
         const dataFiltro = tipoOrigem === 'djet-pautas' ? pub.data_publicacao : pub.data_disponibilizacao;
@@ -4048,6 +4056,7 @@ const AnaliseDjen = () => {
                   <option value="parte">Por Parte</option>
                   <option value="processo">Por Processos</option>
                   <option value="kurier">Kurier</option>
+                  <option value="stf">STF</option>
                   <option value="datajud">DataJud (CNJ)</option>
                   <option value="djet-pautas">DEJT Pautas</option>
                   <option value="descartada">Descartadas (auditoria)</option>
