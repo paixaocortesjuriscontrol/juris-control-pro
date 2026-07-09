@@ -4773,6 +4773,7 @@ export type Database = {
           arquivado_em: string | null
           arquivado_por: string | null
           ativo: boolean
+          busca_stf_ativa: boolean
           buscar_parte: boolean | null
           condicao_concomitante: string | null
           coordenacao_id: string | null
@@ -4797,6 +4798,7 @@ export type Database = {
           arquivado_em?: string | null
           arquivado_por?: string | null
           ativo?: boolean
+          busca_stf_ativa?: boolean
           buscar_parte?: boolean | null
           condicao_concomitante?: string | null
           coordenacao_id?: string | null
@@ -4821,6 +4823,7 @@ export type Database = {
           arquivado_em?: string | null
           arquivado_por?: string | null
           ativo?: boolean
+          busca_stf_ativa?: boolean
           buscar_parte?: boolean | null
           condicao_concomitante?: string | null
           coordenacao_id?: string | null

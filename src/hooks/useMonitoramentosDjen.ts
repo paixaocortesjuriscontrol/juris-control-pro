@@ -24,6 +24,7 @@ export interface MonitoramentoDjen {
   tribunais_ufs?: string[];
   buscar_parte?: boolean;
   somente_kurier?: boolean;
+  busca_stf_ativa?: boolean;
   arquivado?: boolean;
   arquivado_em?: string | null;
   arquivado_por?: string | null;

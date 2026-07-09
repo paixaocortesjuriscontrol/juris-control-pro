@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Server, Activity, FileSearch, GitCompare, PlayCircle, Loader2, CalendarIcon, CheckCircle2, XCircle, Clock, StopCircle, Zap, Newspaper, Radar } from "lucide-react";
+import { Server, Activity, FileSearch, GitCompare, PlayCircle, Loader2, CalendarIcon, CheckCircle2, XCircle, Clock, StopCircle, Zap, Newspaper, Radar, Landmark } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +32,7 @@ import {
   type ProgressoItem,
 } from "@/hooks/useDjenServidor";
 import { DjenServidorParalelaCard } from "@/components/djen/DjenServidorParalelaCard";
+import { DjenServidorStfCard } from "@/components/djen/DjenServidorStfCard";
 import { MonitoramentoTermosKurierCard } from "@/components/configuracoes/MonitoramentoTermosKurierCard";
 import { MonitoramentoDjetPautasCard } from "@/components/configuracoes/MonitoramentoDjetPautasCard";
 import { HorariosDoDiaPicker } from "@/components/djen/HorariosDoDiaPicker";
@@ -1031,6 +1032,7 @@ export default function DjenServidor() {
       <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList className="flex-wrap">
           <TabsTrigger value="servidor"><Zap className="h-4 w-4 mr-1" />DJEN Termos</TabsTrigger>
+          <TabsTrigger value="stf"><Landmark className="h-4 w-4 mr-1" />STF</TabsTrigger>
           <TabsTrigger value="pautas"><Newspaper className="h-4 w-4 mr-1" />DJEN Pautas</TabsTrigger>
           <TabsTrigger value="kurier"><Radar className="h-4 w-4 mr-1" />DJEN Kurier</TabsTrigger>
           <TabsTrigger value="workers"><Server className="h-4 w-4 mr-1" />Workers</TabsTrigger>
@@ -1039,6 +1041,7 @@ export default function DjenServidor() {
           <TabsTrigger value="comparador"><GitCompare className="h-4 w-4 mr-1" />Comparador</TabsTrigger>
         </TabsList>
         <TabsContent value="servidor"><div className="space-y-4"><DjenServidorParalelaCard /></div></TabsContent>
+        <TabsContent value="stf"><div className="space-y-4"><DjenServidorStfCard /></div></TabsContent>
         <TabsContent value="pautas"><MonitoramentoDjetPautasCard /></TabsContent>
         <TabsContent value="kurier"><MonitoramentoTermosKurierCard /></TabsContent>
         <TabsContent value="workers"><WorkersPanel /></TabsContent>
