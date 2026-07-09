@@ -263,6 +263,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       participantes_ids: responsaveisIds,
       alerta_minutos: alertas,
       enviar_whatsapp: alertas.length > 0,
+      recorrente: recorrenciaTipo !== "nenhuma",
       recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
       recorrencia_intervalo: recorrenciaTipo !== "nenhuma" ? recorrenciaIntervalo : null,
       recorrencia_fim: recorrenciaTipo !== "nenhuma" && recorrenciaFim ? recorrenciaFim : null,
