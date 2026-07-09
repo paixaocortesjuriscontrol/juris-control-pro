@@ -492,9 +492,13 @@ async function runJob(
         }
         try {
           // Chunk de páginas para não estourar o CPU limit da Edge Function
-          // em cadernos grandes (TRT1/TRT2/TRT5). Cada invocação processa até
-          // CHUNK_PAGES; o número real de páginas vem na 1ª resposta.
+          // em cadernos grandes (TRT1/TRT2/TRT5). Como uma pauta pode começar
+          // no fim de um chunk e seus processos continuarem no chunk seguinte
+          // (caso real TRT5: marcador na pág. 100 e processo na pág. 101),
+          // reprocessamos uma faixa de sobreposição. A deduplicação local por
+          // coordenação+hash remove os repetidos, mas evita perder sub-blocos.
           const CHUNK_PAGES = 100;
+          const OVERLAP_PAGES = 25;
           const MAX_CHUNKS = 40; // teto de segurança (~4000 páginas)
           const matches: MatchOut[] = [];
           let pageStart = 1;
@@ -506,6 +510,7 @@ async function runJob(
 
           while (pageStart <= numPages && chunkIdx < MAX_CHUNKS) {
             const pageEnd = Math.min(pageStart + CHUNK_PAGES - 1, numPages);
+            const requestPageStart = chunkIdx === 0 ? pageStart : Math.max(1, pageStart - OVERLAP_PAGES);
             // Retry transiente (HTTP 5xx/546) por chunk
             let resp: Response | null = null;
             let lastStatus = 0;
@@ -522,7 +527,7 @@ async function runJob(
                   dataDDMMYYYY,
                   caderno: "judiciario",
                   monitoramentos: monsInput,
-                  pageStart,
+                  pageStart: requestPageStart,
                   pageEnd,
                 }),
               });
@@ -537,7 +542,7 @@ async function runJob(
             ultimoStatus = lastStatus;
             if (!resp || !resp.ok) {
               falhouChunk = true;
-              console.error(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY} chunk p${pageStart}-${pageEnd}: HTTP ${lastStatus}`);
+              console.error(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY} chunk p${requestPageStart}-${pageEnd}: HTTP ${lastStatus}`);
               break;
             }
             const json = await resp.json();
@@ -565,7 +570,7 @@ async function runJob(
             matches.push(...chunkMatches);
             const np = Number(json?.numPages) || 0;
             if (np > 0) numPages = np;
-            item.mensagem = `${dataDDMMYYYY}: p.${pageStart}-${pageEnd}/${numPages || "?"}`;
+            item.mensagem = `${dataDDMMYYYY}: p.${requestPageStart}-${pageEnd}/${numPages || "?"}`;
             await flushProgresso();
             pageStart = pageEnd + 1;
             chunkIdx++;
