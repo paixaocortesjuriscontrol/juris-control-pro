@@ -117,6 +117,32 @@ function stripTags(html) {
   return String(html || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function stringifyStfValue(value) {
+  if (!value) return "";
+  if (typeof value === "string" || typeof value === "number") return String(value);
+  if (Array.isArray(value)) return value.map(stringifyStfValue).filter(Boolean).join(" ");
+  if (typeof value === "object") {
+    return [
+      value.nome,
+      value.nomeParte,
+      value.nomeAdvogado,
+      value.categoria,
+      value.polo,
+      value.tipo,
+      value.numero,
+      value.oab,
+      value.numeroOab,
+      value.ufOab,
+      value.identificacao,
+      stringifyStfValue(value.identificacoes),
+      stringifyStfValue(value.advogados),
+      stringifyStfValue(value.procuradores),
+      stringifyStfValue(value.representantes),
+    ].filter(Boolean).join(" ");
+  }
+  return "";
+}
+
 function hashConteudo(processo, texto) {
   return crypto
     .createHash("sha256")
@@ -230,6 +256,10 @@ function buildTextoValidacao(pub) {
     extractProcessoNumero(pub),
     pub.tipo,
     extractRelator(pub),
+    pub.observacao,
+    pub.responsavel,
+    pub.descricao,
+    stringifyStfValue(pub.envolvidos),
   ].filter(Boolean).join(" ");
 }
 
