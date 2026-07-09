@@ -217,7 +217,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           // para que a expansão de ocorrências no cliente cubra o intervalo pedido.
           const diIso = filters.dataInicio.toISOString();
           queryEventos = queryEventos.or(
-            `data_inicio.gte.${diIso},recorrente.eq.true`
+            `data_inicio.gte.${diIso},recorrente.eq.true,recorrencia_tipo.not.is.null`
           );
         }
 
@@ -267,7 +267,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           if (filters.dataInicio) {
             const diIso = filters.dataInicio.toISOString();
             queryEventosFallback = queryEventosFallback.or(
-              `data_inicio.gte.${diIso},recorrente.eq.true`
+              `data_inicio.gte.${diIso},recorrente.eq.true,recorrencia_tipo.not.is.null`
             );
           }
           if (filters.dataFim) {
