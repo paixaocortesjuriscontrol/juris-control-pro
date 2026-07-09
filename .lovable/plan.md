@@ -1,78 +1,67 @@
-## Objetivo
+## Regra única (aplicada aos 5 formulários do botão "+ Adicionar")
 
-Criar tela **"Busca Publicação"** dentro de Admin TST para varrer publicações no DJEN a partir de uma planilha de processos, período e tribunais. A execução roda nas VPS existentes (proxyPool), em um **novo engine independente** — sem tocar em `paralela.js` ou nos jobs de DJEN Termos Servidor.
+Regra do seletor "Coordenação":
 
-## Fluxo do usuário
+- **Admin** OU **usuário com >1 coordenação** → mostra o select (obrigatório escolher).
+- **Usuário com exatamente 1 coordenação** → **não** mostra o select. O sistema vincula automaticamente à coordenação do usuário logado, tanto na inclusão quanto na edição.
+- Formulários afetados: **Tarefa, Evento, Prazo, Audiência, Parcelamento recorrente**.
+- Ao abrir o form, os pickers de **processo** e **responsáveis** já vêm filtrados pela coordenação vinculada (única do usuário, ou a selecionada no topo do form).
 
-1. Acessa Admin TST → "Busca Publicação".
-2. Faz upload de Excel com lista de processos (aceita coluna `Processo` ou `Número do Processo`; normaliza para 20 dígitos CNJ).
-3. Escolhe período: `data_inicio` e `data_fim`.
-4. Escolhe tribunais (multi-select, mesmo componente já usado nos monitoramentos DJEN — TST, STJ, TRTs, STF, TRFs, TJs, ou "Todos").
-5. Clica "Iniciar busca" → cria job na nova fila; UI mostra progresso em tempo real (processos processados / total).
-6. Ao concluir → botão "Baixar relatório Excel (2 abas)".
+## Banco (migração)
 
-## Backend / Fila (nova, isolada)
+Adicionar coluna `coordenacao_id uuid` (FK → `coordenacoes.id`, `ON DELETE SET NULL`) nas tabelas que hoje não têm:
 
-**Nova tabela `buscas_publicacoes_execucoes`:**
-- `id`, `criado_por`, `criado_em`, `status` (`pendente`|`em_execucao`|`concluida`|`erro`|`cancelada`)
-- `data_inicio`, `data_fim` (date)
-- `tribunais` (text[])
-- `processos` (jsonb — array com `{numero_original, numero_digitos}`)
-- `total_processos` (int), `processados` (int), `total_publicacoes` (int)
-- `worker_id`, `iniciado_em`, `finalizado_em`, `erro_mensagem`
-- `heartbeat_at`
+- `public.tarefas`
+- `public.eventos_agenda`
 
-**Nova tabela `buscas_publicacoes_resultados`:**
-- `id`, `execucao_id` (FK), `processo_digitos`, `processo_original`
-- `id_djen` (nullable), `tribunal`, `data_disponibilizacao`, `data_publicacao`
-- `orgao`, `tipo_comunicacao`, `conteudo` (text), `raw_json` (jsonb)
-- unique(`execucao_id`, `processo_digitos`, `id_djen`) quando `id_djen` presente; senão hash de conteúdo+data
+(`audiencias_detectadas` já tem `coordenacao_id`; parcelamento é linha em `eventos_agenda`; prazo TST é derivado de `processos.data_fatal` e não muda de tabela.)
 
-Grants padrão + RLS (authenticated: leitura própria + admin TST; service_role: full).
+Trigger `BEFORE INSERT OR UPDATE` em `tarefas` e `eventos_agenda`:
 
-**Nova RPC `lease_proxima_busca_publicacao`** — espelha `lease_proxima_execucao_servidor` mas na nova tabela. Não interfere com o lease existente.
+1. Se `processo_id` presente → `coordenacao_id := processos.coordenacao_id`.
+2. Senão, se `coordenacao_id` veio no payload → mantém.
+3. Senão, deriva da coordenação do `criado_por` via `membros_coordenacao` (pega a única; se houver mais de uma e nenhuma foi enviada, deixa NULL — o front garante o valor nesse caso).
 
-## Engine no monitor-servidor (novo arquivo)
+Backfill: preencher `coordenacao_id` das linhas existentes via `processos.coordenacao_id`; onde não houver processo, via `membros_coordenacao` do `criado_por` (só quando o usuário tem exatamente uma coordenação).
 
-`monitor-servidor/engines/buscaProcessos.js`:
-- `TIPO_ENGINE = "busca_publicacao_servidor"`.
-- Lê job, distribui processos entre VPS via `djenFetchSlot` (mesmo `proxyPool`).
-- Para cada processo × tribunal:
-  - Chama `/comunicacao?numeroProcesso={digitos}&siglaTribunal={T}&dataDisponibilizacaoInicio&Fim` paginando até esvaziar (padrão `continueUntilEmpty`).
-  - Se resultado vazio no número normalizado E o número tinha máscara, faz fallback com número original.
-- Insere em `buscas_publicacoes_resultados` em batches de 200.
-- Atualiza `processados` e `total_publicacoes` a cada N processos (heartbeat).
-- Delays configuráveis via env (`BUSCA_PAGE_DELAY_MS`, etc.), independentes dos existentes.
+Índices: `idx_tarefas_coordenacao_id`, `idx_eventos_agenda_coordenacao_id`.
 
-`monitor-servidor/index.js`:
-- Adicionar 1 linha em `ENGINES`: `busca_publicacao_servidor: require("./engines/buscaProcessos")`.
-- O SLOTS já é gerado dinamicamente a partir de `ENGINES` → novo slot aparece automaticamente sem alterar lógica.
+## Front (mesmo padrão em todos os 5 forms)
 
-## Frontend
+Novo hook utilitário `useCoordenacoesDoUsuario()` (baseado em `useUserRole` + `membros_coordenacao`) que retorna:
 
-**Arquivos novos:**
-- `src/pages/BuscaPublicacao.tsx` — upload Excel (SheetJS worker leve), pickers de data (shadcn), MultiSelect de tribunais (reutiliza opções de `djenTribunais.ts`), botão iniciar, painel de progresso (subscription realtime em `buscas_publicacoes_execucoes`), lista de execuções recentes do usuário.
-- `src/lib/buscaPublicacaoExcelParser.ts` — extrai coluna de processo, normaliza dígitos (`replace(/\D/g,'')`), remove duplicatas, valida 20 dígitos.
-- `src/lib/relatorioBuscaPublicacaoExcel.ts` — gera Excel 2 abas:
-  - **Aba 1 "Resumo"**: `Processo | Qtd Publicações | 1ª Data | Última Data | Tribunais (lista)`
-  - **Aba 2 "Detalhe"**: `Processo | Data Disponibilização | Data Publicação | Tribunal | Órgão | Tipo | Conteúdo`
-  - Datas `DD/MM/YYYY`, ordenado por processo depois data.
+```
+{ isAdmin, coordenacoes: [...], unicaCoordenacaoId, precisaSelecionar }
+```
 
-**Arquivos editados:**
-- `src/pages/AdminTst.tsx` — novo card "Busca Publicação" (ícone `Search`), descrição sobre upload de processos + período.
-- `src/App.tsx` — rota `/admin-tst/busca-publicacao` com `AdminRoute`.
+- `precisaSelecionar = isAdmin || coordenacoes.length > 1`.
+- `unicaCoordenacaoId = coordenacoes.length === 1 ? coordenacoes[0].id : null`.
 
-## Regras
+Em cada dialog (`NovaTarefaDialog`, `EventoDialog`, `PrazoDialog`/prazo do menu Adicionar, `CadastroAudienciaForm`/`AudienciaFormSimplificado`, `GerarParcelasDialog`):
 
-- Motor Termos Servidor **não é tocado**: novo `TIPO_ENGINE`, nova tabela de fila, nova RPC de lease, novo arquivo de engine.
-- Reuso apenas de infraestrutura genérica: `proxyPool.js`, `djenFetchSlot`, `makeSupabase`, `falhasRefila` (opcional).
-- Normalização CNJ: `String(v).replace(/\D/g,'')`; se ≠ 20 dígitos, marca como "inválido" no relatório e não vai para VPS.
-- Deduplicação por `id_djen` quando disponível; senão hash `numeroProcesso + data_disponibilizacao + conteudo`.
-- Paginação com `continueUntilEmpty` (memória `djen-pagination-continueuntilempty`).
-- Relatório considera apenas publicações inseridas na `buscas_publicacoes_resultados` do job — não mistura com `publicacoes_djen` de outros monitoramentos.
+1. Ler `useCoordenacoesDoUsuario()`.
+2. Renderizar o `<CoordenacaoSelect>` apenas quando `precisaSelecionar === true`.
+3. Quando **oculto**, injetar `unicaCoordenacaoId` no state do form no mount e usá-lo diretamente no insert/update.
+4. Quando **visível**, manter comportamento atual (obrigatório escolher). Para admin, se houver processo vinculado, pré-selecionar a coordenação do processo — mas o admin pode trocar.
+5. Nos pickers de **processo** e **responsáveis**, aplicar filtro por `coordenacao_id` do valor efetivo (unica ou selecionada).
+6. Enviar `coordenacao_id` no `insert`/`update` de `tarefas` e `eventos_agenda`. O trigger reconcilia com o processo, se houver.
+7. Na edição, se o registro veio sem `coordenacao_id` (dado antigo), preencher com `unicaCoordenacaoId` do usuário logado quando `!precisaSelecionar`.
 
-## Fora de escopo
+## Impacto no filtro do admin (Painel de Controle)
 
-- Não cria monitoramento recorrente.
-- Não grava em `publicacoes_djen` (evita poluir base dos monitoramentos ativos).
-- Não classifica/valida por termo — a busca aqui é puramente por número de processo.
+Como `tarefas` e `eventos_agenda` passam a ter `coordenacao_id` próprio, o filtro do admin "Escritório → Coordenação X" volta a encontrar itens sem processo. Ajustes:
+
+- `useAgendaUnificada.ts`: adicionar `OR tarefas.coordenacao_id = X` e `OR eventos_agenda.coordenacao_id = X` ao filtro por coordenação (hoje só via `processos!inner.coordenacao_id`).
+- `PainelControle.tsx`: cards de resumo passam a filtrar por `coordenacao_id` direto na tabela também.
+
+## Fora do escopo
+
+- Redistribuir itens entre coordenações em massa.
+- Mexer em RLS existente (o novo caminho respeita as políticas atuais — usuário só vê a própria coordenação; admin vê tudo).
+- Redesign visual dos forms; apenas condicionar a exibição do campo Coordenação.
+
+## Resultado
+
+- Usuário com 1 coordenação: abre o "+ Adicionar", escolhe Tarefa/Evento/Prazo/Audiência/Parcelamento, **não vê** campo Coordenação, e o item já sai vinculado à coordenação dele — com processos e responsáveis filtrados para essa coordenação.
+- Usuário com várias coordenações ou admin: vê o select no topo, escolhe uma, e o resto do form segue essa escolha.
+- No painel do admin, ao filtrar por Escritório + Coordenação, os itens criados por esse fluxo aparecem, mesmo sem processo vinculado.
