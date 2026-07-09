@@ -45,12 +45,17 @@ let sessionXsrf: string | null = null;
 
 function parseSetCookie(headers: Headers): Record<string, string> {
   const jar: Record<string, string> = {};
-  const raw = headers.get('set-cookie');
-  if (!raw) return jar;
-  for (const part of raw.split(/,(?=\s*[^;=]+=[^;]+)/g)) {
+  const lines = typeof (headers as any).getSetCookie === 'function'
+    ? (headers as any).getSetCookie()
+    : [headers.get('set-cookie')].filter(Boolean);
+  for (const rawLine of lines) {
+    const raw = String(rawLine || '');
+    if (!raw) continue;
+    for (const part of raw.split(/,(?=\s*[^;=]+=[^;]+)/g)) {
     const first = part.trim().split(';')[0];
     const eq = first.indexOf('=');
     if (eq > 0) jar[first.slice(0, eq)] = first.slice(eq + 1);
+    }
   }
   return jar;
 }
@@ -64,11 +69,17 @@ function mergeSessionCookies(headers: Headers) {
 
 async function ensureCsrf(force = false) {
   if (!force && sessionCookie && sessionXsrf) return;
-  const r = await undiciFetch(`${STF_BASE}/ultimo-dje`, {
-    method: 'GET',
-    headers: STF_HEADERS_BROWSER,
-    dispatcher: insecureAgent,
-  });
+  let r: Response;
+  try {
+    r = await fetch(`${STF_BASE}/ultimo-dje`, { method: 'GET', headers: STF_HEADERS_BROWSER });
+  } catch (e) {
+    console.log(`[stf-proxy] csrf fetch nativo falhou: ${(e as Error).message}, tentando undici...`);
+    r = await undiciFetch(`${STF_BASE}/ultimo-dje`, {
+      method: 'GET',
+      headers: STF_HEADERS_BROWSER,
+      dispatcher: insecureAgent,
+    }) as unknown as Response;
+  }
   await r.text();
   mergeSessionCookies(r.headers);
   if (!sessionXsrf) throw new Error('stf_csrf_indisponivel');
