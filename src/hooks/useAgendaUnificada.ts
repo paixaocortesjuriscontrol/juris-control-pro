@@ -311,6 +311,8 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
 
           if (filters.coordenacaoId) {
             eventosFiltered = eventosFiltered.filter((evento: any) => {
+              const direct = (evento as any).coordenacao_id;
+              if (direct) return direct === filters.coordenacaoId;
               const procCoord = evento.processo && (evento.processo as { coordenacao_id?: string | null }).coordenacao_id;
               if (procCoord) return procCoord === filters.coordenacaoId;
               if (filters.strictCoordenacaoIsolation) return false;
