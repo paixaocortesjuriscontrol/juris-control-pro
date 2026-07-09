@@ -8,6 +8,7 @@ const https = require("https");
 
 const TIPO_ENGINE = "djen_stf_servidor";
 const STF_URL = "https://digital.stf.jus.br/decisoes-publicacoes/api/public/publicacoes";
+const STF_CSRF_URL = "https://digital.stf.jus.br/publico/publicacoes";
 const PAGE_DELAY_MS = Math.max(0, Number(process.env.STF_PAGE_DELAY_MS || 800));
 const PAGE_SIZE = 50;
 const MAX_PAGES = 30;
@@ -25,6 +26,50 @@ const STF_HEADERS = {
 };
 
 const insecureAgent = new https.Agent({ rejectUnauthorized: false, keepAlive: true });
+
+// Sessão CSRF: o backend do STF exige X-XSRF-TOKEN + cookie JSESSIONID/XSRF-TOKEN.
+// Fazemos um GET inicial para obter os cookies, e refazemos quando expiram (403).
+let sessionCookies = null; // "k=v; k2=v2"
+let sessionXsrf = null;
+
+function parseSetCookies(headers) {
+  const arr = headers["set-cookie"];
+  if (!Array.isArray(arr)) return {};
+  const jar = {};
+  for (const line of arr) {
+    const eq = line.indexOf("=");
+    const semi = line.indexOf(";");
+    if (eq < 0) continue;
+    const name = line.slice(0, eq).trim();
+    const value = line.slice(eq + 1, semi < 0 ? undefined : semi).trim();
+    jar[name] = value;
+  }
+  return jar;
+}
+
+function httpGet(url) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(url, { method: "GET", headers: STF_HEADERS, agent: insecureAgent, timeout: REQ_TIMEOUT_MS }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve({ status: res.statusCode || 0, headers: res.headers, body: Buffer.concat(chunks).toString("utf8") }));
+    });
+    req.on("timeout", () => req.destroy(new Error("stf_csrf_timeout")));
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+async function ensureCsrf(force = false) {
+  if (!force && sessionCookies && sessionXsrf) return;
+  const res = await httpGet(STF_CSRF_URL);
+  const jar = parseSetCookies(res.headers);
+  if (jar["XSRF-TOKEN"]) sessionXsrf = jar["XSRF-TOKEN"];
+  const parts = [];
+  for (const [k, v] of Object.entries(jar)) parts.push(`${k}=${v}`);
+  if (parts.length) sessionCookies = parts.join("; ");
+  if (!sessionXsrf) throw new Error("stf_csrf_indisponivel");
+}
 
 function todayBrtYmd() {
   // Hoje BRT (UTC-3), formato YYYY-MM-DD
@@ -78,14 +123,28 @@ function postStfPage({ termo, processo, pagina, dataInicio, dataFim }) {
     filtros: { Tipo: [], Relator: [], "Sessão": [], Colegiado: [] },
   });
   return new Promise((resolve, reject) => {
+    const headers = {
+      ...STF_HEADERS,
+      "Content-Length": Buffer.byteLength(payload),
+      "X-XSRF-TOKEN": sessionXsrf || "",
+      Cookie: sessionCookies || "",
+    };
     const req = https.request(
       STF_URL,
-      { method: "POST", headers: { ...STF_HEADERS, "Content-Length": Buffer.byteLength(payload) }, agent: insecureAgent, timeout: REQ_TIMEOUT_MS },
+      { method: "POST", headers, agent: insecureAgent, timeout: REQ_TIMEOUT_MS },
       (res) => {
         const chunks = [];
         res.on("data", (c) => chunks.push(c));
         res.on("end", () => {
           const body = Buffer.concat(chunks).toString("utf8");
+          // Renova cookies se o servidor mandar novos (rotação de sessão)
+          const jar = parseSetCookies(res.headers);
+          if (jar["XSRF-TOKEN"]) sessionXsrf = jar["XSRF-TOKEN"];
+          if (Object.keys(jar).length) {
+            const parts = [];
+            for (const [k, v] of Object.entries(jar)) parts.push(`${k}=${v}`);
+            sessionCookies = parts.join("; ");
+          }
           try {
             const parsed = JSON.parse(body);
             resolve({ status: res.statusCode || 0, body: parsed });
@@ -107,7 +166,14 @@ async function buscarTodasPaginas({ termo, processo, dataInicio, dataFim, log })
   for (let pagina = 1; pagina <= MAX_PAGES; pagina++) {
     let resp;
     try {
+      await ensureCsrf();
       resp = await postStfPage({ termo, processo, pagina, dataInicio, dataFim });
+      // Se CSRF expirou (403) ou faltou, renova e tenta 1x
+      if (resp.status === 403 || (typeof resp.raw === "string" && /CSRF/i.test(resp.raw))) {
+        log("stf.csrf_renew", { status: resp.status });
+        await ensureCsrf(true);
+        resp = await postStfPage({ termo, processo, pagina, dataInicio, dataFim });
+      }
     } catch (e) {
       log("stf.fetch_error", { termo, processo, pagina, e: e.message });
       break;
