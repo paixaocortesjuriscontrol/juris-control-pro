@@ -73,6 +73,37 @@ function normalize(s: string): string {
     .trim();
 }
 
+/**
+ * Muitos cadernos DEJT (notoriamente TRT5, TRT1, TRT2) são gerados com
+ * "letter-spacing" no PDF, o que a extração pdfjs devolve como caracteres
+ * isolados separados por espaço:
+ *   "P E L O   A P L I C A T I V O   J T E"
+ *   "O S M A R   M E N D E S   P A I X A O"
+ *   "0 0 0 0 0 3 9 - 6 1 . 2 0 1 1 . 5 . 0 5 . 0 0 2 9"
+ *
+ * Sem tratamento, o regex de CNJ não casa (não vira sub-bloco por processo)
+ * e o match de termos falha ("o s m a r m e n d e s" ≠ "osmar mendes").
+ *
+ * Esta função:
+ *  1. Junta pontuação de CNJ que ficou separada dos dígitos por espaços
+ *     (ex.: "0000039 - 61 . 2011" → "0000039-61.2011").
+ *  2. Colapsa runs de 3+ letras/dígitos isolados separados por espaço único
+ *     ("o s m a r" → "osmar", "0 0 0 0 0 3 9" → "0000039").
+ */
+function collapseLetterSpacing(s: string): string {
+  if (!s) return s;
+  let out = s;
+  // Junta pontuação típica de CNJ ("- 61" → "-61", "2011 . 5" → "2011.5")
+  out = out.replace(/(\d)\s*([.\-])\s*(\d)/g, "$1$2$3");
+  // Colapsa sequências de tokens de 1 char alfanumérico separados por espaço
+  // exigindo pelo menos 3 tokens (para não juntar "a b" acidentalmente).
+  out = out.replace(
+    /(?:\b[A-Za-z0-9]\b)(?:\s+\b[A-Za-z0-9]\b){2,}/g,
+    (m) => m.replace(/\s+/g, ""),
+  );
+  return out;
+}
+
 // Dedup de pautas: remove rodapé de intimados/destinatários/partes APENAS para
 // efeito de cálculo da chave de comparação. O `conteudo` gravado segue completo.
 const PAUTA_STRIP_INTIMADOS_RE = /(Intimad[ao]|Destinat[áa]rio|Advogad[ao]|Parte|Reclamante|Reclamad[ao]|Autor|R[eé]u|Requerente|Requerid[ao])\s*\(?s?\)?\s*:/i;
