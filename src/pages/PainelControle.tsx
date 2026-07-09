@@ -234,7 +234,6 @@ export default function PainelControle() {
     if (isAdmin) {
       if (adminCoordFilter !== "todas" && membrosCoordFiltrada.length > 0) {
         return {
-          responsavelIds: membrosCoordFiltrada,
           coordenacaoId: adminCoordFilter,
           strictCoordenacaoIsolation: true,
           fetchAll: false,
@@ -243,7 +242,6 @@ export default function PainelControle() {
       }
       if (adminCoordFilter !== "todas" && membrosFilterLoading) {
         return {
-          responsavelIds: [],
           coordenacaoId: adminCoordFilter,
           strictCoordenacaoIsolation: true,
           fetchAll: false,
@@ -389,20 +387,66 @@ export default function PainelControle() {
   });
 
   // Eventos e Parcelamentos a partir de eventos_agenda
+  // IDs dos processos das coordenações do usuário (para filtrar intimações,
+  // andamentos e eventos). Declarado antes de eventosStats pois é usado lá.
+  const { data: processosIds = [] } = useQuery({
+    queryKey: ["painel-controle-processos-ids", tabMode, coordenacoesUsuario, isAdmin, adminCoordFilter],
+    queryFn: async () => {
+      if (!user?.id) return [];
+
+      // Escritório: admin vê tudo ou filtra por coordenação selecionada
+      if (tabMode === "escritorio") {
+        if (isAdmin) {
+          if (adminCoordFilter !== "todas") {
+            const { data } = await supabase
+              .from("processos")
+              .select("id")
+              .eq("coordenacao_id", adminCoordFilter);
+            return (data || []).map((p) => p.id);
+          }
+          return []; // sem filtro
+        }
+
+        // Coordenador/usuário: filtra pelas coordenações vinculadas
+        if (coordenacoesUsuario.length > 0) {
+          const { data } = await supabase
+            .from("processos")
+            .select("id")
+            .in("coordenacao_id", coordenacoesUsuario);
+          return (data || []).map((p) => p.id);
+        }
+        return [];
+      }
+
+      // Pessoal: processos onde é responsável
+      const { data } = await supabase
+        .from("processos")
+        .select("id")
+        .eq("advogado_responsavel_id", user.id);
+      return (data || []).map((p) => p.id);
+    },
+    enabled: !!user?.id,
+  });
+
   const { data: eventosStats } = useQuery({
-    queryKey: ["painel-controle-eventos-stats", tabMode, hoje_str, membrosIdsParaResumo, isAdmin, adminCoordFilter],
+    queryKey: ["painel-controle-eventos-stats", tabMode, hoje_str, membrosIdsParaResumo, isAdmin, adminCoordFilter, processosIds],
     queryFn: async () => {
       const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
       if (!user?.id) return { eventos: empty, parcelamentos: empty };
       let q = supabase
         .from("eventos_agenda")
-        .select("data_inicio, tipo, status, criado_por")
+        .select("data_inicio, tipo, status, criado_por, processo_id")
         .neq("status", "cumprido");
       if (tabMode === "pessoal") {
         q = q.eq("criado_por", user.id);
       } else if (isAdmin && adminCoordFilter !== "todas") {
-        // sem filtro de coordenação direto em eventos_agenda; usa criado_por dos membros
-        if (membrosIdsParaResumo.length > 0) q = q.in("criado_por", membrosIdsParaResumo);
+        // Admin com coordenação selecionada: TODOS os eventos vinculados a
+        // processos da coordenação, independente de quem criou.
+        if (processosIds.length > 0) {
+          q = q.in("processo_id", processosIds);
+        } else {
+          return { eventos: empty, parcelamentos: empty };
+        }
       } else if (!isAdmin && membrosIdsParaResumo.length > 0) {
         q = q.in("criado_por", membrosIdsParaResumo);
       }
@@ -490,46 +534,6 @@ export default function PainelControle() {
     },
     enabled: !!user?.id && resumoStatsReady,
     staleTime: 30000,
-  });
-
-  // IDs dos processos das coordenações do usuário (para filtrar intimações e andamentos)
-  const { data: processosIds = [] } = useQuery({
-    queryKey: ["painel-controle-processos-ids", tabMode, coordenacoesUsuario, isAdmin, adminCoordFilter],
-    queryFn: async () => {
-      if (!user?.id) return [];
-
-      // Escritório: admin vê tudo ou filtra por coordenação selecionada
-      if (tabMode === "escritorio") {
-        if (isAdmin) {
-          if (adminCoordFilter !== "todas") {
-            const { data } = await supabase
-              .from("processos")
-              .select("id")
-              .eq("coordenacao_id", adminCoordFilter);
-            return (data || []).map((p) => p.id);
-          }
-          return []; // sem filtro
-        }
-
-        // Coordenador/usuário: filtra pelas coordenações vinculadas
-        if (coordenacoesUsuario.length > 0) {
-          const { data } = await supabase
-            .from("processos")
-            .select("id")
-            .in("coordenacao_id", coordenacoesUsuario);
-          return (data || []).map((p) => p.id);
-        }
-        return [];
-      }
-
-      // Pessoal: processos onde é responsável
-      const { data } = await supabase
-        .from("processos")
-        .select("id")
-        .eq("advogado_responsavel_id", user.id);
-      return (data || []).map((p) => p.id);
-    },
-    enabled: !!user?.id,
   });
 
   // ===== CARDS DE RESUMO — usa resumoStats (query direta sem limite de página) =====
