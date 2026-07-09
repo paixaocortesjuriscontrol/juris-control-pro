@@ -404,6 +404,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
               // mantém o evento de parcelamento apontando para a data da 1ª parcela, mas com um horário base para alertas
               data_inicio: `${formData.dataVencimento}T${formData.hora_alerta || "09:00"}:00-03:00`,
               processo_id: processoIds[0] || null,
+              coordenacao_id: coordenacaoId || null,
               total_parcelas: formData.totalParcelas,
               enviar_whatsapp: formData.enviar_whatsapp,
               recorrente: true, // Parcelamento é recorrente até terminar
@@ -481,6 +482,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
             status: situacao,
             total_parcelas: formData.totalParcelas,
             processo_id: processoIds[0] || null,
+            coordenacao_id: coordenacaoId || null,
             enviar_whatsapp: formData.enviar_whatsapp,
             recorrente: true, // Parcelamento é recorrente até terminar
           })
