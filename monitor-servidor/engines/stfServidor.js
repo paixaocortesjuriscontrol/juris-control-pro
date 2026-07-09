@@ -136,6 +136,35 @@ function contemFrase(texto, frase) {
   return t.includes(f);
 }
 
+function contemTodasPalavras(texto, termo) {
+  const t = normalize(texto);
+  const palavras = normalize(termo)
+    .split(" ")
+    .map((p) => p.trim())
+    .filter((p) => p.length >= 3);
+  if (palavras.length === 0) return false;
+  return palavras.every((p) => new RegExp(`(?:^|\\s)${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s|$)`).test(t));
+}
+
+function contemTermoStf(texto, termo, { fallbackTodasPalavras = false } = {}) {
+  return contemFrase(texto, termo) || (fallbackTodasPalavras && contemTodasPalavras(texto, termo));
+}
+
+function parsearTermoOr(raw) {
+  const t = String(raw || "").trim();
+  if (!t) return null;
+  let m = t.match(/^(\d{3,6})\s*\/\s*(.+)$/);
+  if (m) return { oabDigits: m[1], nome: m[2].trim() };
+  m = t.match(/^(.+?)\s*\/\s*(\d{3,6})$/);
+  if (m) return { oabDigits: m[2], nome: m[1].trim() };
+  const clean = t
+    .replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*Adv\.?\s*/i, "")
+    .replace(/^(?:TJ[A-Z0-9]+|TRT\d+|TRF\d+|STJ|STF|TST)\s*-\s*/i, "")
+    .replace(/^Adv\.?\s*/i, "")
+    .trim();
+  return clean ? { nome: clean } : null;
+}
+
 function stripTags(html) {
   return decodeLooseEntities(String(html || "")
     .replace(/<head[\s\S]*?<\/head>/gi, " ")
