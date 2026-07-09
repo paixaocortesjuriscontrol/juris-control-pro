@@ -250,6 +250,37 @@ export function DjenServidorStfCard() {
           </div>
         )}
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Data início</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start text-left font-normal h-9" disabled={isRunning}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dataInicio ? format(dataInicio, "dd/MM/yyyy") : "Selecione"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={dataInicio} onSelect={setDataInicio} />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Data fim</label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start text-left font-normal h-9" disabled={isRunning}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dataFim ? format(dataFim, "dd/MM/yyyy") : "Selecione"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={dataFim} onSelect={setDataFim} />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+
         <div className="flex flex-wrap gap-2">
           <Button onClick={handleExecutar} disabled={isRunning || enfileirar.isPending} size="sm">
             <PlayCircle className="h-4 w-4 mr-1" />
