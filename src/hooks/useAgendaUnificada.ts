@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-q
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { startOfDay, parseISO, differenceInDays, addDays, addMonths, addYears } from "date-fns";
+import { startOfDay, endOfDay, parseISO, differenceInDays, addDays, addMonths, addYears } from "date-fns";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -354,7 +354,11 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             const windowStart = filters.dataInicio ?? new Date(today.getFullYear(), today.getMonth() - 1, 1);
             const windowEnd =
               filters.dataFim ?? new Date(today.getFullYear(), today.getMonth() + 3, 0, 23, 59, 59);
-            const recorrenciaFim = evento.recorrencia_fim ? parseISO(evento.recorrencia_fim) : null;
+            const recorrenciaFim = evento.recorrencia_fim
+              ? String(evento.recorrencia_fim).length <= 10
+                ? endOfDay(parseISO(evento.recorrencia_fim))
+                : parseISO(evento.recorrencia_fim)
+              : null;
             const hardStop = recorrenciaFim && recorrenciaFim < windowEnd ? recorrenciaFim : windowEnd;
 
             const ocorrencias: Date[] = [];
