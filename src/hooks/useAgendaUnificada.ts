@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-q
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { startOfDay, parseISO, differenceInDays } from "date-fns";
+import { startOfDay, parseISO, differenceInDays, addDays, addMonths, addYears } from "date-fns";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -17,6 +17,7 @@ export interface ItemAgendaUnificado {
   local: string | null;
   recorrente: boolean;
   recorrencia_tipo: string | null;
+  recorrencia_pai_id?: string | null;
   status: string;
   prioridade?: string;
   concluido_em: string | null;
@@ -212,7 +213,12 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         }
 
         if (filters.dataInicio) {
-          queryEventos = queryEventos.gte("data_inicio", filters.dataInicio.toISOString());
+          // Eventos recorrentes que começaram antes da janela precisam ser incluídos
+          // para que a expansão de ocorrências no cliente cubra o intervalo pedido.
+          const diIso = filters.dataInicio.toISOString();
+          queryEventos = queryEventos.or(
+            `data_inicio.gte.${diIso},recorrente.eq.true`
+          );
         }
 
         if (filters.dataFim) {
@@ -259,7 +265,10 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             queryEventosFallback = queryEventosFallback.eq("status", filters.status === "pendente" ? "pendente" : filters.status);
           }
           if (filters.dataInicio) {
-            queryEventosFallback = queryEventosFallback.gte("data_inicio", filters.dataInicio.toISOString());
+            const diIso = filters.dataInicio.toISOString();
+            queryEventosFallback = queryEventosFallback.or(
+              `data_inicio.gte.${diIso},recorrente.eq.true`
+            );
           }
           if (filters.dataFim) {
             queryEventosFallback = queryEventosFallback.lte("data_inicio", filters.dataFim.toISOString());
@@ -324,42 +333,100 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           }
 
           for (const evento of eventosFiltered) {
-            // Dedup: skip if already seen
-            if (seenIds.has(evento.id)) continue;
-            seenIds.add(evento.id);
+            // Datas efetivas para o evento: original + expansão de recorrência
+            const parcelamentoOuGrupo = !!(evento as any).grupo_parcelas;
+            const isRecorrente = !!evento.recorrente && !!evento.recorrencia_tipo && !parcelamentoOuGrupo;
+            const dataOriginal = parseISO(evento.data_inicio);
+            const dataFimEvento = evento.data_fim ? parseISO(evento.data_fim) : null;
+            const duracaoMs = dataFimEvento ? dataFimEvento.getTime() - dataOriginal.getTime() : 0;
 
-            const dataEvento = parseISO(evento.data_inicio);
-            const diasRestantes = differenceInDays(startOfDay(dataEvento), today);
-            const isAtrasado = diasRestantes < 0 && evento.status !== "concluido";
+            const windowStart = filters.dataInicio ?? new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            const windowEnd =
+              filters.dataFim ?? new Date(today.getFullYear(), today.getMonth() + 3, 0, 23, 59, 59);
+            const recorrenciaFim = evento.recorrencia_fim ? parseISO(evento.recorrencia_fim) : null;
+            const hardStop = recorrenciaFim && recorrenciaFim < windowEnd ? recorrenciaFim : windowEnd;
 
-            resultItems.push({
-              id: evento.id,
-              titulo: evento.titulo,
-              descricao: evento.descricao,
-              tipo: evento.tipo,
-              origem: "evento",
-              data_inicio: evento.data_inicio,
-              data_fim: evento.data_fim,
-              dia_inteiro: evento.dia_inteiro || false,
-              local: evento.local,
-              recorrente: evento.recorrente || false,
-              recorrencia_tipo: evento.recorrencia_tipo,
-              status: evento.status,
-              concluido_em: evento.concluido_em,
-              created_at: evento.created_at,
-              updated_at: evento.updated_at,
-              processo_id: evento.processo_id,
-              processo: evento.processo,
-              participantes: participantes?.filter((p) => p.evento_id === evento.id) || [],
-              enviar_whatsapp: evento.enviar_whatsapp,
-              total_parcelas: evento.total_parcelas,
-              grupo_parcelas: (evento as any).grupo_parcelas ?? null,
-              numero_parcela: (evento as any).numero_parcela ?? null,
-              valor_parcela: (evento as any).valor_parcela ?? null,
-              criado_por: evento.criado_por,
-              dias_restantes: diasRestantes,
-              is_atrasado: isAtrasado,
-            });
+            const ocorrencias: Date[] = [];
+            if (!isRecorrente) {
+              ocorrencias.push(dataOriginal);
+            } else {
+              const tipo = String(evento.recorrencia_tipo).toLowerCase();
+              const intervalo = Math.max(1, Number(evento.recorrencia_intervalo || 1));
+              const diasSemana: number[] | null = Array.isArray(evento.recorrencia_dias_semana)
+                ? evento.recorrencia_dias_semana
+                : null;
+
+              let cursor = new Date(dataOriginal);
+              let safety = 0;
+              const MAX = 500;
+              while (cursor <= hardStop && safety < MAX) {
+                safety++;
+                if (cursor >= windowStart) {
+                  if (tipo === "semanal" && diasSemana && diasSemana.length > 0) {
+                    // expandir os dias marcados dentro da semana do cursor
+                    for (const d of diasSemana) {
+                      const diff = ((d - cursor.getDay()) + 7) % 7;
+                      const occ = addDays(cursor, diff);
+                      if (occ >= windowStart && occ <= hardStop) ocorrencias.push(occ);
+                    }
+                  } else {
+                    ocorrencias.push(new Date(cursor));
+                  }
+                }
+                // avança conforme a frequência
+                if (tipo === "diaria" || tipo === "diario") cursor = addDays(cursor, intervalo);
+                else if (tipo === "semanal") cursor = addDays(cursor, 7 * intervalo);
+                else if (tipo === "mensal") cursor = addMonths(cursor, intervalo);
+                else if (tipo === "anual") cursor = addYears(cursor, intervalo);
+                else break;
+              }
+
+              // garantir a data original mesmo se antes da janela ficaria sem exibição
+              if (ocorrencias.length === 0 && dataOriginal >= windowStart && dataOriginal <= hardStop) {
+                ocorrencias.push(dataOriginal);
+              }
+            }
+
+            for (const occ of ocorrencias) {
+              const occIso = occ.toISOString();
+              const occId = isRecorrente ? `${evento.id}::${occIso.slice(0, 10)}` : evento.id;
+              if (seenIds.has(occId)) continue;
+              seenIds.add(occId);
+
+              const diasRestantes = differenceInDays(startOfDay(occ), today);
+              const isAtrasado = diasRestantes < 0 && evento.status !== "concluido";
+              const dataFimOcc = duracaoMs > 0 ? new Date(occ.getTime() + duracaoMs).toISOString() : evento.data_fim;
+
+              resultItems.push({
+                id: occId,
+                titulo: evento.titulo,
+                descricao: evento.descricao,
+                tipo: evento.tipo,
+                origem: "evento",
+                data_inicio: occIso,
+                data_fim: dataFimOcc,
+                dia_inteiro: evento.dia_inteiro || false,
+                local: evento.local,
+                recorrente: evento.recorrente || false,
+                recorrencia_tipo: evento.recorrencia_tipo,
+                recorrencia_pai_id: isRecorrente ? evento.id : null,
+                status: evento.status,
+                concluido_em: evento.concluido_em,
+                created_at: evento.created_at,
+                updated_at: evento.updated_at,
+                processo_id: evento.processo_id,
+                processo: evento.processo,
+                participantes: participantes?.filter((p) => p.evento_id === evento.id) || [],
+                enviar_whatsapp: evento.enviar_whatsapp,
+                total_parcelas: evento.total_parcelas,
+                grupo_parcelas: (evento as any).grupo_parcelas ?? null,
+                numero_parcela: (evento as any).numero_parcela ?? null,
+                valor_parcela: (evento as any).valor_parcela ?? null,
+                criado_por: evento.criado_por,
+                dias_restantes: diasRestantes,
+                is_atrasado: isAtrasado,
+              });
+            }
           }
         }
       }

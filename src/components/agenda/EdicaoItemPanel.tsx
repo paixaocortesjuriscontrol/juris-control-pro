@@ -211,9 +211,11 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
         if (!cancelled) setEvento(data);
       } else if (isEvento) {
         // Para uma parcela individual, edita o evento-pai (parcelamento)
-        const eventoId = isParcela
+        const rawId = isParcela
           ? ((item as any).grupo_parcelas as string | undefined) ?? item.id
           : item.id;
+        // Ocorrências de recorrência têm id "<eventoId>::YYYY-MM-DD" — usar apenas o eventoId
+        const eventoId = ((item as any).recorrencia_pai_id as string | undefined) ?? rawId.split("::")[0];
         const { data } = await supabase
           .from("eventos_agenda")
           .select("*")

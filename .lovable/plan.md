@@ -1,100 +1,58 @@
-# Motor STF Servidor — mesmas 13 VPS + regras do DJEN Termos
+## 1) Alerta do form somando ao existente — em todos os tipos que têm esse campo
 
-## Contexto (fonte)
-STF **não** publica no DJEN/PJe Comunica. Publica só no DJE-STF (`digital.stf.jus.br`). Por isso o motor DJEN Termos Servidor nunca retorna STF — é limitação da fonte, não bug.
+Locais com o campo "Alertas internos de antecedência" hoje:
 
-Já existe:
-- `supabase/functions/stf-proxy` — proxy TLS ICP-Brasil + CORS
-- `src/utils/stfDigitalClient.ts` — `buscarPublicacoesStf`, `buscarTodasPaginasStf`
-- Tabela `publicacoes_stf` (17 colunas, com `monitoramento_id`, `coordenacao_id`, `stf_id`, `hash_conteudo`, `fonte`, `lida`)
-- Pool de 13 VPS em `djen_proxy_pool` e daemon `monitor-servidor/`
+| Tipo | Arquivo | Situação atual |
+|---|---|---|
+| Audiência | `src/hooks/useAudienciasDetectadas.ts` (mutation `criarAudiencia`) | Bug: valor do form é ignorado; só usa `config_alertas_audiencias.lembretes_minutos` global. |
+| Evento | `src/hooks/useEventosAgenda.ts` (`useCreateEvento`/`useUpdateEvento`) | Insere só o `alerta_minutos` vindo do form; não soma nada global. |
+| Parcelamento | `src/components/agenda/GerarParcelasDialog.tsx` | Insere só o `alerta_minutos` do form em `alertas_parcela`; não soma nada global. |
 
-## Paridade obrigatória com DJEN Termos Servidor
+Ajustes:
 
-Espelha `monitor-servidor/engines/paralela.js` (Termos) e `buscaProcessos.js` (padrão de workers por VPS):
+- **Audiência (`useAudienciasDetectadas.ts`)**: no bloco de criação de `lembretes_audiencia`, converter `alerta_valor`+`alerta_unidade` do form em minutos (`minutos_antes = valor`, `horas_antes = valor*60`, `dias_antes = valor*1440`) e concatenar ao array vindo de `config.lembretes_minutos`. Deduplicar com `Set` antes de inserir. Fazer o mesmo em `atualizarAudiencia` quando o campo for editado (deletar lembretes não enviados dessa audiência e recriar somando).
+- **Evento (`useEventosAgenda.ts`)** e **Parcelamento (`GerarParcelasDialog.tsx`)**: como não existe config global paralela, "somar ao existente" equivale a preservar o comportamento atual — mantém como está, sem regressão. Apenas garantir que em modo edição o array `alerta_minutos` do form seja mesclado (`Set`) com os alertas já existentes na tabela em vez de sobrescrever (hoje `useUpdateEvento` faz `delete` + `insert` do que veio do form; passar a fazer `delete apenas dos não-enviados` e `insert` da união com os já registrados).
+- Nada muda no envio: os edge functions `processar-lembretes-audiencia`, `processar-alertas-evento`/`alertar-audiencias` já leem as tabelas de lembretes e disparam pelo Z-API/notificação.
 
-1. **Nas 13 VPS**: novo engine `monitor-servidor/engines/stf.js`, rodando dentro do mesmo daemon. Round-robin de monitoramentos entre as VPS via `loadPool(sb)` (mesmo pool usado por Termos). Não usa `djenFetchSlot` — usa cliente HTTP direto para `https://digital.stf.jus.br/decisoes-publicacoes/api/public/publicacoes` (o cert ICP-Brasil já está resolvido pelo Node nas VPS; nenhuma rota nova precisa ser adicionada no `djen-proxy/server.js`).
-2. **Data**: `dataInicio = dataFim = hoje BRT (YYYY-MM-DD)` — mesma janela diária do DJEN Termos Servidor.
-3. **Paginação `continueUntilEmpty`**: mesma lógica de Termos — 2 páginas vazias consecutivas OU `added===0` por 3 páginas encerra. `pageSize=50`, `maxPages=30`, delay entre páginas configurável (`STF_PAGE_DELAY_MS`, default 800ms).
-4. **Termos**:
-   - `palavra-chave`: expressão inteira normalizada (sem fatiar — regra `djen-keyword-no-slicing`).
-   - `parte`: nome no campo `termo` (STF público não tem filtro de parte). Validação local exige match em `poloAtivo/poloPassivo/partes` OU no `texto_limpo`.
-   - `advogado`: nome no `termo` (STF público não tem OAB). Variantes de nome conforme `djen-search-variants-logic-v4`.
-   - `processo`: só dígitos no campo `processo`.
-5. **Validação estrita** com `contemFraseExata` (`src/utils/djenTermoMatch.ts`), aplicando também `termos_or`, `exclusoes` e `condicao_concomitante` — idêntico a Termos Servidor.
-6. **Dedup**: `stf_id` (primário) + `hash_conteudo = sha256(processo|texto_limpo.slice(0,4000))`.
-7. **Persistência**:
-   - Aprovadas → `publicacoes_stf` (upsert por `(coordenacao_id, stf_id, fonte)`, `ignoreDuplicates=true`).
-   - Rejeitadas → `publicacoes_djen_descartadas` com `fonte='stf'` + `motivo_descarte` (mesma tela de descartadas usada hoje).
-8. **Execução registrada** em `execucoes_agendadas` com `tipo='stf_servidor'` (novo valor no CHECK) — aparece no `RelatorioExecucoes.tsx`.
+## 2) Evento recorrente não aparece várias vezes no calendário
 
-## Opt-in por monitoramento (idêntico ao DJEN Termos)
+Causa: `src/hooks/useAgendaUnificada.ts` insere no calendário **apenas** um item por linha de `eventos_agenda` (só na `data_inicio` original). Os campos `recorrencia_tipo`, `recorrencia_intervalo`, `recorrencia_fim`, `recorrencia_dias_semana` são gravados na base, mas nunca são expandidos em ocorrências virtuais.
 
-- Nova coluna `monitoramentos_djen.busca_stf_ativa boolean DEFAULT false`.
-- Motor STF só processa monitoramentos com `ativo=true AND arquivado=false AND busca_stf_ativa=true`.
-- Compatível com todos os tipos de monitoramento existentes (palavra-chave, parte, advogado, processo).
+Ajuste em `useAgendaUnificada.ts`, no laço `for (const evento of eventosFiltered)`:
 
-## Configuração de horários (igual DJEN Termos Servidor)
+- Se `evento.recorrente && evento.recorrencia_tipo` (e não for parcelamento — parcelamento já cria uma linha por parcela), gerar ocorrências entre `filters.dataInicio` e `filters.dataFim` (limitado por `recorrencia_fim` quando presente):
+  - `diaria`: soma `recorrencia_intervalo` dias.
+  - `semanal`: soma `intervalo * 7` dias. Se `recorrencia_dias_semana` existir, expandir para cada dia da semana marcado dentro da janela.
+  - `mensal`: soma `intervalo` meses (`date-fns/addMonths`), preservando o dia da `data_inicio`.
+  - `anual`: soma `intervalo` anos.
+- Cada ocorrência vira um `ItemAgendaUnificado` novo com `id = \`${evento.id}::${dataISO}\``, `data_inicio`/`data_fim` deslocados, e um marcador `recorrencia_pai_id = evento.id`. A ocorrência original (`data_inicio` cru) é apenas a primeira.
+- `EdicaoItemPanel.tsx` já resolve edição pelo evento-pai: adicionar um `stripRecorrenciaSuffix` no `useEffect` que carrega o evento para tolerar ids com `::data`.
+- `seenIds` continua deduplicando pelo id composto para não repetir a mesma data.
+- Segurança: cap de 500 ocorrências por evento na expansão para evitar loop se `recorrencia_fim` estiver vazio (usa `filters.dataFim` ou hoje+2 anos como teto).
 
-- Nova tabela `configuracoes_monitoramento_stf` (espelho de `configuracoes_monitoramento_servidor`):
-  colunas: `id`, `coordenacao_id`, `ativo`, `horarios` (jsonb array de "HH:MM"), `dias_semana` (jsonb), `criado_por`, timestamps.
-  RLS: leitura/escrita por membros da coordenação; `service_role` full.
-- `pg_cron` a cada 15min chama `monitorar-stf-servidor` (edge function despachante), que:
-  - Lê `configuracoes_monitoramento_stf`, decide quais coordenações estão dentro do horário/dia da semana configurado.
-  - Enfileira job em `execucoes_servidor` com `tipo='stf_servidor'` (o daemon do `monitor-servidor` já processa fila; basta registrar o novo engine em `monitor-servidor/index.js`).
-- Fallback: também pode ser disparado manualmente pela UI (botão "Executar agora").
+## 3) Parcelamento recorrente — restringir coordenações
 
-## Alterações
+Arquivo: `src/components/agenda/GerarParcelasDialog.tsx` (linhas ~64, 91-101, 82, 87).
 
-### 1. Migração (`supabase--migration`)
-- `ALTER TABLE monitoramentos_djen ADD COLUMN busca_stf_ativa boolean NOT NULL DEFAULT false;`
-- CREATE TABLE `configuracoes_monitoramento_stf` (+ GRANTs + RLS + policies + trigger `updated_at`).
-- Expandir CHECK de `execucoes_agendadas.tipo` para incluir `'stf_servidor'`.
-- Expandir CHECK de `execucoes_servidor.tipo` (se existir) para `'stf_servidor'`.
-- Índice único em `publicacoes_stf(coordenacao_id, stf_id, fonte)` se ainda não existir.
-- Expandir CHECK de `publicacoes_djen_descartadas.fonte` para aceitar `'stf'` (se restrito).
+Hoje: `useQuery(["coordenacoes-parcelas"])` busca **todas** as coordenações do banco; três selects (`coordenacaoId`, `coordenacaoProcessoFiltro`, `coordenacaoFiltro`) usam essa lista sem filtrar por membro/admin.
 
-### 2. Daemon VPS (`monitor-servidor/`)
-- Novo arquivo `monitor-servidor/engines/stf.js`: `run({ sb, payload, log, job })` com `TIPO_ENGINE='stf_servidor'`. Workers em paralelo (um por slot da pool), payload `{ monitoramento_ids: [...] }`. Faz fetch direto a `digital.stf.jus.br`.
-- Registrar engine em `monitor-servidor/index.js` (mesmo mecanismo de `buscaProcessos.js`/`paralela.js`/`pautas.js`).
-- Reload das 13 VPS (`pm2 restart monitor-servidor`).
+Ajuste:
 
-### 3. Edge Function `monitorar-stf-servidor` (despachante)
-- Lê `configuracoes_monitoramento_stf`, decide se está no horário.
-- Para cada coordenação elegível, agrupa `monitoramentos_djen` com `busca_stf_ativa=true` e insere um job em `execucoes_servidor` (`tipo='stf_servidor'`, `payload.monitoramento_ids`).
-- Daemon pega o job e roda o engine STF.
+- Substituir a query por filtragem baseada em `useUserRole().isAdmin` + `useCoordenacoesDoUsuario()`:
+  - Admin: query atual (todas, ordenadas por nome).
+  - Não-admin: `select coordenacoes.id, nome from coordenacoes inner join membros_coordenacao on ... where membros_coordenacao.usuario_id = auth.uid()`.
+- Autoseleção quando o usuário só tem uma coordenação:
+  - `coordenacaoId`: já é auto-preenchido via `unicaCoordenacaoId` no `useEffect` de inicialização — manter.
+  - `coordenacaoProcessoFiltro` e `coordenacaoFiltro`: inicializar como `unicaCoordenacaoId` quando houver, em vez do default `"todas"`; se admin ou múltiplas, mantém `"todas"`.
+- Trocar o `CoordenacaoSelect` já usado (linha 627) e os `<Select>` dos filtros (686/765) para consumir a nova lista escopada.
+- Nenhuma mudança em RLS; a filtragem é apenas de UI (a base já isola via policies das outras tabelas).
 
-### 4. `pg_cron` (via `supabase--insert`, não migração — contém URL/anon key)
-- Cron `*/15 * * * *` → `net.http_post` para `monitorar-stf-servidor`.
+## Arquivos alterados
 
-### 5. Frontend
-- `src/hooks/useMonitoramentosDjen.ts`: adicionar `busca_stf_ativa` ao tipo, aos `insert` e `update`.
-- `src/pages/MonitoramentoDjen.tsx`: checkbox "Também buscar no STF" no form de criar/editar (default: desligado).
-- Nova aba/página `MonitoramentoStfServidor.tsx` (espelho da tela de config do DJEN Termos Servidor): edita `configuracoes_monitoramento_stf` (ativo, horários, dias) + botão "Executar agora" que invoca `monitorar-stf-servidor` forçando execução imediata.
-- Hook `usePublicacoesStf.ts` (lista, marcar como lida) — mesmo padrão de `useMonitoramentosDjen`.
-- `RelatorioExecucoes.tsx`: label "STF Servidor" para `tipo='stf_servidor'`.
-- Feed DJEN: badge "STF" nas linhas oriundas de `publicacoes_stf`.
+- `src/hooks/useAudienciasDetectadas.ts`
+- `src/hooks/useEventosAgenda.ts`
+- `src/hooks/useAgendaUnificada.ts`
+- `src/components/agenda/GerarParcelasDialog.tsx`
+- `src/components/agenda/EdicaoItemPanel.tsx` (tolerar id composto de ocorrência)
 
-## Fluxo
-
-```text
-cron */15min ─► monitorar-stf-servidor (edge)
-                     │ verifica horário/dia em configuracoes_monitoramento_stf
-                     │ agrupa monitoramentos com busca_stf_ativa=true
-                     ▼
-              execucoes_servidor (tipo='stf_servidor')
-                     │
-                     ▼
-      monitor-servidor daemon (13 VPS, round-robin)
-                     │  engines/stf.js — paginação continueUntilEmpty
-                     │  fetch digital.stf.jus.br (data=hoje BRT)
-                     │  validação contemFraseExata + exclusões + concomitante
-                     ▼
-      publicacoes_stf (aprovadas)  +  publicacoes_djen_descartadas (fonte='stf')
-                     +
-              execucoes_agendadas (tipo='stf_servidor')
-```
-
-## Fora de escopo agora
-- Alertas por e-mail STF (estrutura `alertas_coordenacao_djen` aponta hoje para `publicacoes_djen` — pode ser evolução).
-- Match por OAB estrito no STF (API pública não expõe filtro OAB).
+Sem migrations — o schema já suporta tudo (`recorrencia_*` já existe, `lembretes_audiencia`/`alertas_evento`/`alertas_parcela` já existem).
