@@ -266,6 +266,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         hora_alerta: format(dataInicioSP, "HH:mm") || prev.hora_alerta || "09:00",
       }));
       setSituacao(((evento as any).status as any) || "pendente");
+      setCoordenacaoId(((evento as any).coordenacao_id as string) || unicaCoordenacaoId || "");
 
       // Carregar valores e datas individuais das parcelas existentes
       if (parcelasExistentes && parcelasExistentes.length > 0) {
@@ -291,8 +292,9 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
       setValoresIndividuais([]);
       setDatasIndividuais([]);
       setSituacao("pendente");
+      setCoordenacaoId(unicaCoordenacaoId || "");
     }
-  }, [evento, open, parcelasExistentes, alertasParcelaMinutos, defaultProcessoId]);
+  }, [evento, open, parcelasExistentes, alertasParcelaMinutos, defaultProcessoId, unicaCoordenacaoId]);
 
   // Atualizar valores individuais quando muda total de parcelas ou valor padrão
   const atualizarValoresIndividuais = (novoPadrao?: string, novoTotal?: number) => {
