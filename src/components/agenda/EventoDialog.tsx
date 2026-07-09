@@ -214,6 +214,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setRecorrenciaTipo("nenhuma");
       setRecorrenciaIntervalo(1);
       setRecorrenciaFim("");
+      setRecorrenciaOcorrencias("");
       setCoordenacaoId(unicaCoordenacaoId || "");
     }
   }, [evento, open, alertasEvento, defaultProcessoId, unicaCoordenacaoId]);
