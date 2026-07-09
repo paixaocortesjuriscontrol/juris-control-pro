@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 
 export interface EventoAgenda {
   id: string;
@@ -274,6 +275,8 @@ export function useCreateEvento() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
       toast.success("Evento criado com sucesso!");
     },
@@ -349,6 +352,8 @@ export function useUpdateEvento() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
       toast.success("Evento atualizado!");
     },
