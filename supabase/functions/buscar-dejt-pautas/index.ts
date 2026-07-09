@@ -637,8 +637,12 @@ Deno.serve(async (req) => {
     const pageStart = Math.max(1, Number(body.pageStart) || 1);
     const pageEnd = body.pageEnd && Number(body.pageEnd) > 0 ? Number(body.pageEnd) : undefined;
 
-    const processBloco = async (bloco: string) => {
+    const processBloco = async (rawBloco: string) => {
       totalBlocos++;
+      // Alguns cadernos (TRT5, TRT1, TRT2) vêm com letter-spacing no PDF.
+      // Colapsa "O S M A R" → "OSMAR" e "0 0 0 0 0 3 9" → "0000039" antes
+      // do split por CNJ e do match de termos.
+      const bloco = collapseLetterSpacing(rawBloco);
       // Quebra o bloco em sub-blocos por processo (igual ao engine browser)
       // para casar termos individualmente por CNJ, e não no bloco inteiro.
       const subBlocos = splitBlocoByProcessos(bloco);
