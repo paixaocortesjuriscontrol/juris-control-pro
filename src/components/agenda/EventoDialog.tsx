@@ -249,6 +249,20 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
     const minutosAlerta = (alertaValor || 0) * unidadeInfo.multiplicador;
     const alertas = minutosAlerta > 0 ? [minutosAlerta] : [];
 
+    let recorrenciaFimCalculada = recorrenciaFim;
+    const numeroOcorrencias = parseInt(recorrenciaOcorrencias);
+    if (recorrenciaTipo !== "nenhuma" && numeroOcorrencias > 0 && dataInicio) {
+      const base = parseISO(dataInicio);
+      const step = Math.max(1, recorrenciaIntervalo);
+      const offset = (numeroOcorrencias - 1) * step;
+      let fim = base;
+      if (recorrenciaTipo === "daily") fim = addDays(base, offset);
+      else if (recorrenciaTipo === "weekly") fim = addWeeks(base, offset);
+      else if (recorrenciaTipo === "monthly") fim = addMonths(base, offset);
+      else if (recorrenciaTipo === "yearly") fim = addYears(base, offset);
+      recorrenciaFimCalculada = format(fim, "yyyy-MM-dd");
+    }
+
     const payload = {
       titulo: titulo.trim(),
       descricao: observacoes || undefined,
@@ -268,9 +282,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       recorrente: recorrenciaTipo !== "nenhuma",
       recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
       recorrencia_intervalo: recorrenciaTipo !== "nenhuma" ? recorrenciaIntervalo : null,
-      recorrencia_fim: recorrenciaTipo !== "nenhuma" && recorrenciaFim ? recorrenciaFim : null,
+      recorrencia_fim: recorrenciaTipo !== "nenhuma" && recorrenciaFimCalculada ? recorrenciaFimCalculada : null,
       recorrencia_rrule: recorrenciaTipo !== "nenhuma"
-        ? `FREQ=${recorrenciaTipo.toUpperCase()};INTERVAL=${recorrenciaIntervalo}${recorrenciaFim ? `;UNTIL=${recorrenciaFim.replace(/-/g, "")}T235959Z` : ""}`
+        ? `FREQ=${recorrenciaTipo.toUpperCase()};INTERVAL=${recorrenciaIntervalo}${recorrenciaFimCalculada ? `;UNTIL=${recorrenciaFimCalculada.replace(/-/g, "")}T235959Z` : ""}`
         : null,
     } as any;
 
