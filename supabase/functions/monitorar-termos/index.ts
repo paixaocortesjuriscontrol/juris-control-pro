@@ -105,6 +105,18 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const completeRun = body.completeRun === true;
     const execucaoIdFromBody = typeof body.execucaoId === 'string' ? body.execucaoId : null;
+    const manual = body?.manual === true;
+
+    if (!manual) {
+      const { data: shouldRun } = await supabase.rpc('deve_rodar_monitoramento', { p_tipo: 'termos' });
+      if (shouldRun !== true) {
+        console.log('[Gate] Termos: nenhuma coordenação habilitou este monitoramento no horário atual — pulando.');
+        return new Response(
+          JSON.stringify({ success: true, skipped: 'nenhuma-coord-habilitada' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     const startTime = Date.now();
     const checkTimeout = () => (Date.now() - startTime) > MAX_EXECUTION_TIME_MS;
