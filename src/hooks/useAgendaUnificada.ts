@@ -25,7 +25,7 @@ export interface ItemAgendaUnificado {
   updated_at: string;
   processo_id: string | null;
   coordenacao_id?: string | null;
-  processo?: { id: string; numero: string; assunto?: string | null; cliente_id?: string | null } | null;
+  processo?: { id: string; numero: string; assunto?: string | null; cliente_id?: string | null; coordenacao_id?: string | null } | null;
   participantes?: { usuario_id: string; usuario?: { id: string; nome: string } }[];
   enviar_whatsapp?: boolean;
   total_parcelas?: number | null;
@@ -179,6 +179,12 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       const incluirTarefas = !filters.origens || filters.origens.includes("tarefa");
       const incluirEventosPorTipo = tipoFilters.length === 0 || tipoFilters.some((t) => eventTypeFilters.includes(t));
       const incluirTarefasPorTipo = tipoFilters.length === 0 || tipoFilters.some((t) => taskTypeFilters.includes(t));
+      const coordScopeIds = filters.coordenacaoIds?.length
+        ? filters.coordenacaoIds
+        : filters.coordenacaoId
+          ? [filters.coordenacaoId]
+          : [];
+      const hasCoordScope = coordScopeIds.length > 0;
 
       // Calculate pagination ranges for each source separately
       // When fetchAll (admin escritório), use larger page size to reduce round trips
@@ -212,7 +218,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       if (incluirEventos && incluirEventosPorTipo) {
         let queryEventos = buildEventosQuery(true);
 
-        if (!filters.fetchAll) {
+        if (!filters.fetchAll && !hasCoordScope) {
           // Quando há filtro de membros (coordenação/pessoas), precisamos buscar eventos
           // onde esses usuários são criadores OU participantes (senão o coordenador não enxerga
           // eventos delegados aos membros, como parcelamentos criados pelo admin).
@@ -271,7 +277,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           console.error("Erro ao buscar eventos:", eventosError);
           // fallback sem joins
           let queryEventosFallback = buildEventosQuery(false);
-          if (!filters.fetchAll) {
+          if (!filters.fetchAll && !hasCoordScope) {
             const targetUserIds =
               filters.responsavelIds && filters.responsavelIds.length > 0 ? filters.responsavelIds : [user.id];
 
@@ -323,6 +329,22 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             .select("evento_id, usuario_id")
             .in("evento_id", eventIds);
 
+          const eventProcessCoordIds = new Map<string, string[]>();
+          if (hasCoordScope) {
+            const { data: eventoProcessosRows } = await (supabase as any)
+              .from("evento_processos")
+              .select("evento_id, processo:processos(coordenacao_id)")
+              .in("evento_id", eventIds);
+
+            (eventoProcessosRows || []).forEach((row: any) => {
+              const coordId = row?.processo?.coordenacao_id;
+              if (!row?.evento_id || !coordId) return;
+              const current = eventProcessCoordIds.get(row.evento_id) || [];
+              current.push(coordId);
+              eventProcessCoordIds.set(row.evento_id, current);
+            });
+          }
+
           const participantUserIds = Array.from(
             new Set((participanteRows || []).map((p: any) => p.usuario_id).filter(Boolean))
           );
@@ -344,7 +366,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           }));
 
           let eventosFiltered = eventos;
-          if (filters.responsavelIds && filters.responsavelIds.length > 0) {
+          if (!hasCoordScope && filters.responsavelIds && filters.responsavelIds.length > 0) {
             eventosFiltered = eventos.filter((evento: any) => {
               const eventParticipants = participantes?.filter((p) => p.evento_id === evento.id) || [];
               const participantIds = eventParticipants.map((p) => p.usuario_id);
@@ -355,15 +377,22 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             });
           }
 
-          if (filters.coordenacaoId) {
+          if (hasCoordScope) {
             eventosFiltered = eventosFiltered.filter((evento: any) => {
               const direct = (evento as any).coordenacao_id;
-              if (direct) return direct === filters.coordenacaoId;
+              if (direct) return coordScopeIds.includes(direct);
               const procCoord = evento.processo && (evento.processo as { coordenacao_id?: string | null }).coordenacao_id;
-              if (procCoord) return procCoord === filters.coordenacaoId;
+              if (procCoord) return coordScopeIds.includes(procCoord);
+              const linkedCoords = eventProcessCoordIds.get(evento.id) || [];
+              if (linkedCoords.some((coordId) => coordScopeIds.includes(coordId))) return true;
               if (filters.strictCoordenacaoIsolation) return false;
               if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-                return filters.responsavelIds.includes(evento.criado_por);
+                const eventParticipants = participantes?.filter((p) => p.evento_id === evento.id) || [];
+                const participantIds = eventParticipants.map((p) => p.usuario_id);
+                return (
+                  filters.responsavelIds.includes(evento.criado_por) ||
+                  participantIds.some((id) => filters.responsavelIds!.includes(id))
+                );
               }
               return false;
             });
@@ -469,6 +498,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                 created_at: evento.created_at,
                 updated_at: evento.updated_at,
                 processo_id: evento.processo_id,
+                coordenacao_id: (evento as any).coordenacao_id ?? null,
                 processo: evento.processo,
                 participantes: participantes?.filter((p) => p.evento_id === evento.id) || [],
                 enviar_whatsapp: evento.enviar_whatsapp,
@@ -488,12 +518,6 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       // ========= BUSCAR TAREFAS =========
       if (incluirTarefas && incluirTarefasPorTipo) {
         let queryTarefas = buildTarefasQuery(true);
-
-        const coordScopeIds = filters.coordenacaoIds?.length
-          ? filters.coordenacaoIds
-          : filters.coordenacaoId
-            ? [filters.coordenacaoId]
-            : [];
 
         if (filters.fetchAll) {
           // Admin vendo todas - sem filtro
@@ -960,23 +984,36 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           if (missingParentIds.length > 0) {
             let queryParents = supabase
               .from("eventos_agenda")
-              .select("id, titulo, descricao, local, processo_id, criado_por, coordenacao_id, processo:processos(coordenacao_id)")
+              .select("id, titulo, descricao, local, processo_id, criado_por, coordenacao_id, processo:processos(id,numero,coordenacao_id)")
               .in("id", missingParentIds);
             const { data: parentsRaw } = await queryParents;
             let parents = (parentsRaw ?? []) as any[];
+            const parentProcessCoordIds = new Map<string, string[]>();
+            if (coordScopeIds.length > 0) {
+              const { data: parentLinks } = await (supabase as any)
+                .from("evento_processos")
+                .select("evento_id, processo:processos(coordenacao_id)")
+                .in("evento_id", missingParentIds);
+              (parentLinks || []).forEach((row: any) => {
+                const coordId = row?.processo?.coordenacao_id;
+                if (!row?.evento_id || !coordId) return;
+                const current = parentProcessCoordIds.get(row.evento_id) || [];
+                current.push(coordId);
+                parentProcessCoordIds.set(row.evento_id, current);
+              });
+            }
             // Filtro de escopo: se houver coordenação selecionada, prioriza pais dessa
             // coordenação (direto ou via processo). Caso contrário, restringe por
             // criado_por/responsavelIds quando não é fetchAll.
-            const coordScope = filters.coordenacaoIds?.length
-              ? filters.coordenacaoIds
-              : filters.coordenacaoId
-                ? [filters.coordenacaoId]
-                : [];
-            if (coordScope.length > 0) {
-              parents = parents.filter((pe: any) =>
-                coordScope.includes(pe.coordenacao_id) ||
-                (pe.processo && coordScope.includes(pe.processo.coordenacao_id))
-              );
+            if (coordScopeIds.length > 0) {
+              parents = parents.filter((pe: any) => {
+                const linkedCoords = parentProcessCoordIds.get(pe.id) || [];
+                return (
+                  coordScopeIds.includes(pe.coordenacao_id) ||
+                  (pe.processo && coordScopeIds.includes(pe.processo.coordenacao_id)) ||
+                  linkedCoords.some((coordId) => coordScopeIds.includes(coordId))
+                );
+              });
             } else if (!filters.fetchAll && filters.responsavelIds && filters.responsavelIds.length > 0) {
               parents = parents.filter((pe: any) => filters.responsavelIds!.includes(pe.criado_por));
             }
@@ -989,7 +1026,8 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                 origem: "evento",
                 local: pe.local,
                 processo_id: pe.processo_id,
-                processo: null,
+                coordenacao_id: pe.coordenacao_id ?? pe.processo?.coordenacao_id ?? null,
+                processo: pe.processo ?? null,
                 criado_por: pe.criado_por,
               } as any);
             }
