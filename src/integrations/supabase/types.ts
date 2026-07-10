@@ -8500,6 +8500,7 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
+      deve_rodar_monitoramento: { Args: { p_tipo: string }; Returns: boolean }
       djen_first_comunicacao_id_from_json: {
         Args: { p_advogados: Json; p_partes: Json }
         Returns: string
