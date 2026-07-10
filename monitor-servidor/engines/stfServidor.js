@@ -248,6 +248,134 @@ function stringifyStfValue(value) {
   return "";
 }
 
+function sanitizeEntityName(value, maxLen = 180) {
+  const s = stripTags(String(value || ""))
+    .replace(/\s+/g, " ")
+    .replace(/^[\s:;,.\-–—]+|[\s:;,.\-–—]+$/g, "")
+    .trim();
+  if (!s || s.length > maxLen) return "";
+  if (/[<>]|&[a-zA-Z#]/.test(s)) return "";
+  if (/^(?:decis[aã]o|ac[oó]rd[aã]o|senten[cç]a|despacho|relat[oó]rio|vistos|trata-se)\b/i.test(s)) return "";
+  if (/\b(?:art\.|lei n[º°o]?|c[oó]digo|s[uú]mula|tema n[º°o]?)\b/i.test(s)) return "";
+  return s;
+}
+
+function addUniqueEntity(out, seen, raw, { prefix = "", maxLen = 180 } = {}) {
+  const name = sanitizeEntityName(raw, maxLen);
+  if (!name) return false;
+  const key = normalize(name);
+  if (!key || seen.has(key)) return false;
+  seen.add(key);
+  out.push(prefix ? `${prefix} ${name}` : name);
+  return true;
+}
+
+function splitEntityList(raw) {
+  return String(raw || "")
+    .split(/\s*(?:;|,\s*(?=[A-ZÁÉÍÓÚÂÊÔÃÕÇ][a-záéíóúâêôãõç]))\s*/)
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function extractStfPartes(pub, texto) {
+  const out = [];
+  const seen = new Set();
+  const add = (raw, prefix = "") => {
+    for (const item of splitEntityList(raw)) addUniqueEntity(out, seen, item, { prefix });
+  };
+
+  for (const root of [pub]) {
+    for (const value of [root?.parte, root?.nomeParte, root?.poloAtivo, root?.polo_ativo, root?.poloPassivo, root?.polo_passivo]) add(value);
+    for (const arr of [root?.partes, root?.destinatarios, root?.envolvidos]) {
+      if (Array.isArray(arr)) {
+        for (const item of arr) add(typeof item === "string" ? item : (item?.nome || item?.nomeParte || item?.parte || item?.identificacao));
+      }
+    }
+  }
+
+  const plain = String(texto || "").replace(/\s+/g, " ").trim();
+  const patterns = [
+    { re: /\bimpetrad[oa]\s+por\s+(.{4,180}?),\s*advogad[oa]\b/i, prefix: "[Impetrante]" },
+    { re: /\bimpetrad[oa]\s+em\s+(?:favor|benef[ií]cio)\s+de\s+(.{4,180}?)(?=\s+contra\b|\s*,\s*contra\b|\s*,\s*em\s+face\b|\.)/i, prefix: "[Paciente]" },
+    { re: /\bimpetrou\s+o\s+presente\s+habeas\s+corpus\s+em\s+(?:favor|benef[ií]cio)\s+de\s+(.{4,180}?)(?=\s+contra\b|\.)/i, prefix: "[Paciente]" },
+    { re: /\bajuizad[ao]\s+por\s+(.{4,180}?)(?=\s+contra\b|\s+em\s+face\b|\s*,\s*contra\b|\.)/i, prefix: "[Reclamante]" },
+    { re: /\bpropost[ao]\s+por\s+(.{4,180}?)(?=\s+contra\b|\s+em\s+face\b|\.)/i, prefix: "[Autor]" },
+    { re: /\binterpost[oa]\s+por\s+(.{4,180}?)(?=\s+contra\b|\s+em\s+face\b|\.)/i, prefix: "[Recorrente]" },
+    { re: /\brecorrente\s+(.{4,180}?)(?=\s+contra\b|\s+em\s+face\b|\.)/i, prefix: "[Recorrente]" },
+    { re: /\breclamante\s+(.{4,180}?)(?=\s+narra\b|\s+sustenta\b|\s+alega\b|\.)/i, prefix: "[Reclamante]" },
+  ];
+  for (const { re, prefix } of patterns) {
+    const m = plain.match(re);
+    if (m?.[1]) add(m[1], prefix);
+  }
+
+  const labelPatterns = [
+    ["[Agravante]", /\bAGRAVANTE\s*:\s*(.{4,180}?)(?=\s+AGRAVADO\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
+    ["[Agravado]", /\bAGRAVADO\s*:\s*(.{4,180}?)(?=\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
+    ["[Reclamante]", /\bRECLAMANTE\s*:\s*(.{4,180}?)(?=\s+RECLAMADO\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
+    ["[Reclamado]", /\bRECLAMADO\s*:\s*(.{4,180}?)(?=\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
+    ["[Autor]", /\bAUTOR\s*:\s*(.{4,180}?)(?=\s+R[ÉE]U\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
+    ["[Réu]", /\bR[ÉE]U\s*:\s*(.{4,180}?)(?=\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
+    ["[Impetrante]", /\bIMPETRANTE\s*:\s*(.{4,180}?)(?=\s+IMPETRADO\b|\s+PACIENTE\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
+    ["[Impetrado]", /\bIMPETRADO\s*:\s*(.{4,180}?)(?=\s+PACIENTE\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
+    ["[Paciente]", /\bPACIENTE\s*:\s*(.{4,180}?)(?=\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
+  ];
+  for (const [prefix, re] of labelPatterns) {
+    const m = plain.match(re);
+    if (m?.[1]) add(m[1], prefix);
+  }
+  return out;
+}
+
+function extractStfAdvogados(pub, texto) {
+  const out = [];
+  const seen = new Set();
+  const add = (raw) => addUniqueEntity(out, seen, raw, { maxLen: 180 });
+
+  for (const arr of [pub?.advogados, pub?.destinatarioadvogados, pub?.representantes, pub?.procuradores]) {
+    if (!Array.isArray(arr)) continue;
+    for (const entry of arr) {
+      const adv = entry?.advogado && typeof entry.advogado === "object" ? entry.advogado : entry;
+      const nome = adv?.nome || adv?.nomeAdvogado || adv?.nomeRepresentante || adv?.nomeProcurador || (typeof entry === "string" ? entry : "");
+      const numero = String(adv?.numero_oab || adv?.numeroOab || adv?.oab || "").replace(/\D/g, "");
+      const uf = String(adv?.uf_oab || adv?.ufOab || adv?.uf || "").trim().toUpperCase();
+      add(numero ? `${nome} - OAB ${uf}${numero}` : nome);
+    }
+  }
+
+  const plain = String(texto || "").replace(/\s+/g, " ").trim();
+  const advogadoAutor = plain.match(/\bimpetrad[oa]\s+por\s+(.{4,180}?),\s*advogad[oa]\b/i);
+  if (advogadoAutor?.[1]) add(advogadoAutor[1]);
+
+  const oabPatterns = [
+    /((?:Dr\.?|Dra\.?)\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.']{4,120}?)\s*[-–—]\s*OAB\s*\/?\s*([A-Z]{2})\s*[-–—]?\s*(\d[\d.]*)/gi,
+    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.']{4,120}?)\s*\(\s*OAB[:\s]*(\d{1,10})\s*\/?\s*([A-Z]{2})\s*\)/g,
+    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.']{4,120}?)\s*-?\s*OAB[:\s]*([A-Z]{2})[:\s-]*(\d{1,10})/gi,
+  ];
+  for (const re of oabPatterns) {
+    for (const m of plain.matchAll(re)) {
+      if (m.length === 4 && /^[A-Z]{2}$/i.test(m[2] || "")) add(`${m[1].trim()} - OAB ${String(m[2]).toUpperCase()}-${m[3]}`);
+      else if (m.length === 4) add(`${m[1].trim()} - OAB ${String(m[3]).toUpperCase()}-${m[2]}`);
+    }
+  }
+  return out;
+}
+
+function metadataStf(pub, texto) {
+  const partes = extractStfPartes(pub, texto);
+  const advogados = extractStfAdvogados(pub, texto);
+  return {
+    partes_json: partes.length > 0 ? partes : null,
+    advogados_json: advogados.length > 0 ? advogados : null,
+    polo_ativo: partes.find((p) => /^\[(?:Reclamante|Autor|Recorrente|Impetrante)\]/i.test(p))?.replace(/^\[[^\]]+\]\s*/, "") || null,
+    polo_passivo: partes.find((p) => /^\[(?:Reclamado|Réu|Recorrido|Impetrado)\]/i.test(p))?.replace(/^\[[^\]]+\]\s*/, "") || null,
+  };
+}
+
+function jsonEmpty(value) {
+  return value == null || (Array.isArray(value) && value.length === 0);
+}
+
 function hashConteudo(processo, texto) {
   return crypto
     .createHash("sha256")
@@ -461,7 +589,7 @@ async function publicacaoExistentePorIdDjen(sb, row) {
   if (!row.id_djen) return null;
   let q = sb
     .from("publicacoes_djen")
-    .select("id")
+    .select("id, partes_json, advogados_json, polo_ativo, polo_passivo")
     .eq("id_djen", row.id_djen)
     .limit(1);
   q = row.coordenacao_id ? q.eq("coordenacao_id", row.coordenacao_id) : q.is("coordenacao_id", null);
@@ -471,7 +599,15 @@ async function publicacaoExistentePorIdDjen(sb, row) {
 
 async function inserirPublicacaoDjen(sb, row) {
   const existing = await publicacaoExistentePorIdDjen(sb, row);
-  if (existing) return { status: "duplicata", id: existing.id };
+  if (existing) {
+    const patch = {};
+    if (jsonEmpty(existing.partes_json) && row.partes_json?.length) patch.partes_json = row.partes_json;
+    if (jsonEmpty(existing.advogados_json) && row.advogados_json?.length) patch.advogados_json = row.advogados_json;
+    if (!existing.polo_ativo && row.polo_ativo) patch.polo_ativo = row.polo_ativo;
+    if (!existing.polo_passivo && row.polo_passivo) patch.polo_passivo = row.polo_passivo;
+    if (Object.keys(patch).length > 0) await sb.from("publicacoes_djen").update(patch).eq("id", existing.id);
+    return { status: "duplicata", id: existing.id };
+  }
   const { data, error } = await sb.from("publicacoes_djen").insert(row).select("id").single();
   if (!error && data?.id) return { status: "nova", id: data.id };
   const msg = String(error?.message || "");
@@ -522,6 +658,7 @@ async function processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execu
       const dataDisponibilizacao = dataDisponibilizacaoStf(pub.divulgacao, dataInicio);
       const dataPublicacao = parseDate(pub.publicacao) || `${nextBusinessDateYmd(dataDisponibilizacao)}T15:00:00.000Z`;
       const hash = hashDjenStyle(texto_limpo, dataDisponibilizacao, processo_numero, stfIdRaw) || hashConteudo(processo_numero, texto_limpo);
+      const metadata = metadataStf(pub, texto_limpo);
 
       if (!validacao.ok) {
         descartadas++;
@@ -556,6 +693,7 @@ async function processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execu
         conteudo: texto_limpo,
         hash_conteudo: hash,
         fonte: "stf_digital",
+        ...metadata,
         lida: false,
         execucao_id: execucaoId || null,
       };
