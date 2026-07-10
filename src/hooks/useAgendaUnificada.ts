@@ -115,6 +115,20 @@ const getAgendaDedupKey = (item: ItemAgendaUnificado) => {
     return isDJEN ? `djen:${baseKey}` : `tarefa:${baseKey}`;
   }
 
+  // Para audiências (vindas de audiencias_detectadas, eventos_agenda ou tarefas do tipo
+  // audiência que já entram como "evento"), colapsar pelo mesmo processo+dia+hora.
+  if (item.tipo === "audiencia") {
+    const numeroProcesso = (item.processo?.numero ?? "").replace(/\D/g, "");
+    const dt = item.data_inicio ?? "";
+    const dia = dt.slice(0, 10);
+    // hora truncada em minutos, ignorando timezone label
+    const horaMatch = dt.match(/T(\d{2}:\d{2})/);
+    const hora = horaMatch ? horaMatch[1] : "";
+    if (numeroProcesso) {
+      return `audiencia:${numeroProcesso}:${dia}:${hora}`;
+    }
+  }
+
   return `${item.origem}:${item.id}`;
 };
 
