@@ -451,19 +451,22 @@ async function processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execu
       const row = {
         monitoramento_id: mon.id,
         coordenacao_id: mon.coordenacao_id || null,
-        stf_id,
         processo_numero,
-        tipo: pub.tipo || null,
-        relator: extractRelator(pub),
-        data_divulgacao: parseDate(pub.divulgacao),
+        tipo_publicacao: "intimacao",
+        tribunal: "STF",
+        orgao: extractRelator(pub) || null,
+        tipo_comunicacao: pub.tipo || null,
+        meio: "D",
+        id_djen: stf_id,
+        data_disponibilizacao: parseDate(pub.divulgacao),
         data_publicacao: parseDate(pub.publicacao),
-        texto_html: pub.texto || null,
-        texto_limpo,
+        conteudo: texto_limpo,
         hash_conteudo: hash,
         fonte: "stf_digital",
+        lida: false,
       };
       const { error } = await sb
-        .from("publicacoes_stf")
+        .from("publicacoes_djen")
         .upsert(row, { onConflict: "monitoramento_id,hash_conteudo", ignoreDuplicates: true });
       if (error) {
         log("stf.upsert_error", { monitoramento_id: mon.id, e: error.message });
