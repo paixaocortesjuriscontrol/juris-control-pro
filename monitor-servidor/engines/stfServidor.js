@@ -276,98 +276,71 @@ function splitEntityList(raw) {
     .filter(Boolean);
 }
 
-function extractStfPartes(pub, texto) {
-  const out = [];
-  const seen = new Set();
-  const add = (raw, prefix = "") => {
-    for (const item of splitEntityList(raw)) addUniqueEntity(out, seen, item, { prefix });
-  };
+// Fonte de verdade: campo `envolvidos[]` da resposta pública do STF.
+// Cada item tem { nome, polo: "ATIVO"|"PASSIVO", categoria, identificacoes: ["OAB 12345/SP"] }.
+function isAdvogadoCategoria(cat) {
+  return /^(?:ADVOGAD|PROCURADOR|DEFENSOR)/i.test(String(cat || "").trim());
+}
 
-  for (const root of [pub]) {
-    for (const value of [root?.parte, root?.nomeParte, root?.poloAtivo, root?.polo_ativo, root?.poloPassivo, root?.polo_passivo]) add(value);
-    for (const arr of [root?.partes, root?.destinatarios, root?.envolvidos]) {
-      if (Array.isArray(arr)) {
-        for (const item of arr) add(typeof item === "string" ? item : (item?.nome || item?.nomeParte || item?.parte || item?.identificacao));
+function parseOabFromIdentificacoes(identificacoes) {
+  const arr = Array.isArray(identificacoes) ? identificacoes : [];
+  for (const raw of arr) {
+    const m = String(raw || "").match(/OAB\s*(\d+)\s*\/?\s*([A-Z]{2})/i);
+    if (m) return { numero: m[1], uf: m[2].toUpperCase() };
+  }
+  return null;
+}
+
+function formatCategoriaTag(categoria) {
+  const s = String(categoria || "").trim().replace(/\(.*?\)/g, "").trim();
+  if (!s) return "";
+  const lower = s.toLowerCase();
+  return `[${lower.charAt(0).toUpperCase()}${lower.slice(1)}]`;
+}
+
+function parseEnvolvidos(pub) {
+  const envolvidos = Array.isArray(pub?.envolvidos) ? pub.envolvidos : [];
+  const partes = [];
+  const advogados = [];
+  const poloAtivo = [];
+  const poloPassivo = [];
+  const seenP = new Set();
+  const seenA = new Set();
+
+  for (const item of envolvidos) {
+    const nome = sanitizeEntityName(item?.nome, 180);
+    if (!nome) continue;
+    const categoria = String(item?.categoria || "").trim();
+    const polo = String(item?.polo || "").trim().toUpperCase();
+
+    if (isAdvogadoCategoria(categoria)) {
+      const oab = parseOabFromIdentificacoes(item?.identificacoes);
+      const label = oab ? `${nome} - OAB ${oab.uf}${oab.numero}` : nome;
+      const key = normalize(label);
+      if (key && !seenA.has(key)) { seenA.add(key); advogados.push(label); }
+    } else {
+      const tag = formatCategoriaTag(categoria);
+      const label = tag ? `${tag} ${nome}` : nome;
+      const key = normalize(label);
+      if (key && !seenP.has(key)) {
+        seenP.add(key);
+        partes.push(label);
+        if (polo === "ATIVO") poloAtivo.push(nome);
+        else if (polo === "PASSIVO") poloPassivo.push(nome);
       }
     }
   }
 
-  const plain = String(texto || "").replace(/\s+/g, " ").trim();
-  const patterns = [
-    { re: /\bimpetrad[oa]\s+por\s+(.{4,180}?),\s*advogad[oa]\b/i, prefix: "[Impetrante]" },
-    { re: /\bimpetrad[oa]\s+em\s+(?:favor|benef[ií]cio)\s+de\s+(.{4,180}?)(?=\s+contra\b|\s*,\s*contra\b|\s*,\s*em\s+face\b|\.)/i, prefix: "[Paciente]" },
-    { re: /\bimpetrou\s+o\s+presente\s+habeas\s+corpus\s+em\s+(?:favor|benef[ií]cio)\s+de\s+(.{4,180}?)(?=\s+contra\b|\.)/i, prefix: "[Paciente]" },
-    { re: /\bajuizad[ao]\s+por\s+(.{4,180}?)(?=\s+contra\b|\s+em\s+face\b|\s*,\s*contra\b|\.)/i, prefix: "[Reclamante]" },
-    { re: /\bpropost[ao]\s+por\s+(.{4,180}?)(?=\s+contra\b|\s+em\s+face\b|\.)/i, prefix: "[Autor]" },
-    { re: /\binterpost[oa]\s+por\s+(.{4,180}?)(?=\s+contra\b|\s+em\s+face\b|\.)/i, prefix: "[Recorrente]" },
-    { re: /\brecorrente\s+(.{4,180}?)(?=\s+contra\b|\s+em\s+face\b|\.)/i, prefix: "[Recorrente]" },
-    { re: /\breclamante\s+(.{4,180}?)(?=\s+narra\b|\s+sustenta\b|\s+alega\b|\.)/i, prefix: "[Reclamante]" },
-  ];
-  for (const { re, prefix } of patterns) {
-    const m = plain.match(re);
-    if (m?.[1]) add(m[1], prefix);
-  }
-
-  const labelPatterns = [
-    ["[Agravante]", /\bAGRAVANTE\s*:\s*(.{4,180}?)(?=\s+AGRAVADO\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Agravado]", /\bAGRAVADO\s*:\s*(.{4,180}?)(?=\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Reclamante]", /\bRECLAMANTE\s*:\s*(.{4,180}?)(?=\s+RECLAMADO\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Reclamado]", /\bRECLAMADO\s*:\s*(.{4,180}?)(?=\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Autor]", /\bAUTOR\s*:\s*(.{4,180}?)(?=\s+R[ÉE]U\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Réu]", /\bR[ÉE]U\s*:\s*(.{4,180}?)(?=\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Impetrante]", /\bIMPETRANTE\s*:\s*(.{4,180}?)(?=\s+IMPETRADO\b|\s+PACIENTE\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Impetrado]", /\bIMPETRADO\s*:\s*(.{4,180}?)(?=\s+PACIENTE\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Paciente]", /\bPACIENTE\s*:\s*(.{4,180}?)(?=\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-  ];
-  for (const [prefix, re] of labelPatterns) {
-    const m = plain.match(re);
-    if (m?.[1]) add(m[1], prefix);
-  }
-  return out;
+  return { partes, advogados, poloAtivo, poloPassivo };
 }
 
-function extractStfAdvogados(pub, texto) {
-  const out = [];
-  const seen = new Set();
-  const add = (raw) => addUniqueEntity(out, seen, raw, { maxLen: 180 });
-
-  for (const arr of [pub?.advogados, pub?.destinatarioadvogados, pub?.representantes, pub?.procuradores]) {
-    if (!Array.isArray(arr)) continue;
-    for (const entry of arr) {
-      const adv = entry?.advogado && typeof entry.advogado === "object" ? entry.advogado : entry;
-      const nome = adv?.nome || adv?.nomeAdvogado || adv?.nomeRepresentante || adv?.nomeProcurador || (typeof entry === "string" ? entry : "");
-      const numero = String(adv?.numero_oab || adv?.numeroOab || adv?.oab || "").replace(/\D/g, "");
-      const uf = String(adv?.uf_oab || adv?.ufOab || adv?.uf || "").trim().toUpperCase();
-      add(numero ? `${nome} - OAB ${uf}${numero}` : nome);
-    }
-  }
-
-  const plain = String(texto || "").replace(/\s+/g, " ").trim();
-  const advogadoAutor = plain.match(/\bimpetrad[oa]\s+por\s+(.{4,180}?),\s*advogad[oa]\b/i);
-  if (advogadoAutor?.[1]) add(advogadoAutor[1]);
-
-  const oabPatterns = [
-    /((?:Dr\.?|Dra\.?)\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.']{4,120}?)\s*[-–—]\s*OAB\s*\/?\s*([A-Z]{2})\s*[-–—]?\s*(\d[\d.]*)/gi,
-    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.']{4,120}?)\s*\(\s*OAB[:\s]*(\d{1,10})\s*\/?\s*([A-Z]{2})\s*\)/g,
-    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.']{4,120}?)\s*-?\s*OAB[:\s]*([A-Z]{2})[:\s-]*(\d{1,10})/gi,
-  ];
-  for (const re of oabPatterns) {
-    for (const m of plain.matchAll(re)) {
-      if (m.length === 4 && /^[A-Z]{2}$/i.test(m[2] || "")) add(`${m[1].trim()} - OAB ${String(m[2]).toUpperCase()}-${m[3]}`);
-      else if (m.length === 4) add(`${m[1].trim()} - OAB ${String(m[3]).toUpperCase()}-${m[2]}`);
-    }
-  }
-  return out;
-}
-
-function metadataStf(pub, texto) {
-  const partes = extractStfPartes(pub, texto);
-  const advogados = extractStfAdvogados(pub, texto);
+function metadataStf(pub /*, texto */) {
+  const { partes, advogados, poloAtivo, poloPassivo } = parseEnvolvidos(pub);
   return {
     partes_json: partes.length > 0 ? partes : null,
     advogados_json: advogados.length > 0 ? advogados : null,
-    polo_ativo: partes.find((p) => /^\[(?:Reclamante|Autor|Recorrente|Impetrante)\]/i.test(p))?.replace(/^\[[^\]]+\]\s*/, "") || null,
-    polo_passivo: partes.find((p) => /^\[(?:Reclamado|Réu|Recorrido|Impetrado)\]/i.test(p))?.replace(/^\[[^\]]+\]\s*/, "") || null,
+    polo_ativo: poloAtivo.length > 0 ? poloAtivo.join("; ") : null,
+    polo_passivo: poloPassivo.length > 0 ? poloPassivo.join("; ") : null,
   };
 }
 
