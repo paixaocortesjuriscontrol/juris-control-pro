@@ -1506,6 +1506,80 @@ export type Database = {
           },
         ]
       }
+      config_deteccao_coordenacao: {
+        Row: {
+          coordenacao_id: string
+          created_at: string
+          created_by: string | null
+          detectar_audiencias: boolean
+          detectar_intimacoes: boolean
+          horarios_andamentos: string[]
+          horarios_distribuicoes: string[]
+          horarios_djen_processos: string[]
+          horarios_djen_termos: string[]
+          horarios_djet_pautas: string[]
+          horarios_redistribuicoes: string[]
+          id: string
+          monitorar_andamentos: boolean
+          monitorar_distribuicoes: boolean
+          monitorar_djen_processos: boolean
+          monitorar_djen_termos: boolean
+          monitorar_djet_pautas: boolean
+          monitorar_redistribuicoes: boolean
+          updated_at: string
+        }
+        Insert: {
+          coordenacao_id: string
+          created_at?: string
+          created_by?: string | null
+          detectar_audiencias?: boolean
+          detectar_intimacoes?: boolean
+          horarios_andamentos?: string[]
+          horarios_distribuicoes?: string[]
+          horarios_djen_processos?: string[]
+          horarios_djen_termos?: string[]
+          horarios_djet_pautas?: string[]
+          horarios_redistribuicoes?: string[]
+          id?: string
+          monitorar_andamentos?: boolean
+          monitorar_distribuicoes?: boolean
+          monitorar_djen_processos?: boolean
+          monitorar_djen_termos?: boolean
+          monitorar_djet_pautas?: boolean
+          monitorar_redistribuicoes?: boolean
+          updated_at?: string
+        }
+        Update: {
+          coordenacao_id?: string
+          created_at?: string
+          created_by?: string | null
+          detectar_audiencias?: boolean
+          detectar_intimacoes?: boolean
+          horarios_andamentos?: string[]
+          horarios_distribuicoes?: string[]
+          horarios_djen_processos?: string[]
+          horarios_djen_termos?: string[]
+          horarios_djet_pautas?: string[]
+          horarios_redistribuicoes?: string[]
+          id?: string
+          monitorar_andamentos?: boolean
+          monitorar_distribuicoes?: boolean
+          monitorar_djen_processos?: boolean
+          monitorar_djen_termos?: boolean
+          monitorar_djet_pautas?: boolean
+          monitorar_redistribuicoes?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_deteccao_coordenacao_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: true
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       config_envio_alertas_tarefas: {
         Row: {
           ativo: boolean
@@ -8979,6 +9053,10 @@ export type Database = {
       reset_jobs_orfaos_servidor: {
         Args: { p_timeout_minutes?: number }
         Returns: number
+      }
+      resolver_coord_processo: {
+        Args: { p_processo_id: string; p_processo_numero: string }
+        Returns: string
       }
       restaurar_dados_benner_arquivado: {
         Args: { _id: string }
