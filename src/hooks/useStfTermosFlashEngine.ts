@@ -400,21 +400,44 @@ async function processarTermo(mon: Monitoramento, diaYmd: string, signal: AbortS
 
   if (payloads.length === 0) return result;
 
-  const { data, error } = await supabase
-    .from('publicacoes_djen')
-    .upsert(payloads, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true })
-    .select('id');
+  let inseridas = 0;
+  for (const payload of payloads) {
+    if (payload.id_djen) {
+      let existingQuery: any = supabase
+        .from('publicacoes_djen')
+        .select('id')
+        .eq('id_djen', payload.id_djen);
+      existingQuery = payload.coordenacao_id
+        ? existingQuery.eq('coordenacao_id', payload.coordenacao_id)
+        : existingQuery.is('coordenacao_id', null);
+      const { data: existing } = await existingQuery.maybeSingle();
+      if (existing?.id) {
+        result.duplicadas += 1;
+        continue;
+      }
+    }
 
-  if (error) {
-    console.error(`[STF Flash] Erro ao salvar ${payloads.length} publicações para "${mon.termo_busca}":`, error);
-    result.falhasBusca += 1;
-    result.ultimoErroBusca = error.message;
-    return result;
+    const { data, error } = await supabase
+      .from('publicacoes_djen')
+      .insert(payload)
+      .select('id')
+      .single();
+
+    if (error) {
+      const msg = error.message || '';
+      if (error.code === '23505' || msg.includes('duplicate')) {
+        result.duplicadas += 1;
+        continue;
+      }
+      console.error(`[STF Flash] Erro ao salvar publicação para "${mon.termo_busca}":`, error);
+      result.falhasBusca += 1;
+      result.ultimoErroBusca = error.message;
+      continue;
+    }
+    if (data?.id) inseridas += 1;
   }
 
-  const inseridas = (data || []).length;
   result.novas = inseridas;
-  result.duplicadas += payloads.length - inseridas;
   return result;
 }
 
