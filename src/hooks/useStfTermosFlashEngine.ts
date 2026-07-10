@@ -12,7 +12,7 @@
  *  - Não há tribunal: STF é único.
  *  - API retorna dados HTML enriquecidos (texto, processo, relator, tipo).
  *  - Validação por frase exata (reusa djenTermoMatch).
- *  - INSERT em `publicacoes_stf`.
+ *  - INSERT em `publicacoes_djen` com tribunal STF.
  */
 
 import { supabase } from '@/integrations/supabase/client';
@@ -207,6 +207,20 @@ function gerarHash(textoLimpo: string, processo: string): string {
   return Math.abs(h1).toString(16) + Math.abs(h2).toString(16);
 }
 
+function nextBusinessDateYmd(dateLike: string | null): string {
+  const base = String(dateLike || ymdBrasilia()).slice(0, 10);
+  const d = new Date(`${base}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function dataDisponibilizacaoStf(s: any, fallbackYmd: string): string {
+  const parsed = parseDataBR(s);
+  const ymd = parsed ? parsed.slice(0, 10) : fallbackYmd;
+  return `${ymd}T15:00:00.000Z`;
+}
+
 function parseDataBR(s: any): string | null {
   if (!s) return null;
   if (typeof s === 'number') return new Date(s).toISOString();
@@ -355,7 +369,10 @@ async function processarTermo(mon: Monitoramento, diaYmd: string, signal: AbortS
       continue;
     }
 
-    const hash = gerarHash(textoLimpo.slice(0, 600), processo);
+    const idDjen = pub.id != null ? `stf:${String(pub.id)}` : null;
+    const dataDisponibilizacao = dataDisponibilizacaoStf(pub.divulgacao, diaYmd);
+    const dataPublicacao = parseDataBR(pub.publicacao) || `${nextBusinessDateYmd(dataDisponibilizacao)}T15:00:00.000Z`;
+    const hash = gerarHash(`${idDjen || ''}|${dataDisponibilizacao}|${textoLimpo.slice(0, 600)}`, processo);
     if (seenHash.has(hash)) {
       result.duplicadas += 1;
       continue;
@@ -365,14 +382,16 @@ async function processarTermo(mon: Monitoramento, diaYmd: string, signal: AbortS
     payloads.push({
       monitoramento_id: mon.id,
       coordenacao_id: mon.coordenacao_id ?? null,
-      stf_id: pub.id != null ? String(pub.id) : null,
+      id_djen: idDjen,
       processo_numero: processo || null,
-      tipo: pub.tipo || null,
-      relator: pub.relator || null,
-      data_divulgacao: parseDataBR(pub.divulgacao),
-      data_publicacao: parseDataBR(pub.publicacao),
-      texto_html: textoHtml.slice(0, 200_000),
-      texto_limpo: textoLimpo.slice(0, 200_000),
+      tipo_publicacao: 'intimacao',
+      tribunal: 'STF',
+      orgao: pub.relator || null,
+      tipo_comunicacao: pub.tipo || null,
+      meio: 'D',
+      data_disponibilizacao: dataDisponibilizacao,
+      data_publicacao: dataPublicacao,
+      conteudo: textoLimpo.slice(0, 200_000),
       hash_conteudo: hash,
       fonte: 'stf_digital',
       lida: false,
@@ -382,7 +401,7 @@ async function processarTermo(mon: Monitoramento, diaYmd: string, signal: AbortS
   if (payloads.length === 0) return result;
 
   const { data, error } = await supabase
-    .from('publicacoes_stf')
+    .from('publicacoes_djen')
     .upsert(payloads, { onConflict: 'monitoramento_id,hash_conteudo', ignoreDuplicates: true })
     .select('id');
 
