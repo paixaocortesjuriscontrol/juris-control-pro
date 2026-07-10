@@ -1,29 +1,60 @@
-## Lista de OABs do Dr. Osmar Mendes Paixão Côrtes cadastradas no sistema
+## Objetivo
 
-10 OABs distintas encontradas (fonte: `monitoramentos_djen.termos_or`, principalmente nos monitoramentos "Santander Cível - Dr. Osmar" e "OAB TODAS DR. OSMAR + SMILES + WEBJET"):
+Trazer TODA a configuração de detecção automática e monitoramento para dentro do ícone de engrenagem de cada card de coordenação na Central de Notificações, de forma **isolada por coordenação**. E apagar tudo que foi detectado automaticamente até agora.
 
-| OAB | UF | Como aparece no sistema |
-|---|---|---|
-| 15553 | DF | OAB principal — usada com `uf=TODAS` em todos os monitoramentos trabalhistas/TST/DJEN |
-| 310314 | SP (provável) | Bradesco, Montreal, Super Quadra, Base, New York, Villaggio, Parque Planalto, Serviço de Apoio, TJSP |
-| 27284 | GO (confirmado) | Mapeamento Kurier traz explicitamente "27284 GO", "OAB27284.GO" |
-| 22731-A | Suplementar (UF não gravada) | Santander Cível |
-| 41196-A | Suplementar (UF não gravada) | Santander Cível |
-| 87961 | Não gravada no banco | Santander Cível |
-| 21572 | Não gravada no banco | Santander Cível |
-| 75879 | Não gravada no banco | Santander Cível |
-| 164494 | Não gravada no banco | Santander Cível |
-| 184565 | Não gravada no banco | Santander Cível |
+---
 
-## Observação
+## Parte 1 — Limpeza dos dados detectados automaticamente
 
-O sistema não tem uma tabela mestre de advogados/inscrições — as OABs vivem soltas dentro do array `termos_or` de cada monitoramento, sem UF associada por OAB. Para 5 delas (87961, 21572, 75879, 164494, 184565) não consigo determinar a UF pelo banco.
+Vou apagar (permanente) tudo que veio de detecção automática, mantendo apenas o que foi criado manualmente/importado:
 
-## Próximo passo sugerido (aguardando sua decisão)
+- `audiencias_detectadas` — apagar linhas com `origem IN ('djen_processos','monitoramento_djen_processos','monitoracao_360','monitorar-andamentos','monitorar-termos')`. Preservar `origem = 'manual'` e `origem = 'importacao'`.
+- `intimacoes_detectadas` — mesma regra de origem.
+- `alertas_monitoramento`, `alertas_processos_nao_cadastrados`, `alertas_coordenacao_djen` — apagar tudo (são todos gerados por robô).
+- **Preservar:** `eventos_agenda`, `tarefas`, processos, publicações DJEN (as publicações em si continuam no histórico; só a detecção derivada delas é limpa).
 
-Se quiser, posso:
-1. **Só entregar essa lista** — não mexer em nada. (É o que você pediu.)
-2. **Confirmar as UFs faltantes com você** e gravar cada OAB com sua UF explícita nos monitoramentos (formato `NÚMERO/UF/NOME` no `termos_or`), para eliminar essa ambiguidade.
-3. **Criar uma tabela `advogados_oabs`** (id, oab, uf, nome, ativo) como cadastro mestre, e passar os monitoramentos a referenciar essa lista em vez de repetir OABs em cada `termos_or`.
+Total estimado: ~316 audiências e o equivalente em intimações.
 
-Como este pedido é só informativo, a opção 1 encerra o assunto. Me diga se quer avançar para 2 ou 3.
+## Parte 2 — Configuração unificada por coordenação (engrenagem)
+
+Hoje a engrenagem do card só configura alertas de e-mail/WhatsApp (`config_alertas_coordenacao`). Vou expandi-la para um diálogo com abas:
+
+**Tabela nova `config_deteccao_coordenacao`** (uma linha por coordenação):
+
+| Campo | Uso |
+| --- | --- |
+| `coordenacao_id` (UNIQUE) | vínculo |
+| `detectar_audiencias` bool | liga/desliga gravação em `audiencias_detectadas` |
+| `detectar_intimacoes` bool | idem para `intimacoes_detectadas` |
+| `monitorar_andamentos` bool + `horarios_andamentos` time[] | DataJud/CNJ |
+| `monitorar_djen_termos` bool + `horarios_djen_termos` time[] | DJEN por termos |
+| `monitorar_djen_processos` bool + `horarios_djen_processos` time[] | DJEN por processo |
+| `monitorar_distribuicoes` bool + `horarios_distribuicoes` time[] |  |
+| `monitorar_redistribuicoes` bool + `horarios_redistribuicoes` time[] |  |
+| `monitorar_djet_pautas` bool + `horarios_djet_pautas` time[] |  |
+
+Diálogo da engrenagem (novo layout, abas):
+
+1. **Alertas** (o que já existe hoje: e-mail, WhatsApp, horários de envio, tipos)
+2. **Detecção automática** — 2 switches (audiências / intimações)
+3. **Monitoramentos** — cada tipo com switch + horários (checkbox 00:00 → 23:00 em intervalos)
+
+## Parte 3 — Aplicar isolamento nos jobs
+
+Todos os edge functions/jobs (`monitorar-andamentos`, `monitorar-termos`, `monitorar-djen-processos`, `monitorar-distribuicoes`, `monitorar-redistribuicoes`, `processar-djet-pautas`) precisam:
+
+1. Iterar por coordenação em vez de rodar global.
+2. Ler `config_deteccao_coordenacao` da coordenação e pular se o tipo estiver desligado ou se o horário atual não bater.
+3. Ao gravar em `audiencias_detectadas`/`intimacoes_detectadas`, respeitar `detectar_audiencias`/`detectar_intimacoes` da coordenação dona do processo.
+
+A tela global "Monitoramento de Andamentos" em Configurações passa a ser **somente leitura / diagnóstico** (mostra o consolidado de todas as coordenações). A configuração viva fica na engrenagem.
+
+---
+
+## Confirmações antes de executar
+
+1. **Apagar 316 audiências detectadas + intimações + alertas** é irreversível. Confirma?
+2. Quando uma coordenação **não tiver** configuração ainda (linha nova em `config_deteccao_coordenacao`), o padrão deve ser **tudo desligado** (você habilita o que quiser) ou **tudo ligado com horários padrão**?
+3. Manter a tela global de Configurações → Monitoramento como "somente diagnóstico" ou remover completamente?
+
+Assim que confirmar, executo em 3 passos: (1) migration + limpeza dos dados, (2) UI da engrenagem com as abas, (3) ajuste dos edge functions para respeitar a configuração por coordenação.
