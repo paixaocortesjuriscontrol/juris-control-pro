@@ -778,6 +778,76 @@ export default function PainelControle() {
     });
   }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter]);
 
+  // ===== Classificação de um item (mesma regra do filtro de classificação) =====
+  const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" => {
+    const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
+    const tipo = (item.tipo ?? "").toLowerCase();
+    if (tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA" || tipo === "audiencia") return "audiencia";
+    if (tipo === "prazo" || tipo === "prazo_parcela") return "prazo";
+    if (tipo === "parcelamento") return "parcelamento";
+    if (item.origem === "evento" || tipoUpper === "EVENTO" || tipo === "evento") return "evento";
+    return "tarefa";
+  };
+
+  // ===== Contagens por classificação, usando a MESMA base do calendário =====
+  // Aplica todos os filtros do painel EXCETO o de classificação, de modo que
+  // ao clicar num card, o calendário mostra exatamente aqueles itens.
+  const contagensPorClassificacao = useMemo(() => {
+    const counts = { tarefa: 0, evento: 0, prazo: 0, audiencia: 0, parcelamento: 0 };
+    const base = itensAgenda.filter((item) => {
+      // Status (grupo simplificado)
+      if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
+        const st = (item.status ?? "").toLowerCase();
+        const concluido = isItemTratado(item);
+        const cancelado = st === "cancelado";
+        if (painelFiltros.statusGroup === "a_concluir" && (concluido || cancelado)) return false;
+        if (painelFiltros.statusGroup === "concluidas" && !concluido) return false;
+        if (painelFiltros.statusGroup === "canceladas" && !cancelado) return false;
+      }
+      if (painelFiltros.situacoes.length > 0 && !painelFiltros.situacoes.includes(item.status)) return false;
+      if (painelFiltros.souResponsavel || painelFiltros.estouEnvolvido) {
+        const userId = user?.id;
+        if (!userId) return false;
+        const isResp = item.responsavel_id === userId || item.criado_por === userId;
+        const isEnvolvido = item.participantes?.some((p: any) => p.usuario_id === userId);
+        if (painelFiltros.souResponsavel && painelFiltros.estouEnvolvido) {
+          if (!isResp && !isEnvolvido) return false;
+        } else if (painelFiltros.souResponsavel) {
+          if (!isResp) return false;
+        } else if (painelFiltros.estouEnvolvido) {
+          if (!isEnvolvido) return false;
+        }
+      }
+      if (painelFiltros.responsavelIds.length > 0) {
+        const rid = item.responsavel_id;
+        const cid = item.criado_por;
+        const envolvido = item.participantes?.some((p: any) => painelFiltros.responsavelIds.includes(p.usuario_id));
+        const isMatch =
+          (rid && painelFiltros.responsavelIds.includes(rid)) ||
+          (cid && painelFiltros.responsavelIds.includes(cid)) ||
+          envolvido;
+        if (!isMatch) return false;
+      }
+      if (somenteHoje) {
+        let dateStr: string | undefined;
+        if (item.origem === "tarefa") {
+          dateStr = (painelFiltros.dataFatal && !painelFiltros.dataPrevista)
+            ? (item.data_fatal ?? item.data_vencimento ?? item.data_inicio)
+            : (item.data_vencimento ?? item.data_fatal ?? item.data_inicio);
+        } else {
+          dateStr = item.data_inicio;
+        }
+        if ((dateStr ?? "").slice(0, 10) !== hoje_str) return false;
+      }
+      if (situacaoFilter && situacaoFilter !== "todos") {
+        if ((item.status ?? "").toLowerCase() !== situacaoFilter) return false;
+      }
+      return true;
+    });
+    base.forEach((it) => { counts[classificarItem(it)]++; });
+    return counts;
+  }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter]);
+
   // Mapa de itens por dia (chave: "YYYY-MM-DD")
   // Concluídas aparecem no final de cada dia, pendentes primeiro
   const itensPorDia = useMemo(() => {
