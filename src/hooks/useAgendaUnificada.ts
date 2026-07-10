@@ -24,6 +24,7 @@ export interface ItemAgendaUnificado {
   created_at: string;
   updated_at: string;
   processo_id: string | null;
+  coordenacao_id?: string | null;
   processo?: { id: string; numero: string; assunto?: string | null; cliente_id?: string | null } | null;
   participantes?: { usuario_id: string; usuario?: { id: string; nome: string } }[];
   enviar_whatsapp?: boolean;
@@ -86,6 +87,8 @@ export const AGENDA_INFINITE_QUERY_KEY = "agenda-unificada-infinite-v1" as const
 
 const normalizeDedupText = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
 
+const normalizeProcessDigits = (value: string | null | undefined) => String(value ?? "").replace(/\D/g, "");
+
 const normalizeRecorrenciaTipo = (tipo: string | null | undefined) => {
   const normalized = String(tipo ?? "").toLowerCase().trim();
   if (["daily", "diaria", "diário", "diario"].includes(normalized)) return "daily";
@@ -105,12 +108,22 @@ const getAgendaDedupKey = (item: ItemAgendaUnificado) => {
   const isDJEN = titulo.trim().startsWith("[DJEN]");
 
   if (item.origem === "tarefa") {
+    const tipoTarefaUpper = (item.tipo_tarefa ?? item.tipo ?? "").toUpperCase().trim();
+    const isTarefaAudiencia = tipoTarefaUpper === "AUDIÊNCIA" || tipoTarefaUpper === "AUDIENCIA" || item.tipo === "audiencia";
+    const data = (item.data_vencimento ?? item.data_fatal ?? item.data_inicio ?? "").slice(0, 10);
+
+    if (isTarefaAudiencia) {
+      const processoDigits = normalizeProcessDigits(item.processo?.numero) || normalizeProcessDigits(item.titulo);
+      const coordKey = item.coordenacao_id ?? item.processo_id ?? "";
+      const audienciaKey = processoDigits || normalizeDedupText(item.titulo ?? "");
+      return `tarefa-audiencia:${audienciaKey}:${data}:${coordKey}`;
+    }
+
     // Identificador externo (quando existe) é a forma mais segura de deduplicar.
     if (item.identificador_projuris) {
       return `tarefa:projuris:${item.identificador_projuris}`;
     }
 
-    const data = (item.data_vencimento ?? item.data_fatal ?? item.data_inicio ?? "").slice(0, 10);
     const baseKey = `${normalizeDedupText(titulo)}:${data}:${item.processo_id ?? ""}:${item.responsavel_id ?? ""}:${item.criado_por ?? ""}:${item.tipo_tarefa ?? ""}`;
     return isDJEN ? `djen:${baseKey}` : `tarefa:${baseKey}`;
   }
@@ -118,7 +131,7 @@ const getAgendaDedupKey = (item: ItemAgendaUnificado) => {
   // Para audiências (vindas de audiencias_detectadas, eventos_agenda ou tarefas do tipo
   // audiência que já entram como "evento"), colapsar pelo mesmo processo+dia+hora.
   if (item.tipo === "audiencia") {
-    const numeroProcesso = (item.processo?.numero ?? "").replace(/\D/g, "");
+    const numeroProcesso = normalizeProcessDigits(item.processo?.numero) || normalizeProcessDigits(item.titulo);
     const dt = item.data_inicio ?? "";
     const dia = dt.slice(0, 10);
     // hora truncada em minutos, ignorando timezone label
@@ -692,6 +705,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                 created_at: tarefa.created_at,
                 updated_at: tarefa.updated_at,
                 processo_id: tarefa.processo_id,
+                coordenacao_id: tarefa.coordenacao_id,
                 processo: tarefa.processo
                   ? {
                       id: tarefa.processo.id,
