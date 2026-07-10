@@ -795,10 +795,9 @@ async function registrarAudienciaDetectada(
     .select('id')
     .single();
   
-  // Criar tarefa para os responsáveis
-  if (inserted) {
-    await criarTarefaParaAudiencia(supabase, processoId, processoNumero, inserted.id, tipo, data);
-  }
+  // Audiências detectadas por robô não criam tarefas automaticamente.
+  // O cadastro humano deve acontecer pelo botão Adicionar > Audiência,
+  // que grava na estrutura canônica de audiencias_detectadas com origem manual.
   
   if (error) {
     console.error('Erro ao registrar audiência:', error);
