@@ -955,22 +955,26 @@ async function processProcessosBatch(
         const detectPromises = inserted.map(async (pub: any) => {
           const conteudo = pub.conteudo || '';
           
-          // Detectar audiência
+          // Detectar audiência - grava via RPC canônico (mesma estrutura do form manual)
           const audienciaInfo = detectAudiencia(conteudo);
           if (audienciaInfo) {
-            await supabase.from('audiencias_detectadas').upsert({
-              processo_id: pub.processo_id,
-              processo_numero: pub.processo_numero,
-              publicacao_id: pub.id,
-              data_audiencia: audienciaInfo.dataAudiencia,
-              hora: audienciaInfo.hora,
-              tipo_audiencia: audienciaInfo.tipoAudiencia,
-              local_audiencia: audienciaInfo.localAudiencia,
-              contexto: audienciaInfo.contexto,
-              conteudo_publicacao: conteudo.slice(0, 5000),
-              origem: 'monitoramento_djen_processos',
-              status: 'pendente',
-            }, { onConflict: 'publicacao_id', ignoreDuplicates: true });
+            const dataAud = audienciaInfo.dataAudiencia
+              ? String(audienciaInfo.dataAudiencia).slice(0, 10)
+              : null;
+            await supabase.rpc('criar_audiencia_detectada', {
+              p_processo_id: pub.processo_id,
+              p_processo_numero: pub.processo_numero,
+              p_titulo: null,
+              p_data_audiencia: dataAud,
+              p_hora: audienciaInfo.hora ?? null,
+              p_tipo_audiencia: audienciaInfo.tipoAudiencia ?? null,
+              p_local_audiencia: audienciaInfo.localAudiencia ?? null,
+              p_contexto: audienciaInfo.contexto ?? null,
+              p_conteudo_publicacao: conteudo.slice(0, 5000),
+              p_movimentacao_id: null,
+              p_publicacao_id: pub.id,
+              p_origem: 'monitoramento_djen_processos',
+            });
           }
           
           // Detectar intimação
