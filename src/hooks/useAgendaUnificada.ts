@@ -989,17 +989,30 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             const { data: parentsRaw } = await queryParents;
             let parents = (parentsRaw ?? []) as any[];
             const parentProcessCoordIds = new Map<string, string[]>();
+            const parentParticipantIds = new Map<string, string[]>();
             if (coordScopeIds.length > 0) {
-              const { data: parentLinks } = await (supabase as any)
+              const [{ data: parentLinks }, { data: parentParticipants }] = await Promise.all([
+                (supabase as any)
                 .from("evento_processos")
                 .select("evento_id, processo:processos(coordenacao_id)")
-                .in("evento_id", missingParentIds);
+                  .in("evento_id", missingParentIds),
+                supabase
+                  .from("participantes_evento")
+                  .select("evento_id, usuario_id")
+                  .in("evento_id", missingParentIds),
+              ]);
               (parentLinks || []).forEach((row: any) => {
                 const coordId = row?.processo?.coordenacao_id;
                 if (!row?.evento_id || !coordId) return;
                 const current = parentProcessCoordIds.get(row.evento_id) || [];
                 current.push(coordId);
                 parentProcessCoordIds.set(row.evento_id, current);
+              });
+              (parentParticipants || []).forEach((row: any) => {
+                if (!row?.evento_id || !row?.usuario_id) return;
+                const current = parentParticipantIds.get(row.evento_id) || [];
+                current.push(row.usuario_id);
+                parentParticipantIds.set(row.evento_id, current);
               });
             }
             // Filtro de escopo: se houver coordenação selecionada, prioriza pais dessa
@@ -1011,7 +1024,11 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                 return (
                   coordScopeIds.includes(pe.coordenacao_id) ||
                   (pe.processo && coordScopeIds.includes(pe.processo.coordenacao_id)) ||
-                  linkedCoords.some((coordId) => coordScopeIds.includes(coordId))
+                  linkedCoords.some((coordId) => coordScopeIds.includes(coordId)) ||
+                  (!filters.strictCoordenacaoIsolation &&
+                    !!filters.responsavelIds?.length &&
+                    (filters.responsavelIds.includes(pe.criado_por) ||
+                      (parentParticipantIds.get(pe.id) || []).some((uid) => filters.responsavelIds!.includes(uid))))
                 );
               });
             } else if (!filters.fetchAll && filters.responsavelIds && filters.responsavelIds.length > 0) {
@@ -1062,6 +1079,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
               created_at: p.created_at,
               updated_at: p.updated_at,
               processo_id: parent.processo_id ?? null,
+              coordenacao_id: parent.coordenacao_id ?? parent.processo?.coordenacao_id ?? null,
               processo: parent.processo ?? null,
               grupo_parcelas: parent.id,
               numero_parcela: p.numero ?? null,
