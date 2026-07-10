@@ -44,7 +44,16 @@ export function useCoordenacoesDoUsuario() {
         .from("membros_coordenacao")
         .select("coordenacao_id")
         .eq("usuario_id", userId);
-      const ids = Array.from(new Set((membros || []).map((m: any) => m.coordenacao_id).filter(Boolean)));
+
+      const { data: coordenador } = await supabase
+        .from("coordenacoes")
+        .select("id")
+        .eq("coordenador_id", userId);
+
+      const ids = Array.from(new Set([
+        ...(membros || []).map((m: any) => m.coordenacao_id).filter(Boolean),
+        ...(coordenador || []).map((c: any) => c.id).filter(Boolean),
+      ]));
 
       if (ids.length === 0) {
         return { isAdmin: false, coordenacoes: [] as CoordenacaoUsuario[] };
