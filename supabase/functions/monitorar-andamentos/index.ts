@@ -1568,6 +1568,20 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({} as any));
     const completeRun = body?.completeRun === true;
     const execucaoId = body?.execucaoId as string | undefined;
+    const manual = body?.manual === true;
+
+    // Gate: pular execução agendada quando nenhuma coordenação habilitou este monitoramento
+    // no horário atual. Chamadas manuais (UI) sempre passam.
+    if (!manual) {
+      const { data: shouldRun } = await supabase.rpc('deve_rodar_monitoramento', { p_tipo: 'andamentos' });
+      if (shouldRun !== true) {
+        console.log('[Gate] Andamentos: nenhuma coordenação com este monitoramento no horário atual — pulando.');
+        return new Response(
+          JSON.stringify({ success: true, skipped: 'nenhuma-coord-habilitada', isComplete: true }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
     // Auto-continuation should ALWAYS work for heavy types - remove managedByWrapper check
     // The orchestrator just kicks off the first batch, worker handles the rest
 
