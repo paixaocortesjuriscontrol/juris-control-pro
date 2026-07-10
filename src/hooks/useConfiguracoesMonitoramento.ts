@@ -77,17 +77,17 @@ export function useConfiguracoesMonitoramento(coordenacaoId?: string | null) {
   const executarMonitoramento = useMutation({
     mutationFn: async (tipo: string) => {
       if (tipo === 'redistribuicoes') {
-        const { data, error } = await supabase.functions.invoke('monitorar-redistribuicoes');
+        const { data, error } = await supabase.functions.invoke('monitorar-redistribuicoes', { body: { manual: true } });
         if (error) throw error;
         return data;
       }
       if (tipo === 'andamentos') {
-        const { data, error } = await supabase.functions.invoke('monitorar-andamentos');
+        const { data, error } = await supabase.functions.invoke('monitorar-andamentos', { body: { manual: true } });
         if (error) throw error;
         return data;
       }
       if (tipo === 'distribuicoes') {
-        const { data, error } = await supabase.functions.invoke('monitorar-distribuicoes');
+        const { data, error } = await supabase.functions.invoke('monitorar-distribuicoes', { body: { manual: true } });
         if (error) throw error;
         return data;
       }
@@ -96,7 +96,7 @@ export function useConfiguracoesMonitoramento(coordenacaoId?: string | null) {
         return { useDireta: true, message: 'Use a aba DJEN para busca direta' };
       }
       if (tipo === 'termos') {
-        const { data, error } = await supabase.functions.invoke('monitorar-termos');
+        const { data, error } = await supabase.functions.invoke('monitorar-termos', { body: { manual: true } });
         if (error) throw error;
         return data;
       }
