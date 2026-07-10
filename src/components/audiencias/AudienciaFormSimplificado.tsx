@@ -196,6 +196,17 @@ export function AudienciaFormSimplificado({
                 <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={criarAudiencia.isPending}
+              onClick={handleSubmit as any}
+            >
+              {criarAudiencia.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Salvar
+            </Button>
           </div>
         </div>
       )}
