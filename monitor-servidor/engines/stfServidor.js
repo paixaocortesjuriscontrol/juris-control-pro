@@ -594,57 +594,92 @@ async function run({ sb, payload, log, job }) {
   const { data: monitoramentos, error } = await q;
   if (error) throw new Error(`stf: falha lendo monitoramentos: ${error.message}`);
 
-  const totais = { totalItens: monitoramentos.length, concluidos: 0, novas: 0, duplicatas: 0, descartadas: 0, itens: [] };
+  const lista = monitoramentos || [];
+  const slotsPool = await loadPool(sb).catch((e) => {
+    log("stf.pool_error", { e: e.message });
+    return [];
+  });
+  const vias = slotsPool.length > 0
+    ? slotsPool
+    : [{ id: "direct", label: "direto", url: null, token: null }];
+  const totais = { totalItens: lista.length, concluidos: 0, novas: 0, duplicatas: 0, descartadas: 0, falhas: 0, itens: [] };
   const escreverProgresso = async (patch) => {
     if (!job?.id) return;
     try {
       await sb
         .from("execucoes_servidor")
         .update({
-          progresso: { ...totais, ...patch, janela: { dataInicio, dataFim } },
+          progresso: { ...totais, ...patch, janela: { dataInicio, dataFim }, pool_enabled: slotsPool.length > 0, vps: vias.length },
           progresso_atualizado_em: new Date().toISOString(),
+          heartbeat_at: new Date().toISOString(),
         })
         .eq("id", job.id);
     } catch (_) {}
   };
 
-  await escreverProgresso({});
-
-  for (const mon of monitoramentos) {
-    const item = {
+  for (const mon of lista) {
+    totais.itens.push({
       id: mon.id,
       label: `${mon.tipo}: ${mon.termo_busca}`,
       tribunal: "STF",
       tipo: mon.tipo,
-      status: "executando",
+      status: "pendente",
       current: 0,
       total: 1,
       novas: 0,
       descartadas: 0,
       duplicatas: 0,
-    };
-    totais.itens.push(item);
-    totais.atual = { id: mon.id, label: item.label };
-    await escreverProgresso({});
-
-    try {
-      const r = await processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execucaoId: job?.id });
-      item.status = "concluido";
-      item.current = 1;
-      item.novas = r.novas;
-      item.descartadas = r.descartadas;
-      item.duplicatas = r.duplicatas;
-      totais.novas += r.novas;
-      totais.descartadas += r.descartadas;
-      totais.duplicatas += r.duplicatas;
-    } catch (e) {
-      item.status = "erro";
-      item.erro = e.message;
-      log("stf.mon_error", { id: mon.id, e: e.message });
-    }
-    totais.concluidos = totais.itens.filter((i) => i.status !== "executando" && i.status !== "pendente").length;
-    await escreverProgresso({});
+      falhas: 0,
+      via: null,
+    });
   }
+
+  await escreverProgresso({});
+
+  const fila = [...totais.itens];
+  const monPorId = new Map(lista.map((m) => [m.id, m]));
+  const nextItem = () => fila.shift() || null;
+
+  const worker = async (via) => {
+    log("stf.worker_start", { via: viaLabel(via) });
+    while (true) {
+      const item = nextItem();
+      if (!item) break;
+      const mon = monPorId.get(item.id);
+      if (!mon) continue;
+      item.status = "executando";
+      item.via = { id: viaKey(via), label: viaLabel(via) };
+      totais.atual = { id: mon.id, label: item.label };
+      await escreverProgresso({ vias: totais.itens.filter((i) => i.status === "executando").map((i) => i.via).filter(Boolean) });
+
+      try {
+        const r = await processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execucaoId: job?.id, via });
+        item.status = "concluido";
+        item.current = 1;
+        item.novas = r.novas;
+        item.descartadas = r.descartadas;
+        item.duplicatas = r.duplicatas;
+        item.falhas = r.falhas || 0;
+        totais.novas += r.novas;
+        totais.descartadas += r.descartadas;
+        totais.duplicatas += r.duplicatas;
+        totais.falhas += r.falhas || 0;
+      } catch (e) {
+        item.status = "erro";
+        item.current = 1;
+        item.erro = e.message;
+        totais.falhas += 1;
+        log("stf.mon_error", { id: mon.id, via: viaLabel(via), e: e.message });
+      }
+      totais.concluidos = totais.itens.filter((i) => i.status !== "executando" && i.status !== "pendente").length;
+      await escreverProgresso({ vias: totais.itens.filter((i) => i.status === "executando").map((i) => i.via).filter(Boolean) });
+    }
+    log("stf.worker_done", { via: viaLabel(via) });
+  };
+
+  await Promise.all(vias.map((via) => worker(via)));
+  totais.atual = null;
+  await escreverProgresso({});
 
   log("stf.done", { totais });
   return {
@@ -655,6 +690,8 @@ async function run({ sb, payload, log, job }) {
     novas: totais.novas,
     duplicatas: totais.duplicatas,
     descartadas: totais.descartadas,
+    falhas: totais.falhas,
+    vps: vias.length,
   };
 }
 
