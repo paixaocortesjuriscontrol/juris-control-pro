@@ -4,7 +4,9 @@
 // https nativo com rejectUnauthorized:false (cadeia ICP-Brasil não é aceita pelo store
 // padrão em alguns hosts). Endpoint é público.
 const crypto = require("crypto");
+const http = require("http");
 const https = require("https");
+const { loadPool } = require("../proxyPool");
 
 const TIPO_ENGINE = "djen_stf_servidor";
 const STF_URL = "https://digital.stf.jus.br/decisoes-publicacoes/api/public/publicacoes";
@@ -28,13 +30,26 @@ const STF_HEADERS = {
 const insecureAgent = new https.Agent({ rejectUnauthorized: false, keepAlive: true });
 
 // Sessão CSRF: o backend do STF exige X-XSRF-TOKEN + cookie JSESSIONID/XSRF-TOKEN.
-// Fazemos um GET inicial para obter os cookies, e refazemos quando expiram (403).
-let sessionCookies = null; // "k=v; k2=v2"
-let sessionXsrf = null;
+// Mantemos uma sessão por via/VPS para permitir execução distribuída sem misturar cookies.
+const sessionByVia = new Map();
+
+function viaKey(via) {
+  return via?.id ? String(via.id) : "__direct__";
+}
+
+function viaLabel(via) {
+  return via?.label || via?.url || "direto";
+}
+
+function proxyUrl(via, targetUrl) {
+  if (!via?.url) return targetUrl;
+  return `${String(via.url).replace(/\/$/, "")}/proxy?url=${encodeURIComponent(targetUrl)}`;
+}
 
 function parseSetCookies(headers) {
-  const arr = headers["set-cookie"];
-  if (!Array.isArray(arr)) return {};
+  const raw = headers?.["set-cookie"] || headers?.["Set-Cookie"] || headers?.setCookie || headers?.set_cookie;
+  const arr = Array.isArray(raw) ? raw : (typeof raw === "string" ? [raw] : []);
+  if (arr.length === 0) return {};
   const jar = {};
   for (const line of arr) {
     const eq = line.indexOf("=");
@@ -47,29 +62,58 @@ function parseSetCookies(headers) {
   return jar;
 }
 
-function httpGet(url) {
+function normalizeProxyResult(res, body) {
+  let parsed = null;
+  try { parsed = JSON.parse(body); } catch (_) {}
+  if (parsed && typeof parsed === "object" && "body" in parsed) {
+    const headers = parsed.headers || parsed.responseHeaders || {};
+    const rawBody = typeof parsed.body === "string" ? parsed.body : JSON.stringify(parsed.body ?? null);
+    return { status: Number(parsed.status || res.statusCode || 0), headers, body: rawBody };
+  }
+  return { status: res.statusCode || 0, headers: res.headers || {}, body };
+}
+
+function httpRequest(url, { method = "GET", headers = {}, body = null, via = null } = {}) {
   return new Promise((resolve, reject) => {
-    const req = https.request(url, { method: "GET", headers: STF_HEADERS, agent: insecureAgent, timeout: REQ_TIMEOUT_MS }, (res) => {
+    const target = via?.url ? proxyUrl(via, url) : url;
+    const isProxy = !!via?.url;
+    const finalHeaders = isProxy
+      ? { "x-proxy-token": via.token, ...headers }
+      : headers;
+    const client = String(target).startsWith("http://") ? http : https;
+    const opts = String(target).startsWith("https://")
+      ? { method, headers: finalHeaders, agent: insecureAgent, timeout: REQ_TIMEOUT_MS }
+      : { method, headers: finalHeaders, timeout: REQ_TIMEOUT_MS };
+    const req = client.request(target, opts, (res) => {
       const chunks = [];
       res.on("data", (c) => chunks.push(c));
-      res.on("end", () => resolve({ status: res.statusCode || 0, headers: res.headers, body: Buffer.concat(chunks).toString("utf8") }));
+      res.on("end", () => {
+        const raw = Buffer.concat(chunks).toString("utf8");
+        resolve(isProxy ? normalizeProxyResult(res, raw) : { status: res.statusCode || 0, headers: res.headers, body: raw });
+      });
     });
-    req.on("timeout", () => req.destroy(new Error("stf_csrf_timeout")));
+    req.on("timeout", () => req.destroy(new Error("stf_timeout")));
     req.on("error", reject);
+    if (body) req.write(body);
     req.end();
   });
 }
 
-async function ensureCsrf(force = false) {
-  if (!force && sessionCookies && sessionXsrf) return;
-  const res = await httpGet(STF_CSRF_URL);
+async function ensureCsrf(via = null, force = false) {
+  const key = viaKey(via);
+  const current = sessionByVia.get(key) || {};
+  if (!force && current.cookies && current.xsrf) return current;
+  const res = await httpRequest(STF_CSRF_URL, { method: "GET", headers: STF_HEADERS, via });
   if (res.status < 200 || res.status >= 300) throw new Error(`stf_csrf_http_${res.status}`);
   const jar = parseSetCookies(res.headers);
-  if (jar["XSRF-TOKEN"]) sessionXsrf = jar["XSRF-TOKEN"];
+  const next = { ...current };
+  if (jar["XSRF-TOKEN"]) next.xsrf = jar["XSRF-TOKEN"];
   const parts = [];
   for (const [k, v] of Object.entries(jar)) parts.push(`${k}=${v}`);
-  if (parts.length) sessionCookies = parts.join("; ");
-  if (!sessionXsrf) throw new Error("stf_csrf_indisponivel");
+  if (parts.length) next.cookies = parts.join("; ");
+  if (!next.xsrf) throw new Error("stf_csrf_indisponivel");
+  sessionByVia.set(key, next);
+  return next;
 }
 
 function sanitizeTermoStfApi(s) {
@@ -211,7 +255,52 @@ function hashConteudo(processo, texto) {
     .digest("hex");
 }
 
-function postStfPage({ termo, processo, pagina, dataInicio, dataFim }) {
+function parseDate(v) {
+  if (!v) return null;
+  if (typeof v === "number") return new Date(v).toISOString();
+  if (typeof v === "string") {
+    const s = v.trim();
+    const br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2}))?/);
+    if (br) {
+      const [, dd, mm, yyyy, hh = "12", mi = "00"] = br;
+      return `${yyyy}-${mm}-${dd}T${hh}:${mi}:00.000Z`;
+    }
+    const isoDate = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (isoDate) return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}T12:00:00.000Z`;
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  return null;
+}
+
+function ymdFromDateLike(v, fallbackYmd) {
+  const parsed = parseDate(v);
+  if (parsed) return parsed.slice(0, 10);
+  return fallbackYmd || todayBrtYmd();
+}
+
+function dataDisponibilizacaoStf(v, fallbackYmd) {
+  const ymd = ymdFromDateLike(v, fallbackYmd);
+  return `${ymd}T15:00:00.000Z`;
+}
+
+function nextBusinessDateYmd(dateLike) {
+  const d = new Date(`${String(dateLike || todayBrtYmd()).slice(0, 10)}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+function hashDjenStyle(conteudo, dataDisponibilizacao, processoNumero, idDjen) {
+  const proc = String(processoNumero || "").replace(/\D/g, "");
+  const data = String(dataDisponibilizacao || "").slice(0, 10);
+  const base = idDjen
+    ? `id_djen:${idDjen}|${data}|${proc}`
+    : `${data}|${proc}|${String(conteudo || "").toLowerCase().replace(/\s+/g, " ").trim().slice(0, 800)}`;
+  return crypto.createHash("sha256").update(base).digest("hex");
+}
+
+function postStfPage({ termo, processo, pagina, dataInicio, dataFim, via }) {
   const payload = JSON.stringify({
     termo: String(termo || "").trim(),
     processo: String(processo || "").trim(),
@@ -222,64 +311,51 @@ function postStfPage({ termo, processo, pagina, dataInicio, dataFim }) {
     tipoPesquisa: ["PUBLICACAO", "DIVULGACAO"],
     filtros: { Tipo: [], Relator: [], "Sessão": [], Colegiado: [] },
   });
-  return new Promise((resolve, reject) => {
-    const headers = {
-      ...STF_HEADERS,
-      "Content-Length": Buffer.byteLength(payload),
-      "X-XSRF-TOKEN": sessionXsrf || "",
-      Cookie: sessionCookies || "",
-    };
-    const req = https.request(
-      STF_URL,
-      { method: "POST", headers, agent: insecureAgent, timeout: REQ_TIMEOUT_MS },
-      (res) => {
-        const chunks = [];
-        res.on("data", (c) => chunks.push(c));
-        res.on("end", () => {
-          const body = Buffer.concat(chunks).toString("utf8");
-          // Renova cookies se o servidor mandar novos (rotação de sessão)
-          const jar = parseSetCookies(res.headers);
-          if (jar["XSRF-TOKEN"]) sessionXsrf = jar["XSRF-TOKEN"];
-          if (Object.keys(jar).length) {
-            const parts = [];
-            for (const [k, v] of Object.entries(jar)) parts.push(`${k}=${v}`);
-            sessionCookies = parts.join("; ");
-          }
-          try {
-            const parsed = JSON.parse(body);
-            resolve({ status: res.statusCode || 0, body: parsed });
-          } catch {
-            resolve({ status: res.statusCode || 0, body: null, raw: body.slice(0, 300) });
-          }
-        });
-      }
-    );
-    req.on("timeout", () => req.destroy(new Error("stf_timeout")));
-    req.on("error", reject);
-    req.write(payload);
-    req.end();
+  const key = viaKey(via);
+  const sess = sessionByVia.get(key) || {};
+  const headers = {
+    ...STF_HEADERS,
+    "Content-Length": Buffer.byteLength(payload),
+    "X-XSRF-TOKEN": sess.xsrf || "",
+    Cookie: sess.cookies || "",
+  };
+  return httpRequest(STF_URL, { method: "POST", headers, body: payload, via }).then((res) => {
+    const jar = parseSetCookies(res.headers);
+    if (Object.keys(jar).length) {
+      const next = { ...(sessionByVia.get(key) || {}) };
+      if (jar["XSRF-TOKEN"]) next.xsrf = jar["XSRF-TOKEN"];
+      const parts = [];
+      for (const [k, v] of Object.entries(jar)) parts.push(`${k}=${v}`);
+      if (parts.length) next.cookies = parts.join("; ");
+      sessionByVia.set(key, next);
+    }
+    try {
+      return { status: res.status || 0, body: JSON.parse(res.body) };
+    } catch {
+      return { status: res.status || 0, body: null, raw: String(res.body || "").slice(0, 300) };
+    }
   });
 }
 
-async function buscarTodasPaginas({ termo, processo, dataInicio, dataFim, log }) {
+async function buscarTodasPaginas({ termo, processo, dataInicio, dataFim, log, via }) {
   const acc = [];
   for (let pagina = 1; pagina <= MAX_PAGES; pagina++) {
     let resp;
     try {
-      await ensureCsrf();
-      resp = await postStfPage({ termo, processo, pagina, dataInicio, dataFim });
+      await ensureCsrf(via);
+      resp = await postStfPage({ termo, processo, pagina, dataInicio, dataFim, via });
       // Se CSRF expirou (403) ou faltou, renova e tenta 1x
       if (resp.status === 403 || (typeof resp.raw === "string" && /CSRF/i.test(resp.raw))) {
-        log("stf.csrf_renew", { status: resp.status });
-        await ensureCsrf(true);
-        resp = await postStfPage({ termo, processo, pagina, dataInicio, dataFim });
+        log("stf.csrf_renew", { status: resp.status, via: viaLabel(via) });
+        await ensureCsrf(via, true);
+        resp = await postStfPage({ termo, processo, pagina, dataInicio, dataFim, via });
       }
     } catch (e) {
-      log("stf.fetch_error", { termo, processo, pagina, e: e.message });
+      log("stf.fetch_error", { termo, processo, pagina, via: viaLabel(via), e: e.message });
       break;
     }
     if (resp.status < 200 || resp.status >= 300) {
-      log("stf.http_error", { termo, processo, pagina, status: resp.status, raw: resp.raw });
+      log("stf.http_error", { termo, processo, pagina, via: viaLabel(via), status: resp.status, raw: resp.raw });
       break;
     }
     const data = resp.body || {};
@@ -333,16 +409,6 @@ function extractRelator(pub) {
   return pub.relator || pub.relatorNome || null;
 }
 
-function parseDate(v) {
-  if (!v) return null;
-  if (typeof v === "number") return new Date(v).toISOString();
-  if (typeof v === "string") {
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? null : d.toISOString();
-  }
-  return null;
-}
-
 function passaValidacao(mon, pub) {
   const texto = buildTextoValidacao(pub);
   const processo = extractProcessoNumero(pub);
@@ -391,7 +457,30 @@ function passaValidacao(mon, pub) {
   return { ok: true };
 }
 
-async function processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execucaoId }) {
+async function publicacaoExistentePorIdDjen(sb, row) {
+  if (!row.id_djen) return null;
+  let q = sb
+    .from("publicacoes_djen")
+    .select("id")
+    .eq("id_djen", row.id_djen)
+    .limit(1);
+  q = row.coordenacao_id ? q.eq("coordenacao_id", row.coordenacao_id) : q.is("coordenacao_id", null);
+  const { data } = await q.maybeSingle();
+  return data || null;
+}
+
+async function inserirPublicacaoDjen(sb, row) {
+  const existing = await publicacaoExistentePorIdDjen(sb, row);
+  if (existing) return { status: "duplicata", id: existing.id };
+  const { data, error } = await sb.from("publicacoes_djen").insert(row).select("id").single();
+  if (!error && data?.id) return { status: "nova", id: data.id };
+  const msg = String(error?.message || "");
+  const isConflict = error?.code === "23505" || msg.includes("duplicate key") || msg.includes("duplicate");
+  if (isConflict) return { status: "duplicata", error };
+  return { status: "erro", error };
+}
+
+async function processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execucaoId, via }) {
   const tipo = mon.tipo === "nome" ? "advogado" : mon.tipo === "geral" ? "palavra-chave" : mon.tipo || "palavra-chave";
   const termoPrincipal = String(mon.termo_busca || "").trim();
   if (!termoPrincipal) return { novas: 0, descartadas: 0, duplicatas: 0 };
@@ -409,13 +498,14 @@ async function processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execu
   let novas = 0;
   let descartadas = 0;
   let duplicatas = 0;
+  let falhas = 0;
 
   for (const termo of termos) {
     const termoApi = tipo === "processo" ? termo.replace(/\D/g, "") : sanitizeTermoStfApi(termo);
     if (!termoApi) continue;
     const params = tipo === "processo"
-      ? { termo: "", processo: termoApi, dataInicio, dataFim, log }
-      : { termo: termoApi, processo: "", dataInicio, dataFim, log };
+      ? { termo: "", processo: termoApi, dataInicio, dataFim, log, via }
+      : { termo: termoApi, processo: "", dataInicio, dataFim, log, via };
 
     const publicacoes = await buscarTodasPaginas(params);
 
@@ -428,7 +518,10 @@ async function processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execu
       const validacao = passaValidacao(mon, pub);
       const processo_numero = extractProcessoNumero(pub) || null;
       const texto_limpo = extractTextoLimpo(pub);
-      const hash = hashConteudo(processo_numero, texto_limpo);
+      const stfIdRaw = stf_id ? `stf:${stf_id}` : null;
+      const dataDisponibilizacao = dataDisponibilizacaoStf(pub.divulgacao, dataInicio);
+      const dataPublicacao = parseDate(pub.publicacao) || `${nextBusinessDateYmd(dataDisponibilizacao)}T15:00:00.000Z`;
+      const hash = hashDjenStyle(texto_limpo, dataDisponibilizacao, processo_numero, stfIdRaw) || hashConteudo(processo_numero, texto_limpo);
 
       if (!validacao.ok) {
         descartadas++;
@@ -442,7 +535,7 @@ async function processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execu
             conteudo: texto_limpo.slice(0, 8000),
             fonte: "stf",
             motivo_descarte: validacao.motivo,
-            data_publicacao: parseDate(pub.publicacao || pub.divulgacao),
+            data_publicacao: dataPublicacao,
           });
         } catch (_) {}
         continue;
@@ -457,28 +550,29 @@ async function processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execu
         orgao: extractRelator(pub) || null,
         tipo_comunicacao: pub.tipo || null,
         meio: "D",
-        id_djen: stf_id,
-        data_disponibilizacao: parseDate(pub.divulgacao),
-        data_publicacao: parseDate(pub.publicacao),
+        id_djen: stfIdRaw,
+        data_disponibilizacao: dataDisponibilizacao,
+        data_publicacao: dataPublicacao,
         conteudo: texto_limpo,
         hash_conteudo: hash,
         fonte: "stf_digital",
         lida: false,
+        execucao_id: execucaoId || null,
       };
-      const { error } = await sb
-        .from("publicacoes_djen")
-        .upsert(row, { onConflict: "monitoramento_id,hash_conteudo", ignoreDuplicates: true });
-      if (error) {
-        log("stf.upsert_error", { monitoramento_id: mon.id, e: error.message });
-        descartadas++;
-      } else {
+      const inserted = await inserirPublicacaoDjen(sb, row);
+      if (inserted.status === "nova") {
         novas++;
+      } else if (inserted.status === "duplicata") {
+        duplicatas++;
+      } else {
+        falhas++;
+        log("stf.insert_error", { monitoramento_id: mon.id, via: viaLabel(via), e: inserted.error?.message || "erro desconhecido" });
       }
     }
     if (TERM_DELAY_MS > 0) await new Promise((r) => setTimeout(r, TERM_DELAY_MS));
   }
 
-  return { novas, descartadas, duplicatas };
+  return { novas, descartadas, duplicatas, falhas };
 }
 
 async function run({ sb, payload, log, job }) {
@@ -500,57 +594,92 @@ async function run({ sb, payload, log, job }) {
   const { data: monitoramentos, error } = await q;
   if (error) throw new Error(`stf: falha lendo monitoramentos: ${error.message}`);
 
-  const totais = { totalItens: monitoramentos.length, concluidos: 0, novas: 0, duplicatas: 0, descartadas: 0, itens: [] };
+  const lista = monitoramentos || [];
+  const slotsPool = await loadPool(sb).catch((e) => {
+    log("stf.pool_error", { e: e.message });
+    return [];
+  });
+  const vias = slotsPool.length > 0
+    ? slotsPool
+    : [{ id: "direct", label: "direto", url: null, token: null }];
+  const totais = { totalItens: lista.length, concluidos: 0, novas: 0, duplicatas: 0, descartadas: 0, falhas: 0, itens: [] };
   const escreverProgresso = async (patch) => {
     if (!job?.id) return;
     try {
       await sb
         .from("execucoes_servidor")
         .update({
-          progresso: { ...totais, ...patch, janela: { dataInicio, dataFim } },
+          progresso: { ...totais, ...patch, janela: { dataInicio, dataFim }, pool_enabled: slotsPool.length > 0, vps: vias.length },
           progresso_atualizado_em: new Date().toISOString(),
+          heartbeat_at: new Date().toISOString(),
         })
         .eq("id", job.id);
     } catch (_) {}
   };
 
-  await escreverProgresso({});
-
-  for (const mon of monitoramentos) {
-    const item = {
+  for (const mon of lista) {
+    totais.itens.push({
       id: mon.id,
       label: `${mon.tipo}: ${mon.termo_busca}`,
       tribunal: "STF",
       tipo: mon.tipo,
-      status: "executando",
+      status: "pendente",
       current: 0,
       total: 1,
       novas: 0,
       descartadas: 0,
       duplicatas: 0,
-    };
-    totais.itens.push(item);
-    totais.atual = { id: mon.id, label: item.label };
-    await escreverProgresso({});
-
-    try {
-      const r = await processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execucaoId: job?.id });
-      item.status = "concluido";
-      item.current = 1;
-      item.novas = r.novas;
-      item.descartadas = r.descartadas;
-      item.duplicatas = r.duplicatas;
-      totais.novas += r.novas;
-      totais.descartadas += r.descartadas;
-      totais.duplicatas += r.duplicatas;
-    } catch (e) {
-      item.status = "erro";
-      item.erro = e.message;
-      log("stf.mon_error", { id: mon.id, e: e.message });
-    }
-    totais.concluidos = totais.itens.filter((i) => i.status !== "executando" && i.status !== "pendente").length;
-    await escreverProgresso({});
+      falhas: 0,
+      via: null,
+    });
   }
+
+  await escreverProgresso({});
+
+  const fila = [...totais.itens];
+  const monPorId = new Map(lista.map((m) => [m.id, m]));
+  const nextItem = () => fila.shift() || null;
+
+  const worker = async (via) => {
+    log("stf.worker_start", { via: viaLabel(via) });
+    while (true) {
+      const item = nextItem();
+      if (!item) break;
+      const mon = monPorId.get(item.id);
+      if (!mon) continue;
+      item.status = "executando";
+      item.via = { id: viaKey(via), label: viaLabel(via) };
+      totais.atual = { id: mon.id, label: item.label };
+      await escreverProgresso({ vias: totais.itens.filter((i) => i.status === "executando").map((i) => i.via).filter(Boolean) });
+
+      try {
+        const r = await processarMonitoramento({ sb, mon, dataInicio, dataFim, log, execucaoId: job?.id, via });
+        item.status = "concluido";
+        item.current = 1;
+        item.novas = r.novas;
+        item.descartadas = r.descartadas;
+        item.duplicatas = r.duplicatas;
+        item.falhas = r.falhas || 0;
+        totais.novas += r.novas;
+        totais.descartadas += r.descartadas;
+        totais.duplicatas += r.duplicatas;
+        totais.falhas += r.falhas || 0;
+      } catch (e) {
+        item.status = "erro";
+        item.current = 1;
+        item.erro = e.message;
+        totais.falhas += 1;
+        log("stf.mon_error", { id: mon.id, via: viaLabel(via), e: e.message });
+      }
+      totais.concluidos = totais.itens.filter((i) => i.status !== "executando" && i.status !== "pendente").length;
+      await escreverProgresso({ vias: totais.itens.filter((i) => i.status === "executando").map((i) => i.via).filter(Boolean) });
+    }
+    log("stf.worker_done", { via: viaLabel(via) });
+  };
+
+  await Promise.all(vias.map((via) => worker(via)));
+  totais.atual = null;
+  await escreverProgresso({});
 
   log("stf.done", { totais });
   return {
@@ -561,6 +690,8 @@ async function run({ sb, payload, log, job }) {
     novas: totais.novas,
     duplicatas: totais.duplicatas,
     descartadas: totais.descartadas,
+    falhas: totais.falhas,
+    vps: vias.length,
   };
 }
 
