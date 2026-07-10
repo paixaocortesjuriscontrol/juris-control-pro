@@ -960,14 +960,22 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           if (missingParentIds.length > 0) {
             let queryParents = supabase
               .from("eventos_agenda")
-              .select("id, titulo, descricao, local, processo_id, criado_por")
+              .select("id, titulo, descricao, local, processo_id, criado_por, coordenacao_id, processo:processos(coordenacao_id)")
               .in("id", missingParentIds);
-            // Se houver filtro por responsáveis, garantir que só vê pais permitidos
-            if (!filters.fetchAll && filters.responsavelIds && filters.responsavelIds.length > 0) {
-              queryParents = queryParents.in("criado_por", filters.responsavelIds);
+            const { data: parentsRaw } = await queryParents;
+            let parents = (parentsRaw ?? []) as any[];
+            // Filtro de escopo: se houver coordenação selecionada, prioriza pais dessa
+            // coordenação (direto ou via processo). Caso contrário, restringe por
+            // criado_por/responsavelIds quando não é fetchAll.
+            if (filters.coordenacaoId) {
+              parents = parents.filter((pe: any) =>
+                pe.coordenacao_id === filters.coordenacaoId ||
+                pe.processo?.coordenacao_id === filters.coordenacaoId
+              );
+            } else if (!filters.fetchAll && filters.responsavelIds && filters.responsavelIds.length > 0) {
+              parents = parents.filter((pe: any) => filters.responsavelIds!.includes(pe.criado_por));
             }
-            const { data: parents } = await queryParents;
-            for (const pe of (parents ?? []) as any[]) {
+            for (const pe of parents) {
               parentMap.set(pe.id, {
                 id: pe.id,
                 titulo: pe.titulo,
