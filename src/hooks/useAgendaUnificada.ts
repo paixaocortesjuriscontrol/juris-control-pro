@@ -967,10 +967,15 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             // Filtro de escopo: se houver coordenação selecionada, prioriza pais dessa
             // coordenação (direto ou via processo). Caso contrário, restringe por
             // criado_por/responsavelIds quando não é fetchAll.
-            if (filters.coordenacaoId) {
+            const coordScope = filters.coordenacaoIds?.length
+              ? filters.coordenacaoIds
+              : filters.coordenacaoId
+                ? [filters.coordenacaoId]
+                : [];
+            if (coordScope.length > 0) {
               parents = parents.filter((pe: any) =>
-                pe.coordenacao_id === filters.coordenacaoId ||
-                pe.processo?.coordenacao_id === filters.coordenacaoId
+                coordScope.includes(pe.coordenacao_id) ||
+                (pe.processo && coordScope.includes(pe.processo.coordenacao_id))
               );
             } else if (!filters.fetchAll && filters.responsavelIds && filters.responsavelIds.length > 0) {
               parents = parents.filter((pe: any) => filters.responsavelIds!.includes(pe.criado_por));
