@@ -177,21 +177,20 @@ function contemFrase(texto, frase) {
   const t = normalize(texto);
   const f = normalize(frase);
   if (!f) return false;
-  return t.includes(f);
+  const escaped = f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`).test(t);
 }
 
-function contemTodasPalavras(texto, termo) {
-  const t = normalize(texto);
-  const palavras = normalize(termo)
-    .split(" ")
-    .map((p) => p.trim())
-    .filter((p) => p.length >= 3);
-  if (palavras.length === 0) return false;
-  return palavras.every((p) => new RegExp(`(?:^|\\s)${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s|$)`).test(t));
-}
-
-function contemTermoStf(texto, termo, { fallbackTodasPalavras = false } = {}) {
-  return contemFrase(texto, termo) || (fallbackTodasPalavras && contemTodasPalavras(texto, termo));
+// Espelha contemFraseComAnd do paralela.js: "A + B" exige frase exata de A E de B.
+function contemFraseComAnd(texto, termoRaw) {
+  const raw = String(termoRaw || "").trim();
+  if (!raw) return false;
+  if (!raw.includes("+")) return contemFrase(texto, raw);
+  const partes = raw.split("+").map((p) => p.trim()).filter(Boolean);
+  return partes.every((p) => {
+    if (/^OAB\s/i.test(p)) return true;
+    return contemFrase(texto, p);
+  });
 }
 
 function parsearTermoOr(raw) {
