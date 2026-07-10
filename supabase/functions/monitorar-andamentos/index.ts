@@ -779,32 +779,32 @@ async function registrarAudienciaDetectada(
     return null;
   }
   
-  const { data: inserted, error } = await supabase
-    .from('audiencias_detectadas')
-    .insert({
-      processo_numero: processoNumero,
-      processo_id: processoId,
-      movimentacao_id: movimentacaoId,
-      data_audiencia: data?.toISOString() || null,
-      tipo_audiencia: tipo,
-      contexto,
-      conteudo_publicacao: descricao,
-      status: 'pendente',
-      origem: 'monitoramento_andamentos',
-    })
-    .select('id')
-    .single();
-  
-  // Audiências detectadas por robô não criam tarefas automaticamente.
-  // O cadastro humano deve acontecer pelo botão Adicionar > Audiência,
-  // que grava na estrutura canônica de audiencias_detectadas com origem manual.
-  
+  // Grava via RPC canônico usado pelo formulário manual (mesma estrutura:
+  // audiencias_detectadas + audiencias_advogados + lembretes_audiencia + notificacoes).
+  const dataAud = data ? data.toISOString().slice(0, 10) : null;
+  const horaAud = data ? data.toISOString().slice(11, 16) : null;
+  const { data: audId, error } = await supabase.rpc('criar_audiencia_detectada', {
+    p_processo_id: processoId,
+    p_processo_numero: processoNumero,
+    p_titulo: null,
+    p_data_audiencia: dataAud,
+    p_hora: horaAud,
+    p_tipo_audiencia: tipo,
+    p_local_audiencia: null,
+    p_contexto: contexto,
+    p_conteudo_publicacao: descricao,
+    p_movimentacao_id: movimentacaoId,
+    p_publicacao_id: null,
+    p_origem: 'monitoramento_andamentos',
+  });
+
   if (error) {
-    console.error('Erro ao registrar audiência:', error);
+    console.error('Erro ao registrar audiência via RPC:', error);
     return null;
   }
-  
-  console.log(`Audiência detectada para processo ${processoNumero}: ${tipo}`);
+
+  const inserted = audId ? { id: audId } : null;
+  console.log(`Audiência detectada para processo ${processoNumero}: ${tipo} (${audId})`);
   
   // Notificar usuários relevantes
   await notifyAudienciaDetectada(supabase, processoId, processoNumero, tipo, data);
