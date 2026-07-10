@@ -821,11 +821,22 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         let queryAud = supabase
           .from("audiencias_detectadas")
           .select(
-            "id, titulo, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, created_at, updated_at"
+            "id, titulo, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, coordenacao_id, created_at, updated_at"
           )
           .not("data_audiencia", "is", null);
 
-        if (!filters.fetchAll) {
+        // Se há filtro de coordenação (admin escolheu uma coord específica), usa-o
+        // como escopo — inclui audiências importadas via pauta Excel que não têm
+        // o admin como criador/advogado.
+        const coordScopeIdsAud = filters.coordenacaoIds?.length
+          ? filters.coordenacaoIds
+          : filters.coordenacaoId
+            ? [filters.coordenacaoId]
+            : null;
+
+        if (coordScopeIdsAud) {
+          queryAud = queryAud.in("coordenacao_id", coordScopeIdsAud);
+        } else if (!filters.fetchAll) {
           const targetUserIds =
             filters.responsavelIds && filters.responsavelIds.length > 0 ? filters.responsavelIds : [user.id];
 
