@@ -24,6 +24,7 @@ export interface ItemAgendaUnificado {
   created_at: string;
   updated_at: string;
   processo_id: string | null;
+  coordenacao_id?: string | null;
   processo?: { id: string; numero: string; assunto?: string | null; cliente_id?: string | null } | null;
   participantes?: { usuario_id: string; usuario?: { id: string; nome: string } }[];
   enviar_whatsapp?: boolean;
@@ -113,7 +114,7 @@ const getAgendaDedupKey = (item: ItemAgendaUnificado) => {
 
     if (isTarefaAudiencia) {
       const processoDigits = normalizeProcessDigits(item.processo?.numero) || normalizeProcessDigits(item.titulo);
-      const coordKey = (item as any).coordenacao_id ?? item.processo?.id ?? "";
+      const coordKey = item.coordenacao_id ?? item.processo_id ?? "";
       const audienciaKey = processoDigits || normalizeDedupText(item.titulo ?? "");
       return `tarefa-audiencia:${audienciaKey}:${data}:${coordKey}`;
     }
@@ -704,6 +705,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                 created_at: tarefa.created_at,
                 updated_at: tarefa.updated_at,
                 processo_id: tarefa.processo_id,
+                coordenacao_id: tarefa.coordenacao_id,
                 processo: tarefa.processo
                   ? {
                       id: tarefa.processo.id,
