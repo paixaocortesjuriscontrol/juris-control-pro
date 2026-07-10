@@ -4,6 +4,7 @@
 // https nativo com rejectUnauthorized:false (cadeia ICP-Brasil não é aceita pelo store
 // padrão em alguns hosts). Endpoint é público.
 const crypto = require("crypto");
+const http = require("http");
 const https = require("https");
 const { loadPool } = require("../proxyPool");
 
@@ -46,8 +47,9 @@ function proxyUrl(via, targetUrl) {
 }
 
 function parseSetCookies(headers) {
-  const arr = headers["set-cookie"];
-  if (!Array.isArray(arr)) return {};
+  const raw = headers?.["set-cookie"] || headers?.["Set-Cookie"] || headers?.setCookie || headers?.set_cookie;
+  const arr = Array.isArray(raw) ? raw : (typeof raw === "string" ? [raw] : []);
+  if (arr.length === 0) return {};
   const jar = {};
   for (const line of arr) {
     const eq = line.indexOf("=");
@@ -78,7 +80,11 @@ function httpRequest(url, { method = "GET", headers = {}, body = null, via = nul
     const finalHeaders = isProxy
       ? { "x-proxy-token": via.token, ...headers }
       : headers;
-    const req = https.request(target, { method, headers: finalHeaders, agent: insecureAgent, timeout: REQ_TIMEOUT_MS }, (res) => {
+    const client = String(target).startsWith("http://") ? http : https;
+    const opts = String(target).startsWith("https://")
+      ? { method, headers: finalHeaders, agent: insecureAgent, timeout: REQ_TIMEOUT_MS }
+      : { method, headers: finalHeaders, timeout: REQ_TIMEOUT_MS };
+    const req = client.request(target, opts, (res) => {
       const chunks = [];
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => {
