@@ -8473,6 +8473,23 @@ export type Database = {
         Args: { p_coordenacao_id: string }
         Returns: number
       }
+      criar_audiencia_detectada: {
+        Args: {
+          p_conteudo_publicacao?: string
+          p_contexto?: string
+          p_data_audiencia?: string
+          p_hora?: string
+          p_local_audiencia?: string
+          p_movimentacao_id?: string
+          p_origem?: string
+          p_processo_id: string
+          p_processo_numero: string
+          p_publicacao_id?: string
+          p_tipo_audiencia?: string
+          p_titulo?: string
+        }
+        Returns: string
+      }
       descartar_duplicadas_coordenacao:
         | { Args: { p_coordenacao_id: string }; Returns: Json }
         | {
