@@ -778,6 +778,76 @@ export default function PainelControle() {
     });
   }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter]);
 
+  // ===== Classificação de um item (mesma regra do filtro de classificação) =====
+  const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" => {
+    const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
+    const tipo = (item.tipo ?? "").toLowerCase();
+    if (tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA" || tipo === "audiencia") return "audiencia";
+    if (tipo === "prazo" || tipo === "prazo_parcela") return "prazo";
+    if (tipo === "parcelamento") return "parcelamento";
+    if (item.origem === "evento" || tipoUpper === "EVENTO" || tipo === "evento") return "evento";
+    return "tarefa";
+  };
+
+  // ===== Contagens por classificação, usando a MESMA base do calendário =====
+  // Aplica todos os filtros do painel EXCETO o de classificação, de modo que
+  // ao clicar num card, o calendário mostra exatamente aqueles itens.
+  const contagensPorClassificacao = useMemo(() => {
+    const counts = { tarefa: 0, evento: 0, prazo: 0, audiencia: 0, parcelamento: 0 };
+    const base = itensAgenda.filter((item) => {
+      // Status (grupo simplificado)
+      if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
+        const st = (item.status ?? "").toLowerCase();
+        const concluido = isItemTratado(item);
+        const cancelado = st === "cancelado";
+        if (painelFiltros.statusGroup === "a_concluir" && (concluido || cancelado)) return false;
+        if (painelFiltros.statusGroup === "concluidas" && !concluido) return false;
+        if (painelFiltros.statusGroup === "canceladas" && !cancelado) return false;
+      }
+      if (painelFiltros.situacoes.length > 0 && !painelFiltros.situacoes.includes(item.status)) return false;
+      if (painelFiltros.souResponsavel || painelFiltros.estouEnvolvido) {
+        const userId = user?.id;
+        if (!userId) return false;
+        const isResp = item.responsavel_id === userId || item.criado_por === userId;
+        const isEnvolvido = item.participantes?.some((p: any) => p.usuario_id === userId);
+        if (painelFiltros.souResponsavel && painelFiltros.estouEnvolvido) {
+          if (!isResp && !isEnvolvido) return false;
+        } else if (painelFiltros.souResponsavel) {
+          if (!isResp) return false;
+        } else if (painelFiltros.estouEnvolvido) {
+          if (!isEnvolvido) return false;
+        }
+      }
+      if (painelFiltros.responsavelIds.length > 0) {
+        const rid = item.responsavel_id;
+        const cid = item.criado_por;
+        const envolvido = item.participantes?.some((p: any) => painelFiltros.responsavelIds.includes(p.usuario_id));
+        const isMatch =
+          (rid && painelFiltros.responsavelIds.includes(rid)) ||
+          (cid && painelFiltros.responsavelIds.includes(cid)) ||
+          envolvido;
+        if (!isMatch) return false;
+      }
+      if (somenteHoje) {
+        let dateStr: string | undefined;
+        if (item.origem === "tarefa") {
+          dateStr = (painelFiltros.dataFatal && !painelFiltros.dataPrevista)
+            ? (item.data_fatal ?? item.data_vencimento ?? item.data_inicio)
+            : (item.data_vencimento ?? item.data_fatal ?? item.data_inicio);
+        } else {
+          dateStr = item.data_inicio;
+        }
+        if ((dateStr ?? "").slice(0, 10) !== hoje_str) return false;
+      }
+      if (situacaoFilter && situacaoFilter !== "todos") {
+        if ((item.status ?? "").toLowerCase() !== situacaoFilter) return false;
+      }
+      return true;
+    });
+    base.forEach((it) => { counts[classificarItem(it)]++; });
+    return counts;
+  }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter]);
+
   // Mapa de itens por dia (chave: "YYYY-MM-DD")
   // Concluídas aparecem no final de cada dia, pendentes primeiro
   const itensPorDia = useMemo(() => {
@@ -1183,7 +1253,7 @@ export default function PainelControle() {
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Tarefas</p>
-                      <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">{resumo.tarefas.total}</p>
+                      <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">{contagensPorClassificacao.tarefa}</p>
                     </div>
                     <ClipboardList className="w-6 h-6 md:w-10 md:h-10 text-blue-500/50 flex-shrink-0" />
                   </div>
@@ -1207,7 +1277,7 @@ export default function PainelControle() {
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-xs md:text-sm font-medium text-green-700 dark:text-green-400 truncate">Eventos</p>
-                      <p className="text-xl md:text-3xl font-bold text-green-700 dark:text-green-300">{(eventosStats?.eventos.total ?? 0) + (resumo.eventosTarefa?.total ?? 0)}</p>
+                      <p className="text-xl md:text-3xl font-bold text-green-700 dark:text-green-300">{contagensPorClassificacao.evento}</p>
                     </div>
                     <CalendarPlus className="w-6 h-6 md:w-10 md:h-10 text-green-500/50 flex-shrink-0" />
                   </div>
@@ -1231,7 +1301,7 @@ export default function PainelControle() {
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-xs md:text-sm font-medium text-red-600 dark:text-red-400 truncate">Prazos</p>
-                      <p className="text-xl md:text-3xl font-bold text-red-700 dark:text-red-300">{resumo.prazos?.total ?? 0}</p>
+                      <p className="text-xl md:text-3xl font-bold text-red-700 dark:text-red-300">{contagensPorClassificacao.prazo}</p>
                     </div>
                     <Clock className="w-6 h-6 md:w-10 md:h-10 text-red-500/50 flex-shrink-0" />
                   </div>
@@ -1255,7 +1325,7 @@ export default function PainelControle() {
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-xs md:text-sm font-medium text-yellow-700 dark:text-yellow-400 truncate">Audiências</p>
-                      <p className="text-xl md:text-3xl font-bold text-yellow-700 dark:text-yellow-300">{resumo.audiencias.total}</p>
+                      <p className="text-xl md:text-3xl font-bold text-yellow-700 dark:text-yellow-300">{contagensPorClassificacao.audiencia}</p>
                     </div>
                     <Gavel className="w-6 h-6 md:w-10 md:h-10 text-yellow-500/50 flex-shrink-0" />
                   </div>
@@ -1279,7 +1349,7 @@ export default function PainelControle() {
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-xs md:text-sm font-medium text-emerald-600 dark:text-emerald-400 truncate">Parcelamentos</p>
-                      <p className="text-xl md:text-3xl font-bold text-emerald-700 dark:text-emerald-300">{eventosStats?.parcelamentos.total ?? 0}</p>
+                      <p className="text-xl md:text-3xl font-bold text-emerald-700 dark:text-emerald-300">{contagensPorClassificacao.parcelamento}</p>
                     </div>
                     <Coins className="w-6 h-6 md:w-10 md:h-10 text-emerald-500/50 flex-shrink-0" />
                   </div>
