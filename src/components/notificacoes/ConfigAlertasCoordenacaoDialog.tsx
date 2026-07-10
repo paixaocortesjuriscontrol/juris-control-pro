@@ -630,6 +630,103 @@ export function ConfigAlertasCoordenacaoPanel({
               </div>
             </div>
           </TabsContent>
+
+          {/* ========= ABA 3: DETECÇÃO & MONITORAMENTO ========= */}
+          <TabsContent value="deteccao" className="mt-0">
+            <div className="px-4">
+              <div className="space-y-5 pt-2 pb-4">
+                <Alert>
+                  <Radar className="h-4 w-4" />
+                  <AlertDescription>
+                    Controla o que o sistema pode detectar e monitorar automaticamente
+                    <strong> apenas para esta coordenação</strong>. Cadastros manuais e importações
+                    por planilha continuam funcionando normalmente.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="space-y-3">
+                  <h4 className="font-medium">Detecção automática</h4>
+                  <div className="flex items-center justify-between p-3 rounded-lg border">
+                    <div>
+                      <Label className="font-medium">Detectar audiências automaticamente</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Ao desligar, o sistema não gravará novas audiências detectadas por robôs
+                        (DJEN, DataJud, monitoramentos).
+                      </p>
+                    </div>
+                    <Switch checked={detAud} onCheckedChange={setDetAud} />
+                  </div>
+                  <div className="flex items-center justify-between p-3 rounded-lg border">
+                    <div>
+                      <Label className="font-medium">Detectar intimações automaticamente</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Idem para intimações detectadas por robôs.
+                      </p>
+                    </div>
+                    <Switch checked={detInt} onCheckedChange={setDetInt} />
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <h4 className="font-medium">Monitoramentos</h4>
+                  <p className="text-xs text-muted-foreground">
+                    Ative os monitoramentos e escolha os horários. Sem horários marcados, o
+                    monitoramento não roda.
+                  </p>
+
+                  {[
+                    { label: "Andamentos (DataJud/CNJ)", on: monAnd, setOn: setMonAnd, h: hAnd, setH: setHAnd },
+                    { label: "DJEN por termos", on: monDjT, setOn: setMonDjT, h: hDjT, setH: setHDjT },
+                    { label: "DJEN por processos", on: monDjP, setOn: setMonDjP, h: hDjP, setH: setHDjP },
+                    { label: "Distribuições", on: monDist, setOn: setMonDist, h: hDist, setH: setHDist },
+                    { label: "Redistribuições", on: monRed, setOn: setMonRed, h: hRed, setH: setHRed },
+                    { label: "DJET / Pautas", on: monPau, setOn: setMonPau, h: hPau, setH: setHPau },
+                  ].map((m) => (
+                    <div key={m.label} className="p-3 rounded-lg border space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="font-medium">{m.label}</Label>
+                        <Switch checked={m.on} onCheckedChange={m.setOn} />
+                      </div>
+                      {m.on && (
+                        <div className="flex flex-wrap gap-2 pt-1 border-t">
+                          {HORARIOS_PADRAO.map((h) => {
+                            const active = m.h.includes(h);
+                            return (
+                              <button
+                                key={h}
+                                type="button"
+                                onClick={() => toggleHorario(m.h, m.setH, h)}
+                                className={`px-3 py-1.5 text-xs rounded-md border transition-colors ${
+                                  active
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-background hover:bg-muted"
+                                }`}
+                              >
+                                {h}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 p-3 border-t bg-background">
+              <Button variant="outline" onClick={onClose}>Cancelar</Button>
+              <Button onClick={handleSalvarDeteccao} disabled={salvarDeteccao.isPending || loadingDeteccao}>
+                {salvarDeteccao.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Salvar Detecção & Monitoramento
+              </Button>
+            </div>
+          </TabsContent>
         </Tabs>
     </Card>
   );
