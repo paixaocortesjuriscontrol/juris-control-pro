@@ -488,6 +488,9 @@ function extractTextoLimpo(pub) {
 }
 
 function buildTextoValidacao(pub) {
+  const envolvidos = Array.isArray(pub?.envolvidos) ? pub.envolvidos : [];
+  const nomes = envolvidos.map((e) => e?.nome).filter(Boolean).join(" ");
+  const oabs = envolvidos.flatMap((e) => Array.isArray(e?.identificacoes) ? e.identificacoes : []).join(" ");
   return [
     extractTextoLimpo(pub),
     extractProcessoNumero(pub),
@@ -496,7 +499,8 @@ function buildTextoValidacao(pub) {
     pub.observacao,
     pub.responsavel,
     pub.descricao,
-    stringifyStfValue(pub.envolvidos),
+    nomes,
+    oabs,
   ].filter(Boolean).join(" ");
 }
 
@@ -512,45 +516,83 @@ function extractRelator(pub) {
 function passaValidacao(mon, pub) {
   const texto = buildTextoValidacao(pub);
   const processo = extractProcessoNumero(pub);
-  const termoPrincipal = mon.termo_busca || "";
+  const termoPrincipal = String(mon.termo_busca || "").trim();
   const tipo = mon.tipo === "nome" ? "advogado" : mon.tipo === "geral" ? "palavra-chave" : mon.tipo || "palavra-chave";
+  const termosOr = Array.isArray(mon.termos_or) ? mon.termos_or.filter(Boolean).map(String) : [];
+  const { partes: partesEnv, advogados: advogadosEnv } = parseEnvolvidos(pub);
+  const partesTexto = partesEnv.join(" ");
+  const advogadosTexto = advogadosEnv.join(" ");
 
-  // Match do termo principal
   let match = false;
+  let motivoSemMatch = "sem_match_texto";
+
   if (tipo === "processo") {
-    const digitos = String(termoPrincipal).replace(/\D/g, "");
+    const digitos = termoPrincipal.replace(/\D/g, "");
     const pDigitos = String(processo).replace(/\D/g, "");
     match = digitos.length >= 15 && pDigitos.includes(digitos);
+    if (!match) motivoSemMatch = "processo_divergente";
+  } else if (tipo === "parte") {
+    // Só valida contra nomes de partes de envolvidos[]. Nunca no corpo.
+    if (partesEnv.length === 0) {
+      return { ok: false, motivo: "sem_parte_envolvidos" };
+    }
+    const candidatos = [termoPrincipal, ...termosOr].filter(Boolean);
+    match = candidatos.some((t) => contemFraseComAnd(partesTexto, t));
+    if (!match) motivoSemMatch = "sem_match_parte";
+  } else if (tipo === "advogado") {
+    if (advogadosEnv.length === 0) {
+      return { ok: false, motivo: "sem_advogado_envolvidos" };
+    }
+    const oabMon = String(mon.oab || "").replace(/\D/g, "");
+    const ufMon = String(mon.uf || "").trim().toUpperCase();
+    // 1. OAB configurada no monitoramento
+    if (oabMon) {
+      const advNorm = normalize(advogadosTexto);
+      const oabKey = ufMon ? `oab ${ufMon}${oabMon}`.toLowerCase() : `oab ${oabMon}`.toLowerCase();
+      match = advNorm.includes(normalize(oabKey));
+    }
+    // 2. Nome principal (frase exata) contra advogados
+    if (!match && termoPrincipal) {
+      match = contemFraseComAnd(advogadosTexto, termoPrincipal);
+    }
+    // 3. termos_or (parseia OAB / nome)
+    if (!match) {
+      for (const t of termosOr) {
+        const parsed = parsearTermoOr(t);
+        if (parsed?.oabDigits) {
+          const advNorm = normalize(advogadosTexto);
+          if (advNorm.includes(normalize(`oab ${parsed.oabDigits}`))) { match = true; break; }
+        }
+        const nome = parsed?.nome || t;
+        if (nome && contemFraseComAnd(advogadosTexto, nome)) { match = true; break; }
+      }
+    }
+    if (!match) motivoSemMatch = "sem_match_advogado";
   } else {
-    // A busca pública do STF não é frase-exata: para termos com várias palavras
-    // ela devolve documentos onde todas aparecem, mesmo separadas (ex. hospitais,
-    // clínicas, agência/estado). Portanto a validação STF precisa aceitar esse
-    // mesmo critério para não descartar tudo que o próprio STF retornou.
-    match = contemTermoStf(texto, termoPrincipal, { fallbackTodasPalavras: true });
+    // palavra-chave / default: frase exata (com AND por '+') no texto completo.
+    match = contemFraseComAnd(texto, termoPrincipal);
+    if (!match && termosOr.length > 0) {
+      match = termosOr.some((t) => {
+        const parsed = parsearTermoOr(t);
+        return contemFraseComAnd(texto, parsed?.nome || t);
+      });
+    }
   }
 
-  // Termos OR: se houver, basta 1 match (incluindo o principal)
-  const termosOr = Array.isArray(mon.termos_or) ? mon.termos_or.filter(Boolean) : [];
-  if (!match && termosOr.length > 0) {
-    match = termosOr.some((t) => {
-      const parsed = parsearTermoOr(t);
-      return contemTermoStf(texto, parsed?.nome || t, { fallbackTodasPalavras: true });
-    });
-  }
-  if (!match) return { ok: false, motivo: "sem_match" };
+  if (!match) return { ok: false, motivo: motivoSemMatch };
 
-  // Exclusões
+  // Exclusões — frase exata no texto completo
   const exclusoes = Array.isArray(mon.exclusoes) ? mon.exclusoes.filter(Boolean) : [];
   for (const e of exclusoes) {
-    if (contemFrase(texto, e)) return { ok: false, motivo: `excluido: ${e}` };
+    if (contemFraseComAnd(texto, e)) return { ok: false, motivo: `excluido: ${e}` };
   }
 
-  // Condição concomitante (todos os termos separados por | devem aparecer)
+  // Condição concomitante — cada segmento separado por '|' deve aparecer (frase exata)
   const cond = String(mon.condicao_concomitante || "").trim();
   if (cond) {
     const partes = cond.split("|").map((s) => s.trim()).filter(Boolean);
     for (const p of partes) {
-      if (!contemTermoStf(texto, p, { fallbackTodasPalavras: true })) return { ok: false, motivo: `sem concomitante: ${p}` };
+      if (!contemFraseComAnd(texto, p)) return { ok: false, motivo: `sem_concomitante: ${p}` };
     }
   }
 
