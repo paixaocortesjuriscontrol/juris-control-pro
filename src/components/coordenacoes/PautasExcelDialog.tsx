@@ -57,6 +57,13 @@ export function PautasExcelDialog({
   const [progresso, setProgresso] = useState(0);
   const [resumo, setResumo] = useState<ResumoImport | null>(null);
 
+  const audienciaKey = (processoId: string, dataHora: string | null | undefined) => {
+    if (!dataHora) return null;
+    const data = new Date(dataHora);
+    if (Number.isNaN(data.getTime())) return null;
+    return `${processoId}|${data.toISOString()}`;
+  };
+
   const resetAll = useCallback(() => {
     setEtapa("upload");
     setNomeArquivo("");
@@ -212,9 +219,8 @@ export function PautasExcelDialog({
     }
     const audChave = new Set<string>();
     for (const a of audienciasDb) {
-      if (a.processo_id && a.data_audiencia) {
-        audChave.add(`${a.processo_id}|${a.data_audiencia}`);
-      }
+      const chave = audienciaKey(a.processo_id || "", a.data_audiencia);
+      if (chave) audChave.add(chave);
     }
 
     // 4) Criar audiências
@@ -228,16 +234,19 @@ export function PautasExcelDialog({
 
       const hora = l.hora || "12:00";
       const dataAudISO = `${l.data_iso}T${hora}:00-03:00`;
+      const chaveAudiencia = audienciaKey(procId, dataAudISO);
 
-      if (audChave.has(`${procId}|${dataAudISO}`)) {
+      if (chaveAudiencia && audChave.has(chaveAudiencia)) {
         r.audienciasDuplicadas++;
         continue;
       }
 
       const titulo = l.tipo || "Audiência";
-      const { data: aud, error: audErr } = await supabase
+      const audId = crypto.randomUUID();
+      const { error: audErr } = await supabase
         .from("audiencias_detectadas")
         .insert({
+          id: audId,
           processo_id: procId,
           processo_numero: l.processo_numero,
           titulo,
@@ -258,14 +267,12 @@ export function PautasExcelDialog({
           criado_por: user.id,
           status: "pendente",
           origem: "pauta_excel",
-        })
-        .select("id")
-        .single();
+        });
 
-      if (audErr || !aud) {
+      if (audErr) {
         r.erros.push({
           linha: l.linha,
-          motivo: `Erro ao cadastrar audiência: ${audErr?.message || "desconhecido"}`,
+          motivo: `Erro ao cadastrar audiência: ${audErr.message || "desconhecido"}`,
           processo: l.processo_numero,
         });
         continue;
@@ -273,22 +280,25 @@ export function PautasExcelDialog({
 
       // Vincular responsáveis
       const advogadosInsert = responsaveisIds.map((advogadoId) => ({
-        audiencia_id: aud.id,
+        audiencia_id: audId,
         advogado_id: advogadoId,
       }));
       if (advogadosInsert.length > 0) {
         await supabase.from("audiencias_advogados").insert(advogadosInsert);
       }
 
-      audChave.add(`${procId}|${dataAudISO}`);
+      if (chaveAudiencia) audChave.add(chaveAudiencia);
       r.audienciasCriadas++;
     }
 
     setResumo(r);
     setEtapa("concluido");
-    queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
-    queryClient.invalidateQueries({ queryKey: ["audiencias-stats"] });
-    queryClient.invalidateQueries({ queryKey: ["processos"] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] }),
+      queryClient.invalidateQueries({ queryKey: ["audiencias-stats"] }),
+      queryClient.invalidateQueries({ queryKey: ["painel-controle-audiencias-det-stats"] }),
+      queryClient.invalidateQueries({ queryKey: ["processos"] }),
+    ]);
   };
 
   return (
