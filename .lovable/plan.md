@@ -1,58 +1,63 @@
-## 1) Alerta do form somando ao existente — em todos os tipos que têm esse campo
+## Escopo aprovado
+- Corrigir motor STF Servidor (`monitor-servidor/engines/stfServidor.js`).
+- Validação de `palavra-chave` idêntica à do DJEN Termos Servidor (`monitor-servidor/engines/paralela.js`): frase exata com AND por `+`, **sem** fallback de "todas as palavras separadas".
+- Extrair partes e advogados do campo `envolvidos[]` que a API STF entrega.
+- Apagar todas as publicações STF (só STF) para reteste limpo.
 
-Locais com o campo "Alertas internos de antecedência" hoje:
+## Descoberta verificada
+A API `https://digital.stf.jus.br/decisoes-publicacoes/api/public/publicacoes` **entrega dados estruturados** no campo `envolvidos[]`:
 
-| Tipo | Arquivo | Situação atual |
-|---|---|---|
-| Audiência | `src/hooks/useAudienciasDetectadas.ts` (mutation `criarAudiencia`) | Bug: valor do form é ignorado; só usa `config_alertas_audiencias.lembretes_minutos` global. |
-| Evento | `src/hooks/useEventosAgenda.ts` (`useCreateEvento`/`useUpdateEvento`) | Insere só o `alerta_minutos` vindo do form; não soma nada global. |
-| Parcelamento | `src/components/agenda/GerarParcelasDialog.tsx` | Insere só o `alerta_minutos` do form em `alertas_parcela`; não soma nada global. |
+```json
+{
+  "nome": "Marcia Phelippe",
+  "polo": "ATIVO" | "PASSIVO",
+  "categoria": "RECLAMANTE(S) | RECORRENTE(S) | IMPETRANTE(S) | PACIENTE(S) | AUTOR(A/ES) | RÉU(S) | AGRAVANTE(S) | AGRAVADO(S) | ADVOGADO(A/S) | ...",
+  "identificacoes": ["OAB 84798/SP"]
+}
+```
 
-Ajustes:
+A implementação atual não lê esse campo (procura `parte/partes/destinatarios` que não existem), por isso `partes_json`/`advogados_json` gravam vazio e a validação cai no corpo inteiro da decisão com fallback frouxo — trazendo publicações aleatórias.
 
-- **Audiência (`useAudienciasDetectadas.ts`)**: no bloco de criação de `lembretes_audiencia`, converter `alerta_valor`+`alerta_unidade` do form em minutos (`minutos_antes = valor`, `horas_antes = valor*60`, `dias_antes = valor*1440`) e concatenar ao array vindo de `config.lembretes_minutos`. Deduplicar com `Set` antes de inserir. Fazer o mesmo em `atualizarAudiencia` quando o campo for editado (deletar lembretes não enviados dessa audiência e recriar somando).
-- **Evento (`useEventosAgenda.ts`)** e **Parcelamento (`GerarParcelasDialog.tsx`)**: como não existe config global paralela, "somar ao existente" equivale a preservar o comportamento atual — mantém como está, sem regressão. Apenas garantir que em modo edição o array `alerta_minutos` do form seja mesclado (`Set`) com os alertas já existentes na tabela em vez de sobrescrever (hoje `useUpdateEvento` faz `delete` + `insert` do que veio do form; passar a fazer `delete apenas dos não-enviados` e `insert` da união com os já registrados).
-- Nada muda no envio: os edge functions `processar-lembretes-audiencia`, `processar-alertas-evento`/`alertar-audiencias` já leem as tabelas de lembretes e disparam pelo Z-API/notificação.
+## Mudanças em `monitor-servidor/engines/stfServidor.js`
 
-## 2) Evento recorrente não aparece várias vezes no calendário
+### 1. Nova extração via `envolvidos[]`
+- `parseEnvolvidos(pub)` produz `{ partes, advogados, polo_ativo, polo_passivo }`.
+- Advogado = `categoria` que começa com `ADVOGADO`/`PROCURADOR`/`DEFENSOR`. Demais = parte.
+- OAB é extraída de `identificacoes` por regex `/OAB\s*(\d+)\s*\/?\s*([A-Z]{2})/`.
+- `partes_json` grava `"[Categoria] Nome"` (padrão DJEN). `advogados_json` grava `"Nome - OAB UF00000"`.
+- `metadataStf` passa a usar `parseEnvolvidos` como fonte primária; regex sobre o texto vira fallback apenas quando `envolvidos` vier vazio.
 
-Causa: `src/hooks/useAgendaUnificada.ts` insere no calendário **apenas** um item por linha de `eventos_agenda` (só na `data_inicio` original). Os campos `recorrencia_tipo`, `recorrencia_intervalo`, `recorrencia_fim`, `recorrencia_dias_semana` são gravados na base, mas nunca são expandidos em ocorrências virtuais.
+### 2. Validação por tipo (espelho do paralela.js)
+Reescreve `passaValidacao(mon, pub)`:
 
-Ajuste em `useAgendaUnificada.ts`, no laço `for (const evento of eventosFiltered)`:
+- **processo** — compara dígitos (inalterado).
+- **parte** — frase exata contra `envolvidos[].nome` (categorias de parte). Aceita `+` (AND). Sem fallback no corpo.
+- **advogado** — combina:
+  - OAB (`mon.oab`+`mon.uf`) contra `identificacoes` dos envolvidos de categoria `ADVOGADO*`;
+  - nome (frase exata) contra `nome`;
+  - `termos_or` parseados por `parsearTermoOr`.
+- **palavra-chave / geral / default** — `contemFraseComAnd` no **texto completo** (conteudo + nomes de partes e advogados de `envolvidos` + relator + tipo), **sem** `fallbackTodasPalavras`. Idêntico ao DJEN.
 
-- Se `evento.recorrente && evento.recorrencia_tipo` (e não for parcelamento — parcelamento já cria uma linha por parcela), gerar ocorrências entre `filters.dataInicio` e `filters.dataFim` (limitado por `recorrencia_fim` quando presente):
-  - `diaria`: soma `recorrencia_intervalo` dias.
-  - `semanal`: soma `intervalo * 7` dias. Se `recorrencia_dias_semana` existir, expandir para cada dia da semana marcado dentro da janela.
-  - `mensal`: soma `intervalo` meses (`date-fns/addMonths`), preservando o dia da `data_inicio`.
-  - `anual`: soma `intervalo` anos.
-- Cada ocorrência vira um `ItemAgendaUnificado` novo com `id = \`${evento.id}::${dataISO}\``, `data_inicio`/`data_fim` deslocados, e um marcador `recorrencia_pai_id = evento.id`. A ocorrência original (`data_inicio` cru) é apenas a primeira.
-- `EdicaoItemPanel.tsx` já resolve edição pelo evento-pai: adicionar um `stripRecorrenciaSuffix` no `useEffect` que carrega o evento para tolerar ids com `::data`.
-- `seenIds` continua deduplicando pelo id composto para não repetir a mesma data.
-- Segurança: cap de 500 ocorrências por evento na expansão para evitar loop se `recorrencia_fim` estiver vazio (usa `filters.dataFim` ou hoje+2 anos como teto).
+Exclusões e `condicao_concomitante` continuam avaliadas no texto completo com frase exata (sem fallback).
 
-## 3) Parcelamento recorrente — restringir coordenações
+Remove `contemTodasPalavras` e o parâmetro `fallbackTodasPalavras` de `contemTermoStf`. Nova helper `contemFraseComAnd` copiada de `paralela.js`.
 
-Arquivo: `src/components/agenda/GerarParcelasDialog.tsx` (linhas ~64, 91-101, 82, 87).
+### 3. Motivos de descarte explícitos
+`sem_parte_envolvidos`, `sem_advogado_envolvidos`, `oab_divergente`, `sem_match_texto`, `excluido: <termo>`, `sem_concomitante: <termo>`.
 
-Hoje: `useQuery(["coordenacoes-parcelas"])` busca **todas** as coordenações do banco; três selects (`coordenacaoId`, `coordenacaoProcessoFiltro`, `coordenacaoFiltro`) usam essa lista sem filtrar por membro/admin.
+## Limpeza antes do reteste
+Executar via insert tool, **restrito a STF**:
 
-Ajuste:
+```sql
+DELETE FROM publicacoes_djen_descartadas WHERE fonte = 'stf';
+DELETE FROM publicacoes_djen           WHERE fonte = 'stf_digital';
+```
 
-- Substituir a query por filtragem baseada em `useUserRole().isAdmin` + `useCoordenacoesDoUsuario()`:
-  - Admin: query atual (todas, ordenadas por nome).
-  - Não-admin: `select coordenacoes.id, nome from coordenacoes inner join membros_coordenacao on ... where membros_coordenacao.usuario_id = auth.uid()`.
-- Autoseleção quando o usuário só tem uma coordenação:
-  - `coordenacaoId`: já é auto-preenchido via `unicaCoordenacaoId` no `useEffect` de inicialização — manter.
-  - `coordenacaoProcessoFiltro` e `coordenacaoFiltro`: inicializar como `unicaCoordenacaoId` quando houver, em vez do default `"todas"`; se admin ou múltiplas, mantém `"todas"`.
-- Trocar o `CoordenacaoSelect` já usado (linha 627) e os `<Select>` dos filtros (686/765) para consumir a nova lista escopada.
-- Nenhuma mudança em RLS; a filtragem é apenas de UI (a base já isola via policies das outras tabelas).
+Nenhuma publicação DJEN é tocada.
+
+## Fora de escopo
+- Motor Browser (`useStfTermosFlashEngine.ts`) — pode ser espelhado depois se quiser.
+- Backfill de publicações STF anteriores.
 
 ## Arquivos alterados
-
-- `src/hooks/useAudienciasDetectadas.ts`
-- `src/hooks/useEventosAgenda.ts`
-- `src/hooks/useAgendaUnificada.ts`
-- `src/components/agenda/GerarParcelasDialog.tsx`
-- `src/components/agenda/EdicaoItemPanel.tsx` (tolerar id composto de ocorrência)
-
-Sem migrations — o schema já suporta tudo (`recorrencia_*` já existe, `lembretes_audiencia`/`alertas_evento`/`alertas_parcela` já existem).
+- `monitor-servidor/engines/stfServidor.js`

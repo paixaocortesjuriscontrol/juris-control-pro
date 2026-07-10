@@ -177,21 +177,20 @@ function contemFrase(texto, frase) {
   const t = normalize(texto);
   const f = normalize(frase);
   if (!f) return false;
-  return t.includes(f);
+  const escaped = f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`).test(t);
 }
 
-function contemTodasPalavras(texto, termo) {
-  const t = normalize(texto);
-  const palavras = normalize(termo)
-    .split(" ")
-    .map((p) => p.trim())
-    .filter((p) => p.length >= 3);
-  if (palavras.length === 0) return false;
-  return palavras.every((p) => new RegExp(`(?:^|\\s)${p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\s|$)`).test(t));
-}
-
-function contemTermoStf(texto, termo, { fallbackTodasPalavras = false } = {}) {
-  return contemFrase(texto, termo) || (fallbackTodasPalavras && contemTodasPalavras(texto, termo));
+// Espelha contemFraseComAnd do paralela.js: "A + B" exige frase exata de A E de B.
+function contemFraseComAnd(texto, termoRaw) {
+  const raw = String(termoRaw || "").trim();
+  if (!raw) return false;
+  if (!raw.includes("+")) return contemFrase(texto, raw);
+  const partes = raw.split("+").map((p) => p.trim()).filter(Boolean);
+  return partes.every((p) => {
+    if (/^OAB\s/i.test(p)) return true;
+    return contemFrase(texto, p);
+  });
 }
 
 function parsearTermoOr(raw) {
@@ -277,98 +276,71 @@ function splitEntityList(raw) {
     .filter(Boolean);
 }
 
-function extractStfPartes(pub, texto) {
-  const out = [];
-  const seen = new Set();
-  const add = (raw, prefix = "") => {
-    for (const item of splitEntityList(raw)) addUniqueEntity(out, seen, item, { prefix });
-  };
+// Fonte de verdade: campo `envolvidos[]` da resposta pública do STF.
+// Cada item tem { nome, polo: "ATIVO"|"PASSIVO", categoria, identificacoes: ["OAB 12345/SP"] }.
+function isAdvogadoCategoria(cat) {
+  return /^(?:ADVOGAD|PROCURADOR|DEFENSOR)/i.test(String(cat || "").trim());
+}
 
-  for (const root of [pub]) {
-    for (const value of [root?.parte, root?.nomeParte, root?.poloAtivo, root?.polo_ativo, root?.poloPassivo, root?.polo_passivo]) add(value);
-    for (const arr of [root?.partes, root?.destinatarios, root?.envolvidos]) {
-      if (Array.isArray(arr)) {
-        for (const item of arr) add(typeof item === "string" ? item : (item?.nome || item?.nomeParte || item?.parte || item?.identificacao));
+function parseOabFromIdentificacoes(identificacoes) {
+  const arr = Array.isArray(identificacoes) ? identificacoes : [];
+  for (const raw of arr) {
+    const m = String(raw || "").match(/OAB\s*(\d+)\s*\/?\s*([A-Z]{2})/i);
+    if (m) return { numero: m[1], uf: m[2].toUpperCase() };
+  }
+  return null;
+}
+
+function formatCategoriaTag(categoria) {
+  const s = String(categoria || "").trim().replace(/\(.*?\)/g, "").trim();
+  if (!s) return "";
+  const lower = s.toLowerCase();
+  return `[${lower.charAt(0).toUpperCase()}${lower.slice(1)}]`;
+}
+
+function parseEnvolvidos(pub) {
+  const envolvidos = Array.isArray(pub?.envolvidos) ? pub.envolvidos : [];
+  const partes = [];
+  const advogados = [];
+  const poloAtivo = [];
+  const poloPassivo = [];
+  const seenP = new Set();
+  const seenA = new Set();
+
+  for (const item of envolvidos) {
+    const nome = sanitizeEntityName(item?.nome, 180);
+    if (!nome) continue;
+    const categoria = String(item?.categoria || "").trim();
+    const polo = String(item?.polo || "").trim().toUpperCase();
+
+    if (isAdvogadoCategoria(categoria)) {
+      const oab = parseOabFromIdentificacoes(item?.identificacoes);
+      const label = oab ? `${nome} - OAB ${oab.uf}${oab.numero}` : nome;
+      const key = normalize(label);
+      if (key && !seenA.has(key)) { seenA.add(key); advogados.push(label); }
+    } else {
+      const tag = formatCategoriaTag(categoria);
+      const label = tag ? `${tag} ${nome}` : nome;
+      const key = normalize(label);
+      if (key && !seenP.has(key)) {
+        seenP.add(key);
+        partes.push(label);
+        if (polo === "ATIVO") poloAtivo.push(nome);
+        else if (polo === "PASSIVO") poloPassivo.push(nome);
       }
     }
   }
 
-  const plain = String(texto || "").replace(/\s+/g, " ").trim();
-  const patterns = [
-    { re: /\bimpetrad[oa]\s+por\s+(.{4,180}?),\s*advogad[oa]\b/i, prefix: "[Impetrante]" },
-    { re: /\bimpetrad[oa]\s+em\s+(?:favor|benef[ií]cio)\s+de\s+(.{4,180}?)(?=\s+contra\b|\s*,\s*contra\b|\s*,\s*em\s+face\b|\.)/i, prefix: "[Paciente]" },
-    { re: /\bimpetrou\s+o\s+presente\s+habeas\s+corpus\s+em\s+(?:favor|benef[ií]cio)\s+de\s+(.{4,180}?)(?=\s+contra\b|\.)/i, prefix: "[Paciente]" },
-    { re: /\bajuizad[ao]\s+por\s+(.{4,180}?)(?=\s+contra\b|\s+em\s+face\b|\s*,\s*contra\b|\.)/i, prefix: "[Reclamante]" },
-    { re: /\bpropost[ao]\s+por\s+(.{4,180}?)(?=\s+contra\b|\s+em\s+face\b|\.)/i, prefix: "[Autor]" },
-    { re: /\binterpost[oa]\s+por\s+(.{4,180}?)(?=\s+contra\b|\s+em\s+face\b|\.)/i, prefix: "[Recorrente]" },
-    { re: /\brecorrente\s+(.{4,180}?)(?=\s+contra\b|\s+em\s+face\b|\.)/i, prefix: "[Recorrente]" },
-    { re: /\breclamante\s+(.{4,180}?)(?=\s+narra\b|\s+sustenta\b|\s+alega\b|\.)/i, prefix: "[Reclamante]" },
-  ];
-  for (const { re, prefix } of patterns) {
-    const m = plain.match(re);
-    if (m?.[1]) add(m[1], prefix);
-  }
-
-  const labelPatterns = [
-    ["[Agravante]", /\bAGRAVANTE\s*:\s*(.{4,180}?)(?=\s+AGRAVADO\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Agravado]", /\bAGRAVADO\s*:\s*(.{4,180}?)(?=\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Reclamante]", /\bRECLAMANTE\s*:\s*(.{4,180}?)(?=\s+RECLAMADO\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Reclamado]", /\bRECLAMADO\s*:\s*(.{4,180}?)(?=\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Autor]", /\bAUTOR\s*:\s*(.{4,180}?)(?=\s+R[ÉE]U\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Réu]", /\bR[ÉE]U\s*:\s*(.{4,180}?)(?=\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Impetrante]", /\bIMPETRANTE\s*:\s*(.{4,180}?)(?=\s+IMPETRADO\b|\s+PACIENTE\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Impetrado]", /\bIMPETRADO\s*:\s*(.{4,180}?)(?=\s+PACIENTE\b|\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-    ["[Paciente]", /\bPACIENTE\s*:\s*(.{4,180}?)(?=\s+ADV\b|\s+ADVOGAD|\s+OAB\b|\.|$)/i],
-  ];
-  for (const [prefix, re] of labelPatterns) {
-    const m = plain.match(re);
-    if (m?.[1]) add(m[1], prefix);
-  }
-  return out;
+  return { partes, advogados, poloAtivo, poloPassivo };
 }
 
-function extractStfAdvogados(pub, texto) {
-  const out = [];
-  const seen = new Set();
-  const add = (raw) => addUniqueEntity(out, seen, raw, { maxLen: 180 });
-
-  for (const arr of [pub?.advogados, pub?.destinatarioadvogados, pub?.representantes, pub?.procuradores]) {
-    if (!Array.isArray(arr)) continue;
-    for (const entry of arr) {
-      const adv = entry?.advogado && typeof entry.advogado === "object" ? entry.advogado : entry;
-      const nome = adv?.nome || adv?.nomeAdvogado || adv?.nomeRepresentante || adv?.nomeProcurador || (typeof entry === "string" ? entry : "");
-      const numero = String(adv?.numero_oab || adv?.numeroOab || adv?.oab || "").replace(/\D/g, "");
-      const uf = String(adv?.uf_oab || adv?.ufOab || adv?.uf || "").trim().toUpperCase();
-      add(numero ? `${nome} - OAB ${uf}${numero}` : nome);
-    }
-  }
-
-  const plain = String(texto || "").replace(/\s+/g, " ").trim();
-  const advogadoAutor = plain.match(/\bimpetrad[oa]\s+por\s+(.{4,180}?),\s*advogad[oa]\b/i);
-  if (advogadoAutor?.[1]) add(advogadoAutor[1]);
-
-  const oabPatterns = [
-    /((?:Dr\.?|Dra\.?)\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.']{4,120}?)\s*[-–—]\s*OAB\s*\/?\s*([A-Z]{2})\s*[-–—]?\s*(\d[\d.]*)/gi,
-    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.']{4,120}?)\s*\(\s*OAB[:\s]*(\d{1,10})\s*\/?\s*([A-Z]{2})\s*\)/g,
-    /([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇa-záéíóúâêôãõç\s.']{4,120}?)\s*-?\s*OAB[:\s]*([A-Z]{2})[:\s-]*(\d{1,10})/gi,
-  ];
-  for (const re of oabPatterns) {
-    for (const m of plain.matchAll(re)) {
-      if (m.length === 4 && /^[A-Z]{2}$/i.test(m[2] || "")) add(`${m[1].trim()} - OAB ${String(m[2]).toUpperCase()}-${m[3]}`);
-      else if (m.length === 4) add(`${m[1].trim()} - OAB ${String(m[3]).toUpperCase()}-${m[2]}`);
-    }
-  }
-  return out;
-}
-
-function metadataStf(pub, texto) {
-  const partes = extractStfPartes(pub, texto);
-  const advogados = extractStfAdvogados(pub, texto);
+function metadataStf(pub /*, texto */) {
+  const { partes, advogados, poloAtivo, poloPassivo } = parseEnvolvidos(pub);
   return {
     partes_json: partes.length > 0 ? partes : null,
     advogados_json: advogados.length > 0 ? advogados : null,
-    polo_ativo: partes.find((p) => /^\[(?:Reclamante|Autor|Recorrente|Impetrante)\]/i.test(p))?.replace(/^\[[^\]]+\]\s*/, "") || null,
-    polo_passivo: partes.find((p) => /^\[(?:Reclamado|Réu|Recorrido|Impetrado)\]/i.test(p))?.replace(/^\[[^\]]+\]\s*/, "") || null,
+    polo_ativo: poloAtivo.length > 0 ? poloAtivo.join("; ") : null,
+    polo_passivo: poloPassivo.length > 0 ? poloPassivo.join("; ") : null,
   };
 }
 
@@ -516,6 +488,9 @@ function extractTextoLimpo(pub) {
 }
 
 function buildTextoValidacao(pub) {
+  const envolvidos = Array.isArray(pub?.envolvidos) ? pub.envolvidos : [];
+  const nomes = envolvidos.map((e) => e?.nome).filter(Boolean).join(" ");
+  const oabs = envolvidos.flatMap((e) => Array.isArray(e?.identificacoes) ? e.identificacoes : []).join(" ");
   return [
     extractTextoLimpo(pub),
     extractProcessoNumero(pub),
@@ -524,7 +499,8 @@ function buildTextoValidacao(pub) {
     pub.observacao,
     pub.responsavel,
     pub.descricao,
-    stringifyStfValue(pub.envolvidos),
+    nomes,
+    oabs,
   ].filter(Boolean).join(" ");
 }
 
@@ -540,45 +516,83 @@ function extractRelator(pub) {
 function passaValidacao(mon, pub) {
   const texto = buildTextoValidacao(pub);
   const processo = extractProcessoNumero(pub);
-  const termoPrincipal = mon.termo_busca || "";
+  const termoPrincipal = String(mon.termo_busca || "").trim();
   const tipo = mon.tipo === "nome" ? "advogado" : mon.tipo === "geral" ? "palavra-chave" : mon.tipo || "palavra-chave";
+  const termosOr = Array.isArray(mon.termos_or) ? mon.termos_or.filter(Boolean).map(String) : [];
+  const { partes: partesEnv, advogados: advogadosEnv } = parseEnvolvidos(pub);
+  const partesTexto = partesEnv.join(" ");
+  const advogadosTexto = advogadosEnv.join(" ");
 
-  // Match do termo principal
   let match = false;
+  let motivoSemMatch = "sem_match_texto";
+
   if (tipo === "processo") {
-    const digitos = String(termoPrincipal).replace(/\D/g, "");
+    const digitos = termoPrincipal.replace(/\D/g, "");
     const pDigitos = String(processo).replace(/\D/g, "");
     match = digitos.length >= 15 && pDigitos.includes(digitos);
+    if (!match) motivoSemMatch = "processo_divergente";
+  } else if (tipo === "parte") {
+    // Só valida contra nomes de partes de envolvidos[]. Nunca no corpo.
+    if (partesEnv.length === 0) {
+      return { ok: false, motivo: "sem_parte_envolvidos" };
+    }
+    const candidatos = [termoPrincipal, ...termosOr].filter(Boolean);
+    match = candidatos.some((t) => contemFraseComAnd(partesTexto, t));
+    if (!match) motivoSemMatch = "sem_match_parte";
+  } else if (tipo === "advogado") {
+    if (advogadosEnv.length === 0) {
+      return { ok: false, motivo: "sem_advogado_envolvidos" };
+    }
+    const oabMon = String(mon.oab || "").replace(/\D/g, "");
+    const ufMon = String(mon.uf || "").trim().toUpperCase();
+    // 1. OAB configurada no monitoramento
+    if (oabMon) {
+      const advNorm = normalize(advogadosTexto);
+      const oabKey = ufMon ? `oab ${ufMon}${oabMon}`.toLowerCase() : `oab ${oabMon}`.toLowerCase();
+      match = advNorm.includes(normalize(oabKey));
+    }
+    // 2. Nome principal (frase exata) contra advogados
+    if (!match && termoPrincipal) {
+      match = contemFraseComAnd(advogadosTexto, termoPrincipal);
+    }
+    // 3. termos_or (parseia OAB / nome)
+    if (!match) {
+      for (const t of termosOr) {
+        const parsed = parsearTermoOr(t);
+        if (parsed?.oabDigits) {
+          const advNorm = normalize(advogadosTexto);
+          if (advNorm.includes(normalize(`oab ${parsed.oabDigits}`))) { match = true; break; }
+        }
+        const nome = parsed?.nome || t;
+        if (nome && contemFraseComAnd(advogadosTexto, nome)) { match = true; break; }
+      }
+    }
+    if (!match) motivoSemMatch = "sem_match_advogado";
   } else {
-    // A busca pública do STF não é frase-exata: para termos com várias palavras
-    // ela devolve documentos onde todas aparecem, mesmo separadas (ex. hospitais,
-    // clínicas, agência/estado). Portanto a validação STF precisa aceitar esse
-    // mesmo critério para não descartar tudo que o próprio STF retornou.
-    match = contemTermoStf(texto, termoPrincipal, { fallbackTodasPalavras: true });
+    // palavra-chave / default: frase exata (com AND por '+') no texto completo.
+    match = contemFraseComAnd(texto, termoPrincipal);
+    if (!match && termosOr.length > 0) {
+      match = termosOr.some((t) => {
+        const parsed = parsearTermoOr(t);
+        return contemFraseComAnd(texto, parsed?.nome || t);
+      });
+    }
   }
 
-  // Termos OR: se houver, basta 1 match (incluindo o principal)
-  const termosOr = Array.isArray(mon.termos_or) ? mon.termos_or.filter(Boolean) : [];
-  if (!match && termosOr.length > 0) {
-    match = termosOr.some((t) => {
-      const parsed = parsearTermoOr(t);
-      return contemTermoStf(texto, parsed?.nome || t, { fallbackTodasPalavras: true });
-    });
-  }
-  if (!match) return { ok: false, motivo: "sem_match" };
+  if (!match) return { ok: false, motivo: motivoSemMatch };
 
-  // Exclusões
+  // Exclusões — frase exata no texto completo
   const exclusoes = Array.isArray(mon.exclusoes) ? mon.exclusoes.filter(Boolean) : [];
   for (const e of exclusoes) {
-    if (contemFrase(texto, e)) return { ok: false, motivo: `excluido: ${e}` };
+    if (contemFraseComAnd(texto, e)) return { ok: false, motivo: `excluido: ${e}` };
   }
 
-  // Condição concomitante (todos os termos separados por | devem aparecer)
+  // Condição concomitante — cada segmento separado por '|' deve aparecer (frase exata)
   const cond = String(mon.condicao_concomitante || "").trim();
   if (cond) {
     const partes = cond.split("|").map((s) => s.trim()).filter(Boolean);
     for (const p of partes) {
-      if (!contemTermoStf(texto, p, { fallbackTodasPalavras: true })) return { ok: false, motivo: `sem concomitante: ${p}` };
+      if (!contemFraseComAnd(texto, p)) return { ok: false, motivo: `sem_concomitante: ${p}` };
     }
   }
 
