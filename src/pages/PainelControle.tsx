@@ -258,6 +258,7 @@ export default function PainelControle() {
     if (isAdminOrCoordinator && coordenacoesUsuario.length > 0) {
       return {
         responsavelIds: membrosDasCoordenacoes.length > 0 ? membrosDasCoordenacoes : undefined,
+        coordenacaoIds: coordenacoesUsuario,
         fetchAll: false,
         ...dateRange,
       };
