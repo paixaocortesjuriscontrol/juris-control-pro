@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { useConfigEnvioAlertas } from "@/hooks/useConfigEnvioAlertas";
+import { useConfigDeteccaoCoordenacao } from "@/hooks/useConfigDeteccaoCoordenacao";
 import {
   Mail,
   MessageCircle,
@@ -27,6 +28,7 @@ import {
   BellRing,
   ClipboardList,
   X,
+  Radar,
 } from "lucide-react";
 import {
   useConfigAlertasCoordenacao,
@@ -190,6 +192,69 @@ export function ConfigAlertasCoordenacaoPanel({
     });
   };
 
+  // ---------------- Aba "Detecção & Monitoramento" ----------------
+  const { config: deteccao, isLoading: loadingDeteccao, salvar: salvarDeteccao } =
+    useConfigDeteccaoCoordenacao(coordenacaoId);
+  const [detAud, setDetAud] = useState(false);
+  const [detInt, setDetInt] = useState(false);
+  const [monAnd, setMonAnd] = useState(false);
+  const [hAnd, setHAnd] = useState<string[]>([]);
+  const [monDjT, setMonDjT] = useState(false);
+  const [hDjT, setHDjT] = useState<string[]>([]);
+  const [monDjP, setMonDjP] = useState(false);
+  const [hDjP, setHDjP] = useState<string[]>([]);
+  const [monDist, setMonDist] = useState(false);
+  const [hDist, setHDist] = useState<string[]>([]);
+  const [monRed, setMonRed] = useState(false);
+  const [hRed, setHRed] = useState<string[]>([]);
+  const [monPau, setMonPau] = useState(false);
+  const [hPau, setHPau] = useState<string[]>([]);
+  const [deteccaoLoaded, setDeteccaoLoaded] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!deteccao || deteccaoLoaded === coordenacaoId) return;
+    setDetAud(deteccao.detectar_audiencias);
+    setDetInt(deteccao.detectar_intimacoes);
+    setMonAnd(deteccao.monitorar_andamentos);
+    setHAnd((deteccao.horarios_andamentos || []).map((h) => String(h).slice(0, 5)));
+    setMonDjT(deteccao.monitorar_djen_termos);
+    setHDjT((deteccao.horarios_djen_termos || []).map((h) => String(h).slice(0, 5)));
+    setMonDjP(deteccao.monitorar_djen_processos);
+    setHDjP((deteccao.horarios_djen_processos || []).map((h) => String(h).slice(0, 5)));
+    setMonDist(deteccao.monitorar_distribuicoes);
+    setHDist((deteccao.horarios_distribuicoes || []).map((h) => String(h).slice(0, 5)));
+    setMonRed(deteccao.monitorar_redistribuicoes);
+    setHRed((deteccao.horarios_redistribuicoes || []).map((h) => String(h).slice(0, 5)));
+    setMonPau(deteccao.monitorar_djet_pautas);
+    setHPau((deteccao.horarios_djet_pautas || []).map((h) => String(h).slice(0, 5)));
+    setDeteccaoLoaded(coordenacaoId);
+  }, [deteccao, coordenacaoId, deteccaoLoaded]);
+
+  const HORARIOS_PADRAO = ["03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00"];
+  const toggleHorario = (arr: string[], set: (v: string[]) => void, h: string) => {
+    set(arr.includes(h) ? arr.filter((x) => x !== h) : [...arr, h].sort());
+  };
+
+  const handleSalvarDeteccao = () => {
+    salvarDeteccao.mutate({
+      coordenacao_id: coordenacaoId,
+      detectar_audiencias: detAud,
+      detectar_intimacoes: detInt,
+      monitorar_andamentos: monAnd,
+      horarios_andamentos: hAnd,
+      monitorar_djen_termos: monDjT,
+      horarios_djen_termos: hDjT,
+      monitorar_djen_processos: monDjP,
+      horarios_djen_processos: hDjP,
+      monitorar_distribuicoes: monDist,
+      horarios_distribuicoes: hDist,
+      monitorar_redistribuicoes: monRed,
+      horarios_redistribuicoes: hRed,
+      monitorar_djet_pautas: monPau,
+      horarios_djet_pautas: hPau,
+    });
+  };
+
   return (
     <Card className="shadow-lg border-primary/30">
       <CardHeader className="pb-3 bg-muted/30 border-b">
@@ -210,12 +275,15 @@ export function ConfigAlertasCoordenacaoPanel({
       </CardHeader>
 
         <Tabs defaultValue="painel" className="w-full">
-          <TabsList className="grid grid-cols-2 mx-4 mt-3 mb-2 w-auto">
+          <TabsList className="grid grid-cols-3 mx-4 mt-3 mb-2 w-auto">
             <TabsTrigger value="painel" className="gap-2">
               <BellRing className="h-4 w-4" /> Notificações do Painel
             </TabsTrigger>
             <TabsTrigger value="envios" className="gap-2">
               <ClipboardList className="h-4 w-4" /> Prazos / Tarefas / Audiências
+            </TabsTrigger>
+            <TabsTrigger value="deteccao" className="gap-2">
+              <Radar className="h-4 w-4" /> Detecção & Monitoramento
             </TabsTrigger>
           </TabsList>
 
