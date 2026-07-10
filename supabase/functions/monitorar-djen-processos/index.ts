@@ -1071,6 +1071,7 @@ serve(async (req) => {
     let scheduled = false;
     let continued = false;
     let execucaoId: string | undefined;
+    let manual = false;
 
     try {
       const body = await req.json();
@@ -1081,8 +1082,20 @@ serve(async (req) => {
       scheduled = body.scheduled === true;
       continued = body.continued === true;
       execucaoId = body.execucaoId;
+      manual = body.manual === true;
     } catch {
       // No body
+    }
+
+    if (!manual) {
+      const { data: shouldRun } = await supabase.rpc('deve_rodar_monitoramento', { p_tipo: 'djen_processos' });
+      if (shouldRun !== true) {
+        console.log('[Gate] DJEN Processos: nenhuma coordenação habilitou este monitoramento no horário atual — pulando.');
+        return new Response(
+          JSON.stringify({ success: true, skipped: 'nenhuma-coord-habilitada' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Default to today
