@@ -31,6 +31,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EventoAgenda } from "@/hooks/useEventosAgenda";
+import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 
@@ -381,6 +382,11 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
       return;
     }
 
+    if (precisaSelecionar && !coordenacaoId) {
+      toast.error("Selecione a coordenação do parcelamento");
+      return;
+    }
+
     if (formData.totalParcelas < 1 || formData.totalParcelas > 120) {
       toast.error("Número de parcelas deve ser entre 1 e 120");
       return;
@@ -535,9 +541,10 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         toast.success(`Parcelamento criado com ${formData.totalParcelas} parcelas!`);
       }
       
-      queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
-      queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["parcelas-evento"] });
+      await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+      await queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
+      await queryClient.invalidateQueries({ queryKey: ["parcelas-evento"] });
+      await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
       
       onOpenChange(false);
     } catch (error) {
