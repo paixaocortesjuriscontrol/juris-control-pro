@@ -1253,7 +1253,7 @@ export default function PainelControle() {
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Tarefas</p>
-                      <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">{resumo.tarefas.total}</p>
+                      <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">{contagensPorClassificacao.tarefa}</p>
                     </div>
                     <ClipboardList className="w-6 h-6 md:w-10 md:h-10 text-blue-500/50 flex-shrink-0" />
                   </div>
@@ -1277,7 +1277,7 @@ export default function PainelControle() {
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-xs md:text-sm font-medium text-green-700 dark:text-green-400 truncate">Eventos</p>
-                      <p className="text-xl md:text-3xl font-bold text-green-700 dark:text-green-300">{(eventosStats?.eventos.total ?? 0) + (resumo.eventosTarefa?.total ?? 0)}</p>
+                      <p className="text-xl md:text-3xl font-bold text-green-700 dark:text-green-300">{contagensPorClassificacao.evento}</p>
                     </div>
                     <CalendarPlus className="w-6 h-6 md:w-10 md:h-10 text-green-500/50 flex-shrink-0" />
                   </div>
@@ -1301,7 +1301,7 @@ export default function PainelControle() {
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-xs md:text-sm font-medium text-red-600 dark:text-red-400 truncate">Prazos</p>
-                      <p className="text-xl md:text-3xl font-bold text-red-700 dark:text-red-300">{resumo.prazos?.total ?? 0}</p>
+                      <p className="text-xl md:text-3xl font-bold text-red-700 dark:text-red-300">{contagensPorClassificacao.prazo}</p>
                     </div>
                     <Clock className="w-6 h-6 md:w-10 md:h-10 text-red-500/50 flex-shrink-0" />
                   </div>
@@ -1325,7 +1325,7 @@ export default function PainelControle() {
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-xs md:text-sm font-medium text-yellow-700 dark:text-yellow-400 truncate">Audiências</p>
-                      <p className="text-xl md:text-3xl font-bold text-yellow-700 dark:text-yellow-300">{resumo.audiencias.total}</p>
+                      <p className="text-xl md:text-3xl font-bold text-yellow-700 dark:text-yellow-300">{contagensPorClassificacao.audiencia}</p>
                     </div>
                     <Gavel className="w-6 h-6 md:w-10 md:h-10 text-yellow-500/50 flex-shrink-0" />
                   </div>
@@ -1349,7 +1349,7 @@ export default function PainelControle() {
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-xs md:text-sm font-medium text-emerald-600 dark:text-emerald-400 truncate">Parcelamentos</p>
-                      <p className="text-xl md:text-3xl font-bold text-emerald-700 dark:text-emerald-300">{eventosStats?.parcelamentos.total ?? 0}</p>
+                      <p className="text-xl md:text-3xl font-bold text-emerald-700 dark:text-emerald-300">{contagensPorClassificacao.parcelamento}</p>
                     </div>
                     <Coins className="w-6 h-6 md:w-10 md:h-10 text-emerald-500/50 flex-shrink-0" />
                   </div>
