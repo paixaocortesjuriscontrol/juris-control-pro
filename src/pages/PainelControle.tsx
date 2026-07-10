@@ -292,6 +292,10 @@ export default function PainelControle() {
   // Busca direta ao banco para totalizadores
   const hoje_str = format(nowBrt, "yyyy-MM-dd");
 
+  // Intervalo do mês em ISO (yyyy-MM-dd) — alinha totalizadores ao calendário
+  const rangeInicioStr = useMemo(() => format(dataInicio, "yyyy-MM-dd"), [dataInicio]);
+  const rangeFimStr = useMemo(() => format(dataFim, "yyyy-MM-dd"), [dataFim]);
+
   const resumoStatsReady = useMemo(() => {
     if (tabMode === "pessoal") return true;
     if (isAdmin) return true;
@@ -311,7 +315,7 @@ export default function PainelControle() {
   }, [tabMode, isAdmin, adminCoordFilter, membrosCoordFiltrada, membrosDasCoordenacoes, user?.id]);
 
   const { data: resumoStats } = useQuery({
-    queryKey: ["painel-controle-resumo-stats", tabMode, hoje_str, membrosIdsParaResumo, isAdmin, isAdminOrCoordinator, adminCoordFilter, coordenacoesUsuario],
+    queryKey: ["painel-controle-resumo-stats", tabMode, hoje_str, rangeInicioStr, rangeFimStr, membrosIdsParaResumo, isAdmin, isAdminOrCoordinator, adminCoordFilter, coordenacoesUsuario],
     queryFn: async () => {
       const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
       if (!user?.id) return { tarefas: empty, audiencias: empty, compromissos: empty };
@@ -351,6 +355,13 @@ export default function PainelControle() {
       }
 
       const hoje_d = new Date(hoje_str + "T00:00:00");
+      // Filtra pelo intervalo do mês exibido (usa data_vencimento ?? data_fatal)
+      const inRange = (t: any) => {
+        const dateStr = (t.data_vencimento ?? t.data_fatal ?? "").slice(0, 10);
+        if (!dateStr) return false;
+        return dateStr >= rangeInicioStr && dateStr <= rangeFimStr;
+      };
+      const tarefasFiltradas = (tarefas || []).filter(inRange);
       const calcStats = (items: any[]) => {
         const atrasadas = items.filter(t => {
           const dateStr = t.data_vencimento ?? t.data_fatal ?? "";
@@ -369,7 +380,7 @@ export default function PainelControle() {
         return { atrasadas, hoje: hoje_count, futuras, total: items.length };
       };
 
-      const all = tarefas || [];
+      const all = tarefasFiltradas;
       const audienciaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "AUDIÊNCIA" || u === "AUDIENCIA"; });
       const eventoTarefaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "EVENTO"; });
       const prazoItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "PRAZO"; });
@@ -429,14 +440,16 @@ export default function PainelControle() {
   });
 
   const { data: eventosStats } = useQuery({
-    queryKey: ["painel-controle-eventos-stats", tabMode, hoje_str, membrosIdsParaResumo, isAdmin, adminCoordFilter, processosIds],
+    queryKey: ["painel-controle-eventos-stats", tabMode, hoje_str, rangeInicioStr, rangeFimStr, membrosIdsParaResumo, isAdmin, adminCoordFilter, processosIds],
     queryFn: async () => {
       const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
       if (!user?.id) return { eventos: empty, parcelamentos: empty };
       let q = supabase
         .from("eventos_agenda")
         .select("data_inicio, tipo, status, criado_por, processo_id")
-        .neq("status", "cumprido");
+        .neq("status", "cumprido")
+        .gte("data_inicio", rangeInicioStr)
+        .lte("data_inicio", rangeFimStr + "T23:59:59");
       if (tabMode === "pessoal") {
         q = q.eq("criado_por", user.id);
       } else if (isAdmin && adminCoordFilter !== "todas") {
@@ -474,6 +487,8 @@ export default function PainelControle() {
       "painel-controle-audiencias-det-stats",
       tabMode,
       hoje_str,
+      rangeInicioStr,
+      rangeFimStr,
       user?.id,
       membrosIdsParaResumo,
       isAdmin,
@@ -488,7 +503,9 @@ export default function PainelControle() {
         .from("audiencias_detectadas")
         .select("data_audiencia, status, criado_por, coordenacao_id, id")
         .not("data_audiencia", "is", null)
-        .neq("status", "cumprido");
+        .neq("status", "cumprido")
+        .gte("data_audiencia", rangeInicioStr)
+        .lte("data_audiencia", rangeFimStr + "T23:59:59");
 
       if (tabMode === "escritorio") {
         if (isAdmin) {
