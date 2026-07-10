@@ -210,7 +210,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   };
 
   const formBody = (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form id="editar-audiencia-form" onSubmit={handleSubmit} className="space-y-4">
           {/* Dados Principais */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
@@ -493,6 +493,9 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
               </SelectContent>
             </Select>
+            <Button type="submit" form="editar-audiencia-form" size="sm" disabled={isLoading}>
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Salvar</>}
+            </Button>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
@@ -521,6 +524,9 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                   <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
                 </SelectContent>
               </Select>
+              <Button type="submit" form="editar-audiencia-form" size="sm" disabled={isLoading}>
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Salvar</>}
+              </Button>
             </div>
           </div>
         </DialogHeader>
