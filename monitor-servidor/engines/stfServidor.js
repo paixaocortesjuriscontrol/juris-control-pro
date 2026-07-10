@@ -595,13 +595,17 @@ async function run({ sb, payload, log, job }) {
   if (error) throw new Error(`stf: falha lendo monitoramentos: ${error.message}`);
 
   const lista = monitoramentos || [];
-  const slotsPool = await loadPool(sb).catch((e) => {
-    log("stf.pool_error", { e: e.message });
-    return [];
-  });
-  const vias = slotsPool.length > 0
-    ? slotsPool
-    : [{ id: "direct", label: "direto", url: null, token: null }];
+  // O endpoint público do STF exige CSRF (cookie XSRF-TOKEN + header X-XSRF-TOKEN).
+  // O proxy /proxy?url= das VPS não preserva o fluxo de cookies entre GET/POST,
+  // portanto todas as VPS retornam 0 resultados. Mantemos conexão direta e
+  // paralelizamos com múltiplos workers (não é serial) para distribuir a carga.
+  const STF_CONCURRENCY = Math.max(1, Number(process.env.STF_CONCURRENCY || 6));
+  const vias = Array.from({ length: Math.min(STF_CONCURRENCY, Math.max(1, lista.length)) }, (_, i) => ({
+    id: `direct-${i + 1}`,
+    label: `direto #${i + 1}`,
+    url: null,
+    token: null,
+  }));
   const totais = { totalItens: lista.length, concluidos: 0, novas: 0, duplicatas: 0, descartadas: 0, falhas: 0, itens: [] };
   const escreverProgresso = async (patch) => {
     if (!job?.id) return;
@@ -609,7 +613,7 @@ async function run({ sb, payload, log, job }) {
       await sb
         .from("execucoes_servidor")
         .update({
-          progresso: { ...totais, ...patch, janela: { dataInicio, dataFim }, pool_enabled: slotsPool.length > 0, vps: vias.length },
+          progresso: { ...totais, ...patch, janela: { dataInicio, dataFim }, pool_enabled: false, vps: vias.length },
           progresso_atualizado_em: new Date().toISOString(),
           heartbeat_at: new Date().toISOString(),
         })
