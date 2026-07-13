@@ -4,8 +4,34 @@ import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const AI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-pro";
+
+function extrairJson(texto: string) {
+  let jsonStr = texto.trim();
+  if (jsonStr.startsWith("```json")) {
+    jsonStr = jsonStr.slice(7);
+  } else if (jsonStr.startsWith("```")) {
+    jsonStr = jsonStr.slice(3);
+  }
+  if (jsonStr.endsWith("```")) {
+    jsonStr = jsonStr.slice(0, -3);
+  }
+  jsonStr = jsonStr.trim();
+
+  try {
+    return JSON.parse(jsonStr);
+  } catch {
+    const inicio = jsonStr.indexOf("{");
+    const fim = jsonStr.lastIndexOf("}");
+    if (inicio >= 0 && fim > inicio) {
+      return JSON.parse(jsonStr.slice(inicio, fim + 1));
+    }
+    throw new Error("Resposta da IA não veio em JSON válido");
+  }
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -22,8 +48,11 @@ serve(async (req) => {
       );
     }
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAuth = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(authHeader.replace("Bearer ", ""));
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
     if (authError || !user) {
       return new Response(
         JSON.stringify({ error: "Não autorizado" }),
@@ -96,14 +125,33 @@ Responda APENAS com um JSON válido no seguinte formato (sem markdown, sem expli
 }`;
 
     const response = await geminiChatCompletionsFetch({
-      model: "gemini-2.5-flash",
+      model: AI_MODEL,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
       max_tokens: 2048,
       temperature: 0.3,
-      response_format: { type: "json_object" },
+      tools: [{
+        type: "function",
+        function: {
+          name: "preencher_tarefa_publicacao",
+          description: "Sugere campos para criação de tarefa a partir de uma publicação jurídica",
+          parameters: {
+            type: "object",
+            properties: {
+              tipo_tarefa: { type: "string" },
+              titulo: { type: "string" },
+              descricao: { type: "string" },
+              prioridade: { type: "string" },
+              dias_prazo: { type: "number" },
+              observacoes: { type: "string" },
+            },
+            required: ["titulo", "descricao", "prioridade", "dias_prazo"],
+          },
+        },
+      }],
+      tool_choice: { type: "function", function: { name: "preencher_tarefa_publicacao" } },
     });
 
     if (!response.ok) {
@@ -115,35 +163,35 @@ Responda APENAS com um JSON válido no seguinte formato (sem markdown, sem expli
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "Erro de autenticação na API OpenAI. Verifique a chave." }),
+          JSON.stringify({ error: "Erro de autenticação na API Gemini. Verifique a chave configurada." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       const errorText = await response.text();
       console.error("Erro na API de IA:", response.status, errorText);
-      throw new Error("Erro ao consultar IA");
+      let errorMessage = "Erro ao consultar IA";
+      try {
+        const parsed = JSON.parse(errorText);
+        errorMessage = parsed?.error?.message || parsed?.error || errorMessage;
+      } catch {
+        if (errorText) errorMessage = errorText.slice(0, 500);
+      }
+      return new Response(
+        JSON.stringify({ error: errorMessage }),
+        { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
+    const message = data.choices?.[0]?.message;
+    const toolArgs = message?.tool_calls?.[0]?.function?.arguments;
+    const content = toolArgs || message?.content;
 
     if (!content) {
       throw new Error("Resposta vazia da IA");
     }
 
-    // Limpar possíveis marcadores de código markdown
-    let jsonStr = content.trim();
-    if (jsonStr.startsWith("```json")) {
-      jsonStr = jsonStr.slice(7);
-    } else if (jsonStr.startsWith("```")) {
-      jsonStr = jsonStr.slice(3);
-    }
-    if (jsonStr.endsWith("```")) {
-      jsonStr = jsonStr.slice(0, -3);
-    }
-    jsonStr = jsonStr.trim();
-
-    const resultado = JSON.parse(jsonStr);
+    const resultado = extrairJson(content);
 
     // Validar e normalizar campos
     const tiposValidos = [

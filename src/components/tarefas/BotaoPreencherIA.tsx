@@ -33,6 +33,25 @@ export function BotaoPreencherIA({
 }: BotaoPreencherIAProps) {
   const [loading, setLoading] = useState(false);
 
+  const getFunctionErrorMessage = async (error: any) => {
+    const fallback = error?.message || "Erro ao analisar publicação";
+    const context = error?.context;
+    if (!context || typeof context.text !== "function") return fallback;
+
+    try {
+      const details = await context.text();
+      if (!details) return fallback;
+      try {
+        const parsed = JSON.parse(details);
+        return parsed?.error || parsed?.message || fallback;
+      } catch {
+        return details.slice(0, 500);
+      }
+    } catch {
+      return fallback;
+    }
+  };
+
   const handleClick = async () => {
     if (!conteudo) {
       toast.error("Não há conteúdo para analisar");
@@ -51,11 +70,15 @@ export function BotaoPreencherIA({
       });
 
       if (error) {
-        throw error;
+        throw new Error(await getFunctionErrorMessage(error));
       }
 
-      if (data.error) {
+      if (data?.error) {
         throw new Error(data.error);
+      }
+
+      if (!data?.titulo) {
+        throw new Error("A IA não retornou os campos da tarefa");
       }
 
       onResultado({

@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   formatConteudoParaExibicao,
   conteudoDisplayClasses,
@@ -41,6 +42,7 @@ export function NovaTarefaPublicacaoDialog({
 }: Props) {
   const hasPublicacao = !!publicacao;
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [processoPre, setProcessoPre] = useState<{ id: string; numero: string } | null>(null);
 
   // Lista todas as coordenações (o NovaTarefaDialog filtra internamente via hook)
@@ -71,6 +73,7 @@ export function NovaTarefaPublicacaoDialog({
   const handleCreated = async (tarefaId: string) => {
     if (!publicacao) return;
     try {
+      const tipoLeitura = publicacao.tipo_origem === "processo" ? "processo" : "termo";
       if (publicacao.tipo_origem === "termo") {
         await supabase
           .from("tarefas_publicacoes")
@@ -79,7 +82,7 @@ export function NovaTarefaPublicacaoDialog({
           .from("publicacoes_djen")
           .update({ lida: true })
           .eq("id", publicacao.id);
-      } else {
+      } else if (publicacao.tipo_origem === "processo") {
         await supabase
           .from("tarefas_publicacoes_processos")
           .insert({ tarefa_id: tarefaId, publicacao_processo_id: publicacao.id });
@@ -88,6 +91,24 @@ export function NovaTarefaPublicacaoDialog({
           .update({ lida: true })
           .eq("id", publicacao.id);
       }
+
+      if (user?.id && (publicacao.tipo_origem === "termo" || publicacao.tipo_origem === "processo")) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("nome")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        await (supabase as any)
+          .from("publicacoes_djen_leituras")
+          .upsert({
+            publicacao_id: publicacao.id,
+            tabela_origem: tipoLeitura,
+            usuario_id: user.id,
+            usuario_nome: profile?.nome || user.email || "Desconhecido",
+          }, { onConflict: "publicacao_id,tabela_origem,usuario_id" });
+      }
+
       await supabase
         .from("tarefas")
         .update({ origem: "analise_djen" } as any)
@@ -95,10 +116,14 @@ export function NovaTarefaPublicacaoDialog({
     } catch (err) {
       console.error("Erro ao vincular tarefa à publicação:", err);
     } finally {
-      queryClient.invalidateQueries({ queryKey: ["publicacoes-djen"] });
-      queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] });
-      queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-termo"] });
-      queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-processo"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen"] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
+        queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-termo"] }),
+        queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-processo"] }),
+        queryClient.invalidateQueries({ queryKey: ["notificacoes-counts"] }),
+      ]);
     }
   };
 
