@@ -541,6 +541,8 @@ export default function DistribuicaoTst() {
     setFiltroMultiResp(false);
     // Reseta filtro de status (Pronto para Enviar) ao alternar cards
     if (key === "prontoEnvio" || isActive) setFiltroStatus("todos");
+    // "Pronto sem pendência" reaproveita o filtro de status = pronto_envio.
+    if (key === "prontoSemPendencia") setFiltroStatus("todos");
     // Reseta filtro "sem responsável" ao alternar cards
     if (key === "semResponsavel" || isActive) setFiltroResponsavelIds([]);
     setSelectedIds(new Set());
@@ -577,6 +579,7 @@ export default function DistribuicaoTst() {
         setFiltroMesAno("todos");
         break;
       case "prontoEnvio": setFiltroStatus("pronto_envio"); break;
+      case "prontoSemPendencia": setFiltroStatus("pronto_envio"); break;
       case "semResponsavel":
         setFiltroResponsavelIds(["__sem_responsavel__"]);
         break;
