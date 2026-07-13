@@ -136,6 +136,7 @@ export interface DistribuicaoTstFilters {
   turma?: string;
   relator?: string;
   parte?: string;
+  parteRecorrente?: string;
   nomeParte?: string;
   aba_origem?: string;
   benner?: "todos" | "sim" | "nao";
