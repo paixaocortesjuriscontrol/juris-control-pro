@@ -3609,6 +3609,123 @@ const AnaliseDjen = () => {
     setSelectedIds(new Map<string, TipoOrigemPublicacao>());
   };
 
+  // Descarta as publicações selecionadas, mas antes analisa se elas realmente
+  // são duplicadas entre si (mesma coordenação + mesmo id_djen, ou fallback por
+  // dedup_key/dedup_conteudo_key). Mantém a mais antiga de cada grupo e propõe
+  // descartar somente as demais. Se houver itens únicos (sem par entre os
+  // selecionados), pede confirmação extra antes de descartá-los.
+  const [descartandoSelecionadas, setDescartandoSelecionadas] = useState(false);
+  const handleDescartarSelecionadas = async () => {
+    if (selectedIds.size === 0) {
+      toast.error("Selecione ao menos uma publicação");
+      return;
+    }
+    const selecionadas = allPublicacoes.filter(p => selectedIds.has(p.id));
+    // Não é possível descartar publicações que já estão descartadas.
+    const jaDescartadas = selecionadas.filter(p => p.tipo_origem === 'descartada');
+    if (jaDescartadas.length > 0) {
+      toast.error(`${jaDescartadas.length} publicação(ões) selecionada(s) já estão descartadas.`);
+      return;
+    }
+    if (selecionadas.some(p => p.tipo_origem !== 'termo' && p.tipo_origem !== 'processo')) {
+      toast.error('Só é possível descartar publicações de termo ou processo.');
+      return;
+    }
+
+    // Agrupa por chave de duplicidade (coordenacao + id_djen; fallback dedup_key).
+    const keyOf = (p: PublicacaoUnificada): string => {
+      const coord = p.coordenacao_id ?? 'sem_coord';
+      const idDjen = String(p.id_djen ?? '').trim();
+      if (idDjen) return `${coord}|id_djen|${idDjen}`;
+      const dk = String(p.dedup_key ?? '').trim();
+      if (dk) return `${coord}|dedup_key|${dk}`;
+      const dck = String(p.dedup_conteudo_key ?? '').trim();
+      if (dck) return `${coord}|dedup_conteudo_key|${dck}`;
+      return `${coord}|unica|${p.id}`;
+    };
+
+    const grupos = new Map<string, PublicacaoUnificada[]>();
+    for (const p of selecionadas) {
+      const k = keyOf(p);
+      const arr = grupos.get(k) ?? [];
+      arr.push(p);
+      grupos.set(k, arr);
+    }
+
+    const paraDescartar: PublicacaoUnificada[] = [];
+    const mantidas: PublicacaoUnificada[] = [];
+    const unicas: PublicacaoUnificada[] = [];
+    for (const [, arr] of grupos) {
+      if (arr.length === 1) {
+        unicas.push(arr[0]);
+        continue;
+      }
+      // Mantém a mais antiga (created_at) — descarta as demais.
+      const ordenadas = [...arr].sort((a, b) => {
+        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return ta - tb;
+      });
+      mantidas.push(ordenadas[0]);
+      paraDescartar.push(...ordenadas.slice(1));
+    }
+
+    if (paraDescartar.length === 0 && unicas.length > 0) {
+      const ok = window.confirm(
+        `Nenhuma das ${unicas.length} publicação(ões) selecionada(s) é duplicada entre si ` +
+        `(mesma coordenação + mesmo id_djen). Deseja descartá-las mesmo assim?`
+      );
+      if (!ok) return;
+      setDescartandoSelecionadas(true);
+      try {
+        for (const p of unicas) {
+          await descartarManualmente.mutateAsync({
+            id: p.id,
+            tipo_origem: p.tipo_origem as 'termo' | 'processo',
+          });
+        }
+        setSelectedIds(new Map<string, TipoOrigemPublicacao>());
+      } finally {
+        setDescartandoSelecionadas(false);
+      }
+      return;
+    }
+
+    const linhas: string[] = [
+      `Análise das ${selecionadas.length} publicação(ões) selecionada(s):`,
+      ``,
+      `• ${grupos.size} grupo(s) por coordenação + id_djen`,
+      `• ${paraDescartar.length} duplicada(s) a descartar (mantendo a mais antiga de cada grupo)`,
+      `• ${mantidas.length} mantida(s)`,
+      `• ${unicas.length} sem par entre as selecionadas (NÃO duplicadas)`,
+      ``,
+    ];
+    if (unicas.length > 0) {
+      linhas.push(
+        `As ${unicas.length} publicação(ões) sem par NÃO serão descartadas. ` +
+        `Descartar somente as ${paraDescartar.length} duplicada(s)?`
+      );
+    } else {
+      linhas.push(`Descartar as ${paraDescartar.length} duplicada(s)?`);
+    }
+    const confirmar = window.confirm(linhas.join('\n'));
+    if (!confirmar) return;
+
+    setDescartandoSelecionadas(true);
+    try {
+      for (const p of paraDescartar) {
+        await descartarManualmente.mutateAsync({
+          id: p.id,
+          tipo_origem: p.tipo_origem as 'termo' | 'processo',
+        });
+      }
+      toast.success(`${paraDescartar.length} duplicada(s) descartada(s).`);
+      setSelectedIds(new Map<string, TipoOrigemPublicacao>());
+    } finally {
+      setDescartandoSelecionadas(false);
+    }
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-";
     try {
@@ -4320,6 +4437,24 @@ const AnaliseDjen = () => {
             )}
             <span className="hidden sm:inline">Marcar Lida</span>
             <span className="sm:hidden">Lida</span>
+            <span className="ml-1">({selectedIds.size})</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDescartarSelecionadas}
+            disabled={selectedIds.size === 0 || descartandoSelecionadas || descartarManualmente.isPending}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+            title="Analisa as selecionadas e descarta apenas as duplicadas (mesma coordenação + id_djen)"
+          >
+            {descartandoSelecionadas ? (
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+            ) : (
+              <Trash2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            )}
+            <span className="hidden sm:inline">Descartar Selecionadas</span>
+            <span className="sm:hidden">Descartar</span>
             <span className="ml-1">({selectedIds.size})</span>
           </Button>
 
