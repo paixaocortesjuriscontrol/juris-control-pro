@@ -478,12 +478,12 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   if (inline) {
     return (
       <div className="h-full flex flex-col bg-background overflow-hidden">
-        <div className="px-4 pt-4 sm:px-6 sm:pt-5 pb-3 shrink-0 border-b flex items-center justify-between gap-3">
+        <div className="px-4 pt-4 sm:px-6 sm:pt-5 pb-3 shrink-0 border-b flex flex-wrap items-center justify-between gap-2 sm:gap-3">
           <h3 className="text-base font-semibold">Audiência</h3>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
             <Label className="text-xs text-muted-foreground">Situação</Label>
             <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
-              <SelectTrigger className="h-9 w-[180px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-9 w-[140px] sm:w-[180px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="pendente">⏳ Pendente</SelectItem>
                 <SelectItem value="confirmado">✅ Confirmado</SelectItem>
@@ -493,7 +493,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
               </SelectContent>
             </Select>
-            <Button type="submit" form="editar-audiencia-form" size="sm" disabled={isLoading}>
+            <Button type="submit" form="editar-audiencia-form" size="sm" disabled={isLoading} className="shrink-0">
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Salvar</>}
             </Button>
           </div>
