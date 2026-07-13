@@ -10,6 +10,7 @@ import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, 
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
+import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { gerarRelatorioExcelDistribuicaoTst } from "@/lib/relatorioExcelDistribuicaoTst";
 import { Checkbox } from "@/components/ui/checkbox";
