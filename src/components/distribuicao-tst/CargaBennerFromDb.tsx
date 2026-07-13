@@ -349,9 +349,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           if (filters.parte) {
             query = query.ilike("recorrente", `%${filters.parte}%`);
           }
-          if (filters.parteRecorrente) {
-            query = query.eq("recorrente", filters.parteRecorrente);
-          }
+          query = applyParteRecorrenteFilter(query, filters.parteRecorrente);
           if (filters.nomeParte) {
             const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
             query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
