@@ -696,9 +696,13 @@ export function NovaTarefaDialog({
           : "A tarefa foi criada e delegada com sucesso.",
       });
 
-      queryClient.invalidateQueries({ queryKey: ["tarefas"] });
-      queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
-      queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["tarefas"] }),
+        queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] }),
+        queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] }),
+        queryClient.invalidateQueries({ queryKey: ["lista-atividades"] }),
+        queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite-v1"] }),
+      ]);
       if (novaTarefa?.id && onCreated) {
         await onCreated(novaTarefa.id);
       }
