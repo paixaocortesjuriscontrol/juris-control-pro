@@ -4093,6 +4093,28 @@ const AnaliseDjen = () => {
   return (
     <MainLayout title="Análise DJEN" subtitle="Publicações do dia para análise do advogado">
       <div className="space-y-6">
+        {/* Formulário inline de Adicionar (esconde a lista quando aberto) */}
+        {criarTarefaDialogOpen && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">
+                Criando item a partir da publicação selecionada
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setCriarTarefaDialogOpen(false)}>
+                ← Voltar para a lista
+              </Button>
+            </div>
+            <NovaTarefaPublicacaoDialog
+              inline
+              open={criarTarefaDialogOpen}
+              onOpenChange={setCriarTarefaDialogOpen}
+              publicacao={selectedPublicacao}
+              defaultProcessoId={adicionarProcessoId}
+            />
+          </div>
+        )}
+
+        <div className={cn("space-y-6", criarTarefaDialogOpen && "hidden")}>
         {/* Banners de execução DJEN */}
         <DjenExecutionBanner />
 
@@ -5500,13 +5522,7 @@ const AnaliseDjen = () => {
           </div>
         )}
 
-        {/* Dialog para criar tarefa a partir da publicação */}
-        <NovaTarefaPublicacaoDialog
-          open={criarTarefaDialogOpen}
-          onOpenChange={setCriarTarefaDialogOpen}
-          publicacao={selectedPublicacao}
-          defaultProcessoId={adicionarProcessoId}
-        />
+        </div>
 
         {/* Novo Evento */}
         <EventoDialog
