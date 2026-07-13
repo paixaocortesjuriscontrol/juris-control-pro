@@ -1165,40 +1165,57 @@ export default function PainelControle() {
                     tarefaIds.length
                       ? supabase
                           .from("tarefa_responsaveis")
-                          .select("tarefa_id, usuario:profiles!tarefa_responsaveis_usuario_id_fkey(id,nome)")
+                          .select("tarefa_id, usuario_id")
                           .in("tarefa_id", tarefaIds)
                       : Promise.resolve({ data: [] as any[] }),
                     tarefaIds.length
                       ? supabase
                           .from("tarefa_envolvidos")
-                          .select("tarefa_id, usuario:profiles!tarefa_envolvidos_usuario_id_fkey(id,nome)")
+                          .select("tarefa_id, usuario_id")
                           .in("tarefa_id", tarefaIds)
                       : Promise.resolve({ data: [] as any[] }),
                     eventoIds.length
                       ? supabase
                           .from("evento_responsaveis")
-                          .select("evento_id, usuario:profiles!evento_responsaveis_usuario_id_fkey(id,nome)")
+                          .select("evento_id, usuario_id")
                           .in("evento_id", eventoIds)
                       : Promise.resolve({ data: [] as any[] }),
                     eventoIds.length
                       ? supabase
                           .from("evento_envolvidos")
-                          .select("evento_id, usuario:profiles!evento_envolvidos_usuario_id_fkey(id,nome)")
+                          .select("evento_id, usuario_id")
                           .in("evento_id", eventoIds)
                       : Promise.resolve({ data: [] as any[] }),
                     audienciaIds.length
                       ? supabase
                           .from("audiencias_advogados")
-                          .select("audiencia_id, advogado:profiles!audiencias_advogados_advogado_id_fkey(id,nome)")
+                          .select("audiencia_id, advogado_id")
                           .in("audiencia_id", audienciaIds)
                       : Promise.resolve({ data: [] as any[] }),
                     audienciaIds.length
                       ? supabase
                           .from("audiencia_envolvidos")
-                          .select("audiencia_id, usuario:profiles!audiencia_envolvidos_usuario_id_fkey(id,nome)")
+                          .select("audiencia_id, usuario_id")
                           .in("audiencia_id", audienciaIds)
                       : Promise.resolve({ data: [] as any[] }),
                   ]);
+
+                  // Carregar nomes dos profiles envolvidos em uma única query
+                  const allProfileIds = new Set<string>();
+                  ((tarefaResp.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
+                  ((tarefaEnv.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
+                  ((eventoResp.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
+                  ((eventoEnv.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
+                  ((audAdv.data as any[]) || []).forEach((r) => r.advogado_id && allProfileIds.add(r.advogado_id));
+                  ((audEnv.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
+                  const nomeById = new Map<string, string>();
+                  if (allProfileIds.size > 0) {
+                    const { data: profs } = await supabase
+                      .from("profiles")
+                      .select("id, nome")
+                      .in("id", Array.from(allProfileIds));
+                    (profs || []).forEach((p: any) => p?.id && nomeById.set(p.id, p.nome));
+                  }
 
                   const pushNome = (map: Map<string, string[]>, key: string, nome?: string | null) => {
                     if (!nome) return;
@@ -1209,22 +1226,22 @@ export default function PainelControle() {
                   const respMap = new Map<string, string[]>();
                   const envMap = new Map<string, string[]>();
                   ((tarefaResp.data as any[]) || []).forEach((r) =>
-                    pushNome(respMap, `t:${r.tarefa_id}`, r.usuario?.nome)
+                    pushNome(respMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id))
                   );
                   ((tarefaEnv.data as any[]) || []).forEach((r) =>
-                    pushNome(envMap, `t:${r.tarefa_id}`, r.usuario?.nome)
+                    pushNome(envMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id))
                   );
                   ((eventoResp.data as any[]) || []).forEach((r) =>
-                    pushNome(respMap, `e:${r.evento_id}`, r.usuario?.nome)
+                    pushNome(respMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id))
                   );
                   ((eventoEnv.data as any[]) || []).forEach((r) =>
-                    pushNome(envMap, `e:${r.evento_id}`, r.usuario?.nome)
+                    pushNome(envMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id))
                   );
                   ((audAdv.data as any[]) || []).forEach((r) =>
-                    pushNome(respMap, `a:${r.audiencia_id}`, r.advogado?.nome)
+                    pushNome(respMap, `a:${r.audiencia_id}`, nomeById.get(r.advogado_id))
                   );
                   ((audEnv.data as any[]) || []).forEach((r) =>
-                    pushNome(envMap, `a:${r.audiencia_id}`, r.usuario?.nome)
+                    pushNome(envMap, `a:${r.audiencia_id}`, nomeById.get(r.usuario_id))
                   );
 
                   const extractHora = (iso?: string | null) => {
