@@ -316,6 +316,11 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
         const novo = await createEvento.mutateAsync(payload);
         if (novo?.id) await persistirRelacionamentos(novo.id);
       }
+      if (secondaryClickedRef.current) {
+        try { await secondarySave?.onAfterSuccess(); }
+        catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
+        finally { secondaryClickedRef.current = false; }
+      }
       onOpenChange(false);
     } catch (error) {
       console.error("Erro ao salvar evento:", error);
@@ -784,10 +789,27 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   Concluir
                 </Button>
               )}
-              <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+              <Button
+                type="submit"
+                disabled={isPending}
+                className="w-full sm:w-auto"
+                onClick={() => { secondaryClickedRef.current = false; }}
+              >
                 {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {isEditing ? "Salvar" : "Criar evento"}
               </Button>
+              {secondarySave && !isEditing && (
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  disabled={isPending}
+                  className="w-full sm:w-auto"
+                  onClick={() => { secondaryClickedRef.current = true; }}
+                >
+                  {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {secondarySave.label}
+                </Button>
+              )}
             </div>
           </form>
         </ScrollArea>
