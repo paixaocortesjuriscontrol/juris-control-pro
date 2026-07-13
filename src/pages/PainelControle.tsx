@@ -1265,7 +1265,15 @@ export default function PainelControle() {
                     (coords || []).forEach((c: any) => c?.id && coordNomeById.set(c.id, c.nome));
                   }
 
-                  const rows = itensPainelFiltrados.map((it) => {
+                  const itensOrdenados = [...itensPainelFiltrados].sort((a, b) => {
+                    const da = String(a.data_vencimento ?? a.data_inicio ?? "").slice(0, 10);
+                    const db = String(b.data_vencimento ?? b.data_inicio ?? "").slice(0, 10);
+                    if (!da && !db) return 0;
+                    if (!da) return 1;
+                    if (!db) return -1;
+                    return da.localeCompare(db);
+                  });
+                  const rows = itensOrdenados.map((it) => {
                     const rawId = String(it.id);
                     let key = "";
                     let horario = "";
