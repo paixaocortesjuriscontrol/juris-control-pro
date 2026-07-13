@@ -136,6 +136,7 @@ export interface DistribuicaoTstFilters {
   turma?: string;
   relator?: string;
   parte?: string;
+  parteRecorrente?: string;
   nomeParte?: string;
   aba_origem?: string;
   benner?: "todos" | "sim" | "nao";
@@ -407,7 +408,8 @@ export async function fetchAllDistribuicaoTstIds(
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
     if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
     if (filters.relator) query = query.ilike("relator", `%${filters.relator}%`);
-    if (filters.parte) query = query.eq("recorrente", filters.parte);
+    if (filters.parte) query = query.ilike("recorrente", `%${filters.parte}%`);
+    if (filters.parteRecorrente) query = query.eq("recorrente", filters.parteRecorrente);
     if (filters.nomeParte) {
       const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
@@ -473,6 +475,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.turma) return true;
   if (filters.relator) return true;
   if (filters.parte) return true;
+  if (filters.parteRecorrente) return true;
   if (filters.nomeParte) return true;
   if (filters.aba_origem && filters.aba_origem !== "todas") return true;
   if (filters.benner && filters.benner !== "todos") return true;
@@ -630,7 +633,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
     if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
     if (filters.relator) query = query.ilike("relator", `%${filters.relator}%`);
-    if (filters.parte) query = query.eq("recorrente", filters.parte);
+    if (filters.parte) query = query.ilike("recorrente", `%${filters.parte}%`);
+    if (filters.parteRecorrente) query = query.eq("recorrente", filters.parteRecorrente);
     if (filters.nomeParte) {
       const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
@@ -1019,7 +1023,8 @@ export async function fetchMesesDataRealFiltered(
     if (f.dossie) query = query.ilike("dossie", `%${f.dossie}%`);
     if (f.turma) query = query.ilike("turma", `%${f.turma}%`);
     if (f.relator) query = query.ilike("relator", `%${f.relator}%`);
-    if (f.parte) query = query.eq("recorrente", f.parte);
+    if (f.parte) query = query.ilike("recorrente", `%${f.parte}%`);
+    if (f.parteRecorrente) query = query.eq("recorrente", f.parteRecorrente);
     if (f.nomeParte) {
       const escaped = f.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);

@@ -207,6 +207,7 @@ export default function DistribuicaoTst() {
   const [filtroTurma, setFiltroTurma] = useState("");
   const [filtroRelator, setFiltroRelator] = useState("");
   const [filtroParte, setFiltroParte] = useState("");
+  const [filtroParteRecorrente, setFiltroParteRecorrente] = useState("");
   const [filtroNomeParte, setFiltroNomeParte] = useState("");
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
@@ -263,6 +264,7 @@ export default function DistribuicaoTst() {
         turma: filtroTurma || undefined,
         relator: filtroRelator || undefined,
         parte: filtroParte || undefined,
+        parteRecorrente: filtroParteRecorrente || undefined,
         nomeParte: filtroNomeParte || undefined,
         aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
         benner: filtroBenner as any,
@@ -290,7 +292,7 @@ export default function DistribuicaoTst() {
       });
     }, 400);
     return () => clearTimeout(timer);
-}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, filtroTagId, JSON.stringify(idsAllowedFromTag || [])]);
+}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, filtroTagId, JSON.stringify(idsAllowedFromTag || [])]);
 
   // IDs de processos com mais de um responsável, respeitando os demais filtros
   // (ignora filtro de responsável para que a contagem não se anule a si mesma).
@@ -465,7 +467,7 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroProblemaJudit !== "todos" || filtroAcordo !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" || filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagId !== "todas";
+  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroParteRecorrente || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroProblemaJudit !== "todos" || filtroAcordo !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" || filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagId !== "todas";
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -488,6 +490,7 @@ export default function DistribuicaoTst() {
     setFiltroTurma("");
     setFiltroRelator("");
     setFiltroParte("");
+    setFiltroParteRecorrente("");
     setFiltroNomeParte("");
     setFiltroDataInicio("");
     setFiltroDataFim("");
@@ -1073,7 +1076,8 @@ export default function DistribuicaoTst() {
           if (debouncedFilters.dossie) q = q.ilike("dossie", `%${debouncedFilters.dossie}%`);
           if (debouncedFilters.turma) q = q.ilike("turma", `%${debouncedFilters.turma}%`);
           if (debouncedFilters.relator) q = q.ilike("relator", `%${debouncedFilters.relator}%`);
-          if (debouncedFilters.parte) q = q.eq("recorrente", debouncedFilters.parte);
+          if (debouncedFilters.parte) q = q.ilike("recorrente", `%${debouncedFilters.parte}%`);
+          if (debouncedFilters.parteRecorrente) q = q.eq("recorrente", debouncedFilters.parteRecorrente);
 
           const { data, error } = await q.range(offset, offset + FETCH_SIZE - 1);
           if (error) { toast.error("Erro ao buscar processos: " + error.message); break; }
@@ -1371,6 +1375,7 @@ export default function DistribuicaoTst() {
             turma: filtroTurma || undefined,
             relator: filtroRelator || undefined,
             parte: filtroParte || undefined,
+            parteRecorrente: filtroParteRecorrente || undefined,
             nomeParte: filtroNomeParte || undefined,
             mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
             dataInicio: filtroDataInicio || undefined,
@@ -1959,7 +1964,11 @@ export default function DistribuicaoTst() {
                 <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <Input placeholder="Buscar por Dossiê" value={filtroDossie} onChange={e => setFiltroDossie(formatProcessoNumero(e.target.value) === "-" ? e.target.value : formatProcessoNumero(e.target.value))} className="h-8 text-xs pl-7" />
               </div>
-              <Select value={filtroParte || "todas"} onValueChange={(v) => setFiltroParte(v === "todas" ? "" : v)}>
+              <div className="relative">
+                <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <Input placeholder="Buscar por Parte Recorrente" value={filtroParte} onChange={e => setFiltroParte(e.target.value)} className="h-8 text-xs pl-7" />
+              </div>
+              <Select value={filtroParteRecorrente || "todas"} onValueChange={(v) => setFiltroParteRecorrente(v === "todas" ? "" : v)}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Parte Recorrente" />
                 </SelectTrigger>
