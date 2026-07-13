@@ -31,6 +31,16 @@ interface Props {
    * Usado na Análise DJEN para esconder a lista e abrir o formulário na mesma tela.
    */
   inline?: boolean;
+  /**
+   * Se true, ao criar a tarefa a publicação é marcada como lida.
+   * Se false (padrão), a publicação NÃO é marcada como lida ao salvar —
+   * o usuário deve usar o botão "Salvar e ler" para marcar.
+   */
+  markAsReadOnCreate?: boolean;
+  /**
+   * Callback usado pelo botão "Salvar e ler" (secondarySave.onAfterSuccess).
+   */
+  onMarkAsRead?: () => Promise<void> | void;
 }
 
 /**
@@ -45,6 +55,8 @@ export function NovaTarefaPublicacaoDialog({
   publicacao,
   defaultProcessoId,
   inline = false,
+  markAsReadOnCreate = false,
+  onMarkAsRead,
 }: Props) {
   const hasPublicacao = !!publicacao;
   const queryClient = useQueryClient();
@@ -89,26 +101,30 @@ export function NovaTarefaPublicacaoDialog({
           .from("tarefas_publicacoes")
           .insert({ tarefa_id: tarefaId, publicacao_id: publicacao.id });
         if (vErr) console.error("[NovaTarefaPub] vincular termo:", vErr);
-        const { error: uErr } = await supabase
-          .from("publicacoes_djen")
-          .update({ lida: true })
-          .eq("id", publicacao.id);
-        if (uErr) console.error("[NovaTarefaPub] update publicacoes_djen.lida:", uErr);
+        if (markAsReadOnCreate) {
+          const { error: uErr } = await supabase
+            .from("publicacoes_djen")
+            .update({ lida: true })
+            .eq("id", publicacao.id);
+          if (uErr) console.error("[NovaTarefaPub] update publicacoes_djen.lida:", uErr);
+        }
       } else if (publicacao.tipo_origem === "processo") {
         const { error: vErr } = await supabase
           .from("tarefas_publicacoes_processos")
           .insert({ tarefa_id: tarefaId, publicacao_processo_id: publicacao.id });
         if (vErr) console.error("[NovaTarefaPub] vincular processo:", vErr);
-        const { error: uErr, data: uData } = await supabase
-          .from("publicacoes_djen_processos")
-          .update({ lida: true })
-          .eq("id", publicacao.id)
-          .select("id");
-        if (uErr) console.error("[NovaTarefaPub] update publicacoes_djen_processos.lida:", uErr);
-        else console.log("[NovaTarefaPub] marcado como lida:", uData);
+        if (markAsReadOnCreate) {
+          const { error: uErr, data: uData } = await supabase
+            .from("publicacoes_djen_processos")
+            .update({ lida: true })
+            .eq("id", publicacao.id)
+            .select("id");
+          if (uErr) console.error("[NovaTarefaPub] update publicacoes_djen_processos.lida:", uErr);
+          else console.log("[NovaTarefaPub] marcado como lida:", uData);
+        }
       }
 
-      if (user?.id) {
+      if (user?.id && markAsReadOnCreate) {
         const { data: profile } = await supabase
           .from("profiles")
           .select("nome")
