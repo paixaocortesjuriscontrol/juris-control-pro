@@ -5206,7 +5206,7 @@ const AnaliseDjen = () => {
         )}
 
         {/* Dialog para criar tarefa a partir da publicação */}
-        <CriarTarefaPublicacaoDialog
+        <NovaTarefaPublicacaoDialog
           open={criarTarefaDialogOpen}
           onOpenChange={setCriarTarefaDialogOpen}
           publicacao={selectedPublicacao}
