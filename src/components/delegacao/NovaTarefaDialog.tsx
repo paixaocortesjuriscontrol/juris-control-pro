@@ -524,6 +524,10 @@ export function NovaTarefaDialog({
         throw new Error("Selecione pelo menos um responsável.");
       }
 
+      if (precisaSelecionar && !values.coordenacao_id) {
+        throw new Error("Selecione a coordenação.");
+      }
+
       // Edição
       if (tarefaParaEditar?.id) {
         const updatePayload: Record<string, any> = {
