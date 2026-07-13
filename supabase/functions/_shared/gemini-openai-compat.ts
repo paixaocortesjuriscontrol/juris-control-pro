@@ -9,7 +9,7 @@
 //   const data = await response.json(); // mesmo formato do OpenAI
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
-const DEFAULT_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-pro";
+const DEFAULT_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
 
 function mapModel(model?: string): string {
   if (!model) return DEFAULT_MODEL;
@@ -92,7 +92,7 @@ export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
   const key = Deno.env.get("GEMINI_API_KEY_DJEN") || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY");
   if (!key) {
     return new Response(
-      JSON.stringify({ error: { message: "Chave Gemini não configurada" } }),
+      JSON.stringify({ error: { message: "Chave Gemini não configurada (GEMINI_API_KEY_DJEN)." } }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }
@@ -138,8 +138,15 @@ export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
 
   if (!resp.ok) {
     const errText = await resp.text();
+    const lower = errText.toLowerCase();
+    const creditsDepleted = lower.includes("prepayment credits are depleted")
+      || lower.includes("resource_exhausted")
+      || lower.includes("quota");
+    const friendly = creditsDepleted
+      ? "A chave Gemini configurada está SEM CRÉDITOS no Google AI Studio. Adicione créditos em https://ai.studio/projects para continuar usando a IA."
+      : `Gemini ${resp.status}: ${errText.slice(0, 500)}`;
     return new Response(
-      JSON.stringify({ error: { message: `Gemini ${resp.status}: ${errText}` } }),
+      JSON.stringify({ error: { message: friendly, gemini_status: resp.status, gemini_raw: errText.slice(0, 500) } }),
       { status: resp.status, headers: { "Content-Type": "application/json" } },
     );
   }

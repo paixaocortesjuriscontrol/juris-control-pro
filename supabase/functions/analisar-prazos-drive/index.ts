@@ -221,7 +221,7 @@ function base64ToUint8Array(base64: string): Uint8Array {
 // --- AI analysis ---
 
 async function analyzeWithAI(text: string, fileName: string): Promise<any[]> {
-  if (!Deno.env.get("GEMINI_API_KEY")) throw new Error("GEMINI_API_KEY não configurada");
+  if (!(Deno.env.get("GEMINI_API_KEY_DJEN") || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY"))) throw new Error("GEMINI_API_KEY não configurada");
 
   const systemPrompt = `Você é um analista jurídico especializado em processos trabalhistas do TST.
 Analise o documento fornecido e extraia TODOS os processos encontrados. Um único documento pode conter MÚLTIPLOS processos.

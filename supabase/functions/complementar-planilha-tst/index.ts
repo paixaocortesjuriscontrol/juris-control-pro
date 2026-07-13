@@ -23,7 +23,7 @@ serve(async (req) => {
       );
     }
 
-    if (!Deno.env.get("GEMINI_API_KEY")) {
+    if (!(Deno.env.get("GEMINI_API_KEY_DJEN") || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY"))) {
       throw new Error("GEMINI_API_KEY não configurada");
     }
 
