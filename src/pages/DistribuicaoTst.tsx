@@ -1374,6 +1374,7 @@ export default function DistribuicaoTst() {
             turma: filtroTurma || undefined,
             relator: filtroRelator || undefined,
             parte: filtroParte || undefined,
+            parteRecorrente: filtroParteRecorrente || undefined,
             nomeParte: filtroNomeParte || undefined,
             mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
             dataInicio: filtroDataInicio || undefined,
