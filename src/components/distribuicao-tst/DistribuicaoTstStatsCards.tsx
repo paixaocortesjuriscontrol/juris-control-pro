@@ -23,6 +23,7 @@ export type StatsCardKey =
   | "ate2025"
   | "de2026"
   | "prontoEnvio"
+  | "prontoSemPendencia"
   | "semResponsavel"
   | "comEquipe"
   | "semEquipe"
@@ -40,6 +41,9 @@ interface Props {
   onResponsavelClick?: () => void;
   /** Card "Mais de um responsável" — quantidade de processos com >1 responsável. */
   multiRespCard?: { count: number; active: boolean; onClick: () => void } | null;
+  /** Contagem de processos "Pronto para Enviar" sem pendências (computado no
+   *  cliente, respeita todos os filtros/cards ativos). */
+  prontoSemPendencia?: { count: number; loading: boolean } | null;
 }
 
 interface CardDef {
@@ -50,7 +54,7 @@ interface CardDef {
   textClass: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick, multiRespCard }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia }: Props) {
   const cards: CardDef[] = [
     // Azuis / Ciano / Teal / Sky
     { key: "total", label: "Total Geral", value: stats.total, className: "from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800", textClass: "text-blue-600 dark:text-blue-400" },
@@ -60,6 +64,15 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "naoPrecisaFazer", label: "Não precisa fazer", value: stats.naoPrecisaFazer, className: "from-slate-50 to-slate-100 dark:from-slate-950/50 dark:to-slate-900/30 border-slate-300 dark:border-slate-700", textClass: "text-slate-700 dark:text-slate-300" },
     { key: "bennerSim", label: "Benner Enviado / Não", value: stats.bennerSim, className: "from-cyan-50 to-cyan-100 dark:from-cyan-950/50 dark:to-cyan-900/30 border-cyan-200 dark:border-cyan-800", textClass: "text-cyan-600 dark:text-cyan-400" },
     { key: "prontoEnvio", label: "Prontos para Enviar (geral)", value: stats.prontoEnvio, className: "from-teal-50 to-teal-100 dark:from-teal-950/50 dark:to-teal-900/30 border-teal-200 dark:border-teal-800", textClass: "text-teal-600 dark:text-teal-400" },
+    ...(prontoSemPendencia
+      ? [{
+          key: "prontoSemPendencia" as StatsCardKey,
+          label: "Pronto sem pendência",
+          value: prontoSemPendencia.count,
+          className: "from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800",
+          textClass: "text-emerald-700 dark:text-emerald-400",
+        }]
+      : []),
     // Roxos / Violeta
     { key: "processosUnicos", label: "Processos Únicos", value: stats.processosUnicos, className: "from-indigo-50 to-indigo-100 dark:from-indigo-950/50 dark:to-indigo-900/30 border-indigo-200 dark:border-indigo-800", textClass: "text-indigo-600 dark:text-indigo-400" },
     { key: "juditPreenchido", label: "Judit Preenchido / Não", value: stats.juditPreenchido, className: "from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/30 border-purple-200 dark:border-purple-800", textClass: "text-purple-600 dark:text-purple-400" },
@@ -236,7 +249,9 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
             <CardContent className="p-2">
               <p className={cn("text-[8px] md:text-[10px] font-medium truncate leading-tight", c.textClass)} title={c.label}>{c.label}</p>
               <p className={cn("text-sm md:text-base font-bold mt-0.5 leading-tight", c.textClass)}>
-                {loading ? <Loader2 className="w-3 h-3 animate-spin inline" /> : c.value.toLocaleString("pt-BR")}
+                {(c.key === "prontoSemPendencia" ? (prontoSemPendencia?.loading ?? false) : loading)
+                  ? <Loader2 className="w-3 h-3 animate-spin inline" />
+                  : c.value.toLocaleString("pt-BR")}
               </p>
             </CardContent>
           </Card>
