@@ -1097,9 +1097,13 @@ const AnaliseDjenServidor = () => {
     await resolverProcessoDaPublicacao(pub);
   };
 
-  const handleAdicionarClick = (pub: PublicacaoUnificada) => {
+  const handleAdicionarClick = async (pub: PublicacaoUnificada) => {
     if (!pub.lida && !marcarComoLida.isPending) {
-      marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+      try {
+        await marcarComoLida.mutateAsync([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+      } catch (error) {
+        console.error("Erro ao marcar publicação como lida:", error);
+      }
     }
   };
 
@@ -4911,13 +4915,13 @@ const AnaliseDjenServidor = () => {
                                             <DropdownMenuItem onSelect={() => setTimeout(() => handleCriarTarefa(pub), 0)}>
                                               <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { setSelectedPublicacao(pub); await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); setSelectedPublicacao({ ...pub, lida: true }); await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
                                               <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setSelectedPublicacao(pub); setNovoPrazoOpen(true); }, 0)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); await resolverProcessoDaPublicacao(pub); setSelectedPublicacao({ ...pub, lida: true }); setNovoPrazoOpen(true); }, 0)}>
                                               <Clock className="w-4 h-4 mr-2" /> Prazo
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { setSelectedPublicacao(pub); await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); setSelectedPublicacao({ ...pub, lida: true }); await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
                                               <Gavel className="w-4 h-4 mr-2" /> Audiência
                                             </DropdownMenuItem>
                                           </DropdownMenuContent>
@@ -5008,13 +5012,13 @@ const AnaliseDjenServidor = () => {
                                            <DropdownMenuItem onSelect={() => setTimeout(() => handleCriarTarefa(pub), 0)}>
                                              <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { setSelectedPublicacao(pub); await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); setSelectedPublicacao({ ...pub, lida: true }); await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
                                              <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                                            </DropdownMenuItem>
-                                          <DropdownMenuItem onSelect={() => setTimeout(async () => { await resolverProcessoDaPublicacao(pub); setSelectedPublicacao(pub); setNovoPrazoOpen(true); }, 0)}>
+                                          <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); await resolverProcessoDaPublicacao(pub); setSelectedPublicacao({ ...pub, lida: true }); setNovoPrazoOpen(true); }, 0)}>
                                              <Clock className="w-4 h-4 mr-2" /> Prazo
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { setSelectedPublicacao(pub); await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); setSelectedPublicacao({ ...pub, lida: true }); await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
                                              <Gavel className="w-4 h-4 mr-2" /> Audiência
                                            </DropdownMenuItem>
                                          </DropdownMenuContent>
