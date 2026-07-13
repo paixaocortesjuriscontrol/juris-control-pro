@@ -1084,7 +1084,14 @@ const AnaliseDjenServidor = () => {
   };
 
   const handleCriarTarefa = async (pub: PublicacaoUnificada) => {
-    setSelectedPublicacao(pub);
+    if (!pub.lida && !marcarComoLida.isPending) {
+      try {
+        await marcarComoLida.mutateAsync([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+      } catch (error) {
+        console.error("Erro ao marcar publicação como lida ao criar tarefa:", error);
+      }
+    }
+    setSelectedPublicacao({ ...pub, lida: true });
     setCriarTarefaDialogOpen(true);
     // Resolve/cria processo em paralelo para o vínculo da tarefa
     await resolverProcessoDaPublicacao(pub);
