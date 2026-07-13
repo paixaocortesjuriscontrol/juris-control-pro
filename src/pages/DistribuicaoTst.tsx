@@ -1959,7 +1959,11 @@ export default function DistribuicaoTst() {
                 <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <Input placeholder="Buscar por Dossiê" value={filtroDossie} onChange={e => setFiltroDossie(formatProcessoNumero(e.target.value) === "-" ? e.target.value : formatProcessoNumero(e.target.value))} className="h-8 text-xs pl-7" />
               </div>
-              <Select value={filtroParte || "todas"} onValueChange={(v) => setFiltroParte(v === "todas" ? "" : v)}>
+              <div className="relative">
+                <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <Input placeholder="Buscar por Parte Recorrente" value={filtroParte} onChange={e => setFiltroParte(e.target.value)} className="h-8 text-xs pl-7" />
+              </div>
+              <Select value={filtroParteRecorrente || "todas"} onValueChange={(v) => setFiltroParteRecorrente(v === "todas" ? "" : v)}>
                 <SelectTrigger className="h-8 text-xs">
                   <SelectValue placeholder="Parte Recorrente" />
                 </SelectTrigger>
