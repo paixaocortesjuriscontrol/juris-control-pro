@@ -1053,27 +1053,15 @@ const AnaliseDjen = () => {
   };
 
   const handleCriarTarefa = async (pub: PublicacaoUnificada) => {
-    if (!pub.lida && !marcarComoLida.isPending) {
-      try {
-        await marcarComoLida.mutateAsync([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
-      } catch (error) {
-        console.error("Erro ao marcar publicação como lida ao criar tarefa:", error);
-      }
-    }
-    setSelectedPublicacao({ ...pub, lida: true });
+    // Não marca como lida automaticamente — use o botão "Salvar e ler" no formulário.
+    setSelectedPublicacao(pub);
     setCriarTarefaDialogOpen(true);
-    // Resolve/cria processo em paralelo para o vínculo da tarefa
     await resolverProcessoDaPublicacao(pub);
   };
 
-  const handleAdicionarClick = async (pub: PublicacaoUnificada) => {
-    if (!pub.lida && !marcarComoLida.isPending) {
-      try {
-        await marcarComoLida.mutateAsync([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
-      } catch (error) {
-        console.error("Erro ao marcar publicação como lida:", error);
-      }
-    }
+  const handleAdicionarClick = async (_pub: PublicacaoUnificada) => {
+    // Não marca como lida automaticamente — a marcação passou a acontecer
+    // apenas quando o usuário clicar em "Salvar e ler" dentro do formulário.
   };
 
 
