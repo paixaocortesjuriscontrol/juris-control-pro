@@ -4545,6 +4545,24 @@ const AnaliseDjen = () => {
           <Button
             variant="outline"
             size="sm"
+            onClick={handleDescartarDuplicadasSelecionadas}
+            disabled={selectedIds.size < 2 || descartandoDupSelecionadas || descartarManualmente.isPending}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 text-amber-700 hover:text-amber-800 hover:bg-amber-50 border-amber-300"
+            title="Descarta apenas as duplicadas entre as selecionadas, mantendo uma por grupo (mesma coordenação + id_djen)"
+          >
+            {descartandoDupSelecionadas ? (
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+            ) : (
+              <Copy className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            )}
+            <span className="hidden sm:inline">Descartar duplicadas selecionadas</span>
+            <span className="sm:hidden">Duplicadas</span>
+            <span className="ml-1">({selectedIds.size})</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleGerarPdf}
             disabled={allPublicacoes.length === 0}
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
