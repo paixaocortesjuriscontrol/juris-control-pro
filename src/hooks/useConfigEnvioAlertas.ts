@@ -11,6 +11,7 @@ export interface ConfigEnvioAlerta {
   dias_antes: number[];
   destinatarios_ids: string[];
   ativo: boolean;
+  dias_semana: number[];
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +51,7 @@ export function useConfigEnvioAlertas(coordenacaoId?: string) {
             dias_antes: payload.dias_antes ?? [0],
             destinatarios_ids: payload.destinatarios_ids ?? [],
             ativo: payload.ativo ?? true,
+            dias_semana: payload.dias_semana ?? [1, 2, 3, 4, 5],
           })
           .eq("id", (existing as any).id);
         if (error) throw error;
@@ -65,6 +67,7 @@ export function useConfigEnvioAlertas(coordenacaoId?: string) {
             dias_antes: payload.dias_antes ?? [0],
             destinatarios_ids: payload.destinatarios_ids ?? [],
             ativo: payload.ativo ?? true,
+            dias_semana: payload.dias_semana ?? [1, 2, 3, 4, 5],
             created_by: userRes.user?.id ?? null,
           });
         if (error) throw error;

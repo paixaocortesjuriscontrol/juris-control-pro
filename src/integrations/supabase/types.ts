@@ -1590,6 +1590,7 @@ export type Database = {
           created_by: string | null
           destinatarios_ids: string[]
           dias_antes: number[]
+          dias_semana: number[]
           id: string
           tipo_tarefa: string
           updated_at: string
@@ -1603,6 +1604,7 @@ export type Database = {
           created_by?: string | null
           destinatarios_ids?: string[]
           dias_antes?: number[]
+          dias_semana?: number[]
           id?: string
           tipo_tarefa: string
           updated_at?: string
@@ -1616,6 +1618,7 @@ export type Database = {
           created_by?: string | null
           destinatarios_ids?: string[]
           dias_antes?: number[]
+          dias_semana?: number[]
           id?: string
           tipo_tarefa?: string
           updated_at?: string

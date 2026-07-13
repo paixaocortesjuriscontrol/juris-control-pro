@@ -140,6 +140,7 @@ export function ConfigAlertasCoordenacaoPanel({
   const [diasCustom, setDiasCustom] = useState("");
   const [destinatarios, setDestinatarios] = useState<string[]>([]);
   const [envioAtivo, setEnvioAtivo] = useState(true);
+  const [diasSemanaEnvio, setDiasSemanaEnvio] = useState<number[]>([1, 2, 3, 4, 5]);
 
   const configEnvioAtual = useMemo(
     () => configsEnvio.find((c) => c.tipo_tarefa === tipoSelecionado),
@@ -156,6 +157,11 @@ export function ConfigAlertasCoordenacaoPanel({
       setDiasCustom(extras.join(", "));
       setDestinatarios(configEnvioAtual.destinatarios_ids || []);
       setEnvioAtivo(configEnvioAtual.ativo);
+      setDiasSemanaEnvio(
+        Array.isArray((configEnvioAtual as any).dias_semana) && (configEnvioAtual as any).dias_semana.length
+          ? (configEnvioAtual as any).dias_semana
+          : [1, 2, 3, 4, 5]
+      );
     } else {
       setEnvioCanalEmail(false);
       setEnvioCanalWhats(false);
@@ -163,12 +169,18 @@ export function ConfigAlertasCoordenacaoPanel({
       setDiasCustom("");
       setDestinatarios([]);
       setEnvioAtivo(true);
+      setDiasSemanaEnvio([1, 2, 3, 4, 5]);
     }
   }, [tipoSelecionado, configEnvioAtual]);
 
   const toggleDia = (dia: number) => {
     setDiasSelecionados((prev) =>
       prev.includes(dia) ? prev.filter((d) => d !== dia) : [...prev, dia]
+    );
+  };
+  const toggleDiaSemanaEnvio = (dia: number) => {
+    setDiasSemanaEnvio((prev) =>
+      prev.includes(dia) ? prev.filter((d) => d !== dia) : [...prev, dia].sort()
     );
   };
   const parseCustomDias = (): number[] =>
@@ -189,6 +201,7 @@ export function ConfigAlertasCoordenacaoPanel({
       dias_antes: dias.length > 0 ? dias : [0],
       destinatarios_ids: destinatarios,
       ativo: envioAtivo,
+      dias_semana: diasSemanaEnvio,
     });
   };
 
@@ -572,6 +585,30 @@ export function ConfigAlertasCoordenacaoPanel({
                         placeholder="Selecione os membros que receberão alertas"
                         icon="users"
                       />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        Dias da Semana
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Os alertas serão enviados apenas nos dias marcados.
+                      </p>
+                      <div className="flex gap-1 flex-wrap">
+                        {DIAS_SEMANA.map((dia) => (
+                          <Button
+                            key={dia.value}
+                            type="button"
+                            variant={diasSemanaEnvio.includes(dia.value) ? "default" : "outline"}
+                            size="sm"
+                            className="w-10"
+                            onClick={() => toggleDiaSemanaEnvio(dia.value)}
+                          >
+                            {dia.label}
+                          </Button>
+                        ))}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
