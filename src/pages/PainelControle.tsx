@@ -1137,16 +1137,135 @@ export default function PainelControle() {
                 className="h-7 px-2 text-xs gap-1"
                 onClick={async () => {
                   const XLSX = await import("xlsx");
-                  const rows = itensPainelFiltrados.map((it) => ({
-                    Classificação: TIPO_LABELS[it.tipo as string] ?? it.tipo_tarefa ?? it.tipo,
-                    Título: it.titulo,
-                    Status: it.status,
-                    "Data prevista": (it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10),
-                    "Data fatal": (it.data_fatal ?? "").slice(0, 10),
-                    Responsável: it.responsavel?.nome ?? "",
-                    Processo: it.processo?.numero ?? "",
-                    Coordenação: (it as any).coordenacao_nome ?? "",
-                  }));
+                  // Coletar IDs por origem para buscar responsáveis/envolvidos (N:N)
+                  const tarefaIds: string[] = [];
+                  const eventoIds: string[] = [];
+                  const audienciaIds: string[] = [];
+                  for (const it of itensPainelFiltrados) {
+                    const rawId = String(it.id);
+                    if (rawId.startsWith("audiencia-det-")) {
+                      audienciaIds.push(rawId.replace("audiencia-det-", ""));
+                    } else if (rawId.startsWith("prazo-tst-")) {
+                      // sem N:N — ignorar
+                    } else if (it.origem === "tarefa") {
+                      tarefaIds.push(rawId);
+                    } else if (it.origem === "evento") {
+                      eventoIds.push(rawId.split("::")[0]);
+                    }
+                  }
+
+                  const [
+                    tarefaResp,
+                    tarefaEnv,
+                    eventoResp,
+                    eventoEnv,
+                    audAdv,
+                    audEnv,
+                  ] = await Promise.all([
+                    tarefaIds.length
+                      ? supabase
+                          .from("tarefa_responsaveis")
+                          .select("tarefa_id, usuario:profiles!tarefa_responsaveis_usuario_id_fkey(id,nome)")
+                          .in("tarefa_id", tarefaIds)
+                      : Promise.resolve({ data: [] as any[] }),
+                    tarefaIds.length
+                      ? supabase
+                          .from("tarefa_envolvidos")
+                          .select("tarefa_id, usuario:profiles!tarefa_envolvidos_usuario_id_fkey(id,nome)")
+                          .in("tarefa_id", tarefaIds)
+                      : Promise.resolve({ data: [] as any[] }),
+                    eventoIds.length
+                      ? supabase
+                          .from("evento_responsaveis")
+                          .select("evento_id, usuario:profiles!evento_responsaveis_usuario_id_fkey(id,nome)")
+                          .in("evento_id", eventoIds)
+                      : Promise.resolve({ data: [] as any[] }),
+                    eventoIds.length
+                      ? supabase
+                          .from("evento_envolvidos")
+                          .select("evento_id, usuario:profiles!evento_envolvidos_usuario_id_fkey(id,nome)")
+                          .in("evento_id", eventoIds)
+                      : Promise.resolve({ data: [] as any[] }),
+                    audienciaIds.length
+                      ? supabase
+                          .from("audiencias_advogados")
+                          .select("audiencia_id, advogado:profiles!audiencias_advogados_advogado_id_fkey(id,nome)")
+                          .in("audiencia_id", audienciaIds)
+                      : Promise.resolve({ data: [] as any[] }),
+                    audienciaIds.length
+                      ? supabase
+                          .from("audiencia_envolvidos")
+                          .select("audiencia_id, usuario:profiles!audiencia_envolvidos_usuario_id_fkey(id,nome)")
+                          .in("audiencia_id", audienciaIds)
+                      : Promise.resolve({ data: [] as any[] }),
+                  ]);
+
+                  const pushNome = (map: Map<string, string[]>, key: string, nome?: string | null) => {
+                    if (!nome) return;
+                    const arr = map.get(key) ?? [];
+                    if (!arr.includes(nome)) arr.push(nome);
+                    map.set(key, arr);
+                  };
+                  const respMap = new Map<string, string[]>();
+                  const envMap = new Map<string, string[]>();
+                  ((tarefaResp.data as any[]) || []).forEach((r) =>
+                    pushNome(respMap, `t:${r.tarefa_id}`, r.usuario?.nome)
+                  );
+                  ((tarefaEnv.data as any[]) || []).forEach((r) =>
+                    pushNome(envMap, `t:${r.tarefa_id}`, r.usuario?.nome)
+                  );
+                  ((eventoResp.data as any[]) || []).forEach((r) =>
+                    pushNome(respMap, `e:${r.evento_id}`, r.usuario?.nome)
+                  );
+                  ((eventoEnv.data as any[]) || []).forEach((r) =>
+                    pushNome(envMap, `e:${r.evento_id}`, r.usuario?.nome)
+                  );
+                  ((audAdv.data as any[]) || []).forEach((r) =>
+                    pushNome(respMap, `a:${r.audiencia_id}`, r.advogado?.nome)
+                  );
+                  ((audEnv.data as any[]) || []).forEach((r) =>
+                    pushNome(envMap, `a:${r.audiencia_id}`, r.usuario?.nome)
+                  );
+
+                  const extractHora = (iso?: string | null) => {
+                    if (!iso) return "";
+                    const m = String(iso).match(/T(\d{2}:\d{2})/);
+                    return m ? m[1] : "";
+                  };
+
+                  const rows = itensPainelFiltrados.map((it) => {
+                    const rawId = String(it.id);
+                    let key = "";
+                    let horario = "";
+                    if (rawId.startsWith("audiencia-det-")) {
+                      key = `a:${rawId.replace("audiencia-det-", "")}`;
+                      horario = it.dia_inteiro ? "" : extractHora(it.data_inicio);
+                    } else if (it.origem === "tarefa") {
+                      key = `t:${rawId}`;
+                      horario = (it.hora_fatal ?? "").slice(0, 5);
+                    } else if (it.origem === "evento") {
+                      key = `e:${rawId.split("::")[0]}`;
+                      horario = it.dia_inteiro ? "" : extractHora(it.data_inicio);
+                    }
+                    const responsaveisArr = respMap.get(key) ?? [];
+                    // fallback para o responsável 1:1 quando não há N:N cadastrado
+                    if (responsaveisArr.length === 0 && it.responsavel?.nome) {
+                      responsaveisArr.push(it.responsavel.nome);
+                    }
+                    const envolvidosArr = envMap.get(key) ?? [];
+                    return {
+                      Classificação: TIPO_LABELS[it.tipo as string] ?? it.tipo_tarefa ?? it.tipo,
+                      Título: it.titulo,
+                      Status: it.status,
+                      "Data prevista": (it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10),
+                      Horário: horario,
+                      "Data fatal": (it.data_fatal ?? "").slice(0, 10),
+                      Responsáveis: responsaveisArr.join(", "),
+                      Envolvidos: envolvidosArr.join(", "),
+                      Processo: it.processo?.numero ?? "",
+                      Coordenação: (it as any).coordenacao_nome ?? "",
+                    };
+                  });
                   const ws = XLSX.utils.json_to_sheet(rows);
                   const wb = XLSX.utils.book_new();
                   XLSX.utils.book_append_sheet(wb, ws, "Atividades");
