@@ -1073,7 +1073,7 @@ export default function DistribuicaoTst() {
           if (debouncedFilters.dossie) q = q.ilike("dossie", `%${debouncedFilters.dossie}%`);
           if (debouncedFilters.turma) q = q.ilike("turma", `%${debouncedFilters.turma}%`);
           if (debouncedFilters.relator) q = q.ilike("relator", `%${debouncedFilters.relator}%`);
-          if (debouncedFilters.parte) q = q.ilike("recorrente", `%${debouncedFilters.parte}%`);
+          if (debouncedFilters.parte) q = q.eq("recorrente", debouncedFilters.parte);
 
           const { data, error } = await q.range(offset, offset + FETCH_SIZE - 1);
           if (error) { toast.error("Erro ao buscar processos: " + error.message); break; }
@@ -1959,10 +1959,21 @@ export default function DistribuicaoTst() {
                 <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <Input placeholder="Buscar por Dossiê" value={filtroDossie} onChange={e => setFiltroDossie(formatProcessoNumero(e.target.value) === "-" ? e.target.value : formatProcessoNumero(e.target.value))} className="h-8 text-xs pl-7" />
               </div>
-              <div className="relative">
-                <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                <Input placeholder="Buscar por Parte Recorrente" value={filtroParte} onChange={e => setFiltroParte(e.target.value)} className="h-8 text-xs pl-7" />
-              </div>
+              <Select value={filtroParte || "todas"} onValueChange={(v) => setFiltroParte(v === "todas" ? "" : v)}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Parte Recorrente" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as Partes Recorrentes</SelectItem>
+                  <SelectItem value="Reclamante">Reclamante</SelectItem>
+                  <SelectItem value="Reclamado">Reclamado</SelectItem>
+                  <SelectItem value="Reclamante e Reclamado">Reclamante e Reclamado</SelectItem>
+                  <SelectItem value="Terceiro">Terceiro</SelectItem>
+                  <SelectItem value="Reclamante e Terceiro">Reclamante e Terceiro</SelectItem>
+                  <SelectItem value="Reclamado e Terceiro">Reclamado e Terceiro</SelectItem>
+                  <SelectItem value="Reclamante, Reclamado e Terceiro">Reclamante, Reclamado e Terceiro</SelectItem>
+                </SelectContent>
+              </Select>
               <div className="relative">
                 <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <Input placeholder="Buscar por Nome da Parte (Reclamante/Reclamada)" value={filtroNomeParte} onChange={e => setFiltroNomeParte(e.target.value)} className="h-8 text-xs pl-7" />
