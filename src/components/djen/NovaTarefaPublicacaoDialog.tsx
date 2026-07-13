@@ -257,6 +257,11 @@ export function NovaTarefaPublicacaoDialog({
               processoPreSelecionado={processoPre}
               publicacao={publicacao}
               onCreated={handleCreated}
+              secondarySave={
+                onMarkAsRead
+                  ? { label: "Salvar e ler", onAfterSuccess: async () => { await onMarkAsRead(); } }
+                  : undefined
+              }
             />
           </div>
     </div>
