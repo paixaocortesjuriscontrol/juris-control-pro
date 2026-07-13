@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!user) return json({ error: "Token inválido" }, 401);
 
-    if (!Deno.env.get("GEMINI_API_KEY")) return json({ error: "GEMINI_API_KEY não configurada" }, 500);
+    if (!(Deno.env.get("GEMINI_API_KEY_DJEN") || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY"))) return json({ error: "GEMINI_API_KEY não configurada" }, 500);
 
     const body = await req.json();
     const processoId: string | null = body?.processo_id || null;

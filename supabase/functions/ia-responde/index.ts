@@ -289,7 +289,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "messages obrigatório" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    if (!Deno.env.get("GEMINI_API_KEY")) throw new Error("GEMINI_API_KEY não configurada");
+    if (!(Deno.env.get("GEMINI_API_KEY_DJEN") || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY"))) throw new Error("GEMINI_API_KEY não configurada");
     const MODEL = "gemini-2.5-pro";
 
     // Carrega schema real (com fallback silencioso)
