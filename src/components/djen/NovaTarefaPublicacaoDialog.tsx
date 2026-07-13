@@ -26,6 +26,11 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   publicacao: PublicacaoUnificada | null;
   defaultProcessoId?: string;
+  /**
+   * Quando true, renderiza o conteúdo diretamente na página (sem Dialog/modal).
+   * Usado na Análise DJEN para esconder a lista e abrir o formulário na mesma tela.
+   */
+  inline?: boolean;
 }
 
 /**
@@ -39,6 +44,7 @@ export function NovaTarefaPublicacaoDialog({
   onOpenChange,
   publicacao,
   defaultProcessoId,
+  inline = false,
 }: Props) {
   const hasPublicacao = !!publicacao;
   const queryClient = useQueryClient();
@@ -169,19 +175,8 @@ export function NovaTarefaPublicacaoDialog({
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className={cn(
-          "p-0 gap-0 overflow-hidden flex flex-col",
-          hasPublicacao ? "max-w-5xl w-[95vw] h-[90vh]" : "max-w-2xl max-h-[90vh]"
-        )}
-      >
-        <DialogHeader className="sr-only">
-          <DialogTitle>Nova Tarefa</DialogTitle>
-        </DialogHeader>
-
-        <div
+  const body = (
+    <div
           className={cn(
             "flex flex-1 min-h-0 overflow-hidden",
             hasPublicacao ? "flex-col lg:flex-row" : "flex-col"
@@ -248,7 +243,30 @@ export function NovaTarefaPublicacaoDialog({
               onCreated={handleCreated}
             />
           </div>
-        </div>
+    </div>
+  );
+
+  if (inline) {
+    if (!open) return null;
+    return (
+      <div className="rounded-md border bg-background overflow-hidden flex flex-col min-h-[70vh] max-h-[calc(100vh-12rem)]">
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className={cn(
+          "p-0 gap-0 overflow-hidden flex flex-col",
+          hasPublicacao ? "max-w-5xl w-[95vw] h-[90vh]" : "max-w-2xl max-h-[90vh]"
+        )}
+      >
+        <DialogHeader className="sr-only">
+          <DialogTitle>Nova Tarefa</DialogTitle>
+        </DialogHeader>
+        {body}
       </DialogContent>
     </Dialog>
   );
