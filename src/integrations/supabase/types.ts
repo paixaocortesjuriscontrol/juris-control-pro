@@ -8515,6 +8515,7 @@ export type Database = {
         Args: { p_id: string; p_motivo?: string; p_tipo_origem: string }
         Returns: Json
       }
+      desfazer_descarte_individual: { Args: { p_id: string }; Returns: Json }
       desfazer_descarte_lote: { Args: { p_lote_id: string }; Returns: Json }
       destravar_execucao_servidor: {
         Args: { p_id: string }
