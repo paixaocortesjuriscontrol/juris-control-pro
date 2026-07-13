@@ -103,6 +103,15 @@ interface NovaTarefaDialogProps {
   inline?: boolean;
   publicacao?: PublicacaoUnificada | null;
   onCreated?: (tarefaId: string) => void | Promise<void>;
+  /**
+   * Botão extra ao lado de "Salvar". Se definido, exibe um segundo botão
+   * (ex.: "Salvar e ler") que dispara o mesmo submit e, em caso de sucesso,
+   * chama `onAfterSuccess` antes de fechar o diálogo.
+   */
+  secondarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
 }
 
 export function NovaTarefaDialog({
@@ -115,8 +124,10 @@ export function NovaTarefaDialog({
   inline = false,
   publicacao = null,
   onCreated,
+  secondarySave,
 }: NovaTarefaDialogProps) {
   const [loading, setLoading] = useState(false);
+  const secondaryClickedRef = useRef(false);
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
@@ -705,6 +716,15 @@ export function NovaTarefaDialog({
       ]);
       if (novaTarefa?.id && onCreated) {
         await onCreated(novaTarefa.id);
+      }
+      if (secondaryClickedRef.current) {
+        try {
+          await secondarySave?.onAfterSuccess();
+        } catch (err) {
+          console.error("secondarySave.onAfterSuccess falhou:", err);
+        } finally {
+          secondaryClickedRef.current = false;
+        }
       }
       onOpenChange(false);
       onSuccess?.();
