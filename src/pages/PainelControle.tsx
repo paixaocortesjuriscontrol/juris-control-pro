@@ -1000,11 +1000,11 @@ export default function PainelControle() {
         </div>
       }
     >
-      <div className="flex flex-col -m-4 md:-m-6" style={{ height: "calc(100vh - 64px)" }}>
+      <div className="flex flex-col -m-4 md:-m-6 md:h-[calc(100vh-64px)]">
         {/* Header */}
         <div className="px-4 md:px-6 py-3 md:py-4 bg-card border-b border-border flex-shrink-0 space-y-2">
-          <div className="flex items-center gap-3">
-            <div className="flex gap-1">
+          <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+            <div className="flex gap-1 flex-shrink-0">
               <Button
                 size="sm"
                 variant={tabMode === "pessoal" ? "default" : "outline"}
