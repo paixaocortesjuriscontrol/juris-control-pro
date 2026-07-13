@@ -30,6 +30,10 @@ type Props = {
   defaultTitulo?: string;
   defaultObservacoes?: string;
   defaultDataAudiencia?: string;
+  secondarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
 };
 
 const empty = {
@@ -61,8 +65,10 @@ export function AudienciaFormSimplificado({
   defaultTitulo,
   defaultObservacoes,
   defaultDataAudiencia,
+  secondarySave,
 }: Props) {
   const { criarAudiencia } = useAudienciasDetectadas();
+  const secondaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const [form, setForm] = useState({
     ...empty,
@@ -174,6 +180,11 @@ export function AudienciaFormSimplificado({
     setResponsaveisIds([]);
     setEnvolvidosIds([]);
     setMostrarEnvolvidos(false);
+    if (secondaryClickedRef.current) {
+      try { await secondarySave?.onAfterSuccess(); }
+      catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
+      finally { secondaryClickedRef.current = false; }
+    }
     onSuccess?.();
   };
 
