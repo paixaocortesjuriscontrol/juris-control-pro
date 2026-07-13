@@ -52,12 +52,10 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
             "recurso_terceiro",
             "recurso_terceiros",
             "recorrente",
-            "parte_recorrente",
             "midia_negativa",
             "tem_data_julgamento",
             "materias_analise_reclamante",
             "materias_analise_banco",
-            "materias_analise_terceiro",
             ...COLUNAS_SELECT_PENDENCIAS,
           ]),
         ).join(", ");
