@@ -39,6 +39,7 @@ import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/form
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { aplicarMascaraCnj } from "@/utils/cnjMask";
 
 type Unidade = "uteis" | "corridos";
 
