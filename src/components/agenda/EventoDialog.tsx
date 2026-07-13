@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
+import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { useCreateEvento, useUpdateEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -351,7 +352,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                 </div>
                 <div className="space-y-1 text-sm">
                   {publicacao?.processo_numero && (
-                    <div className="font-mono text-xs">{publicacao.processo_numero}</div>
+                    <div className="font-mono text-xs">{aplicarMascaraCnj(publicacao.processo_numero)}</div>
                   )}
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     {publicacao?.data_publicacao && (
