@@ -72,34 +72,40 @@ export function NovaTarefaPublicacaoDialog({
 
   const handleCreated = async (tarefaId: string) => {
     if (!publicacao) return;
+    const tipoLeitura = publicacao.tipo_origem === "processo" ? "processo" : "termo";
     try {
-      const tipoLeitura = publicacao.tipo_origem === "processo" ? "processo" : "termo";
       if (publicacao.tipo_origem === "termo") {
-        await supabase
+        const { error: vErr } = await supabase
           .from("tarefas_publicacoes")
           .insert({ tarefa_id: tarefaId, publicacao_id: publicacao.id });
-        await supabase
+        if (vErr) console.error("[NovaTarefaPub] vincular termo:", vErr);
+        const { error: uErr } = await supabase
           .from("publicacoes_djen")
           .update({ lida: true })
           .eq("id", publicacao.id);
+        if (uErr) console.error("[NovaTarefaPub] update publicacoes_djen.lida:", uErr);
       } else if (publicacao.tipo_origem === "processo") {
-        await supabase
+        const { error: vErr } = await supabase
           .from("tarefas_publicacoes_processos")
           .insert({ tarefa_id: tarefaId, publicacao_processo_id: publicacao.id });
-        await supabase
+        if (vErr) console.error("[NovaTarefaPub] vincular processo:", vErr);
+        const { error: uErr, data: uData } = await supabase
           .from("publicacoes_djen_processos")
           .update({ lida: true })
-          .eq("id", publicacao.id);
+          .eq("id", publicacao.id)
+          .select("id");
+        if (uErr) console.error("[NovaTarefaPub] update publicacoes_djen_processos.lida:", uErr);
+        else console.log("[NovaTarefaPub] marcado como lida:", uData);
       }
 
-      if (user?.id && (publicacao.tipo_origem === "termo" || publicacao.tipo_origem === "processo")) {
+      if (user?.id) {
         const { data: profile } = await supabase
           .from("profiles")
           .select("nome")
           .eq("id", user.id)
           .maybeSingle();
 
-        await (supabase as any)
+        const { error: lErr } = await (supabase as any)
           .from("publicacoes_djen_leituras")
           .upsert({
             publicacao_id: publicacao.id,
@@ -107,6 +113,7 @@ export function NovaTarefaPublicacaoDialog({
             usuario_id: user.id,
             usuario_nome: profile?.nome || user.email || "Desconhecido",
           }, { onConflict: "publicacao_id,tabela_origem,usuario_id" });
+        if (lErr) console.error("[NovaTarefaPub] upsert leitura:", lErr);
       }
 
       await supabase
@@ -124,6 +131,7 @@ export function NovaTarefaPublicacaoDialog({
         queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-processo"] }),
         queryClient.invalidateQueries({ queryKey: ["notificacoes-counts"] }),
       ]);
+      queryClient.refetchQueries({ queryKey: ["publicacoes-djen-processo"] });
     }
   };
 
