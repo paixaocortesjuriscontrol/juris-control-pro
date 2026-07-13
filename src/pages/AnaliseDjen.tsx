@@ -3615,7 +3615,7 @@ const AnaliseDjen = () => {
   // descartar somente as demais. Se houver itens únicos (sem par entre os
   // selecionados), pede confirmação extra antes de descartá-los.
   const [descartandoSelecionadas, setDescartandoSelecionadas] = useState(false);
-  const [descartandoDuplicadas, setDescartandoDuplicadas] = useState(false);
+  const [descartandoDupSelecionadas, setDescartandoDupSelecionadas] = useState(false);
   const handleDescartarSelecionadas = async () => {
     if (selectedIds.size === 0) {
       toast.error("Selecione ao menos uma publicação");
