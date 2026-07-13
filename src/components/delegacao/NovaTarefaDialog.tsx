@@ -699,6 +699,9 @@ export function NovaTarefaDialog({
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
       queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] });
+      if (novaTarefa?.id && onCreated) {
+        await onCreated(novaTarefa.id);
+      }
       onOpenChange(false);
       onSuccess?.();
     } catch (error: any) {
