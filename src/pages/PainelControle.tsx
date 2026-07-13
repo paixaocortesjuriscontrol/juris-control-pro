@@ -1405,7 +1405,12 @@ export default function PainelControle() {
         <div className="flex flex-1 min-h-0 overflow-hidden relative">
 
           {/* Calendário Mensal */}
-          <div className="flex flex-col border-r border-border bg-card flex-1">
+          <div
+            className={cn(
+              "flex-col border-r border-border bg-card flex-1 lg:flex",
+              (selectedItem || novoItemTipo) ? "hidden lg:flex" : "flex"
+            )}
+          >
             {/* Cabeçalho calendário */}
             <div className="flex items-center gap-2 px-3 md:px-4 py-2 md:py-3 border-b border-border flex-shrink-0">
               <h2 className="text-sm md:text-base font-bold text-foreground flex-1">Agenda</h2>
@@ -1606,8 +1611,7 @@ export default function PainelControle() {
           </div>
 
           {selectedItem && (
-            <>
-            <aside className="hidden lg:flex w-[640px] xl:w-[720px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0">
+            <aside className="flex flex-1 lg:flex-none lg:w-[640px] xl:w-[720px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0 overflow-hidden">
               <EdicaoItemPanel
                 key={selectedItem.id}
                 item={selectedItem}
@@ -1617,26 +1621,10 @@ export default function PainelControle() {
                 }}
               />
             </aside>
-            <Dialog open={!!selectedItem} onOpenChange={(o) => { if (!o) setSelectedItem(null); }}>
-              <DialogContent className="lg:hidden max-w-[95vw] max-h-[90vh] p-0 overflow-hidden">
-                <div className="flex flex-col h-[85vh] overflow-hidden">
-                  <EdicaoItemPanel
-                    key={selectedItem.id}
-                    item={selectedItem}
-                    onClose={() => setSelectedItem(null)}
-                    onUpdate={() => {
-                      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                    }}
-                  />
-                </div>
-              </DialogContent>
-            </Dialog>
-            </>
           )}
 
           {!selectedItem && novoItemTipo && (
-            <>
-            <aside className="hidden lg:flex w-[640px] xl:w-[720px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0">
+            <aside className="flex flex-1 lg:flex-none lg:w-[640px] xl:w-[720px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0 overflow-hidden">
               <NovoItemPanel
                 tipo={novoItemTipo}
                 onClose={() => setNovoItemTipo(null)}
@@ -1648,23 +1636,6 @@ export default function PainelControle() {
                 }}
               />
             </aside>
-            <Dialog open={!!novoItemTipo} onOpenChange={(o) => { if (!o) setNovoItemTipo(null); }}>
-              <DialogContent className="lg:hidden max-w-[95vw] max-h-[90vh] p-0 overflow-hidden">
-                <div className="flex flex-col h-[85vh] overflow-hidden">
-                  <NovoItemPanel
-                    tipo={novoItemTipo}
-                    onClose={() => setNovoItemTipo(null)}
-                    onSuccess={async () => {
-                      setNovoItemTipo(null);
-                      await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                      await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
-                      await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
-                    }}
-                  />
-                </div>
-              </DialogContent>
-            </Dialog>
-            </>
           )}
 
         </div>
