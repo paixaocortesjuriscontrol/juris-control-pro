@@ -407,7 +407,7 @@ export async function fetchAllDistribuicaoTstIds(
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
     if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
     if (filters.relator) query = query.ilike("relator", `%${filters.relator}%`);
-    if (filters.parte) query = query.eq("recorrente", filters.parte);
+    if (filters.parte) query = query.ilike("recorrente", `%${filters.parte}%`);
     if (filters.nomeParte) {
       const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
@@ -630,7 +630,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     if (filters.dossie) query = query.ilike("dossie", `%${filters.dossie}%`);
     if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
     if (filters.relator) query = query.ilike("relator", `%${filters.relator}%`);
-    if (filters.parte) query = query.eq("recorrente", filters.parte);
+    if (filters.parte) query = query.ilike("recorrente", `%${filters.parte}%`);
     if (filters.nomeParte) {
       const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
@@ -1019,7 +1019,7 @@ export async function fetchMesesDataRealFiltered(
     if (f.dossie) query = query.ilike("dossie", `%${f.dossie}%`);
     if (f.turma) query = query.ilike("turma", `%${f.turma}%`);
     if (f.relator) query = query.ilike("relator", `%${f.relator}%`);
-    if (f.parte) query = query.eq("recorrente", f.parte);
+    if (f.parte) query = query.ilike("recorrente", `%${f.parte}%`);
     if (f.nomeParte) {
       const escaped = f.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);

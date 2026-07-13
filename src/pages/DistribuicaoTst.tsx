@@ -1073,7 +1073,7 @@ export default function DistribuicaoTst() {
           if (debouncedFilters.dossie) q = q.ilike("dossie", `%${debouncedFilters.dossie}%`);
           if (debouncedFilters.turma) q = q.ilike("turma", `%${debouncedFilters.turma}%`);
           if (debouncedFilters.relator) q = q.ilike("relator", `%${debouncedFilters.relator}%`);
-          if (debouncedFilters.parte) q = q.eq("recorrente", debouncedFilters.parte);
+          if (debouncedFilters.parte) q = q.ilike("recorrente", `%${debouncedFilters.parte}%`);
 
           const { data, error } = await q.range(offset, offset + FETCH_SIZE - 1);
           if (error) { toast.error("Erro ao buscar processos: " + error.message); break; }
