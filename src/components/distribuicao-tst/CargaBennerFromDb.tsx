@@ -504,11 +504,27 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           banco: filtrarOutraMateria((d as any).materias_analise_banco),
           terceiro: filtrarOutraMateria((d as any).materias_analise_terceiro),
         };
+        // Detecta as partes recorrentes combinando duas fontes:
+        //   1) o texto de `parte_recorrente` (quando preenchido);
+        //   2) a presença de `tipo_recurso_reclamante` / `tipo_recurso_banco`
+        //      / `tipo_recurso_terceiro` — mesma base usada para derivar o
+        //      rótulo da coluna AA. Isso garante que, quando `parte_recorrente`
+        //      estiver vazio mas houver recursos das duas partes, ainda assim
+        //      geremos uma linha por parte com o rótulo correto (Reclamante
+        //      em uma linha, Reclamada em outra), em vez de "Reclamante e
+        //      Reclamada" em uma linha única.
         const parteRecorrenteNorm = normalizeText((d as any).parte_recorrente);
-        const partes: Array<"reclamante" | "banco" | "terceiro"> = [];
-        if (/reclamante/.test(parteRecorrenteNorm)) partes.push("reclamante");
-        if (/reclamad/.test(parteRecorrenteNorm)) partes.push("banco");
-        if (/terceiro/.test(parteRecorrenteNorm)) partes.push("terceiro");
+        const partesSet = new Set<"reclamante" | "banco" | "terceiro">();
+        if (/reclamante/.test(parteRecorrenteNorm)) partesSet.add("reclamante");
+        if (/reclamad/.test(parteRecorrenteNorm)) partesSet.add("banco");
+        if (/terceiro/.test(parteRecorrenteNorm)) partesSet.add("terceiro");
+        if (splitRecursoValues((d as any).tipo_recurso_reclamante).length > 0) partesSet.add("reclamante");
+        if (splitRecursoValues((d as any).tipo_recurso_banco).length > 0) partesSet.add("banco");
+        if (splitRecursoValues((d as any).tipo_recurso_terceiro).length > 0) partesSet.add("terceiro");
+        // Mantém ordem estável: reclamante → banco → terceiro
+        const partes: Array<"reclamante" | "banco" | "terceiro"> = (
+          ["reclamante", "banco", "terceiro"] as const
+        ).filter((p) => partesSet.has(p));
 
         const preencherMateriasCols = (row: Record<string, any>, materias: any[]) => {
           row[LAYOUT_COLS[27]] = joinUniqueMat(materias.filter((i: any) => normMat(i.chance_turma).startsWith("FAVOR")));
