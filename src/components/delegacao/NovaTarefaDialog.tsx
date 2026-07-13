@@ -751,6 +751,21 @@ export function NovaTarefaDialog({
           Tarefa
         </h3>
         <div className="flex items-center gap-2">
+          {publicacao && (
+            <BotaoPreencherIA
+              conteudo={publicacao.conteudo}
+              tipoTarefa="TAREFA EQUIPE"
+              processoNumero={publicacao.processo_numero}
+              dataPublicacao={publicacao.data_publicacao}
+              size="sm"
+              onResultado={(r) => {
+                if (r.titulo) form.setValue("titulo", r.titulo);
+                const desc = [r.descricao, r.observacoes].filter(Boolean).join("\n\n");
+                if (desc) form.setValue("descricao", desc);
+                if (r.data_vencimento) form.setValue("data_vencimento", r.data_vencimento);
+              }}
+            />
+          )}
           <span className="text-xs text-muted-foreground">Situação</span>
           <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
             <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
