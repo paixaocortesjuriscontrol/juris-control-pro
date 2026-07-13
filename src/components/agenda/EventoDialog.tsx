@@ -45,6 +45,10 @@ interface EventoDialogProps {
   defaultProcessoId?: string;
   publicacao?: PublicacaoUnificada | null;
   inline?: boolean;
+  secondarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
 }
 
 type AlertaUnidade = "minutos" | "horas" | "dias" | "semanas";
@@ -70,10 +74,11 @@ function minutosParaUnidade(min: number): { valor: number; unidade: AlertaUnidad
   return { valor: min, unidade: "minutos" };
 }
 
-export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false }: EventoDialogProps) {
+export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, secondarySave }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
   const isEditing = !!evento;
+  const secondaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
 
