@@ -707,7 +707,56 @@ export function PrazoDialog({
   );
 
   if (inline) {
-    return <div className="h-full flex flex-col bg-background overflow-hidden">{FormContent}</div>;
+    if (!hasPublicacao) {
+      return <div className="h-full flex flex-col bg-background overflow-hidden">{FormContent}</div>;
+    }
+    return (
+      <div className="rounded-md border bg-background overflow-hidden flex flex-col lg:flex-row min-h-[70vh] max-h-[calc(100vh-12rem)]">
+        <div className="hidden lg:flex flex-1 border-r flex-col min-h-0">
+          <div className="p-4 border-b bg-muted/30">
+            <div className="flex items-center gap-2 mb-2">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Publicação
+              </span>
+            </div>
+            <div className="space-y-1 text-sm">
+              {publicacaoEfetiva?.processo_numero && (
+                <div className="font-mono text-xs">
+                  {aplicarMascaraCnj(publicacaoEfetiva.processo_numero)}
+                </div>
+              )}
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                {publicacaoEfetiva?.data_publicacao && (
+                  <span>
+                    Publicado em{" "}
+                    {format(parseISO(publicacaoEfetiva.data_publicacao), "dd/MM/yyyy", { locale: ptBR })}
+                  </span>
+                )}
+                {publicacaoEfetiva?.tribunal && <Badge variant="outline">{publicacaoEfetiva.tribunal}</Badge>}
+                {publicacaoEfetiva?.tipo_comunicacao && (
+                  <Badge variant="outline">{publicacaoEfetiva.tipo_comunicacao}</Badge>
+                )}
+              </div>
+              {(publicacaoEfetiva?.polo_ativo || publicacaoEfetiva?.polo_passivo) && (
+                <div className="text-xs text-muted-foreground pt-1">
+                  {publicacaoEfetiva?.polo_ativo}{" "}
+                  {publicacaoEfetiva?.polo_passivo ? `× ${publicacaoEfetiva.polo_passivo}` : ""}
+                </div>
+              )}
+            </div>
+          </div>
+          <ScrollArea className="flex-1 p-4">
+            <div className={cn("text-sm", conteudoDisplayClasses)}>
+              {formatConteudoParaExibicao(publicacaoEfetiva?.conteudo || "")}
+            </div>
+          </ScrollArea>
+        </div>
+        <div className="w-full lg:w-[480px] flex flex-col bg-background min-h-0">
+          {FormContent}
+        </div>
+      </div>
+    );
   }
 
   return (
