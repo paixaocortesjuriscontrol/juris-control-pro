@@ -52,7 +52,6 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
             "recurso_terceiro",
             "recurso_terceiros",
             "recorrente",
-            "parte_recorrente",
             "midia_negativa",
             "tem_data_julgamento",
             "materias_analise_reclamante",
