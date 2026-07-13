@@ -784,7 +784,7 @@ export function PrazoDialog({
                 </div>
                 <div className="space-y-1 text-sm">
                   {publicacaoEfetiva?.processo_numero && (
-                    <div className="font-mono text-xs">{publicacaoEfetiva.processo_numero}</div>
+                    <div className="font-mono text-xs">{aplicarMascaraCnj(publicacaoEfetiva.processo_numero)}</div>
                   )}
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     {publicacaoEfetiva?.data_publicacao && (
