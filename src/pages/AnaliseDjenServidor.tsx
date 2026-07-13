@@ -1090,6 +1090,12 @@ const AnaliseDjenServidor = () => {
     await resolverProcessoDaPublicacao(pub);
   };
 
+  const handleAdicionarClick = (pub: PublicacaoUnificada) => {
+    if (!pub.lida && !marcarComoLida.isPending) {
+      marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+    }
+  };
+
 
   // Função para vincular publicação a processo existente
   const handleSalvarPublicacao = async (pub: PublicacaoUnificada) => {
@@ -4877,7 +4883,13 @@ const AnaliseDjenServidor = () => {
                                        ) : null}
                                        
                                         <DropdownMenu>
-                                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                          <DropdownMenuTrigger
+                                            asChild
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleAdicionarClick(pub);
+                                            }}
+                                          >
                                             <Button
                                               variant="outline"
                                               size="sm"
@@ -4968,7 +4980,13 @@ const AnaliseDjenServidor = () => {
                                         Clique para ver detalhes
                                       </span>
                                        <DropdownMenu>
-                                         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                         <DropdownMenuTrigger
+                                           asChild
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             handleAdicionarClick(pub);
+                                           }}
+                                         >
                                            <Button
                                              variant="outline"
                                              size="sm"

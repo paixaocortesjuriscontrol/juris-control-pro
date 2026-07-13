@@ -511,59 +511,58 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               </div>
             </div>
 
-            {/* Alertas internos + Responsável */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label className="text-sm">Alertas internos de antecedência</Label>
-                <div className="flex gap-2 mt-1.5">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={alertaValor}
-                    onChange={(e) => setAlertaValor(parseInt(e.target.value) || 0)}
-                    className="w-20"
-                  />
-                  <Select
-                    value={alertaUnidade}
-                    onValueChange={(v) => setAlertaUnidade(v as AlertaUnidade)}
-                  >
-                    <SelectTrigger className="flex-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {UNIDADES_ALERTA.map((u) => (
-                        <SelectItem key={u.value} value={u.value}>
-                          {u.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            {/* Alertas internos */}
+            <div>
+              <Label className="text-sm">Alertas internos de antecedência</Label>
+              <div className="flex gap-2 mt-1.5 max-w-xs">
+                <Input
+                  type="number"
+                  min={0}
+                  value={alertaValor}
+                  onChange={(e) => setAlertaValor(parseInt(e.target.value) || 0)}
+                  className="w-20"
+                />
+                <Select
+                  value={alertaUnidade}
+                  onValueChange={(v) => setAlertaUnidade(v as AlertaUnidade)}
+                >
+                  <SelectTrigger className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {UNIDADES_ALERTA.map((u) => (
+                      <SelectItem key={u.value} value={u.value}>
+                        {u.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+            </div>
 
-              <div>
-                <Label className="text-sm">
-                  Responsável <span className="text-destructive">*</span>
-                </Label>
-                <div className="mt-1.5">
-                  <PeoplePicker
-                    selectedIds={responsaveisIds}
-                    onChange={setResponsaveisIds}
-                    placeholder="Selecionar responsável"
-                    emptyLabel="Nenhum responsável selecionado"
-                  />
-                </div>
-                {!mostrarEnvolvidos && (
-                  <button
-                    type="button"
-                    onClick={() => setMostrarEnvolvidos(true)}
-                    className="mt-2 text-sm text-primary hover:underline inline-flex items-center gap-1"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Envolver mais pessoas
-                  </button>
-                )}
+            {/* Responsáveis */}
+            <div>
+              <Label className="text-sm">
+                Responsável <span className="text-destructive">*</span>
+              </Label>
+              <div className="mt-1.5">
+                <PeoplePicker
+                  selectedIds={responsaveisIds}
+                  onChange={setResponsaveisIds}
+                  placeholder="Selecionar responsável"
+                  emptyLabel="Nenhum responsável selecionado"
+                />
               </div>
+              {!mostrarEnvolvidos && (
+                <button
+                  type="button"
+                  onClick={() => setMostrarEnvolvidos(true)}
+                  className="mt-2 text-sm text-primary hover:underline inline-flex items-center gap-1"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Envolver mais pessoas
+                </button>
+              )}
             </div>
 
             {/* Envolvidos */}
