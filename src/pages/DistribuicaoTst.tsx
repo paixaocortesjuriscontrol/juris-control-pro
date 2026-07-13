@@ -14,7 +14,7 @@ import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { gerarRelatorioExcelDistribuicaoTst } from "@/lib/relatorioExcelDistribuicaoTst";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
+import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds, applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/DistribuicaoTstDetail";
 // Importações (Importar Planilha / PDF Certidão / Atualizar Dossiês / Equipe / Situação Envio / Resposta Santander)
@@ -1077,7 +1077,7 @@ export default function DistribuicaoTst() {
           if (debouncedFilters.turma) q = q.ilike("turma", `%${debouncedFilters.turma}%`);
           if (debouncedFilters.relator) q = q.ilike("relator", `%${debouncedFilters.relator}%`);
           if (debouncedFilters.parte) q = q.ilike("recorrente", `%${debouncedFilters.parte}%`);
-          if (debouncedFilters.parteRecorrente) q = q.eq("recorrente", debouncedFilters.parteRecorrente);
+          q = applyParteRecorrenteFilter(q, debouncedFilters.parteRecorrente);
 
           const { data, error } = await q.range(offset, offset + FETCH_SIZE - 1);
           if (error) { toast.error("Erro ao buscar processos: " + error.message); break; }
@@ -1983,10 +1983,6 @@ export default function DistribuicaoTst() {
                   <SelectItem value="Reclamante, Reclamado e Terceiro">Reclamante, Reclamado e Terceiro</SelectItem>
                 </SelectContent>
               </Select>
-              <div className="relative">
-                <Search className="w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                <Input placeholder="Buscar por Nome da Parte (Reclamante/Reclamada)" value={filtroNomeParte} onChange={e => setFiltroNomeParte(e.target.value)} className="h-8 text-xs pl-7" />
-              </div>
             </div>
           </div>
 
