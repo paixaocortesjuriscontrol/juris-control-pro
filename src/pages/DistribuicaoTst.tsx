@@ -10,6 +10,7 @@ import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, 
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
+import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { gerarRelatorioExcelDistribuicaoTst } from "@/lib/relatorioExcelDistribuicaoTst";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -382,6 +383,8 @@ export default function DistribuicaoTst() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(debouncedFilters), page]);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
+  const { count: prontoSemPendenciaCount, loading: prontoSemPendenciaLoading } =
+    useProntoSemPendenciaCount(debouncedFilters);
 
   // Todos os cards (incluindo Total Geral, Prontos para Enviar e A fazer)
   // devem refletir o responsável atualmente selecionado no filtro — assim,
@@ -538,6 +541,8 @@ export default function DistribuicaoTst() {
     setFiltroMultiResp(false);
     // Reseta filtro de status (Pronto para Enviar) ao alternar cards
     if (key === "prontoEnvio" || isActive) setFiltroStatus("todos");
+    // "Pronto sem pendência" reaproveita o filtro de status = pronto_envio.
+    if (key === "prontoSemPendencia") setFiltroStatus("todos");
     // Reseta filtro "sem responsável" ao alternar cards
     if (key === "semResponsavel" || isActive) setFiltroResponsavelIds([]);
     setSelectedIds(new Set());
@@ -574,6 +579,7 @@ export default function DistribuicaoTst() {
         setFiltroMesAno("todos");
         break;
       case "prontoEnvio": setFiltroStatus("pronto_envio"); break;
+      case "prontoSemPendencia": setFiltroStatus("pronto_envio"); break;
       case "semResponsavel":
         setFiltroResponsavelIds(["__sem_responsavel__"]);
         break;
@@ -1583,6 +1589,10 @@ export default function DistribuicaoTst() {
             loading={statsLoading}
             activeKey={activeCardKey}
             onCardClick={handleCardClick}
+            prontoSemPendencia={{
+              count: prontoSemPendenciaCount,
+              loading: prontoSemPendenciaLoading,
+            }}
             multiRespCard={isAdmin ? {
               count: multiRespIds.length,
               active: filtroMultiResp,
