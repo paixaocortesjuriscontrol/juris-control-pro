@@ -96,12 +96,12 @@ Responda APENAS com um JSON válido no seguinte formato (sem markdown, sem expli
 }`;
 
     const response = await geminiChatCompletionsFetch({
-      model: "gemini-2.5-pro",
+      model: "gemini-2.5-flash",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      max_tokens: 1000,
+      max_tokens: 2048,
       temperature: 0.3,
       response_format: { type: "json_object" },
     });
