@@ -89,10 +89,10 @@ function toolsToGemini(tools: any[] | undefined, toolChoice: any) {
 }
 
 export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
-  const key = Deno.env.get("GEMINI_API_KEY");
+  const key = Deno.env.get("GEMINI_API_KEY_DJEN") || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY");
   if (!key) {
     return new Response(
-      JSON.stringify({ error: { message: "GEMINI_API_KEY não configurada" } }),
+      JSON.stringify({ error: { message: "Chave Gemini não configurada" } }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }
