@@ -1250,6 +1250,21 @@ export default function PainelControle() {
                     return m ? m[1] : "";
                   };
 
+                  // Carrega nomes das coordenações usadas nos itens
+                  const coordIdsSet = new Set<string>();
+                  for (const it of itensPainelFiltrados) {
+                    const cid = (it as any).coordenacao_id ?? it.processo?.coordenacao_id;
+                    if (cid) coordIdsSet.add(cid);
+                  }
+                  const coordNomeById = new Map<string, string>();
+                  if (coordIdsSet.size > 0) {
+                    const { data: coords } = await supabase
+                      .from("coordenacoes")
+                      .select("id, nome")
+                      .in("id", Array.from(coordIdsSet));
+                    (coords || []).forEach((c: any) => c?.id && coordNomeById.set(c.id, c.nome));
+                  }
+
                   const rows = itensPainelFiltrados.map((it) => {
                     const rawId = String(it.id);
                     let key = "";
@@ -1286,7 +1301,10 @@ export default function PainelControle() {
                       Responsáveis: responsaveisArr.join(", "),
                       Envolvidos: envolvidosArr.join(", "),
                       Processo: it.processo?.numero ?? "",
-                      Coordenação: (it as any).coordenacao_nome ?? "",
+                      Coordenação:
+                        coordNomeById.get(
+                          (it as any).coordenacao_id ?? it.processo?.coordenacao_id ?? ""
+                        ) ?? "",
                     };
                   });
                   const ws = XLSX.utils.json_to_sheet(rows);
