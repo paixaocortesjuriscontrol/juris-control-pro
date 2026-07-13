@@ -3727,6 +3727,89 @@ const AnaliseDjen = () => {
     }
   };
 
+  // Descarta apenas duplicadas dentro das selecionadas, mantendo 1 por grupo.
+  // Ignora selecionadas que não têm par duplicado (não pergunta para forçar descarte).
+  const handleDescartarDuplicadasSelecionadas = async () => {
+    if (selectedIds.size === 0) {
+      toast.error("Selecione ao menos duas publicações");
+      return;
+    }
+    const selecionadas = allPublicacoes.filter(p => selectedIds.has(p.id));
+    const jaDescartadas = selecionadas.filter(p => p.tipo_origem === 'descartada');
+    if (jaDescartadas.length > 0) {
+      toast.error(`${jaDescartadas.length} publicação(ões) já estão descartadas.`);
+      return;
+    }
+    if (selecionadas.some(p => p.tipo_origem !== 'termo' && p.tipo_origem !== 'processo')) {
+      toast.error('Só é possível descartar publicações de termo ou processo.');
+      return;
+    }
+
+    // Agrupamento por chave de duplicidade (coordenacao + id_djen; fallback dedup_key/dedup_conteudo_key).
+    const keyOf = (p: PublicacaoUnificada): string => {
+      const coord = p.coordenacao_id ?? 'sem_coord';
+      const idDjen = String(p.id_djen ?? '').trim();
+      if (idDjen) return `${coord}|id_djen|${idDjen}`;
+      const dk = String(p.dedup_key ?? '').trim();
+      if (dk) return `${coord}|dedup_key|${dk}`;
+      const dck = String(p.dedup_conteudo_key ?? '').trim();
+      if (dck) return `${coord}|dedup_conteudo_key|${dck}`;
+      return `${coord}|unica|${p.id}`;
+    };
+
+    const grupos = new Map<string, PublicacaoUnificada[]>();
+    for (const p of selecionadas) {
+      const k = keyOf(p);
+      const arr = grupos.get(k) ?? [];
+      arr.push(p);
+      grupos.set(k, arr);
+    }
+
+    const paraDescartar: PublicacaoUnificada[] = [];
+    let mantidas = 0;
+    let semPar = 0;
+    for (const [, arr] of grupos) {
+      if (arr.length < 2) { semPar += arr.length; continue; }
+      const ordenadas = [...arr].sort((a, b) => {
+        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return ta - tb;
+      });
+      mantidas += 1;
+      paraDescartar.push(...ordenadas.slice(1));
+    }
+
+    if (paraDescartar.length === 0) {
+      toast.error(
+        `Nenhuma duplicada encontrada entre as ${selecionadas.length} selecionada(s). ` +
+        `Selecione publicações com mesma coordenação e mesmo id_djen (ou dedup_key).`
+      );
+      return;
+    }
+
+    const confirmar = window.confirm(
+      `Serão descartadas ${paraDescartar.length} duplicada(s), ` +
+      `mantendo ${mantidas} publicação(ões) — a mais antiga de cada grupo. ` +
+      (semPar > 0 ? `${semPar} selecionada(s) sem par NÃO serão descartadas. ` : '') +
+      `Confirmar?`
+    );
+    if (!confirmar) return;
+
+    setDescartandoDupSelecionadas(true);
+    try {
+      for (const p of paraDescartar) {
+        await descartarManualmente.mutateAsync({
+          id: p.id,
+          tipo_origem: p.tipo_origem as 'termo' | 'processo',
+        });
+      }
+      toast.success(`${paraDescartar.length} duplicada(s) descartada(s). ${mantidas} mantida(s).`);
+      setSelectedIds(new Map<string, TipoOrigemPublicacao>());
+    } finally {
+      setDescartandoDupSelecionadas(false);
+    }
+  };
+
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-";
     try {
