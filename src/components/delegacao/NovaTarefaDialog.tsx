@@ -41,6 +41,8 @@ import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { Label } from "@/components/ui/label";
 import { TarefaPublicacaoVinculada } from "@/components/shared/TarefaPublicacaoVinculada";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
+import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 
 type AnexoComAnalise = {
   file?: File;
@@ -99,6 +101,8 @@ interface NovaTarefaDialogProps {
   processoPreSelecionado?: { id: string; numero: string } | null;
   tarefaParaEditar?: any | null;
   inline?: boolean;
+  publicacao?: PublicacaoUnificada | null;
+  onCreated?: (tarefaId: string) => void | Promise<void>;
 }
 
 export function NovaTarefaDialog({
@@ -109,6 +113,8 @@ export function NovaTarefaDialog({
   processoPreSelecionado,
   tarefaParaEditar,
   inline = false,
+  publicacao = null,
+  onCreated,
 }: NovaTarefaDialogProps) {
   const [loading, setLoading] = useState(false);
   const [searchProcesso, setSearchProcesso] = useState("");
