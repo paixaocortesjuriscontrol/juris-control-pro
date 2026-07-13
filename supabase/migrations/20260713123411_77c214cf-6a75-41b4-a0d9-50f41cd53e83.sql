@@ -1,0 +1,1 @@
+ALTER TABLE public.config_envio_alertas_tarefas ADD COLUMN IF NOT EXISTS dias_semana int[] NOT NULL DEFAULT ARRAY[1,2,3,4,5];
