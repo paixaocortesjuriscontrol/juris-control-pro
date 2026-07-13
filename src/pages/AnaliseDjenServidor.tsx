@@ -82,7 +82,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
+import { NovaTarefaPublicacaoDialog } from "@/components/djen/NovaTarefaPublicacaoDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -5224,7 +5224,7 @@ const AnaliseDjenServidor = () => {
         )}
 
         {/* Dialog para criar tarefa a partir da publicação */}
-        <CriarTarefaPublicacaoDialog
+        <NovaTarefaPublicacaoDialog
           open={criarTarefaDialogOpen}
           onOpenChange={setCriarTarefaDialogOpen}
           publicacao={selectedPublicacao}
