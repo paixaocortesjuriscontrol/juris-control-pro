@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -103,6 +103,15 @@ interface NovaTarefaDialogProps {
   inline?: boolean;
   publicacao?: PublicacaoUnificada | null;
   onCreated?: (tarefaId: string) => void | Promise<void>;
+  /**
+   * Botão extra ao lado de "Salvar". Se definido, exibe um segundo botão
+   * (ex.: "Salvar e ler") que dispara o mesmo submit e, em caso de sucesso,
+   * chama `onAfterSuccess` antes de fechar o diálogo.
+   */
+  secondarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
 }
 
 export function NovaTarefaDialog({
@@ -115,8 +124,10 @@ export function NovaTarefaDialog({
   inline = false,
   publicacao = null,
   onCreated,
+  secondarySave,
 }: NovaTarefaDialogProps) {
   const [loading, setLoading] = useState(false);
+  const secondaryClickedRef = useRef(false);
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
@@ -706,6 +717,15 @@ export function NovaTarefaDialog({
       if (novaTarefa?.id && onCreated) {
         await onCreated(novaTarefa.id);
       }
+      if (secondaryClickedRef.current) {
+        try {
+          await secondarySave?.onAfterSuccess();
+        } catch (err) {
+          console.error("secondarySave.onAfterSuccess falhou:", err);
+        } finally {
+          secondaryClickedRef.current = false;
+        }
+      }
       onOpenChange(false);
       onSuccess?.();
     } catch (error: any) {
@@ -1280,10 +1300,24 @@ export function NovaTarefaDialog({
             form="nova-tarefa-form"
             disabled={loading || uploadingAnexos} 
             className="w-full sm:w-auto"
+            onClick={() => { secondaryClickedRef.current = false; }}
           >
             {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
           </Button>
+          {secondarySave && !tarefaParaEditar?.id && (
+            <Button
+              type="submit"
+              form="nova-tarefa-form"
+              disabled={loading || uploadingAnexos}
+              variant="secondary"
+              className="w-full sm:w-auto"
+              onClick={() => { secondaryClickedRef.current = true; }}
+            >
+              {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {secondarySave.label}
+            </Button>
+          )}
         </div>
         <Dialog open={!!analiseVisualizando} onOpenChange={(o) => !o && setAnaliseVisualizando(null)}>
           <DialogContent className="sm:max-w-xl max-h-[80vh] overflow-hidden flex flex-col">

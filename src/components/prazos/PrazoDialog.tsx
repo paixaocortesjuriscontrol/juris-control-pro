@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   Dialog,
@@ -77,6 +77,10 @@ type PrazoDialogProps = {
   defaultTarefaRelacionadaId?: string;
   publicacao?: PublicacaoUnificada | null;
   inline?: boolean;
+  secondarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
 };
 
 export function PrazoDialog({
@@ -87,11 +91,13 @@ export function PrazoDialog({
   defaultTarefaRelacionadaId,
   publicacao,
   inline = false,
+  secondarySave,
 }: PrazoDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const createPrazo = useCreatePrazo();
   const updatePrazo = useUpdatePrazo();
+  const secondaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
 
   // Quando editando um prazo existente, carregar publicação vinculada (se houver)
@@ -382,6 +388,11 @@ export function PrazoDialog({
         queryClient.invalidateQueries({ queryKey: ["pastas"] }),
       ]);
 
+      if (secondaryClickedRef.current) {
+        try { await secondarySave?.onAfterSuccess(); }
+        catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
+        finally { secondaryClickedRef.current = false; }
+      }
       onOpenChange(false);
     } catch (error: any) {
       toast.error("Erro ao salvar prazo: " + error.message);
@@ -671,10 +682,25 @@ export function PrazoDialog({
             Concluir
           </Button>
         )}
-        <Button type="submit" disabled={isLoading}>
+        <Button
+          type="submit"
+          disabled={isLoading}
+          onClick={() => { secondaryClickedRef.current = false; }}
+        >
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Salvar
         </Button>
+        {secondarySave && !prazo?.id && (
+          <Button
+            type="submit"
+            variant="secondary"
+            disabled={isLoading}
+            onClick={() => { secondaryClickedRef.current = true; }}
+          >
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {secondarySave.label}
+          </Button>
+        )}
       </div>
     </form>
   );

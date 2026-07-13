@@ -22,6 +22,8 @@ interface NovaAudienciaPublicacaoDialogProps {
   publicacao: PublicacaoUnificada | null;
   defaultProcessoNumero?: string;
   defaultProcessoId?: string;
+  inline?: boolean;
+  onMarkAsRead?: () => Promise<void> | void;
 }
 
 export function NovaAudienciaPublicacaoDialog({
@@ -30,6 +32,8 @@ export function NovaAudienciaPublicacaoDialog({
   publicacao,
   defaultProcessoNumero,
   defaultProcessoId,
+  inline = false,
+  onMarkAsRead,
 }: NovaAudienciaPublicacaoDialogProps) {
   const hasPublicacao = !!publicacao;
   const [aiDefaults, setAiDefaults] = useState<{
@@ -46,19 +50,12 @@ export function NovaAudienciaPublicacaoDialog({
     }
   }, [open]);
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className={cn(
-          "p-0 gap-0 overflow-hidden flex flex-col",
-          hasPublicacao ? "max-w-5xl w-[95vw] h-[90vh]" : "max-w-3xl max-h-[90vh]"
-        )}
-      >
-        <DialogHeader className="sr-only">
-          <DialogTitle>Nova Audiência</DialogTitle>
-        </DialogHeader>
+  const secondarySave = onMarkAsRead
+    ? { label: "Salvar e ler", onAfterSuccess: async () => { await onMarkAsRead(); } }
+    : undefined;
 
-        <div className={cn("flex flex-1 min-h-0 overflow-hidden", hasPublicacao ? "flex-col lg:flex-row" : "flex-col")}>
+  const body = (
+    <div className={cn("flex flex-1 min-h-0 overflow-hidden", hasPublicacao ? "flex-col lg:flex-row" : "flex-col")}>
           {hasPublicacao && (
             <div className="hidden lg:flex flex-1 border-r flex-col min-h-0">
               <div className="p-4 border-b bg-muted/30">
@@ -129,10 +126,34 @@ export function NovaAudienciaPublicacaoDialog({
                 defaultDataAudiencia={aiDefaults?.data_audiencia}
                 hideTitleHeader
                 onSuccess={() => onOpenChange(false)}
+                secondarySave={secondarySave}
               />
             </ScrollArea>
           </div>
-        </div>
+    </div>
+  );
+
+  if (inline) {
+    if (!open) return null;
+    return (
+      <div className="rounded-md border bg-background overflow-hidden flex flex-col min-h-[70vh] max-h-[calc(100vh-12rem)]">
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className={cn(
+          "p-0 gap-0 overflow-hidden flex flex-col",
+          hasPublicacao ? "max-w-5xl w-[95vw] h-[90vh]" : "max-w-3xl max-h-[90vh]"
+        )}
+      >
+        <DialogHeader className="sr-only">
+          <DialogTitle>Nova Audiência</DialogTitle>
+        </DialogHeader>
+        {body}
       </DialogContent>
     </Dialog>
   );

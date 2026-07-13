@@ -30,6 +30,10 @@ type Props = {
   defaultTitulo?: string;
   defaultObservacoes?: string;
   defaultDataAudiencia?: string;
+  secondarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
 };
 
 const empty = {
@@ -61,8 +65,10 @@ export function AudienciaFormSimplificado({
   defaultTitulo,
   defaultObservacoes,
   defaultDataAudiencia,
+  secondarySave,
 }: Props) {
   const { criarAudiencia } = useAudienciasDetectadas();
+  const secondaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const [form, setForm] = useState({
     ...empty,
@@ -174,6 +180,11 @@ export function AudienciaFormSimplificado({
     setResponsaveisIds([]);
     setEnvolvidosIds([]);
     setMostrarEnvolvidos(false);
+    if (secondaryClickedRef.current) {
+      try { await secondarySave?.onAfterSuccess(); }
+      catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
+      finally { secondaryClickedRef.current = false; }
+    }
     onSuccess?.();
   };
 
@@ -204,13 +215,27 @@ export function AudienciaFormSimplificado({
               type="submit"
               size="sm"
               disabled={criarAudiencia.isPending}
-              onClick={handleSubmit as any}
+              onClick={(e) => { secondaryClickedRef.current = false; handleSubmit(e as any); }}
             >
               {criarAudiencia.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               Salvar
             </Button>
+            {secondarySave && (
+              <Button
+                type="submit"
+                size="sm"
+                variant="secondary"
+                disabled={criarAudiencia.isPending}
+                onClick={(e) => { secondaryClickedRef.current = true; handleSubmit(e as any); }}
+              >
+                {criarAudiencia.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {secondarySave.label}
+              </Button>
+            )}
           </div>
         </div>
       )}
@@ -476,12 +501,29 @@ export function AudienciaFormSimplificado({
             Cancelar
           </Button>
         )}
-        <Button type="submit" disabled={criarAudiencia.isPending}>
+        <Button
+          type="submit"
+          disabled={criarAudiencia.isPending}
+          onClick={() => { secondaryClickedRef.current = false; }}
+        >
           {criarAudiencia.isPending && (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           )}
           Salvar
         </Button>
+        {secondarySave && (
+          <Button
+            type="submit"
+            variant="secondary"
+            disabled={criarAudiencia.isPending}
+            onClick={() => { secondaryClickedRef.current = true; }}
+          >
+            {criarAudiencia.isPending && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
+            {secondarySave.label}
+          </Button>
+        )}
       </div>
     </form>
   );
