@@ -207,6 +207,7 @@ export default function DistribuicaoTst() {
   const [filtroTurma, setFiltroTurma] = useState("");
   const [filtroRelator, setFiltroRelator] = useState("");
   const [filtroParte, setFiltroParte] = useState("");
+  const [filtroParteRecorrente, setFiltroParteRecorrente] = useState("");
   const [filtroNomeParte, setFiltroNomeParte] = useState("");
   const [filtroDataInicio, setFiltroDataInicio] = useState("");
   const [filtroDataFim, setFiltroDataFim] = useState("");
