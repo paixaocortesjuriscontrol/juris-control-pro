@@ -130,6 +130,73 @@ export type DistribuicaoTstInsert = Omit<DistribuicaoTst, "id" | "created_at" | 
 
 const PAGE_SIZE = 100;
 
+/**
+ * Aplica o filtro do Select "Parte Recorrente" na coluna `recorrente`
+ * de forma tolerante às variações do banco (Reclamante/RECLAMANTE,
+ * Reclamada/Reclamado/BANCO, Ambos, "Reclamante e Reclamada", etc).
+ *
+ * A comparação é feita em tokens semânticos (case-insensitive):
+ *   - "reclamante" (parte ativa)
+ *   - "reclamad"   (reclamado/reclamada)  ┐ ambos representam o banco
+ *   - "banco"                              ┘
+ *   - "terceiro"
+ *   - "ambos"       (equivalente a Reclamante + Reclamado)
+ */
+export function applyParteRecorrenteFilter(query: any, option: string | undefined | null) {
+  if (!option) return query;
+  const RECLAMANTE = "%reclamante%";
+  const RECLAMADO = "%reclamad%";
+  const BANCO = "%banco%";
+  const TERCEIRO = "%terceiro%";
+  const AMBOS = "%ambos%";
+  switch (option) {
+    case "Reclamante":
+      return query
+        .ilike("recorrente", RECLAMANTE)
+        .not("recorrente", "ilike", RECLAMADO)
+        .not("recorrente", "ilike", BANCO)
+        .not("recorrente", "ilike", TERCEIRO)
+        .not("recorrente", "ilike", AMBOS);
+    case "Reclamado":
+      return query
+        .or(`recorrente.ilike.${RECLAMADO},recorrente.ilike.${BANCO}`)
+        .not("recorrente", "ilike", RECLAMANTE)
+        .not("recorrente", "ilike", TERCEIRO)
+        .not("recorrente", "ilike", AMBOS);
+    case "Reclamante e Reclamado":
+      return query
+        .or(
+          `and(recorrente.ilike.${RECLAMANTE},or(recorrente.ilike.${RECLAMADO},recorrente.ilike.${BANCO})),recorrente.ilike.${AMBOS}`
+        )
+        .not("recorrente", "ilike", TERCEIRO);
+    case "Terceiro":
+      return query
+        .ilike("recorrente", TERCEIRO)
+        .not("recorrente", "ilike", RECLAMANTE)
+        .not("recorrente", "ilike", RECLAMADO)
+        .not("recorrente", "ilike", BANCO)
+        .not("recorrente", "ilike", AMBOS);
+    case "Reclamante e Terceiro":
+      return query
+        .ilike("recorrente", RECLAMANTE)
+        .ilike("recorrente", TERCEIRO)
+        .not("recorrente", "ilike", RECLAMADO)
+        .not("recorrente", "ilike", BANCO);
+    case "Reclamado e Terceiro":
+      return query
+        .or(`recorrente.ilike.${RECLAMADO},recorrente.ilike.${BANCO}`)
+        .ilike("recorrente", TERCEIRO)
+        .not("recorrente", "ilike", RECLAMANTE);
+    case "Reclamante, Reclamado e Terceiro":
+      return query
+        .ilike("recorrente", RECLAMANTE)
+        .or(`recorrente.ilike.${RECLAMADO},recorrente.ilike.${BANCO}`)
+        .ilike("recorrente", TERCEIRO);
+    default:
+      return query.ilike("recorrente", `%${option}%`);
+  }
+}
+
 export interface DistribuicaoTstFilters {
   processo?: string;
   dossie?: string;
@@ -409,7 +476,7 @@ export async function fetchAllDistribuicaoTstIds(
     if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
     if (filters.relator) query = query.ilike("relator", `%${filters.relator}%`);
     if (filters.parte) query = query.ilike("recorrente", `%${filters.parte}%`);
-    if (filters.parteRecorrente) query = query.eq("recorrente", filters.parteRecorrente);
+    query = applyParteRecorrenteFilter(query, filters.parteRecorrente);
     if (filters.nomeParte) {
       const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
