@@ -20,6 +20,7 @@ import {
   formatConteudoParaExibicao,
   conteudoDisplayClasses,
 } from "@/utils/formatConteudo";
+import { aplicarMascaraCnj } from "@/utils/cnjMask";
 
 interface Props {
   open: boolean;
@@ -209,7 +210,7 @@ export function NovaTarefaPublicacaoDialog({
                 </div>
                 <div className="space-y-1 text-sm">
                   {publicacao?.processo_numero && (
-                    <div className="font-mono text-xs">{publicacao.processo_numero}</div>
+                    <div className="font-mono text-xs">{aplicarMascaraCnj(publicacao.processo_numero)}</div>
                   )}
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     {publicacao?.data_publicacao && (
