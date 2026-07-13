@@ -5571,32 +5571,9 @@ const AnaliseDjen = () => {
 
         </div>
 
-        {/* Novo Evento */}
-        <EventoDialog
-          open={novoEventoOpen}
-          onOpenChange={setNovoEventoOpen}
-          evento={null}
-          defaultProcessoId={adicionarProcessoId}
-          publicacao={novoEventoOpen ? selectedPublicacao : null}
-        />
-
-        {/* Novo Prazo */}
-        <PrazoDialog
-          open={novoPrazoOpen}
-          onOpenChange={setNovoPrazoOpen}
-          prazo={null}
-          defaultProcessoId={adicionarProcessoId}
-          publicacao={novoPrazoOpen ? selectedPublicacao : null}
-        />
-
-        {/* Nova Audiência */}
-        <NovaAudienciaPublicacaoDialog
-          open={novaAudienciaOpen}
-          onOpenChange={setNovaAudienciaOpen}
-          publicacao={selectedPublicacao}
-          defaultProcessoNumero={adicionarProcessoNumero}
-          defaultProcessoId={adicionarProcessoId}
-        />
+        {/* Novo Evento, Novo Prazo e Nova Audiência agora são renderizados
+            inline no topo da página (ver bloco acima), para esconder a lista
+            e abrir o formulário na mesma tela. */}
       </div>
     </MainLayout>
   );
