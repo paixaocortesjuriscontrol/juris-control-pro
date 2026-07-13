@@ -4691,9 +4691,38 @@ const AnaliseDjen = () => {
                                       DataJud (CNJ)
                                     </Badge>
                                   ) : pub.tipo_origem === 'descartada' ? (
-                                    <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
-                                      DESCARTADA
-                                    </Badge>
+                                    <>
+                                      <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
+                                        DESCARTADA
+                                      </Badge>
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-5 md:h-6 px-1.5 md:px-2 text-[10px] md:text-xs border-red-300 text-red-700 hover:bg-red-50"
+                                        onClick={async (e) => {
+                                          e.stopPropagation();
+                                          if (!confirm('Desfazer o descarte desta publicação? Ela voltará para a lista ativa.')) return;
+                                          try {
+                                            const { error } = await (supabase as any).rpc('desfazer_descarte_individual', { p_id: pub.id });
+                                            if (error) throw error;
+                                            await Promise.all([
+                                              queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] }),
+                                              queryClient.invalidateQueries({ queryKey: ['descartadas-dedup'] }),
+                                              queryClient.invalidateQueries({ queryKey: ['descartadas-count'] }),
+                                              queryClient.invalidateQueries({ queryKey: ['descartadas-lotes-recentes'] }),
+                                            ]);
+                                            toast.success('Descarte desfeito. Publicação restaurada.');
+                                          } catch (err: any) {
+                                            toast.error(`Erro ao desfazer descarte: ${err?.message || err}`);
+                                          }
+                                        }}
+                                        title="Desfazer descarte desta publicação"
+                                      >
+                                        <Undo2 className="w-3 h-3 mr-1" />
+                                        Desfazer descarte
+                                      </Button>
+                                    </>
                                    ) : pub.tipo_origem === 'termo' ? null : (
                                     <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
                                       <Gavel className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
