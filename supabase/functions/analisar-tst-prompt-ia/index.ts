@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,30 +24,8 @@ function compactEmptyObjects(value: unknown): unknown {
   return out;
 }
 
-async function openAIChatCompletionsFetch(body: any): Promise<Response> {
-  const key = Deno.env.get("OPENAI_API_KEY");
-  if (!key) {
-    return new Response(JSON.stringify({ error: { message: "OPENAI_API_KEY não configurada" } }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-  try {
-    return await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: { message: `Falha de rede OpenAI: ${e?.message || e}` } }), {
-      status: 502,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-}
+const hasGeminiKey = () =>
+  !!(Deno.env.get("GEMINI_API_KEY_DJEN") || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY"));
 
 /**
  * Roda IA com PROMPT CUSTOMIZADO cadastrado pelo advogado em "Prompt IA TST".
@@ -70,7 +49,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!user) return json({ error: "Token inválido" }, 401);
 
-    if (!Deno.env.get("OPENAI_API_KEY")) return json({ error: "OPENAI_API_KEY não configurada" }, 500);
+    if (!hasGeminiKey()) return json({ error: "GEMINI_API_KEY_DJEN não configurada" }, 500);
 
     const body = await req.json();
     const promptId: string = String(body?.prompt_id || "").trim();
@@ -245,8 +224,8 @@ Mapeie a resposta solicitada pelo prompt para as chaves do schema; não devolva 
     ].join("\n");
 
     const modeloSalvo = String(promptRow.modelo || "").trim();
-    const modelo = modeloSalvo.startsWith("gpt-") ? modeloSalvo : "gpt-4o-mini";
-    const aiRes = await openAIChatCompletionsFetch({
+    const modelo = modeloSalvo.startsWith("gemini") ? modeloSalvo : (Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash");
+    const aiRes = await geminiChatCompletionsFetch({
       model: modelo,
       temperature: 0,
       messages: [
@@ -258,8 +237,13 @@ Mapeie a resposta solicitada pelo prompt para as chaves do schema; não devolva 
     });
     if (!aiRes.ok) {
       const t = await aiRes.text();
-      console.error("OpenAI erro analisar-tst-prompt-ia:", aiRes.status, t.substring(0, 1000));
-      return json({ error: `OpenAI ${aiRes.status}: ${t.substring(0, 400)}` }, 500);
+      console.error("Gemini erro analisar-tst-prompt-ia:", aiRes.status, t.substring(0, 1000));
+      let msg = `Gemini ${aiRes.status}: ${t.substring(0, 400)}`;
+      try {
+        const parsed = JSON.parse(t);
+        if (parsed?.error?.message) msg = parsed.error.message;
+      } catch { /* ignore */ }
+      return json({ error: msg }, aiRes.status === 429 ? 429 : 500);
     }
     const aiJson = await aiRes.json();
     const toolCall = aiJson?.choices?.[0]?.message?.tool_calls?.[0];
