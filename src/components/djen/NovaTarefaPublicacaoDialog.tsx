@@ -72,7 +72,11 @@ export function NovaTarefaPublicacaoDialog({
 
   const handleCreated = async (tarefaId: string) => {
     if (!publicacao) return;
-    const tipoLeitura = publicacao.tipo_origem === "processo" ? "processo" : "termo";
+    const tipoLeitura = publicacao.tipo_origem === "processo"
+      ? "processo"
+      : publicacao.tipo_origem === "descartada"
+        ? "descartada"
+        : "termo";
     try {
       if (publicacao.tipo_origem === "termo") {
         const { error: vErr } = await supabase
@@ -105,14 +109,42 @@ export function NovaTarefaPublicacaoDialog({
           .eq("id", user.id)
           .maybeSingle();
 
+        const leiturasMap = new Map<string, "termo" | "processo" | "descartada">();
+        leiturasMap.set(publicacao.id, tipoLeitura);
+
+        try {
+          const { data: relacionadas, error: relErr } = await (supabase as any).rpc(
+            "get_publicacoes_relacionadas_por_dedup",
+            {
+              p_ids_termos: tipoLeitura === "termo" ? [publicacao.id] : null,
+              p_ids_processos: tipoLeitura === "processo" ? [publicacao.id] : null,
+              p_ids_descartadas: tipoLeitura === "descartada" ? [publicacao.id] : null,
+            }
+          );
+          if (!relErr && Array.isArray(relacionadas)) {
+            relacionadas.forEach((r: any) => {
+              if (
+                r?.publicacao_id &&
+                (r.tabela_origem === "termo" || r.tabela_origem === "processo" || r.tabela_origem === "descartada")
+              ) {
+                leiturasMap.set(r.publicacao_id, r.tabela_origem);
+              }
+            });
+          }
+        } catch (err) {
+          console.warn("[NovaTarefaPub] expansão de leituras ignorada:", err);
+        }
+
+        const rows = Array.from(leiturasMap.entries()).map(([publicacao_id, tabela_origem]) => ({
+          publicacao_id,
+          tabela_origem,
+          usuario_id: user.id,
+          usuario_nome: profile?.nome || user.email || "Desconhecido",
+        }));
+
         const { error: lErr } = await (supabase as any)
           .from("publicacoes_djen_leituras")
-          .upsert({
-            publicacao_id: publicacao.id,
-            tabela_origem: tipoLeitura,
-            usuario_id: user.id,
-            usuario_nome: profile?.nome || user.email || "Desconhecido",
-          }, { onConflict: "publicacao_id,tabela_origem,usuario_id" });
+          .upsert(rows, { onConflict: "publicacao_id,tabela_origem,usuario_id" });
         if (lErr) console.error("[NovaTarefaPub] upsert leitura:", lErr);
       }
 
@@ -125,6 +157,8 @@ export function NovaTarefaPublicacaoDialog({
     } finally {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas-servidor"] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas-stats-header"] }),
         queryClient.invalidateQueries({ queryKey: ["publicacoes-djen"] }),
         queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
         queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-termo"] }),
