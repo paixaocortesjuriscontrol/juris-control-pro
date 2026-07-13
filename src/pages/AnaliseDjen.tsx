@@ -1066,9 +1066,13 @@ const AnaliseDjen = () => {
     await resolverProcessoDaPublicacao(pub);
   };
 
-  const handleAdicionarClick = (pub: PublicacaoUnificada) => {
+  const handleAdicionarClick = async (pub: PublicacaoUnificada) => {
     if (!pub.lida && !marcarComoLida.isPending) {
-      marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+      try {
+        await marcarComoLida.mutateAsync([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+      } catch (error) {
+        console.error("Erro ao marcar publicação como lida:", error);
+      }
     }
   };
 
