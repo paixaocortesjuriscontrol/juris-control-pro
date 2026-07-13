@@ -1,60 +1,44 @@
 ## Objetivo
 
-Trazer TODA a configuração de detecção automática e monitoramento para dentro do ícone de engrenagem de cada card de coordenação na Central de Notificações, de forma **isolada por coordenação**. E apagar tudo que foi detectado automaticamente até agora.
+Na tela **Análise DJEN**, ao criar Tarefa / Prazo / Evento / Audiência a partir de uma publicação, usar **exatamente os mesmos formulários** do Painel de Controle e as **mesmas regras de coordenação**:
 
----
+- Não-admin: mostra apenas as coordenações às quais pertence.
+- Se o usuário só tem uma coordenação → o seletor não aparece (fica implícito).
+- Se tem mais de uma → seletor visível e escolha **obrigatória**.
+- Admin → vê todas, escolha obrigatória.
+- Toda Tarefa, Prazo, Evento e Audiência criada deve ter `coordenacao_id` preenchido (validação de submit).
 
-## Parte 1 — Limpeza dos dados detectados automaticamente
+## Situação atual
 
-Vou apagar (permanente) tudo que veio de detecção automática, mantendo apenas o que foi criado manualmente/importado:
+- `EventoDialog` e `PrazoDialog`: já são os mesmos do Painel e já usam `useCoordenacoesDoUsuario` + `CoordenacaoSelect`. Falta apenas tornar a coordenação **obrigatória** para admin/multi-coord.
+- `AudienciaFormSimplificado` (usado dentro de `NovaAudienciaPublicacaoDialog`): já é o mesmo do Painel. Falta obrigar a coordenação.
+- `CriarTarefaPublicacaoDialog` (DJEN): é um **formulário paralelo/custom** — não usa `useCoordenacoesDoUsuario`, não filtra membros pela coordenação do usuário, e não obriga coordenação. Precisa ser substituído.
 
-- `audiencias_detectadas` — apagar linhas com `origem IN ('djen_processos','monitoramento_djen_processos','monitoracao_360','monitorar-andamentos','monitorar-termos')`. Preservar `origem = 'manual'` e `origem = 'importacao'`.
-- `intimacoes_detectadas` — mesma regra de origem.
-- `alertas_monitoramento`, `alertas_processos_nao_cadastrados`, `alertas_coordenacao_djen` — apagar tudo (são todos gerados por robô).
-- **Preservar:** `eventos_agenda`, `tarefas`, processos, publicações DJEN (as publicações em si continuam no histórico; só a detecção derivada delas é limpa).
+## Mudanças
 
-Total estimado: ~316 audiências e o equivalente em intimações.
+### 1. Tarefa — usar `NovaTarefaDialog` do Painel
+- Estender `NovaTarefaDialog` para aceitar contexto de publicação DJEN:
+  - Nova prop opcional `publicacao?: PublicacaoUnificada` (mostra painel lateral com o conteúdo da publicação e ativa o botão “Preencher com IA”).
+  - Ao salvar com `publicacao` presente: gravar o vínculo em `tarefas_publicacoes` (termo) ou `tarefas_publicacoes_processos` (processo), setar `origem = 'analise_djen'`, marcar a publicação como lida — mesma lógica do dialog atual.
+- Em `AnaliseDjen.tsx`, substituir `CriarTarefaPublicacaoDialog` por `NovaTarefaDialog` (com wrapper que passa `coordenacoes`, `publicacao`, `processoPreSelecionado`).
+- Remover `CriarTarefaPublicacaoDialog.tsx` após migração (arquivo não é mais referenciado em outras telas).
 
-## Parte 2 — Configuração unificada por coordenação (engrenagem)
+### 2. Coordenação obrigatória nos 4 formulários
+Ajustar `NovaTarefaDialog`, `EventoDialog`, `PrazoDialog` e `AudienciaFormSimplificado`:
+- Schema/validação: quando `precisaSelecionar === true` (usuário admin ou com múltiplas coordenações), exigir `coordenacao_id` não-vazio antes do submit — bloquear salvar com mensagem clara.
+- Quando `precisaSelecionar === false` e existe `unicaCoordenacaoId`: aplicar automaticamente e ocultar o seletor (comportamento atual do hook; garantir consistência).
+- O `CoordenacaoSelect` continua respeitando o hook `useCoordenacoesDoUsuario` (admin vê todas, demais só as suas).
 
-Hoje a engrenagem do card só configura alertas de e-mail/WhatsApp (`config_alertas_coordenacao`). Vou expandi-la para um diálogo com abas:
+### 3. Sem mudanças de banco
+Todas as tabelas envolvidas (`tarefas`, `eventos_agenda`, `audiencias_detectadas`) já possuem `coordenacao_id`. A obrigatoriedade é aplicada no front — a app já é a única via de criação para esses fluxos.
 
-**Tabela nova `config_deteccao_coordenacao`** (uma linha por coordenação):
+## Detalhes técnicos
 
-| Campo | Uso |
-| --- | --- |
-| `coordenacao_id` (UNIQUE) | vínculo |
-| `detectar_audiencias` bool | liga/desliga gravação em `audiencias_detectadas` |
-| `detectar_intimacoes` bool | idem para `intimacoes_detectadas` |
-| `monitorar_andamentos` bool + `horarios_andamentos` time[] | DataJud/CNJ |
-| `monitorar_djen_termos` bool + `horarios_djen_termos` time[] | DJEN por termos |
-| `monitorar_djen_processos` bool + `horarios_djen_processos` time[] | DJEN por processo |
-| `monitorar_distribuicoes` bool + `horarios_distribuicoes` time[] |  |
-| `monitorar_redistribuicoes` bool + `horarios_redistribuicoes` time[] |  |
-| `monitorar_djet_pautas` bool + `horarios_djet_pautas` time[] |  |
+- Hooks reutilizados: `useCoordenacoesDoUsuario`, `useCoordenacaoPadrao`.
+- `NovaTarefaDialog` recebe novo prop `publicacao` + renderiza painel lateral (mesmo padrão de `NovaAudienciaPublicacaoDialog`: split lg:2-colunas quando há publicação).
+- Reaproveitar `BotaoPreencherIA` (já usado no dialog atual) dentro do `NovaTarefaDialog` quando `publicacao` estiver presente.
+- `AnaliseDjen.tsx`: atualizar apenas os 2 pontos onde `CriarTarefaPublicacaoDialog` é renderizado/importado.
 
-Diálogo da engrenagem (novo layout, abas):
+## Fora de escopo
 
-1. **Alertas** (o que já existe hoje: e-mail, WhatsApp, horários de envio, tipos)
-2. **Detecção automática** — 2 switches (audiências / intimações)
-3. **Monitoramentos** — cada tipo com switch + horários (checkbox 00:00 → 23:00 em intervalos)
-
-## Parte 3 — Aplicar isolamento nos jobs
-
-Todos os edge functions/jobs (`monitorar-andamentos`, `monitorar-termos`, `monitorar-djen-processos`, `monitorar-distribuicoes`, `monitorar-redistribuicoes`, `processar-djet-pautas`) precisam:
-
-1. Iterar por coordenação em vez de rodar global.
-2. Ler `config_deteccao_coordenacao` da coordenação e pular se o tipo estiver desligado ou se o horário atual não bater.
-3. Ao gravar em `audiencias_detectadas`/`intimacoes_detectadas`, respeitar `detectar_audiencias`/`detectar_intimacoes` da coordenação dona do processo.
-
-A tela global "Monitoramento de Andamentos" em Configurações passa a ser **somente leitura / diagnóstico** (mostra o consolidado de todas as coordenações). A configuração viva fica na engrenagem.
-
----
-
-## Confirmações antes de executar
-
-1. **Apagar 316 audiências detectadas + intimações + alertas** é irreversível. Confirma?
-2. Quando uma coordenação **não tiver** configuração ainda (linha nova em `config_deteccao_coordenacao`), o padrão deve ser **tudo desligado** (você habilita o que quiser) ou **tudo ligado com horários padrão**?
-3. Manter a tela global de Configurações → Monitoramento como "somente diagnóstico" ou remover completamente?
-
-Assim que confirmar, executo em 3 passos: (1) migration + limpeza dos dados, (2) UI da engrenagem com as abas, (3) ajuste dos edge functions para respeitar a configuração por coordenação.
+- Nenhuma alteração em outros pontos que usam `NovaTarefaDialog`, `EventoDialog`, `PrazoDialog` ou `AudienciaFormSimplificado` (Painel, Delegação, Agenda) — todos continuam funcionando; o único efeito colateral é a nova obrigatoriedade de coordenação para admin/multi-coord, que já é o comportamento desejado globalmente segundo o pedido.
