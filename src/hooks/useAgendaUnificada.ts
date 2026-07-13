@@ -938,6 +938,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                 ? { id: aud.processo_id ?? aud.id, numero: aud.processo_numero }
                 : null,
               criado_por: aud.criado_por,
+              coordenacao_id: aud.coordenacao_id ?? null,
               dias_restantes: diasRestantes,
               is_atrasado: isAtrasado,
             });
