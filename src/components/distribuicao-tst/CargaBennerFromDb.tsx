@@ -225,6 +225,7 @@ interface CargaFilters {
   turma?: string;
   relator?: string;
   parte?: string;
+  parteRecorrente?: string;
   nomeParte?: string;
   mesAno?: string;
   dataInicio?: string;
