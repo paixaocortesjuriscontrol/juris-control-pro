@@ -1300,10 +1300,24 @@ export function NovaTarefaDialog({
             form="nova-tarefa-form"
             disabled={loading || uploadingAnexos} 
             className="w-full sm:w-auto"
+            onClick={() => { secondaryClickedRef.current = false; }}
           >
             {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
           </Button>
+          {secondarySave && !tarefaParaEditar?.id && (
+            <Button
+              type="submit"
+              form="nova-tarefa-form"
+              disabled={loading || uploadingAnexos}
+              variant="secondary"
+              className="w-full sm:w-auto"
+              onClick={() => { secondaryClickedRef.current = true; }}
+            >
+              {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {secondarySave.label}
+            </Button>
+          )}
         </div>
         <Dialog open={!!analiseVisualizando} onOpenChange={(o) => !o && setAnaliseVisualizando(null)}>
           <DialogContent className="sm:max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
