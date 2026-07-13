@@ -283,6 +283,10 @@ export function PrazoDialog({
       toast.error("Selecione ao menos um responsável");
       return;
     }
+    if (precisaSelecionar && !coordenacaoId) {
+      toast.error("Selecione a coordenação");
+      return;
+    }
 
     const payload = {
       titulo: tituloFinal,
