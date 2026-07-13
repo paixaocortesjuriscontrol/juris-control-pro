@@ -156,8 +156,10 @@ Responda APENAS com um JSON válido no seguinte formato (sem markdown, sem expli
 
     if (!response.ok) {
       if (response.status === 429) {
+        const errorText = await response.text();
+        console.error("Gemini 429:", errorText);
         return new Response(
-          JSON.stringify({ error: "Limite de requisições excedido. Tente novamente em alguns segundos." }),
+          JSON.stringify({ error: `Limite de requisições do Gemini (${AI_MODEL}) excedido. Detalhe: ${errorText.slice(0, 400)}` }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
