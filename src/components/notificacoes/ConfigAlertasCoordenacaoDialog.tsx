@@ -586,6 +586,30 @@ export function ConfigAlertasCoordenacaoPanel({
                         icon="users"
                       />
                     </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        Dias da Semana
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Os alertas serão enviados apenas nos dias marcados.
+                      </p>
+                      <div className="flex gap-1 flex-wrap">
+                        {DIAS_SEMANA.map((dia) => (
+                          <Button
+                            key={dia.value}
+                            type="button"
+                            variant={diasSemanaEnvio.includes(dia.value) ? "default" : "outline"}
+                            size="sm"
+                            className="w-10"
+                            onClick={() => toggleDiaSemanaEnvio(dia.value)}
+                          >
+                            {dia.label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
 
