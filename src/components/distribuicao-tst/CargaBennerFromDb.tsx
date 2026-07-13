@@ -474,17 +474,13 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           (d as any).tipo_recurso_reclamante,
           (d as any).tipo_recurso_banco
         );
-        // Colunas AB..AH: listas de matérias (Reclamante + Banco), separadas por vírgula,
-        // filtradas pelo critério da coluna. Espelha src/utils/gerarPlanilhaBenner.ts.
-        const materiasAnalise: Array<any> = [
-          ...(Array.isArray((d as any).materias_analise_reclamante) ? (d as any).materias_analise_reclamante : []),
-          ...(Array.isArray((d as any).materias_analise_banco) ? (d as any).materias_analise_banco : []),
-        ].filter((it: any) => {
-          if (!it || !it.materia) return false;
-          // "Outra Matéria" é marcador virtual — nunca sai na planilha de carga.
-          const n = String(it.materia).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-          return n !== "outra materia";
-        });
+        outRow["__numProcesso"] = numProcesso;
+        outRow["__dadoBennerId"] = d.id || null;
+
+        // Colunas AB..AH: listas de matérias filtradas pelo critério da coluna.
+        // Quando `parte_recorrente` tem mais de uma parte (ex.: "Reclamante e Reclamada",
+        // "Reclamante e Terceiro", "Reclamante, Reclamada e Terceiro"), duplicamos a
+        // linha por parte e cada linha mostra apenas as matérias daquela parte.
         const normMat = (s: any) =>
           String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
         const joinUniqueMat = (items: any[]) => {
@@ -498,26 +494,58 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           }
           return out.join("\n");
         };
-        outRow[LAYOUT_COLS[27]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_turma).startsWith("FAVOR")));
-        outRow[LAYOUT_COLS[28]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_turma).startsWith("DESF")));
-        outRow[LAYOUT_COLS[29]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_relator).startsWith("FAVOR")));
-        outRow[LAYOUT_COLS[30]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_relator).startsWith("DESF")));
-        outRow[LAYOUT_COLS[31]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.aparelhamento).startsWith("BEM")));
-        outRow[LAYOUT_COLS[32]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.aparelhamento).startsWith("MAL")));
-        outRow[LAYOUT_COLS[33]] = joinUniqueMat(materiasAnalise.filter((i: any) => normMat(i.chance_exito) === "SIM"));
-        outRow["__numProcesso"] = numProcesso;
-        outRow["__dadoBennerId"] = d.id || null;
+        const filtrarOutraMateria = (arr: any[]) => (Array.isArray(arr) ? arr : []).filter((it: any) => {
+          if (!it || !it.materia) return false;
+          const n = String(it.materia).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+          return n !== "outra materia";
+        });
+        const materiasPorParte: Record<string, any[]> = {
+          reclamante: filtrarOutraMateria((d as any).materias_analise_reclamante),
+          banco: filtrarOutraMateria((d as any).materias_analise_banco),
+          terceiro: filtrarOutraMateria((d as any).materias_analise_terceiro),
+        };
+        const parteRecorrenteNorm = normalizeText((d as any).parte_recorrente);
+        const partes: Array<"reclamante" | "banco" | "terceiro"> = [];
+        if (/reclamante/.test(parteRecorrenteNorm)) partes.push("reclamante");
+        if (/reclamad/.test(parteRecorrenteNorm)) partes.push("banco");
+        if (/terceiro/.test(parteRecorrenteNorm)) partes.push("terceiro");
 
-        // Sanitize dash-only values
-        for (const key of Object.keys(outRow)) {
-          if (!key.startsWith("__") && typeof outRow[key] === "string" && /^[-–—\s]+$/.test(outRow[key])) {
-            outRow[key] = "";
+        const preencherMateriasCols = (row: Record<string, any>, materias: any[]) => {
+          row[LAYOUT_COLS[27]] = joinUniqueMat(materias.filter((i: any) => normMat(i.chance_turma).startsWith("FAVOR")));
+          row[LAYOUT_COLS[28]] = joinUniqueMat(materias.filter((i: any) => normMat(i.chance_turma).startsWith("DESF")));
+          row[LAYOUT_COLS[29]] = joinUniqueMat(materias.filter((i: any) => normMat(i.chance_relator).startsWith("FAVOR")));
+          row[LAYOUT_COLS[30]] = joinUniqueMat(materias.filter((i: any) => normMat(i.chance_relator).startsWith("DESF")));
+          row[LAYOUT_COLS[31]] = joinUniqueMat(materias.filter((i: any) => normMat(i.aparelhamento).startsWith("BEM")));
+          row[LAYOUT_COLS[32]] = joinUniqueMat(materias.filter((i: any) => normMat(i.aparelhamento).startsWith("MAL")));
+          row[LAYOUT_COLS[33]] = joinUniqueMat(materias.filter((i: any) => normMat(i.chance_exito) === "SIM"));
+        };
+
+        const emitirLinha = (materiasDaLinha: any[]) => {
+          const rowClone: Record<string, any> = { ...outRow };
+          preencherMateriasCols(rowClone, materiasDaLinha);
+          for (const key of Object.keys(rowClone)) {
+            if (!key.startsWith("__") && typeof rowClone[key] === "string" && /^[-–—\s]+$/.test(rowClone[key])) {
+              rowClone[key] = "";
+            }
           }
+          // Conferência inclui todas as linhas (inclusive dossiê vazio /
+          // turma ausente). Layout Carga oficial só recebe não-rejeitadas.
+          conferenciaOutput.push(rowClone);
+          if (!isRejected) output.push(rowClone);
+        };
+
+        if (partes.length >= 2) {
+          for (const p of partes) emitirLinha(materiasPorParte[p]);
+        } else if (partes.length === 1) {
+          emitirLinha(materiasPorParte[partes[0]]);
+        } else {
+          // Sem parte_recorrente preenchida: mantém comportamento anterior (combinado).
+          emitirLinha([
+            ...materiasPorParte.reclamante,
+            ...materiasPorParte.banco,
+            ...materiasPorParte.terceiro,
+          ]);
         }
-        // Conferência inclui todas as linhas (inclusive dossiê vazio /
-        // turma ausente). Layout Carga oficial só recebe não-rejeitadas.
-        conferenciaOutput.push(outRow);
-        if (!isRejected) output.push(outRow);
 
         if (i % 500 === 0) {
           setProgress(50 + Math.floor((i / allDist.length) * 40));
