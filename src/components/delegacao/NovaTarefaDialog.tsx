@@ -41,6 +41,8 @@ import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { Label } from "@/components/ui/label";
 import { TarefaPublicacaoVinculada } from "@/components/shared/TarefaPublicacaoVinculada";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
+import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 
 type AnexoComAnalise = {
   file?: File;
@@ -99,6 +101,8 @@ interface NovaTarefaDialogProps {
   processoPreSelecionado?: { id: string; numero: string } | null;
   tarefaParaEditar?: any | null;
   inline?: boolean;
+  publicacao?: PublicacaoUnificada | null;
+  onCreated?: (tarefaId: string) => void | Promise<void>;
 }
 
 export function NovaTarefaDialog({
@@ -109,6 +113,8 @@ export function NovaTarefaDialog({
   processoPreSelecionado,
   tarefaParaEditar,
   inline = false,
+  publicacao = null,
+  onCreated,
 }: NovaTarefaDialogProps) {
   const [loading, setLoading] = useState(false);
   const [searchProcesso, setSearchProcesso] = useState("");
@@ -518,6 +524,10 @@ export function NovaTarefaDialog({
         throw new Error("Selecione pelo menos um responsável.");
       }
 
+      if (precisaSelecionar && !values.coordenacao_id) {
+        throw new Error("Selecione a coordenação.");
+      }
+
       // Edição
       if (tarefaParaEditar?.id) {
         const updatePayload: Record<string, any> = {
@@ -689,6 +699,9 @@ export function NovaTarefaDialog({
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] });
       queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] });
+      if (novaTarefa?.id && onCreated) {
+        await onCreated(novaTarefa.id);
+      }
       onOpenChange(false);
       onSuccess?.();
     } catch (error: any) {
@@ -738,6 +751,21 @@ export function NovaTarefaDialog({
           Tarefa
         </h3>
         <div className="flex items-center gap-2">
+          {publicacao && (
+            <BotaoPreencherIA
+              conteudo={publicacao.conteudo}
+              tipoTarefa="TAREFA EQUIPE"
+              processoNumero={publicacao.processo_numero}
+              dataPublicacao={publicacao.data_publicacao}
+              size="sm"
+              onResultado={(r) => {
+                if (r.titulo) form.setValue("titulo", r.titulo);
+                const desc = [r.descricao, r.observacoes].filter(Boolean).join("\n\n");
+                if (desc) form.setValue("descricao", desc);
+                if (r.data_vencimento) form.setValue("data_vencimento", r.data_vencimento);
+              }}
+            />
+          )}
           <span className="text-xs text-muted-foreground">Situação</span>
           <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
             <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>

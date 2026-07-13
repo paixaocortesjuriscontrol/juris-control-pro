@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -237,6 +238,10 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!titulo.trim()) return;
+    if (precisaSelecionar && !coordenacaoId) {
+      toast.error("Selecione a coordenação");
+      return;
+    }
 
     const inicioISO = diaInteiro
       ? `${dataInicio}T00:00:00-03:00`

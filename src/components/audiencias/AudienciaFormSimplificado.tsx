@@ -139,6 +139,10 @@ export function AudienciaFormSimplificado({
       toast.error("Selecione ao menos um responsável");
       return;
     }
+    if (precisaSelecionar && !coordenacaoId) {
+      toast.error("Selecione a coordenação");
+      return;
+    }
 
     const payload: NovaAudiencia = {
       processo_id: processoId,
