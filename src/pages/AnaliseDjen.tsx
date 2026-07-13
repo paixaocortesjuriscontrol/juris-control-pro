@@ -4082,27 +4082,86 @@ const AnaliseDjen = () => {
     <MainLayout title="Análise DJEN" subtitle="Publicações do dia para análise do advogado">
       <div className="space-y-6">
         {/* Formulário inline de Adicionar (esconde a lista quando aberto) */}
-        {criarTarefaDialogOpen && (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                Criando item a partir da publicação selecionada
+        {(() => {
+          const inlineFormAberto = criarTarefaDialogOpen || novoEventoOpen || novoPrazoOpen || novaAudienciaOpen;
+          const fecharTudo = () => {
+            setCriarTarefaDialogOpen(false);
+            setNovoEventoOpen(false);
+            setNovoPrazoOpen(false);
+            setNovaAudienciaOpen(false);
+          };
+          const markPubComoLida = async () => {
+            if (!selectedPublicacao) return;
+            try {
+              await marcarComoLida.mutateAsync([
+                { id: selectedPublicacao.id, tipo_origem: selectedPublicacao.tipo_origem },
+              ]);
+            } catch (err) {
+              console.error("Erro ao marcar publicação como lida (Salvar e ler):", err);
+            }
+          };
+          return inlineFormAberto ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  Criando item a partir da publicação selecionada
+                </div>
+                <Button size="sm" variant="outline" onClick={fecharTudo}>
+                  ← Voltar para a lista
+                </Button>
               </div>
-              <Button size="sm" variant="outline" onClick={() => setCriarTarefaDialogOpen(false)}>
-                ← Voltar para a lista
-              </Button>
+              {criarTarefaDialogOpen && (
+                <NovaTarefaPublicacaoDialog
+                  inline
+                  open={criarTarefaDialogOpen}
+                  onOpenChange={setCriarTarefaDialogOpen}
+                  publicacao={selectedPublicacao}
+                  defaultProcessoId={adicionarProcessoId}
+                  onMarkAsRead={markPubComoLida}
+                />
+              )}
+              {novoEventoOpen && (
+                <div className="rounded-md border bg-background overflow-hidden flex flex-col min-h-[70vh] max-h-[calc(100vh-12rem)]">
+                  <EventoDialog
+                    inline
+                    open={novoEventoOpen}
+                    onOpenChange={setNovoEventoOpen}
+                    evento={null}
+                    defaultProcessoId={adicionarProcessoId}
+                    publicacao={selectedPublicacao}
+                    secondarySave={{ label: "Salvar e ler", onAfterSuccess: markPubComoLida }}
+                  />
+                </div>
+              )}
+              {novoPrazoOpen && (
+                <div className="rounded-md border bg-background overflow-hidden flex flex-col min-h-[70vh] max-h-[calc(100vh-12rem)]">
+                  <PrazoDialog
+                    inline
+                    open={novoPrazoOpen}
+                    onOpenChange={setNovoPrazoOpen}
+                    prazo={null}
+                    defaultProcessoId={adicionarProcessoId}
+                    publicacao={selectedPublicacao}
+                    secondarySave={{ label: "Salvar e ler", onAfterSuccess: markPubComoLida }}
+                  />
+                </div>
+              )}
+              {novaAudienciaOpen && (
+                <NovaAudienciaPublicacaoDialog
+                  inline
+                  open={novaAudienciaOpen}
+                  onOpenChange={setNovaAudienciaOpen}
+                  publicacao={selectedPublicacao}
+                  defaultProcessoNumero={adicionarProcessoNumero}
+                  defaultProcessoId={adicionarProcessoId}
+                  onMarkAsRead={markPubComoLida}
+                />
+              )}
             </div>
-            <NovaTarefaPublicacaoDialog
-              inline
-              open={criarTarefaDialogOpen}
-              onOpenChange={setCriarTarefaDialogOpen}
-              publicacao={selectedPublicacao}
-              defaultProcessoId={adicionarProcessoId}
-            />
-          </div>
-        )}
+          ) : null;
+        })()}
 
-        <div className={cn("space-y-6", criarTarefaDialogOpen && "hidden")}>
+        <div className={cn("space-y-6", (criarTarefaDialogOpen || novoEventoOpen || novoPrazoOpen || novaAudienciaOpen) && "hidden")}>
         {/* Banners de execução DJEN */}
         <DjenExecutionBanner />
 
