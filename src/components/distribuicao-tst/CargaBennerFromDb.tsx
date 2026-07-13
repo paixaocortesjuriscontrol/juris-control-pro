@@ -520,8 +520,34 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           row[LAYOUT_COLS[33]] = joinUniqueMat(materias.filter((i: any) => normMat(i.chance_exito) === "SIM"));
         };
 
-        const emitirLinha = (materiasDaLinha: any[]) => {
+        // Mapeia a chave interna da parte para o rótulo exibido em "Recorrente"
+        // (coluna AA) e para o campo `tipo_recurso_*` correspondente.
+        const labelParte: Record<string, string> = {
+          reclamante: "Reclamante",
+          banco: "Reclamada",
+          terceiro: "Terceiro",
+        };
+        const tipoRecursoDaParte = (p: "reclamante" | "banco" | "terceiro"): string => {
+          const raw = p === "reclamante"
+            ? (d as any).tipo_recurso_reclamante
+            : p === "banco"
+              ? (d as any).tipo_recurso_banco
+              : (d as any).tipo_recurso_terceiro;
+          return formatTipoRecurso(splitRecursoValues(raw).join(", "));
+        };
+
+        const emitirLinha = (
+          materiasDaLinha: any[],
+          parte?: "reclamante" | "banco" | "terceiro",
+        ) => {
           const rowClone: Record<string, any> = { ...outRow };
+          if (parte) {
+            // Sobrescreve o Recorrente (AA) e o Tipo de Recurso (C) para
+            // refletir apenas a parte desta linha, garantindo que as
+            // matérias das colunas AB..AH batam com o Recorrente exibido.
+            rowClone[LAYOUT_COLS[26]] = labelParte[parte];
+            rowClone[LAYOUT_COLS[2]] = tipoRecursoDaParte(parte);
+          }
           preencherMateriasCols(rowClone, materiasDaLinha);
           for (const key of Object.keys(rowClone)) {
             if (!key.startsWith("__") && typeof rowClone[key] === "string" && /^[-–—\s]+$/.test(rowClone[key])) {
@@ -535,9 +561,9 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         };
 
         if (partes.length >= 2) {
-          for (const p of partes) emitirLinha(materiasPorParte[p]);
+          for (const p of partes) emitirLinha(materiasPorParte[p], p);
         } else if (partes.length === 1) {
-          emitirLinha(materiasPorParte[partes[0]]);
+          emitirLinha(materiasPorParte[partes[0]], partes[0]);
         } else {
           // Sem parte_recorrente preenchida: mantém comportamento anterior (combinado).
           emitirLinha([
