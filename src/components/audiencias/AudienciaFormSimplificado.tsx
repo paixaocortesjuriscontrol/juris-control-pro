@@ -215,13 +215,27 @@ export function AudienciaFormSimplificado({
               type="submit"
               size="sm"
               disabled={criarAudiencia.isPending}
-              onClick={handleSubmit as any}
+              onClick={(e) => { secondaryClickedRef.current = false; handleSubmit(e as any); }}
             >
               {criarAudiencia.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               )}
               Salvar
             </Button>
+            {secondarySave && (
+              <Button
+                type="submit"
+                size="sm"
+                variant="secondary"
+                disabled={criarAudiencia.isPending}
+                onClick={(e) => { secondaryClickedRef.current = true; handleSubmit(e as any); }}
+              >
+                {criarAudiencia.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {secondarySave.label}
+              </Button>
+            )}
           </div>
         </div>
       )}
