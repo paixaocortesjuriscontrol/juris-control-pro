@@ -1270,13 +1270,19 @@ export default function PainelControle() {
                       responsaveisArr.push(it.responsavel.nome);
                     }
                     const envolvidosArr = envMap.get(key) ?? [];
+                    const fmtDate = (v?: string | null) => {
+                      const s = (v ?? "").slice(0, 10);
+                      if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+                      const [y, m, d] = s.split("-");
+                      return `${d}/${m}/${y}`;
+                    };
                     return {
                       Classificação: TIPO_LABELS[it.tipo as string] ?? it.tipo_tarefa ?? it.tipo,
                       Título: it.titulo,
                       Status: it.status,
-                      "Data prevista": (it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10),
+                      "Data prevista": fmtDate(it.data_vencimento ?? it.data_inicio),
                       Horário: horario,
-                      "Data fatal": (it.data_fatal ?? "").slice(0, 10),
+                      "Data fatal": fmtDate(it.data_fatal),
                       Responsáveis: responsaveisArr.join(", "),
                       Envolvidos: envolvidosArr.join(", "),
                       Processo: it.processo?.numero ?? "",
