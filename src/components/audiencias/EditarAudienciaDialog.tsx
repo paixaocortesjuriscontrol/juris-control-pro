@@ -493,8 +493,23 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
               </SelectContent>
             </Select>
-            <Button type="submit" form="editar-audiencia-form" size="sm" disabled={isLoading} className="shrink-0">
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Salvar</>}
+            <Button
+              type="submit"
+              form="editar-audiencia-form"
+              size="sm"
+              disabled={isLoading}
+              aria-label="Salvar"
+              title="Salvar"
+              className="shrink-0 h-9 w-9 p-0 sm:w-auto sm:px-3"
+            >
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Save className="w-4 h-4 sm:mr-1" />
+                  <span className="hidden sm:inline">Salvar</span>
+                </>
+              )}
             </Button>
           </div>
         </div>
