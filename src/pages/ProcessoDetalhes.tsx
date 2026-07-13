@@ -100,7 +100,7 @@ import { ProcessoDocumentosTab } from "@/components/processos/ProcessoDocumentos
 import { ProcessoPortalTab } from "@/components/processos/ProcessoPortalTab";
 import { ProcessoPedidosTab } from "@/components/processos/ProcessoPedidosTab";
 import { SelecionarResponsaveisProcesso } from "@/components/processos/SelecionarResponsaveisProcesso";
-import { CriarTarefaPublicacaoDialog } from "@/components/djen/CriarTarefaPublicacaoDialog";
+import { NovaTarefaPublicacaoDialog } from "@/components/djen/NovaTarefaPublicacaoDialog";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { TarefaPublicacaoView } from "@/components/processos/TarefaPublicacaoView";
 import { ProcessoTstTab } from "@/components/processos/ProcessoTstTab";
@@ -1241,7 +1241,7 @@ export default function ProcessoDetalhes() {
     };
 
     // Debug: confirma clique e dados básicos
-    console.log("[Pub.DJEN] abrir CriarTarefaPublicacaoDialog", {
+    console.log("[Pub.DJEN] abrir NovaTarefaPublicacaoDialog", {
       pubId: pubUnificada.id,
       processoId: pubUnificada.processo_id,
     });
@@ -2141,7 +2141,7 @@ export default function ProcessoDetalhes() {
         </Dialog>
 
         {/* Criar Tarefa a partir de Publicação DJEN */}
-        <CriarTarefaPublicacaoDialog
+        <NovaTarefaPublicacaoDialog
           open={!!publicacaoParaTarefa}
           onOpenChange={(open) => {
             if (!open) {
@@ -2264,7 +2264,7 @@ export default function ProcessoDetalhes() {
       </Dialog>
 
       {/* Criar Tarefa a partir de Publicação DJEN */}
-      <CriarTarefaPublicacaoDialog
+      <NovaTarefaPublicacaoDialog
         open={!!publicacaoParaTarefa}
         onOpenChange={(open) => {
           if (!open) {
