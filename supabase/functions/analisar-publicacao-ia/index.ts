@@ -69,9 +69,19 @@ serve(async (req) => {
       );
     }
 
-    if (!Deno.env.get("GEMINI_API_KEY")) {
-      throw new Error("GEMINI_API_KEY não configurada");
+    const geminiKeySource = Deno.env.get("GEMINI_API_KEY_DJEN")
+      ? "GEMINI_API_KEY_DJEN"
+      : Deno.env.get("GEMINI_API_KEY")
+        ? "GEMINI_API_KEY"
+        : Deno.env.get("GOOGLE_API_KEY")
+          ? "GOOGLE_API_KEY"
+          : null;
+
+    if (!geminiKeySource) {
+      throw new Error("Chave Gemini não configurada");
     }
+
+    console.info(`analisar-publicacao-ia usando ${geminiKeySource} com modelo ${AI_MODEL}`);
 
     const tipoDescricao = tipoTarefa ? `O usuário selecionou o tipo de tarefa: ${tipoTarefa}.` : "";
 
