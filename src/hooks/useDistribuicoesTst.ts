@@ -475,6 +475,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.turma) return true;
   if (filters.relator) return true;
   if (filters.parte) return true;
+  if (filters.parteRecorrente) return true;
   if (filters.nomeParte) return true;
   if (filters.aba_origem && filters.aba_origem !== "todas") return true;
   if (filters.benner && filters.benner !== "todos") return true;
