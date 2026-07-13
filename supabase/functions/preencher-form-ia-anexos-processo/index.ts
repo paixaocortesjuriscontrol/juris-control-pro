@@ -68,30 +68,9 @@ Devolva JSON puro no formato:
 {"processo": {...}, "_evidencias": {...}, "_confianca": {...}, "_alertas": []}
 Campos sem evidência: OMITA do JSON.`;
 
-async function openAIJson(body: any): Promise<Response> {
-  const key = Deno.env.get("OPENAI_API_KEY");
-  if (!key) {
-    return new Response(JSON.stringify({ error: { message: "OPENAI_API_KEY não configurada" } }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-  try {
-    return await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: { message: `Falha de rede OpenAI: ${e?.message || e}` } }), {
-      status: 502,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-}
+import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
+const hasGeminiKey = () =>
+  !!(Deno.env.get("GEMINI_API_KEY_DJEN") || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY"));
 
 const ALLOWED_PROCESSO_FIELDS = new Set([
   "assunto", "tipo_processo", "classe", "natureza", "area", "fase", "status",
@@ -139,7 +118,7 @@ Deno.serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     if (!user) return json({ error: "Token inválido" }, 401);
 
-    if (!Deno.env.get("OPENAI_API_KEY")) return json({ error: "OPENAI_API_KEY não configurada" }, 500);
+    if (!hasGeminiKey()) return json({ error: "GEMINI_API_KEY_DJEN não configurada" }, 500);
 
     const body = await req.json();
     const processoId: string | null = body?.processo_id || null;
@@ -202,8 +181,8 @@ Deno.serve(async (req) => {
     }
     const fullText = parts.join("\n\n");
 
-    const aiRes = await openAIJson({
-      model: "gpt-4o-mini",
+    const aiRes = await geminiChatCompletionsFetch({
+      model: Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash",
       temperature: 0,
       response_format: { type: "json_object" },
       messages: [
@@ -221,7 +200,9 @@ Deno.serve(async (req) => {
 
     if (!aiRes.ok) {
       const t = await aiRes.text();
-      return json({ error: `OpenAI ${aiRes.status}: ${t.substring(0, 300)}` }, 500);
+      let msg = `Gemini ${aiRes.status}: ${t.substring(0, 300)}`;
+      try { const parsed = JSON.parse(t); if (parsed?.error?.message) msg = parsed.error.message; } catch {}
+      return json({ error: msg }, aiRes.status === 429 ? 429 : 500);
     }
 
     const aiJson = await aiRes.json();
