@@ -8,6 +8,36 @@ const corsHeaders = {
 };
 
 const AI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
+const OPENAI_MODEL = Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini";
+
+async function openAiChatCompletionsFetch(body: any): Promise<Response> {
+  const key = Deno.env.get("OPENAI_API_KEY");
+  if (!key) {
+    return new Response(
+      JSON.stringify({ error: { message: "OPENAI_API_KEY não configurada" } }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  try {
+    return await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ...body,
+        model: OPENAI_MODEL,
+      }),
+    });
+  } catch (e: any) {
+    return new Response(
+      JSON.stringify({ error: { message: `Falha de rede OpenAI: ${e?.message || e}` } }),
+      { status: 502, headers: { "Content-Type": "application/json" } },
+    );
+  }
+}
 
 function extrairJson(texto: string) {
   let jsonStr = texto.trim();
@@ -69,6 +99,7 @@ serve(async (req) => {
       );
     }
 
+    const hasOpenAiKey = !!Deno.env.get("OPENAI_API_KEY");
     const geminiKeySource = Deno.env.get("GEMINI_API_KEY_DJEN")
       ? "GEMINI_API_KEY_DJEN"
       : Deno.env.get("GEMINI_API_KEY")
@@ -77,11 +108,15 @@ serve(async (req) => {
           ? "GOOGLE_API_KEY"
           : null;
 
-    if (!geminiKeySource) {
-      throw new Error("Chave Gemini não configurada");
+    if (!hasOpenAiKey && !geminiKeySource) {
+      throw new Error("Nenhuma chave de IA configurada (OPENAI_API_KEY ou Gemini)");
     }
 
-    console.info(`analisar-publicacao-ia usando ${geminiKeySource} com modelo ${AI_MODEL}`);
+    console.info(
+      hasOpenAiKey
+        ? `analisar-publicacao-ia usando OPENAI_API_KEY com modelo ${OPENAI_MODEL}`
+        : `analisar-publicacao-ia usando ${geminiKeySource} com modelo ${AI_MODEL}`,
+    );
 
     const tipoDescricao = tipoTarefa ? `O usuário selecionou o tipo de tarefa: ${tipoTarefa}.` : "";
 
@@ -134,7 +169,7 @@ Responda APENAS com um JSON válido no seguinte formato (sem markdown, sem expli
   "observacoes": "Observações relevantes sobre prazos ou ações específicas"
 }`;
 
-    const response = await geminiChatCompletionsFetch({
+    const aiBody = {
       model: AI_MODEL,
       messages: [
         { role: "system", content: systemPrompt },
@@ -162,14 +197,33 @@ Responda APENAS com um JSON válido no seguinte formato (sem markdown, sem expli
         },
       }],
       tool_choice: { type: "function", function: { name: "preencher_tarefa_publicacao" } },
-    });
+    };
+
+    let response = hasOpenAiKey
+      ? await openAiChatCompletionsFetch(aiBody)
+      : await geminiChatCompletionsFetch(aiBody);
+
+    if (!hasOpenAiKey && response.status === 429) {
+      const errorText = await response.clone().text();
+      const creditsDepleted = errorText.toLowerCase().includes("prepayment credits are depleted")
+        || errorText.toLowerCase().includes("resource_exhausted");
+      if (creditsDepleted && Deno.env.get("OPENAI_API_KEY")) {
+        console.warn(`Gemini sem créditos; alternando para OpenAI ${OPENAI_MODEL}`);
+        response = await openAiChatCompletionsFetch(aiBody);
+      }
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
         const errorText = await response.text();
-        console.error("Gemini 429:", errorText);
+        console.error("IA 429:", errorText);
+        const isGeminiBilling = errorText.toLowerCase().includes("prepayment credits are depleted");
         return new Response(
-          JSON.stringify({ error: `Limite de requisições do Gemini (${AI_MODEL}) excedido. Detalhe: ${errorText.slice(0, 400)}` }),
+          JSON.stringify({
+            error: isGeminiBilling
+              ? `A chave Gemini configurada está sem créditos/prepagamento no AI Studio. ${hasOpenAiKey ? "O fallback OpenAI também falhou." : "Configure créditos no Google AI Studio ou OPENAI_API_KEY."}`
+              : `Limite de requisições da IA excedido. Detalhe: ${errorText.slice(0, 400)}`,
+          }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
