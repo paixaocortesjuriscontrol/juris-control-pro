@@ -1586,6 +1586,10 @@ export default function DistribuicaoTst() {
             loading={statsLoading}
             activeKey={activeCardKey}
             onCardClick={handleCardClick}
+            prontoSemPendencia={{
+              count: prontoSemPendenciaCount,
+              loading: prontoSemPendenciaLoading,
+            }}
             multiRespCard={isAdmin ? {
               count: multiRespIds.length,
               active: filtroMultiResp,
