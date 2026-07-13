@@ -409,6 +409,7 @@ export async function fetchAllDistribuicaoTstIds(
     if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
     if (filters.relator) query = query.ilike("relator", `%${filters.relator}%`);
     if (filters.parte) query = query.ilike("recorrente", `%${filters.parte}%`);
+    if (filters.parteRecorrente) query = query.eq("recorrente", filters.parteRecorrente);
     if (filters.nomeParte) {
       const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
@@ -632,6 +633,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     if (filters.turma) query = query.ilike("turma", `%${filters.turma}%`);
     if (filters.relator) query = query.ilike("relator", `%${filters.relator}%`);
     if (filters.parte) query = query.ilike("recorrente", `%${filters.parte}%`);
+    if (filters.parteRecorrente) query = query.eq("recorrente", filters.parteRecorrente);
     if (filters.nomeParte) {
       const escaped = filters.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
@@ -1021,6 +1023,7 @@ export async function fetchMesesDataRealFiltered(
     if (f.turma) query = query.ilike("turma", `%${f.turma}%`);
     if (f.relator) query = query.ilike("relator", `%${f.relator}%`);
     if (f.parte) query = query.ilike("recorrente", `%${f.parte}%`);
+    if (f.parteRecorrente) query = query.eq("recorrente", f.parteRecorrente);
     if (f.nomeParte) {
       const escaped = f.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
