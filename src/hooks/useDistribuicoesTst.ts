@@ -1091,7 +1091,7 @@ export async function fetchMesesDataRealFiltered(
     if (f.turma) query = query.ilike("turma", `%${f.turma}%`);
     if (f.relator) query = query.ilike("relator", `%${f.relator}%`);
     if (f.parte) query = query.ilike("recorrente", `%${f.parte}%`);
-    if (f.parteRecorrente) query = query.eq("recorrente", f.parteRecorrente);
+    query = applyParteRecorrenteFilter(query, f.parteRecorrente);
     if (f.nomeParte) {
       const escaped = f.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
