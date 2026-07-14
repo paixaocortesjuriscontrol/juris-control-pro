@@ -675,6 +675,7 @@ export default function MinhaAgenda() {
         className={cn(
           "flex gap-3 p-4 border-b hover:bg-muted/50 cursor-pointer transition-colors",
           item.status === "concluido" && "opacity-60",
+          item.status === "cancelado" && "opacity-60 grayscale bg-muted/40",
           item.is_atrasado && "border-l-4 border-l-destructive",
           isSelected && "bg-muted/80"
         )}
@@ -704,7 +705,11 @@ export default function MinhaAgenda() {
                     <CheckCircle2 className="w-3 h-3 mr-1" />
                     Concluído
                   </Badge>
-                ) : item.is_atrasado ? (
+                ) : item.status === "cancelado" ? (
+                   <Badge className="bg-muted text-muted-foreground border-border text-xs transition-colors duration-300">
+                     Cancelado
+                   </Badge>
+                 ) : item.is_atrasado ? (
                    <Badge variant="destructive" className="text-xs transition-colors duration-300">
                     <AlertTriangle className="w-3 h-3 mr-1" />
                     Atrasado
@@ -741,7 +746,7 @@ export default function MinhaAgenda() {
               
               <h3 className={cn(
                 "font-medium text-sm line-clamp-2",
-                (item.status === "concluido" || item.status === "cumprido") && "line-through text-muted-foreground"
+                (item.status === "concluido" || item.status === "cumprido" || item.status === "cancelado") && "line-through text-muted-foreground"
               )}>
                 {item.titulo || "Sem título"}
               </h3>
