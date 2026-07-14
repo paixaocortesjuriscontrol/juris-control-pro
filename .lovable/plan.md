@@ -1,58 +1,32 @@
-# Unificar Detalhe do Processo com Painel de Controle
+## Diagnóstico
 
-## O que muda no menu lateral do processo
+A tela `Análise DJEN` está mostrando "Nenhuma duplicada encontrada" porque a RPC `descartar_duplicadas_coordenacao` foi endurecida em 02/07 e passou a exigir, além de mesmo processo e mesmo conteúdo normalizado, que as publicações do grupo tenham `id_djen` NÃO nulo e **diferentes entre si** (`COUNT(DISTINCT id_djen) > 1`).
 
-Na seção **"Prazos & Eventos"** do sidebar (arquivo `ProcessoDetalhesCompletos.tsx`), remover **Intimações** e **Agenda**, e deixar exatamente as mesmas 5 opções do botão **Adicionar** do Painel de Controle:
+Isso ignora justamente os casos que apareciam antes:
+- Duplicadas vindas do Kurier (id_djen nulo)
+- Duplicadas com mesmo id_djen capturado duas vezes por origens/execuções distintas
+- Qualquer par onde só um lado tem id_djen preenchido
 
-- Tarefa
-- Evento
-- Prazo
-- Audiência
-- Parcelamento recorrente
+**Regra da versão anterior (que funcionava — migration `20260702130249`):**
 
-A seção separada "Tarefas" some (Tarefa passa para dentro de "Prazos & Eventos"). Contadores continuam aparecendo em cada item.
+Particiona por:
+```
+coordenação + regexp_replace(processo_numero, '\D', '') + md5(djen_normalize_conteudo_descarte_sem_intimados(conteudo))
+```
+mantém a mais antiga (`created_at ASC, id ASC`) e descarta o resto. Sem qualquer filtro por `id_djen`.
 
-## Formulários (criar/editar)
+## Plano
 
-Em cada uma dessas 5 seções, ao clicar em **"Adicionar"** ou em um item existente para **editar**, abrir exatamente os mesmos formulários usados pelo Painel de Controle:
+1. Criar nova migration substituindo `descartar_duplicadas_coordenacao(uuid, date, date)` para voltar à regra baseada apenas em **coordenação + processo (dígitos) + conteúdo normalizado sem intimados**.
+2. Preservar as melhorias operacionais da versão atual:
+   - Intervalo de datas com timezone BRT (default = hoje quando ambos vazios).
+   - Ramo UNION ALL para pegar publicações com `coordenacao_id` direto **e** publicações legadas com `coordenacao_id` nulo mas monitoramento ligado à coordenação.
+   - Uso de `_dup_ids` temp table + INSERT em `publicacoes_djen_descartadas` + DELETE em `publicacoes_djen`.
+   - Retorno com `lote_id` para permitir "Desfazer último descarte".
+   - Índices já criados pela migration atual (`idx_publicacoes_djen_descartar_coord_data`, etc.) permanecem.
+3. Motivo de descarte gravado: `duplicada_mesmo_processo_conteudo_sem_intimados` (para diferenciar do lote antigo `duplicada_lote` e do atual mais restrito). O botão "Desfazer último descarte" já filtra pelo `lote_id`, então continua funcionando.
+4. Nenhuma alteração no frontend — o botão continua chamando a mesma RPC com os mesmos parâmetros.
 
-| Item | Formulário |
-|---|---|
-| Tarefa | `NovaTarefaDialog` (modo inline) |
-| Evento | `EventoDialog` (modo inline) |
-| Prazo | `PrazoDialog` (modo inline) |
-| Audiência | `AudienciaFormSimplificado` |
-| Parcelamento | `GerarParcelasDialog` (modo inline) |
+## Regra resultante
 
-Para evitar duplicação, vou **extrair** o `NovoItemPanel` que hoje mora dentro de `PainelControle.tsx` para um componente compartilhado (`src/components/shared/NovoItemPanel.tsx`) e passar a aceitar:
-
-- `tipo` (tarefa/evento/prazo/audiencia/parcelamento)
-- `itemParaEditar` (registro existente, opcional)
-- `processoIdPreset` (para pré-vincular ao processo atual do detalhe)
-- `publicacao` (opcional — publicação DJEN vinculada para exibir no card verde retrátil)
-
-`PainelControle.tsx` passa a importar esse componente compartilhado (comportamento atual preservado).
-
-## Publicação vinculada
-
-Se o item aberto (novo ou existente) tiver publicação DJEN vinculada, o `PublicacaoVinculadaCollapsible` (card verde retrátil já existente) aparece no topo do formulário — mesmo comportamento adotado no Painel de Controle.
-
-## Listagens dentro das seções
-
-As telas de listagem de Audiências, Prazos e Tarefas continuam existindo (para exibir os itens do processo). O que muda:
-
-- Botão **"+ Novo/Nova ..."** de cada uma passa a abrir o `NovoItemPanel` compartilhado com o `tipo` correspondente e `processoIdPreset` do processo atual.
-- Clique em um item da lista abre o mesmo painel com `itemParaEditar`.
-- Novas seções **Evento** e **Parcelamento** são criadas com listagens simples (usando `eventosAgenda` já carregado e filtrando por `tipo`), com o mesmo padrão.
-
-## Arquivos afetados
-
-- `src/components/shared/NovoItemPanel.tsx` — novo, extraído
-- `src/pages/PainelControle.tsx` — passa a importar o compartilhado
-- `src/components/processos/ProcessoDetalhesCompletos.tsx` — sidebar reestruturado + integração com `NovoItemPanel`
-- (Sem mudanças em lógica de negócio ou banco.)
-
-## Fora de escopo
-
-- Não mexer em Andamentos, Documentos, Pedidos & Financeiro, Monitoramento, Distribuições ou Interação.
-- Não alterar RLS, migrations ou provider de IA.
+Uma publicação é considerada duplicada quando existe outra na **mesma coordenação**, com **mesmos dígitos de processo**, dentro do **intervalo de data de disponibilização** informado (ou hoje BRT se vazio), com o **mesmo conteúdo normalizado sem a seção de intimados**. Mantém a mais antiga (`created_at ASC`) e descarta as demais, independentemente de `id_djen` estar nulo ou repetido.
