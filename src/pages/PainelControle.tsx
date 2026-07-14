@@ -40,7 +40,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
-import { ClipboardList, CalendarPlus, Clock, Gavel, Coins } from "lucide-react";
+import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff } from "lucide-react";
 import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
@@ -120,6 +120,14 @@ export default function PainelControle() {
   const [situacaoFilter, setSituacaoFilter] = useState<string>("todos");
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
+  const [mostrarTotalizadores, setMostrarTotalizadores] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const v = window.localStorage.getItem("painel:mostrarTotalizadores");
+    return v === null ? true : v === "1";
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("painel:mostrarTotalizadores", mostrarTotalizadores ? "1" : "0"); } catch {}
+  }, [mostrarTotalizadores]);
 
   const updateItemAgenda = useUpdateItemAgenda();
   const updateEvento = useUpdateEvento();
