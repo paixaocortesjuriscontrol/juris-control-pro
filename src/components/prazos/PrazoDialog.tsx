@@ -82,6 +82,12 @@ type PrazoDialogProps = {
   publicacao?: PublicacaoUnificada | null;
   inline?: boolean;
   embedded?: boolean;
+  /**
+   * Quando `true`, oculta o card verde expansível "Publicação DJEN vinculada"
+   * dentro do formulário. Usado pelo layout side-by-side da tela Análise DJEN,
+   * onde a publicação já é exibida em um painel lateral fixo à esquerda.
+   */
+  hidePublicacaoCollapsible?: boolean;
   secondarySave?: {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
@@ -97,6 +103,7 @@ export function PrazoDialog({
   publicacao,
   inline = false,
   embedded = false,
+  hidePublicacaoCollapsible = false,
   secondarySave,
 }: PrazoDialogProps) {
   const { user } = useAuth();
@@ -541,7 +548,7 @@ export function PrazoDialog({
           </div>
         </div>
 
-        {hasPublicacao && (
+        {hasPublicacao && !hidePublicacaoCollapsible && (
           <PublicacaoVinculadaCollapsible publicacao={publicacaoEfetiva as any} />
         )}
 
