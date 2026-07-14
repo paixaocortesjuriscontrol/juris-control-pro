@@ -385,7 +385,7 @@ export default function DistribuicaoTst() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(debouncedFilters), page]);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
-  const { count: prontoSemPendenciaCount, loading: prontoSemPendenciaLoading } =
+  const { count: prontoSemPendenciaCount, ids: prontoSemPendenciaIds, loading: prontoSemPendenciaLoading } =
     useProntoSemPendenciaCount(debouncedFilters);
 
   // Todos os cards (incluindo Total Geral, Prontos para Enviar e A fazer)
