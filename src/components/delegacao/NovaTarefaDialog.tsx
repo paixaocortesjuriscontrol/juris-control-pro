@@ -1164,6 +1164,87 @@ export function NovaTarefaDialog({
                 )}
               />
 
+              <AlertasConfigCard />
+
+              {/* Recorrência */}
+              <div className="rounded-md border p-3 space-y-3">
+                <Label className="text-sm font-medium">Recorrência</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Frequência</Label>
+                    <Select
+                      value={recorrenciaTipo}
+                      onValueChange={(v) => {
+                        setRecorrenciaTipo(v);
+                        setRecorrenciaIntervalo(1);
+                      }}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nenhuma">Não se repete</SelectItem>
+                        <SelectItem value="daily">Dias corridos</SelectItem>
+                        <SelectItem value="weekdays">Dias úteis (Seg–Sex)</SelectItem>
+                        <SelectItem value="weekly">Semanalmente</SelectItem>
+                        <SelectItem value="monthly">Mensalmente</SelectItem>
+                        <SelectItem value="yearly">Anualmente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {recorrenciaTipo !== "nenhuma" && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Quantas vezes deve aparecer?</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="Ex.: 9"
+                        value={recorrenciaOcorrencias}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setRecorrenciaOcorrencias(v);
+                          const n = parseInt(v);
+                          const dv = form.getValues("data_vencimento");
+                          if (n && n > 0 && dv) {
+                            const base = new Date(dv + "T00:00:00");
+                            const offset = n - 1;
+                            let fim = base;
+                            if (recorrenciaTipo === "daily") fim = addDays(base, offset);
+                            else if (recorrenciaTipo === "weekdays") {
+                              let count = 0;
+                              fim = base;
+                              while (count < offset) {
+                                fim = addDays(fim, 1);
+                                const dow = fim.getDay();
+                                if (dow !== 0 && dow !== 6) count++;
+                              }
+                            } else if (recorrenciaTipo === "weekly") fim = addWeeks(base, offset);
+                            else if (recorrenciaTipo === "monthly") fim = addMonths(base, offset);
+                            else if (recorrenciaTipo === "yearly") fim = addYears(base, offset);
+                            setRecorrenciaFim(format(fim, "yyyy-MM-dd"));
+                          }
+                        }}
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
+                </div>
+                {recorrenciaTipo !== "nenhuma" && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Ou até a data</Label>
+                    <Input
+                      type="date"
+                      value={recorrenciaFim}
+                      onChange={(e) => {
+                        setRecorrenciaFim(e.target.value);
+                        setRecorrenciaOcorrencias("");
+                      }}
+                      className="mt-1"
+                    />
+                  </div>
+                )}
+              </div>
+
               {/* Anexos - Sempre disponível */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
