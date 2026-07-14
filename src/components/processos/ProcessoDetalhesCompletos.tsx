@@ -211,6 +211,9 @@ export function ProcessoDetalhesCompletos({
       visaoGeralRef.current.save().catch(() => {});
     }
     fecharNovoItem();
+    if (next === "tarefas" || next === "prazo") {
+      onVoltarTarefa?.();
+    }
     setActiveSection(next);
   };
   
