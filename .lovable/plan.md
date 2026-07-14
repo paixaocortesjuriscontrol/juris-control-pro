@@ -1,34 +1,58 @@
-Plano de correção:
+# Unificar Detalhe do Processo com Painel de Controle
 
-1. Vinculação obrigatória da publicação ao processo
-- Ajustar a rotina `ensureProcessoFromPublicacao` para, ao encontrar ou criar o processo, gravar o `processo_id` também na própria publicação DJEN (`publicacoes_djen` ou `publicacoes_djen_processos`, conforme a origem).
-- Garantir que Tarefa, Prazo, Evento e Audiência chamados pelo botão Adicionar da Análise DJEN resolvam/criem o processo no momento do salvamento, não só ao abrir o formulário, evitando corrida onde o item salva sem `processo_id`.
-- Invalidar os caches da Análise DJEN e do processo após salvar para o link “Ver processo” aparecer sem refresh.
+## O que muda no menu lateral do processo
 
-2. Separar Tarefa de Prazo em todas as listas do processo
-- Criar uma regra única de identificação: `tipo_tarefa === "PRAZO"` é prazo; não entra em tarefas.
-- Na tela do processo, filtrar a aba/lista de Tarefas para excluir prazos.
-- No quadro lateral “Pendências do Processo”, criar seção própria “Prazos”, em vermelho, e remover prazos da seção “Tarefas”.
-- Ajustar contadores laterais para Tarefas e Prazos ficarem separados.
+Na seção **"Prazos & Eventos"** do sidebar (arquivo `ProcessoDetalhesCompletos.tsx`), remover **Intimações** e **Agenda**, e deixar exatamente as mesmas 5 opções do botão **Adicionar** do Painel de Controle:
 
-3. Alterar o rótulo do campo Assunto
-- Trocar o label visual de “ASSUNTO” para “OBJETO DA AÇÃO (ASSUNTO)” na visão geral/edição do processo, mantendo o mesmo campo de banco (`assunto`).
+- Tarefa
+- Evento
+- Prazo
+- Audiência
+- Parcelamento recorrente
 
-4. Refazer Pedidos sem janela/modal
-- Remover o modal de “Novo Pedido” e transformar o botão Adicionar em um formulário inline na própria aba Pedidos.
-- Manter a edição na própria tela, sem abrir nova janela.
-- Na lista de pedidos, exibir claramente:
-  - resultado da sentença: Improcedente, Procedente ou Parcialmente procedente;
-  - resultado do recurso: Provido, Parcialmente provido ou Não provido;
-  - turma;
-  - relator.
+A seção separada "Tarefas" some (Tarefa passa para dentro de "Prazos & Eventos"). Contadores continuam aparecendo em cada item.
 
-5. Banco de dados para os novos dados de pedidos
-- Criar migration adicionando campos em `pedidos_processo` para resultado de sentença, resultado de recurso, turma e relator.
-- Atualizar tipos Supabase e hook de pedidos para salvar/editar/listar esses campos.
-- Preservar dados antigos, sem apagar os campos atuais.
+## Formulários (criar/editar)
 
-6. Validação
-- Conferir fluxo da Análise DJEN: criar tarefa, prazo, evento e audiência a partir da mesma publicação deve deixar todos com `processo_id` e a publicação com link para o processo.
-- Conferir no processo: prazo aparece apenas em Prazos/pendências de prazo, tarefa apenas em Tarefas/pendências de tarefa.
-- Conferir Pedidos: adicionar e editar inline, sem modal.
+Em cada uma dessas 5 seções, ao clicar em **"Adicionar"** ou em um item existente para **editar**, abrir exatamente os mesmos formulários usados pelo Painel de Controle:
+
+| Item | Formulário |
+|---|---|
+| Tarefa | `NovaTarefaDialog` (modo inline) |
+| Evento | `EventoDialog` (modo inline) |
+| Prazo | `PrazoDialog` (modo inline) |
+| Audiência | `AudienciaFormSimplificado` |
+| Parcelamento | `GerarParcelasDialog` (modo inline) |
+
+Para evitar duplicação, vou **extrair** o `NovoItemPanel` que hoje mora dentro de `PainelControle.tsx` para um componente compartilhado (`src/components/shared/NovoItemPanel.tsx`) e passar a aceitar:
+
+- `tipo` (tarefa/evento/prazo/audiencia/parcelamento)
+- `itemParaEditar` (registro existente, opcional)
+- `processoIdPreset` (para pré-vincular ao processo atual do detalhe)
+- `publicacao` (opcional — publicação DJEN vinculada para exibir no card verde retrátil)
+
+`PainelControle.tsx` passa a importar esse componente compartilhado (comportamento atual preservado).
+
+## Publicação vinculada
+
+Se o item aberto (novo ou existente) tiver publicação DJEN vinculada, o `PublicacaoVinculadaCollapsible` (card verde retrátil já existente) aparece no topo do formulário — mesmo comportamento adotado no Painel de Controle.
+
+## Listagens dentro das seções
+
+As telas de listagem de Audiências, Prazos e Tarefas continuam existindo (para exibir os itens do processo). O que muda:
+
+- Botão **"+ Novo/Nova ..."** de cada uma passa a abrir o `NovoItemPanel` compartilhado com o `tipo` correspondente e `processoIdPreset` do processo atual.
+- Clique em um item da lista abre o mesmo painel com `itemParaEditar`.
+- Novas seções **Evento** e **Parcelamento** são criadas com listagens simples (usando `eventosAgenda` já carregado e filtrando por `tipo`), com o mesmo padrão.
+
+## Arquivos afetados
+
+- `src/components/shared/NovoItemPanel.tsx` — novo, extraído
+- `src/pages/PainelControle.tsx` — passa a importar o compartilhado
+- `src/components/processos/ProcessoDetalhesCompletos.tsx` — sidebar reestruturado + integração com `NovoItemPanel`
+- (Sem mudanças em lógica de negócio ou banco.)
+
+## Fora de escopo
+
+- Não mexer em Andamentos, Documentos, Pedidos & Financeiro, Monitoramento, Distribuições ou Interação.
+- Não alterar RLS, migrations ou provider de IA.

@@ -81,6 +81,8 @@ import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
 import { AudienciaObservacaoInline } from "@/components/audiencias/AudienciaObservacaoInline";
 import { CriarTarefaProcessoDialog } from "./CriarTarefaProcessoDialog";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
+import { NovoItemPanel, type NovoItemTipo } from "@/components/shared/NovoItemPanel";
+import { ClipboardList, CalendarPlus, Coins } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -234,6 +236,27 @@ export function ProcessoDetalhesCompletos({
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
   const [criarTarefaOpen, setCriarTarefaOpen] = useState(false);
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
+  // Painel unificado (mesmo do Painel de Controle): Tarefa, Evento, Prazo, Audiência, Parcelamento.
+  const [novoItemTipo, setNovoItemTipo] = useState<NovoItemTipo | null>(null);
+  const [itemParaEditar, setItemParaEditar] = useState<any | null>(null);
+  const processoPreSelecionado = processo
+    ? { id: processo.id, numero: processo.numero || "" }
+    : null;
+  const abrirNovoItem = (tipo: NovoItemTipo, item: any | null = null) => {
+    setItemParaEditar(item);
+    setNovoItemTipo(tipo);
+  };
+  const fecharNovoItem = () => {
+    setNovoItemTipo(null);
+    setItemParaEditar(null);
+  };
+  const invalidarAposSalvar = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+    await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+    await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
+    await queryClient.invalidateQueries({ queryKey: ["prazos"] });
+    fecharNovoItem();
+  };
   const tarefasSemPrazo = tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa) && !isPrazoTarefa(t.tipo_tarefa));
   const prazosDoProcesso = tarefas.filter((t: any) => isPrazoTarefa(t.tipo_tarefa));
 
@@ -786,16 +809,11 @@ export function ProcessoDetalhesCompletos({
     {
       label: "Prazos & Eventos",
       items: [
-        { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length },
-        { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
-        { id: "agenda", label: "Agenda", icon: CalendarDays, count: eventosAgenda.length },
+        { id: "tarefas", label: "Tarefa", icon: ClipboardList, count: tarefasSemPrazo.length },
+        { id: "agenda", label: "Evento", icon: CalendarPlus, count: eventosAgenda.length },
         { id: "prazo", label: "Prazo", icon: Clock, count: prazosDoProcesso.length },
-      ],
-    },
-    {
-      label: "Tarefas",
-      items: [
-        { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefasSemPrazo.length },
+        { id: "audiencias", label: "Audiência", icon: Gavel, count: audiencias.length },
+        { id: "parcelamento", label: "Parcelamento recorrente", icon: Coins },
       ],
     },
     {
@@ -960,6 +978,19 @@ export function ProcessoDetalhesCompletos({
             No desktop mantemos scroll interno via overflow-y-auto + altura fixa.
           */}
           <div className="p-3 sm:p-4 sm:h-[calc(100vh-120px)] sm:overflow-y-auto">
+              {/* Painel unificado (mesmo do Painel de Controle) — sobrepõe o conteúdo */}
+              {novoItemTipo && (
+                <div className="h-[calc(100vh-140px)]">
+                  <NovoItemPanel
+                    tipo={novoItemTipo}
+                    itemParaEditar={itemParaEditar}
+                    processoPreSelecionado={processoPreSelecionado}
+                    onClose={fecharNovoItem}
+                    onSuccess={invalidarAposSalvar}
+                  />
+                </div>
+              )}
+              {!novoItemTipo && (<>
               {/* Toolbar global de ações Judit — ocultada temporariamente */}
               {/* Resumo Section - Visão geral rápida */}
               {/* Visão Geral — formulário único editável (Resumo + Detalhes + Envolvidos) */}
@@ -988,10 +1019,10 @@ export function ProcessoDetalhesCompletos({
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setCriarAudienciaOpen(true)}
+                      onClick={() => abrirNovoItem("audiencia")}
                     >
                       <Plus className="w-4 h-4 mr-1" />
-                      Nova Audiência
+                      Adicionar Audiência
                     </Button>
                   </div>
                   {loadingAudiencias ? (
@@ -1294,9 +1325,9 @@ export function ProcessoDetalhesCompletos({
                         <Button 
                           size="sm" 
                           className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7"
-                          onClick={() => setCriarTarefaOpen(true)}
+                          onClick={() => abrirNovoItem("tarefa")}
                         >
-                          Nova Tarefa
+                          Adicionar Tarefa
                         </Button>
                       </div>
                       {loadingTarefas ? (
@@ -1735,9 +1766,9 @@ export function ProcessoDetalhesCompletos({
                     <Button
                       size="sm"
                       className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7"
-                      onClick={() => setNovoEventoOpen(true)}
+                      onClick={() => abrirNovoItem("evento")}
                     >
-                      Novo Evento
+                      Adicionar Evento
                     </Button>
                   </div>
                   {eventosAgenda.length > 0 ? (
@@ -1782,6 +1813,31 @@ export function ProcessoDetalhesCompletos({
                     processoNumero={processo?.numero}
                     tribunal={processo?.tribunal}
                   />
+                </div>
+              )}
+
+              {activeSection === "parcelamento" && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-sm flex items-center gap-2">
+                      <Coins className="w-4 h-4" />
+                      Parcelamento recorrente
+                    </h3>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => abrirNovoItem("parcelamento")}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Adicionar Parcelamento
+                    </Button>
+                  </div>
+                  <div className="text-center py-8 border rounded-lg bg-muted/20">
+                    <Coins className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      Clique em "Adicionar Parcelamento" para criar um parcelamento recorrente vinculado a este processo.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -1834,6 +1890,7 @@ export function ProcessoDetalhesCompletos({
                   </div>
                 </div>
               )}
+              </>)}
             </div>
         </div>
       </div>
