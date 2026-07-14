@@ -18,9 +18,9 @@ function stripHtml(html: string): string {
 export async function salvarPublicacaoNoProcesso(pub: PublicacaoUnificada, processoId: string) {
   if (!pub?.id || !processoId) return;
 
-  // Publicações descartadas são apenas auditoria: não devem ser vinculadas ao
-  // processo nem a tarefas/prazos/eventos criados pelo botão Adicionar.
-  if (pub.tipo_origem === "descartada" || pub.tipo_origem === "datajud") return;
+  // DataJud não é publicação DJEN. Todo item DJEN (termo, processo ou descartada)
+  // criado pelo botão Adicionar deve ficar visível na aba "Pub. DJEN" do processo.
+  if (pub.tipo_origem === "datajud") return;
 
   if (pub.tipo_origem === "processo") {
     const updatePayload: Record<string, unknown> = { processo_id: processoId };
@@ -33,8 +33,12 @@ export async function salvarPublicacaoNoProcesso(pub: PublicacaoUnificada, proce
     return;
   }
 
+  const sourceTable = pub.tipo_origem === "descartada"
+    ? "publicacoes_djen_descartadas"
+    : "publicacoes_djen";
+
   const { error: updateTermoError } = await (supabase as any)
-    .from("publicacoes_djen")
+    .from(sourceTable)
     .update({ processo_id: processoId })
     .eq("id", pub.id);
   if (updateTermoError) console.warn("[ensureProcessoFromPublicacao] falha ao vincular publicação ao processo:", updateTermoError);
@@ -45,12 +49,12 @@ export async function salvarPublicacaoNoProcesso(pub: PublicacaoUnificada, proce
   // publicação clicada apareça imediatamente no processo/caso.
   try {
     const { data: original } = await (supabase as any)
-      .from("publicacoes_djen")
-      .select("id, hash_conteudo, processo_numero, conteudo, data_publicacao, data_disponibilizacao, fonte, lida, orgao, tipo_comunicacao, meio, advogados_json, partes_json, tribunal, dedup_processo_digits, dedup_data_ref, dedup_head_norm, coordenacao_id, status, dedup_key, id_djen")
+      .from(sourceTable)
+      .select("*")
       .eq("id", pub.id)
       .maybeSingle();
 
-    const hashConteudo = original?.hash_conteudo || pub.dedup_conteudo_key || pub.dedup_key || pub.id;
+    const hashConteudo = original?.hash_conteudo || pub.dedup_conteudo_key || pub.dedup_key || `${pub.tipo_origem}:${pub.id}`;
     const processoNumero = original?.processo_numero || pub.processo_numero;
     if (!hashConteudo || !processoNumero) return;
 
@@ -78,6 +82,14 @@ export async function salvarPublicacaoNoProcesso(pub: PublicacaoUnificada, proce
       id_djen: original?.id_djen ?? pub.id_djen ?? null,
     };
 
+    const atualizarExistente = async (id: string) => {
+      const { error } = await (supabase as any)
+        .from("publicacoes_djen_processos")
+        .update(row)
+        .eq("id", id);
+      if (error) throw error;
+    };
+
     const { data: existentePorHash } = await (supabase as any)
       .from("publicacoes_djen_processos")
       .select("id")
@@ -86,11 +98,7 @@ export async function salvarPublicacaoNoProcesso(pub: PublicacaoUnificada, proce
       .maybeSingle();
 
     if (existentePorHash?.id) {
-      const { error } = await (supabase as any)
-        .from("publicacoes_djen_processos")
-        .update(row)
-        .eq("id", existentePorHash.id);
-      if (error) throw error;
+      await atualizarExistente(existentePorHash.id);
       return;
     }
 
@@ -103,11 +111,7 @@ export async function salvarPublicacaoNoProcesso(pub: PublicacaoUnificada, proce
         .maybeSingle();
 
       if (existentePorDjen?.id) {
-        const { error } = await (supabase as any)
-          .from("publicacoes_djen_processos")
-          .update(row)
-          .eq("id", existentePorDjen.id);
-        if (error) throw error;
+        await atualizarExistente(existentePorDjen.id);
         return;
       }
     }
@@ -117,11 +121,22 @@ export async function salvarPublicacaoNoProcesso(pub: PublicacaoUnificada, proce
       .insert(row);
 
     if (insertError) {
-      const fallbackRow = { ...row, id_djen: null };
-      const { error: fallbackError } = await (supabase as any)
+      const { data: existenteFallback } = await (supabase as any)
         .from("publicacoes_djen_processos")
-        .upsert(fallbackRow, { onConflict: "processo_id,hash_conteudo" });
-      if (fallbackError) throw fallbackError;
+        .select("id")
+        .eq("hash_conteudo", hashConteudo)
+        .limit(1)
+        .maybeSingle();
+
+      if (existenteFallback?.id) {
+        await atualizarExistente(existenteFallback.id);
+      } else {
+        const fallbackRow = { ...row, id_djen: null };
+        const { error: fallbackError } = await (supabase as any)
+          .from("publicacoes_djen_processos")
+          .upsert(fallbackRow, { onConflict: "processo_id,hash_conteudo" });
+        if (fallbackError) throw fallbackError;
+      }
     }
   } catch (err) {
     console.warn("[ensureProcessoFromPublicacao] falha ao salvar publicação na aba Pub. DJEN:", err);
