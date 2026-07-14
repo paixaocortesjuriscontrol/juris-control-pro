@@ -362,11 +362,12 @@ export function useCreateTarefa() {
 
       return data;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-paginated"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-stats"] });
-      toast.success(variables.tipo_tarefa === "PRAZO" ? "Prazo criado com sucesso" : "Tarefa criada com sucesso");
+      const isPrazo = (data as any)?.tipo_tarefa === "PRAZO" || variables.tipo_tarefa === "PRAZO";
+      toast.success(isPrazo ? "Prazo criado com sucesso" : "Tarefa criada com sucesso");
     },
     onError: (error) => {
       toast.error("Erro ao criar tarefa: " + error.message);
@@ -420,11 +421,12 @@ export function useUpdateTarefa() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-paginated"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-stats"] });
-      toast.success(variables.tipo_tarefa === "PRAZO" ? "Prazo atualizado com sucesso" : "Tarefa atualizada com sucesso");
+      const isPrazo = (data as any)?.tipo_tarefa === "PRAZO" || variables.tipo_tarefa === "PRAZO";
+      toast.success(isPrazo ? "Prazo atualizado com sucesso" : "Tarefa atualizada com sucesso");
     },
     onError: (error) => {
       toast.error("Erro ao atualizar tarefa: " + error.message);

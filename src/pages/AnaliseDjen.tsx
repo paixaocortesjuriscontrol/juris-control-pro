@@ -4093,8 +4093,36 @@ const AnaliseDjen = () => {
           const markPubComoLida = async () => {
             if (!selectedPublicacao) return;
             try {
-              await marcarComoLida.mutateAsync([
-                { id: selectedPublicacao.id, tipo_origem: selectedPublicacao.tipo_origem },
+              const tabela = selectedPublicacao.tipo_origem === "processo"
+                ? "publicacoes_djen_processos"
+                : selectedPublicacao.tipo_origem === "termo"
+                  ? "publicacoes_djen"
+                  : null;
+
+              if (tabela) {
+                await (supabase as any).from(tabela).update({ lida: true }).eq("id", selectedPublicacao.id);
+              }
+
+              if (user?.id && selectedPublicacao.tipo_origem !== "datajud") {
+                const { data: profile } = await supabase
+                  .from("profiles")
+                  .select("nome")
+                  .eq("id", user.id)
+                  .maybeSingle();
+                await (supabase as any)
+                  .from("publicacoes_djen_leituras")
+                  .upsert({
+                    publicacao_id: selectedPublicacao.id,
+                    tabela_origem: selectedPublicacao.tipo_origem === "processo" ? "processo" : selectedPublicacao.tipo_origem === "descartada" ? "descartada" : "termo",
+                    usuario_id: user.id,
+                    usuario_nome: profile?.nome || user.email || "Desconhecido",
+                  }, { onConflict: "publicacao_id,tabela_origem,usuario_id" });
+              }
+
+              await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
+                queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas-stats-header"] }),
+                queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
               ]);
             } catch (err) {
               console.error("Erro ao marcar publicação como lida (Salvar e ler):", err);
