@@ -326,7 +326,7 @@ export function PrazosCalendar({ prazos, onEditPrazo, onMarkAsCumprido, onUpdate
                                 isDraggable && "cursor-grab active:cursor-grabbing hover:shadow-md",
                                 !isDraggable && "cursor-pointer hover:bg-accent/50"
                               )}
-                              onClick={() => !isDraggable && onEditPrazo(prazo)}
+                              onClick={() => onEditPrazo(prazo)}
                             >
                               <div className="flex items-start gap-2">
                                 {isDraggable && (
