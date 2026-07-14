@@ -880,7 +880,7 @@ export function PrazoDialog({
         <Button
           type="submit"
           disabled={isLoading}
-          onClick={() => { secondaryClickedRef.current = false; }}
+          onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
         >
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Salvar
