@@ -461,7 +461,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             </div>
             <ScrollAreaOrDiv embedded={embedded}>
               <form onSubmit={handleSubmit} className="space-y-5 pb-6" id="evento-form-content">
-            {hasPublicacao && (
+            {hasPublicacao && !hidePublicacaoCollapsible && (
               <PublicacaoVinculadaCollapsible publicacao={publicacao as any} />
             )}
             {/* Título */}
