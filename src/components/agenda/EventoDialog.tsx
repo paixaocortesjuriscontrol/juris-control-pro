@@ -397,43 +397,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const hasPublicacao = !!publicacao;
 
   const dialogBody = (
-    <div className={cn("flex flex-1 min-h-0 w-full overflow-hidden", hasPublicacao ? "flex-col lg:flex-row" : "flex-col")}>
-          {hasPublicacao && (
-            <div className="hidden lg:flex flex-1 border-r flex-col min-h-0">
-              <div className="p-4 border-b bg-muted/30">
-                <div className="flex items-center gap-2 mb-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Publicação</span>
-                </div>
-                <div className="space-y-1 text-sm">
-                  {publicacao?.processo_numero && (
-                    <div className="font-mono text-xs">{aplicarMascaraCnj(publicacao.processo_numero)}</div>
-                  )}
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    {publicacao?.data_publicacao && (
-                      <span>
-                        Publicado em {format(parseISO(publicacao.data_publicacao), "dd/MM/yyyy", { locale: ptBR })}
-                      </span>
-                    )}
-                    {publicacao?.tribunal && <Badge variant="outline">{publicacao.tribunal}</Badge>}
-                    {publicacao?.tipo_comunicacao && <Badge variant="outline">{publicacao.tipo_comunicacao}</Badge>}
-                  </div>
-                  {(publicacao?.polo_ativo || publicacao?.polo_passivo) && (
-                    <div className="text-xs text-muted-foreground pt-1">
-                      {publicacao?.polo_ativo} {publicacao?.polo_passivo ? `× ${publicacao.polo_passivo}` : ""}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <ScrollArea className="flex-1 p-4">
-                <div className={cn("text-sm", conteudoDisplayClasses)}>
-                  {formatConteudoParaExibicao(publicacao?.conteudo || "")}
-                </div>
-              </ScrollArea>
-            </div>
-          )}
-
-          <div className={cn("flex flex-col min-h-0", hasPublicacao ? "w-full lg:w-[520px] bg-background" : "w-full flex-1")}>
+    <div className="flex flex-1 min-h-0 w-full overflow-hidden flex-col">
+          <div className="flex flex-col min-h-0 w-full flex-1">
             <div className="flex items-center justify-between gap-3 px-6 pt-5 pb-2 shrink-0">
               <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
                 Evento
