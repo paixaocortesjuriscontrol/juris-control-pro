@@ -224,7 +224,9 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
       if (!user) throw new Error('Usuário não autenticado');
 
       // Extrair advogados_ids antes de inserir
-      const { advogados_ids, envolvidos_ids, ...dadosAudiencia } = novaAudiencia;
+      // publicacao_id é ignorado aqui — vínculo com publicação DJEN agora é feito
+      // via tabelas de junção (audiencias_publicacoes / _processos / _descartadas)
+      const { advogados_ids, envolvidos_ids, publicacao_id: _ignorePublicacaoId, ...dadosAudiencia } = novaAudiencia;
 
       // Converter data para formato ISO completo (timestamp with time zone)
       let dataAudienciaISO: string | null = null;
