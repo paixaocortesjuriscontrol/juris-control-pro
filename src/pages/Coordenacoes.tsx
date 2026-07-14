@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType } from "lucide-react";
+import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -413,6 +414,12 @@ const Coordenacoes = () => {
                         >
                           <FileSpreadsheet className="w-4 h-4 mr-1" />
                           <span className="hidden sm:inline">Pautas Excel</span>
+                        </Button>
+                        <Button size="sm" variant="outline" asChild>
+                          <Link to="/modelos-titulo">
+                            <FileType className="w-4 h-4 mr-1" />
+                            <span className="hidden sm:inline">Modelos de Título</span>
+                          </Link>
                         </Button>
                       </>
                     )}
