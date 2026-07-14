@@ -43,6 +43,11 @@ import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao
 import { useAuth } from "@/contexts/AuthContext";
 import { PublicacaoVinculadaCollapsible } from "@/components/shared/PublicacaoVinculadaCollapsible";
 
+function ScrollAreaOrDiv({ embedded, children }: { embedded?: boolean; children: React.ReactNode }) {
+  if (embedded) return <div className="px-6">{children}</div>;
+  return <ScrollArea className="flex-1 px-6">{children}</ScrollArea>;
+}
+
 interface EventoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
