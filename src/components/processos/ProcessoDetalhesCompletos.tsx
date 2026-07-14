@@ -260,6 +260,9 @@ export function ProcessoDetalhesCompletos({
     await queryClient.invalidateQueries({ queryKey: ["tarefas"] });
     await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
     await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
+    if (audienciaInvalidateKey) {
+      await queryClient.invalidateQueries({ queryKey: audienciaInvalidateKey });
+    }
     await queryClient.invalidateQueries({ queryKey: ["prazos"] });
     fecharNovoItem();
   };
