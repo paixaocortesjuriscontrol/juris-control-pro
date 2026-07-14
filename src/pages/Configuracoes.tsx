@@ -23,6 +23,8 @@ import RelatorioExecucoesPage from "@/pages/RelatorioExecucoes";
 import ComparacaoDjenDje from "@/components/configuracoes/ComparacaoDjenDje";
 import WorkersDjenVpsPanel from "@/components/configuracoes/WorkersDjenVpsPanel";
 import { MeuPerfilCard } from "@/components/configuracoes/MeuPerfilCard";
+import { ConfigNotificacoesUsuarioCard } from "@/components/configuracoes/ConfigNotificacoesUsuarioCard";
+import { NotificacoesEmailCard } from "@/components/configuracoes/NotificacoesEmailCard";
 // MonitoramentoDataJudCard removido - agora integrado no Dashboard via DataJudDashboardCard
 
 export default function Configuracoes() {
@@ -244,6 +246,9 @@ export default function Configuracoes() {
           </div>
 
           <MeuPerfilCard />
+
+          <NotificacoesEmailCard />
+          <ConfigNotificacoesUsuarioCard />
 
           <div className="grid gap-4 md:grid-cols-2">
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
