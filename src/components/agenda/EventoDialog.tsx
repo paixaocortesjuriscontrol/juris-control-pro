@@ -438,6 +438,13 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               )}
               </div>
             </div>
+            {embedded ? (
+            <div className="px-6">
+              <form onSubmit={handleSubmit} className="space-y-5 pb-6" id="evento-form-content">
+                <EventoFormBody />
+              </form>
+            </div>
+            ) : (
             <ScrollArea className="flex-1 px-6">
               <form onSubmit={handleSubmit} className="space-y-5 pb-6" id="evento-form-content">
             {hasPublicacao && (
