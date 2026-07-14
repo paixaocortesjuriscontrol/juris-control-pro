@@ -81,6 +81,7 @@ type PrazoDialogProps = {
   defaultTarefaRelacionadaId?: string;
   publicacao?: PublicacaoUnificada | null;
   inline?: boolean;
+  embedded?: boolean;
   secondarySave?: {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
@@ -95,6 +96,7 @@ export function PrazoDialog({
   defaultTarefaRelacionadaId,
   publicacao,
   inline = false,
+  embedded = false,
   secondarySave,
 }: PrazoDialogProps) {
   const { user } = useAuth();
@@ -483,8 +485,8 @@ export function PrazoDialog({
   const hasPublicacao = !!publicacaoEfetiva;
 
   const FormContent = (
-    <form onSubmit={handleSubmit} className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+    <form onSubmit={handleSubmit} className={embedded ? "flex flex-col" : "flex flex-col h-full"}>
+      <div className={embedded ? "p-5 space-y-4" : "flex-1 overflow-y-auto p-5 space-y-4"}>
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
             Prazo
@@ -838,7 +840,7 @@ export function PrazoDialog({
   );
 
   if (inline) {
-    return <div className="h-full w-full flex flex-col bg-background overflow-hidden">{FormContent}</div>;
+    return <div className={embedded ? "w-full flex flex-col bg-background" : "h-full w-full flex flex-col bg-background overflow-hidden"}>{FormContent}</div>;
   }
 
   return (
