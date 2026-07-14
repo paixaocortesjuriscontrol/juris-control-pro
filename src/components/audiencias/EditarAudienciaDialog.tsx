@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, CalendarClock, CopyPlus } from "lucide-react";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { format, parseISO, isValid } from "date-fns";
 import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
+import { ReagendarAudienciaDialog } from "./ReagendarAudienciaDialog";
+import { HistoricoReagendamentosAudiencia } from "./HistoricoReagendamentosAudiencia";
 
 interface Props {
   audiencia: AudienciaDetectada | null;
@@ -27,6 +29,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
+  const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);
   const [formData, setFormData] = useState({
     data_audiencia: "",
     hora: "",
@@ -450,6 +453,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
 
           <ItemComentarios tipo="audiencia" itemId={audiencia?.id} />
 
+          <HistoricoReagendamentosAudiencia audienciaId={audiencia?.id} />
+
           <div className="space-y-2">
             <Label htmlFor="observacoes">Observações</Label>
             <Textarea
@@ -464,6 +469,14 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setReagendarModo("reagendar")} disabled={!audiencia}>
+              <CalendarClock className="h-4 w-4 mr-2" />
+              Reagendar
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setReagendarModo("nova")} disabled={!audiencia}>
+              <CopyPlus className="h-4 w-4 mr-2" />
+              Nova audiência
             </Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading ? (
@@ -482,9 +495,20 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
         </form>
   );
 
+  const reagendarPortal = (
+    <ReagendarAudienciaDialog
+      audiencia={audiencia}
+      open={reagendarModo !== null}
+      onOpenChange={(o) => { if (!o) setReagendarModo(null); }}
+      modo={reagendarModo ?? "reagendar"}
+      invalidateKey={invalidateKey}
+    />
+  );
+
   if (embedded) {
     return (
       <div className="rounded-lg border bg-card p-4 space-y-4">
+        {reagendarPortal}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
           <h3 className="text-sm font-semibold">Audiência {audiencia?.processo_numero || ''}</h3>
           <div className="flex flex-wrap items-center gap-2">
@@ -513,6 +537,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   if (inline) {
     return (
       <div className="h-full flex flex-col bg-background overflow-hidden">
+        {reagendarPortal}
         <div className="px-4 pt-4 sm:px-6 sm:pt-5 pb-3 shrink-0 border-b flex flex-wrap items-center justify-between gap-2 sm:gap-3">
           <h3 className="text-base font-semibold">Audiência</h3>
           <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -558,6 +583,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        {reagendarPortal}
         <DialogHeader>
           <div className="flex items-center justify-between gap-3">
             <DialogTitle>Audiência</DialogTitle>

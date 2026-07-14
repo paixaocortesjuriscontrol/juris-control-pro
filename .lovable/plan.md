@@ -64,7 +64,7 @@ Objetivo: cada membro escolhe como/quando ser avisado; sistema avisa mudanças d
 
 ---
 
-## Fase 4 — Reagendar vs Nova audiência
+## Fase 4 — Reagendar vs Nova audiência  ✅ CONCLUÍDA
 
 12. **Formulário de alteração de audiência**
     - Botão **Reagendar**: edita o mesmo registro, apenas data/hora/tipo; grava linha em `historico_reagendamentos_audiencia` (data anterior, nova, quem, quando). Sem duplicar.
