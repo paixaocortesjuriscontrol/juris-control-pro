@@ -33,6 +33,7 @@ import { useCreatePrazo, useUpdatePrazo, type Prazo } from "@/hooks/usePrazos";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { PublicacaoVinculadaCollapsible } from "@/components/shared/PublicacaoVinculadaCollapsible";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
