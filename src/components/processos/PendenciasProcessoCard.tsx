@@ -151,7 +151,7 @@ export function PendenciasProcessoCard({
     onNavigate?.(section);
   };
 
-  const clickableCardClass = (section: string) =>
+  const clickableCardClass = () =>
     cn(onNavigate && "cursor-pointer hover:bg-muted/60 transition-colors");
 
   return (
@@ -181,7 +181,7 @@ export function PendenciasProcessoCard({
               return (
                 <div
                   key={aud.id}
-                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-amber-500 space-y-1", clickableCardClass("audiencias"))}
+                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-amber-500 space-y-1", clickableCardClass())}
                   onClick={() => navigateCard("audiencias")}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -241,7 +241,7 @@ export function PendenciasProcessoCard({
               return (
                 <div
                   key={int.id}
-                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-red-500 space-y-1", clickableCardClass("intimacoes"))}
+                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-red-500 space-y-1", clickableCardClass())}
                   onClick={() => navigateCard("intimacoes")}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -290,7 +290,7 @@ export function PendenciasProcessoCard({
               return (
                 <div
                   key={t.id}
-                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-destructive space-y-1", clickableCardClass("prazo"))}
+                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-destructive space-y-1", clickableCardClass())}
                   onClick={() => navigateCard("prazo")}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -341,7 +341,7 @@ export function PendenciasProcessoCard({
                   className={cn(
                     "text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] space-y-1",
                     isOverdue ? "border-l-destructive" : "border-l-blue-500",
-                    clickableCardClass("tarefas")
+                    clickableCardClass()
                   )}
                   onClick={() => navigateCard("tarefas")}
                 >
@@ -405,7 +405,7 @@ export function PendenciasProcessoCard({
               return (
                 <div
                   key={ev.id}
-                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-violet-500 space-y-1", clickableCardClass("agenda"))}
+                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-violet-500 space-y-1", clickableCardClass())}
                   onClick={() => navigateCard("agenda")}
                 >
                   <div className="flex items-center justify-between gap-2">
