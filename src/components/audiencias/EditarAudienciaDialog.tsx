@@ -495,9 +495,20 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
         </form>
   );
 
+  const reagendarPortal = (
+    <ReagendarAudienciaDialog
+      audiencia={audiencia}
+      open={reagendarModo !== null}
+      onOpenChange={(o) => { if (!o) setReagendarModo(null); }}
+      modo={reagendarModo ?? "reagendar"}
+      invalidateKey={invalidateKey}
+    />
+  );
+
   if (embedded) {
     return (
       <div className="rounded-lg border bg-card p-4 space-y-4">
+        {reagendarPortal}
         <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
           <h3 className="text-sm font-semibold">Audiência {audiencia?.processo_numero || ''}</h3>
           <div className="flex flex-wrap items-center gap-2">
@@ -526,6 +537,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   if (inline) {
     return (
       <div className="h-full flex flex-col bg-background overflow-hidden">
+        {reagendarPortal}
         <div className="px-4 pt-4 sm:px-6 sm:pt-5 pb-3 shrink-0 border-b flex flex-wrap items-center justify-between gap-2 sm:gap-3">
           <h3 className="text-base font-semibold">Audiência</h3>
           <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -571,6 +583,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        {reagendarPortal}
         <DialogHeader>
           <div className="flex items-center justify-between gap-3">
             <DialogTitle>Audiência</DialogTitle>
