@@ -378,7 +378,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && activeTab === "publicacoes",
+    enabled: !!id,
   });
 
   // Movimentações query - lazy load (também alimenta redistribuições)
