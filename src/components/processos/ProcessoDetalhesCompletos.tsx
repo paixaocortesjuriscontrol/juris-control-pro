@@ -978,6 +978,19 @@ export function ProcessoDetalhesCompletos({
             No desktop mantemos scroll interno via overflow-y-auto + altura fixa.
           */}
           <div className="p-3 sm:p-4 sm:h-[calc(100vh-120px)] sm:overflow-y-auto">
+              {/* Painel unificado (mesmo do Painel de Controle) — sobrepõe o conteúdo */}
+              {novoItemTipo && (
+                <div className="h-[calc(100vh-140px)]">
+                  <NovoItemPanel
+                    tipo={novoItemTipo}
+                    itemParaEditar={itemParaEditar}
+                    processoPreSelecionado={processoPreSelecionado}
+                    onClose={fecharNovoItem}
+                    onSuccess={invalidarAposSalvar}
+                  />
+                </div>
+              )}
+              {!novoItemTipo && (<>
               {/* Toolbar global de ações Judit — ocultada temporariamente */}
               {/* Resumo Section - Visão geral rápida */}
               {/* Visão Geral — formulário único editável (Resumo + Detalhes + Envolvidos) */}
