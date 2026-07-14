@@ -210,6 +210,7 @@ export function ProcessoDetalhesCompletos({
       // Autosave em background — não bloqueia a navegação
       visaoGeralRef.current.save().catch(() => {});
     }
+    fecharNovoItem();
     setActiveSection(next);
   };
   
@@ -884,11 +885,11 @@ export function ProcessoDetalhesCompletos({
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen sm:min-h-0 sm:h-[calc(100vh-112px)] bg-background overflow-hidden">
       {/* Main Content - Sidebar + Content */}
-      <div className="flex flex-col sm:flex-row min-w-0">
+      <div className="flex h-full min-h-0 flex-col sm:flex-row min-w-0">
         {/* Sidebar Navigation - Horizontal scrollable on mobile, vertical on desktop */}
-        <aside className="w-full sm:w-36 md:w-44 border-b sm:border-b-0 sm:border-r bg-muted/20 flex-shrink-0">
+        <aside className="w-full sm:w-36 md:w-44 border-b sm:border-b-0 sm:border-r bg-muted/20 flex-shrink-0 sm:h-full sm:min-h-0">
           {/* Mobile: horizontal scroll, agrupado por categoria com separadores */}
           <div className="sm:hidden overflow-x-auto pb-1">
             <nav className="flex items-center gap-1 px-2 py-2 min-w-max">
@@ -928,7 +929,7 @@ export function ProcessoDetalhesCompletos({
             </nav>
           </div>
           {/* Desktop: vertical sidebar agrupado estilo Projuris */}
-          <ScrollArea className="hidden sm:block h-[calc(100vh-160px)]">
+          <ScrollArea className="hidden sm:block h-full">
             <nav className="py-2">
               <button
                 onClick={onVoltar}
@@ -969,7 +970,7 @@ export function ProcessoDetalhesCompletos({
         </aside>
 
         {/* Content Area */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 min-h-0">
           {/*
             No mobile, evitamos criar um scroll container próprio (ScrollArea) com altura fixa.
             Isso reduz conflitos de gesto com scrolls horizontais aninhados (ex.: tabela de Pedidos).
@@ -980,7 +981,7 @@ export function ProcessoDetalhesCompletos({
             No desktop mantemos scroll interno via overflow-y-auto + altura fixa.
           */}
           <div className={cn(
-            "sm:h-[calc(100vh-120px)]",
+            "sm:h-full min-h-0",
             novoItemTipo ? "p-0 overflow-hidden" : "p-3 sm:p-4 sm:overflow-y-auto"
           )}>
               {/* Painel unificado (mesmo do Painel de Controle) — sobrepõe o conteúdo */}
