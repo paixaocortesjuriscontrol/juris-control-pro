@@ -70,7 +70,7 @@ function PedidoFormFields({
 }) {
   return (
     <div className="grid gap-4 py-4">
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Pedido *</Label>
           <Input
@@ -148,7 +148,7 @@ function PedidoFormFields({
 
       <div className="border rounded-lg p-4 space-y-4">
         <h4 className="font-medium text-sm text-muted-foreground">1ª Instância - Sentença</h4>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex items-center space-x-2">
             <Checkbox
               id="sentenca"
@@ -170,7 +170,7 @@ function PedidoFormFields({
 
       <div className="border rounded-lg p-4 space-y-4">
         <h4 className="font-medium text-sm text-muted-foreground">2ª Instância - Acórdão</h4>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex items-center space-x-2">
             <Checkbox
               id="acordao"
@@ -192,7 +192,7 @@ function PedidoFormFields({
 
       <div className="border rounded-lg p-4 space-y-4">
         <h4 className="font-medium text-sm text-muted-foreground">TST</h4>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex items-center space-x-2">
             <Checkbox
               id="tst"
