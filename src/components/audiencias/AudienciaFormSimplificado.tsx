@@ -37,6 +37,11 @@ type Props = {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
   };
+  tertiarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
+  onAfterCreate?: (info: { id: string; titulo: string }) => void;
   resolveProcessoBeforeSubmit?: () => Promise<{ id: string; numero: string } | null>;
   audienciaParaEditar?: any | null;
   invalidateKey?: unknown[];
@@ -73,6 +78,8 @@ export function AudienciaFormSimplificado({
   defaultDataAudiencia,
   publicacaoId,
   secondarySave,
+  tertiarySave,
+  onAfterCreate,
   resolveProcessoBeforeSubmit,
   audienciaParaEditar,
   invalidateKey,
@@ -81,6 +88,7 @@ export function AudienciaFormSimplificado({
   const { criarAudiencia } = useAudienciasDetectadas();
   const isEditing = !!audienciaParaEditar?.id;
   const secondaryClickedRef = useRef(false);
+  const tertiaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const toDateInput = (value?: string | null) => value ? value.slice(0, 10) : "";
   const toTimeInput = (value?: string | null) => value ? value.slice(0, 5) : "";
