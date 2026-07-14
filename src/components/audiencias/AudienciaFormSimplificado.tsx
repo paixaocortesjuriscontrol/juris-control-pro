@@ -20,6 +20,7 @@ import { formatProcessoNumero } from "@/lib/utils";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Props = {
   defaultProcessoNumero?: string;
@@ -37,6 +38,8 @@ type Props = {
     onAfterSuccess: () => Promise<void> | void;
   };
   resolveProcessoBeforeSubmit?: () => Promise<{ id: string; numero: string } | null>;
+  audienciaParaEditar?: any | null;
+  invalidateKey?: unknown[];
 };
 
 const empty = {
@@ -71,27 +74,89 @@ export function AudienciaFormSimplificado({
   publicacaoId,
   secondarySave,
   resolveProcessoBeforeSubmit,
+  audienciaParaEditar,
+  invalidateKey,
 }: Props) {
+  const queryClient = useQueryClient();
   const { criarAudiencia } = useAudienciasDetectadas();
+  const isEditing = !!audienciaParaEditar?.id;
   const secondaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
+  const toDateInput = (value?: string | null) => value ? value.slice(0, 10) : "";
+  const toTimeInput = (value?: string | null) => value ? value.slice(0, 5) : "";
   const [form, setForm] = useState({
     ...empty,
-    titulo: defaultTitulo ?? "",
-    observacoes: defaultObservacoes ?? "",
-    data_audiencia: defaultDataAudiencia ?? "",
+    titulo: audienciaParaEditar?.titulo ?? audienciaParaEditar?.tipo_audiencia ?? defaultTitulo ?? "",
+    observacoes: audienciaParaEditar?.observacoes ?? defaultObservacoes ?? "",
+    data_audiencia: toDateInput(audienciaParaEditar?.data_audiencia) || defaultDataAudiencia || "",
+    hora: toTimeInput(audienciaParaEditar?.hora),
+    hora_fim: toTimeInput(audienciaParaEditar?.hora_fim),
+    forum: audienciaParaEditar?.forum ?? "",
+    sala_forum: audienciaParaEditar?.sala_forum ?? "",
+    local_audiencia: audienciaParaEditar?.local_audiencia ?? "",
+    modalidade: audienciaParaEditar?.modalidade ?? "",
+    vara_camara: audienciaParaEditar?.vara_camara ?? "",
+    comarca: audienciaParaEditar?.comarca ?? "",
+    polo_ativo: audienciaParaEditar?.polo_ativo ?? "",
+    cliente: audienciaParaEditar?.cliente ?? "",
+    terceirizado: audienciaParaEditar?.terceirizado ?? "",
   });
-  const [situacao, setSituacao] = useState<string>("pendente");
+  const [situacao, setSituacao] = useState<string>(audienciaParaEditar?.status ?? "pendente");
   const [processoNumero, setProcessoNumero] = useState(
-    defaultProcessoNumero ? formatProcessoNumero(defaultProcessoNumero) : ""
+    audienciaParaEditar?.processo_numero
+      ? formatProcessoNumero(audienciaParaEditar.processo_numero)
+      : defaultProcessoNumero ? formatProcessoNumero(defaultProcessoNumero) : ""
   );
-  const [processoId, setProcessoId] = useState<string | undefined>(defaultProcessoId);
+  const [processoId, setProcessoId] = useState<string | undefined>(audienciaParaEditar?.processo_id ?? defaultProcessoId);
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   const [buscando, setBuscando] = useState(false);
   const autoBuscaRef = useRef(false);
+
+  useEffect(() => {
+    if (!audienciaParaEditar) return;
+    setForm({
+      ...empty,
+      titulo: audienciaParaEditar.titulo ?? audienciaParaEditar.tipo_audiencia ?? "",
+      observacoes: audienciaParaEditar.observacoes ?? "",
+      data_audiencia: toDateInput(audienciaParaEditar.data_audiencia),
+      hora: toTimeInput(audienciaParaEditar.hora),
+      hora_fim: toTimeInput(audienciaParaEditar.hora_fim),
+      forum: audienciaParaEditar.forum ?? "",
+      sala_forum: audienciaParaEditar.sala_forum ?? "",
+      local_audiencia: audienciaParaEditar.local_audiencia ?? "",
+      modalidade: audienciaParaEditar.modalidade ?? "",
+      vara_camara: audienciaParaEditar.vara_camara ?? "",
+      comarca: audienciaParaEditar.comarca ?? "",
+      polo_ativo: audienciaParaEditar.polo_ativo ?? "",
+      cliente: audienciaParaEditar.cliente ?? "",
+      terceirizado: audienciaParaEditar.terceirizado ?? "",
+    });
+    setSituacao(audienciaParaEditar.status ?? "pendente");
+    setProcessoNumero(audienciaParaEditar.processo_numero ? formatProcessoNumero(audienciaParaEditar.processo_numero) : "");
+    setProcessoId(audienciaParaEditar.processo_id ?? undefined);
+    setCoordenacaoId(audienciaParaEditar.coordenacao_id ?? "");
+  }, [audienciaParaEditar]);
+
+  useEffect(() => {
+    if (!audienciaParaEditar?.id) return;
+    let cancelled = false;
+    const carregarVinculos = async () => {
+      const [{ data: advogados }, { data: envolvidos }] = await Promise.all([
+        supabase.from("audiencias_advogados").select("advogado_id").eq("audiencia_id", audienciaParaEditar.id),
+        supabase.from("audiencia_envolvidos").select("usuario_id").eq("audiencia_id", audienciaParaEditar.id),
+      ]);
+      if (cancelled) return;
+      setResponsaveisIds((advogados || []).map((a: any) => a.advogado_id).filter(Boolean));
+      const envolvidosIdsCarregados = (envolvidos || []).map((e: any) => e.usuario_id).filter(Boolean);
+      setEnvolvidosIds(envolvidosIdsCarregados);
+      setMostrarEnvolvidos(envolvidosIdsCarregados.length > 0);
+    };
+    carregarVinculos();
+    return () => { cancelled = true; };
+  }, [audienciaParaEditar?.id]);
 
   useEffect(() => {
     if (!coordenacaoId && unicaCoordenacaoId) {
@@ -148,7 +213,7 @@ export function AudienciaFormSimplificado({
       toast.error("Informe a data");
       return;
     }
-    if (responsaveisIds.length === 0) {
+    if (!isEditing && responsaveisIds.length === 0) {
       toast.error("Selecione ao menos um responsável");
       return;
     }
@@ -200,7 +265,45 @@ export function AudienciaFormSimplificado({
       coordenacao_id: coordenacaoId || undefined,
     };
 
-    await criarAudiencia.mutateAsync(payload);
+    if (isEditing) {
+      const hora = payload.hora_brasilia || payload.hora || "12:00";
+      const dataAudienciaISO = `${payload.data_audiencia}T${hora}:00-03:00`;
+      const { advogados_ids, envolvidos_ids, ...dadosAudiencia } = payload;
+      const { error } = await supabase
+        .from("audiencias_detectadas")
+        .update({
+          ...dadosAudiencia,
+          processo_id: dadosAudiencia.processo_id || null,
+          data_audiencia: dataAudienciaISO,
+          status: situacao,
+          tipo_audiencia: form.titulo.trim(),
+        } as any)
+        .eq("id", audienciaParaEditar.id);
+      if (error) throw error;
+
+      await supabase.from("audiencias_advogados").delete().eq("audiencia_id", audienciaParaEditar.id);
+      if (advogados_ids && advogados_ids.length > 0) {
+        await supabase.from("audiencias_advogados").insert(
+          advogados_ids.map((advogadoId) => ({ audiencia_id: audienciaParaEditar.id, advogado_id: advogadoId }))
+        );
+      }
+
+      await supabase.from("audiencia_envolvidos").delete().eq("audiencia_id", audienciaParaEditar.id);
+      if (envolvidos_ids && envolvidos_ids.length > 0) {
+        await supabase.from("audiencia_envolvidos").insert(
+          envolvidos_ids.map((usuarioId) => ({ audiencia_id: audienciaParaEditar.id, usuario_id: usuarioId }))
+        );
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
+      await queryClient.invalidateQueries({ queryKey: ["audiencias-processo"] });
+      if (invalidateKey) {
+        await queryClient.invalidateQueries({ queryKey: invalidateKey });
+      }
+      toast.success("Audiência atualizada com sucesso!");
+    } else {
+      await criarAudiencia.mutateAsync(payload);
+    }
     setForm({ ...empty });
     setResponsaveisIds([]);
     setEnvolvidosIds([]);
