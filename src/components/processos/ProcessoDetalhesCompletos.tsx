@@ -239,6 +239,8 @@ export function ProcessoDetalhesCompletos({
   // Painel unificado (mesmo do Painel de Controle): Tarefa, Evento, Prazo, Audiência, Parcelamento.
   const [novoItemTipo, setNovoItemTipo] = useState<NovoItemTipo | null>(null);
   const [itemParaEditar, setItemParaEditar] = useState<any | null>(null);
+  const eventosDoProcesso = eventosAgenda.filter((evento: any) => (evento.tipo || "").toLowerCase() !== "parcelamento");
+  const parcelamentosDoProcesso = eventosAgenda.filter((evento: any) => (evento.tipo || "").toLowerCase() === "parcelamento");
   const processoPreSelecionado = processo
     ? { id: processo.id, numero: processo.numero || "" }
     : null;
@@ -810,10 +812,10 @@ export function ProcessoDetalhesCompletos({
       label: "Prazos & Eventos",
       items: [
         { id: "tarefas", label: "Tarefa", icon: ClipboardList, count: tarefasSemPrazo.length },
-        { id: "agenda", label: "Evento", icon: CalendarPlus, count: eventosAgenda.length },
+        { id: "agenda", label: "Evento", icon: CalendarPlus, count: eventosDoProcesso.length },
         { id: "prazo", label: "Prazo", icon: Clock, count: prazosDoProcesso.length },
         { id: "audiencias", label: "Audiência", icon: Gavel, count: audiencias.length },
-        { id: "parcelamento", label: "Parcelamento recorrente", icon: Coins },
+        { id: "parcelamento", label: "Parcelamento recorrente", icon: Coins, count: parcelamentosDoProcesso.length },
       ],
     },
     {
@@ -977,10 +979,13 @@ export function ProcessoDetalhesCompletos({
             Evita ScrollArea (Radix) no conteúdo para não capturar gestos no mobile.
             No desktop mantemos scroll interno via overflow-y-auto + altura fixa.
           */}
-          <div className="p-3 sm:p-4 sm:h-[calc(100vh-120px)] sm:overflow-y-auto">
+          <div className={cn(
+            "sm:h-[calc(100vh-120px)]",
+            novoItemTipo ? "p-0 overflow-hidden" : "p-3 sm:p-4 sm:overflow-y-auto"
+          )}>
               {/* Painel unificado (mesmo do Painel de Controle) — sobrepõe o conteúdo */}
               {novoItemTipo && (
-                <div className="h-[calc(100vh-140px)]">
+                <div className="h-full min-h-0">
                   <NovoItemPanel
                     tipo={novoItemTipo}
                     itemParaEditar={itemParaEditar}
@@ -1202,7 +1207,7 @@ export function ProcessoDetalhesCompletos({
                                         <DropdownMenuItem onSelect={() => onSelectAudiencia?.(aud)}>
                                           <Eye className="h-4 w-4 mr-2" /> Detalhes
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => onEditAudiencia?.(aud)}>
+                        <DropdownMenuItem onSelect={() => onEditAudiencia?.(aud)}>
                                           <Pencil className="h-4 w-4 mr-2" /> Editar
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onSelect={() => onCriarTarefaAudiencia?.(aud)}>
@@ -1340,7 +1345,7 @@ export function ProcessoDetalhesCompletos({
                             <Card 
                               key={tarefa.id} 
                               className="hover:shadow-md transition-shadow cursor-pointer"
-                              onClick={() => onSelectTarefa?.(tarefa.id)}
+                              onClick={() => abrirNovoItem("tarefa", tarefa)}
                             >
                               <CardContent className="p-3">
                                 <div className="flex items-start justify-between gap-2">
@@ -1514,6 +1519,13 @@ export function ProcessoDetalhesCompletos({
                           <Clock className="w-4 h-4" />
                           Prazos
                         </h3>
+                        <Button
+                          size="sm"
+                          className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7"
+                          onClick={() => abrirNovoItem("prazo")}
+                        >
+                          Adicionar Prazo
+                        </Button>
                       </div>
                       {loadingTarefas ? (
                         <div className="space-y-3">
@@ -1525,7 +1537,7 @@ export function ProcessoDetalhesCompletos({
                             <Card
                               key={tarefa.id}
                               className="hover:shadow-md transition-shadow cursor-pointer border-l-[3px] border-l-destructive"
-                              onClick={() => onSelectTarefa?.(tarefa.id)}
+                              onClick={() => abrirNovoItem("prazo", tarefa)}
                             >
                               <CardContent className="p-3">
                                 <div className="flex items-start justify-between gap-2">
@@ -1563,7 +1575,7 @@ export function ProcessoDetalhesCompletos({
                         </div>
                       )}
                       <div className="pt-2 border-t mt-4">
-                        <PrazoSectionEditable processo={processo} />
+                      <PrazoSectionEditable processo={processo} />
                       </div>
                     </>
                   )}
@@ -1761,7 +1773,7 @@ export function ProcessoDetalhesCompletos({
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-semibold text-sm flex items-center gap-2">
                       <CalendarDays className="w-4 h-4" />
-                      Agenda
+                      Eventos
                     </h3>
                     <Button
                       size="sm"
@@ -1771,10 +1783,14 @@ export function ProcessoDetalhesCompletos({
                       Adicionar Evento
                     </Button>
                   </div>
-                  {eventosAgenda.length > 0 ? (
+                  {eventosDoProcesso.length > 0 ? (
                     <div className="space-y-2">
-                      {eventosAgenda.map((evento: any) => (
-                        <Card key={evento.id} className="hover:shadow-md transition-shadow">
+                      {eventosDoProcesso.map((evento: any) => (
+                        <Card
+                          key={evento.id}
+                          className="hover:shadow-md transition-shadow cursor-pointer"
+                          onClick={() => abrirNovoItem("evento", evento)}
+                        >
                           <CardContent className="p-3">
                             <div className="space-y-1">
                               <p className="text-sm font-medium">{evento.titulo}</p>
@@ -1832,12 +1848,40 @@ export function ProcessoDetalhesCompletos({
                       Adicionar Parcelamento
                     </Button>
                   </div>
-                  <div className="text-center py-8 border rounded-lg bg-muted/20">
-                    <Coins className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">
-                      Clique em "Adicionar Parcelamento" para criar um parcelamento recorrente vinculado a este processo.
-                    </p>
-                  </div>
+                  {parcelamentosDoProcesso.length > 0 ? (
+                    <div className="space-y-2">
+                      {parcelamentosDoProcesso.map((parcelamento: any) => (
+                        <Card
+                          key={parcelamento.id}
+                          className="hover:shadow-md transition-shadow cursor-pointer border-l-[3px] border-l-emerald-500"
+                          onClick={() => abrirNovoItem("parcelamento", parcelamento)}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 space-y-1 min-w-0">
+                                <p className="text-sm font-medium truncate">{parcelamento.titulo}</p>
+                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  {formatDateTime(parcelamento.data_inicio)}
+                                </p>
+                                {parcelamento.descricao && (
+                                  <p className="text-xs text-muted-foreground line-clamp-2">{parcelamento.descricao}</p>
+                                )}
+                              </div>
+                              <Badge variant={parcelamento.status === "concluido" ? "default" : "secondary"} className="text-xs shrink-0">
+                                {parcelamento.status || "pendente"}
+                              </Badge>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Coins className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Nenhum parcelamento recorrente</p>
+                    </div>
+                  )}
                 </div>
               )}
 
