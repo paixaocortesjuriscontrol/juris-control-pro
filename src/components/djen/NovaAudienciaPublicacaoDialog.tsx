@@ -16,6 +16,8 @@ import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/form
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
+import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface NovaAudienciaPublicacaoDialogProps {
   open: boolean;
@@ -37,19 +39,50 @@ export function NovaAudienciaPublicacaoDialog({
   onMarkAsRead,
 }: NovaAudienciaPublicacaoDialogProps) {
   const hasPublicacao = !!publicacao;
+  const { user } = useAuth();
   const [aiDefaults, setAiDefaults] = useState<{
     titulo?: string;
     observacoes?: string;
     data_audiencia?: string;
   } | null>(null);
   const [formKey, setFormKey] = useState(0);
+  const [resolvedProcessoId, setResolvedProcessoId] = useState<string | undefined>(defaultProcessoId);
+  const [resolvedProcessoNumero, setResolvedProcessoNumero] = useState<string | undefined>(defaultProcessoNumero);
 
   useEffect(() => {
     if (!open) {
       setAiDefaults(null);
       setFormKey(0);
+      setResolvedProcessoId(defaultProcessoId);
+      setResolvedProcessoNumero(defaultProcessoNumero);
     }
   }, [open]);
+
+  // Ao abrir com uma publicação, garantir que o processo esteja cadastrado e vinculado
+  useEffect(() => {
+    if (!open || !publicacao || !user?.id) return;
+    if (resolvedProcessoId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const proc = await ensureProcessoFromPublicacao(
+          publicacao,
+          user.id,
+          null,
+          publicacao.coordenacao_id || null,
+        );
+        if (cancelled) return;
+        if (proc?.id) {
+          setResolvedProcessoId(proc.id);
+          setResolvedProcessoNumero(proc.numero);
+          setFormKey((k) => k + 1);
+        }
+      } catch (err) {
+        console.error("[NovaAudienciaPub] ensureProcesso falhou:", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, publicacao?.id, user?.id, resolvedProcessoId]);
 
   const secondarySave = onMarkAsRead
     ? { label: "Salvar e ler", onAfterSuccess: async () => { await onMarkAsRead(); } }
@@ -119,9 +152,10 @@ export function NovaAudienciaPublicacaoDialog({
             </div>
             <ScrollArea className="flex-1 p-5">
               <AudienciaFormSimplificado
-                key={`${defaultProcessoNumero ?? "novo"}-${formKey}`}
-                defaultProcessoNumero={defaultProcessoNumero}
-                defaultProcessoId={defaultProcessoId}
+                key={`${resolvedProcessoNumero ?? defaultProcessoNumero ?? "novo"}-${resolvedProcessoId ?? ""}-${formKey}`}
+                defaultProcessoNumero={resolvedProcessoNumero ?? defaultProcessoNumero}
+                defaultProcessoId={resolvedProcessoId ?? defaultProcessoId}
+                showProcessoField={!hasPublicacao}
                 defaultTitulo={aiDefaults?.titulo}
                 defaultObservacoes={aiDefaults?.observacoes}
                 defaultDataAudiencia={aiDefaults?.data_audiencia}
