@@ -1027,14 +1027,13 @@ export function ProcessoDetalhesCompletos({
                       </div>
                       <div className="px-4 sm:px-6 py-4 border rounded-lg bg-card">
                         <AudienciaFormSimplificado
-                        hideTitleHeader
-                        showProcessoField={false}
-                        defaultProcessoId={processo?.id}
-                        defaultProcessoNumero={processo?.numero}
-                        audienciaParaEditar={audienciaSelecionadaAtual}
-                        invalidateKey={audienciaInvalidateKey ?? ['audiencias-processo', processo?.id]}
-                        onSuccess={() => setAudienciaSelecionada(null)}
-                      />
+                          showProcessoField={false}
+                          defaultProcessoId={processo?.id}
+                          defaultProcessoNumero={processo?.numero}
+                          audienciaParaEditar={audienciaSelecionadaAtual}
+                          invalidateKey={audienciaInvalidateKey ?? ['audiencias-processo', processo?.id]}
+                          onSuccess={() => setAudienciaSelecionada(null)}
+                        />
                       </div>
                     </>
                   ) : (
