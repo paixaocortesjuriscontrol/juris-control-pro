@@ -229,6 +229,9 @@ export default function DistribuicaoTst() {
   const [filtroProvasDigitais, setFiltroProvasDigitais] = useState<string>("todos");
   const [filtroSituacaoCarga, setFiltroSituacaoCarga] = useState<string>("todas");
   const [filtroEquipe, setFiltroEquipe] = useState<string>("todos");
+  // Ativo quando o card "Pronto sem pendência" está selecionado.
+  // Complementa filtroStatus="pronto_envio" restringindo aos IDs sem pendências.
+  const [filtroSemPendencia, setFiltroSemPendencia] = useState<boolean>(false);
   const { data: situacoesCarga = [] } = useSituacoesEnvioCarga();
   // ===== TAGs (admin/coord) =====
   const [filtroTagId, setFiltroTagId] = useState<string>("todas");
@@ -311,6 +314,9 @@ export default function DistribuicaoTst() {
 
   // Para não-admins, o filtro "A fazer" sempre amarra ao usuário logado,
   // independentemente do select de responsáveis.
+  const { count: prontoSemPendenciaCount, ids: prontoSemPendenciaIds, loading: prontoSemPendenciaLoading } =
+    useProntoSemPendenciaCount(debouncedFilters);
+
   const listFilters = useMemo(() => {
     let f = debouncedFilters;
     if (debouncedFilters.situacaoProcesso === "a_fazer" && !isAdmin && user?.id) {
@@ -324,9 +330,16 @@ export default function DistribuicaoTst() {
         : multiRespIds;
       f = { ...f, idsAllowed: finalIds.length > 0 ? finalIds : ["__none__"] };
     }
+    if (filtroSemPendencia) {
+      // Restringe aos IDs "pronto para enviar" sem pendências (calculados no cliente).
+      const base = f.idsAllowed && f.idsAllowed.length > 0
+        ? prontoSemPendenciaIds.filter((id) => f.idsAllowed!.includes(id))
+        : prontoSemPendenciaIds;
+      f = { ...f, idsAllowed: base.length > 0 ? base : ["__none__"] };
+    }
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), JSON.stringify(idsAllowedFromTagFilter || [])]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), JSON.stringify(idsAllowedFromTagFilter || []), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds)]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
@@ -385,8 +398,6 @@ export default function DistribuicaoTst() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(debouncedFilters), page]);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
-  const { count: prontoSemPendenciaCount, loading: prontoSemPendenciaLoading } =
-    useProntoSemPendenciaCount(debouncedFilters);
 
   // Todos os cards (incluindo Total Geral, Prontos para Enviar e A fazer)
   // devem refletir o responsável atualmente selecionado no filtro — assim,
@@ -505,6 +516,7 @@ export default function DistribuicaoTst() {
   // Estado do card ativo (sincroniza visual + aplica filtros). Derivado dos selects.
   const activeCardKey = (() => {
     if (filtroMultiResp) return "multiResp" as const;
+    if (filtroSemPendencia) return "prontoSemPendencia" as const;
     if (filtroProcessoStatus === "valido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosValidos" as const;
     if (filtroProcessoStatus === "invalido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosInvalidos" as const;
     if (filtroDossieStatus === "valido" && filtroProcessoStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "dossiesValidos" as const;
@@ -546,6 +558,9 @@ export default function DistribuicaoTst() {
     if (key === "prontoEnvio" || isActive) setFiltroStatus("todos");
     // "Pronto sem pendência" reaproveita o filtro de status = pronto_envio.
     if (key === "prontoSemPendencia") setFiltroStatus("todos");
+    // Sempre desliga o filtro "sem pendência" ao alternar/limpar cards;
+    // será religado no switch abaixo se este for o card ativado.
+    setFiltroSemPendencia(false);
     // Reseta filtro "sem responsável" ao alternar cards
     if (key === "semResponsavel" || isActive) setFiltroResponsavelIds([]);
     setSelectedIds(new Set());
@@ -582,7 +597,10 @@ export default function DistribuicaoTst() {
         setFiltroMesAno("todos");
         break;
       case "prontoEnvio": setFiltroStatus("pronto_envio"); break;
-      case "prontoSemPendencia": setFiltroStatus("pronto_envio"); break;
+      case "prontoSemPendencia":
+        setFiltroStatus("pronto_envio");
+        setFiltroSemPendencia(true);
+        break;
       case "semResponsavel":
         setFiltroResponsavelIds(["__sem_responsavel__"]);
         break;
