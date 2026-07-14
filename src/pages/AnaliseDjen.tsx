@@ -257,6 +257,7 @@ const AnaliseDjen = () => {
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: ["processos"] }),
           queryClient.invalidateQueries({ queryKey: ["processos-paginados"] }),
+          queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
           queryClient.invalidateQueries({ queryKey: ["pastas"] }),
         ]);
       }
