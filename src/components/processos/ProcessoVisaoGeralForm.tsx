@@ -66,7 +66,7 @@ interface Props {
 
 export type ProcessoVisaoGeralFormHandle = {
   save: () => Promise<void>;
-  preencherFormularioJudit: (comAnexos?: boolean) => Promise<void>;
+  preencherFormularioJudit: (comAnexos?: boolean, presetData?: any) => Promise<void>;
 };
 
 // Lista de campos editáveis (whitelist) - todos da tabela processos
