@@ -277,6 +277,27 @@ export function PrazoDialog({
     return new Date();
   }, [publicacaoEfetiva?.data_disponibilizacao, publicacaoEfetiva?.data_publicacao]);
 
+  // Reset do formulário para "novo prazo". Reutilizado pelo useEffect de abertura
+  // e pelo pós-Save quando o wrapper deve permanecer aberto para cadastrar outro item.
+  const resetFormForNew = () => {
+    setTitulo("");
+    setPrazoDias(0);
+    setPrazoUnidade("uteis");
+    setDataLimite(undefined);
+    setDataLimiteEditadaManualmente(false);
+    setResponsaveisIds([]);
+    setEnvolvidosIds([]);
+    setMostrarEnvolvidos(false);
+    setObservacoes("");
+    setDataFatal(undefined);
+    setCoordenacaoId(unicaCoordenacaoId || "");
+    setSituacao("pendente");
+    setRecorrenciaTipo("nenhuma");
+    setRecorrenciaIntervalo(1);
+    setRecorrenciaOcorrencias("");
+    setRecorrenciaFim("");
+  };
+
   // Reset / preload state on open
   useEffect(() => {
     if (!open) return;
@@ -311,22 +332,7 @@ export function PrazoDialog({
         setCoordenacaoId((prev) => prev || (proc as any)?.coordenacao_id || unicaCoordenacaoId || "");
       })();
     } else {
-      setTitulo("");
-      setPrazoDias(0);
-      setPrazoUnidade("uteis");
-      setDataLimite(undefined);
-      setDataLimiteEditadaManualmente(false);
-      setResponsaveisIds([]);
-      setEnvolvidosIds([]);
-      setMostrarEnvolvidos(false);
-      setObservacoes("");
-      setDataFatal(undefined);
-      setCoordenacaoId(unicaCoordenacaoId || "");
-      setSituacao("pendente");
-      setRecorrenciaTipo("nenhuma");
-      setRecorrenciaIntervalo(1);
-      setRecorrenciaOcorrencias("");
-      setRecorrenciaFim("");
+      resetFormForNew();
     }
   }, [open, prazo?.id, unicaCoordenacaoId]);
 
