@@ -220,13 +220,27 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
         .upsert(rows, { onConflict: 'publicacao_id,tabela_origem,usuario_id' });
       if (error) throw error;
     },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['analise-djen'] }),
-        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] }),
-        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] }),
-      ]);
-      toast.success("Publicação(ões) marcada(s) como lida(s)");
+    // Optimistic update: marca a publicação como lida na UI antes do servidor responder
+    onMutate: async (ids: string[]) => {
+      await queryClient.cancelQueries({ queryKey: ['analise-djen'] });
+      const previous = queryClient.getQueriesData<PublicacaoAnalise[]>({ queryKey: ['analise-djen'] });
+      const idSet = new Set(ids);
+      queryClient.setQueriesData<PublicacaoAnalise[]>(
+        { queryKey: ['analise-djen'] },
+        (old) => (Array.isArray(old) ? old.map((p) => (idSet.has(p.id) ? { ...p, lida: true } : p)) : old),
+      );
+      return { previous };
+    },
+    onError: (_err, _ids, ctx) => {
+      ctx?.previous?.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      toast.error('Erro ao marcar como lida');
+    },
+    onSuccess: () => {
+      // Não recarrega a lista principal — optimistic update já refletiu.
+      queryClient.invalidateQueries({ queryKey: ['analise-djen'], refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'], refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] });
+      toast.success('Publicação(ões) marcada(s) como lida(s)');
     },
   });
 
