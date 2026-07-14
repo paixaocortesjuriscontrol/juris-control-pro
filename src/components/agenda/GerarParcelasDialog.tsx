@@ -83,6 +83,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const [coordenacaoProcessoFiltro, setCoordenacaoProcessoFiltro] = useState<string>(unicaCoordenacaoId ?? "todas");
   const [processoSearch, setProcessoSearch] = useState("");
   const [processoIds, setProcessoIds] = useState<string[]>([]);
+  const processoFixoNoDetalhe = !!defaultProcessoId && !evento;
 
   // Estados para participantes
   const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>(unicaCoordenacaoId ?? "todas");
@@ -685,6 +686,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                 </div>
               )}
 
+              {!processoFixoNoDetalhe && (
               <>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Select value={coordenacaoProcessoFiltro} onValueChange={setCoordenacaoProcessoFiltro}>
@@ -736,6 +738,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                     )}
                   </div>
               </>
+              )}
             </div>
 
             {/* Responsáveis/Participantes */}
