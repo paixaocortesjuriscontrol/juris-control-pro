@@ -548,7 +548,7 @@ export function PrazoDialog({
           </div>
         </div>
 
-        {hasPublicacao && (
+        {hasPublicacao && !hidePublicacaoCollapsible && (
           <PublicacaoVinculadaCollapsible publicacao={publicacaoEfetiva as any} />
         )}
 
