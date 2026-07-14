@@ -84,7 +84,6 @@ import {
   MoreVertical,
   ListChecks
 } from "lucide-react";
-import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { AudienciaObservacaoInline } from "@/components/audiencias/AudienciaObservacaoInline";
 import { CriarTarefaAudienciaDialog } from "@/components/audiencias/CriarTarefaAudienciaDialog";
@@ -189,8 +188,6 @@ export default function ProcessoDetalhes() {
   const [viewMode, setViewMode] = useState<ViewMode>("detalhes");
   
   // States for audiências and intimações actions
-  const [selectedAudiencia, setSelectedAudiencia] = useState<AudienciaDetectada | null>(null);
-  const [editingAudiencia, setEditingAudiencia] = useState<AudienciaDetectada | null>(null);
   const [criarTarefaAudiencia, setCriarTarefaAudiencia] = useState<AudienciaDetectada | null>(null);
   const [selectedIntimacao, setSelectedIntimacao] = useState<any>(null);
   const [updatingAudiencia, setUpdatingAudiencia] = useState<string | null>(null);
@@ -1626,12 +1623,6 @@ export default function ProcessoDetalhes() {
                                     </Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="start">
-                                    <DropdownMenuItem onSelect={() => setSelectedAudiencia(aud as AudienciaDetectada)}>
-                                      <Eye className="h-4 w-4 mr-2" /> Detalhes
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onSelect={() => setEditingAudiencia(aud as AudienciaDetectada)}>
-                                      <Pencil className="h-4 w-4 mr-2" /> Editar
-                                    </DropdownMenuItem>
                                     <DropdownMenuItem onSelect={() => setCriarTarefaAudiencia(aud as AudienciaDetectada)}>
                                       <ListChecks className="h-4 w-4 mr-2" /> Criar Tarefa
                                     </DropdownMenuItem>
@@ -2074,28 +2065,12 @@ export default function ProcessoDetalhes() {
             setEditando(true);
             setViewMode("editar");
           }}
-          onEditAudiencia={(aud) => setEditingAudiencia(aud)}
-          onSelectAudiencia={(aud) => setSelectedAudiencia(aud)}
           onCriarTarefaAudiencia={(aud) => setCriarTarefaAudiencia(aud)}
           audienciaInvalidateKey={["audiencias-processo", id, processo?.numero]}
           onSelectIntimacao={(int) => setSelectedIntimacao(int)}
           onSelectTarefa={(tarefaId) => setSelectedTarefaId(tarefaId)}
           onVoltarTarefa={() => setSelectedTarefaId(null)}
         />
-
-        {/* Dialogs */}
-        {editingAudiencia && (
-          <EditarAudienciaDialog 
-            audiencia={editingAudiencia}
-            open={!!editingAudiencia}
-            onOpenChange={(open) => {
-              if (!open) {
-                queryClient.invalidateQueries({ queryKey: ["audiencias-processo", id, processo?.numero] });
-                setEditingAudiencia(null);
-              }
-            }}
-          />
-        )}
 
         {/* Intimação Details Dialog */}
         <Dialog open={!!selectedIntimacao} onOpenChange={(open) => !open && setSelectedIntimacao(null)}>
@@ -2198,20 +2173,6 @@ export default function ProcessoDetalhes() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Dialogs */}
-      {editingAudiencia && (
-        <EditarAudienciaDialog 
-          audiencia={editingAudiencia}
-          open={!!editingAudiencia}
-          onOpenChange={(open) => {
-            if (!open) {
-              queryClient.invalidateQueries({ queryKey: ["audiencias-processo", id, processo?.numero] });
-              setEditingAudiencia(null);
-            }
-          }}
-        />
-      )}
 
       {/* Criar Tarefa a partir de Audiência */}
       <CriarTarefaAudienciaDialog
