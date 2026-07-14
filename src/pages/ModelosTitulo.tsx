@@ -48,7 +48,7 @@ export default function ModelosTitulo() {
   }
 
   return (
-    <MainLayout>
+    <MainLayout title="Modelos de Título">
       <div className="p-4 md:p-6 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
