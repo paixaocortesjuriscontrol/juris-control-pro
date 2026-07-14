@@ -236,6 +236,27 @@ export function ProcessoDetalhesCompletos({
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
   const [criarTarefaOpen, setCriarTarefaOpen] = useState(false);
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
+  // Painel unificado (mesmo do Painel de Controle): Tarefa, Evento, Prazo, Audiência, Parcelamento.
+  const [novoItemTipo, setNovoItemTipo] = useState<NovoItemTipo | null>(null);
+  const [itemParaEditar, setItemParaEditar] = useState<any | null>(null);
+  const processoPreSelecionado = processo
+    ? { id: processo.id, numero: processo.numero || "" }
+    : null;
+  const abrirNovoItem = (tipo: NovoItemTipo, item: any | null = null) => {
+    setItemParaEditar(item);
+    setNovoItemTipo(tipo);
+  };
+  const fecharNovoItem = () => {
+    setNovoItemTipo(null);
+    setItemParaEditar(null);
+  };
+  const invalidarAposSalvar = async () => {
+    await queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+    await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+    await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
+    await queryClient.invalidateQueries({ queryKey: ["prazos"] });
+    fecharNovoItem();
+  };
   const tarefasSemPrazo = tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa) && !isPrazoTarefa(t.tipo_tarefa));
   const prazosDoProcesso = tarefas.filter((t: any) => isPrazoTarefa(t.tipo_tarefa));
 
