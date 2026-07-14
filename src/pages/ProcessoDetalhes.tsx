@@ -146,6 +146,9 @@ const isTarefaAudiencia = (tipo: string | null | undefined) => {
   return lower === 'audiência' || lower === 'audiencia' || lower === 'preparação audiência' || lower === 'preparacao audiencia';
 };
 
+const isPrazoTarefa = (tipo: string | null | undefined) =>
+  (tipo || "").toString().trim().toUpperCase() === "PRAZO";
+
 const normalizeAudienciaKeyPart = (value: string | null | undefined) =>
   (value ?? "").toString().trim().toLowerCase();
 
@@ -1419,8 +1422,8 @@ export default function ProcessoDetalhes() {
         >
           <ListTodo className="w-4 h-4" />
           <span className="hidden sm:inline">Tarefas</span>
-          {tarefas.filter(t => !isTarefaAudiencia(t.tipo_tarefa)).length > 0 && (
-            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tarefas.filter(t => !isTarefaAudiencia(t.tipo_tarefa)).length}</Badge>
+          {tarefas.filter(t => !isTarefaAudiencia(t.tipo_tarefa) && !isPrazoTarefa(t.tipo_tarefa)).length > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{tarefas.filter(t => !isTarefaAudiencia(t.tipo_tarefa) && !isPrazoTarefa(t.tipo_tarefa)).length}</Badge>
           )}
         </TabsTrigger>
         <TabsTrigger 
@@ -1770,10 +1773,10 @@ export default function ProcessoDetalhes() {
                 processoId={id!}
                 onVoltar={() => setSelectedTarefaId(null)}
               />
-            ) : tarefas.filter(t => !isTarefaAudiencia(t.tipo_tarefa)).length > 0 ? (
+            ) : tarefas.filter(t => !isTarefaAudiencia(t.tipo_tarefa) && !isPrazoTarefa(t.tipo_tarefa)).length > 0 ? (
               <ScrollArea className="h-[500px] pr-4">
                 <div className="space-y-3">
-                  {tarefas.filter(t => !isTarefaAudiencia(t.tipo_tarefa)).map((tarefa) => (
+                  {tarefas.filter(t => !isTarefaAudiencia(t.tipo_tarefa) && !isPrazoTarefa(t.tipo_tarefa)).map((tarefa) => (
                     <Card 
                       key={tarefa.id} 
                       className="hover:shadow-md transition-shadow cursor-pointer"

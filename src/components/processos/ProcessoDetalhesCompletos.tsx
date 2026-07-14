@@ -99,6 +99,9 @@ const isTarefaAudiencia = (tipo: string | null | undefined) => {
   return lower === 'audiência' || lower === 'audiencia' || lower === 'preparação audiência' || lower === 'preparacao audiencia';
 };
 
+const isPrazoTarefa = (tipo: string | null | undefined) =>
+  (tipo || "").toString().trim().toUpperCase() === "PRAZO";
+
 interface Responsavel {
   id: string;
   nome: string;
@@ -231,6 +234,8 @@ export function ProcessoDetalhesCompletos({
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
   const [criarTarefaOpen, setCriarTarefaOpen] = useState(false);
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
+  const tarefasSemPrazo = tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa) && !isPrazoTarefa(t.tipo_tarefa));
+  const prazosDoProcesso = tarefas.filter((t: any) => isPrazoTarefa(t.tipo_tarefa));
 
   // Inline editable resumo
   const [resumoForm, setResumoForm] = useState<Record<string, any>>({});
@@ -784,13 +789,13 @@ export function ProcessoDetalhesCompletos({
         { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length },
         { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
         { id: "agenda", label: "Agenda", icon: CalendarDays, count: eventosAgenda.length },
-        { id: "prazo", label: "Prazo", icon: Clock },
+        { id: "prazo", label: "Prazo", icon: Clock, count: prazosDoProcesso.length },
       ],
     },
     {
       label: "Tarefas",
       items: [
-        { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).length },
+        { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefasSemPrazo.length },
       ],
     },
     {
@@ -1298,9 +1303,9 @@ export function ProcessoDetalhesCompletos({
                         <div className="space-y-3">
                           {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
                         </div>
-                      ) : tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).length > 0 ? (
+                      ) : tarefasSemPrazo.length > 0 ? (
                         <div className="space-y-2">
-                          {tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa)).map((tarefa: any) => (
+                          {tarefasSemPrazo.map((tarefa: any) => (
                             <Card 
                               key={tarefa.id} 
                               className="hover:shadow-md transition-shadow cursor-pointer"
@@ -1483,9 +1488,9 @@ export function ProcessoDetalhesCompletos({
                         <div className="space-y-3">
                           {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
                         </div>
-                      ) : tarefas.filter((t: any) => (t.tipo_tarefa || "").toUpperCase() === "PRAZO").length > 0 ? (
+                      ) : prazosDoProcesso.length > 0 ? (
                         <div className="space-y-2">
-                          {tarefas.filter((t: any) => (t.tipo_tarefa || "").toUpperCase() === "PRAZO").map((tarefa: any) => (
+                          {prazosDoProcesso.map((tarefa: any) => (
                             <Card
                               key={tarefa.id}
                               className="hover:shadow-md transition-shadow cursor-pointer"

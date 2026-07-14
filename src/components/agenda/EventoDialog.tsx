@@ -276,6 +276,25 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       return;
     }
 
+    let processoIdParaSalvar = processoId;
+    if (publicacao && user?.id) {
+      try {
+        const proc = await ensureProcessoFromPublicacao(
+          publicacao,
+          user.id,
+          null,
+          coordenacaoId || publicacao.coordenacao_id || null,
+        );
+        if (proc?.id) {
+          processoIdParaSalvar = proc.id;
+          setProcessoId(proc.id);
+        }
+      } catch (err: any) {
+        toast.error("Erro ao vincular processo da publicação: " + (err?.message || err));
+        return;
+      }
+    }
+
     const inicioISO = diaInteiro
       ? `${dataInicio}T00:00:00-03:00`
       : `${dataInicio}T${horaInicio || "09:00"}:00-03:00`;
@@ -322,7 +341,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       dia_inteiro: diaInteiro,
       local: local || undefined,
       modalidade: modalidade || undefined,
-      processo_id: processoId || undefined,
+      processo_id: processoIdParaSalvar || undefined,
       coordenacao_id: coordenacaoId || null,
       participantes_ids: responsaveisIds,
       alerta_minutos: alertas,

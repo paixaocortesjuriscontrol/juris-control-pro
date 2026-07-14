@@ -15,6 +15,10 @@ export interface PedidoProcesso {
   desembargador_turma: string | null;
   tst: boolean;
   ministro_turma_sessao: string | null;
+  resultado_sentenca: string | null;
+  resultado_recurso: string | null;
+  turma: string | null;
+  relator: string | null;
   observacao: string | null;
   created_at: string;
   updated_at: string;

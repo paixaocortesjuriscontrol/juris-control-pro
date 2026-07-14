@@ -922,7 +922,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               <section>
                 <SectionHeader icon={FileText} title="Identificação" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <FormField label="Assunto" className="md:col-span-2">
+                  <FormField label="Objeto da ação (assunto)" className="md:col-span-2">
                     <Textarea
                       rows={3}
                       className={cn("text-sm min-h-[72px] resize-y overflow-hidden", jcls("assunto"))}

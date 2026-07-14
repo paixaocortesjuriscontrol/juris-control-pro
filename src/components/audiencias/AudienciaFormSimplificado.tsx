@@ -35,6 +35,7 @@ type Props = {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
   };
+  resolveProcessoBeforeSubmit?: () => Promise<{ id: string; numero: string } | null>;
 };
 
 const empty = {
@@ -67,6 +68,7 @@ export function AudienciaFormSimplificado({
   defaultObservacoes,
   defaultDataAudiencia,
   secondarySave,
+  resolveProcessoBeforeSubmit,
 }: Props) {
   const { criarAudiencia } = useAudienciasDetectadas();
   const secondaryClickedRef = useRef(false);
@@ -153,9 +155,26 @@ export function AudienciaFormSimplificado({
       return;
     }
 
+    let processoIdParaSalvar = processoId;
+    let processoNumeroParaSalvar = processoNumero;
+    if (resolveProcessoBeforeSubmit) {
+      try {
+        const proc = await resolveProcessoBeforeSubmit();
+        if (proc?.id) {
+          processoIdParaSalvar = proc.id;
+          processoNumeroParaSalvar = formatProcessoNumero(proc.numero);
+          setProcessoId(proc.id);
+          setProcessoNumero(formatProcessoNumero(proc.numero));
+        }
+      } catch (err: any) {
+        toast.error("Erro ao vincular processo da publicação: " + (err?.message || err));
+        return;
+      }
+    }
+
     const payload: NovaAudiencia = {
-      processo_id: processoId,
-      processo_numero: processoNumero || "",
+      processo_id: processoIdParaSalvar,
+      processo_numero: processoNumeroParaSalvar || "",
       titulo: form.titulo.trim(),
       data_audiencia: form.data_audiencia,
       hora: form.hora || undefined,
