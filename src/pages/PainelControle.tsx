@@ -112,6 +112,7 @@ export default function PainelControle() {
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [parcelasDialogOpen, setParcelasDialogOpen] = useState(false);
+  const [relatorioAudOpen, setRelatorioAudOpen] = useState(false);
   const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
   const [selectedParcelamento, setSelectedParcelamento] = useState<EventoAgenda | null>(null);
   const [novoItemTipo, setNovoItemTipo] = useState<null | "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento">(null);
