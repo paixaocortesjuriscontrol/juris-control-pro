@@ -994,6 +994,14 @@ export default function PainelControle() {
       title="Painel de Controle"
       headerActions={
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMostrarTotalizadores((v) => !v)}
+            title={mostrarTotalizadores ? "Ocultar cards totalizadores" : "Mostrar cards totalizadores"}
+          >
+            {mostrarTotalizadores ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+          </Button>
           {isAdmin && (
             <Button asChild variant="outline" size="sm">
               <Link to="/dashboard">Dashboard</Link>
