@@ -207,7 +207,7 @@ export function ProcessoEditarCompleto({
           
           {/* Assunto - abaixo no mobile, ao lado no desktop */}
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] text-muted-foreground uppercase">Assunto</p>
+            <p className="text-[10px] text-muted-foreground uppercase">Objeto da Ação (Assunto)</p>
             <Textarea
               value={formData.assunto || ""}
               onChange={(e) => onInputChange("assunto", e.target.value)}
@@ -369,7 +369,7 @@ export function ProcessoEditarCompleto({
                       type="select"
                       options={statusOptions.map(s => ({ value: s, label: statusLabels[s] }))}
                     />
-                    <EditableField label="Assunto" field="assunto" className="col-span-2" />
+                    <EditableField label="Objeto da Ação (Assunto)" field="assunto" className="col-span-2" />
                     <EditableField label="Classe CNJ" field="classe" />
                     <EditableField label="Natureza" field="natureza" />
                     <EditableField label="Data Distribuição" field="data_distribuicao" type="date" />

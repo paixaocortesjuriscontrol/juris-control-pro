@@ -442,7 +442,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         try {
           let q = (supabase
             .from('publicacoes_djen') as any)
-            .select('id, id_djen, dedup_key, dedup_conteudo_key, lida, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
+            .select('id, id_djen, dedup_key, dedup_conteudo_key, lida, processo_id, processo_numero, conteudo, data_publicacao, data_disponibilizacao, tribunal, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)', { count: 'exact' })
             .eq('tipo_publicacao', 'pauta')
             .eq('status', 'encontrada');
           const pautaPubInicio = dataPublicacaoPautaInicio(filtros.dataDisponibilizacao, filtros.apenasHoje);
@@ -472,7 +472,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               dedup_key: r.dedup_key ?? null,
               dedup_conteudo_key: r.dedup_conteudo_key ?? null,
               tipo_origem: 'termo',
-              processo_id: null,
+              processo_id: r.processo_id ?? null,
               processo_numero: r.processo_numero,
               conteudo: r.conteudo,
               data_publicacao: r.data_publicacao,
@@ -741,6 +741,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             .select(`
               id,
               monitoramento_id,
+              processo_id,
               processo_numero,
               conteudo,
               data_publicacao,
@@ -780,7 +781,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           return (descartadasData || []).map((pub: any) => ({
               id: pub.id,
               tipo_origem: 'descartada' as const,
-              processo_id: null,
+              processo_id: pub.processo_id ?? null,
               processo_numero: pub.processo_numero,
               conteudo: pub.conteudo,
               data_publicacao: pub.data_publicacao,
@@ -862,6 +863,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             dedup_key,
             dedup_conteudo_key,
             monitoramento_id,
+            processo_id,
             processo_numero,
             conteudo,
             data_publicacao,
@@ -973,7 +975,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           }
 
           // Verificar se o processo já existe no banco
-          const processoId = pub.processo_numero ? processosExistentesMap[pub.processo_numero] || null : null;
+          const processoId = pub.processo_id || (pub.processo_numero ? processosExistentesMap[pub.processo_numero] || null : null);
 
           resultados.push({
             id: pub.id,
@@ -1122,6 +1124,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           .select(`
             id,
             monitoramento_id,
+            processo_id,
             processo_numero,
             conteudo,
             data_publicacao,
@@ -1179,7 +1182,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           resultados.push({
             id: pub.id,
             tipo_origem: 'descartada',
-            processo_id: null,
+            processo_id: pub.processo_id ?? null,
             processo_numero: pub.processo_numero,
             conteudo: pub.conteudo,
             data_publicacao: pub.data_publicacao,

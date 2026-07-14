@@ -1493,7 +1493,7 @@ export function ProcessoDetalhesCompletos({
                           {prazosDoProcesso.map((tarefa: any) => (
                             <Card
                               key={tarefa.id}
-                              className="hover:shadow-md transition-shadow cursor-pointer"
+                              className="hover:shadow-md transition-shadow cursor-pointer border-l-[3px] border-l-destructive"
                               onClick={() => onSelectTarefa?.(tarefa.id)}
                             >
                               <CardContent className="p-3">
