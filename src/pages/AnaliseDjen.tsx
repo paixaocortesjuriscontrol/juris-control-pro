@@ -4109,7 +4109,7 @@ const AnaliseDjen = () => {
             for (const it of itensCriadosSessao) map.set(it.id, it);
             return Array.from(map.values());
           })();
-          const wrapperAberto = inlineFormAberto || (!!selectedPublicacao && itensDoCard.length > 0);
+          const wrapperAberto = inlineFormAberto || (!!selectedPublicacao && itensCriadosSessao.length > 0);
           const fecharTudo = () => {
             setCriarTarefaDialogOpen(false);
             setNovoEventoOpen(false);
