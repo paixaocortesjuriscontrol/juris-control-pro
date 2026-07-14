@@ -597,6 +597,15 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
             <SelectItem value="cancelado">❌ Cancelado</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          type="submit"
+          form="parcelamento-form-content"
+          size="sm"
+          disabled={isSubmitting || !formData.titulo.trim()}
+        >
+          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isEditing ? "Salvar" : "Criar Parcelamento"}
+        </Button>
       </div>
     </div>
   );
@@ -617,6 +626,15 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
               <SelectItem value="cancelado">❌ Cancelado</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            type="submit"
+            form="parcelamento-form-content"
+            size="sm"
+            disabled={isSubmitting || !formData.titulo.trim()}
+          >
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isEditing ? "Salvar" : "Criar Parcelamento"}
+          </Button>
         </div>
       </div>
     </DialogHeader>
@@ -627,7 +645,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
       {inline ? headerInline : headerDialog}
 
         <div className={embedded ? "px-4 sm:px-6" : "flex-1 overflow-y-auto px-4 sm:px-6"}>
-          <form onSubmit={handleSubmit} className="space-y-4 pb-4">
+          <form id="parcelamento-form-content" onSubmit={handleSubmit} className="space-y-4 pb-4">
             {precisaSelecionar && (
               <CoordenacaoSelect
                 value={coordenacaoId}

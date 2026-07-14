@@ -422,6 +422,16 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                     <SelectItem value="cancelado">❌ Cancelado</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button
+                  type="submit"
+                  form="evento-form-content"
+                  size="sm"
+                  disabled={isPending}
+                  onClick={() => { secondaryClickedRef.current = false; }}
+                >
+                  {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {isEditing ? "Salvar" : "Criar evento"}
+                </Button>
               {hasPublicacao && (
                 <BotaoPreencherIA
                   conteudo={publicacao?.conteudo}
