@@ -807,6 +807,8 @@ export default function PainelControle() {
   const contagensPorClassificacao = useMemo(() => {
     const counts = { tarefa: 0, evento: 0, prazo: 0, audiencia: 0, parcelamento: 0 };
     const base = itensAgenda.filter((item) => {
+      // Exclui itens já tratados/concluídos dos contadores dos cards totalizadores
+      if (isItemTratado(item)) return false;
       // Status (grupo simplificado)
       if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
         const st = (item.status ?? "").toLowerCase();
