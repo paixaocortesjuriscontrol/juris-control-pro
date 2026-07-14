@@ -219,8 +219,9 @@ const AnaliseDjen = () => {
   const dataDisponibilizacaoDebounced = useDebouncedValue(dataDisponibilizacao, 250);
   const dataPublicacaoDebounced = useDebouncedValue(dataPublicacao, 250);
   const filtroDataDisponibilizacaoAtivo = !!dataDisponibilizacaoDebounced;
-  const filtroQualquerDataAtivo = !!dataInicioDebounced || !!dataFimDebounced || filtroDataDisponibilizacaoAtivo;
-  const apenasHojeEfetivo = apenasHoje && !filtroDataDisponibilizacaoAtivo;
+  const filtroDataPublicacaoAtivo = !!dataPublicacaoDebounced;
+  const filtroQualquerDataAtivo = !!dataInicioDebounced || !!dataFimDebounced || filtroDataDisponibilizacaoAtivo || filtroDataPublicacaoAtivo;
+  const apenasHojeEfetivo = apenasHoje && !filtroDataDisponibilizacaoAtivo && !filtroDataPublicacaoAtivo;
 
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
@@ -682,7 +683,7 @@ const AnaliseDjen = () => {
       const hojeBrt = getHojeBrtISO();
       // Para DEJT Pautas, o dia exibido na análise é a data legal de publicação.
       // Ex.: caderno disponibilizado em 03/07/2026 publica legalmente em 06/07/2026.
-      const diaPauta = dataDisponibilizacaoDebounced || (apenasHoje ? hojeBrt : null);
+      const diaPauta = dataPublicacaoDebounced || dataDisponibilizacaoDebounced || (apenasHoje ? hojeBrt : null);
       const dataInicioFiltro = !diaPauta && dataInicioDebounced
         ? dateLocalToUTCRange(dataInicioDebounced, false)
         : null;
