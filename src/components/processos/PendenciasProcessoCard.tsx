@@ -9,10 +9,6 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
-import { PrazoDialog } from "@/components/prazos/PrazoDialog";
-import { EventoDialog } from "@/components/agenda/EventoDialog";
-import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 
 // Parse "YYYY-MM-DD" como data local para evitar deslocamento por timezone.
 function parseDateSafe(value: string): Date {
@@ -45,10 +41,6 @@ export function PendenciasProcessoCard({
 }: PendenciasProcessoCardProps) {
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [editAudiencia, setEditAudiencia] = useState<any | null>(null);
-  const [editTarefa, setEditTarefa] = useState<any | null>(null);
-  const [editPrazo, setEditPrazo] = useState<any | null>(null);
-  const [editEvento, setEditEvento] = useState<any | null>(null);
 
   const audienciasPendentes = audiencias.filter(a => a.status === 'pendente');
   const intimacoesPendentes = intimacoes.filter(i => i.status === 'pendente');
@@ -180,9 +172,7 @@ export function PendenciasProcessoCard({
               return (
                 <div
                   key={aud.id}
-                  role="button"
-                  onClick={() => setEditAudiencia(aud)}
-                  className="text-xs p-2.5 bg-muted/40 hover:bg-muted/70 cursor-pointer rounded-lg border border-border/40 border-l-[3px] border-l-amber-500 space-y-1 transition-colors"
+                  className="text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-amber-500 space-y-1"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground">{aud.tipo_audiencia || "Audiência"}</span>
@@ -286,9 +276,7 @@ export function PendenciasProcessoCard({
               return (
                 <div
                   key={t.id}
-                  role="button"
-                  onClick={() => setEditPrazo(t)}
-                  className="text-xs p-2.5 bg-muted/40 hover:bg-muted/70 cursor-pointer rounded-lg border border-border/40 border-l-[3px] border-l-destructive space-y-1 transition-colors"
+                  className="text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-destructive space-y-1"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">{t.titulo}</span>
@@ -335,10 +323,8 @@ export function PendenciasProcessoCard({
               return (
                 <div
                   key={t.id}
-                  role="button"
-                  onClick={() => setEditTarefa(t)}
                   className={cn(
-                    "text-xs p-2.5 bg-muted/40 hover:bg-muted/70 cursor-pointer rounded-lg border border-border/40 border-l-[3px] space-y-1 transition-colors",
+                    "text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] space-y-1",
                     isOverdue ? "border-l-destructive" : "border-l-blue-500"
                   )}
                 >
@@ -402,9 +388,7 @@ export function PendenciasProcessoCard({
               return (
                 <div
                   key={ev.id}
-                  role="button"
-                  onClick={() => setEditEvento(ev)}
-                  className="text-xs p-2.5 bg-muted/40 hover:bg-muted/70 cursor-pointer rounded-lg border border-border/40 border-l-[3px] border-l-violet-500 space-y-1 transition-colors"
+                  className="text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-violet-500 space-y-1"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">{ev.titulo}</span>
@@ -475,38 +459,6 @@ export function PendenciasProcessoCard({
         )}
       </CardContent>
     </Card>
-
-    {editAudiencia && (
-      <EditarAudienciaDialog
-        audiencia={editAudiencia}
-        open={!!editAudiencia}
-        onOpenChange={(open) => { if (!open) { setEditAudiencia(null); invalidateAll(); } }}
-      />
-    )}
-    {editTarefa && (
-      <NovaTarefaDialog
-        open={!!editTarefa}
-        onOpenChange={(open) => { if (!open) { setEditTarefa(null); invalidateAll(); } }}
-        coordenacoes={[]}
-        tarefaParaEditar={editTarefa}
-        processoPreSelecionado={processoId ? { id: processoId, numero: processoNumero || "" } : null}
-      />
-    )}
-    {editPrazo && (
-      <PrazoDialog
-        open={!!editPrazo}
-        onOpenChange={(open) => { if (!open) { setEditPrazo(null); invalidateAll(); } }}
-        prazo={editPrazo}
-        defaultProcessoId={processoId}
-      />
-    )}
-    {editEvento && (
-      <EventoDialog
-        open={!!editEvento}
-        onOpenChange={(open) => { if (!open) { setEditEvento(null); invalidateAll(); } }}
-        evento={editEvento}
-      />
-    )}
     </>
   );
 }
