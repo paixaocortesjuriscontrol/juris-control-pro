@@ -4949,6 +4949,48 @@ export type Database = {
           },
         ]
       }
+      modelos_titulo_coordenacao: {
+        Row: {
+          ativo: boolean
+          coordenacao_id: string
+          created_at: string
+          criado_por: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          prioridade: string | null
+          tipo: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          coordenacao_id: string
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          prioridade?: string | null
+          tipo: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          coordenacao_id?: string
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          prioridade?: string | null
+          tipo?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       monitoramentos_distribuicao: {
         Row: {
           ativo: boolean
