@@ -1801,8 +1801,21 @@ export function ProcessoDetalhesCompletos({
 
               {/* Portal Section */}
               {activeSection === "portal" && (
-
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-sm flex items-center gap-2">
+                      <Globe className="w-4 h-4" />
+                      Portal do Tribunal
+                    </h3>
+                  </div>
+                  <BaixarAutosButton
+                    processoId={processo?.id}
+                    processoNumero={processo?.numero}
+                    tribunal={processo?.tribunal}
+                  />
+                </div>
               )}
+
               {activeSection === "parcelamento" && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between mb-3">
@@ -1825,21 +1838,6 @@ export function ProcessoDetalhesCompletos({
                       Clique em "Adicionar Parcelamento" para criar um parcelamento recorrente vinculado a este processo.
                     </p>
                   </div>
-                </div>
-              )}
-              {activeSection === "portal-legacy-placeholder" && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-sm flex items-center gap-2">
-                      <Globe className="w-4 h-4" />
-                      Portal do Tribunal
-                    </h3>
-                  </div>
-                  <BaixarAutosButton
-                    processoId={processo?.id}
-                    processoNumero={processo?.numero}
-                    tribunal={processo?.tribunal}
-                  />
                 </div>
               )}
 
