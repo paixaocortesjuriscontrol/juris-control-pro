@@ -605,9 +605,18 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               </div>
             )}
 
-            {/* Processo (opcional) */}
+            {/* Coordenação (sempre visível para admin/multi) */}
+            {precisaSelecionar && hasPublicacao && (
+              <CoordenacaoSelect
+                value={coordenacaoId}
+                onChange={setCoordenacaoId}
+                required
+              />
+            )}
+
+            {/* Processo (opcional) — oculto quando vindo de uma publicação */}
             <div className={cn("border rounded-lg p-3 space-y-2", hasPublicacao && "hidden")}>
-              {precisaSelecionar && (
+              {precisaSelecionar && !hasPublicacao && (
                 <div className="pb-2 border-b mb-2">
                   <CoordenacaoSelect
                     value={coordenacaoId}
