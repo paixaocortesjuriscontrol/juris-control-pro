@@ -1779,7 +1779,7 @@ export default function PainelControle() {
           </div>
 
           {selectedItem && (
-            <aside className="flex flex-1 lg:flex-none lg:w-[640px] xl:w-[720px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0 overflow-hidden">
+            <aside className="flex flex-1 lg:flex-none lg:w-[860px] xl:w-[1040px] 2xl:w-[1160px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0 overflow-hidden">
               <EdicaoItemPanel
                 key={selectedItem.id}
                 item={selectedItem}
@@ -1792,7 +1792,7 @@ export default function PainelControle() {
           )}
 
           {!selectedItem && novoItemTipo && (
-            <aside className="flex flex-1 lg:flex-none lg:w-[640px] xl:w-[720px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0 overflow-hidden">
+            <aside className="flex flex-1 lg:flex-none lg:w-[860px] xl:w-[1040px] 2xl:w-[1160px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0 overflow-hidden">
               <NovoItemPanel
                 tipo={novoItemTipo}
                 onClose={() => setNovoItemTipo(null)}
