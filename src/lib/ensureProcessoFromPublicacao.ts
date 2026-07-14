@@ -23,23 +23,21 @@ export async function salvarPublicacaoNoProcesso(pub: PublicacaoUnificada, proce
   if (pub.tipo_origem === "descartada" || pub.tipo_origem === "datajud") return;
 
   if (pub.tipo_origem === "processo") {
-    await (supabase as any)
+    const updatePayload: Record<string, unknown> = { processo_id: processoId };
+    if (pub.processo_numero) updatePayload.processo_numero = pub.processo_numero;
+    const { error } = await (supabase as any)
       .from("publicacoes_djen_processos")
-      .update({ processo_id: processoId })
-      .eq("id", pub.id)
-      .then(() => {}, (err: any) => {
-        console.warn("[ensureProcessoFromPublicacao] falha ao vincular publicação do processo:", err);
-      });
+      .update(updatePayload)
+      .eq("id", pub.id);
+    if (error) console.warn("[ensureProcessoFromPublicacao] falha ao vincular publicação do processo:", error);
     return;
   }
 
-  await (supabase as any)
+  const { error: updateTermoError } = await (supabase as any)
     .from("publicacoes_djen")
     .update({ processo_id: processoId })
-    .eq("id", pub.id)
-    .then(() => {}, (err: any) => {
-      console.warn("[ensureProcessoFromPublicacao] falha ao vincular publicação ao processo:", err);
-    });
+    .eq("id", pub.id);
+  if (updateTermoError) console.warn("[ensureProcessoFromPublicacao] falha ao vincular publicação ao processo:", updateTermoError);
 
   // A aba "Pub. DJEN" dos detalhes do processo historicamente lê a tabela
   // publicacoes_djen_processos. Ao criar tarefa/prazo/evento/audiência a partir
@@ -80,9 +78,51 @@ export async function salvarPublicacaoNoProcesso(pub: PublicacaoUnificada, proce
       id_djen: original?.id_djen ?? pub.id_djen ?? null,
     };
 
-    await (supabase as any)
+    const { data: existentePorHash } = await (supabase as any)
       .from("publicacoes_djen_processos")
-      .upsert(row, { onConflict: "processo_id,hash_conteudo" });
+      .select("id")
+      .eq("processo_id", processoId)
+      .eq("hash_conteudo", hashConteudo)
+      .maybeSingle();
+
+    if (existentePorHash?.id) {
+      const { error } = await (supabase as any)
+        .from("publicacoes_djen_processos")
+        .update(row)
+        .eq("id", existentePorHash.id);
+      if (error) throw error;
+      return;
+    }
+
+    if (row.id_djen && row.coordenacao_id) {
+      const { data: existentePorDjen } = await (supabase as any)
+        .from("publicacoes_djen_processos")
+        .select("id")
+        .eq("coordenacao_id", row.coordenacao_id)
+        .eq("id_djen", row.id_djen)
+        .maybeSingle();
+
+      if (existentePorDjen?.id) {
+        const { error } = await (supabase as any)
+          .from("publicacoes_djen_processos")
+          .update(row)
+          .eq("id", existentePorDjen.id);
+        if (error) throw error;
+        return;
+      }
+    }
+
+    const { error: insertError } = await (supabase as any)
+      .from("publicacoes_djen_processos")
+      .insert(row);
+
+    if (insertError) {
+      const fallbackRow = { ...row, id_djen: null };
+      const { error: fallbackError } = await (supabase as any)
+        .from("publicacoes_djen_processos")
+        .upsert(fallbackRow, { onConflict: "processo_id,hash_conteudo" });
+      if (fallbackError) throw fallbackError;
+    }
   } catch (err) {
     console.warn("[ensureProcessoFromPublicacao] falha ao salvar publicação na aba Pub. DJEN:", err);
   }
