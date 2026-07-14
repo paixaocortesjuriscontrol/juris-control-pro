@@ -1054,9 +1054,8 @@ const AnaliseDjen = () => {
 
   const handleCriarTarefa = async (pub: PublicacaoUnificada) => {
     // Não marca como lida automaticamente — use o botão "Salvar e ler" no formulário.
-    setSelectedPublicacao(pub);
+    await handleAdicionarClick(pub);
     setCriarTarefaDialogOpen(true);
-    await resolverProcessoDaPublicacao(pub);
   };
 
   const handleAdicionarClick = async (pub: PublicacaoUnificada) => {
