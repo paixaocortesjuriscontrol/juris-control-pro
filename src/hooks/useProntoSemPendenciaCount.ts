@@ -23,6 +23,7 @@ import {
  */
 export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
   const [count, setCount] = useState<number>(0);
+  const [ids, setIds] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const runIdRef = useRef(0);
   const filtersKey = JSON.stringify(filters);
@@ -37,6 +38,7 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
         if (cancelled || runId !== runIdRef.current) return;
         if (!ids || ids.length === 0) {
           setCount(0);
+          setIds([]);
           return;
         }
         // Colunas necessárias para computar pendências + campos de isenção.
@@ -62,6 +64,7 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
 
         const PAGE = 500;
         let semPendencia = 0;
+        const semPendenciaIds: string[] = [];
         for (let i = 0; i < ids.length; i += PAGE) {
           if (cancelled || runId !== runIdRef.current) return;
           const batch = ids.slice(i, i + PAGE);
@@ -79,14 +82,21 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
               (r as any).processo_outro_escritorio === true ||
               (r as any).segredo_justica === true;
             if (naoPrecisaFazer) continue;
-            if (getPendencias(r).length === 0) semPendencia++;
+            if (getPendencias(r).length === 0) {
+              semPendencia++;
+              semPendenciaIds.push((r as any).id);
+            }
           }
         }
-        if (!cancelled && runId === runIdRef.current) setCount(semPendencia);
+        if (!cancelled && runId === runIdRef.current) {
+          setCount(semPendencia);
+          setIds(semPendenciaIds);
+        }
       } catch (e) {
         if (!cancelled && runId === runIdRef.current) {
           console.warn("[useProntoSemPendenciaCount] falhou:", e);
           setCount(0);
+          setIds([]);
         }
       } finally {
         if (!cancelled && runId === runIdRef.current) setLoading(false);
@@ -98,5 +108,5 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersKey]);
 
-  return { count, loading };
+  return { count, ids, loading };
 }
