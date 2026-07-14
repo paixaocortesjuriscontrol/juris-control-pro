@@ -92,6 +92,7 @@ import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { PublicacaoSidePanel } from "@/components/shared/PublicacaoSidePanel";
 import { ItensCriadosPublicacaoCard, type ItemCriado } from "@/components/shared/ItensCriadosPublicacaoCard";
+import { useItensExistentesPublicacao } from "@/hooks/useItensExistentesPublicacao";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 import { NovaAudienciaPublicacaoDialog } from "@/components/djen/NovaAudienciaPublicacaoDialog";
 import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
@@ -4097,6 +4098,17 @@ const AnaliseDjen = () => {
           // OU se já houver itens criados nesta sessão (mesmo após fechar o
           // form individual — usuário pode escolher outro tipo pelo dropdown
           // "Adicionar").
+          // eslint-disable-next-line react-hooks/rules-of-hooks
+          const { data: itensExistentesPub = [] } = useItensExistentesPublicacao(selectedPublicacao);
+          // Card verde combina os itens já existentes (persistidos) com os
+          // criados nesta sessão. Deduplica por id (sessão prevalece para
+          // preservar o "flash" recém-adicionado).
+          const itensDoCard: ItemCriado[] = (() => {
+            const map = new Map<string, ItemCriado>();
+            for (const it of itensExistentesPub) map.set(it.id, it);
+            for (const it of itensCriadosSessao) map.set(it.id, it);
+            return Array.from(map.values());
+          })();
           const wrapperAberto = inlineFormAberto || (!!selectedPublicacao && itensCriadosSessao.length > 0);
           const fecharTudo = () => {
             setCriarTarefaDialogOpen(false);
@@ -4191,7 +4203,7 @@ const AnaliseDjen = () => {
                   ← Voltar para a lista
                 </Button>
               </div>
-              <ItensCriadosPublicacaoCard itens={itensCriadosSessao} />
+              <ItensCriadosPublicacaoCard itens={itensDoCard} />
               {/* Barra "+ Adicionar" acima do formulário, sempre visível quando o
                   wrapper está aberto — permite alternar o tipo sem fechar. */}
               <div className="flex items-center justify-end">
