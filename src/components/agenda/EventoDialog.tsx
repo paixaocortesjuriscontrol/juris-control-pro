@@ -606,7 +606,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             )}
 
             {/* Processo (opcional) */}
-            <div className="border rounded-lg p-3 space-y-2">
+            <div className={cn("border rounded-lg p-3 space-y-2", hasPublicacao && "hidden")}>
               {precisaSelecionar && (
                 <div className="pb-2 border-b mb-2">
                   <CoordenacaoSelect
