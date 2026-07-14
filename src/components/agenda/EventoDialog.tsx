@@ -389,11 +389,20 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       } else {
         const novo = await createEvento.mutateAsync(payload);
         if (novo?.id) await persistirRelacionamentos(novo.id);
+        if (novo?.id && onAfterCreate) {
+          try { onAfterCreate({ id: novo.id, titulo: payload.titulo || "Evento" }); }
+          catch (err) { console.warn("onAfterCreate falhou:", err); }
+        }
       }
       if (secondaryClickedRef.current) {
         try { await secondarySave?.onAfterSuccess(); }
         catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
         finally { secondaryClickedRef.current = false; }
+      }
+      if (tertiaryClickedRef.current) {
+        try { await tertiarySave?.onAfterSuccess(); }
+        catch (err) { console.error("tertiarySave.onAfterSuccess falhou:", err); }
+        finally { tertiaryClickedRef.current = false; }
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] }),
