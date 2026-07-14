@@ -7828,6 +7828,11 @@ export type Database = {
           prioridade: Database["public"]["Enums"]["prioridade_tarefa"]
           processo_id: string | null
           quadro_kanban: string | null
+          recorrencia_fim: string | null
+          recorrencia_intervalo: number | null
+          recorrencia_rrule: string | null
+          recorrencia_tipo: string | null
+          recorrente: boolean | null
           responsavel_id: string | null
           situacao_processo: string | null
           status: Database["public"]["Enums"]["status_tarefa"]
@@ -7881,6 +7886,11 @@ export type Database = {
           prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
           processo_id?: string | null
           quadro_kanban?: string | null
+          recorrencia_fim?: string | null
+          recorrencia_intervalo?: number | null
+          recorrencia_rrule?: string | null
+          recorrencia_tipo?: string | null
+          recorrente?: boolean | null
           responsavel_id?: string | null
           situacao_processo?: string | null
           status?: Database["public"]["Enums"]["status_tarefa"]
@@ -7934,6 +7944,11 @@ export type Database = {
           prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
           processo_id?: string | null
           quadro_kanban?: string | null
+          recorrencia_fim?: string | null
+          recorrencia_intervalo?: number | null
+          recorrencia_rrule?: string | null
+          recorrencia_tipo?: string | null
+          recorrente?: boolean | null
           responsavel_id?: string | null
           situacao_processo?: string | null
           status?: Database["public"]["Enums"]["status_tarefa"]

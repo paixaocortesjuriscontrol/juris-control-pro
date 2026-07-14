@@ -38,6 +38,7 @@ import { toZonedTime } from "date-fns-tz";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
+import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 
 interface EventoDialogProps {
   open: boolean;
@@ -522,34 +523,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               </div>
             </div>
 
-            {/* Alertas internos */}
-            <div>
-              <Label className="text-sm">Alertas internos de antecedência</Label>
-              <div className="flex gap-2 mt-1.5 max-w-xs">
-                <Input
-                  type="number"
-                  min={0}
-                  value={alertaValor}
-                  onChange={(e) => setAlertaValor(parseInt(e.target.value) || 0)}
-                  className="w-20"
-                />
-                <Select
-                  value={alertaUnidade}
-                  onValueChange={(v) => setAlertaUnidade(v as AlertaUnidade)}
-                >
-                  <SelectTrigger className="flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {UNIDADES_ALERTA.map((u) => (
-                      <SelectItem key={u.value} value={u.value}>
-                        {u.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            {/* Alertas — configurados no botão Notificações do Painel de Controle */}
+            <AlertasConfigCard />
 
             {/* Responsáveis */}
             <div>

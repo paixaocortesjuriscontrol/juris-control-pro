@@ -26,7 +26,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { CalendarIcon, Loader2, FileText, Tag, AlertTriangle } from "lucide-react";
-import { format, parseISO, addDays } from "date-fns";
+import { format, parseISO, addDays, addWeeks, addMonths, addYears } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useCreatePrazo, useUpdatePrazo, type Prazo } from "@/hooks/usePrazos";
@@ -40,6 +40,7 @@ import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
+import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 
 type Unidade = "uteis" | "corridos";
 
@@ -197,8 +198,6 @@ export function PrazoDialog({
   const [prazoUnidade, setPrazoUnidade] = useState<Unidade>("uteis");
   const [dataLimite, setDataLimite] = useState<Date | undefined>(undefined);
   const [dataLimiteEditadaManualmente, setDataLimiteEditadaManualmente] = useState(false);
-  const [alertaDias, setAlertaDias] = useState<number>(0);
-  const [alertaUnidade, setAlertaUnidade] = useState<Unidade>("corridos");
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
@@ -206,6 +205,11 @@ export function PrazoDialog({
   const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
+  // Recorrência
+  const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
+  const [recorrenciaIntervalo, setRecorrenciaIntervalo] = useState<number>(1);
+  const [recorrenciaOcorrencias, setRecorrenciaOcorrencias] = useState<string>("");
+  const [recorrenciaFim, setRecorrenciaFim] = useState<string>("");
 
   // data base = data da publicação (se houver) ou hoje
   const dataBase = useMemo<Date>(() => {
@@ -227,12 +231,14 @@ export function PrazoDialog({
       setPrazoUnidade(((prazo as any).prazo_unidade as Unidade) || "uteis");
       setDataLimite(prazo.data_vencimento ? parseISO(prazo.data_vencimento) : undefined);
       setDataLimiteEditadaManualmente(true);
-      setAlertaDias((prazo as any).alerta_dias ?? 0);
-      setAlertaUnidade(((prazo as any).alerta_unidade as Unidade) || "corridos");
       setObservacoes(prazo.observacoes || "");
       setDataFatal((prazo as any).data_fatal ? parseISO((prazo as any).data_fatal) : undefined);
       setCoordenacaoId(((prazo as any).coordenacao_id as string) || "");
       setSituacao(((prazo as any).status as any) || "pendente");
+      setRecorrenciaTipo(((prazo as any).recorrencia_tipo as string) || "nenhuma");
+      setRecorrenciaIntervalo(((prazo as any).recorrencia_intervalo as number) || 1);
+      setRecorrenciaFim(((prazo as any).recorrencia_fim ? String((prazo as any).recorrencia_fim).slice(0, 10) : ""));
+      setRecorrenciaOcorrencias("");
       (async () => {
         const processoId = defaultProcessoId || prazo.processo_id;
         const [{ data: resps }, { data: envs }, { data: proc }] = await Promise.all([
@@ -255,8 +261,6 @@ export function PrazoDialog({
       setPrazoUnidade("uteis");
       setDataLimite(undefined);
       setDataLimiteEditadaManualmente(false);
-      setAlertaDias(0);
-      setAlertaUnidade("corridos");
       setResponsaveisIds([]);
       setEnvolvidosIds([]);
       setMostrarEnvolvidos(false);
@@ -264,6 +268,10 @@ export function PrazoDialog({
       setDataFatal(undefined);
       setCoordenacaoId(unicaCoordenacaoId || "");
       setSituacao("pendente");
+      setRecorrenciaTipo("nenhuma");
+      setRecorrenciaIntervalo(1);
+      setRecorrenciaOcorrencias("");
+      setRecorrenciaFim("");
     }
   }, [open, prazo?.id, unicaCoordenacaoId]);
 
@@ -313,10 +321,20 @@ export function PrazoDialog({
       data_base: format(dataBase, "yyyy-MM-dd"),
       prazo_dias: prazoDias > 0 ? prazoDias : null,
       prazo_unidade: prazoDias > 0 ? prazoUnidade : null,
-      alerta_dias: alertaDias > 0 ? alertaDias : null,
-      alerta_unidade: alertaDias > 0 ? alertaUnidade : null,
+      alerta_dias: null,
+      alerta_unidade: null,
       data_fatal: dataFatal ? format(dataFatal, "yyyy-MM-dd") : null,
       coordenacao_id: coordenacaoId || null,
+      recorrente: recorrenciaTipo !== "nenhuma",
+      recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
+      recorrencia_intervalo: recorrenciaTipo !== "nenhuma" ? recorrenciaIntervalo : null,
+      recorrencia_fim: recorrenciaTipo !== "nenhuma" && recorrenciaFim ? recorrenciaFim : null,
+      recorrencia_rrule:
+        recorrenciaTipo !== "nenhuma"
+          ? `FREQ=${recorrenciaTipo.toUpperCase()};INTERVAL=${recorrenciaIntervalo}${
+              recorrenciaFim ? `;UNTIL=${recorrenciaFim.replace(/-/g, "")}T235959Z` : ""
+            }`
+          : null,
     };
 
     try {
@@ -544,26 +562,84 @@ export function PrazoDialog({
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-sm">Alerta</Label>
-          <div className="flex gap-2 max-w-xs">
-            <Input
-              type="number"
-              min={0}
-              value={alertaDias}
-              onChange={(e) => setAlertaDias(parseInt(e.target.value || "0", 10))}
-              className="h-10 w-20"
-            />
-            <Select value={alertaUnidade} onValueChange={(v) => setAlertaUnidade(v as Unidade)}>
-              <SelectTrigger className="h-10 flex-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="corridos">Dia(s) antes</SelectItem>
-                <SelectItem value="uteis">Dia(s) úteis antes</SelectItem>
-              </SelectContent>
-            </Select>
+        <AlertasConfigCard />
+
+        {/* Recorrência */}
+        <div className="rounded-md border p-3 space-y-3">
+          <Label className="text-sm font-medium">Recorrência</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Frequência</Label>
+              <Select
+                value={recorrenciaTipo}
+                onValueChange={(v) => {
+                  setRecorrenciaTipo(v);
+                  setRecorrenciaIntervalo(1);
+                }}
+              >
+                <SelectTrigger className="mt-1 h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nenhuma">Não se repete</SelectItem>
+                  <SelectItem value="daily">Dias corridos</SelectItem>
+                  <SelectItem value="weekdays">Dias úteis (Seg–Sex)</SelectItem>
+                  <SelectItem value="weekly">Semanalmente</SelectItem>
+                  <SelectItem value="monthly">Mensalmente</SelectItem>
+                  <SelectItem value="yearly">Anualmente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {recorrenciaTipo !== "nenhuma" && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Quantas vezes deve aparecer?</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  placeholder="Ex.: 9"
+                  value={recorrenciaOcorrencias}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setRecorrenciaOcorrencias(v);
+                    const n = parseInt(v);
+                    if (n && n > 0 && dataLimite) {
+                      const base = dataLimite;
+                      const offset = n - 1;
+                      let fim = base;
+                      if (recorrenciaTipo === "daily") fim = addDays(base, offset);
+                      else if (recorrenciaTipo === "weekdays") {
+                        let count = 0;
+                        fim = base;
+                        while (count < offset) {
+                          fim = addDays(fim, 1);
+                          const dow = fim.getDay();
+                          if (dow !== 0 && dow !== 6) count++;
+                        }
+                      } else if (recorrenciaTipo === "weekly") fim = addWeeks(base, offset);
+                      else if (recorrenciaTipo === "monthly") fim = addMonths(base, offset);
+                      else if (recorrenciaTipo === "yearly") fim = addYears(base, offset);
+                      setRecorrenciaFim(format(fim, "yyyy-MM-dd"));
+                    }
+                  }}
+                  className="mt-1 h-10"
+                />
+              </div>
+            )}
           </div>
+          {recorrenciaTipo !== "nenhuma" && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Ou até a data</Label>
+              <Input
+                type="date"
+                value={recorrenciaFim}
+                onChange={(e) => {
+                  setRecorrenciaFim(e.target.value);
+                  setRecorrenciaOcorrencias("");
+                }}
+                className="mt-1 h-10"
+              />
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">

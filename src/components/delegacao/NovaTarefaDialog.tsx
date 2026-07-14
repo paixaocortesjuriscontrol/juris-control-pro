@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
-import { format } from "date-fns";
+import { format, addDays, addWeeks, addMonths, addYears } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,7 @@ import { Label } from "@/components/ui/label";
 import { TarefaPublicacaoVinculada } from "@/components/shared/TarefaPublicacaoVinculada";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
+import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 
 type AnexoComAnalise = {
@@ -136,6 +137,11 @@ export function NovaTarefaDialog({
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const [analiseVisualizando, setAnaliseVisualizando] = useState<AnexoComAnalise | null>(null);
   const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
+  // Recorrência
+  const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
+  const [recorrenciaIntervalo, setRecorrenciaIntervalo] = useState<number>(1);
+  const [recorrenciaOcorrencias, setRecorrenciaOcorrencias] = useState<string>("");
+  const [recorrenciaFim, setRecorrenciaFim] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { precisaSelecionar, unicaCoordenacaoId, coordenacoes: coordenacoesUsuario } = useCoordenacoesDoUsuario();
@@ -303,6 +309,10 @@ export function NovaTarefaDialog({
         setSearchProcesso(processoNumero);
         setResponsaveisIds(respIds.length > 0 ? respIds : responsavelPrincipal ? [responsavelPrincipal] : []);
         setSituacao((tarefaParaEditar.status as any) || "pendente");
+        setRecorrenciaTipo((tarefaParaEditar as any).recorrencia_tipo || "nenhuma");
+        setRecorrenciaIntervalo((tarefaParaEditar as any).recorrencia_intervalo || 1);
+        setRecorrenciaFim(((tarefaParaEditar as any).recorrencia_fim || "").slice(0, 10));
+        setRecorrenciaOcorrencias("");
         // Carregar envolvidos existentes
         const { data: envs } = await supabase
           .from("tarefa_envolvidos")
@@ -368,6 +378,10 @@ export function NovaTarefaDialog({
       setEnvolvidosIds([]);
       setMostrarEnvolvidos(false);
       setSituacao("pendente");
+      setRecorrenciaTipo("nenhuma");
+      setRecorrenciaIntervalo(1);
+      setRecorrenciaOcorrencias("");
+      setRecorrenciaFim("");
     })();
   }, [open, processoPreSelecionado, form, coordenacoes, tarefaParaEditar, unicaCoordenacaoId]);
 
@@ -554,6 +568,16 @@ export function NovaTarefaDialog({
           prioridade: values.prioridade,
           status: situacao,
           data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
+          recorrente: recorrenciaTipo !== "nenhuma",
+          recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
+          recorrencia_intervalo: recorrenciaTipo !== "nenhuma" ? recorrenciaIntervalo : null,
+          recorrencia_fim: recorrenciaTipo !== "nenhuma" && recorrenciaFim ? recorrenciaFim : null,
+          recorrencia_rrule:
+            recorrenciaTipo !== "nenhuma"
+              ? `FREQ=${recorrenciaTipo.toUpperCase()};INTERVAL=${recorrenciaIntervalo}${
+                  recorrenciaFim ? `;UNTIL=${recorrenciaFim.replace(/-/g, "")}T235959Z` : ""
+                }`
+              : null,
         };
 
         if (values.tipo_vinculo === "sem_vinculo") {
@@ -613,6 +637,16 @@ export function NovaTarefaDialog({
         prioridade: values.prioridade,
         status: situacao,
         criado_por: userData?.id || null,
+        recorrente: recorrenciaTipo !== "nenhuma",
+        recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
+        recorrencia_intervalo: recorrenciaTipo !== "nenhuma" ? recorrenciaIntervalo : null,
+        recorrencia_fim: recorrenciaTipo !== "nenhuma" && recorrenciaFim ? recorrenciaFim : null,
+        recorrencia_rrule:
+          recorrenciaTipo !== "nenhuma"
+            ? `FREQ=${recorrenciaTipo.toUpperCase()};INTERVAL=${recorrenciaIntervalo}${
+                recorrenciaFim ? `;UNTIL=${recorrenciaFim.replace(/-/g, "")}T235959Z` : ""
+              }`
+            : null,
       }).select("id").single();
 
       if (error) throw error;
@@ -1129,6 +1163,87 @@ export function NovaTarefaDialog({
                   </FormItem>
                 )}
               />
+
+              <AlertasConfigCard />
+
+              {/* Recorrência */}
+              <div className="rounded-md border p-3 space-y-3">
+                <Label className="text-sm font-medium">Recorrência</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Frequência</Label>
+                    <Select
+                      value={recorrenciaTipo}
+                      onValueChange={(v) => {
+                        setRecorrenciaTipo(v);
+                        setRecorrenciaIntervalo(1);
+                      }}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nenhuma">Não se repete</SelectItem>
+                        <SelectItem value="daily">Dias corridos</SelectItem>
+                        <SelectItem value="weekdays">Dias úteis (Seg–Sex)</SelectItem>
+                        <SelectItem value="weekly">Semanalmente</SelectItem>
+                        <SelectItem value="monthly">Mensalmente</SelectItem>
+                        <SelectItem value="yearly">Anualmente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {recorrenciaTipo !== "nenhuma" && (
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Quantas vezes deve aparecer?</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        placeholder="Ex.: 9"
+                        value={recorrenciaOcorrencias}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setRecorrenciaOcorrencias(v);
+                          const n = parseInt(v);
+                          const dv = form.getValues("data_vencimento");
+                          if (n && n > 0 && dv) {
+                            const base = new Date(dv + "T00:00:00");
+                            const offset = n - 1;
+                            let fim = base;
+                            if (recorrenciaTipo === "daily") fim = addDays(base, offset);
+                            else if (recorrenciaTipo === "weekdays") {
+                              let count = 0;
+                              fim = base;
+                              while (count < offset) {
+                                fim = addDays(fim, 1);
+                                const dow = fim.getDay();
+                                if (dow !== 0 && dow !== 6) count++;
+                              }
+                            } else if (recorrenciaTipo === "weekly") fim = addWeeks(base, offset);
+                            else if (recorrenciaTipo === "monthly") fim = addMonths(base, offset);
+                            else if (recorrenciaTipo === "yearly") fim = addYears(base, offset);
+                            setRecorrenciaFim(format(fim, "yyyy-MM-dd"));
+                          }
+                        }}
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
+                </div>
+                {recorrenciaTipo !== "nenhuma" && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Ou até a data</Label>
+                    <Input
+                      type="date"
+                      value={recorrenciaFim}
+                      onChange={(e) => {
+                        setRecorrenciaFim(e.target.value);
+                        setRecorrenciaOcorrencias("");
+                      }}
+                      className="mt-1"
+                    />
+                  </div>
+                )}
+              </div>
 
               {/* Anexos - Sempre disponível */}
               <div className="space-y-3">

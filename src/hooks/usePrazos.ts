@@ -311,6 +311,11 @@ export function useCreateTarefa() {
       alerta_dias?: number | null;
       alerta_unidade?: "uteis" | "corridos" | null;
       coordenacao_id?: string | null;
+      recorrente?: boolean | null;
+      recorrencia_tipo?: string | null;
+      recorrencia_intervalo?: number | null;
+      recorrencia_fim?: string | null;
+      recorrencia_rrule?: string | null;
     }) => {
       const { data, error } = await supabase
         .from("tarefas")
@@ -386,6 +391,11 @@ export function useUpdateTarefa() {
       alerta_dias?: number | null;
       alerta_unidade?: "uteis" | "corridos" | null;
       coordenacao_id?: string | null;
+      recorrente?: boolean | null;
+      recorrencia_tipo?: string | null;
+      recorrencia_intervalo?: number | null;
+      recorrencia_fim?: string | null;
+      recorrencia_rrule?: string | null;
     }) => {
       const { data, error } = await supabase
         .from("tarefas")
