@@ -5,7 +5,7 @@ import { z } from "zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
-import { format } from "date-fns";
+import { format, addDays, addWeeks, addMonths, addYears } from "date-fns";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,7 @@ import { Label } from "@/components/ui/label";
 import { TarefaPublicacaoVinculada } from "@/components/shared/TarefaPublicacaoVinculada";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
+import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 
 type AnexoComAnalise = {
@@ -136,6 +137,11 @@ export function NovaTarefaDialog({
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const [analiseVisualizando, setAnaliseVisualizando] = useState<AnexoComAnalise | null>(null);
   const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
+  // Recorrência
+  const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
+  const [recorrenciaIntervalo, setRecorrenciaIntervalo] = useState<number>(1);
+  const [recorrenciaOcorrencias, setRecorrenciaOcorrencias] = useState<string>("");
+  const [recorrenciaFim, setRecorrenciaFim] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { precisaSelecionar, unicaCoordenacaoId, coordenacoes: coordenacoesUsuario } = useCoordenacoesDoUsuario();
