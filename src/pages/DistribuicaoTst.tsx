@@ -314,6 +314,9 @@ export default function DistribuicaoTst() {
 
   // Para não-admins, o filtro "A fazer" sempre amarra ao usuário logado,
   // independentemente do select de responsáveis.
+  const { count: prontoSemPendenciaCount, ids: prontoSemPendenciaIds, loading: prontoSemPendenciaLoading } =
+    useProntoSemPendenciaCount(debouncedFilters);
+
   const listFilters = useMemo(() => {
     let f = debouncedFilters;
     if (debouncedFilters.situacaoProcesso === "a_fazer" && !isAdmin && user?.id) {
