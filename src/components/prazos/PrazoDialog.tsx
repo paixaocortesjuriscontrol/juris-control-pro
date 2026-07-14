@@ -277,6 +277,27 @@ export function PrazoDialog({
     return new Date();
   }, [publicacaoEfetiva?.data_disponibilizacao, publicacaoEfetiva?.data_publicacao]);
 
+  // Reset do formulário para "novo prazo". Reutilizado pelo useEffect de abertura
+  // e pelo pós-Save quando o wrapper deve permanecer aberto para cadastrar outro item.
+  const resetFormForNew = () => {
+    setTitulo("");
+    setPrazoDias(0);
+    setPrazoUnidade("uteis");
+    setDataLimite(undefined);
+    setDataLimiteEditadaManualmente(false);
+    setResponsaveisIds([]);
+    setEnvolvidosIds([]);
+    setMostrarEnvolvidos(false);
+    setObservacoes("");
+    setDataFatal(undefined);
+    setCoordenacaoId(unicaCoordenacaoId || "");
+    setSituacao("pendente");
+    setRecorrenciaTipo("nenhuma");
+    setRecorrenciaIntervalo(1);
+    setRecorrenciaOcorrencias("");
+    setRecorrenciaFim("");
+  };
+
   // Reset / preload state on open
   useEffect(() => {
     if (!open) return;
@@ -311,22 +332,7 @@ export function PrazoDialog({
         setCoordenacaoId((prev) => prev || (proc as any)?.coordenacao_id || unicaCoordenacaoId || "");
       })();
     } else {
-      setTitulo("");
-      setPrazoDias(0);
-      setPrazoUnidade("uteis");
-      setDataLimite(undefined);
-      setDataLimiteEditadaManualmente(false);
-      setResponsaveisIds([]);
-      setEnvolvidosIds([]);
-      setMostrarEnvolvidos(false);
-      setObservacoes("");
-      setDataFatal(undefined);
-      setCoordenacaoId(unicaCoordenacaoId || "");
-      setSituacao("pendente");
-      setRecorrenciaTipo("nenhuma");
-      setRecorrenciaIntervalo(1);
-      setRecorrenciaOcorrencias("");
-      setRecorrenciaFim("");
+      resetFormForNew();
     }
   }, [open, prazo?.id, unicaCoordenacaoId]);
 
@@ -496,12 +502,22 @@ export function PrazoDialog({
         try { onAfterCreate({ id: tarefaId, titulo: (payload as any).titulo || "Prazo" }); }
         catch (err) { console.warn("onAfterCreate falhou:", err); }
       }
-      if (tertiaryClickedRef.current) {
+      const tertiaryWasClicked = tertiaryClickedRef.current;
+      if (tertiaryWasClicked) {
         try { await tertiarySave?.onAfterSuccess(); }
         catch (err) { console.error("tertiarySave.onAfterSuccess falhou:", err); }
         finally { tertiaryClickedRef.current = false; }
       }
-      onOpenChange(false);
+      // Se estamos no fluxo "criar múltiplos itens a partir da mesma publicação"
+      // (Análise DJEN: onAfterCreate fornecido) e o usuário clicou no Salvar
+      // primário — mantém o formulário aberto e reseta para novo cadastro.
+      const manterAbertoParaNovo = !prazo && !!onAfterCreate && !tertiaryWasClicked;
+      if (manterAbertoParaNovo) {
+        toast.success("Prazo salvo. Você pode cadastrar outro item para esta publicação.");
+        resetFormForNew();
+      } else {
+        onOpenChange(false);
+      }
     } catch (error: any) {
       toast.error("Erro ao salvar prazo: " + error.message);
     }
@@ -864,7 +880,7 @@ export function PrazoDialog({
         <Button
           type="submit"
           disabled={isLoading}
-          onClick={() => { secondaryClickedRef.current = false; }}
+          onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
         >
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Salvar
