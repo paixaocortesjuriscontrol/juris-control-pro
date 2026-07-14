@@ -433,7 +433,7 @@ export function AnaliseJuditTab({ processoNumero, onPreencherFormulario }: Props
               size="sm"
               onClick={async () => {
                 setPreenchendo(true);
-                try { await onPreencherFormulario(); await fetchLogs(); }
+                try { await onPreencherFormulario(log?.raw_response); await fetchLogs(); }
                 finally { setPreenchendo(false); }
               }}
               disabled={preenchendo || loading}
