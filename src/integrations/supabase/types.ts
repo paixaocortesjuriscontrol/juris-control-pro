@@ -5629,8 +5629,12 @@ export type Database = {
           observacao: string | null
           pedido: string
           processo_id: string
+          relator: string | null
+          resultado_recurso: string | null
+          resultado_sentenca: string | null
           sentenca: boolean | null
           tst: boolean | null
+          turma: string | null
           updated_at: string
           valor_pedido: number | null
         }
@@ -5647,8 +5651,12 @@ export type Database = {
           observacao?: string | null
           pedido: string
           processo_id: string
+          relator?: string | null
+          resultado_recurso?: string | null
+          resultado_sentenca?: string | null
           sentenca?: boolean | null
           tst?: boolean | null
+          turma?: string | null
           updated_at?: string
           valor_pedido?: number | null
         }
@@ -5665,8 +5673,12 @@ export type Database = {
           observacao?: string | null
           pedido?: string
           processo_id?: string
+          relator?: string | null
+          resultado_recurso?: string | null
+          resultado_sentenca?: string | null
           sentenca?: boolean | null
           tst?: boolean | null
+          turma?: string | null
           updated_at?: string
           valor_pedido?: number | null
         }

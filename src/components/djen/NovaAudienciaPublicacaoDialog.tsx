@@ -159,6 +159,20 @@ export function NovaAudienciaPublicacaoDialog({
                 defaultTitulo={aiDefaults?.titulo}
                 defaultObservacoes={aiDefaults?.observacoes}
                 defaultDataAudiencia={aiDefaults?.data_audiencia}
+                publicacaoId={publicacao?.id}
+                resolveProcessoBeforeSubmit={publicacao && user?.id ? async () => {
+                  const proc = await ensureProcessoFromPublicacao(
+                    publicacao,
+                    user.id,
+                    null,
+                    publicacao.coordenacao_id || null,
+                  );
+                  if (proc?.id) {
+                    setResolvedProcessoId(proc.id);
+                    setResolvedProcessoNumero(proc.numero);
+                  }
+                  return proc;
+                } : undefined}
                 hideTitleHeader
                 onSuccess={() => onOpenChange(false)}
                 secondarySave={secondarySave}

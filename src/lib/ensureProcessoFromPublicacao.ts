@@ -15,6 +15,23 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+async function vincularPublicacaoAoProcesso(pub: PublicacaoUnificada, processoId: string) {
+  if (!pub?.id || !processoId) return;
+  const table = pub.tipo_origem === "processo"
+    ? "publicacoes_djen_processos"
+    : pub.tipo_origem === "descartada"
+      ? "publicacoes_djen_descartadas"
+      : "publicacoes_djen";
+
+  await (supabase as any)
+    .from(table)
+    .update({ processo_id: processoId })
+    .eq("id", pub.id)
+    .then(() => {}, (err: any) => {
+      console.warn("[ensureProcessoFromPublicacao] falha ao vincular publicação ao processo:", err);
+    });
+}
+
 /**
  * Extrai a seção "Parte(s):" do conteúdo da publicação e retorna
  * uma lista de partes { nome, polo, is_advogado }.
@@ -105,6 +122,7 @@ export async function ensureProcessoFromPublicacao(
           .update({ coordenacao_id: coordenacaoIdOverride })
           .eq("id", existente.id);
       }
+      await vincularPublicacaoAoProcesso(pub, existente.id);
       return { id: existente.id, numero: existente.numero ?? numero };
     }
   } catch {
@@ -191,6 +209,8 @@ export async function ensureProcessoFromPublicacao(
   } catch {
     /* best-effort */
   }
+
+  await vincularPublicacaoAoProcesso(pub, processo!.id);
 
   return { id: processo!.id, numero: processo!.numero ?? numero };
 }

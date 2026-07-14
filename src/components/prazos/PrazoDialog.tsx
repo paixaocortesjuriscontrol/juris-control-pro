@@ -331,11 +331,30 @@ export function PrazoDialog({
       return;
     }
 
+    let processoIdParaSalvar = processoIdEfetivo;
+    if (publicacao && user?.id) {
+      try {
+        const proc = await ensureProcessoFromPublicacao(
+          publicacao,
+          user.id,
+          null,
+          coordenacaoId || publicacao.coordenacao_id || null,
+        );
+        if (proc?.id) {
+          processoIdParaSalvar = proc.id;
+          setResolvedProcessoId(proc.id);
+        }
+      } catch (err: any) {
+        toast.error("Erro ao vincular processo da publicação: " + (err?.message || err));
+        return;
+      }
+    }
+
     const payload = {
       titulo: tituloFinal,
       data_vencimento: format(dataLimite, "yyyy-MM-dd"),
       prioridade: "media" as const,
-      processo_id: processoIdEfetivo,
+      processo_id: processoIdParaSalvar,
       responsavel_id: responsaveisIds[0],
       observacoes: observacoes.trim() || undefined,
       status: situacao,
@@ -377,7 +396,7 @@ export function PrazoDialog({
 
       if (tarefaId) {
         // Atualizar coordenação do processo, se alterada
-        const processoId = processoIdEfetivo;
+        const processoId = processoIdParaSalvar;
         if (processoId && coordenacaoId) {
           await supabase
             .from("processos")
@@ -430,6 +449,9 @@ export function PrazoDialog({
       // pelo botão "Adicionar" da Análise DJEN apareçam na tela Processos sem refresh.
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] }),
+        queryClient.invalidateQueries({ queryKey: ["processo"] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
         queryClient.invalidateQueries({ queryKey: ["processos"] }),
         queryClient.invalidateQueries({ queryKey: ["processos-paginados"] }),
         queryClient.invalidateQueries({ queryKey: ["pastas"] }),

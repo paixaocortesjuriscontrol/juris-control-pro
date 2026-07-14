@@ -12,6 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
+import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 
 // Parse "YYYY-MM-DD" como data local para evitar deslocamento por timezone.
 function parseDateSafe(value: string): Date {
@@ -19,6 +20,9 @@ function parseDateSafe(value: string): Date {
   if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
   return new Date(value);
 }
+
+const isPrazoTarefa = (tipo: string | null | undefined) =>
+  (tipo || "").toString().trim().toUpperCase() === "PRAZO";
 
 interface PendenciasProcessoCardProps {
   audiencias: any[];
@@ -43,11 +47,13 @@ export function PendenciasProcessoCard({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editAudiencia, setEditAudiencia] = useState<any | null>(null);
   const [editTarefa, setEditTarefa] = useState<any | null>(null);
+  const [editPrazo, setEditPrazo] = useState<any | null>(null);
   const [editEvento, setEditEvento] = useState<any | null>(null);
 
   const audienciasPendentes = audiencias.filter(a => a.status === 'pendente');
   const intimacoesPendentes = intimacoes.filter(i => i.status === 'pendente');
-  const tarefasPendentes = tarefas.filter(t => t.status === 'pendente');
+  const prazosPendentes = tarefas.filter(t => t.status === 'pendente' && isPrazoTarefa(t.tipo_tarefa));
+  const tarefasPendentes = tarefas.filter(t => t.status === 'pendente' && !isPrazoTarefa(t.tipo_tarefa));
   const eventosPendentes = eventosAgenda.filter((e: any) => e.status === 'pendente');
   const movimentacoesRecentes = movimentacoes.slice(0, 5);
 
@@ -145,7 +151,7 @@ export function PendenciasProcessoCard({
   };
 
   const totalPendencias =
-    audienciasPendentes.length + intimacoesPendentes.length + tarefasPendentes.length + eventosPendentes.length;
+    audienciasPendentes.length + intimacoesPendentes.length + prazosPendentes.length + tarefasPendentes.length + eventosPendentes.length;
 
   return (
     <>
@@ -261,6 +267,54 @@ export function PendenciasProcessoCard({
                       <Gavel className="w-3 h-3 shrink-0" />
                       <span className="truncate">{int.vara_camara}</span>
                     </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Prazos Pendentes */}
+        {prazosPendentes.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <Clock className="w-3.5 h-3.5" />
+              Prazos ({prazosPendentes.length})
+            </div>
+            {prazosPendentes.slice(0, 5).map((t) => {
+              const days = getDaysLabel(t.data_fatal || t.data_vencimento);
+              return (
+                <div
+                  key={t.id}
+                  role="button"
+                  onClick={() => setEditPrazo(t)}
+                  className="text-xs p-2.5 bg-muted/40 hover:bg-muted/70 cursor-pointer rounded-lg border border-border/40 border-l-[3px] border-l-destructive space-y-1 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-foreground truncate">{t.titulo}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {days && (
+                        <Badge className="text-[10px] h-5 px-1.5 font-semibold bg-destructive/15 text-destructive border border-destructive/30">
+                          {days.label}
+                        </Badge>
+                      )}
+                      <StatusActions
+                        id={t.id}
+                        onConcluir={() => updateStatus("tarefas", t.id, "cumprido")}
+                        onCancelar={() => updateStatus("tarefas", t.id, "cancelado")}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 text-muted-foreground flex-wrap">
+                    {(t.data_fatal || t.data_vencimento) && (
+                      <span className="flex items-center gap-1">
+                        <CalendarDays className="w-3 h-3" />
+                        Vence: {formatDate(t.data_fatal || t.data_vencimento)}
+                      </span>
+                    )}
+                  </div>
+                  {t.descricao && (
+                    <p className="text-muted-foreground line-clamp-1 mt-0.5">{t.descricao}</p>
                   )}
                 </div>
               );
@@ -430,10 +484,19 @@ export function PendenciasProcessoCard({
       />
     )}
     {editTarefa && (
-      <PrazoDialog
+      <NovaTarefaDialog
         open={!!editTarefa}
         onOpenChange={(open) => { if (!open) { setEditTarefa(null); invalidateAll(); } }}
-        prazo={editTarefa}
+        coordenacoes={[]}
+        tarefaParaEditar={editTarefa}
+        processoPreSelecionado={processoId ? { id: processoId, numero: processoNumero || "" } : null}
+      />
+    )}
+    {editPrazo && (
+      <PrazoDialog
+        open={!!editPrazo}
+        onOpenChange={(open) => { if (!open) { setEditPrazo(null); invalidateAll(); } }}
+        prazo={editPrazo}
         defaultProcessoId={processoId}
       />
     )}

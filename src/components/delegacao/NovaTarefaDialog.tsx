@@ -45,6 +45,7 @@ import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
+import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 
 type AnexoComAnalise = {
   file?: File;
@@ -541,6 +542,17 @@ export function NovaTarefaDialog({
     setLoading(true);
     try {
       let processoId = values.tipo_vinculo === "processo" ? normalizeUuid(values.processo_id) : null;
+      if (publicacao) {
+        const uid = userData?.id || (await supabase.auth.getUser()).data.user?.id;
+        if (!uid) throw new Error("Usuário não autenticado.");
+        const proc = await ensureProcessoFromPublicacao(
+          publicacao,
+          uid,
+          null,
+          values.coordenacao_id || publicacao.coordenacao_id || null,
+        );
+        processoId = normalizeUuid(proc?.id) || processoId;
+      }
       if (tarefaParaEditar?.id && !processoId && values.tipo_vinculo === "processo") {
         processoId = normalizeUuid(tarefaParaEditar.processo_id);
       }
@@ -748,6 +760,10 @@ export function NovaTarefaDialog({
 
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["tarefas"] }),
+        queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] }),
+        queryClient.invalidateQueries({ queryKey: ["processo"] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
         queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] }),
         queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] }),
         queryClient.invalidateQueries({ queryKey: ["lista-atividades"] }),

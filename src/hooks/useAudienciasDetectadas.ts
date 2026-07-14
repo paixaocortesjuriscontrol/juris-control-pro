@@ -61,6 +61,7 @@ export const STATUS_AUDIENCIA_LABELS: Record<StatusAudiencia, string> = {
 export interface NovaAudiencia {
   processo_id?: string;
   processo_numero?: string;
+  publicacao_id?: string;
   titulo?: string;
   data_audiencia: string;
   hora?: string;

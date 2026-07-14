@@ -32,7 +32,7 @@ import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/form
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { useCreateEvento, useUpdateEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
@@ -81,6 +81,7 @@ function minutosParaUnidade(min: number): { valor: number; unidade: AlertaUnidad
 export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, secondarySave }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
+  const queryClient = useQueryClient();
   const isEditing = !!evento;
   const secondaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
@@ -276,6 +277,25 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       return;
     }
 
+    let processoIdParaSalvar = processoId;
+    if (publicacao && user?.id) {
+      try {
+        const proc = await ensureProcessoFromPublicacao(
+          publicacao,
+          user.id,
+          null,
+          coordenacaoId || publicacao.coordenacao_id || null,
+        );
+        if (proc?.id) {
+          processoIdParaSalvar = proc.id;
+          setProcessoId(proc.id);
+        }
+      } catch (err: any) {
+        toast.error("Erro ao vincular processo da publicação: " + (err?.message || err));
+        return;
+      }
+    }
+
     const inicioISO = diaInteiro
       ? `${dataInicio}T00:00:00-03:00`
       : `${dataInicio}T${horaInicio || "09:00"}:00-03:00`;
@@ -322,7 +342,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       dia_inteiro: diaInteiro,
       local: local || undefined,
       modalidade: modalidade || undefined,
-      processo_id: processoId || undefined,
+      processo_id: processoIdParaSalvar || undefined,
       coordenacao_id: coordenacaoId || null,
       participantes_ids: responsaveisIds,
       alerta_minutos: alertas,
@@ -349,6 +369,13 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
         catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
         finally { secondaryClickedRef.current = false; }
       }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] }),
+        queryClient.invalidateQueries({ queryKey: ["eventos-agenda-processo"] }),
+        queryClient.invalidateQueries({ queryKey: ["processo"] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
+      ]);
       onOpenChange(false);
     } catch (error) {
       console.error("Erro ao salvar evento:", error);
