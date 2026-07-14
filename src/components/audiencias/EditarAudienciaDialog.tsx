@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, CalendarClock, CopyPlus } from "lucide-react";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { format, parseISO, isValid } from "date-fns";
 import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
+import { ReagendarAudienciaDialog } from "./ReagendarAudienciaDialog";
+import { HistoricoReagendamentosAudiencia } from "./HistoricoReagendamentosAudiencia";
 
 interface Props {
   audiencia: AudienciaDetectada | null;
@@ -27,6 +29,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
+  const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);
   const [formData, setFormData] = useState({
     data_audiencia: "",
     hora: "",
@@ -450,6 +453,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
 
           <ItemComentarios tipo="audiencia" itemId={audiencia?.id} />
 
+          <HistoricoReagendamentosAudiencia audienciaId={audiencia?.id} />
+
           <div className="space-y-2">
             <Label htmlFor="observacoes">Observações</Label>
             <Textarea
@@ -464,6 +469,14 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setReagendarModo("reagendar")} disabled={!audiencia}>
+              <CalendarClock className="h-4 w-4 mr-2" />
+              Reagendar
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setReagendarModo("nova")} disabled={!audiencia}>
+              <CopyPlus className="h-4 w-4 mr-2" />
+              Nova audiência
             </Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading ? (
