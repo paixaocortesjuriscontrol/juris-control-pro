@@ -309,6 +309,10 @@ export function NovaTarefaDialog({
         setSearchProcesso(processoNumero);
         setResponsaveisIds(respIds.length > 0 ? respIds : responsavelPrincipal ? [responsavelPrincipal] : []);
         setSituacao((tarefaParaEditar.status as any) || "pendente");
+        setRecorrenciaTipo((tarefaParaEditar as any).recorrencia_tipo || "nenhuma");
+        setRecorrenciaIntervalo((tarefaParaEditar as any).recorrencia_intervalo || 1);
+        setRecorrenciaFim(((tarefaParaEditar as any).recorrencia_fim || "").slice(0, 10));
+        setRecorrenciaOcorrencias("");
         // Carregar envolvidos existentes
         const { data: envs } = await supabase
           .from("tarefa_envolvidos")
@@ -374,6 +378,10 @@ export function NovaTarefaDialog({
       setEnvolvidosIds([]);
       setMostrarEnvolvidos(false);
       setSituacao("pendente");
+      setRecorrenciaTipo("nenhuma");
+      setRecorrenciaIntervalo(1);
+      setRecorrenciaOcorrencias("");
+      setRecorrenciaFim("");
     })();
   }, [open, processoPreSelecionado, form, coordenacoes, tarefaParaEditar, unicaCoordenacaoId]);
 
