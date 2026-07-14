@@ -1789,7 +1789,7 @@ export function ProcessoDetalhesCompletos({
                   <TabsContent value="analise" className="mt-3">
                     <AnaliseJuditTab
                       processoNumero={processo.numero}
-                      onPreencherFormulario={async () => {
+                      onPreencherFormulario={async (presetData?: any) => {
                         // O formulário só existe quando a aba "Visão Geral" está
                         // montada. Navega para lá e aguarda o mount do form
                         // antes de chamar o preencher, com polling curto para
@@ -1804,7 +1804,7 @@ export function ProcessoDetalhesCompletos({
                           );
                           return;
                         }
-                        await visaoGeralRef.current.preencherFormularioJudit(false);
+                        await visaoGeralRef.current.preencherFormularioJudit(false, presetData);
                       }}
                     />
                   </TabsContent>
