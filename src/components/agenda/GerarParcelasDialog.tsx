@@ -26,7 +26,6 @@ import { toast } from "sonner";
 import { format, addDays, addWeeks, addMonths } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { Loader2, Calendar, DollarSign, Hash, Clock, FileText, Search, X, UserPlus, MessageCircle } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
