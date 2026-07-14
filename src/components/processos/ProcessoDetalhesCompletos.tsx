@@ -212,6 +212,7 @@ export function ProcessoDetalhesCompletos({
     if (next === "tarefas" || next === "prazo") {
       onVoltarTarefa?.();
     }
+    setAudienciaSelecionada(null);
     setActiveSection(next);
   };
   
