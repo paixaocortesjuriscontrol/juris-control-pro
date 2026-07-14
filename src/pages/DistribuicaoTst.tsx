@@ -327,9 +327,16 @@ export default function DistribuicaoTst() {
         : multiRespIds;
       f = { ...f, idsAllowed: finalIds.length > 0 ? finalIds : ["__none__"] };
     }
+    if (filtroSemPendencia) {
+      // Restringe aos IDs "pronto para enviar" sem pendências (calculados no cliente).
+      const base = f.idsAllowed && f.idsAllowed.length > 0
+        ? prontoSemPendenciaIds.filter((id) => f.idsAllowed!.includes(id))
+        : prontoSemPendenciaIds;
+      f = { ...f, idsAllowed: base.length > 0 ? base : ["__none__"] };
+    }
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), JSON.stringify(idsAllowedFromTagFilter || [])]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), JSON.stringify(idsAllowedFromTagFilter || []), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds)]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
