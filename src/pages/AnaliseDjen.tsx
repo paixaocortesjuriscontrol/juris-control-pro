@@ -167,6 +167,7 @@ const AnaliseDjen = () => {
 
   // Filtros - inicializar com coordenação do usuário
   const [coordenacaoId, setCoordenacaoId] = useState<string | null>(null); // null = ainda não inicializado
+  const [preagendarIaOpen, setPreagendarIaOpen] = useState(false);
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [dataDisponibilizacao, setDataDisponibilizacao] = useState<string>("");
