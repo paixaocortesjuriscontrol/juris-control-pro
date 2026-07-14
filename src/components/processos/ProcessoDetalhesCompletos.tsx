@@ -1857,7 +1857,21 @@ export function ProcessoDetalhesCompletos({
                     <AnaliseJuditTab
                       processoNumero={processo.numero}
                       onPreencherFormulario={async () => {
-                        await visaoGeralRef.current?.preencherFormularioJudit(false);
+                        // O formulário só existe quando a aba "Visão Geral" está
+                        // montada. Navega para lá e aguarda o mount do form
+                        // antes de chamar o preencher, com polling curto para
+                        // garantir que o ref esteja atribuído.
+                        handleSectionChange("resumo");
+                        for (let i = 0; i < 30 && !visaoGeralRef.current; i++) {
+                          await new Promise((r) => setTimeout(r, 50));
+                        }
+                        if (!visaoGeralRef.current) {
+                          sonnerToast.error(
+                            "Não foi possível abrir o formulário Visão Geral. Tente novamente."
+                          );
+                          return;
+                        }
+                        await visaoGeralRef.current.preencherFormularioJudit(false);
                       }}
                     />
                   </TabsContent>
