@@ -9,6 +9,7 @@ import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
+import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { AlertTriangle, Calendar as CalendarIcon, CheckCircle2, ExternalLink, User as UserIcon } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -166,6 +167,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
   const isParcelamento = item.tipo === "parcelamento" || isParcela;
   const isPrazoFatalTst = typeof item.id === "string" && item.id.startsWith("prazo-tst-");
   const isAudiencia = typeof item.id === "string" && item.id.startsWith("audiencia-det-");
+  const isPrazo = item.tipo === "prazo" || String(item.tipo_tarefa || "").toUpperCase().trim() === "PRAZO";
   const isEvento = (item.origem === "evento" || isParcelamento) && !isPrazoFatalTst && !isAudiencia;
 
   const { data: coordenacoes = [] } = useQuery({
@@ -223,10 +225,11 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
           .maybeSingle();
         if (!cancelled) setEvento(data);
       } else {
+        const tarefaId = String(item.id).split("::")[0];
         const { data } = await supabase
           .from("tarefas")
           .select("*")
-          .eq("id", item.id)
+          .eq("id", tarefaId)
           .maybeSingle();
         if (!cancelled) setTarefa(data);
       }
@@ -288,6 +291,17 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
                 if (!o) closeAfter();
               }}
               evento={evento}
+            />
+          )
+        ) : isPrazo ? (
+          tarefa && (
+            <PrazoDialog
+              inline
+              open
+              onOpenChange={(o) => {
+                if (!o) closeAfter();
+              }}
+              prazo={tarefa}
             />
           )
         ) : (
