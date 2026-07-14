@@ -40,6 +40,7 @@ interface GerarParcelasDialogProps {
   evento?: EventoAgenda | null; // Para modo edição
   defaultProcessoId?: string;
   inline?: boolean;
+  embedded?: boolean;
 }
 
 const INTERVALOS = [
@@ -55,7 +56,7 @@ const ALERTAS_OPCOES = [
   { value: 1440, label: "1 dia antes" },
 ];
 
-export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcessoId, inline = false }: GerarParcelasDialogProps) {
+export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcessoId, inline = false, embedded = false }: GerarParcelasDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -625,7 +626,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
     <>
       {inline ? headerInline : headerDialog}
 
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6">
+        <div className={embedded ? "px-4 sm:px-6" : "flex-1 overflow-y-auto px-4 sm:px-6"}>
           <form onSubmit={handleSubmit} className="space-y-4 pb-4">
             {precisaSelecionar && (
               <CoordenacaoSelect
@@ -1114,7 +1115,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
 
   if (inline) {
     return (
-      <div className="h-full flex flex-col bg-background overflow-hidden">
+      <div className={embedded ? "flex flex-col bg-background" : "h-full flex flex-col bg-background overflow-hidden"}>
         {Body}
       </div>
     );
