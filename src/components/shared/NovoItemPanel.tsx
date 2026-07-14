@@ -18,7 +18,7 @@ interface NovoItemPanelProps {
   /** Registro existente para edição (tarefa/evento/prazo/parcelamento). */
   itemParaEditar?: any | null;
   /** Processo pré-selecionado (usado quando aberto dentro do Detalhe do Processo). */
-  processoIdPreset?: string | null;
+  processoPreSelecionado?: { id: string; numero: string } | null;
   /** Publicação DJEN vinculada, para exibir card verde retrátil. */
   publicacao?: any | null;
 }
@@ -32,7 +32,7 @@ export function NovoItemPanel({
   onClose,
   onSuccess,
   itemParaEditar = null,
-  processoIdPreset = null,
+  processoPreSelecionado = null,
   publicacao = null,
 }: NovoItemPanelProps) {
   const { user } = useAuth();
@@ -91,7 +91,7 @@ export function NovoItemPanel({
             onOpenChange={handleOpenChange}
             coordenacoes={coordenacoes}
             tarefaParaEditar={itemParaEditar}
-            processoIdPreset={processoIdPreset ?? undefined}
+            processoPreSelecionado={processoPreSelecionado ?? undefined}
             publicacao={publicacao ?? undefined}
             onSuccess={() => { void onSuccess(); }}
           />
@@ -102,7 +102,7 @@ export function NovoItemPanel({
             open
             onOpenChange={(o) => { handleOpenChange(o); if (!o) void onSuccess(); }}
             evento={itemParaEditar}
-            processoIdPreset={processoIdPreset ?? undefined}
+            defaultProcessoId={processoPreSelecionado?.id}
             publicacao={publicacao ?? undefined}
           />
         )}
@@ -112,7 +112,7 @@ export function NovoItemPanel({
             open
             onOpenChange={(o) => { handleOpenChange(o); if (!o) void onSuccess(); }}
             prazo={itemParaEditar}
-            processoIdPreset={processoIdPreset ?? undefined}
+            defaultProcessoId={processoPreSelecionado?.id}
             publicacao={publicacao ?? undefined}
           />
         )}
@@ -124,9 +124,9 @@ export function NovoItemPanel({
             <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
               <AudienciaFormSimplificado
                 hideTitleHeader
-                audienciaParaEditar={itemParaEditar ?? undefined}
-                processoIdPreset={processoIdPreset ?? undefined}
-                publicacao={publicacao ?? undefined}
+                defaultProcessoId={processoPreSelecionado?.id}
+                defaultProcessoNumero={processoPreSelecionado?.numero}
+                publicacaoId={publicacao?.id}
                 onSuccess={() => { void onSuccess(); }}
                 onCancel={onClose}
               />
@@ -139,7 +139,7 @@ export function NovoItemPanel({
             open
             onOpenChange={(o) => { handleOpenChange(o); if (!o) void onSuccess(); }}
             evento={itemParaEditar}
-            processoIdPreset={processoIdPreset ?? undefined}
+            defaultProcessoId={processoPreSelecionado?.id}
           />
         )}
       </div>
