@@ -271,6 +271,8 @@ export function ProcessoResumoCard({
                 intimacoes={intimacoes}
                 tarefas={tarefas}
                 movimentacoes={movimentacoes}
+                processoId={processo.id}
+                processoNumero={processo.numero}
               />
               <DepositosRecursaisCard processoId={processo.id} />
               <CustasProcessuaisCard processoId={processo.id} />
