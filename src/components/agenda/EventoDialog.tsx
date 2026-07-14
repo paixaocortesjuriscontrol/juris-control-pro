@@ -67,6 +67,17 @@ interface EventoDialogProps {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
   };
+  /**
+   * Botão adicional (ex.: "Salvar e fechar" na Análise DJEN).
+   */
+  tertiarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
+  /**
+   * Chamado após criar (não editar) o evento com sucesso.
+   */
+  onAfterCreate?: (info: { id: string; titulo: string }) => void;
 }
 
 type AlertaUnidade = "minutos" | "horas" | "dias" | "semanas";
@@ -92,12 +103,13 @@ function minutosParaUnidade(min: number): { valor: number; unidade: AlertaUnidad
   return { valor: min, unidade: "minutos" };
 }
 
-export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, embedded = false, hidePublicacaoCollapsible = false, secondarySave }: EventoDialogProps) {
+export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, embedded = false, hidePublicacaoCollapsible = false, secondarySave, tertiarySave, onAfterCreate }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
   const queryClient = useQueryClient();
   const isEditing = !!evento;
   const secondaryClickedRef = useRef(false);
+  const tertiaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const { user } = useAuth();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
