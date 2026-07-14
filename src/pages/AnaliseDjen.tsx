@@ -91,6 +91,7 @@ import {
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { PublicacaoSidePanel } from "@/components/shared/PublicacaoSidePanel";
+import { ItensCriadosPublicacaoCard, type ItemCriado } from "@/components/shared/ItensCriadosPublicacaoCard";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 import { NovaAudienciaPublicacaoDialog } from "@/components/djen/NovaAudienciaPublicacaoDialog";
 import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
@@ -244,6 +245,10 @@ const AnaliseDjen = () => {
   const [novaAudienciaOpen, setNovaAudienciaOpen] = useState(false);
   const [adicionarProcessoId, setAdicionarProcessoId] = useState<string | undefined>(undefined);
   const [adicionarProcessoNumero, setAdicionarProcessoNumero] = useState<string | undefined>(undefined);
+  // Itens (prazo/evento/tarefa/audiência) criados nesta sessão a partir da
+  // publicação atualmente selecionada. Alimenta o card verde "Itens criados
+  // a partir desta publicação" exibido acima do split view.
+  const [itensCriadosSessao, setItensCriadosSessao] = useState<ItemCriado[]>([]);
 
   // Resolve o processo existente na base via número da publicação para pré-preencher os formulários
   const resolverProcessoDaPublicacao = async (pub: PublicacaoUnificada) => {
@@ -4088,12 +4093,31 @@ const AnaliseDjen = () => {
         {/* Formulário inline de Adicionar (esconde a lista quando aberto) */}
         {(() => {
           const inlineFormAberto = criarTarefaDialogOpen || novoEventoOpen || novoPrazoOpen || novaAudienciaOpen;
+          // Wrapper continua aberto se houver publicação selecionada + form ativo
+          // OU se já houver itens criados nesta sessão (mesmo após fechar o
+          // form individual — usuário pode escolher outro tipo pelo dropdown
+          // "Adicionar").
+          const wrapperAberto = inlineFormAberto || (!!selectedPublicacao && itensCriadosSessao.length > 0);
           const fecharTudo = () => {
             setCriarTarefaDialogOpen(false);
             setNovoEventoOpen(false);
             setNovoPrazoOpen(false);
             setNovaAudienciaOpen(false);
+            setItensCriadosSessao([]);
           };
+          const trocarTipo = (tipo: "tarefa" | "evento" | "prazo" | "audiencia") => {
+            setCriarTarefaDialogOpen(tipo === "tarefa");
+            setNovoEventoOpen(tipo === "evento");
+            setNovoPrazoOpen(tipo === "prazo");
+            setNovaAudienciaOpen(tipo === "audiencia");
+          };
+          const registrarItemCriado = (tipo: ItemCriado["tipo"]) =>
+            (info: { id: string; titulo: string }) => {
+              setItensCriadosSessao((prev) => [
+                ...prev,
+                { id: info.id, titulo: info.titulo, tipo, createdAt: Date.now() },
+              ]);
+            };
           const markPubComoLida = async () => {
             if (!selectedPublicacao) return;
             try {
@@ -4132,7 +4156,32 @@ const AnaliseDjen = () => {
               console.error("Erro ao marcar publicação como lida (Salvar e ler):", err);
             }
           };
-          return inlineFormAberto ? (
+          // Botão dropdown "Adicionar" reutilizado no cabeçalho do wrapper para
+          // permitir alternar o tipo do item sem precisar voltar à lista.
+          const AdicionarTipoDropdown = (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="default">
+                  <Plus className="w-4 h-4 mr-1" /> Adicionar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem onSelect={() => setTimeout(() => trocarTipo("tarefa"), 0)}>
+                  <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTimeout(() => trocarTipo("evento"), 0)}>
+                  <CalendarPlus className="w-4 h-4 mr-2" /> Evento
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTimeout(() => trocarTipo("prazo"), 0)}>
+                  <Clock className="w-4 h-4 mr-2" /> Prazo
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTimeout(() => trocarTipo("audiencia"), 0)}>
+                  <Gavel className="w-4 h-4 mr-2" /> Audiência
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+          return wrapperAberto ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div className="text-sm text-muted-foreground">
@@ -4142,6 +4191,17 @@ const AnaliseDjen = () => {
                   ← Voltar para a lista
                 </Button>
               </div>
+              <ItensCriadosPublicacaoCard itens={itensCriadosSessao} />
+              {/* Barra "+ Adicionar" acima do formulário, sempre visível quando o
+                  wrapper está aberto — permite alternar o tipo sem fechar. */}
+              <div className="flex items-center justify-end">
+                {AdicionarTipoDropdown}
+              </div>
+              {!inlineFormAberto && (
+                <div className="rounded-md border bg-background p-6 text-sm text-muted-foreground text-center">
+                  Selecione um tipo em <strong>Adicionar</strong> para cadastrar outro item para esta publicação, ou clique em <strong>Voltar para a lista</strong>.
+                </div>
+              )}
               {criarTarefaDialogOpen && (
                 <NovaTarefaPublicacaoDialog
                   inline
@@ -4165,6 +4225,8 @@ const AnaliseDjen = () => {
                       publicacao={selectedPublicacao}
                       hidePublicacaoCollapsible
                       secondarySave={{ label: "Salvar e ler", onAfterSuccess: markPubComoLida }}
+                      tertiarySave={{ label: "Salvar e fechar", onAfterSuccess: fecharTudo }}
+                      onAfterCreate={registrarItemCriado("evento")}
                     />
                   </div>
                 </div>
@@ -4182,6 +4244,8 @@ const AnaliseDjen = () => {
                       publicacao={selectedPublicacao}
                       hidePublicacaoCollapsible
                       secondarySave={{ label: "Salvar e ler", onAfterSuccess: markPubComoLida }}
+                      tertiarySave={{ label: "Salvar e fechar", onAfterSuccess: fecharTudo }}
+                      onAfterCreate={registrarItemCriado("prazo")}
                     />
                   </div>
                 </div>
@@ -4201,7 +4265,7 @@ const AnaliseDjen = () => {
           ) : null;
         })()}
 
-        <div className={cn("space-y-6", (criarTarefaDialogOpen || novoEventoOpen || novoPrazoOpen || novaAudienciaOpen) && "hidden")}>
+        <div className={cn("space-y-6", (criarTarefaDialogOpen || novoEventoOpen || novoPrazoOpen || novaAudienciaOpen || (!!selectedPublicacao && itensCriadosSessao.length > 0)) && "hidden")}>
         {/* Banners de execução DJEN */}
         <DjenExecutionBanner />
 

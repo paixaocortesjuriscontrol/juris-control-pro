@@ -67,6 +67,17 @@ interface EventoDialogProps {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
   };
+  /**
+   * Botão adicional (ex.: "Salvar e fechar" na Análise DJEN).
+   */
+  tertiarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
+  /**
+   * Chamado após criar (não editar) o evento com sucesso.
+   */
+  onAfterCreate?: (info: { id: string; titulo: string }) => void;
 }
 
 type AlertaUnidade = "minutos" | "horas" | "dias" | "semanas";
@@ -92,12 +103,13 @@ function minutosParaUnidade(min: number): { valor: number; unidade: AlertaUnidad
   return { valor: min, unidade: "minutos" };
 }
 
-export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, embedded = false, hidePublicacaoCollapsible = false, secondarySave }: EventoDialogProps) {
+export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, embedded = false, hidePublicacaoCollapsible = false, secondarySave, tertiarySave, onAfterCreate }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
   const queryClient = useQueryClient();
   const isEditing = !!evento;
   const secondaryClickedRef = useRef(false);
+  const tertiaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const { user } = useAuth();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
@@ -377,11 +389,20 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       } else {
         const novo = await createEvento.mutateAsync(payload);
         if (novo?.id) await persistirRelacionamentos(novo.id);
+        if (novo?.id && onAfterCreate) {
+          try { onAfterCreate({ id: novo.id, titulo: payload.titulo || "Evento" }); }
+          catch (err) { console.warn("onAfterCreate falhou:", err); }
+        }
       }
       if (secondaryClickedRef.current) {
         try { await secondarySave?.onAfterSuccess(); }
         catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
         finally { secondaryClickedRef.current = false; }
+      }
+      if (tertiaryClickedRef.current) {
+        try { await tertiarySave?.onAfterSuccess(); }
+        catch (err) { console.error("tertiarySave.onAfterSuccess falhou:", err); }
+        finally { tertiaryClickedRef.current = false; }
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] }),
@@ -838,6 +859,18 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                 >
                   {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   {secondarySave.label}
+                </Button>
+              )}
+              {tertiarySave && !isEditing && (
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  disabled={isPending}
+                  className="w-full sm:w-auto"
+                  onClick={() => { tertiaryClickedRef.current = true; }}
+                >
+                  {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {tertiarySave.label}
                 </Button>
               )}
             </div>

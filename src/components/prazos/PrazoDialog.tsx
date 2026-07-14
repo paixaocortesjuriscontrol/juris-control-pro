@@ -92,6 +92,20 @@ type PrazoDialogProps = {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
   };
+  /**
+   * Botão adicional (ex.: "Salvar e fechar" na Análise DJEN). Igual ao
+   * secondarySave mas renderizado como um terceiro botão no rodapé.
+   */
+  tertiarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
+  /**
+   * Chamado após criar (não editar) o prazo com sucesso. Recebe o id
+   * e o título salvos. Usado pela Análise DJEN para popular o card verde
+   * de "Itens criados a partir desta publicação".
+   */
+  onAfterCreate?: (info: { id: string; titulo: string }) => void;
 };
 
 export function PrazoDialog({
@@ -105,12 +119,15 @@ export function PrazoDialog({
   embedded = false,
   hidePublicacaoCollapsible = false,
   secondarySave,
+  tertiarySave,
+  onAfterCreate,
 }: PrazoDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const createPrazo = useCreatePrazo();
   const updatePrazo = useUpdatePrazo();
   const secondaryClickedRef = useRef(false);
+  const tertiaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
 
   // Quando editando um prazo existente, carregar publicação vinculada (se houver)
@@ -471,6 +488,18 @@ export function PrazoDialog({
         try { await secondarySave?.onAfterSuccess(); }
         catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
         finally { secondaryClickedRef.current = false; }
+      }
+      // Se é um create novo e o consumidor forneceu onAfterCreate, avisa-o com
+      // os metadados do prazo recém-criado. Deve rodar ANTES do tertiary para
+      // que "Salvar e fechar" possa limpar corretamente o estado do wrapper.
+      if (!prazo && tarefaId && onAfterCreate) {
+        try { onAfterCreate({ id: tarefaId, titulo: (payload as any).titulo || "Prazo" }); }
+        catch (err) { console.warn("onAfterCreate falhou:", err); }
+      }
+      if (tertiaryClickedRef.current) {
+        try { await tertiarySave?.onAfterSuccess(); }
+        catch (err) { console.error("tertiarySave.onAfterSuccess falhou:", err); }
+        finally { tertiaryClickedRef.current = false; }
       }
       onOpenChange(false);
     } catch (error: any) {
@@ -849,6 +878,17 @@ export function PrazoDialog({
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {secondarySave.label}
+          </Button>
+        )}
+        {tertiarySave && !prazo?.id && (
+          <Button
+            type="submit"
+            variant="secondary"
+            disabled={isLoading}
+            onClick={() => { tertiaryClickedRef.current = true; }}
+          >
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {tertiarySave.label}
           </Button>
         )}
       </div>
