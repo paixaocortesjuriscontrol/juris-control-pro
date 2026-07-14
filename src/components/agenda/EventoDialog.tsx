@@ -438,6 +438,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             </div>
             <ScrollArea className="flex-1 px-6">
               <form onSubmit={handleSubmit} className="space-y-5 pb-6" id="evento-form-content">
+            {hasPublicacao && (
+              <PublicacaoVinculadaCollapsible publicacao={publicacao as any} />
+            )}
             {/* Título */}
             <div>
               <Label htmlFor="titulo" className="text-sm">
