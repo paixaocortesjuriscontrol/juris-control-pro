@@ -19,9 +19,10 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   inline?: boolean;
+  embedded?: boolean;
 }
 
-export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = false }: Props) {
+export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = false, embedded = false }: Props) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
@@ -209,8 +210,9 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
     }
   };
 
+  const formId = `editar-audiencia-form-${audiencia?.id ?? 'new'}`;
   const formBody = (
-    <form id="editar-audiencia-form" onSubmit={handleSubmit} className="space-y-4">
+    <form id={formId} onSubmit={handleSubmit} className="space-y-4">
           {/* Dados Principais */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
