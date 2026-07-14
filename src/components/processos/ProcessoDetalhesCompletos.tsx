@@ -1865,6 +1865,7 @@ export function ProcessoDetalhesCompletos({
                   </div>
                 </div>
               )}
+              </>)}
             </div>
         </div>
       </div>
