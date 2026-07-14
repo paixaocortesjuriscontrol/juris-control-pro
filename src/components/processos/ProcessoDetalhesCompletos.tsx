@@ -78,6 +78,7 @@ import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
 import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
 import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
 import { AudienciaObservacaoInline } from "@/components/audiencias/AudienciaObservacaoInline";
+import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
 import { NovoItemPanel, type NovoItemTipo } from "@/components/shared/NovoItemPanel";
 import { ClipboardList, CalendarPlus, Coins } from "lucide-react";
 import {

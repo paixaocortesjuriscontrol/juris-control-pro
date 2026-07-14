@@ -19,9 +19,10 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   inline?: boolean;
+  embedded?: boolean;
 }
 
-export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = false }: Props) {
+export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = false, embedded = false }: Props) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
@@ -209,8 +210,9 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
     }
   };
 
+  const formId = `editar-audiencia-form-${audiencia?.id ?? 'new'}`;
   const formBody = (
-    <form id="editar-audiencia-form" onSubmit={handleSubmit} className="space-y-4">
+    <form id={formId} onSubmit={handleSubmit} className="space-y-4">
           {/* Dados Principais */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
@@ -475,6 +477,34 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
         </form>
   );
 
+  if (embedded) {
+    return (
+      <div className="rounded-lg border bg-card p-4 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+          <h3 className="text-sm font-semibold">Audiência {audiencia?.processo_numero || ''}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <Label className="text-xs text-muted-foreground">Situação</Label>
+            <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
+              <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                <SelectItem value="confirmado">✅ Confirmado</SelectItem>
+                <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
+                <SelectItem value="tratado">✔️ Tratado</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="submit" form={formId} size="sm" disabled={isLoading}>
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Salvar</>}
+            </Button>
+          </div>
+        </div>
+        {formBody}
+      </div>
+    );
+  }
+
   if (inline) {
     return (
       <div className="h-full flex flex-col bg-background overflow-hidden">
@@ -495,7 +525,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
             </Select>
             <Button
               type="submit"
-              form="editar-audiencia-form"
+              form={formId}
               size="sm"
               disabled={isLoading}
               aria-label="Salvar"
@@ -539,7 +569,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                   <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
                 </SelectContent>
               </Select>
-              <Button type="submit" form="editar-audiencia-form" size="sm" disabled={isLoading}>
+              <Button type="submit" form={formId} size="sm" disabled={isLoading}>
                 {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Salvar</>}
               </Button>
             </div>
