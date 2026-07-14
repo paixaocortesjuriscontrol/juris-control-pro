@@ -44,6 +44,18 @@ interface Props {
    * Callback usado pelo botão "Salvar e ler" (secondarySave.onAfterSuccess).
    */
   onMarkAsRead?: () => Promise<void> | void;
+  /**
+   * Botão "Salvar e fechar" (Análise DJEN). Fecha o wrapper após salvar.
+   */
+  tertiarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
+  /**
+   * Chamado após criar a tarefa. Alimenta o card verde "Itens criados a
+   * partir desta publicação" na Análise DJEN.
+   */
+  onAfterCreate?: (info: { id: string; titulo: string }) => void;
 }
 
 /**
