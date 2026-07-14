@@ -4212,7 +4212,10 @@ const AnaliseDjen = () => {
 
         {/* Stats Cards - Mobile optimized */}
         <div className="grid grid-cols-2 md:grid-cols-8 gap-2 md:gap-4">
-          <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800">
+          <Card
+            className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => { setTipoOrigem('todos'); setReadStatus('todas'); setOcultarDuplicadas(false); }}
+          >
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
@@ -4226,7 +4229,10 @@ const AnaliseDjen = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800">
+          <Card
+            className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => { setTipoOrigem('todos'); setReadStatus('nao_lidas'); }}
+          >
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
@@ -4240,7 +4246,10 @@ const AnaliseDjen = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/30 border-purple-200 dark:border-purple-800">
+          <Card
+            className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/30 border-purple-200 dark:border-purple-800 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => { setTipoOrigem('termo'); setReadStatus('todas'); }}
+          >
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
@@ -4254,7 +4263,10 @@ const AnaliseDjen = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800">
+          <Card
+            className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => { setTipoOrigem('processo'); setReadStatus('todas'); }}
+          >
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
@@ -4268,7 +4280,10 @@ const AnaliseDjen = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/30 border-rose-200 dark:border-rose-800">
+          <Card
+            className="bg-gradient-to-br from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/30 border-rose-200 dark:border-rose-800 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => setTipoOrigem('descartada')}
+          >
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
@@ -4282,7 +4297,10 @@ const AnaliseDjen = () => {
             </CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/30 border-slate-200 dark:border-slate-700">
+          <Card
+            className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/30 border-slate-200 dark:border-slate-700 cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => { setTipoOrigem('todos'); setOcultarDuplicadas(true); }}
+          >
             <CardContent className="p-3 md:pt-4">
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
