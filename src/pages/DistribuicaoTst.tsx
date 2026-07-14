@@ -550,6 +550,9 @@ export default function DistribuicaoTst() {
     if (key === "prontoEnvio" || isActive) setFiltroStatus("todos");
     // "Pronto sem pendência" reaproveita o filtro de status = pronto_envio.
     if (key === "prontoSemPendencia") setFiltroStatus("todos");
+    // Sempre desliga o filtro "sem pendência" ao alternar/limpar cards;
+    // será religado no switch abaixo se este for o card ativado.
+    setFiltroSemPendencia(false);
     // Reseta filtro "sem responsável" ao alternar cards
     if (key === "semResponsavel" || isActive) setFiltroResponsavelIds([]);
     setSelectedIds(new Set());
@@ -586,7 +589,10 @@ export default function DistribuicaoTst() {
         setFiltroMesAno("todos");
         break;
       case "prontoEnvio": setFiltroStatus("pronto_envio"); break;
-      case "prontoSemPendencia": setFiltroStatus("pronto_envio"); break;
+      case "prontoSemPendencia":
+        setFiltroStatus("pronto_envio");
+        setFiltroSemPendencia(true);
+        break;
       case "semResponsavel":
         setFiltroResponsavelIds(["__sem_responsavel__"]);
         break;
