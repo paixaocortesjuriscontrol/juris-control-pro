@@ -26,7 +26,7 @@ Objetivo: entregas visíveis na tela em pouco tempo, sem mexer em motor de notif
 
 ---
 
-## Fase 2 — Notificações individualizadas e alertas de mudança/perda
+## Fase 2 — Notificações individualizadas e alertas de mudança/perda  ✅ CONCLUÍDA
 
 Objetivo: cada membro escolhe como/quando ser avisado; sistema avisa mudanças de situação e prazos perdidos usando WhatsApp/e-mail **já configurados**.
 
