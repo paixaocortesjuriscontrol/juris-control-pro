@@ -81,6 +81,7 @@ export function useTarefasPaginated(filters?: TarefasFilters) {
           data_vencimento,
           status,
           prioridade,
+          tipo_tarefa,
           processo_id,
           responsavel_id,
           observacoes,
@@ -97,6 +98,7 @@ export function useTarefasPaginated(filters?: TarefasFilters) {
           data_vencimento,
           status,
           prioridade,
+          tipo_tarefa,
           processo_id,
           responsavel_id,
           observacoes,
@@ -112,6 +114,7 @@ export function useTarefasPaginated(filters?: TarefasFilters) {
       let query = supabase
         .from("tarefas")
         .select(selectFields, { count: "exact" })
+        .eq("tipo_tarefa", "PRAZO")
         .order("data_vencimento", { ascending: true, nullsFirst: false })
         .range(from, to);
 
@@ -176,6 +179,7 @@ export function useTarefas(filters?: TarefasFilters) {
           data_vencimento,
           status,
           prioridade,
+          tipo_tarefa,
           processo_id,
           responsavel_id,
           observacoes,
@@ -185,6 +189,7 @@ export function useTarefas(filters?: TarefasFilters) {
           processo:processos!tarefas_processo_id_fkey(id, numero, assunto),
           responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)
         `)
+        .eq("tipo_tarefa", "PRAZO")
         .order("data_vencimento", { ascending: true, nullsFirst: false })
         .limit(limit);
 
@@ -223,23 +228,27 @@ export function useTarefasStats(coordenacaoId?: string) {
             .from("tarefas")
             .select("id, processos!inner(coordenacao_id)", { count: "exact", head: true })
             .eq("processos.coordenacao_id", coordenacaoId)
+            .eq("tipo_tarefa", "PRAZO")
             .eq("status", "pendente")
             .gte("data_vencimento", today),
           supabase
             .from("tarefas")
             .select("id, processos!inner(coordenacao_id)", { count: "exact", head: true })
             .eq("processos.coordenacao_id", coordenacaoId)
+            .eq("tipo_tarefa", "PRAZO")
             .eq("status", "cumprido"),
           supabase
             .from("tarefas")
             .select("id, processos!inner(coordenacao_id)", { count: "exact", head: true })
             .eq("processos.coordenacao_id", coordenacaoId)
+            .eq("tipo_tarefa", "PRAZO")
             .neq("status", "cumprido")
             .lt("data_vencimento", today),
           supabase
             .from("tarefas")
             .select("id, processos!inner(coordenacao_id)", { count: "exact", head: true })
             .eq("processos.coordenacao_id", coordenacaoId)
+            .eq("tipo_tarefa", "PRAZO")
             .eq("prioridade", "urgente")
             .neq("status", "cumprido"),
         ]);
@@ -257,20 +266,24 @@ export function useTarefasStats(coordenacaoId?: string) {
         supabase
           .from("tarefas")
           .select("*", { count: "exact", head: true })
+          .eq("tipo_tarefa", "PRAZO")
           .eq("status", "pendente")
           .gte("data_vencimento", today),
         supabase
           .from("tarefas")
           .select("*", { count: "exact", head: true })
+          .eq("tipo_tarefa", "PRAZO")
           .eq("status", "cumprido"),
         supabase
           .from("tarefas")
           .select("*", { count: "exact", head: true })
+          .eq("tipo_tarefa", "PRAZO")
           .neq("status", "cumprido")
           .lt("data_vencimento", today),
         supabase
           .from("tarefas")
           .select("*", { count: "exact", head: true })
+          .eq("tipo_tarefa", "PRAZO")
           .eq("prioridade", "urgente")
           .neq("status", "cumprido"),
       ]);
@@ -349,11 +362,11 @@ export function useCreateTarefa() {
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-paginated"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-stats"] });
-      toast.success("Tarefa criada com sucesso");
+      toast.success(variables.tipo_tarefa === "PRAZO" ? "Prazo criado com sucesso" : "Tarefa criada com sucesso");
     },
     onError: (error) => {
       toast.error("Erro ao criar tarefa: " + error.message);
@@ -407,11 +420,11 @@ export function useUpdateTarefa() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-paginated"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-stats"] });
-      toast.success("Tarefa atualizada com sucesso");
+      toast.success(variables.tipo_tarefa === "PRAZO" ? "Prazo atualizado com sucesso" : "Tarefa atualizada com sucesso");
     },
     onError: (error) => {
       toast.error("Erro ao atualizar tarefa: " + error.message);
