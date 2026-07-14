@@ -46,7 +46,7 @@ Objetivo: cada membro escolhe como/quando ser avisado; sistema avisa mudanças d
 
 ---
 
-## Fase 3 — Automação IA + títulos pré-prontos + relatório
+## Fase 3 — Automação IA + títulos pré-prontos + relatório  ✅ CONCLUÍDA
 
 9. **Análise DJEN — botão "Pré-agendar tarefas com IA"**
    - Analisa publicações do dia (filtradas na tela) com IA (padrão do projeto).

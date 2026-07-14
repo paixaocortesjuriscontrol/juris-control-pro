@@ -14,6 +14,7 @@ import Processos from "./pages/Processos";
 import ProcessoDetalhes from "./pages/ProcessoDetalhes";
 import BuscarProcessos from "./pages/BuscarProcessos";
 import Coordenacoes from "./pages/Coordenacoes";
+import ModelosTitulo from "./pages/ModelosTitulo";
 import Relatorios from "./pages/Relatorios";
 import Administracao from "./pages/Administracao";
 import PoolProxyDjen from "./pages/PoolProxyDjen";
@@ -137,6 +138,7 @@ function App() {
               <Route path="/lista-atividades" element={<ProtectedRoute><ListaAtividades /></ProtectedRoute>} />
               <Route path="/buscar" element={<ProtectedRoute><BuscarProcessos /></ProtectedRoute>} />
               <Route path="/coordenacoes" element={<ProtectedRoute><Coordenacoes /></ProtectedRoute>} />
+              <Route path="/modelos-titulo" element={<ProtectedRoute><ModelosTitulo /></ProtectedRoute>} />
               <Route path="/painel-equipe" element={<ProtectedRoute><PainelEquipe /></ProtectedRoute>} />
               <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
               <Route path="/admin" element={<AdminRoute><Administracao /></AdminRoute>} />
