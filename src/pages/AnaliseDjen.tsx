@@ -683,7 +683,7 @@ const AnaliseDjen = () => {
       const hojeBrt = getHojeBrtISO();
       // Para DEJT Pautas, o dia exibido na análise é a data legal de publicação.
       // Ex.: caderno disponibilizado em 03/07/2026 publica legalmente em 06/07/2026.
-      const diaPauta = dataDisponibilizacaoDebounced || (apenasHoje ? hojeBrt : null);
+      const diaPauta = dataPublicacaoDebounced || dataDisponibilizacaoDebounced || (apenasHoje ? hojeBrt : null);
       const dataInicioFiltro = !diaPauta && dataInicioDebounced
         ? dateLocalToUTCRange(dataInicioDebounced, false)
         : null;
