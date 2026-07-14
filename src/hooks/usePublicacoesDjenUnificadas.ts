@@ -1491,6 +1491,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
       queryClient.invalidateQueries({ queryKey: ['descartadas-count'] });
       queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
+      // Também invalida a query que alimenta os cards totalizadores do topo
+      // (Total no Período / Não Lidas / Por Termos / Por Processos / Únicas),
+      // caso contrário os números continuam iguais após "Marcar Lida".
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] });
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-djen-processo'] });
 
       // Mensagem baseada no que o USUÁRIO pediu para marcar (linhas da tela),
       // não no agregado da RPC legacy (que pode falhar/parcial).
