@@ -708,20 +708,6 @@ const Processos = () => {
               size="sm"
               className={cn(
                 "h-9 gap-2 touch-manipulation select-none",
-                comIntimacoes && "bg-red-600 hover:bg-red-700 text-white border-red-600"
-              )}
-              onClick={() => setComIntimacoes(prev => !prev)}
-            >
-              <AlertCircle className="w-4 h-4" />
-              <span className="hidden sm:inline">Com Intimações</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-9 gap-2 touch-manipulation select-none",
                 comTarefas && "bg-purple-600 hover:bg-purple-700 text-white border-purple-600"
               )}
               onClick={() => setComTarefas(prev => !prev)}
