@@ -4153,29 +4153,37 @@ const AnaliseDjen = () => {
                 />
               )}
               {novoEventoOpen && (
-                <div className="rounded-md border bg-background overflow-hidden flex flex-col min-h-[70vh] max-h-[calc(100vh-12rem)]">
-                  <EventoDialog
-                    inline
-                    open={novoEventoOpen}
-                    onOpenChange={setNovoEventoOpen}
-                    evento={null}
-                    defaultProcessoId={adicionarProcessoId}
-                    publicacao={selectedPublicacao}
-                    secondarySave={{ label: "Salvar e ler", onAfterSuccess: markPubComoLida }}
-                  />
+                <div className="rounded-md border bg-background overflow-hidden flex flex-col lg:flex-row min-h-[70vh] max-h-[calc(100vh-12rem)]">
+                  <PublicacaoSidePanel publicacao={selectedPublicacao} />
+                  <div className="flex flex-col min-h-0 w-full lg:w-[640px] bg-background">
+                    <EventoDialog
+                      inline
+                      open={novoEventoOpen}
+                      onOpenChange={setNovoEventoOpen}
+                      evento={null}
+                      defaultProcessoId={adicionarProcessoId}
+                      publicacao={selectedPublicacao}
+                      hidePublicacaoCollapsible
+                      secondarySave={{ label: "Salvar e ler", onAfterSuccess: markPubComoLida }}
+                    />
+                  </div>
                 </div>
               )}
               {novoPrazoOpen && (
-                <div className="rounded-md border bg-background overflow-hidden flex flex-col min-h-[70vh] max-h-[calc(100vh-12rem)]">
-                  <PrazoDialog
-                    inline
-                    open={novoPrazoOpen}
-                    onOpenChange={setNovoPrazoOpen}
-                    prazo={null}
-                    defaultProcessoId={adicionarProcessoId}
-                    publicacao={selectedPublicacao}
-                    secondarySave={{ label: "Salvar e ler", onAfterSuccess: markPubComoLida }}
-                  />
+                <div className="rounded-md border bg-background overflow-hidden flex flex-col lg:flex-row min-h-[70vh] max-h-[calc(100vh-12rem)]">
+                  <PublicacaoSidePanel publicacao={selectedPublicacao} />
+                  <div className="flex flex-col min-h-0 w-full lg:w-[640px] bg-background">
+                    <PrazoDialog
+                      inline
+                      open={novoPrazoOpen}
+                      onOpenChange={setNovoPrazoOpen}
+                      prazo={null}
+                      defaultProcessoId={adicionarProcessoId}
+                      publicacao={selectedPublicacao}
+                      hidePublicacaoCollapsible
+                      secondarySave={{ label: "Salvar e ler", onAfterSuccess: markPubComoLida }}
+                    />
+                  </div>
                 </div>
               )}
               {novaAudienciaOpen && (
