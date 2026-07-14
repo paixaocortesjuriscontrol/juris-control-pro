@@ -821,14 +821,14 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               )}
             </div>
           </form>
-        </ScrollArea>
+        </ScrollAreaOrDiv>
           </div>
         </div>
   );
 
   if (inline) {
     return (
-      <div className="h-full w-full flex flex-col bg-background overflow-hidden">
+      <div className={embedded ? "w-full flex flex-col bg-background" : "h-full w-full flex flex-col bg-background overflow-hidden"}>
         {dialogBody}
       </div>
     );
