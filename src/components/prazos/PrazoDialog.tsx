@@ -41,6 +41,7 @@ import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
+import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 
 type Unidade = "uteis" | "corridos";
 
@@ -205,11 +206,38 @@ export function PrazoDialog({
   const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
+  // Processo resolvido a partir da publicação (quando não há defaultProcessoId)
+  const [resolvedProcessoId, setResolvedProcessoId] = useState<string>("");
   // Recorrência
   const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
   const [recorrenciaIntervalo, setRecorrenciaIntervalo] = useState<number>(1);
   const [recorrenciaOcorrencias, setRecorrenciaOcorrencias] = useState<string>("");
   const [recorrenciaFim, setRecorrenciaFim] = useState<string>("");
+
+  // Ao abrir com publicação sem processo_id resolvido, garantir criação/vínculo do processo.
+  useEffect(() => {
+    if (!open) { setResolvedProcessoId(""); return; }
+    if (prazo) return;
+    if (defaultProcessoId) return;
+    if (!publicacao || !user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const proc = await ensureProcessoFromPublicacao(
+          publicacao,
+          user.id,
+          null,
+          publicacao.coordenacao_id || null,
+        );
+        if (!cancelled && proc?.id) setResolvedProcessoId(proc.id);
+      } catch (err) {
+        console.error("[PrazoDialog] ensureProcesso falhou:", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, prazo, defaultProcessoId, publicacao?.id, user?.id]);
+
+  const processoIdEfetivo = defaultProcessoId || resolvedProcessoId || prazo?.processo_id || null;
 
   // data base = data da publicação (se houver) ou hoje
   const dataBase = useMemo<Date>(() => {
