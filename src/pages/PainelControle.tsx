@@ -1405,7 +1405,7 @@ export default function PainelControle() {
               <AcompanhamentoEspecialEventos limit={10} showProcesso />
             </div>
           </details>
-          {isLoading ? (
+          {!mostrarTotalizadores ? null : isLoading ? (
             <div className="flex gap-2">
               {[...Array(6)].map((_, i) => (
                 <Skeleton key={i} className="h-14 md:h-20 flex-1 rounded-lg" />
