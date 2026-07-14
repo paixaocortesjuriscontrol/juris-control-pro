@@ -24,8 +24,8 @@ export default function ModelosTitulo() {
   const [editando, setEditando] = useState<Partial<ModeloTitulo> | null>(null);
 
   const { data: modelos = [], isLoading } = useModelosTitulo({
-    coordenacao_id: coordId || undefined,
-    tipo: (tipo || undefined) as TipoModelo | undefined,
+    coordenacao_id: coordId && coordId !== "__all__" ? coordId : undefined,
+    tipo: tipo && tipo !== "__all__" ? (tipo as TipoModelo) : undefined,
   });
   const salvar = useSaveModeloTitulo();
   const remover = useDeleteModeloTitulo();
