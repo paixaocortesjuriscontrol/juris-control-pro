@@ -10,7 +10,7 @@ import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 
 interface Props {
   processoNumero: string;
-  onPreencherFormulario?: () => Promise<void> | void;
+  onPreencherFormulario?: (presetData?: any) => Promise<void> | void;
 }
 
 interface JuditLog {
