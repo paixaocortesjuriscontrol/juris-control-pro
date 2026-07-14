@@ -799,6 +799,10 @@ export function NovaTarefaDialog({
       if (novaTarefa?.id && onCreated) {
         await onCreated(novaTarefa.id);
       }
+      if (novaTarefa?.id && onAfterCreate) {
+        try { onAfterCreate({ id: novaTarefa.id, titulo: (novaTarefa as any).titulo || values.titulo || "Tarefa" }); }
+        catch (err) { console.warn("onAfterCreate falhou:", err); }
+      }
       if (secondaryClickedRef.current) {
         try {
           await secondarySave?.onAfterSuccess();
@@ -808,8 +812,19 @@ export function NovaTarefaDialog({
           secondaryClickedRef.current = false;
         }
       }
-      onOpenChange(false);
-      onSuccess?.();
+      const tertiaryWasClicked = tertiaryClickedRef.current;
+      if (tertiaryWasClicked) {
+        try { await tertiarySave?.onAfterSuccess(); }
+        catch (err) { console.error("tertiarySave.onAfterSuccess falhou:", err); }
+        finally { tertiaryClickedRef.current = false; }
+      }
+      const manterAbertoParaNovo = !tarefaParaEditar?.id && !!onAfterCreate && !tertiaryWasClicked;
+      if (manterAbertoParaNovo) {
+        resetFormForNew();
+      } else {
+        onOpenChange(false);
+        onSuccess?.();
+      }
     } catch (error: any) {
       toast({
         title: tarefaParaEditar?.id ? "Erro ao editar tarefa" : "Erro ao criar tarefa",
