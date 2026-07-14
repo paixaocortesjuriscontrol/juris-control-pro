@@ -489,6 +489,18 @@ export function PrazoDialog({
         catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
         finally { secondaryClickedRef.current = false; }
       }
+      if (tertiaryClickedRef.current) {
+        try { await tertiarySave?.onAfterSuccess(); }
+        catch (err) { console.error("tertiarySave.onAfterSuccess falhou:", err); }
+        finally { tertiaryClickedRef.current = false; }
+      }
+      // Se é um create novo e o consumidor forneceu onAfterCreate, avisa-o com
+      // os metadados do prazo recém-criado (usado pelo card verde de itens
+      // criados na Análise DJEN).
+      if (!prazo && tarefaId && onAfterCreate) {
+        try { onAfterCreate({ id: tarefaId, titulo: (payload as any).titulo || "Prazo" }); }
+        catch (err) { console.warn("onAfterCreate falhou:", err); }
+      }
       onOpenChange(false);
     } catch (error: any) {
       toast.error("Erro ao salvar prazo: " + error.message);
