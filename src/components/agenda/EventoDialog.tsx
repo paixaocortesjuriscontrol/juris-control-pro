@@ -39,6 +39,8 @@ import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
+import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface EventoDialogProps {
   open: boolean;
@@ -82,6 +84,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const isEditing = !!evento;
   const secondaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
+  const { user } = useAuth();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
 
   const [titulo, setTitulo] = useState("");
@@ -226,6 +229,29 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setCoordenacaoId(unicaCoordenacaoId || "");
     }
   }, [evento, open, alertasEvento, defaultProcessoId, unicaCoordenacaoId]);
+
+  // Ao abrir com uma publicação sem processo_id resolvido, garantir criação/vínculo do processo
+  useEffect(() => {
+    if (!open) return;
+    if (evento) return;
+    if (processoId) return;
+    if (!publicacao || !user?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const proc = await ensureProcessoFromPublicacao(
+          publicacao,
+          user.id,
+          null,
+          publicacao.coordenacao_id || null,
+        );
+        if (!cancelled && proc?.id) setProcessoId(proc.id);
+      } catch (err) {
+        console.error("[EventoDialog] ensureProcesso falhou:", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, evento, processoId, publicacao?.id, user?.id]);
 
   const persistirRelacionamentos = async (eventoId: string) => {
     await supabase.from("evento_responsaveis").delete().eq("evento_id", eventoId);
