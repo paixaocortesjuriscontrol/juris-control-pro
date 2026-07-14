@@ -1019,10 +1019,10 @@ export function ProcessoDetalhesCompletos({
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setCriarAudienciaOpen(true)}
+                      onClick={() => abrirNovoItem("audiencia")}
                     >
                       <Plus className="w-4 h-4 mr-1" />
-                      Nova Audiência
+                      Adicionar Audiência
                     </Button>
                   </div>
                   {loadingAudiencias ? (
@@ -1325,9 +1325,9 @@ export function ProcessoDetalhesCompletos({
                         <Button 
                           size="sm" 
                           className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7"
-                          onClick={() => setCriarTarefaOpen(true)}
+                          onClick={() => abrirNovoItem("tarefa")}
                         >
-                          Nova Tarefa
+                          Adicionar Tarefa
                         </Button>
                       </div>
                       {loadingTarefas ? (
@@ -1766,9 +1766,9 @@ export function ProcessoDetalhesCompletos({
                     <Button
                       size="sm"
                       className="bg-emerald-600 hover:bg-emerald-700 text-xs h-7"
-                      onClick={() => setNovoEventoOpen(true)}
+                      onClick={() => abrirNovoItem("evento")}
                     >
-                      Novo Evento
+                      Adicionar Evento
                     </Button>
                   </div>
                   {eventosAgenda.length > 0 ? (
