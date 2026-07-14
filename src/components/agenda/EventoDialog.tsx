@@ -232,28 +232,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
         if (envIds.length > 0) setMostrarEnvolvidos(true);
       })();
     } else {
-      const hoje = format(new Date(), "yyyy-MM-dd");
-      setTitulo("");
-      setDataInicio(hoje);
-      setHoraInicio("09:00");
-      setDataFim(hoje);
-      setHoraFim("10:00");
-      setDiaInteiro(false);
-      setLocal("");
-      setModalidade("");
-      setObservacoes("");
-      setProcessoId(defaultProcessoId || "");
-      setAlertaValor(0);
-      setAlertaUnidade("horas");
-      setResponsaveisIds([]);
-      setEnvolvidosIds([]);
-      setMostrarEnvolvidos(false);
-      setSituacao("pendente");
-      setRecorrenciaTipo("nenhuma");
-      setRecorrenciaIntervalo(1);
-      setRecorrenciaFim("");
-      setRecorrenciaOcorrencias("");
-      setCoordenacaoId(unicaCoordenacaoId || "");
+      resetFormForNew();
     }
   }, [evento, open, alertasEvento, defaultProcessoId, unicaCoordenacaoId]);
 
