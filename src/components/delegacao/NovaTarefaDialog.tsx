@@ -542,10 +542,12 @@ export function NovaTarefaDialog({
     setLoading(true);
     try {
       let processoId = values.tipo_vinculo === "processo" ? normalizeUuid(values.processo_id) : null;
-      if (publicacao && userData?.id) {
+      if (publicacao) {
+        const uid = userData?.id || (await supabase.auth.getUser()).data.user?.id;
+        if (!uid) throw new Error("Usuário não autenticado.");
         const proc = await ensureProcessoFromPublicacao(
           publicacao,
-          userData.id,
+          uid,
           null,
           values.coordenacao_id || publicacao.coordenacao_id || null,
         );

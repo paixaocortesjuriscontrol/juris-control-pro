@@ -31,6 +31,7 @@ type Props = {
   defaultTitulo?: string;
   defaultObservacoes?: string;
   defaultDataAudiencia?: string;
+  publicacaoId?: string;
   secondarySave?: {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
@@ -67,6 +68,7 @@ export function AudienciaFormSimplificado({
   defaultTitulo,
   defaultObservacoes,
   defaultDataAudiencia,
+  publicacaoId,
   secondarySave,
   resolveProcessoBeforeSubmit,
 }: Props) {
@@ -175,6 +177,7 @@ export function AudienciaFormSimplificado({
     const payload: NovaAudiencia = {
       processo_id: processoIdParaSalvar,
       processo_numero: processoNumeroParaSalvar || "",
+      publicacao_id: publicacaoId,
       titulo: form.titulo.trim(),
       data_audiencia: form.data_audiencia,
       hora: form.hora || undefined,
