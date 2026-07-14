@@ -76,11 +76,8 @@ import { MonitoramentoToggle } from "./MonitoramentoToggle";
 import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
 import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
 import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
-import { CriarAudienciaProcessoDialog } from "@/components/audiencias/CriarAudienciaProcessoDialog";
 import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
 import { AudienciaObservacaoInline } from "@/components/audiencias/AudienciaObservacaoInline";
-import { CriarTarefaProcessoDialog } from "./CriarTarefaProcessoDialog";
-import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { NovoItemPanel, type NovoItemTipo } from "@/components/shared/NovoItemPanel";
 import { ClipboardList, CalendarPlus, Coins } from "lucide-react";
 import {
@@ -237,9 +234,6 @@ export function ProcessoDetalhesCompletos({
   const [analiseResult, setAnaliseResult] = useState<any>(null);
   const [analiseDialogOpen, setAnaliseDialogOpen] = useState(false);
   const [analyzingDocId, setAnalyzingDocId] = useState<string | null>(null);
-  const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
-  const [criarTarefaOpen, setCriarTarefaOpen] = useState(false);
-  const [novoEventoOpen, setNovoEventoOpen] = useState(false);
   // Painel unificado (mesmo do Painel de Controle): Tarefa, Evento, Prazo, Audiência, Parcelamento.
   const [novoItemTipo, setNovoItemTipo] = useState<NovoItemTipo | null>(null);
   const [itemParaEditar, setItemParaEditar] = useState<any | null>(null);
@@ -888,11 +882,11 @@ export function ProcessoDetalhesCompletos({
   };
 
   return (
-    <div className="min-h-screen sm:min-h-0 sm:h-[calc(100vh-112px)] bg-background overflow-hidden">
+    <div className="min-h-screen bg-background">
       {/* Main Content - Sidebar + Content */}
-      <div className="flex h-full min-h-0 flex-col sm:flex-row min-w-0">
+      <div className="flex min-h-0 flex-col sm:flex-row min-w-0">
         {/* Sidebar Navigation - Horizontal scrollable on mobile, vertical on desktop */}
-        <aside className="w-full sm:w-36 md:w-44 border-b sm:border-b-0 sm:border-r bg-muted/20 flex-shrink-0 sm:h-full sm:min-h-0">
+        <aside className="w-full sm:w-36 md:w-44 border-b sm:border-b-0 sm:border-r bg-muted/20 flex-shrink-0 sm:min-h-0">
           {/* Mobile: horizontal scroll, agrupado por categoria com separadores */}
           <div className="sm:hidden overflow-x-auto pb-1">
             <nav className="flex items-center gap-1 px-2 py-2 min-w-max">
@@ -932,7 +926,7 @@ export function ProcessoDetalhesCompletos({
             </nav>
           </div>
           {/* Desktop: vertical sidebar agrupado estilo Projuris */}
-          <ScrollArea className="hidden sm:block h-full">
+          <ScrollArea className="hidden sm:block max-h-[calc(100vh-112px)] sticky top-0">
             <nav className="py-2">
               <button
                 onClick={onVoltar}
@@ -983,11 +977,7 @@ export function ProcessoDetalhesCompletos({
             Evita ScrollArea (Radix) no conteúdo para não capturar gestos no mobile.
             No desktop mantemos scroll interno via overflow-y-auto + altura fixa.
           */}
-          <div className={cn(
-            "sm:h-full min-h-0",
-            "sm:overflow-y-auto",
-            novoItemTipo ? "p-0" : "p-3 sm:p-4"
-          )}>
+          <div className={cn("min-h-0", novoItemTipo ? "p-0" : "p-3 sm:p-4")}>
               {/* Painel unificado (mesmo do Painel de Controle) — sobrepõe o conteúdo */}
               {novoItemTipo && (
                 <div className="min-h-0">
@@ -1015,6 +1005,7 @@ export function ProcessoDetalhesCompletos({
                   movimentacoes={movimentacoes}
                   eventosAgenda={eventosAgenda}
                   onNavigate={handleSectionChange}
+                  onAddItem={abrirNovoItem}
                   hideJuditButtons
                 />
               )}
@@ -1254,12 +1245,6 @@ export function ProcessoDetalhesCompletos({
                       <p className="text-sm text-muted-foreground">Nenhuma audiência</p>
                     </div>
                   )}
-                  <CriarAudienciaProcessoDialog
-                    open={criarAudienciaOpen}
-                    onOpenChange={setCriarAudienciaOpen}
-                    processoNumero={processo.numero}
-                    processoId={processo.id}
-                  />
                 </div>
               )}
 
@@ -1968,17 +1953,6 @@ export function ProcessoDetalhesCompletos({
           setAnaliseDialogOpen(false);
           sonnerToast.success("Documento enviado com sucesso!");
         }}
-      />
-      <CriarTarefaProcessoDialog
-        open={criarTarefaOpen}
-        onOpenChange={setCriarTarefaOpen}
-        processoId={processo.id}
-        processoNumero={processo.numero}
-      />
-      <EventoDialog
-        open={novoEventoOpen}
-        onOpenChange={setNovoEventoOpen}
-        defaultProcessoId={processo.id}
       />
     </div>
   );

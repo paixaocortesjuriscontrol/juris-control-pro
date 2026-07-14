@@ -28,6 +28,7 @@ interface PendenciasProcessoCardProps {
   eventosAgenda?: any[];
   processoId?: string;
   processoNumero?: string;
+  onNavigate?: (section: string) => void;
 }
 
 export function PendenciasProcessoCard({ 
@@ -38,6 +39,7 @@ export function PendenciasProcessoCard({
   eventosAgenda = [],
   processoId,
   processoNumero,
+  onNavigate,
 }: PendenciasProcessoCardProps) {
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -145,6 +147,13 @@ export function PendenciasProcessoCard({
   const totalPendencias =
     audienciasPendentes.length + intimacoesPendentes.length + prazosPendentes.length + tarefasPendentes.length + eventosPendentes.length;
 
+  const navigateCard = (section: string) => {
+    onNavigate?.(section);
+  };
+
+  const clickableCardClass = () =>
+    cn(onNavigate && "cursor-pointer hover:bg-muted/60 transition-colors");
+
   return (
     <>
     <Card className="border border-border/60 shadow-md">
@@ -172,7 +181,8 @@ export function PendenciasProcessoCard({
               return (
                 <div
                   key={aud.id}
-                  className="text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-amber-500 space-y-1"
+                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-amber-500 space-y-1", clickableCardClass())}
+                  onClick={() => navigateCard("audiencias")}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground">{aud.tipo_audiencia || "Audiência"}</span>
@@ -229,7 +239,11 @@ export function PendenciasProcessoCard({
             {intimacoesPendentes.slice(0, 5).map((int) => {
               const days = getDaysLabel(int.data_limite);
               return (
-                <div key={int.id} className="text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-red-500 space-y-1">
+                <div
+                  key={int.id}
+                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-red-500 space-y-1", clickableCardClass())}
+                  onClick={() => navigateCard("intimacoes")}
+                >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">
                       {int.tipo_intimacao || int.resumo_objeto || "Intimação"}
@@ -276,7 +290,8 @@ export function PendenciasProcessoCard({
               return (
                 <div
                   key={t.id}
-                  className="text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-destructive space-y-1"
+                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-destructive space-y-1", clickableCardClass())}
+                  onClick={() => navigateCard("prazo")}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">{t.titulo}</span>
@@ -325,8 +340,10 @@ export function PendenciasProcessoCard({
                   key={t.id}
                   className={cn(
                     "text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] space-y-1",
-                    isOverdue ? "border-l-destructive" : "border-l-blue-500"
+                    isOverdue ? "border-l-destructive" : "border-l-blue-500",
+                    clickableCardClass()
                   )}
+                  onClick={() => navigateCard("tarefas")}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">{t.titulo}</span>
@@ -388,7 +405,8 @@ export function PendenciasProcessoCard({
               return (
                 <div
                   key={ev.id}
-                  className="text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-violet-500 space-y-1"
+                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-violet-500 space-y-1", clickableCardClass())}
+                  onClick={() => navigateCard("agenda")}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">{ev.titulo}</span>
