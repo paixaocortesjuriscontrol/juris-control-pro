@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatProcessoNumero } from "@/lib/utils";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
+import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 
 type Props = {
   defaultProcessoNumero?: string;
@@ -321,32 +322,7 @@ export function AudienciaFormSimplificado({
         </div>
       </div>
 
-      <div className="space-y-1.5">
-        <Label className="text-sm">Alertas internos de antecedência</Label>
-        <div className="flex gap-2 max-w-xs">
-          <Input
-            type="number"
-            min={0}
-            value={form.alerta_valor}
-            onChange={(e) => set("alerta_valor", parseInt(e.target.value || "0", 10))}
-            className="h-10 w-20"
-          />
-          <Select
-            value={form.alerta_unidade}
-            onValueChange={(v) => set("alerta_unidade", v)}
-          >
-            <SelectTrigger className="h-10 flex-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="minutos_antes">Minuto(s) antes</SelectItem>
-              <SelectItem value="horas_antes">Hora(s) antes</SelectItem>
-              <SelectItem value="dias_antes">Dia(s) antes</SelectItem>
-              <SelectItem value="dias_uteis_antes">Dia(s) úteis antes</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
+      <AlertasConfigCard />
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
