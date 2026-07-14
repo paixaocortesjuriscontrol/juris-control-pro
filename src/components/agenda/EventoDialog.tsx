@@ -837,7 +837,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       <DialogContent
         className={cn(
           "p-0 gap-0 overflow-hidden flex flex-col",
-          hasPublicacao ? "w-[95vw] max-w-5xl h-[90vh]" : "w-[95vw] max-w-2xl h-[90vh] max-h-[90vh]"
+          "w-[95vw] max-w-2xl h-[90vh] max-h-[90vh]"
         )}
         aria-describedby="evento-dialog-description"
       >
