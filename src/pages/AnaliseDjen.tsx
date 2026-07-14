@@ -5727,6 +5727,12 @@ const AnaliseDjen = () => {
             inline no topo da página (ver bloco acima), para esconder a lista
             e abrir o formulário na mesma tela. */}
       </div>
+      <PreagendarIaDialog
+        open={preagendarIaOpen}
+        onOpenChange={setPreagendarIaOpen}
+        publicacaoIds={Array.from(selectedIds.keys())}
+        coordenacaoId={coordenacaoId ?? undefined}
+      />
     </MainLayout>
   );
 };
