@@ -245,6 +245,10 @@ const AnaliseDjen = () => {
   const [novaAudienciaOpen, setNovaAudienciaOpen] = useState(false);
   const [adicionarProcessoId, setAdicionarProcessoId] = useState<string | undefined>(undefined);
   const [adicionarProcessoNumero, setAdicionarProcessoNumero] = useState<string | undefined>(undefined);
+  // Itens (prazo/evento/tarefa/audiência) criados nesta sessão a partir da
+  // publicação atualmente selecionada. Alimenta o card verde "Itens criados
+  // a partir desta publicação" exibido acima do split view.
+  const [itensCriadosSessao, setItensCriadosSessao] = useState<ItemCriado[]>([]);
 
   // Resolve o processo existente na base via número da publicação para pré-preencher os formulários
   const resolverProcessoDaPublicacao = async (pub: PublicacaoUnificada) => {
