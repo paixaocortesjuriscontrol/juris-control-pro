@@ -102,6 +102,7 @@ import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicac
 import { ExecucoesDoDiaLocalCard } from "@/components/djen/ExecucoesDoDiaLocalCard";
 import { jsPDF } from "jspdf";
 import { dedupePublicacoesDjen, stripDestinatarios } from "@/utils/djenDedup";
+import { PreagendarIaDialog } from "@/components/analise-djen/PreagendarIaDialog";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas' | 'kurier' | 'stf';
