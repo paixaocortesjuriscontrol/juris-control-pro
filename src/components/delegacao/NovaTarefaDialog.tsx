@@ -104,6 +104,8 @@ interface NovaTarefaDialogProps {
   processoPreSelecionado?: { id: string; numero: string } | null;
   tarefaParaEditar?: any | null;
   inline?: boolean;
+  /** Quando true (em conjunto com `inline`), usa fluxo natural sem scroll interno. */
+  embedded?: boolean;
   publicacao?: PublicacaoUnificada | null;
   onCreated?: (tarefaId: string) => void | Promise<void>;
   /**
@@ -125,6 +127,7 @@ export function NovaTarefaDialog({
   processoPreSelecionado,
   tarefaParaEditar,
   inline = false,
+  embedded = false,
   publicacao = null,
   onCreated,
   secondarySave,
@@ -882,7 +885,7 @@ export function NovaTarefaDialog({
     <>
       {Header}
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-4">
+        <div className={embedded ? "px-6 pb-4" : "flex-1 min-h-0 overflow-y-auto px-6 pb-4"}>
           {tarefaParaEditar?.id && (
             <div className="pb-4">
               <TarefaPublicacaoVinculada tarefaId={tarefaParaEditar.id} />
@@ -1502,7 +1505,7 @@ export function NovaTarefaDialog({
 
   if (inline) {
     return (
-      <div className="h-full flex flex-col bg-background overflow-hidden">
+      <div className={embedded ? "flex flex-col bg-background" : "h-full flex flex-col bg-background overflow-hidden"}>
         {Body}
       </div>
     );
