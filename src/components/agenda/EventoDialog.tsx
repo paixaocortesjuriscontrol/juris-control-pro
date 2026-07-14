@@ -396,7 +396,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const hasPublicacao = !!publicacao;
 
   const dialogBody = (
-    <div className={cn("flex flex-1 min-h-0 overflow-hidden", hasPublicacao ? "flex-col lg:flex-row" : "flex-col")}>
+    <div className={cn("flex flex-1 min-h-0 w-full overflow-hidden", hasPublicacao ? "flex-col lg:flex-row" : "flex-col")}>
           {hasPublicacao && (
             <div className="hidden lg:flex flex-1 border-r flex-col min-h-0">
               <div className="p-4 border-b bg-muted/30">
@@ -857,7 +857,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
 
   if (inline) {
     return (
-      <div className="h-full flex flex-col bg-background overflow-hidden">
+      <div className="h-full w-full flex flex-col bg-background overflow-hidden">
         {dialogBody}
       </div>
     );
