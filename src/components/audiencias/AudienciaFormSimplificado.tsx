@@ -78,7 +78,9 @@ export function AudienciaFormSimplificado({
     data_audiencia: defaultDataAudiencia ?? "",
   });
   const [situacao, setSituacao] = useState<string>("pendente");
-  const [processoNumero, setProcessoNumero] = useState(defaultProcessoNumero ?? "");
+  const [processoNumero, setProcessoNumero] = useState(
+    defaultProcessoNumero ? formatProcessoNumero(defaultProcessoNumero) : ""
+  );
   const [processoId, setProcessoId] = useState<string | undefined>(defaultProcessoId);
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
@@ -116,7 +118,7 @@ export function AudienciaFormSimplificado({
         if (withToast) toast.error("Processo não encontrado");
         return;
       }
-      setProcessoNumero(data.numero ?? numero);
+      setProcessoNumero(formatProcessoNumero(data.numero ?? numero));
       setProcessoId(data.id);
       if (withToast) toast.success("Processo encontrado");
     } finally {
@@ -268,6 +270,7 @@ export function AudienciaFormSimplificado({
             <Input
               value={processoNumero}
               onChange={(e) => setProcessoNumero(e.target.value)}
+              onBlur={(e) => setProcessoNumero(formatProcessoNumero(e.target.value))}
               placeholder="0000000-00.0000.0.00.0000"
               className="h-10"
             />
