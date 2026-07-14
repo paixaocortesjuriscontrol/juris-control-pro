@@ -92,6 +92,20 @@ type PrazoDialogProps = {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
   };
+  /**
+   * Botão adicional (ex.: "Salvar e fechar" na Análise DJEN). Igual ao
+   * secondarySave mas renderizado como um terceiro botão no rodapé.
+   */
+  tertiarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
+  /**
+   * Chamado após criar (não editar) o prazo com sucesso. Recebe o id
+   * e o título salvos. Usado pela Análise DJEN para popular o card verde
+   * de "Itens criados a partir desta publicação".
+   */
+  onAfterCreate?: (info: { id: string; titulo: string }) => void;
 };
 
 export function PrazoDialog({
@@ -105,12 +119,15 @@ export function PrazoDialog({
   embedded = false,
   hidePublicacaoCollapsible = false,
   secondarySave,
+  tertiarySave,
+  onAfterCreate,
 }: PrazoDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const createPrazo = useCreatePrazo();
   const updatePrazo = useUpdatePrazo();
   const secondaryClickedRef = useRef(false);
+  const tertiaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
 
   // Quando editando um prazo existente, carregar publicação vinculada (se houver)
