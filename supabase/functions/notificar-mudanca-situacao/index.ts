@@ -94,13 +94,12 @@ serve(async (req) => {
           if (cfg && cfg.canal_in_app === false) return null;
           if (cfg && cfg.evento_mudanca_situacao === false) return null;
           return {
-            user_id: uid,
+            usuario_id: uid,
             tipo: "mudanca_situacao",
             titulo: assunto,
             mensagem: corpo,
-            entidade: item.entidade,
-            entidade_id: item.entidade_id,
             lida: false,
+            dados: { entidade: item.entidade, entidade_id: item.entidade_id, status_anterior: item.status_anterior, status_novo: item.status_novo },
           };
         }).filter(Boolean);
         if (notifRows.length > 0) {
