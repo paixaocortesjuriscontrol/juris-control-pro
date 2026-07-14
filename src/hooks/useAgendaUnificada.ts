@@ -685,17 +685,10 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
             }
 
             for (const tarefa of tarefasFiltradas) {
-              // Dedup: skip if already seen
-              if (seenIds.has(tarefa.id)) continue;
-              seenIds.add(tarefa.id);
-
               const dataBaseISO: string | null = tarefa.data_vencimento ?? tarefa.data_fatal ?? tarefa.created_at ?? null;
               if (!dataBaseISO) continue;
 
               const dataBase = parseISO(dataBaseISO);
-              const diasRestantes = differenceInDays(startOfDay(dataBase), today);
-              const isAtrasado = diasRestantes < 0 && tarefa.status === "pendente";
-
               const statusUnificado = tarefa.status === "cumprido" ? "concluido" : tarefa.status;
               const tipoTarefaUpper = (tarefa.tipo_tarefa ?? "").toUpperCase().trim();
               // No modo fetchAll (admin/escritório), não classificar como "delegada" — o tipo vem do banco.
@@ -708,46 +701,95 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                 ? "tarefa_delegada"
                 : "tarefa";
 
-              resultItems.push({
-                id: tarefa.id,
-                titulo: tarefa.titulo,
-                descricao: tarefa.descricao,
-                tipo: tipoTarefa,
-                origem: "tarefa",
-                data_inicio:
-                  tarefa.data_vencimento || tarefa.data_fatal
-                    ? `${(tarefa.data_vencimento ?? tarefa.data_fatal)!}T00:00:00`
-                    : tarefa.created_at,
-                data_fim: null,
-                dia_inteiro: true,
-                local: null,
-                recorrente: false,
-                recorrencia_tipo: null,
-                status: statusUnificado,
-                prioridade: tarefa.prioridade,
-                concluido_em: tarefa.status === "cumprido" ? tarefa.updated_at : null,
-                created_at: tarefa.created_at,
-                updated_at: tarefa.updated_at,
-                processo_id: tarefa.processo_id,
-                coordenacao_id: tarefa.coordenacao_id,
-                processo: tarefa.processo
-                  ? {
-                      id: tarefa.processo.id,
-                      numero: tarefa.processo.numero,
-                      assunto: tarefa.processo.assunto,
-                      cliente_id: (tarefa.processo as { cliente_id?: string }).cliente_id,
+              // Expansão de recorrência para tarefas/prazos
+              const isRecorrenteT = !!(tarefa as any).recorrencia_tipo;
+              const windowStartT = filters.dataInicio ?? new Date(today.getFullYear(), today.getMonth() - 1, 1);
+              const windowEndT =
+                filters.dataFim ?? new Date(today.getFullYear(), today.getMonth() + 3, 0, 23, 59, 59);
+              const recorrenciaFimT = (tarefa as any).recorrencia_fim
+                ? endOfDay(parseISO(String((tarefa as any).recorrencia_fim)))
+                : null;
+              const hardStopT = recorrenciaFimT && recorrenciaFimT < windowEndT ? recorrenciaFimT : windowEndT;
+
+              const ocorrenciasT: Date[] = [];
+              if (!isRecorrenteT) {
+                ocorrenciasT.push(dataBase);
+              } else {
+                const tipo = normalizeRecorrenciaTipo((tarefa as any).recorrencia_tipo);
+                const intervalo = Math.max(1, Number((tarefa as any).recorrencia_intervalo || 1));
+                let cursor = new Date(dataBase);
+                let safety = 0;
+                const MAX = 500;
+                while (cursor <= hardStopT && safety < MAX) {
+                  safety++;
+                  if (cursor >= windowStartT) {
+                    if (tipo === "weekdays") {
+                      const dow = cursor.getDay();
+                      if (dow !== 0 && dow !== 6) ocorrenciasT.push(new Date(cursor));
+                    } else {
+                      ocorrenciasT.push(new Date(cursor));
                     }
-                  : null,
-                responsavel_id: tarefa.responsavel_id,
-                responsavel: tarefa.responsavel,
-                criado_por: tarefa.criado_por,
-                criador: tarefa.criado_por ? criadoresMap[tarefa.criado_por] || null : null,
-                dias_restantes: diasRestantes,
-                is_atrasado: isAtrasado,
-                tipo_tarefa: tarefa.tipo_tarefa,
-                data_vencimento: tarefa.data_vencimento,
-                data_fatal: tarefa.data_fatal,
-              });
+                  }
+                  if (tipo === "daily") cursor = addDays(cursor, intervalo);
+                  else if (tipo === "weekdays") {
+                    do { cursor = addDays(cursor, 1); } while (cursor.getDay() === 0 || cursor.getDay() === 6);
+                  } else if (tipo === "weekly") cursor = addDays(cursor, 7 * intervalo);
+                  else if (tipo === "monthly") cursor = addMonths(cursor, intervalo);
+                  else if (tipo === "yearly") cursor = addYears(cursor, intervalo);
+                  else break;
+                }
+                if (ocorrenciasT.length === 0 && dataBase >= windowStartT && dataBase <= hardStopT) {
+                  ocorrenciasT.push(dataBase);
+                }
+              }
+
+              for (const occ of ocorrenciasT) {
+                const occIso = occ.toISOString();
+                const occId = isRecorrenteT ? `${tarefa.id}::${occIso.slice(0, 10)}` : tarefa.id;
+                if (seenIds.has(occId)) continue;
+                seenIds.add(occId);
+                const diasRestantes = differenceInDays(startOfDay(occ), today);
+                const isAtrasado = diasRestantes < 0 && tarefa.status === "pendente";
+
+                resultItems.push({
+                  id: occId,
+                  titulo: tarefa.titulo,
+                  descricao: tarefa.descricao,
+                  tipo: tipoTarefa,
+                  origem: "tarefa",
+                  data_inicio: `${format(occ, "yyyy-MM-dd")}T00:00:00`,
+                  data_fim: null,
+                  dia_inteiro: true,
+                  local: null,
+                  recorrente: !!(tarefa as any).recorrente || isRecorrenteT,
+                  recorrencia_tipo: (tarefa as any).recorrencia_tipo ?? null,
+                  recorrencia_pai_id: isRecorrenteT ? tarefa.id : null,
+                  status: statusUnificado,
+                  prioridade: tarefa.prioridade,
+                  concluido_em: tarefa.status === "cumprido" ? tarefa.updated_at : null,
+                  created_at: tarefa.created_at,
+                  updated_at: tarefa.updated_at,
+                  processo_id: tarefa.processo_id,
+                  coordenacao_id: tarefa.coordenacao_id,
+                  processo: tarefa.processo
+                    ? {
+                        id: tarefa.processo.id,
+                        numero: tarefa.processo.numero,
+                        assunto: tarefa.processo.assunto,
+                        cliente_id: (tarefa.processo as { cliente_id?: string }).cliente_id,
+                      }
+                    : null,
+                  responsavel_id: tarefa.responsavel_id,
+                  responsavel: tarefa.responsavel,
+                  criado_por: tarefa.criado_por,
+                  criador: tarefa.criado_por ? criadoresMap[tarefa.criado_por] || null : null,
+                  dias_restantes: diasRestantes,
+                  is_atrasado: isAtrasado,
+                  tipo_tarefa: tarefa.tipo_tarefa,
+                  data_vencimento: tarefa.data_vencimento,
+                  data_fatal: tarefa.data_fatal,
+                });
+              }
             }
           }
         }
