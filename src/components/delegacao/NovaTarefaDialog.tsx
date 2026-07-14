@@ -568,6 +568,16 @@ export function NovaTarefaDialog({
           prioridade: values.prioridade,
           status: situacao,
           data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
+          recorrente: recorrenciaTipo !== "nenhuma",
+          recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
+          recorrencia_intervalo: recorrenciaTipo !== "nenhuma" ? recorrenciaIntervalo : null,
+          recorrencia_fim: recorrenciaTipo !== "nenhuma" && recorrenciaFim ? recorrenciaFim : null,
+          recorrencia_rrule:
+            recorrenciaTipo !== "nenhuma"
+              ? `FREQ=${recorrenciaTipo.toUpperCase()};INTERVAL=${recorrenciaIntervalo}${
+                  recorrenciaFim ? `;UNTIL=${recorrenciaFim.replace(/-/g, "")}T235959Z` : ""
+                }`
+              : null,
         };
 
         if (values.tipo_vinculo === "sem_vinculo") {
@@ -627,6 +637,16 @@ export function NovaTarefaDialog({
         prioridade: values.prioridade,
         status: situacao,
         criado_por: userData?.id || null,
+        recorrente: recorrenciaTipo !== "nenhuma",
+        recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
+        recorrencia_intervalo: recorrenciaTipo !== "nenhuma" ? recorrenciaIntervalo : null,
+        recorrencia_fim: recorrenciaTipo !== "nenhuma" && recorrenciaFim ? recorrenciaFim : null,
+        recorrencia_rrule:
+          recorrenciaTipo !== "nenhuma"
+            ? `FREQ=${recorrenciaTipo.toUpperCase()};INTERVAL=${recorrenciaIntervalo}${
+                recorrenciaFim ? `;UNTIL=${recorrenciaFim.replace(/-/g, "")}T235959Z` : ""
+              }`
+            : null,
       }).select("id").single();
 
       if (error) throw error;
