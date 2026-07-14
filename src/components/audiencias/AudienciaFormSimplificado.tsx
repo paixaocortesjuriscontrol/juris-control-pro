@@ -310,7 +310,11 @@ export function AudienciaFormSimplificado({
       }
       toast.success("Audiência atualizada com sucesso!");
     } else {
-      await criarAudiencia.mutateAsync(payload);
+      const criada: any = await criarAudiencia.mutateAsync(payload);
+      if (criada?.id && onAfterCreate) {
+        try { onAfterCreate({ id: criada.id, titulo: payload.titulo || "Audiência" }); }
+        catch (err) { console.warn("onAfterCreate falhou:", err); }
+      }
     }
     setForm({ ...empty });
     setResponsaveisIds([]);
@@ -321,7 +325,20 @@ export function AudienciaFormSimplificado({
       catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
       finally { secondaryClickedRef.current = false; }
     }
-    onSuccess?.();
+    const tertiaryWasClicked = tertiaryClickedRef.current;
+    if (tertiaryWasClicked) {
+      try { await tertiarySave?.onAfterSuccess(); }
+      catch (err) { console.error("tertiarySave.onAfterSuccess falhou:", err); }
+      finally { tertiaryClickedRef.current = false; }
+    }
+    // Análise DJEN: se onAfterCreate foi fornecido e o usuário clicou no Salvar
+    // primário (não em "Salvar e fechar"), mantém o form aberto para novo cadastro.
+    const manterAbertoParaNovo = !isEditing && !!onAfterCreate && !tertiaryWasClicked;
+    if (!manterAbertoParaNovo) {
+      onSuccess?.();
+    } else {
+      toast.success("Audiência salva. Você pode cadastrar outro item para esta publicação.");
+    }
   };
 
   return (
