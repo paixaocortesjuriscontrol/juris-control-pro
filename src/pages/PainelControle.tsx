@@ -67,6 +67,7 @@ import Notificacoes from "@/pages/Notificacoes";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 import { AcompanhamentoEspecialEventos } from "@/components/processos/AcompanhamentoEspecialEventos";
 import { Sparkles } from "lucide-react";
+import { NovoItemPanel as SharedNovoItemPanel } from "@/components/shared/NovoItemPanel";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
