@@ -405,7 +405,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
         catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
         finally { secondaryClickedRef.current = false; }
       }
-      if (tertiaryClickedRef.current) {
+      const tertiaryWasClicked = tertiaryClickedRef.current;
+      if (tertiaryWasClicked) {
         try { await tertiarySave?.onAfterSuccess(); }
         catch (err) { console.error("tertiarySave.onAfterSuccess falhou:", err); }
         finally { tertiaryClickedRef.current = false; }
@@ -417,7 +418,16 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
         queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
         queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
       ]);
-      onOpenChange(false);
+      // Análise DJEN: se onAfterCreate foi fornecido e o usuário clicou no
+      // Salvar primário (não em "Salvar e fechar"), mantém o formulário aberto
+      // e reseta para novo cadastro do mesmo tipo.
+      const manterAbertoParaNovo = !isEditing && !!onAfterCreate && !tertiaryWasClicked;
+      if (manterAbertoParaNovo) {
+        toast.success("Evento salvo. Você pode cadastrar outro item para esta publicação.");
+        resetFormForNew();
+      } else {
+        onOpenChange(false);
+      }
     } catch (error) {
       console.error("Erro ao salvar evento:", error);
     }
@@ -850,7 +860,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                 type="submit"
                 disabled={isPending}
                 className="w-full sm:w-auto"
-                onClick={() => { secondaryClickedRef.current = false; }}
+                onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
               >
                 {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {isEditing ? "Salvar" : "Criar evento"}
