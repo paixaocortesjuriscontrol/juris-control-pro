@@ -485,7 +485,7 @@ export function PrazoDialog({
   const hasPublicacao = !!publicacaoEfetiva;
 
   const FormContent = (
-    <form onSubmit={handleSubmit} className={embedded ? "flex flex-col" : "flex flex-col h-full"}>
+    <form id="prazo-form-content" onSubmit={handleSubmit} className={embedded ? "flex flex-col" : "flex flex-col h-full"}>
       <div className={embedded ? "p-5 space-y-4" : "flex-1 overflow-y-auto p-5 space-y-4"}>
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
@@ -503,6 +503,15 @@ export function PrazoDialog({
                 <SelectItem value="cancelado">❌ Cancelado</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              type="submit"
+              form="prazo-form-content"
+              size="sm"
+              disabled={isLoading}
+            >
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Salvar
+            </Button>
           {hasPublicacao ? (
             <BotaoPreencherIA
               conteudo={publicacaoEfetiva?.conteudo}
