@@ -117,6 +117,20 @@ interface NovaTarefaDialogProps {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
   };
+  /**
+   * Botão adicional (ex.: "Salvar e fechar" na Análise DJEN). Renderizado
+   * como um terceiro botão no rodapé.
+   */
+  tertiarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
+  /**
+   * Chamado após criar (não editar) a tarefa com sucesso. Recebe id e título.
+   * Usado pela Análise DJEN para popular o card verde "Itens criados a partir
+   * desta publicação".
+   */
+  onAfterCreate?: (info: { id: string; titulo: string }) => void;
 }
 
 export function NovaTarefaDialog({
@@ -131,9 +145,12 @@ export function NovaTarefaDialog({
   publicacao = null,
   onCreated,
   secondarySave,
+  tertiarySave,
+  onAfterCreate,
 }: NovaTarefaDialogProps) {
   const [loading, setLoading] = useState(false);
   const secondaryClickedRef = useRef(false);
+  const tertiaryClickedRef = useRef(false);
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
