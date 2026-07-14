@@ -90,6 +90,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
+import { PublicacaoSidePanel } from "@/components/shared/PublicacaoSidePanel";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 import { NovaAudienciaPublicacaoDialog } from "@/components/djen/NovaAudienciaPublicacaoDialog";
 import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
