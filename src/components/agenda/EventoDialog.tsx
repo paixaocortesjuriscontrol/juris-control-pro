@@ -861,6 +861,18 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   {secondarySave.label}
                 </Button>
               )}
+              {tertiarySave && !isEditing && (
+                <Button
+                  type="submit"
+                  variant="secondary"
+                  disabled={isPending}
+                  className="w-full sm:w-auto"
+                  onClick={() => { tertiaryClickedRef.current = true; }}
+                >
+                  {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {tertiarySave.label}
+                </Button>
+              )}
             </div>
           </form>
         </ScrollAreaOrDiv>
