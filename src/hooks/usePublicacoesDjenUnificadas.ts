@@ -1124,6 +1124,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           .select(`
             id,
             monitoramento_id,
+            processo_id,
             processo_numero,
             conteudo,
             data_publicacao,
@@ -1181,7 +1182,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           resultados.push({
             id: pub.id,
             tipo_origem: 'descartada',
-            processo_id: null,
+            processo_id: pub.processo_id ?? null,
             processo_numero: pub.processo_numero,
             conteudo: pub.conteudo,
             data_publicacao: pub.data_publicacao,
