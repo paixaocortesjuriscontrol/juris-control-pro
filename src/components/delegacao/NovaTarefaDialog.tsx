@@ -382,34 +382,41 @@ export function NovaTarefaDialog({
         }
         return;
       }
-      const coordenacaoInicial = unicaCoordenacaoId || (coordenacoesDisponiveis.length === 1 ? coordenacoesDisponiveis[0].id : "");
-      form.reset({
-        tipo_vinculo: "processo",
-        coordenacao_id: coordenacaoInicial,
-        processo_id: processoPreSelecionado?.id || "",
-        titulo: "",
-        descricao: "",
-        responsavel_id: "",
-        data_base: format(new Date(), "yyyy-MM-dd"),
-        data_vencimento: "",
-        hora_prevista: "",
-        data_fatal: "",
-        hora_fatal: "",
-        prioridade: "media",
-        local: "",
-      });
-      setSearchProcesso(processoPreSelecionado?.numero ? aplicarMascaraCnj(processoPreSelecionado.numero) : "");
-      setAnexos([]);
-      setResponsaveisIds([]);
-      setEnvolvidosIds([]);
-      setMostrarEnvolvidos(false);
-      setSituacao("pendente");
-      setRecorrenciaTipo("nenhuma");
-      setRecorrenciaIntervalo(1);
-      setRecorrenciaOcorrencias("");
-      setRecorrenciaFim("");
+      resetFormForNew();
     })();
   }, [open, processoPreSelecionado, form, coordenacoes, tarefaParaEditar, unicaCoordenacaoId]);
+
+  // Reset do formulário para "nova tarefa". Reutilizado pelo useEffect de
+  // abertura e pelo pós-Save quando o wrapper deve continuar aberto para
+  // cadastrar outro item (Análise DJEN).
+  const resetFormForNew = () => {
+    const coordenacaoInicial = unicaCoordenacaoId || (coordenacoesDisponiveis.length === 1 ? coordenacoesDisponiveis[0].id : "");
+    form.reset({
+      tipo_vinculo: "processo",
+      coordenacao_id: coordenacaoInicial,
+      processo_id: processoPreSelecionado?.id || "",
+      titulo: "",
+      descricao: "",
+      responsavel_id: "",
+      data_base: format(new Date(), "yyyy-MM-dd"),
+      data_vencimento: "",
+      hora_prevista: "",
+      data_fatal: "",
+      hora_fatal: "",
+      prioridade: "media",
+      local: "",
+    });
+    setSearchProcesso(processoPreSelecionado?.numero ? aplicarMascaraCnj(processoPreSelecionado.numero) : "");
+    setAnexos([]);
+    setResponsaveisIds([]);
+    setEnvolvidosIds([]);
+    setMostrarEnvolvidos(false);
+    setSituacao("pendente");
+    setRecorrenciaTipo("nenhuma");
+    setRecorrenciaIntervalo(1);
+    setRecorrenciaOcorrencias("");
+    setRecorrenciaFim("");
+  };
 
   const analisarDocumentoComIA = async (file: File): Promise<AnexoComAnalise['analise']> => {
     try {
