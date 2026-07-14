@@ -117,6 +117,20 @@ interface NovaTarefaDialogProps {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
   };
+  /**
+   * Botão adicional (ex.: "Salvar e fechar" na Análise DJEN). Renderizado
+   * como um terceiro botão no rodapé.
+   */
+  tertiarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
+  /**
+   * Chamado após criar (não editar) a tarefa com sucesso. Recebe id e título.
+   * Usado pela Análise DJEN para popular o card verde "Itens criados a partir
+   * desta publicação".
+   */
+  onAfterCreate?: (info: { id: string; titulo: string }) => void;
 }
 
 export function NovaTarefaDialog({
@@ -131,9 +145,12 @@ export function NovaTarefaDialog({
   publicacao = null,
   onCreated,
   secondarySave,
+  tertiarySave,
+  onAfterCreate,
 }: NovaTarefaDialogProps) {
   const [loading, setLoading] = useState(false);
   const secondaryClickedRef = useRef(false);
+  const tertiaryClickedRef = useRef(false);
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
@@ -365,34 +382,41 @@ export function NovaTarefaDialog({
         }
         return;
       }
-      const coordenacaoInicial = unicaCoordenacaoId || (coordenacoesDisponiveis.length === 1 ? coordenacoesDisponiveis[0].id : "");
-      form.reset({
-        tipo_vinculo: "processo",
-        coordenacao_id: coordenacaoInicial,
-        processo_id: processoPreSelecionado?.id || "",
-        titulo: "",
-        descricao: "",
-        responsavel_id: "",
-        data_base: format(new Date(), "yyyy-MM-dd"),
-        data_vencimento: "",
-        hora_prevista: "",
-        data_fatal: "",
-        hora_fatal: "",
-        prioridade: "media",
-        local: "",
-      });
-      setSearchProcesso(processoPreSelecionado?.numero ? aplicarMascaraCnj(processoPreSelecionado.numero) : "");
-      setAnexos([]);
-      setResponsaveisIds([]);
-      setEnvolvidosIds([]);
-      setMostrarEnvolvidos(false);
-      setSituacao("pendente");
-      setRecorrenciaTipo("nenhuma");
-      setRecorrenciaIntervalo(1);
-      setRecorrenciaOcorrencias("");
-      setRecorrenciaFim("");
+      resetFormForNew();
     })();
   }, [open, processoPreSelecionado, form, coordenacoes, tarefaParaEditar, unicaCoordenacaoId]);
+
+  // Reset do formulário para "nova tarefa". Reutilizado pelo useEffect de
+  // abertura e pelo pós-Save quando o wrapper deve continuar aberto para
+  // cadastrar outro item (Análise DJEN).
+  const resetFormForNew = () => {
+    const coordenacaoInicial = unicaCoordenacaoId || (coordenacoesDisponiveis.length === 1 ? coordenacoesDisponiveis[0].id : "");
+    form.reset({
+      tipo_vinculo: "processo",
+      coordenacao_id: coordenacaoInicial,
+      processo_id: processoPreSelecionado?.id || "",
+      titulo: "",
+      descricao: "",
+      responsavel_id: "",
+      data_base: format(new Date(), "yyyy-MM-dd"),
+      data_vencimento: "",
+      hora_prevista: "",
+      data_fatal: "",
+      hora_fatal: "",
+      prioridade: "media",
+      local: "",
+    });
+    setSearchProcesso(processoPreSelecionado?.numero ? aplicarMascaraCnj(processoPreSelecionado.numero) : "");
+    setAnexos([]);
+    setResponsaveisIds([]);
+    setEnvolvidosIds([]);
+    setMostrarEnvolvidos(false);
+    setSituacao("pendente");
+    setRecorrenciaTipo("nenhuma");
+    setRecorrenciaIntervalo(1);
+    setRecorrenciaOcorrencias("");
+    setRecorrenciaFim("");
+  };
 
   const analisarDocumentoComIA = async (file: File): Promise<AnexoComAnalise['analise']> => {
     try {
@@ -775,6 +799,10 @@ export function NovaTarefaDialog({
       if (novaTarefa?.id && onCreated) {
         await onCreated(novaTarefa.id);
       }
+      if (novaTarefa?.id && onAfterCreate) {
+        try { onAfterCreate({ id: novaTarefa.id, titulo: (novaTarefa as any).titulo || values.titulo || "Tarefa" }); }
+        catch (err) { console.warn("onAfterCreate falhou:", err); }
+      }
       if (secondaryClickedRef.current) {
         try {
           await secondarySave?.onAfterSuccess();
@@ -784,8 +812,19 @@ export function NovaTarefaDialog({
           secondaryClickedRef.current = false;
         }
       }
-      onOpenChange(false);
-      onSuccess?.();
+      const tertiaryWasClicked = tertiaryClickedRef.current;
+      if (tertiaryWasClicked) {
+        try { await tertiarySave?.onAfterSuccess(); }
+        catch (err) { console.error("tertiarySave.onAfterSuccess falhou:", err); }
+        finally { tertiaryClickedRef.current = false; }
+      }
+      const manterAbertoParaNovo = !tarefaParaEditar?.id && !!onAfterCreate && !tertiaryWasClicked;
+      if (manterAbertoParaNovo) {
+        resetFormForNew();
+      } else {
+        onOpenChange(false);
+        onSuccess?.();
+      }
     } catch (error: any) {
       toast({
         title: tarefaParaEditar?.id ? "Erro ao editar tarefa" : "Erro ao criar tarefa",
@@ -1459,7 +1498,7 @@ export function NovaTarefaDialog({
             form="nova-tarefa-form"
             disabled={loading || uploadingAnexos} 
             className="w-full sm:w-auto"
-            onClick={() => { secondaryClickedRef.current = false; }}
+            onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
           >
             {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
@@ -1475,6 +1514,19 @@ export function NovaTarefaDialog({
             >
               {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {secondarySave.label}
+            </Button>
+          )}
+          {tertiarySave && !tarefaParaEditar?.id && (
+            <Button
+              type="submit"
+              form="nova-tarefa-form"
+              disabled={loading || uploadingAnexos}
+              variant="secondary"
+              className="w-full sm:w-auto"
+              onClick={() => { tertiaryClickedRef.current = true; }}
+            >
+              {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {tertiarySave.label}
             </Button>
           )}
         </div>

@@ -27,6 +27,11 @@ interface NovaAudienciaPublicacaoDialogProps {
   defaultProcessoId?: string;
   inline?: boolean;
   onMarkAsRead?: () => Promise<void> | void;
+  tertiarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
+  onAfterCreate?: (info: { id: string; titulo: string }) => void;
 }
 
 export function NovaAudienciaPublicacaoDialog({
@@ -37,6 +42,8 @@ export function NovaAudienciaPublicacaoDialog({
   defaultProcessoId,
   inline = false,
   onMarkAsRead,
+  tertiarySave,
+  onAfterCreate,
 }: NovaAudienciaPublicacaoDialogProps) {
   const hasPublicacao = !!publicacao;
   const { user } = useAuth();
@@ -176,6 +183,8 @@ export function NovaAudienciaPublicacaoDialog({
                 hideTitleHeader
                 onSuccess={() => onOpenChange(false)}
                 secondarySave={secondarySave}
+                tertiarySave={tertiarySave}
+                onAfterCreate={onAfterCreate}
               />
             </ScrollArea>
           </div>

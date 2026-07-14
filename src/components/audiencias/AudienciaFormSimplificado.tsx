@@ -37,6 +37,11 @@ type Props = {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
   };
+  tertiarySave?: {
+    label: string;
+    onAfterSuccess: () => Promise<void> | void;
+  };
+  onAfterCreate?: (info: { id: string; titulo: string }) => void;
   resolveProcessoBeforeSubmit?: () => Promise<{ id: string; numero: string } | null>;
   audienciaParaEditar?: any | null;
   invalidateKey?: unknown[];
@@ -73,6 +78,8 @@ export function AudienciaFormSimplificado({
   defaultDataAudiencia,
   publicacaoId,
   secondarySave,
+  tertiarySave,
+  onAfterCreate,
   resolveProcessoBeforeSubmit,
   audienciaParaEditar,
   invalidateKey,
@@ -81,6 +88,7 @@ export function AudienciaFormSimplificado({
   const { criarAudiencia } = useAudienciasDetectadas();
   const isEditing = !!audienciaParaEditar?.id;
   const secondaryClickedRef = useRef(false);
+  const tertiaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const toDateInput = (value?: string | null) => value ? value.slice(0, 10) : "";
   const toTimeInput = (value?: string | null) => value ? value.slice(0, 5) : "";
@@ -302,7 +310,11 @@ export function AudienciaFormSimplificado({
       }
       toast.success("Audiência atualizada com sucesso!");
     } else {
-      await criarAudiencia.mutateAsync(payload);
+      const criada: any = await criarAudiencia.mutateAsync(payload);
+      if (criada?.id && onAfterCreate) {
+        try { onAfterCreate({ id: criada.id, titulo: payload.titulo || "Audiência" }); }
+        catch (err) { console.warn("onAfterCreate falhou:", err); }
+      }
     }
     setForm({ ...empty });
     setResponsaveisIds([]);
@@ -313,7 +325,20 @@ export function AudienciaFormSimplificado({
       catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
       finally { secondaryClickedRef.current = false; }
     }
-    onSuccess?.();
+    const tertiaryWasClicked = tertiaryClickedRef.current;
+    if (tertiaryWasClicked) {
+      try { await tertiarySave?.onAfterSuccess(); }
+      catch (err) { console.error("tertiarySave.onAfterSuccess falhou:", err); }
+      finally { tertiaryClickedRef.current = false; }
+    }
+    // Análise DJEN: se onAfterCreate foi fornecido e o usuário clicou no Salvar
+    // primário (não em "Salvar e fechar"), mantém o form aberto para novo cadastro.
+    const manterAbertoParaNovo = !isEditing && !!onAfterCreate && !tertiaryWasClicked;
+    if (!manterAbertoParaNovo) {
+      onSuccess?.();
+    } else {
+      toast.success("Audiência salva. Você pode cadastrar outro item para esta publicação.");
+    }
   };
 
   return (
@@ -343,7 +368,7 @@ export function AudienciaFormSimplificado({
               type="submit"
               size="sm"
               disabled={criarAudiencia.isPending}
-              onClick={(e) => { secondaryClickedRef.current = false; handleSubmit(e as any); }}
+              onClick={(e) => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; handleSubmit(e as any); }}
             >
               {criarAudiencia.isPending && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -362,6 +387,20 @@ export function AudienciaFormSimplificado({
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
                 {secondarySave.label}
+              </Button>
+            )}
+            {tertiarySave && !isEditing && (
+              <Button
+                type="submit"
+                size="sm"
+                variant="secondary"
+                disabled={criarAudiencia.isPending}
+                onClick={(e) => { tertiaryClickedRef.current = true; handleSubmit(e as any); }}
+              >
+                {criarAudiencia.isPending && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {tertiarySave.label}
               </Button>
             )}
           </div>
@@ -608,7 +647,7 @@ export function AudienciaFormSimplificado({
         <Button
           type="submit"
           disabled={criarAudiencia.isPending}
-          onClick={() => { secondaryClickedRef.current = false; }}
+          onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
         >
           {criarAudiencia.isPending && (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -626,6 +665,19 @@ export function AudienciaFormSimplificado({
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             )}
             {secondarySave.label}
+          </Button>
+        )}
+        {tertiarySave && !isEditing && (
+          <Button
+            type="submit"
+            variant="secondary"
+            disabled={criarAudiencia.isPending}
+            onClick={() => { tertiaryClickedRef.current = true; }}
+          >
+            {criarAudiencia.isPending && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
+            {tertiarySave.label}
           </Button>
         )}
       </div>

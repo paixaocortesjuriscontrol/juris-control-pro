@@ -4210,6 +4210,8 @@ const AnaliseDjen = () => {
                   publicacao={selectedPublicacao}
                   defaultProcessoId={adicionarProcessoId}
                   onMarkAsRead={markPubComoLida}
+                  tertiarySave={{ label: "Salvar e fechar", onAfterSuccess: fecharTudo }}
+                  onAfterCreate={registrarItemCriado("tarefa")}
                 />
               )}
               {novoEventoOpen && (
@@ -4259,6 +4261,8 @@ const AnaliseDjen = () => {
                   defaultProcessoNumero={adicionarProcessoNumero}
                   defaultProcessoId={adicionarProcessoId}
                   onMarkAsRead={markPubComoLida}
+                  tertiarySave={{ label: "Salvar e fechar", onAfterSuccess: fecharTudo }}
+                  onAfterCreate={registrarItemCriado("audiencia")}
                 />
               )}
             </div>
