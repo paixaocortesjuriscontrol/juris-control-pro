@@ -20,7 +20,7 @@ export default function ModelosTitulo() {
   const { isAdminOrCoordinator } = useUserRole();
   const { data: coords = [] } = useCoordenacoesFull();
   const [coordId, setCoordId] = useState<string>("");
-  const [tipo, setTipo] = useState<TipoModelo | "">("");
+  const [tipo, setTipo] = useState<string>("");
   const [editando, setEditando] = useState<Partial<ModeloTitulo> | null>(null);
 
   const { data: modelos = [], isLoading } = useModelosTitulo({
@@ -68,7 +68,7 @@ export default function ModelosTitulo() {
               {coords.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={tipo} onValueChange={(v) => setTipo(v as TipoModelo | "")}>
+          <Select value={tipo} onValueChange={setTipo}>
             <SelectTrigger className="w-40"><SelectValue placeholder="Todos os tipos" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">Todos</SelectItem>
