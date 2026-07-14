@@ -1,44 +1,89 @@
-## Objetivo
 
-Na tela **Análise DJEN**, ao criar Tarefa / Prazo / Evento / Audiência a partir de uma publicação, usar **exatamente os mesmos formulários** do Painel de Controle e as **mesmas regras de coordenação**:
+## Escopo
 
-- Não-admin: mostra apenas as coordenações às quais pertence.
-- Se o usuário só tem uma coordenação → o seletor não aparece (fica implícito).
-- Se tem mais de uma → seletor visível e escolha **obrigatória**.
-- Admin → vê todas, escolha obrigatória.
-- Toda Tarefa, Prazo, Evento e Audiência criada deve ter `coordenacao_id` preenchido (validação de submit).
+Aplicar duas mudanças em **todos os formulários abertos pelo botão "Adicionar"** do Painel de Controle e da Análise DJEN (Tarefa, Prazo, Evento, Audiência).
 
-## Situação atual
+---
 
-- `EventoDialog` e `PrazoDialog`: já são os mesmos do Painel e já usam `useCoordenacoesDoUsuario` + `CoordenacaoSelect`. Falta apenas tornar a coordenação **obrigatória** para admin/multi-coord.
-- `AudienciaFormSimplificado` (usado dentro de `NovaAudienciaPublicacaoDialog`): já é o mesmo do Painel. Falta obrigar a coordenação.
-- `CriarTarefaPublicacaoDialog` (DJEN): é um **formulário paralelo/custom** — não usa `useCoordenacoesDoUsuario`, não filtra membros pela coordenação do usuário, e não obriga coordenação. Precisa ser substituído.
+## 1) Recorrência em Tarefa e Prazo
 
-## Mudanças
+Hoje só **Evento** tem recorrência. Vamos replicar o mesmo bloco em **Tarefa** (`NovaTarefaDialog`) e **Prazo** (`PrazoDialog`), com duas opções de frequência principais:
 
-### 1. Tarefa — usar `NovaTarefaDialog` do Painel
-- Estender `NovaTarefaDialog` para aceitar contexto de publicação DJEN:
-  - Nova prop opcional `publicacao?: PublicacaoUnificada` (mostra painel lateral com o conteúdo da publicação e ativa o botão “Preencher com IA”).
-  - Ao salvar com `publicacao` presente: gravar o vínculo em `tarefas_publicacoes` (termo) ou `tarefas_publicacoes_processos` (processo), setar `origem = 'analise_djen'`, marcar a publicação como lida — mesma lógica do dialog atual.
-- Em `AnaliseDjen.tsx`, substituir `CriarTarefaPublicacaoDialog` por `NovaTarefaDialog` (com wrapper que passa `coordenacoes`, `publicacao`, `processoPreSelecionado`).
-- Remover `CriarTarefaPublicacaoDialog.tsx` após migração (arquivo não é mais referenciado em outras telas).
+- **Dias corridos** (diariamente, incluindo fins de semana)
+- **Dias úteis** (seg–sex)
 
-### 2. Coordenação obrigatória nos 4 formulários
-Ajustar `NovaTarefaDialog`, `EventoDialog`, `PrazoDialog` e `AudienciaFormSimplificado`:
-- Schema/validação: quando `precisaSelecionar === true` (usuário admin ou com múltiplas coordenações), exigir `coordenacao_id` não-vazio antes do submit — bloquear salvar com mensagem clara.
-- Quando `precisaSelecionar === false` e existe `unicaCoordenacaoId`: aplicar automaticamente e ocultar o seletor (comportamento atual do hook; garantir consistência).
-- O `CoordenacaoSelect` continua respeitando o hook `useCoordenacoesDoUsuario` (admin vê todas, demais só as suas).
+Mais as demais opções que já existem em Evento (Semanal, Mensal, Anual) para paridade.
 
-### 3. Sem mudanças de banco
-Todas as tabelas envolvidas (`tarefas`, `eventos_agenda`, `audiencias_detectadas`) já possuem `coordenacao_id`. A obrigatoriedade é aplicada no front — a app já é a única via de criação para esses fluxos.
+O usuário informa:
+- Frequência (Não se repete / Dias corridos / Dias úteis / Semanal / Mensal / Anual)
+- Quantas vezes deve aparecer **ou** data-fim
+- Intervalo (padrão 1)
+
+### Banco (migration)
+
+Adicionar em `public.tarefas` os mesmos campos que já existem em `eventos_agenda`:
+
+```sql
+ALTER TABLE public.tarefas
+  ADD COLUMN IF NOT EXISTS recorrente boolean DEFAULT false,
+  ADD COLUMN IF NOT EXISTS recorrencia_tipo text,       -- 'daily' | 'weekdays' | 'weekly' | 'monthly' | 'yearly'
+  ADD COLUMN IF NOT EXISTS recorrencia_intervalo int DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS recorrencia_fim date,
+  ADD COLUMN IF NOT EXISTS recorrencia_rrule text;
+```
+
+### Replicação no calendário
+
+`src/hooks/useAgendaUnificada.ts` — no bloco que empurra tarefas para `resultItems` (~linha 711), quando `recorrente=true` e `recorrencia_tipo` estiver preenchido, expandir a tarefa em várias ocorrências dentro da janela (mesma lógica já usada para eventos: cursor incremental por `daily`/`weekdays`/`weekly`/`monthly`/`yearly`, respeitando `recorrencia_fim`). Cada ocorrência recebe `recorrencia_pai_id = tarefa.id` para dedup/edição.
+
+Mesma expansão vale para prazos (que também são registros na tabela `tarefas`, com `tipo_tarefa='PRAZO'`).
+
+### UI
+
+- `NovaTarefaDialog.tsx`: adicionar bloco "Recorrência" acima do bloco de anexos, idêntico ao do `EventoDialog` (com "Dias corridos" e "Dias úteis" renomeando "Diariamente"/"Dias úteis (Seg–Sex)"). Persistir os novos campos no INSERT/UPDATE em `tarefas`.
+- `PrazoDialog.tsx`: mesmo bloco, logo antes de "Observações". Persistir via `useCreatePrazo`/`useUpdatePrazo` (adicionar campos no payload).
+
+---
+
+## 2) Remoção do campo "dias de alerta antes"
+
+Nos formulários **Tarefa, Prazo, Evento e Audiência**, remover o(s) input(s) de "alerta X dias antes" e substituir por um card informativo:
+
+```
+🔔 Alertas configuráveis
+Configure quando e como receber lembretes deste item no botão
+"Notificações" do Painel de Controle.
+```
+
+Arquivos afetados:
+
+- `src/components/prazos/PrazoDialog.tsx` — remove o bloco `Alerta` (linhas ~547–567) e para de enviar `alerta_dias`/`alerta_unidade` no payload (fica `null`).
+- `src/components/agenda/EventoDialog.tsx` — remove o(s) campo(s) de "lembrete" / "alertar X min/horas antes".
+- `src/components/audiencias/AudienciaFormSimplificado.tsx` — remove seletor de "lembrete antes".
+- `src/components/delegacao/NovaTarefaDialog.tsx` — remove qualquer campo equivalente, se existir.
+
+O card explicativo é um componente compartilhado novo `src/components/shared/AlertasConfigCard.tsx` reutilizado em todos os quatro formulários.
+
+Os dados de alerta já configurados em registros antigos ficam intactos no banco (não são apagados) — apenas deixam de ser editáveis por esses formulários.
+
+---
 
 ## Detalhes técnicos
 
-- Hooks reutilizados: `useCoordenacoesDoUsuario`, `useCoordenacaoPadrao`.
-- `NovaTarefaDialog` recebe novo prop `publicacao` + renderiza painel lateral (mesmo padrão de `NovaAudienciaPublicacaoDialog`: split lg:2-colunas quando há publicação).
-- Reaproveitar `BotaoPreencherIA` (já usado no dialog atual) dentro do `NovaTarefaDialog` quando `publicacao` estiver presente.
-- `AnaliseDjen.tsx`: atualizar apenas os 2 pontos onde `CriarTarefaPublicacaoDialog` é renderizado/importado.
+- Migration: apenas `ADD COLUMN IF NOT EXISTS`, sem GRANT novo (grants já existem em `tarefas`).
+- `recorrencia_rrule` é montado no submit exatamente como em `EventoDialog` (`FREQ=…;INTERVAL=…;UNTIL=…`).
+- Em `useAgendaUnificada`, ampliar a query de tarefas para trazer as novas colunas e reproduzir o loop de expansão já existente para eventos, respeitando a janela `windowStart`/`windowEnd`.
+- Não alteramos lógica de notificação/envio de alertas — apenas o formulário. A configuração continua via tela de Notificações do Painel.
 
-## Fora de escopo
+---
 
-- Nenhuma alteração em outros pontos que usam `NovaTarefaDialog`, `EventoDialog`, `PrazoDialog` ou `AudienciaFormSimplificado` (Painel, Delegação, Agenda) — todos continuam funcionando; o único efeito colateral é a nova obrigatoriedade de coordenação para admin/multi-coord, que já é o comportamento desejado globalmente segundo o pedido.
+## Arquivos alterados
+
+- `supabase/migrations/<nova>.sql` (migration)
+- `src/components/delegacao/NovaTarefaDialog.tsx`
+- `src/components/prazos/PrazoDialog.tsx`
+- `src/components/agenda/EventoDialog.tsx`
+- `src/components/audiencias/AudienciaFormSimplificado.tsx`
+- `src/components/shared/AlertasConfigCard.tsx` (novo)
+- `src/hooks/useAgendaUnificada.ts`
+- `src/hooks/usePrazos.ts` (aceitar novos campos no payload)
