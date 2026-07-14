@@ -52,6 +52,7 @@ interface ProcessoResumoCardProps {
   intimacoes?: any[];
   tarefas?: any[];
   movimentacoes?: any[];
+  onNavigate?: (section: string) => void;
   onMaisInformacoes: () => void;
   onExpandirEnvolvidos?: () => void;
   onAbrirProcessoExterno?: () => void;
@@ -81,6 +82,7 @@ export function ProcessoResumoCard({
   intimacoes = [],
   tarefas = [],
   movimentacoes = [],
+  onNavigate,
   onMaisInformacoes, 
   onExpandirEnvolvidos, 
   onAbrirProcessoExterno,
@@ -273,6 +275,7 @@ export function ProcessoResumoCard({
                 movimentacoes={movimentacoes}
                 processoId={processo.id}
                 processoNumero={processo.numero}
+                onNavigate={onNavigate}
               />
               <DepositosRecursaisCard processoId={processo.id} />
               <CustasProcessuaisCard processoId={processo.id} />

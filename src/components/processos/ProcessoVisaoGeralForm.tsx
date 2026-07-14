@@ -31,6 +31,7 @@ import { AcompanhamentoEspecialToggle } from "./AcompanhamentoEspecialToggle";
 import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
 import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
 import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
+import type { NovoItemTipo } from "@/components/shared/NovoItemPanel";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
@@ -43,6 +44,7 @@ interface Props {
   movimentacoes?: any[];
   eventosAgenda?: any[];
   onNavigate?: (section: string) => void;
+  onAddItem?: (tipo: NovoItemTipo) => void;
   /**
    * Quando true, renderiza apenas o cabeçalho com a barra de ações Judit
    * (Sincronizar / Judit c/ anexos / Judit Interno / Análise Judit / Anexos
@@ -124,6 +126,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   movimentacoes = [],
   eventosAgenda = [],
   onNavigate,
+  onAddItem,
   compact = false,
   actionsOnly = false,
   hideJuditButtons = false,
@@ -808,16 +811,16 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => setNovaTarefaOpen(true)}>
+                    <DropdownMenuItem onSelect={() => onAddItem ? onAddItem("tarefa") : setNovaTarefaOpen(true)}>
                       <ListTodo className="w-4 h-4 mr-2" /> Tarefa
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setNovoPrazoOpen(true)}>
+                    <DropdownMenuItem onSelect={() => onAddItem ? onAddItem("prazo") : setNovoPrazoOpen(true)}>
                       <Clock className="w-4 h-4 mr-2" /> Prazo
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setNovoEventoOpen(true)}>
+                    <DropdownMenuItem onSelect={() => onAddItem ? onAddItem("evento") : setNovoEventoOpen(true)}>
                       <CalendarDays className="w-4 h-4 mr-2" /> Evento
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => setCriarAudienciaOpen(true)}>
+                    <DropdownMenuItem onSelect={() => onAddItem ? onAddItem("audiencia") : setCriarAudienciaOpen(true)}>
                       <Gavel className="w-4 h-4 mr-2" /> Audiência
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -1182,6 +1185,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 eventosAgenda={eventosAgenda}
                 processoId={processo?.id}
                 processoNumero={processo?.numero}
+                onNavigate={onNavigate}
               />
               <DepositosRecursaisCard processoId={processo.id} />
               <CustasProcessuaisCard processoId={processo.id} />
@@ -1234,7 +1238,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           </div>
         </div>
       )}
-      {processo?.id && processo?.numero && (
+      {!onAddItem && processo?.id && processo?.numero && (
         <CriarAudienciaProcessoDialog
           open={criarAudienciaOpen}
           onOpenChange={setCriarAudienciaOpen}
@@ -1242,7 +1246,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           processoNumero={processo.numero}
         />
       )}
-      {processo?.id && (
+      {!onAddItem && processo?.id && (
         <>
           <EventoDialog
             open={novoEventoOpen}
