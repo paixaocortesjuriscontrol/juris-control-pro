@@ -21,6 +21,8 @@ import {
   conteudoDisplayClasses,
 } from "@/utils/formatConteudo";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
+import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
+import { formatProcessoNumero } from "@/lib/utils";
 
 interface Props {
   open: boolean;
@@ -83,13 +85,43 @@ export function NovaTarefaPublicacaoDialog({
       setProcessoPre(null);
       return;
     }
-    const id = defaultProcessoId || publicacao?.processo_id || null;
-    const numero = publicacao?.processo_numero || "";
-    // Sempre vincular ao processo da publicação: se ainda não temos id resolvido,
-    // usamos apenas o número (mascarado) para exibir no campo de busca.
-    if (id || numero) setProcessoPre({ id: id || "", numero });
-    else setProcessoPre(null);
-  }, [open, defaultProcessoId, publicacao?.processo_id, publicacao?.processo_numero]);
+    let cancelled = false;
+    (async () => {
+      const id = defaultProcessoId || publicacao?.processo_id || null;
+      const numero = publicacao?.processo_numero || "";
+      // Sem publicação — comportamento original.
+      if (!publicacao) {
+        if (id || numero) setProcessoPre({ id: id || "", numero });
+        else setProcessoPre(null);
+        return;
+      }
+      // Já temos id: usar direto (mascarado)
+      if (id) {
+        setProcessoPre({ id, numero: formatProcessoNumero(numero) || numero });
+        return;
+      }
+      // Não temos id: garantir criação/vínculo do processo a partir da publicação
+      if (numero && user?.id) {
+        try {
+          const proc = await ensureProcessoFromPublicacao(
+            publicacao,
+            user.id,
+            null,
+            publicacao.coordenacao_id || null,
+          );
+          if (cancelled) return;
+          if (proc?.id) {
+            setProcessoPre({ id: proc.id, numero: formatProcessoNumero(proc.numero) || proc.numero });
+            return;
+          }
+        } catch (err) {
+          console.error("[NovaTarefaPub] ensureProcesso falhou:", err);
+        }
+      }
+      setProcessoPre(numero ? { id: "", numero: formatProcessoNumero(numero) || numero } : null);
+    })();
+    return () => { cancelled = true; };
+  }, [open, defaultProcessoId, publicacao?.id, publicacao?.processo_id, publicacao?.processo_numero, user?.id]);
 
   const handleCreated = async (tarefaId: string) => {
     if (!publicacao) return;
