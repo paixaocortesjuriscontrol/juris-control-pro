@@ -219,8 +219,9 @@ const AnaliseDjen = () => {
   const dataDisponibilizacaoDebounced = useDebouncedValue(dataDisponibilizacao, 250);
   const dataPublicacaoDebounced = useDebouncedValue(dataPublicacao, 250);
   const filtroDataDisponibilizacaoAtivo = !!dataDisponibilizacaoDebounced;
-  const filtroQualquerDataAtivo = !!dataInicioDebounced || !!dataFimDebounced || filtroDataDisponibilizacaoAtivo;
-  const apenasHojeEfetivo = apenasHoje && !filtroDataDisponibilizacaoAtivo;
+  const filtroDataPublicacaoAtivo = !!dataPublicacaoDebounced;
+  const filtroQualquerDataAtivo = !!dataInicioDebounced || !!dataFimDebounced || filtroDataDisponibilizacaoAtivo || filtroDataPublicacaoAtivo;
+  const apenasHojeEfetivo = apenasHoje && !filtroDataDisponibilizacaoAtivo && !filtroDataPublicacaoAtivo;
 
   // Quando carregar a coordenação do usuário, definir como padrão
   useEffect(() => {
