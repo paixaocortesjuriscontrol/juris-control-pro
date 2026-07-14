@@ -142,8 +142,6 @@ interface ProcessoDetalhesCompletosProps {
   // Handlers
   onVoltar: () => void;
   onEditar: () => void;
-  onEditAudiencia?: (audiencia: any) => void;
-  onSelectAudiencia?: (audiencia: any) => void;
   onCriarTarefaAudiencia?: (audiencia: any) => void;
   audienciaInvalidateKey?: unknown[];
   onSelectIntimacao?: (intimacao: any) => void;
@@ -172,8 +170,6 @@ export function ProcessoDetalhesCompletos({
   initialSection,
   onVoltar,
   onEditar,
-  onEditAudiencia,
-  onSelectAudiencia,
   onCriarTarefaAudiencia,
   audienciaInvalidateKey,
   onSelectIntimacao,
