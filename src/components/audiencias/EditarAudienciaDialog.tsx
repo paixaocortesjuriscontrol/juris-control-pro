@@ -20,9 +20,10 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   inline?: boolean;
   embedded?: boolean;
+  invalidateKey?: unknown[];
 }
 
-export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = false, embedded = false }: Props) {
+export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = false, embedded = false, invalidateKey }: Props) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
@@ -199,8 +200,12 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
-      queryClient.invalidateQueries({ queryKey: ['audiencia-advogados', audiencia.id] });
+      await queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
+      await queryClient.invalidateQueries({ queryKey: ['audiencias-processo'] });
+      if (invalidateKey) {
+        await queryClient.invalidateQueries({ queryKey: invalidateKey });
+      }
+      await queryClient.invalidateQueries({ queryKey: ['audiencia-advogados', audiencia.id] });
       toast.success('Audiência atualizada com sucesso!');
       onOpenChange(false);
     } catch (error: any) {
