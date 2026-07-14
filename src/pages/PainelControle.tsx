@@ -1864,6 +1864,10 @@ export default function PainelControle() {
         }}
         evento={selectedParcelamento}
       />
+      <RelatorioAudienciasDialog
+        open={relatorioAudOpen}
+        onOpenChange={setRelatorioAudOpen}
+      />
     </MainLayout>
   );
 }
