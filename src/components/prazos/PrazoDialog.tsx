@@ -335,7 +335,7 @@ export function PrazoDialog({
       titulo: tituloFinal,
       data_vencimento: format(dataLimite, "yyyy-MM-dd"),
       prioridade: "media" as const,
-      processo_id: defaultProcessoId || prazo?.processo_id || null,
+      processo_id: processoIdEfetivo,
       responsavel_id: responsaveisIds[0],
       observacoes: observacoes.trim() || undefined,
       status: situacao,
@@ -377,7 +377,7 @@ export function PrazoDialog({
 
       if (tarefaId) {
         // Atualizar coordenação do processo, se alterada
-        const processoId = defaultProcessoId || prazo?.processo_id;
+        const processoId = processoIdEfetivo;
         if (processoId && coordenacaoId) {
           await supabase
             .from("processos")
