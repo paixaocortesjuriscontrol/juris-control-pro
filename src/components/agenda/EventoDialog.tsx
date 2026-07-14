@@ -32,7 +32,7 @@ import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/form
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { useCreateEvento, useUpdateEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
@@ -81,6 +81,7 @@ function minutosParaUnidade(min: number): { valor: number; unidade: AlertaUnidad
 export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, secondarySave }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
+  const queryClient = useQueryClient();
   const isEditing = !!evento;
   const secondaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
@@ -368,6 +369,13 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
         catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
         finally { secondaryClickedRef.current = false; }
       }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] }),
+        queryClient.invalidateQueries({ queryKey: ["eventos-agenda-processo"] }),
+        queryClient.invalidateQueries({ queryKey: ["processo"] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
+        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
+      ]);
       onOpenChange(false);
     } catch (error) {
       console.error("Erro ao salvar evento:", error);
