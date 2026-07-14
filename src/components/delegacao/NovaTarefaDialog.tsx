@@ -857,6 +857,15 @@ export function NovaTarefaDialog({
               <SelectItem value="cancelado">❌ Cancelada</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            type="submit"
+            form="nova-tarefa-form"
+            size="sm"
+            disabled={loading || uploadingAnexos}
+          >
+            {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Salvar
+          </Button>
         </div>
       </div>
     ) : (
@@ -875,6 +884,15 @@ export function NovaTarefaDialog({
                 <SelectItem value="cancelado">❌ Cancelada</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              type="submit"
+              form="nova-tarefa-form"
+              size="sm"
+              disabled={loading || uploadingAnexos}
+            >
+              {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Salvar
+            </Button>
           </div>
         </div>
       </DialogHeader>
