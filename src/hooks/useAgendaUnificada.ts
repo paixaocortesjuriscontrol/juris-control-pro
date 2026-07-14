@@ -19,6 +19,7 @@ export interface ItemAgendaUnificado {
   recorrente: boolean;
   recorrencia_tipo: string | null;
   recorrencia_pai_id?: string | null;
+  tarefa_pai_id?: string | null;
   status: string;
   prioridade?: string;
   concluido_em: string | null;
@@ -767,6 +768,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                   recorrente: !!(tarefa as any).recorrente || isRecorrenteT,
                   recorrencia_tipo: (tarefa as any).recorrencia_tipo ?? null,
                   recorrencia_pai_id: isRecorrenteT ? tarefa.id : null,
+                  tarefa_pai_id: isRecorrenteT ? tarefa.id : null,
                   status: statusUnificado,
                   prioridade: tarefa.prioridade,
                   concluido_em: tarefa.status === "cumprido" ? tarefa.updated_at : null,
@@ -1209,7 +1211,8 @@ export function useUpdateItemAgenda() {
     }) => {
       if (origem === "tarefa") {
         const tarefaStatus = (status === "concluido" ? "cumprido" : status) as "atrasado" | "cumprido" | "pendente";
-        const { error } = await supabase.from("tarefas").update({ status: tarefaStatus, updated_at: new Date().toISOString() }).eq("id", id);
+        const tarefaId = String(id).split("::")[0];
+        const { error } = await supabase.from("tarefas").update({ status: tarefaStatus, updated_at: new Date().toISOString() }).eq("id", tarefaId);
         if (error) throw error;
       } else {
         const { error } = await supabase.from("eventos_agenda").update({ status, concluido_em, updated_at: new Date().toISOString() }).eq("id", id);

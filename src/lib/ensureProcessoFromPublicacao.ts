@@ -15,21 +15,77 @@ function stripHtml(html: string): string {
     .trim();
 }
 
-async function vincularPublicacaoAoProcesso(pub: PublicacaoUnificada, processoId: string) {
+export async function salvarPublicacaoNoProcesso(pub: PublicacaoUnificada, processoId: string) {
   if (!pub?.id || !processoId) return;
-  const table = pub.tipo_origem === "processo"
-    ? "publicacoes_djen_processos"
-    : pub.tipo_origem === "descartada"
-      ? "publicacoes_djen_descartadas"
-      : "publicacoes_djen";
+
+  // Publicações descartadas são apenas auditoria: não devem ser vinculadas ao
+  // processo nem a tarefas/prazos/eventos criados pelo botão Adicionar.
+  if (pub.tipo_origem === "descartada" || pub.tipo_origem === "datajud") return;
+
+  if (pub.tipo_origem === "processo") {
+    await (supabase as any)
+      .from("publicacoes_djen_processos")
+      .update({ processo_id: processoId })
+      .eq("id", pub.id)
+      .then(() => {}, (err: any) => {
+        console.warn("[ensureProcessoFromPublicacao] falha ao vincular publicação do processo:", err);
+      });
+    return;
+  }
 
   await (supabase as any)
-    .from(table)
+    .from("publicacoes_djen")
     .update({ processo_id: processoId })
     .eq("id", pub.id)
     .then(() => {}, (err: any) => {
       console.warn("[ensureProcessoFromPublicacao] falha ao vincular publicação ao processo:", err);
     });
+
+  // A aba "Pub. DJEN" dos detalhes do processo historicamente lê a tabela
+  // publicacoes_djen_processos. Ao criar tarefa/prazo/evento/audiência a partir
+  // de uma publicação da Análise DJEN, também gravamos uma cópia ali para que a
+  // publicação clicada apareça imediatamente no processo/caso.
+  try {
+    const { data: original } = await (supabase as any)
+      .from("publicacoes_djen")
+      .select("id, hash_conteudo, processo_numero, conteudo, data_publicacao, data_disponibilizacao, fonte, lida, orgao, tipo_comunicacao, meio, advogados_json, partes_json, tribunal, dedup_processo_digits, dedup_data_ref, dedup_head_norm, coordenacao_id, status, dedup_key, id_djen")
+      .eq("id", pub.id)
+      .maybeSingle();
+
+    const hashConteudo = original?.hash_conteudo || pub.dedup_conteudo_key || pub.dedup_key || pub.id;
+    const processoNumero = original?.processo_numero || pub.processo_numero;
+    if (!hashConteudo || !processoNumero) return;
+
+    const row: Record<string, unknown> = {
+      processo_id: processoId,
+      processo_numero: processoNumero,
+      conteudo: original?.conteudo ?? pub.conteudo ?? null,
+      data_publicacao: original?.data_publicacao ?? pub.data_publicacao ?? null,
+      data_disponibilizacao: original?.data_disponibilizacao ?? pub.data_disponibilizacao ?? null,
+      fonte: original?.fonte ?? pub.fonte ?? "DJEN",
+      hash_conteudo: hashConteudo,
+      lida: original?.lida ?? pub.lida ?? false,
+      orgao: original?.orgao ?? pub.orgao ?? null,
+      tipo_comunicacao: original?.tipo_comunicacao ?? pub.tipo_comunicacao ?? null,
+      meio: original?.meio ?? pub.meio ?? null,
+      advogados_json: original?.advogados_json ?? pub.advogados_json ?? null,
+      partes_json: original?.partes_json ?? pub.partes_json ?? null,
+      tribunal: original?.tribunal ?? pub.tribunal ?? null,
+      dedup_processo_digits: original?.dedup_processo_digits ?? null,
+      dedup_data_ref: original?.dedup_data_ref ?? null,
+      dedup_head_norm: original?.dedup_head_norm ?? null,
+      coordenacao_id: original?.coordenacao_id ?? pub.coordenacao_id ?? null,
+      status: original?.status ?? "encontrada",
+      dedup_key: original?.dedup_key ?? pub.dedup_key ?? null,
+      id_djen: original?.id_djen ?? pub.id_djen ?? null,
+    };
+
+    await (supabase as any)
+      .from("publicacoes_djen_processos")
+      .upsert(row, { onConflict: "processo_id,hash_conteudo" });
+  } catch (err) {
+    console.warn("[ensureProcessoFromPublicacao] falha ao salvar publicação na aba Pub. DJEN:", err);
+  }
 }
 
 /**
@@ -122,7 +178,7 @@ export async function ensureProcessoFromPublicacao(
           .update({ coordenacao_id: coordenacaoIdOverride })
           .eq("id", existente.id);
       }
-      await vincularPublicacaoAoProcesso(pub, existente.id);
+      await salvarPublicacaoNoProcesso(pub, existente.id);
       return { id: existente.id, numero: existente.numero ?? numero };
     }
   } catch {
@@ -210,7 +266,7 @@ export async function ensureProcessoFromPublicacao(
     /* best-effort */
   }
 
-  await vincularPublicacaoAoProcesso(pub, processo!.id);
+  await salvarPublicacaoNoProcesso(pub, processo!.id);
 
   return { id: processo!.id, numero: processo!.numero ?? numero };
 }
