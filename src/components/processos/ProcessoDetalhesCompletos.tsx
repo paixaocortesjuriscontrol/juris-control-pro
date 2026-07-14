@@ -81,6 +81,8 @@ import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
 import { AudienciaObservacaoInline } from "@/components/audiencias/AudienciaObservacaoInline";
 import { CriarTarefaProcessoDialog } from "./CriarTarefaProcessoDialog";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
+import { NovoItemPanel, type NovoItemTipo } from "@/components/shared/NovoItemPanel";
+import { ClipboardList, CalendarPlus, Coins } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
