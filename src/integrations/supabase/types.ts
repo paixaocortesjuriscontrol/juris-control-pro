@@ -501,6 +501,7 @@ export type Database = {
           nucleo_origem: string | null
           observacoes: string | null
           origem: string | null
+          originada_de: string | null
           polo_ativo: string | null
           preposto: string | null
           processo_id: string | null
@@ -549,6 +550,7 @@ export type Database = {
           nucleo_origem?: string | null
           observacoes?: string | null
           origem?: string | null
+          originada_de?: string | null
           polo_ativo?: string | null
           preposto?: string | null
           processo_id?: string | null
@@ -597,6 +599,7 @@ export type Database = {
           nucleo_origem?: string | null
           observacoes?: string | null
           origem?: string | null
+          originada_de?: string | null
           polo_ativo?: string | null
           preposto?: string | null
           processo_id?: string | null
@@ -636,6 +639,13 @@ export type Database = {
             columns: ["movimentacao_id"]
             isOneToOne: false
             referencedRelation: "movimentacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiencias_detectadas_originada_de_fkey"
+            columns: ["originada_de"]
+            isOneToOne: false
+            referencedRelation: "audiencias_detectadas"
             referencedColumns: ["id"]
           },
           {
@@ -4391,6 +4401,62 @@ export type Database = {
           tipo?: string
         }
         Relationships: []
+      }
+      historico_reagendamentos_audiencia: {
+        Row: {
+          alterado_em: string
+          alterado_por: string | null
+          audiencia_id: string
+          data_anterior: string | null
+          data_nova: string | null
+          hora_anterior: string | null
+          hora_nova: string | null
+          id: string
+          modalidade_anterior: string | null
+          modalidade_nova: string | null
+          motivo: string | null
+          tipo_anterior: string | null
+          tipo_novo: string | null
+        }
+        Insert: {
+          alterado_em?: string
+          alterado_por?: string | null
+          audiencia_id: string
+          data_anterior?: string | null
+          data_nova?: string | null
+          hora_anterior?: string | null
+          hora_nova?: string | null
+          id?: string
+          modalidade_anterior?: string | null
+          modalidade_nova?: string | null
+          motivo?: string | null
+          tipo_anterior?: string | null
+          tipo_novo?: string | null
+        }
+        Update: {
+          alterado_em?: string
+          alterado_por?: string | null
+          audiencia_id?: string
+          data_anterior?: string | null
+          data_nova?: string | null
+          hora_anterior?: string | null
+          hora_nova?: string | null
+          id?: string
+          modalidade_anterior?: string | null
+          modalidade_nova?: string | null
+          motivo?: string | null
+          tipo_anterior?: string | null
+          tipo_novo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historico_reagendamentos_audiencia_audiencia_id_fkey"
+            columns: ["audiencia_id"]
+            isOneToOne: false
+            referencedRelation: "audiencias_detectadas"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       intimacoes_detectadas: {
         Row: {
