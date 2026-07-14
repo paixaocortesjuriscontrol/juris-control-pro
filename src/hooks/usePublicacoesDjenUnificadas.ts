@@ -862,6 +862,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             dedup_key,
             dedup_conteudo_key,
             monitoramento_id,
+            processo_id,
             processo_numero,
             conteudo,
             data_publicacao,
