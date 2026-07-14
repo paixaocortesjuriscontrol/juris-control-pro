@@ -567,7 +567,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
    * Preenche o máximo de atributos do formulário (todos os FIELDS quando a
    * Judit traz valor).
    */
-  const handleSyncJuditInterno = async (comAnexos: boolean = false) => {
+  const handleSyncJuditInterno = async (comAnexos: boolean = false, forceRefresh: boolean = false) => {
     if (!processo?.numero) {
       toast.warning("Processo sem número CNJ cadastrado.");
       return;
@@ -576,11 +576,37 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     const numeroLimpo = cnjMatch ? cnjMatch[0] : String(processo.numero).trim();
     if (comAnexos) setSyncingAnexos(true); else setSyncingInterno(true);
     try {
-      const { data, error } = await supabase.functions.invoke("judit-processo-interno", {
-        body: { numero_processo: numeroLimpo, force_refresh: true, with_attachments: comAnexos },
-      });
-      if (error) throw error;
-      if (data?.error) { toast.error(data.error); return; }
+      // Reaproveita a última resposta Judit gravada em judit_logs para este CNJ,
+      // evitando pagar uma nova consulta quando já existe resultado recente.
+      // Só busca de novo se `forceRefresh` estiver marcado OU se o usuário pediu
+      // com anexos e a última consulta não tinha anexos.
+      let data: any = null;
+      if (!forceRefresh) {
+        try {
+          const { data: cached } = await supabase
+            .from("judit_logs" as any)
+            .select("raw_response, request_payload, created_at")
+            .eq("processo_numero", numeroLimpo)
+            .eq("status", "sucesso")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const raw: any = (cached as any)?.raw_response;
+          const hadAtts = Array.isArray(raw?.attachments) && raw.attachments.length > 0;
+          if (raw && (!comAnexos || hadAtts)) {
+            data = raw;
+            toast.info("Reaproveitando última consulta Judit (sem nova cobrança).");
+          }
+        } catch (_) { /* segue para chamada nova */ }
+      }
+      if (!data) {
+        const resp = await supabase.functions.invoke("judit-processo-interno", {
+          body: { numero_processo: numeroLimpo, force_refresh: true, with_attachments: comAnexos },
+        });
+        if (resp.error) throw resp.error;
+        if ((resp.data as any)?.error) { toast.error((resp.data as any).error); return; }
+        data = resp.data;
+      }
 
       const next: Record<string, any> = { ...form };
       const filled = new Set<string>(juditSessionFields);
@@ -710,7 +736,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   useImperativeHandle(ref, () => ({
     save: handleSave,
     preencherFormularioJudit: async (comAnexos = false) => {
-      await handleSyncJuditInterno(comAnexos);
+      await handleSyncJuditInterno(comAnexos, false);
     },
   }), [handleSave, handleSyncJuditInterno, form, responsaveis, processo?.id]);
 
