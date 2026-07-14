@@ -85,7 +85,9 @@ export function NovaTarefaPublicacaoDialog({
     }
     const id = defaultProcessoId || publicacao?.processo_id || null;
     const numero = publicacao?.processo_numero || "";
-    if (id) setProcessoPre({ id, numero });
+    // Sempre vincular ao processo da publicação: se ainda não temos id resolvido,
+    // usamos apenas o número (mascarado) para exibir no campo de busca.
+    if (id || numero) setProcessoPre({ id: id || "", numero });
     else setProcessoPre(null);
   }, [open, defaultProcessoId, publicacao?.processo_id, publicacao?.processo_numero]);
 
