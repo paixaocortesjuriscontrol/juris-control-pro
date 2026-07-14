@@ -23,9 +23,11 @@ export async function salvarPublicacaoNoProcesso(pub: PublicacaoUnificada, proce
   if (pub.tipo_origem === "descartada" || pub.tipo_origem === "datajud") return;
 
   if (pub.tipo_origem === "processo") {
+    const updatePayload: Record<string, unknown> = { processo_id: processoId };
+    if (pub.processo_numero) updatePayload.processo_numero = pub.processo_numero;
     const { error } = await (supabase as any)
       .from("publicacoes_djen_processos")
-      .update({ processo_id: processoId, processo_numero: pub.processo_numero })
+      .update(updatePayload)
       .eq("id", pub.id);
     if (error) console.warn("[ensureProcessoFromPublicacao] falha ao vincular publicação do processo:", error);
     return;
