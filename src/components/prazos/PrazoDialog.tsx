@@ -562,26 +562,84 @@ export function PrazoDialog({
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <Label className="text-sm">Alerta</Label>
-          <div className="flex gap-2 max-w-xs">
-            <Input
-              type="number"
-              min={0}
-              value={alertaDias}
-              onChange={(e) => setAlertaDias(parseInt(e.target.value || "0", 10))}
-              className="h-10 w-20"
-            />
-            <Select value={alertaUnidade} onValueChange={(v) => setAlertaUnidade(v as Unidade)}>
-              <SelectTrigger className="h-10 flex-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="corridos">Dia(s) antes</SelectItem>
-                <SelectItem value="uteis">Dia(s) úteis antes</SelectItem>
-              </SelectContent>
-            </Select>
+        <AlertasConfigCard />
+
+        {/* Recorrência */}
+        <div className="rounded-md border p-3 space-y-3">
+          <Label className="text-sm font-medium">Recorrência</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Frequência</Label>
+              <Select
+                value={recorrenciaTipo}
+                onValueChange={(v) => {
+                  setRecorrenciaTipo(v);
+                  setRecorrenciaIntervalo(1);
+                }}
+              >
+                <SelectTrigger className="mt-1 h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nenhuma">Não se repete</SelectItem>
+                  <SelectItem value="daily">Dias corridos</SelectItem>
+                  <SelectItem value="weekdays">Dias úteis (Seg–Sex)</SelectItem>
+                  <SelectItem value="weekly">Semanalmente</SelectItem>
+                  <SelectItem value="monthly">Mensalmente</SelectItem>
+                  <SelectItem value="yearly">Anualmente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {recorrenciaTipo !== "nenhuma" && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Quantas vezes deve aparecer?</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  placeholder="Ex.: 9"
+                  value={recorrenciaOcorrencias}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setRecorrenciaOcorrencias(v);
+                    const n = parseInt(v);
+                    if (n && n > 0 && dataLimite) {
+                      const base = dataLimite;
+                      const offset = n - 1;
+                      let fim = base;
+                      if (recorrenciaTipo === "daily") fim = addDays(base, offset);
+                      else if (recorrenciaTipo === "weekdays") {
+                        let count = 0;
+                        fim = base;
+                        while (count < offset) {
+                          fim = addDays(fim, 1);
+                          const dow = fim.getDay();
+                          if (dow !== 0 && dow !== 6) count++;
+                        }
+                      } else if (recorrenciaTipo === "weekly") fim = addWeeks(base, offset);
+                      else if (recorrenciaTipo === "monthly") fim = addMonths(base, offset);
+                      else if (recorrenciaTipo === "yearly") fim = addYears(base, offset);
+                      setRecorrenciaFim(format(fim, "yyyy-MM-dd"));
+                    }
+                  }}
+                  className="mt-1 h-10"
+                />
+              </div>
+            )}
           </div>
+          {recorrenciaTipo !== "nenhuma" && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Ou até a data</Label>
+              <Input
+                type="date"
+                value={recorrenciaFim}
+                onChange={(e) => {
+                  setRecorrenciaFim(e.target.value);
+                  setRecorrenciaOcorrencias("");
+                }}
+                className="mt-1 h-10"
+              />
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
