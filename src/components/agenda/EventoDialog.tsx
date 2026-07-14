@@ -57,6 +57,12 @@ interface EventoDialogProps {
   inline?: boolean;
   /** Fluxo natural sem scroll interno (usado dentro de páginas). */
   embedded?: boolean;
+  /**
+   * Quando `true`, oculta o card verde expansível "Publicação DJEN vinculada"
+   * dentro do formulário. Usado pelo layout side-by-side da tela Análise DJEN,
+   * onde a publicação já é exibida em um painel lateral fixo à esquerda.
+   */
+  hidePublicacaoCollapsible?: boolean;
   secondarySave?: {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
@@ -86,7 +92,7 @@ function minutosParaUnidade(min: number): { valor: number; unidade: AlertaUnidad
   return { valor: min, unidade: "minutos" };
 }
 
-export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, embedded = false, secondarySave }: EventoDialogProps) {
+export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, embedded = false, hidePublicacaoCollapsible = false, secondarySave }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
   const queryClient = useQueryClient();
