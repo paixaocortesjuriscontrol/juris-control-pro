@@ -5,13 +5,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Plus, Pencil, Trash2, Save, X, Gavel, DollarSign } from "lucide-react";
 import { usePedidosProcesso, PedidoProcesso } from "@/hooks/usePedidosProcesso";
@@ -32,6 +31,10 @@ type PedidoFormData = {
   desembargador_turma: string;
   tst: boolean;
   ministro_turma_sessao: string;
+  resultado_sentenca: string;
+  resultado_recurso: string;
+  turma: string;
+  relator: string;
   observacao: string;
 };
 
@@ -46,6 +49,10 @@ const emptyPedido: PedidoFormData = {
   desembargador_turma: "",
   tst: false,
   ministro_turma_sessao: "",
+  resultado_sentenca: "",
+  resultado_recurso: "",
+  turma: "",
+  relator: "",
   observacao: "",
 };
 
@@ -90,6 +97,53 @@ function PedidoFormFields({
           value={data.data}
           onChange={(e) => setData({ ...data, data: e.target.value })}
         />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Resultado da Sentença</Label>
+          <Select value={data.resultado_sentenca || "__none__"} onValueChange={(value) => setData({ ...data, resultado_sentenca: value === "__none__" ? "" : value })}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Não informado</SelectItem>
+              <SelectItem value="improcedente">Improcedente</SelectItem>
+              <SelectItem value="procedente">Procedente</SelectItem>
+              <SelectItem value="parcialmente_procedente">Parcialmente procedente</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Resultado do Recurso</Label>
+          <Select value={data.resultado_recurso || "__none__"} onValueChange={(value) => setData({ ...data, resultado_recurso: value === "__none__" ? "" : value })}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Não informado</SelectItem>
+              <SelectItem value="provido">Provido</SelectItem>
+              <SelectItem value="parcialmente_provido">Parcialmente provido</SelectItem>
+              <SelectItem value="nao_provido">Não provido</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label>Turma</Label>
+          <Input
+            value={data.turma}
+            onChange={(e) => setData({ ...data, turma: e.target.value })}
+            placeholder="Turma julgadora"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Relator</Label>
+          <Input
+            value={data.relator}
+            onChange={(e) => setData({ ...data, relator: e.target.value })}
+            placeholder="Nome do relator"
+          />
+        </div>
       </div>
 
       <div className="border rounded-lg p-4 space-y-4">
@@ -234,9 +288,9 @@ const CurrencyInput = ({
 
 export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) {
   const { pedidos, isLoading, totalValor, addPedido, updatePedido, deletePedido } = usePedidosProcesso(processoId);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isEditingInline, setIsEditingInline] = useState(false);
   const [editData, setEditData] = useState<Record<string, PedidoFormData>>({});
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [newPedido, setNewPedido] = useState<PedidoFormData>(emptyPedido);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -253,7 +307,7 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
 
   // Initialize edit data when opening edit dialog
   useEffect(() => {
-    if (isEditDialogOpen && pedidos.length > 0) {
+    if (isEditingInline && pedidos.length > 0) {
       const initialData: Record<string, PedidoFormData> = {};
       pedidos.forEach((p) => {
         initialData[p.id] = {
@@ -267,12 +321,16 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           desembargador_turma: p.desembargador_turma || "",
           tst: p.tst,
           ministro_turma_sessao: p.ministro_turma_sessao || "",
+          resultado_sentenca: p.resultado_sentenca || "",
+          resultado_recurso: p.resultado_recurso || "",
+          turma: p.turma || "",
+          relator: p.relator || "",
           observacao: (p.observacao && p.observacao.toLowerCase() !== "false") ? p.observacao : "",
         };
       });
       setEditData(initialData);
     }
-  }, [isEditDialogOpen, pedidos]);
+  }, [isEditingInline, pedidos]);
 
   const handleAdd = async () => {
     if (!newPedido.pedido.trim()) return;
@@ -288,10 +346,14 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
       desembargador_turma: newPedido.desembargador_turma || null,
       tst: newPedido.tst,
       ministro_turma_sessao: newPedido.ministro_turma_sessao || null,
+      resultado_sentenca: newPedido.resultado_sentenca || null,
+      resultado_recurso: newPedido.resultado_recurso || null,
+      turma: newPedido.turma || null,
+      relator: newPedido.relator || null,
       observacao: (newPedido.observacao && newPedido.observacao.trim().toLowerCase() !== 'false') ? newPedido.observacao.trim() : null,
     });
     setNewPedido(emptyPedido);
-    setIsAddDialogOpen(false);
+    setShowAddForm(false);
   };
 
   const updateField = (id: string, field: keyof PedidoFormData, value: any) => {
@@ -318,10 +380,14 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           desembargador_turma: data.desembargador_turma || null,
           tst: data.tst,
           ministro_turma_sessao: data.ministro_turma_sessao || null,
+          resultado_sentenca: data.resultado_sentenca || null,
+          resultado_recurso: data.resultado_recurso || null,
+          turma: data.turma || null,
+          relator: data.relator || null,
           observacao: (data.observacao && data.observacao.trim().toLowerCase() !== 'false') ? data.observacao.trim() : null,
         });
       }
-      setIsEditDialogOpen(false);
+      setIsEditingInline(false);
       setEditData({});
     } finally {
       setIsSaving(false);
@@ -329,7 +395,7 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
   };
 
   const cancelEdit = () => {
-    setIsEditDialogOpen(false);
+    setIsEditingInline(false);
     setEditData({});
   };
 
@@ -363,6 +429,18 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
     return v;
   };
 
+  const formatResultado = (value: string | null) => {
+    const labels: Record<string, string> = {
+      improcedente: "Improcedente",
+      procedente: "Procedente",
+      parcialmente_procedente: "Parcialmente procedente",
+      provido: "Provido",
+      parcialmente_provido: "Parcialmente provido",
+      nao_provido: "Não provido",
+    };
+    return value ? labels[value] || value : "-";
+  };
+
   // Editable table component for the popup
   const EditableTableContent = () => (
     <div className="overflow-x-auto max-h-[60vh]">
@@ -373,9 +451,13 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
             <th className="px-2 py-2 text-right font-medium text-muted-foreground border-r w-24">Valor</th>
             <th className="px-2 py-2 text-center font-medium text-muted-foreground border-r w-28">Data</th>
             <th className="px-2 py-2 text-center font-medium text-muted-foreground border-r w-14">Sent.</th>
+            <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r w-40">Resultado Sentença</th>
             <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r w-28">Juiz</th>
             <th className="px-2 py-2 text-center font-medium text-muted-foreground border-r w-14">Acór.</th>
+            <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r w-40">Resultado Recurso</th>
             <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r w-28">Desemb.</th>
+            <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r w-28">Turma</th>
+            <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r w-28">Relator</th>
             <th className="px-2 py-2 text-center font-medium text-muted-foreground border-r w-12">TST</th>
             <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r w-28">Ministro</th>
             <th className="px-2 py-2 text-left font-medium text-muted-foreground border-r">Obs.</th>
@@ -417,6 +499,17 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                     />
                   </td>
                   <td className="px-1 py-0.5 border-r">
+                    <Select value={editData[pedido.id].resultado_sentenca || "__none__"} onValueChange={(value) => updateField(pedido.id, "resultado_sentenca", value === "__none__" ? "" : value)}>
+                      <SelectTrigger className="h-7 text-xs px-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Não informado</SelectItem>
+                        <SelectItem value="improcedente">Improcedente</SelectItem>
+                        <SelectItem value="procedente">Procedente</SelectItem>
+                        <SelectItem value="parcialmente_procedente">Parcialmente procedente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="px-1 py-0.5 border-r">
                     <Input
                       value={editData[pedido.id].juiz_sentenca}
                       onChange={(e) => updateField(pedido.id, "juiz_sentenca", e.target.value)}
@@ -431,9 +524,34 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                     />
                   </td>
                   <td className="px-1 py-0.5 border-r">
+                    <Select value={editData[pedido.id].resultado_recurso || "__none__"} onValueChange={(value) => updateField(pedido.id, "resultado_recurso", value === "__none__" ? "" : value)}>
+                      <SelectTrigger className="h-7 text-xs px-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Não informado</SelectItem>
+                        <SelectItem value="provido">Provido</SelectItem>
+                        <SelectItem value="parcialmente_provido">Parcialmente provido</SelectItem>
+                        <SelectItem value="nao_provido">Não provido</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="px-1 py-0.5 border-r">
                     <Input
                       value={editData[pedido.id].desembargador_turma}
                       onChange={(e) => updateField(pedido.id, "desembargador_turma", e.target.value)}
+                      className="h-7 text-xs px-1"
+                    />
+                  </td>
+                  <td className="px-1 py-0.5 border-r">
+                    <Input
+                      value={editData[pedido.id].turma}
+                      onChange={(e) => updateField(pedido.id, "turma", e.target.value)}
+                      className="h-7 text-xs px-1"
+                    />
+                  </td>
+                  <td className="px-1 py-0.5 border-r">
+                    <Input
+                      value={editData[pedido.id].relator}
+                      onChange={(e) => updateField(pedido.id, "relator", e.target.value)}
                       className="h-7 text-xs px-1"
                     />
                   </td>
@@ -470,9 +588,13 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
                   <td className="px-2 py-1.5 border-r text-right tabular-nums">{formatCurrency(pedido.valor_pedido)}</td>
                   <td className="px-2 py-1.5 border-r text-center">{formatDate(pedido.data)}</td>
                   <td className="px-2 py-1.5 border-r text-center">{pedido.sentenca ? "✓" : "-"}</td>
+                  <td className="px-2 py-1.5 border-r">{formatResultado(pedido.resultado_sentenca)}</td>
                   <td className="px-2 py-1.5 border-r">{pedido.juiz_sentenca || "-"}</td>
                   <td className="px-2 py-1.5 border-r text-center">{pedido.acordao ? "✓" : "-"}</td>
+                  <td className="px-2 py-1.5 border-r">{formatResultado(pedido.resultado_recurso)}</td>
                   <td className="px-2 py-1.5 border-r">{pedido.desembargador_turma || "-"}</td>
+                  <td className="px-2 py-1.5 border-r">{pedido.turma || "-"}</td>
+                  <td className="px-2 py-1.5 border-r">{pedido.relator || "-"}</td>
                   <td className="px-2 py-1.5 border-r text-center">{pedido.tst ? "✓" : "-"}</td>
                   <td className="px-2 py-1.5 border-r">{pedido.ministro_turma_sessao || "-"}</td>
                   <td className="px-2 py-1.5 border-r">{formatObs(pedido.observacao)}</td>
@@ -495,9 +617,13 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           <th className="px-2 py-1.5 text-right font-medium text-muted-foreground border-r w-24 whitespace-nowrap">Valor</th>
           <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-20 whitespace-nowrap">Data</th>
           <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-14 whitespace-nowrap">Sent.</th>
+          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-40 whitespace-nowrap">Resultado Sentença</th>
           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28 whitespace-nowrap">Juiz</th>
           <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-14 whitespace-nowrap">Acór.</th>
+          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-40 whitespace-nowrap">Resultado Recurso</th>
           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28 whitespace-nowrap">Desemb.</th>
+          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28 whitespace-nowrap">Turma</th>
+          <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28 whitespace-nowrap">Relator</th>
           <th className="px-2 py-1.5 text-center font-medium text-muted-foreground border-r w-12 whitespace-nowrap">TST</th>
           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground border-r w-28 whitespace-nowrap">Ministro</th>
           <th className="px-2 py-1.5 text-left font-medium text-muted-foreground whitespace-nowrap">Obs.</th>
@@ -510,9 +636,13 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
             <td className="px-2 py-1 border-r text-right tabular-nums whitespace-nowrap">{formatCurrency(pedido.valor_pedido)}</td>
             <td className="px-2 py-1 border-r text-center whitespace-nowrap">{formatDate(pedido.data)}</td>
             <td className="px-2 py-1 border-r text-center">{pedido.sentenca ? "✓" : "-"}</td>
+            <td className="px-2 py-1 border-r whitespace-nowrap">{formatResultado(pedido.resultado_sentenca)}</td>
             <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.juiz_sentenca || "-"}</td>
             <td className="px-2 py-1 border-r text-center">{pedido.acordao ? "✓" : "-"}</td>
+            <td className="px-2 py-1 border-r whitespace-nowrap">{formatResultado(pedido.resultado_recurso)}</td>
             <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.desembargador_turma || "-"}</td>
+            <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.turma || "-"}</td>
+            <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.relator || "-"}</td>
             <td className="px-2 py-1 border-r text-center">{pedido.tst ? "✓" : "-"}</td>
             <td className="px-2 py-1 border-r whitespace-nowrap">{pedido.ministro_turma_sessao || "-"}</td>
             <td className="px-2 py-1 whitespace-nowrap">{formatObs(pedido.observacao)}</td>
@@ -540,61 +670,55 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           {pedidos.length > 0 && (
-            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" variant="outline" className="h-8 px-3 text-xs flex-1 sm:flex-none">
-                  <Pencil className="w-3 h-3 mr-1" /> Editar pedidos
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-[95vw] w-full max-h-[90vh] overflow-hidden">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 flex-wrap">
-                    <Gavel className="w-5 h-5" />
-                    Editar Pedidos Trabalhistas
-                    <Badge variant="secondary">{pedidos.length} pedidos</Badge>
-                    {totalValor > 0 && (
-                      <Badge variant="outline" className="text-primary border-primary">
-                        Total: {formatCurrency(totalValor)}
-                      </Badge>
-                    )}
-                  </DialogTitle>
-                </DialogHeader>
-                <EditableTableContent />
-                <DialogFooter className="gap-2 sm:gap-0">
-                  <Button variant="outline" onClick={cancelEdit}>
-                    <X className="w-4 h-4 mr-1" /> Cancelar
-                  </Button>
-                  <Button onClick={saveAllChanges} disabled={isSaving}>
-                    <Save className="w-4 h-4 mr-1" /> {isSaving ? "Salvando..." : "Salvar Alterações"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-3 text-xs flex-1 sm:flex-none"
+              onClick={() => setIsEditingInline((value) => !value)}
+            >
+              {isEditingInline ? <X className="w-3 h-3 mr-1" /> : <Pencil className="w-3 h-3 mr-1" />}
+              {isEditingInline ? "Fechar edição" : "Editar pedidos"}
+            </Button>
           )}
 
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="outline" className="h-8 px-3 text-xs flex-1 sm:flex-none">
-                <Plus className="w-3 h-3 mr-1" /> Adicionar
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Novo Pedido</DialogTitle>
-              </DialogHeader>
-              <PedidoFormFields data={newPedido} setData={setNewPedido} />
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleAdd} disabled={!newPedido.pedido.trim() || addPedido.isPending}>
-                  <Save className="w-4 h-4 mr-1" /> Salvar
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button size="sm" variant="outline" className="h-8 px-3 text-xs flex-1 sm:flex-none" onClick={() => setShowAddForm((value) => !value)}>
+            {showAddForm ? <X className="w-3 h-3 mr-1" /> : <Plus className="w-3 h-3 mr-1" />}
+            {showAddForm ? "Cancelar" : "Adicionar"}
+          </Button>
         </div>
       </div>
+
+      {showAddForm && (
+        <div className="border-b bg-background px-3 py-3">
+          <div className="mb-2 text-sm font-medium">Novo Pedido</div>
+          <PedidoFormFields data={newPedido} setData={setNewPedido} />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => { setShowAddForm(false); setNewPedido(emptyPedido); }}>
+              Cancelar
+            </Button>
+            <Button onClick={handleAdd} disabled={!newPedido.pedido.trim() || addPedido.isPending}>
+              <Save className="w-4 h-4 mr-1" /> Salvar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {isEditingInline && pedidos.length > 0 && (
+        <div className="border-b bg-background px-3 py-3 space-y-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="text-sm font-medium">Editar Pedidos Trabalhistas</div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={cancelEdit}>
+                <X className="w-4 h-4 mr-1" /> Cancelar
+              </Button>
+              <Button size="sm" onClick={saveAllChanges} disabled={isSaving}>
+                <Save className="w-4 h-4 mr-1" /> {isSaving ? "Salvando..." : "Salvar Alterações"}
+              </Button>
+            </div>
+          </div>
+          <EditableTableContent />
+        </div>
+      )}
 
       {/* Área com scroll horizontal (mesma ideia do popup) */}
       <div
@@ -652,7 +776,7 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
           dragRef.current.active = false;
         }}
       >
-        <div className={pedidos.length > 0 ? "min-w-[800px]" : "min-w-0"}>
+        <div className={pedidos.length > 0 ? "min-w-[1200px]" : "min-w-0"}>
           {isLoading ? (
             <div className="text-center py-4 text-muted-foreground text-sm">Carregando...</div>
           ) : pedidos.length === 0 ? (
