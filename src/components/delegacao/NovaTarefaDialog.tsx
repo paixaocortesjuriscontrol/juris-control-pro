@@ -44,6 +44,7 @@ import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
+import { aplicarMascaraCnj } from "@/utils/cnjMask";
 
 type AnexoComAnalise = {
   file?: File;
@@ -204,7 +205,10 @@ export function NovaTarefaDialog({
       }
 
       if (searchProcesso.length >= 3) {
-        query = query.or(`numero.ilike.%${searchProcesso}%,polo_ativo.ilike.%${searchProcesso}%`);
+        // Busca tolerante a máscara CNJ: usa apenas dígitos para comparar com numero
+        const digits = searchProcesso.replace(/\D/g, "");
+        const numeroFilter = digits.length >= 3 ? `numero.ilike.%${digits}%,` : "";
+        query = query.or(`${numeroFilter}polo_ativo.ilike.%${searchProcesso}%`);
       }
 
       const { data, error } = await query;
@@ -372,7 +376,7 @@ export function NovaTarefaDialog({
         prioridade: "media",
         local: "",
       });
-      setSearchProcesso(processoPreSelecionado?.numero || "");
+      setSearchProcesso(processoPreSelecionado?.numero ? aplicarMascaraCnj(processoPreSelecionado.numero) : "");
       setAnexos([]);
       setResponsaveisIds([]);
       setEnvolvidosIds([]);
