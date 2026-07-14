@@ -675,6 +675,114 @@ export type Database = {
           },
         ]
       }
+      audiencias_publicacoes: {
+        Row: {
+          audiencia_id: string
+          created_at: string
+          id: string
+          publicacao_id: string
+        }
+        Insert: {
+          audiencia_id: string
+          created_at?: string
+          id?: string
+          publicacao_id: string
+        }
+        Update: {
+          audiencia_id?: string
+          created_at?: string
+          id?: string
+          publicacao_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audiencias_publicacoes_audiencia_id_fkey"
+            columns: ["audiencia_id"]
+            isOneToOne: false
+            referencedRelation: "audiencias_detectadas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiencias_publicacoes_publicacao_id_fkey"
+            columns: ["publicacao_id"]
+            isOneToOne: false
+            referencedRelation: "publicacoes_djen"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audiencias_publicacoes_descartadas: {
+        Row: {
+          audiencia_id: string
+          created_at: string
+          id: string
+          publicacao_descartada_id: string
+        }
+        Insert: {
+          audiencia_id: string
+          created_at?: string
+          id?: string
+          publicacao_descartada_id: string
+        }
+        Update: {
+          audiencia_id?: string
+          created_at?: string
+          id?: string
+          publicacao_descartada_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audiencias_publicacoes_descartada_publicacao_descartada_id_fkey"
+            columns: ["publicacao_descartada_id"]
+            isOneToOne: false
+            referencedRelation: "publicacoes_djen_descartadas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiencias_publicacoes_descartadas_audiencia_id_fkey"
+            columns: ["audiencia_id"]
+            isOneToOne: false
+            referencedRelation: "audiencias_detectadas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audiencias_publicacoes_processos: {
+        Row: {
+          audiencia_id: string
+          created_at: string
+          id: string
+          publicacao_processo_id: string
+        }
+        Insert: {
+          audiencia_id: string
+          created_at?: string
+          id?: string
+          publicacao_processo_id: string
+        }
+        Update: {
+          audiencia_id?: string
+          created_at?: string
+          id?: string
+          publicacao_processo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audiencias_publicacoes_processos_audiencia_id_fkey"
+            columns: ["audiencia_id"]
+            isOneToOne: false
+            referencedRelation: "audiencias_detectadas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audiencias_publicacoes_processos_publicacao_processo_id_fkey"
+            columns: ["publicacao_processo_id"]
+            isOneToOne: false
+            referencedRelation: "publicacoes_djen_processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       auditoria_tarefas: {
         Row: {
           acao: string
