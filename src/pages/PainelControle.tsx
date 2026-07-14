@@ -41,6 +41,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
 import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff } from "lucide-react";
+import { BarChart3 } from "lucide-react";
+import { RelatorioAudienciasDialog } from "@/components/audiencias/RelatorioAudienciasDialog";
 import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
@@ -1012,6 +1014,9 @@ export default function PainelControle() {
               <Link to="/notificacoes">Notificações</Link>
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => setRelatorioAudOpen(true)} title="Relatório de audiências por usuário/situação">
+            <BarChart3 className="w-4 h-4 mr-1" /> Relatório Audiências
+          </Button>
           {isAdmin && (
             <Button asChild variant="outline" size="sm">
               <Link to="/painel-intimacoes">Painel Intimações</Link>
