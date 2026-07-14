@@ -530,6 +530,10 @@ export function PrazoDialog({
           </div>
         </div>
 
+        {hasPublicacao && (
+          <PublicacaoVinculadaCollapsible publicacao={publicacaoEfetiva as any} />
+        )}
+
         <div className="space-y-1.5">
           <Label className="text-sm">
             Título do prazo<span className="text-destructive">*</span>
