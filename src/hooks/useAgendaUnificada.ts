@@ -698,6 +698,8 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                 ? "audiencia"
                 : tipoTarefaUpper === "EVENTO"
                 ? "evento"
+                : tipoTarefaUpper === "PRAZO"
+                ? "prazo"
                 : (!filters.fetchAll && tarefa.criado_por !== user.id && tarefa.responsavel_id === user.id)
                 ? "tarefa_delegada"
                 : "tarefa";
