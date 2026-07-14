@@ -432,7 +432,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             </div>
           )}
 
-          <div className={cn("flex flex-col min-h-0", hasPublicacao ? "w-full lg:w-[520px] bg-background" : "flex-1")}>
+          <div className={cn("flex flex-col min-h-0", hasPublicacao ? "w-full lg:w-[520px] bg-background" : "w-full flex-1")}>
             <div className="flex items-center justify-between gap-3 px-6 pt-5 pb-2 shrink-0">
               <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
                 Evento
