@@ -34,12 +34,14 @@ export function TstKanbanBoard({ prazos, onCardClick }: Props) {
   // On mobile/tablet, show urgent first (reversed order)
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
   const orderedColumns = isMobile ? [...columns].reverse() : columns;
+  // Oculta prazos já tratados (fatal conferido) do Kanban ativo.
+  const ativos = prazos.filter((p) => !p.prazo_fatal_conferido);
 
   return (
     <div className="flex-1 min-h-0 overflow-hidden pb-2">
       <div className="grid grid-cols-1 gap-3 min-h-0 md:grid-cols-6 h-full">
         {orderedColumns.map((col) => {
-          const items = prazos.filter((p) => col.filter(p));
+          const items = ativos.filter((p) => col.filter(p));
           return (
             <div
               key={col.key}

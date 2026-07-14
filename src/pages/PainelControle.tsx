@@ -40,7 +40,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
-import { ClipboardList, CalendarPlus, Clock, Gavel, Coins } from "lucide-react";
+import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff } from "lucide-react";
 import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
@@ -120,6 +120,14 @@ export default function PainelControle() {
   const [situacaoFilter, setSituacaoFilter] = useState<string>("todos");
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
+  const [mostrarTotalizadores, setMostrarTotalizadores] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const v = window.localStorage.getItem("painel:mostrarTotalizadores");
+    return v === null ? true : v === "1";
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("painel:mostrarTotalizadores", mostrarTotalizadores ? "1" : "0"); } catch {}
+  }, [mostrarTotalizadores]);
 
   const updateItemAgenda = useUpdateItemAgenda();
   const updateEvento = useUpdateEvento();
@@ -799,6 +807,8 @@ export default function PainelControle() {
   const contagensPorClassificacao = useMemo(() => {
     const counts = { tarefa: 0, evento: 0, prazo: 0, audiencia: 0, parcelamento: 0 };
     const base = itensAgenda.filter((item) => {
+      // Exclui itens já tratados/concluídos dos contadores dos cards totalizadores
+      if (isItemTratado(item)) return false;
       // Status (grupo simplificado)
       if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
         const st = (item.status ?? "").toLowerCase();
@@ -984,14 +994,24 @@ export default function PainelControle() {
       title="Painel de Controle"
       headerActions={
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMostrarTotalizadores((v) => !v)}
+            title={mostrarTotalizadores ? "Ocultar cards totalizadores" : "Mostrar cards totalizadores"}
+          >
+            {mostrarTotalizadores ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+          </Button>
           {isAdmin && (
             <Button asChild variant="outline" size="sm">
               <Link to="/dashboard">Dashboard</Link>
             </Button>
           )}
-          <Button asChild variant="outline" size="sm">
-            <Link to="/notificacoes">Notificações</Link>
-          </Button>
+          {isAdminOrCoordinator && (
+            <Button asChild variant="outline" size="sm">
+              <Link to="/notificacoes">Notificações</Link>
+            </Button>
+          )}
           {isAdmin && (
             <Button asChild variant="outline" size="sm">
               <Link to="/painel-intimacoes">Painel Intimações</Link>
@@ -1385,7 +1405,7 @@ export default function PainelControle() {
               <AcompanhamentoEspecialEventos limit={10} showProcesso />
             </div>
           </details>
-          {isLoading ? (
+          {!mostrarTotalizadores ? null : isLoading ? (
             <div className="flex gap-2">
               {[...Array(6)].map((_, i) => (
                 <Skeleton key={i} className="h-14 md:h-20 flex-1 rounded-lg" />

@@ -1427,8 +1427,9 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
       return { previousData };
     },
     onSuccess: (result) => {
-      // Refetch em background para sincronizar com o servidor (sem bloquear a UI)
-      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-servidor'] });
+      // Optimistic update em onMutate já refletiu na UI; apenas marcamos stale
+      // sem refetch imediato para evitar a sensação de "recarregar a página".
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-servidor'], refetchType: 'none' });
       queryClient.invalidateQueries({ queryKey: ['descartadas-count'] });
       queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
 

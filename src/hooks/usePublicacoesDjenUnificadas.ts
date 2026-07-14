@@ -1487,13 +1487,13 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       return { previousData };
     },
     onSuccess: (result) => {
-      // Refetch em background para sincronizar com o servidor (sem bloquear a UI)
-      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
+      // NÃO recarrega a lista principal — o optimistic update em onMutate já
+      // reflete o estado correto. Marcar stale (refetchType: 'none') garante que
+      // uma navegação futura busque dados frescos, sem "piscar" a página agora.
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'], refetchType: 'none' });
+      // Contadores/estatísticas SIM devem refletir a mudança imediatamente.
       queryClient.invalidateQueries({ queryKey: ['descartadas-count'] });
       queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
-      // Também invalida a query que alimenta os cards totalizadores do topo
-      // (Total no Período / Não Lidas / Por Termos / Por Processos / Únicas),
-      // caso contrário os números continuam iguais após "Marcar Lida".
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] });
       queryClient.invalidateQueries({ queryKey: ['publicacoes-djen-processo'] });
 
