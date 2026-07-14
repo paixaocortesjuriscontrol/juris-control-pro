@@ -477,6 +477,34 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
         </form>
   );
 
+  if (embedded) {
+    return (
+      <div className="rounded-lg border bg-card p-4 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3">
+          <h3 className="text-sm font-semibold">Audiência {audiencia?.processo_numero || ''}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <Label className="text-xs text-muted-foreground">Situação</Label>
+            <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
+              <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pendente">⏳ Pendente</SelectItem>
+                <SelectItem value="confirmado">✅ Confirmado</SelectItem>
+                <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
+                <SelectItem value="tratado">✔️ Tratado</SelectItem>
+                <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button type="submit" form={formId} size="sm" disabled={isLoading}>
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4 mr-1" />Salvar</>}
+            </Button>
+          </div>
+        </div>
+        {formBody}
+      </div>
+    );
+  }
+
   if (inline) {
     return (
       <div className="h-full flex flex-col bg-background overflow-hidden">
