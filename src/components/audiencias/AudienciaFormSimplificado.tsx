@@ -33,6 +33,7 @@ type Props = {
   defaultObservacoes?: string;
   defaultDataAudiencia?: string;
   publicacaoId?: string;
+  publicacaoTipoOrigem?: "termo" | "processo" | "descartada" | "datajud";
   secondarySave?: {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
@@ -77,6 +78,7 @@ export function AudienciaFormSimplificado({
   defaultObservacoes,
   defaultDataAudiencia,
   publicacaoId,
+  publicacaoTipoOrigem,
   secondarySave,
   tertiarySave,
   onAfterCreate,
@@ -250,7 +252,6 @@ export function AudienciaFormSimplificado({
     const payload: NovaAudiencia = {
       processo_id: processoIdParaSalvar,
       processo_numero: processoNumeroParaSalvar || "",
-      publicacao_id: publicacaoId,
       titulo: form.titulo.trim(),
       data_audiencia: form.data_audiencia,
       hora: form.hora || undefined,
@@ -311,6 +312,26 @@ export function AudienciaFormSimplificado({
       toast.success("Audiência atualizada com sucesso!");
     } else {
       const criada: any = await criarAudiencia.mutateAsync(payload);
+      // Vincular à publicação via tabela de junção correta conforme origem
+      if (criada?.id && publicacaoId && publicacaoTipoOrigem) {
+        try {
+          if (publicacaoTipoOrigem === "termo") {
+            await supabase
+              .from("audiencias_publicacoes")
+              .insert({ audiencia_id: criada.id, publicacao_id: publicacaoId });
+          } else if (publicacaoTipoOrigem === "processo") {
+            await supabase
+              .from("audiencias_publicacoes_processos")
+              .insert({ audiencia_id: criada.id, publicacao_processo_id: publicacaoId });
+          } else if (publicacaoTipoOrigem === "descartada") {
+            await supabase
+              .from("audiencias_publicacoes_descartadas")
+              .insert({ audiencia_id: criada.id, publicacao_descartada_id: publicacaoId });
+          }
+        } catch (err) {
+          console.warn("Falha ao vincular audiência à publicação:", err);
+        }
+      }
       if (criada?.id && onAfterCreate) {
         try { onAfterCreate({ id: criada.id, titulo: payload.titulo || "Audiência" }); }
         catch (err) { console.warn("onAfterCreate falhou:", err); }
