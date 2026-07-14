@@ -94,6 +94,9 @@ const TIPO_LABELS: Record<string, string> = {
   parcelamento: "Parcelamento",
 };
 
+const isItemCancelado = (item: Pick<ItemAgendaUnificado, "status">) =>
+  (item.status ?? "").toLowerCase() === "cancelado";
+
 const diasDaSemana = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
 export default function PainelControle() {
@@ -1675,12 +1678,15 @@ export default function PainelControle() {
                             <div className="space-y-0.5">
                               {visiveis.map((item) => {
                                 const isConcluido = isItemTratado(item);
+                                const isCancelado = isItemCancelado(item);
                                 return (
                                 <div
                                   key={item.id}
                                   className={cn(
                                     "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer font-medium flex items-center gap-0.5",
-                                    isConcluido
+                                    isCancelado
+                                      ? "bg-muted text-muted-foreground border border-border opacity-90"
+                                      : isConcluido
                                       ? "bg-green-500 text-white opacity-75"
                                       : cn("text-white", TIPO_CORES[item.tipo] || "bg-muted")
                                   )}
@@ -1695,7 +1701,7 @@ export default function PainelControle() {
                                   ) : (
                                     <FileText className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0 opacity-90" />
                                   )}
-                                  <span className={cn("truncate", isConcluido && "line-through")}>
+                                  <span className={cn("truncate", (isConcluido || isCancelado) && "line-through")}>
                                     {item.titulo || TIPO_LABELS[item.tipo]}
                                   </span>
                                 </div>
@@ -1738,12 +1744,15 @@ export default function PainelControle() {
                                       <div className="space-y-1 p-2">
                                         {itens.slice(MAX_VISIBLE).map((item) => {
                                           const isConcluido = isItemTratado(item);
+                                           const isCancelado = isItemCancelado(item);
                                           return (
                                           <div
                                             key={item.id}
                                             className={cn(
                                               "text-[10px] leading-tight px-2 py-1.5 rounded cursor-pointer font-medium flex items-center gap-1.5",
-                                              isConcluido
+                                               isCancelado
+                                                 ? "bg-muted text-muted-foreground border border-border opacity-90"
+                                                 : isConcluido
                                                 ? "bg-green-500 text-white opacity-75"
                                                 : cn("text-white", TIPO_CORES[item.tipo] || "bg-muted")
                                             )}
@@ -1758,7 +1767,7 @@ export default function PainelControle() {
                                             ) : (
                                               <FileText className="w-3 h-3 flex-shrink-0 opacity-90" />
                                             )}
-                                            <span className={cn("truncate", isConcluido && "line-through")}>
+                                             <span className={cn("truncate", (isConcluido || isCancelado) && "line-through")}>
                                               {item.titulo || TIPO_LABELS[item.tipo]}
                                             </span>
                                           </div>
