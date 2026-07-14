@@ -1801,6 +1801,33 @@ export function ProcessoDetalhesCompletos({
 
               {/* Portal Section */}
               {activeSection === "portal" && (
+
+              )}
+              {activeSection === "parcelamento" && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-semibold text-sm flex items-center gap-2">
+                      <Coins className="w-4 h-4" />
+                      Parcelamento recorrente
+                    </h3>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => abrirNovoItem("parcelamento")}
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Adicionar Parcelamento
+                    </Button>
+                  </div>
+                  <div className="text-center py-8 border rounded-lg bg-muted/20">
+                    <Coins className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      Clique em "Adicionar Parcelamento" para criar um parcelamento recorrente vinculado a este processo.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {activeSection === "portal-legacy-placeholder" && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-semibold text-sm flex items-center gap-2">
