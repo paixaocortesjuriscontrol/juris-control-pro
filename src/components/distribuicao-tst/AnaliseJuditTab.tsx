@@ -10,7 +10,7 @@ import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 
 interface Props {
   processoNumero: string;
-  onPreencherFormulario?: () => Promise<void> | void;
+  onPreencherFormulario?: (presetData?: any) => Promise<void> | void;
 }
 
 interface JuditLog {
@@ -433,7 +433,7 @@ export function AnaliseJuditTab({ processoNumero, onPreencherFormulario }: Props
               size="sm"
               onClick={async () => {
                 setPreenchendo(true);
-                try { await onPreencherFormulario(); await fetchLogs(); }
+                try { await onPreencherFormulario(log?.raw_response); await fetchLogs(); }
                 finally { setPreenchendo(false); }
               }}
               disabled={preenchendo || loading}
