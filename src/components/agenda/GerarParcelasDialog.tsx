@@ -26,7 +26,6 @@ import { toast } from "sonner";
 import { format, addDays, addWeeks, addMonths } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { Loader2, Calendar, DollarSign, Hash, Clock, FileText, Search, X, UserPlus, MessageCircle } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -83,6 +82,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const [coordenacaoProcessoFiltro, setCoordenacaoProcessoFiltro] = useState<string>(unicaCoordenacaoId ?? "todas");
   const [processoSearch, setProcessoSearch] = useState("");
   const [processoIds, setProcessoIds] = useState<string[]>([]);
+  const processoFixoNoDetalhe = !!defaultProcessoId && !evento;
 
   // Estados para participantes
   const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>(unicaCoordenacaoId ?? "todas");
@@ -685,6 +685,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                 </div>
               )}
 
+              {!processoFixoNoDetalhe && (
               <>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Select value={coordenacaoProcessoFiltro} onValueChange={setCoordenacaoProcessoFiltro}>
@@ -712,7 +713,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                     </div>
                   </div>
                   
-                  <div className="max-h-32 overflow-y-auto space-y-1">
+                  <div className="space-y-1">
                     {processos?.filter((pp) => !processoIds.includes(pp.id)).map((processo) => (
                       <div
                         key={processo.id}
@@ -736,6 +737,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                     )}
                   </div>
               </>
+              )}
             </div>
 
             {/* Responsáveis/Participantes */}
@@ -791,7 +793,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+              <div className="grid grid-cols-2 gap-2">
                 {filteredUsuarios?.filter(u => !formData.participantes_ids.includes(u.id)).map((usuario) => (
                   <div 
                     key={usuario.id} 
@@ -950,8 +952,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                     </Button>
                   </div>
                 </div>
-                <ScrollArea className="h-64">
-                  <div className="space-y-2">
+                <div className="space-y-2">
                     {parcelasPreview.map((parcela) => (
                       <div
                         key={parcela.numero}
@@ -993,7 +994,6 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                       </div>
                     ))}
                   </div>
-                </ScrollArea>
               </div>
             )}
 
