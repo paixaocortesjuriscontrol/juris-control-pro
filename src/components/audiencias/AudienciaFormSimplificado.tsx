@@ -647,7 +647,7 @@ export function AudienciaFormSimplificado({
         <Button
           type="submit"
           disabled={criarAudiencia.isPending}
-          onClick={() => { secondaryClickedRef.current = false; }}
+          onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
         >
           {criarAudiencia.isPending && (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -665,6 +665,19 @@ export function AudienciaFormSimplificado({
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             )}
             {secondarySave.label}
+          </Button>
+        )}
+        {tertiarySave && !isEditing && (
+          <Button
+            type="submit"
+            variant="secondary"
+            disabled={criarAudiencia.isPending}
+            onClick={() => { tertiaryClickedRef.current = true; }}
+          >
+            {criarAudiencia.isPending && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
+            {tertiarySave.label}
           </Button>
         )}
       </div>
