@@ -73,7 +73,7 @@ import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
 import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
 import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
 import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
-import { EditarAudienciaDialog } from "@/components/audiencias/EditarAudienciaDialog";
+import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
 import { NovoItemPanel, type NovoItemTipo } from "@/components/shared/NovoItemPanel";
 import { ClipboardList, CalendarPlus, Coins } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1025,15 +1025,17 @@ export function ProcessoDetalhesCompletos({
                           Voltar para audiências
                         </Button>
                       </div>
-                      <EditarAudienciaDialog
-                        audiencia={audienciaSelecionadaAtual}
-                        open
-                        onOpenChange={(open) => {
-                          if (!open) setAudienciaSelecionada(null);
-                        }}
-                        embedded
+                      <div className="px-4 sm:px-6 py-4 border rounded-lg bg-card">
+                        <AudienciaFormSimplificado
+                        hideTitleHeader
+                        showProcessoField={false}
+                        defaultProcessoId={processo?.id}
+                        defaultProcessoNumero={processo?.numero}
+                        audienciaParaEditar={audienciaSelecionadaAtual}
                         invalidateKey={audienciaInvalidateKey ?? ['audiencias-processo', processo?.id]}
+                        onSuccess={() => setAudienciaSelecionada(null)}
                       />
+                      </div>
                     </>
                   ) : (
                     <>
