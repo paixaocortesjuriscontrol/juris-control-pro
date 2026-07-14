@@ -581,6 +581,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       // Só busca de novo se `forceRefresh` estiver marcado OU se o usuário pediu
       // com anexos e a última consulta não tinha anexos.
       let data: any = null;
+      let fromCache = false;
       if (!forceRefresh) {
         try {
           const { data: cached } = await supabase
@@ -595,6 +596,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           const hadAtts = Array.isArray(raw?.attachments) && raw.attachments.length > 0;
           if (raw && (!comAnexos || hadAtts)) {
             data = raw;
+            fromCache = true;
             toast.info("Reaproveitando última consulta Judit (sem nova cobrança).");
           }
         } catch (_) { /* segue para chamada nova */ }
@@ -634,20 +636,22 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       (updatePayload as any).judit_campos = Array.from(filled);
       await supabase.from("processos").update(updatePayload as any).eq("id", processo.id);
 
-      // Log
+      // Log (só quando fizemos uma nova chamada paga)
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData?.user?.id || null;
-      try {
-        await supabase.from("judit_logs" as any).insert({
-          processo_numero: numeroLimpo,
-          tribunal: data?.tribunal || null,
-          request_payload: { numero_processo: numeroLimpo, fonte: "judit-processo-interno", with_attachments: comAnexos },
-          raw_response: data,
-          status: "sucesso",
-          error_message: null,
-          created_by: uid,
-        });
-      } catch (_) { /* noop */ }
+      if (!fromCache) {
+        try {
+          await supabase.from("judit_logs" as any).insert({
+            processo_numero: numeroLimpo,
+            tribunal: data?.tribunal || null,
+            request_payload: { numero_processo: numeroLimpo, fonte: "judit-processo-interno", with_attachments: comAnexos },
+            raw_response: data,
+            status: "sucesso",
+            error_message: null,
+            created_by: uid,
+          });
+        } catch (_) { /* noop */ }
+      }
 
       // Partes
       const partes = Array.isArray((data as any)?.parties_detail) ? (data as any).parties_detail : [];
