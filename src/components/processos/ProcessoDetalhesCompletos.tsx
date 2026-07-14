@@ -985,13 +985,15 @@ export function ProcessoDetalhesCompletos({
           */}
           <div className={cn(
             "sm:h-full min-h-0",
-            novoItemTipo ? "p-0 overflow-hidden" : "p-3 sm:p-4 sm:overflow-y-auto"
+            "sm:overflow-y-auto",
+            novoItemTipo ? "p-0" : "p-3 sm:p-4"
           )}>
               {/* Painel unificado (mesmo do Painel de Controle) — sobrepõe o conteúdo */}
               {novoItemTipo && (
-                <div className="h-full min-h-0">
+                <div className="min-h-0">
                   <NovoItemPanel
                     tipo={novoItemTipo}
+                    embedded
                     itemParaEditar={itemParaEditar}
                     processoPreSelecionado={processoPreSelecionado}
                     onClose={fecharNovoItem}
@@ -1592,7 +1594,6 @@ export function ProcessoDetalhesCompletos({
                   publicacoes={publicacoesDjen}
                   loading={loadingPublicacoes}
                   processoId={processo?.id}
-                  onCriarTarefa={onCriarTarefaPublicacao}
                 />
               )}
 

@@ -21,6 +21,11 @@ interface NovoItemPanelProps {
   processoPreSelecionado?: { id: string; numero: string } | null;
   /** Publicação DJEN vinculada, para exibir card verde retrátil. */
   publicacao?: any | null;
+  /**
+   * Modo embutido: usa fluxo natural (sem altura fixa nem overflow interno),
+   * de forma que a rolagem ocorra apenas no container externo da página.
+   */
+  embedded?: boolean;
 }
 
 /**
@@ -34,6 +39,7 @@ export function NovoItemPanel({
   itemParaEditar = null,
   processoPreSelecionado = null,
   publicacao = null,
+  embedded = false,
 }: NovoItemPanelProps) {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
@@ -76,17 +82,18 @@ export function NovoItemPanel({
   };
 
   return (
-    <div className="h-full w-full flex flex-col bg-background overflow-hidden">
-      <div className="flex items-center justify-end px-2 py-1.5 border-b bg-card flex-shrink-0">
+    <div className={embedded ? "w-full flex flex-col bg-background" : "h-full w-full flex flex-col bg-background overflow-hidden"}>
+      <div className="flex items-center justify-end px-2 py-1.5 border-b bg-card flex-shrink-0 sticky top-0 z-10">
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Fechar">
           <span className="sr-only">Fechar</span>
           ×
         </Button>
       </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className={embedded ? "w-full" : "flex-1 min-h-0 overflow-hidden"}>
         {tipo === "tarefa" && (
           <NovaTarefaDialog
             inline
+            embedded={embedded}
             open
             onOpenChange={handleOpenChange}
             coordenacoes={coordenacoes}
@@ -99,6 +106,7 @@ export function NovoItemPanel({
         {tipo === "evento" && (
           <EventoDialog
             inline
+            embedded={embedded}
             open
             onOpenChange={(o) => { handleOpenChange(o); if (!o) void onSuccess(); }}
             evento={itemParaEditar}
@@ -109,6 +117,7 @@ export function NovoItemPanel({
         {tipo === "prazo" && (
           <PrazoDialog
             inline
+            embedded={embedded}
             open
             onOpenChange={(o) => { handleOpenChange(o); if (!o) void onSuccess(); }}
             prazo={itemParaEditar}
@@ -117,11 +126,11 @@ export function NovoItemPanel({
           />
         )}
         {tipo === "audiencia" && (
-          <div className="h-full flex flex-col">
+          <div className={embedded ? "flex flex-col" : "h-full flex flex-col"}>
             <div className="px-4 pt-4 sm:px-6 sm:pt-5 pb-3 shrink-0 border-b">
               <h3 className="text-base font-semibold">Audiência</h3>
             </div>
-            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
+            <div className={embedded ? "px-4 sm:px-6 py-4" : "flex-1 overflow-y-auto px-4 sm:px-6 py-4"}>
               <AudienciaFormSimplificado
                 hideTitleHeader
                 defaultProcessoId={processoPreSelecionado?.id}
@@ -136,6 +145,7 @@ export function NovoItemPanel({
         {tipo === "parcelamento" && (
           <GerarParcelasDialog
             inline
+            embedded={embedded}
             open
             onOpenChange={(o) => { handleOpenChange(o); if (!o) void onSuccess(); }}
             evento={itemParaEditar}

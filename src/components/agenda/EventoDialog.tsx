@@ -43,6 +43,11 @@ import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao
 import { useAuth } from "@/contexts/AuthContext";
 import { PublicacaoVinculadaCollapsible } from "@/components/shared/PublicacaoVinculadaCollapsible";
 
+function ScrollAreaOrDiv({ embedded, children }: { embedded?: boolean; children: React.ReactNode }) {
+  if (embedded) return <div className="px-6">{children}</div>;
+  return <ScrollArea className="flex-1 px-6">{children}</ScrollArea>;
+}
+
 interface EventoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -50,6 +55,8 @@ interface EventoDialogProps {
   defaultProcessoId?: string;
   publicacao?: PublicacaoUnificada | null;
   inline?: boolean;
+  /** Fluxo natural sem scroll interno (usado dentro de páginas). */
+  embedded?: boolean;
   secondarySave?: {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
@@ -79,7 +86,7 @@ function minutosParaUnidade(min: number): { valor: number; unidade: AlertaUnidad
   return { valor: min, unidade: "minutos" };
 }
 
-export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, secondarySave }: EventoDialogProps) {
+export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, embedded = false, secondarySave }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
   const queryClient = useQueryClient();
@@ -397,8 +404,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const hasPublicacao = !!publicacao;
 
   const dialogBody = (
-    <div className="flex flex-1 min-h-0 w-full overflow-hidden flex-col">
-          <div className="flex flex-col min-h-0 w-full flex-1">
+    <div className={embedded ? "flex w-full flex-col" : "flex flex-1 min-h-0 w-full overflow-hidden flex-col"}>
+          <div className={embedded ? "flex flex-col w-full" : "flex flex-col min-h-0 w-full flex-1"}>
             <div className="flex items-center justify-between gap-3 px-6 pt-5 pb-2 shrink-0">
               <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
                 Evento
@@ -436,7 +443,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               )}
               </div>
             </div>
-            <ScrollArea className="flex-1 px-6">
+            <ScrollAreaOrDiv embedded={embedded}>
               <form onSubmit={handleSubmit} className="space-y-5 pb-6" id="evento-form-content">
             {hasPublicacao && (
               <PublicacaoVinculadaCollapsible publicacao={publicacao as any} />
@@ -819,14 +826,14 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               )}
             </div>
           </form>
-        </ScrollArea>
+        </ScrollAreaOrDiv>
           </div>
         </div>
   );
 
   if (inline) {
     return (
-      <div className="h-full w-full flex flex-col bg-background overflow-hidden">
+      <div className={embedded ? "w-full flex flex-col bg-background" : "h-full w-full flex flex-col bg-background overflow-hidden"}>
         {dialogBody}
       </div>
     );
