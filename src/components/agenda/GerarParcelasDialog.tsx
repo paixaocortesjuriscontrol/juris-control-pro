@@ -714,7 +714,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                     </div>
                   </div>
                   
-                  <div className="max-h-32 overflow-y-auto space-y-1">
+                  <div className="space-y-1">
                     {processos?.filter((pp) => !processoIds.includes(pp.id)).map((processo) => (
                       <div
                         key={processo.id}
@@ -794,7 +794,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+              <div className="grid grid-cols-2 gap-2">
                 {filteredUsuarios?.filter(u => !formData.participantes_ids.includes(u.id)).map((usuario) => (
                   <div 
                     key={usuario.id} 
@@ -953,8 +953,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                     </Button>
                   </div>
                 </div>
-                <ScrollArea className="h-64">
-                  <div className="space-y-2">
+                <div className="space-y-2">
                     {parcelasPreview.map((parcela) => (
                       <div
                         key={parcela.numero}
@@ -996,7 +995,6 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                       </div>
                     ))}
                   </div>
-                </ScrollArea>
               </div>
             )}
 
