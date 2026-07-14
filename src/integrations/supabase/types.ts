@@ -1741,6 +1741,57 @@ export type Database = {
           },
         ]
       }
+      config_notificacoes_usuario: {
+        Row: {
+          canal_email: boolean
+          canal_in_app: boolean
+          canal_whatsapp: boolean
+          created_at: string
+          evento_comentario: boolean
+          evento_mudanca_situacao: boolean
+          evento_prazo_perdido: boolean
+          evento_reagendamento: boolean
+          evento_tarefa_nova: boolean
+          id: string
+          janela_hora_fim: number
+          janela_hora_inicio: number
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          canal_email?: boolean
+          canal_in_app?: boolean
+          canal_whatsapp?: boolean
+          created_at?: string
+          evento_comentario?: boolean
+          evento_mudanca_situacao?: boolean
+          evento_prazo_perdido?: boolean
+          evento_reagendamento?: boolean
+          evento_tarefa_nova?: boolean
+          id?: string
+          janela_hora_fim?: number
+          janela_hora_inicio?: number
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          canal_email?: boolean
+          canal_in_app?: boolean
+          canal_whatsapp?: boolean
+          created_at?: string
+          evento_comentario?: boolean
+          evento_mudanca_situacao?: boolean
+          evento_prazo_perdido?: boolean
+          evento_reagendamento?: boolean
+          evento_tarefa_nova?: boolean
+          id?: string
+          janela_hora_fim?: number
+          janela_hora_inicio?: number
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       configuracoes_carga_benner: {
         Row: {
           coordenacao_id: string | null
@@ -5343,6 +5394,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notificacoes_fila: {
+        Row: {
+          contexto: Json | null
+          coordenacao_id: string | null
+          created_at: string
+          entidade: string
+          entidade_id: string
+          id: string
+          processado: boolean
+          processado_em: string | null
+          responsaveis: string[]
+          status_anterior: string | null
+          status_novo: string | null
+          tentativas: number
+          tipo_evento: string
+          titulo: string | null
+          ultimo_erro: string | null
+        }
+        Insert: {
+          contexto?: Json | null
+          coordenacao_id?: string | null
+          created_at?: string
+          entidade: string
+          entidade_id: string
+          id?: string
+          processado?: boolean
+          processado_em?: string | null
+          responsaveis?: string[]
+          status_anterior?: string | null
+          status_novo?: string | null
+          tentativas?: number
+          tipo_evento: string
+          titulo?: string | null
+          ultimo_erro?: string | null
+        }
+        Update: {
+          contexto?: Json | null
+          coordenacao_id?: string | null
+          created_at?: string
+          entidade?: string
+          entidade_id?: string
+          id?: string
+          processado?: boolean
+          processado_em?: string | null
+          responsaveis?: string[]
+          status_anterior?: string | null
+          status_novo?: string | null
+          tentativas?: number
+          tipo_evento?: string
+          titulo?: string | null
+          ultimo_erro?: string | null
+        }
+        Relationships: []
       }
       parametros_monitoramento_djen: {
         Row: {
@@ -9234,6 +9339,10 @@ export type Database = {
       resolver_coord_processo: {
         Args: { p_processo_id: string; p_processo_numero: string }
         Returns: string
+      }
+      resolver_responsaveis_entidade: {
+        Args: { _entidade: string; _entidade_id: string }
+        Returns: string[]
       }
       restaurar_dados_benner_arquivado: {
         Args: { _id: string }
