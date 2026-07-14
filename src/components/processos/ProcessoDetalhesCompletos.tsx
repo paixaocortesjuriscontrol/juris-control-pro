@@ -1594,7 +1594,6 @@ export function ProcessoDetalhesCompletos({
                   publicacoes={publicacoesDjen}
                   loading={loadingPublicacoes}
                   processoId={processo?.id}
-                  onCriarTarefa={onCriarTarefaPublicacao}
                 />
               )}
 
