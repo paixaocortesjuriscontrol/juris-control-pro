@@ -72,6 +72,8 @@ export function NovaTarefaPublicacaoDialog({
   inline = false,
   markAsReadOnCreate = false,
   onMarkAsRead,
+  tertiarySave,
+  onAfterCreate,
 }: Props) {
   const hasPublicacao = !!publicacao;
   const queryClient = useQueryClient();
@@ -309,6 +311,8 @@ export function NovaTarefaPublicacaoDialog({
                   ? { label: "Salvar e ler", onAfterSuccess: async () => { await onMarkAsRead(); } }
                   : undefined
               }
+              tertiarySave={tertiarySave}
+              onAfterCreate={onAfterCreate}
             />
           </div>
     </div>
