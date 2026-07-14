@@ -182,6 +182,7 @@ export function NovaTarefaDialog({
 
   const tipoVinculo = form.watch("tipo_vinculo");
   const coordenacaoId = form.watch("coordenacao_id");
+  const forcarVinculoPublicacao = !!publicacao;
 
   // Fetch processos based on coordination and search
   const { data: processos, isLoading: loadingProcessos } = useQuery({
@@ -891,7 +892,8 @@ export function NovaTarefaDialog({
                 )}
               />
 
-              {/* Tipo de Vínculo */}
+              {/* Tipo de Vínculo — oculto quando vindo de uma publicação (sempre vinculada ao processo da publicação) */}
+              {!forcarVinculoPublicacao && (
               <FormField
                 control={form.control}
                 name="tipo_vinculo"
@@ -913,6 +915,7 @@ export function NovaTarefaDialog({
                   </FormItem>
                 )}
               />
+              )}
 
               {/* Coordenação — só aparece para admin ou usuário com mais de uma coordenação */}
               {precisaSelecionar && (
@@ -942,8 +945,8 @@ export function NovaTarefaDialog({
                 />
               )}
 
-              {/* Processo (if tipo_vinculo === "processo") */}
-              {tipoVinculo === "processo" && (
+              {/* Processo (if tipo_vinculo === "processo") — oculto quando vindo de publicação */}
+              {tipoVinculo === "processo" && !forcarVinculoPublicacao && (
                 <FormField
                   control={form.control}
                   name="processo_id"
