@@ -32,12 +32,14 @@ interface Props {
 export function AudienciasKanbanBoard({ audiencias, onDetalhes, onEditar, onCriarTarefa, onMarcarTratado, onIgnorar, isPending }: Props) {
   const isMobile = useIsMobile();
   const orderedColumns = isMobile ? [...columns].reverse() : columns;
+  // Oculta audiências já tratadas do Kanban (retiradas do fluxo ativo).
+  const ativas = audiencias.filter((a) => a.status !== "tratado");
 
   return (
     <div className="flex-1 min-h-0 overflow-hidden pb-2">
       <div className="grid grid-cols-1 gap-3 min-h-0 md:grid-cols-5 h-full">
         {orderedColumns.map((col) => {
-          const items = audiencias.filter((a) => col.filter(a));
+          const items = ativas.filter((a) => col.filter(a));
           return (
             <div
               key={col.key}
