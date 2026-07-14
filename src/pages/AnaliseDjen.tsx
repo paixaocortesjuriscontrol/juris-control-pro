@@ -4752,15 +4752,6 @@ const AnaliseDjen = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={handleDescartarSelecionadas}
-            disabled={selectedIds.size === 0 || descartandoSelecionadas || descartarManualmente.isPending}
-            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
-            title="Analisa as selecionadas e descarta apenas as duplicadas (mesma coordenação + id_djen)"
-          >
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
             onClick={() => setPreagendarIaOpen(true)}
             disabled={selectedIds.size === 0}
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 text-violet-700 hover:bg-violet-50 border-violet-300"
