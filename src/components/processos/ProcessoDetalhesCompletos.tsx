@@ -1022,237 +1022,139 @@ export function ProcessoDetalhesCompletos({
               {/* Audiências Section */}
               {activeSection === "audiencias" && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-semibold text-sm flex items-center gap-2">
-                      <Gavel className="w-4 h-4" />
-                      Audiências
-                    </h3>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => abrirNovoItem("audiencia")}
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Adicionar Audiência
-                    </Button>
-                  </div>
-                  {loadingAudiencias ? (
-                    <div className="space-y-3">
-                      {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
-                    </div>
-                  ) : audiencias.length > 0 ? (
-                    <div className="space-y-3">
-                      {audiencias.map((aud) => {
-                        const handleAlterarStatus = async (novoStatus: string) => {
-                          try {
-                            const idsParaAtualizar = Array.isArray(aud._duplicateIds) && aud._duplicateIds.length > 0
-                              ? aud._duplicateIds
-                              : [aud.id];
-                            const updates: Record<string, unknown> = { status: novoStatus };
-                            if (novoStatus === 'tratado' || novoStatus === 'ignorado') {
-                              updates.tratado_por = user?.id;
-                              updates.tratado_em = new Date().toISOString();
-                            }
-                            const { error } = await supabase
-                              .from('audiencias_detectadas')
-                              .update(updates)
-                              .in('id', idsParaAtualizar);
-                            if (error) throw error;
-                            if (audienciaInvalidateKey) {
-                              queryClient.invalidateQueries({ queryKey: audienciaInvalidateKey });
-                            }
-                            sonnerToast.success('Status atualizado!');
-                          } catch (err: any) {
-                            sonnerToast.error('Erro: ' + err.message);
-                          }
-                        };
-                        return (
-                          <Card key={aud.id} className="hover:shadow-md transition-shadow">
-                            <CardContent className="p-4">
-                              {/* Cabeçalho profissional da audiência */}
-                              <div className="flex items-start justify-between gap-3 pb-3 mb-3 border-b">
-                                <div className="min-w-0 space-y-1">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <Gavel className="h-4 w-4 text-primary shrink-0" />
-                                    <span className="font-mono text-sm font-semibold text-foreground truncate">
-                                      {aud.processo_numero || processo?.numero || 'Processo sem número'}
-                                    </span>
-                                    {aud.tipo_audiencia && (
-                                      <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
-                                        {aud.tipo_audiencia}
-                                      </Badge>
-                                    )}
-                                    {aud.modalidade && (
-                                      <Badge variant="outline" className="text-[10px] capitalize">
-                                        {aud.modalidade}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
-                                    {aud.created_at && (
-                                      <span>Registrada em {formatDate(aud.created_at)}</span>
-                                    )}
-                                    {aud.origem && (
-                                      <span className="capitalize">Origem: {aud.origem}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                              {/* Grade de detalhes profissional */}
-                              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2 mb-3 text-xs">
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Data</p>
-                                  <p className="font-medium text-foreground">
-                                    {aud.data_audiencia ? formatDate(aud.data_audiencia) : '—'}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</p>
-                                  <p className="font-medium text-foreground truncate">{aud.tipo_audiencia || '—'}</p>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Hora</p>
-                                  <p className="font-medium text-foreground">{aud.hora || '—'}</p>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Hora Local</p>
-                                  <p className="font-medium text-foreground">{aud.hora_local || '—'}</p>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Hora Brasília</p>
-                                  <p className="font-medium text-foreground">{aud.hora_brasilia || '—'}</p>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Modalidade</p>
-                                  <p className="font-medium text-foreground capitalize">{aud.modalidade || '—'}</p>
-                                </div>
-                                <div className="col-span-2">
-                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Vara / Câmara</p>
-                                  <p className="font-medium text-foreground truncate">{aud.vara_camara || '—'}</p>
-                                </div>
-                                <div className="col-span-2">
-                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Comarca</p>
-                                  <p className="font-medium text-foreground truncate">{aud.comarca || '—'}</p>
-                                </div>
-                                {aud.funcao && (
-                                  <div>
-                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Função</p>
-                                    <p className="font-medium text-foreground truncate">{aud.funcao}</p>
-                                  </div>
-                                )}
-                                {aud.advogado && (
-                                  <div className="col-span-2">
-                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Advogado</p>
-                                    <p className="font-medium text-foreground truncate">{aud.advogado}</p>
-                                  </div>
-                                )}
-                                {aud.preposto && (
-                                  <div className="col-span-2">
-                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Preposto</p>
-                                    <p className="font-medium text-foreground truncate">{aud.preposto}</p>
-                                  </div>
-                                )}
-                                {aud.testemunhas && (
-                                  <div className="col-span-2 sm:col-span-3 lg:col-span-4">
-                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Testemunhas</p>
-                                    <p className="font-medium text-foreground line-clamp-2">{aud.testemunhas}</p>
-                                  </div>
-                                )}
-                                {aud.polo_ativo && (
-                                  <div className="col-span-2">
-                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Polo Ativo</p>
-                                    <p className="font-medium text-foreground truncate">{aud.polo_ativo}</p>
-                                  </div>
-                                )}
-                                {aud.cliente && (
-                                  <div className="col-span-2">
-                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Cliente</p>
-                                    <p className="font-medium text-foreground truncate">{aud.cliente}</p>
-                                  </div>
-                                )}
-                              </div>
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                {/* Coluna esquerda: dados + ações */}
-                                <div className="space-y-2">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <Select value={aud.status || 'pendente'} onValueChange={handleAlterarStatus}>
-                                      <SelectTrigger className="h-7 w-[160px] text-xs">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                                        <SelectItem value="confirmado">✅ Confirmado</SelectItem>
-                                        <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
-                                        <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                                        <SelectItem value="cancelado">❌ Cancelado</SelectItem>
-                                        <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  {aud.local_audiencia && (
-                                    <p className="text-xs text-muted-foreground">
-                                      <span className="font-medium text-foreground">Local: </span>
-                                      {aud.local_audiencia}
-                                    </p>
-                                  )}
-                                  {aud.resumo_objeto && (
-                                    <p className="text-xs text-muted-foreground line-clamp-3">
-                                      <span className="font-medium text-foreground">Objeto: </span>
-                                      {aud.resumo_objeto}
-                                    </p>
-                                  )}
-                                  <div className="pt-1">
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" size="sm">
-                                          <MoreVertical className="h-4 w-4 mr-1" />
-                                          Ações
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="start">
-                                        <DropdownMenuItem onSelect={() => onSelectAudiencia?.(aud)}>
-                                          <Eye className="h-4 w-4 mr-2" /> Detalhes
-                                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => onEditAudiencia?.(aud)}>
-                                          <Pencil className="h-4 w-4 mr-2" /> Editar
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onSelect={() => onCriarTarefaAudiencia?.(aud)}>
-                                          <ListChecks className="h-4 w-4 mr-2" /> Criar Tarefa
-                                        </DropdownMenuItem>
-                                        {aud.status === 'pendente' && (
-                                          <>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem onSelect={() => handleAlterarStatus('tratado')}>
-                                              <CheckCircle className="h-4 w-4 mr-2 text-green-600" /> Marcar Tratado
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => handleAlterarStatus('ignorado')}>
-                                              <XCircle className="h-4 w-4 mr-2 text-muted-foreground" /> Ignorar
-                                            </DropdownMenuItem>
-                                          </>
-                                        )}
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </div>
-                                </div>
-                                {/* Coluna direita: observação editável inline */}
-                                <div className="lg:border-l lg:pl-4">
-                                  <AudienciaObservacaoInline
-                                    audienciaId={aud.id}
-                                    initialValue={aud.observacoes ?? null}
-                                    invalidateKey={audienciaInvalidateKey ?? ['audiencias-processo', processo?.id]}
-                                  />
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        );
-                      })}
-                    </div>
+                  {audienciaSelecionadaAtual ? (
+                    <>
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setAudienciaSelecionada(null)}
+                        >
+                          <ArrowLeft className="w-4 h-4 mr-1" />
+                          Voltar para audiências
+                        </Button>
+                      </div>
+                      <EditarAudienciaDialog
+                        audiencia={audienciaSelecionadaAtual}
+                        open
+                        onOpenChange={(open) => {
+                          if (!open) setAudienciaSelecionada(null);
+                        }}
+                        embedded
+                        invalidateKey={audienciaInvalidateKey ?? ['audiencias-processo', processo?.id]}
+                      />
+                    </>
                   ) : (
-                    <div className="text-center py-8">
-                      <Gavel className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">Nenhuma audiência</p>
-                    </div>
+                    <>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-semibold text-sm flex items-center gap-2">
+                          <Gavel className="w-4 h-4" />
+                          Audiências
+                        </h3>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => abrirNovoItem("audiencia")}
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          Adicionar Audiência
+                        </Button>
+                      </div>
+                      {loadingAudiencias ? (
+                        <div className="space-y-3">
+                          {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
+                        </div>
+                      ) : audiencias.length > 0 ? (
+                        <div className="space-y-3">
+                          {audiencias.map((aud) => (
+                            <Card
+                              key={aud.id}
+                              role="button"
+                              tabIndex={0}
+                              className="cursor-pointer hover:shadow-md transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              onClick={() => setAudienciaSelecionada(aud)}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  setAudienciaSelecionada(aud);
+                                }
+                              }}
+                            >
+                              <CardContent className="p-4">
+                                <div className="flex items-start justify-between gap-3 pb-3 mb-3 border-b">
+                                  <div className="min-w-0 space-y-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <Gavel className="h-4 w-4 text-primary shrink-0" />
+                                      <span className="font-mono text-sm font-semibold text-foreground truncate">
+                                        {aud.processo_numero || processo?.numero || 'Processo sem número'}
+                                      </span>
+                                      {aud.tipo_audiencia && (
+                                        <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                                          {aud.tipo_audiencia}
+                                        </Badge>
+                                      )}
+                                      {aud.modalidade && (
+                                        <Badge variant="outline" className="text-[10px] capitalize">
+                                          {aud.modalidade}
+                                        </Badge>
+                                      )}
+                                      {aud.status && (
+                                        <Badge variant="outline" className="text-[10px] capitalize">
+                                          {aud.status}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
+                                      {aud.created_at && <span>Registrada em {formatDate(aud.created_at)}</span>}
+                                      {aud.origem && <span className="capitalize">Origem: {aud.origem}</span>}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2 text-xs">
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Data</p>
+                                    <p className="font-medium text-foreground">{aud.data_audiencia ? formatDate(aud.data_audiencia) : '—'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</p>
+                                    <p className="font-medium text-foreground truncate">{aud.tipo_audiencia || '—'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Hora</p>
+                                    <p className="font-medium text-foreground">{aud.hora || '—'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Hora Local</p>
+                                    <p className="font-medium text-foreground">{aud.hora_local || '—'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Hora Brasília</p>
+                                    <p className="font-medium text-foreground">{aud.hora_brasilia || '—'}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Modalidade</p>
+                                    <p className="font-medium text-foreground capitalize">{aud.modalidade || '—'}</p>
+                                  </div>
+                                  <div className="col-span-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Vara / Câmara</p>
+                                    <p className="font-medium text-foreground truncate">{aud.vara_camara || '—'}</p>
+                                  </div>
+                                  <div className="col-span-2">
+                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Comarca</p>
+                                    <p className="font-medium text-foreground truncate">{aud.comarca || '—'}</p>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <Gavel className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+                          <p className="text-sm text-muted-foreground">Nenhuma audiência</p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
