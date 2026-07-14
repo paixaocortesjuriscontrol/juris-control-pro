@@ -502,12 +502,22 @@ export function PrazoDialog({
         try { onAfterCreate({ id: tarefaId, titulo: (payload as any).titulo || "Prazo" }); }
         catch (err) { console.warn("onAfterCreate falhou:", err); }
       }
-      if (tertiaryClickedRef.current) {
+      const tertiaryWasClicked = tertiaryClickedRef.current;
+      if (tertiaryWasClicked) {
         try { await tertiarySave?.onAfterSuccess(); }
         catch (err) { console.error("tertiarySave.onAfterSuccess falhou:", err); }
         finally { tertiaryClickedRef.current = false; }
       }
-      onOpenChange(false);
+      // Se estamos no fluxo "criar múltiplos itens a partir da mesma publicação"
+      // (Análise DJEN: onAfterCreate fornecido) e o usuário clicou no Salvar
+      // primário — mantém o formulário aberto e reseta para novo cadastro.
+      const manterAbertoParaNovo = !prazo && !!onAfterCreate && !tertiaryWasClicked;
+      if (manterAbertoParaNovo) {
+        toast.success("Prazo salvo. Você pode cadastrar outro item para esta publicação.");
+        resetFormForNew();
+      } else {
+        onOpenChange(false);
+      }
     } catch (error: any) {
       toast.error("Erro ao salvar prazo: " + error.message);
     }
