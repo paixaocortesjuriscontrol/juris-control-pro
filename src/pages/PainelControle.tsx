@@ -1685,7 +1685,7 @@ export default function PainelControle() {
                                   className={cn(
                                     "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer font-medium flex items-center gap-0.5",
                                     isCancelado
-                                      ? "bg-muted text-muted-foreground border border-border opacity-90"
+                                      ? "bg-black text-white border border-black"
                                       : isConcluido
                                       ? "bg-green-500 text-white opacity-75"
                                       : cn("text-white", TIPO_CORES[item.tipo] || "bg-muted")
@@ -1751,7 +1751,7 @@ export default function PainelControle() {
                                             className={cn(
                                               "text-[10px] leading-tight px-2 py-1.5 rounded cursor-pointer font-medium flex items-center gap-1.5",
                                                isCancelado
-                                                 ? "bg-muted text-muted-foreground border border-border opacity-90"
+                                                 ? "bg-black text-white border border-black"
                                                  : isConcluido
                                                 ? "bg-green-500 text-white opacity-75"
                                                 : cn("text-white", TIPO_CORES[item.tipo] || "bg-muted")
