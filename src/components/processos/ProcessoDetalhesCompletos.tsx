@@ -809,16 +809,11 @@ export function ProcessoDetalhesCompletos({
     {
       label: "Prazos & Eventos",
       items: [
-        { id: "audiencias", label: "Audiências", icon: Gavel, count: audiencias.length },
-        { id: "intimacoes", label: "Intimações", icon: AlertCircle, count: intimacoes.length },
-        { id: "agenda", label: "Agenda", icon: CalendarDays, count: eventosAgenda.length },
+        { id: "tarefas", label: "Tarefa", icon: ClipboardList, count: tarefasSemPrazo.length },
+        { id: "agenda", label: "Evento", icon: CalendarPlus, count: eventosAgenda.length },
         { id: "prazo", label: "Prazo", icon: Clock, count: prazosDoProcesso.length },
-      ],
-    },
-    {
-      label: "Tarefas",
-      items: [
-        { id: "tarefas", label: "Tarefas", icon: ListTodo, count: tarefasSemPrazo.length },
+        { id: "audiencias", label: "Audiência", icon: Gavel, count: audiencias.length },
+        { id: "parcelamento", label: "Parcelamento recorrente", icon: Coins },
       ],
     },
     {
