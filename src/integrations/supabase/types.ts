@@ -6772,6 +6772,7 @@ export type Database = {
           partes_json: Json | null
           polo_ativo: string | null
           polo_passivo: string | null
+          processo_id: string | null
           processo_numero: string | null
           publicacao_unica: boolean
           resumo_gerado_em: string | null
@@ -6808,6 +6809,7 @@ export type Database = {
           partes_json?: Json | null
           polo_ativo?: string | null
           polo_passivo?: string | null
+          processo_id?: string | null
           processo_numero?: string | null
           publicacao_unica?: boolean
           resumo_gerado_em?: string | null
@@ -6844,6 +6846,7 @@ export type Database = {
           partes_json?: Json | null
           polo_ativo?: string | null
           polo_passivo?: string | null
+          processo_id?: string | null
           processo_numero?: string | null
           publicacao_unica?: boolean
           resumo_gerado_em?: string | null
@@ -6859,6 +6862,13 @@ export type Database = {
             columns: ["monitoramento_id"]
             isOneToOne: false
             referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publicacoes_djen_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
             referencedColumns: ["id"]
           },
         ]
@@ -6890,6 +6900,7 @@ export type Database = {
           orgao: string | null
           partes_json: Json | null
           payload_origem: Json | null
+          processo_id: string | null
           processo_numero: string | null
           tipo_comunicacao: string | null
           tipo_origem_origem: string | null
@@ -6921,6 +6932,7 @@ export type Database = {
           orgao?: string | null
           partes_json?: Json | null
           payload_origem?: Json | null
+          processo_id?: string | null
           processo_numero?: string | null
           tipo_comunicacao?: string | null
           tipo_origem_origem?: string | null
@@ -6952,6 +6964,7 @@ export type Database = {
           orgao?: string | null
           partes_json?: Json | null
           payload_origem?: Json | null
+          processo_id?: string | null
           processo_numero?: string | null
           tipo_comunicacao?: string | null
           tipo_origem_origem?: string | null
@@ -6963,6 +6976,13 @@ export type Database = {
             columns: ["monitoramento_id"]
             isOneToOne: false
             referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publicacoes_djen_descartadas_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
             referencedColumns: ["id"]
           },
         ]
