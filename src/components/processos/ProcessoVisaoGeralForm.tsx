@@ -567,7 +567,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
    * Preenche o máximo de atributos do formulário (todos os FIELDS quando a
    * Judit traz valor).
    */
-  const handleSyncJuditInterno = async (comAnexos: boolean = false, forceRefresh: boolean = false) => {
+  const handleSyncJuditInterno = async (comAnexos: boolean = false, forceRefresh: boolean = false, presetData: any = null) => {
     if (!processo?.numero) {
       toast.warning("Processo sem número CNJ cadastrado.");
       return;
@@ -582,7 +582,13 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       // com anexos e a última consulta não tinha anexos.
       let data: any = null;
       let fromCache = false;
-      if (!forceRefresh) {
+      // 1) Se veio payload pré-carregado (ex.: da aba Análise Judit), usa direto — SEM chamar Judit.
+      if (presetData && typeof presetData === "object") {
+        data = presetData;
+        fromCache = true;
+        toast.info("Reaproveitando consulta Judit já exibida (sem nova cobrança).");
+      }
+      if (!data && !forceRefresh) {
         try {
           const { data: cached } = await supabase
             .from("judit_logs" as any)
@@ -598,8 +604,15 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
             data = raw;
             fromCache = true;
             toast.info("Reaproveitando última consulta Judit (sem nova cobrança).");
+          } else if (raw && comAnexos && !hadAtts) {
+            // Só falta anexos — reusa o payload para preencher e evita chamada nova.
+            data = raw;
+            fromCache = true;
+            toast.info("Reaproveitando consulta Judit (sem anexos) — sem nova cobrança.");
           }
-        } catch (_) { /* segue para chamada nova */ }
+        } catch (e) {
+          console.warn("[preencher] cache-lookup falhou:", (e as Error)?.message);
+        }
       }
       if (!data) {
         const resp = await supabase.functions.invoke("judit-processo-interno", {
@@ -739,8 +752,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
 
   useImperativeHandle(ref, () => ({
     save: handleSave,
-    preencherFormularioJudit: async (comAnexos = false) => {
-      await handleSyncJuditInterno(comAnexos, false);
+    preencherFormularioJudit: async (comAnexos = false, presetData: any = null) => {
+      await handleSyncJuditInterno(comAnexos, false, presetData);
     },
   }), [handleSave, handleSyncJuditInterno, form, responsaveis, processo?.id]);
 
