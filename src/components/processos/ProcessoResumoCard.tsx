@@ -162,7 +162,7 @@ export function ProcessoResumoCard({
                   </div>
                 </div>
                 <div className="flex items-center justify-between px-3 py-2.5">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Assunto</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Objeto da Ação (Assunto)</span>
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm text-foreground text-right max-w-[200px] truncate">{processo.assunto || "Não informado"}</span>
                     {processo.assunto && <Scale className="w-3 h-3 text-amber-500 flex-shrink-0" />}
