@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Save, Loader2, Sparkles, Copy, Bell, Users, Scale, FileText, Building2, DollarSign, Activity, Paperclip, Plus, Flame, ListTodo, Clock, CalendarDays, Gavel } from "lucide-react";
+import { Save, Loader2, Sparkles, Copy, Bell, Users, Scale, FileText, Building2, DollarSign, Activity, Paperclip, Plus, Flame, ListTodo, Clock, CalendarDays, Gavel, CheckCircle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +52,7 @@ interface Props {
    * habilitando a aba "Análise Judit" que depende desse campo).
    */
   onNumeroChange?: (numero: string) => void;
+  onJuditNovoPreenchido?: () => void;
   /**
    * Quando true, renderiza apenas o cabeçalho com a barra de ações Judit
    * (Sincronizar / Judit c/ anexos / Judit Interno / Análise Judit / Anexos
@@ -138,6 +139,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   actionsOnly = false,
   hideJuditButtons = false,
   onNumeroChange,
+  onJuditNovoPreenchido,
 }, ref) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -151,6 +153,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [syncingAnexos, setSyncingAnexos] = useState(false);
   const [syncingInterno, setSyncingInterno] = useState(false);
   const [comAnexosJudit, setComAnexosJudit] = useState(false);
+  const [juditNovoCardVisible, setJuditNovoCardVisible] = useState(false);
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
@@ -642,7 +645,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     const numeroLimpo = getNumeroProcessoAtual();
     if (!numeroLimpo) {
       toast.warning("Processo sem número CNJ cadastrado.");
-      return;
+      return false;
     }
     if (comAnexos) setSyncingAnexos(true); else setSyncingInterno(true);
     try {
@@ -689,7 +692,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           body: { numero_processo: numeroLimpo, force_refresh: true, with_attachments: comAnexos },
         });
         if (resp.error) throw resp.error;
-        if ((resp.data as any)?.error) { toast.error((resp.data as any).error); return; }
+        if ((resp.data as any)?.error) { toast.error((resp.data as any).error); return false; }
         data = resp.data;
       }
 
@@ -709,11 +712,27 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       }
       setForm(next);
       setJuditSessionFields(filled);
+      if (isNovo) onNumeroChange?.(String(next.numero || numeroLimpo));
 
       if (isNovo) {
+        if (!fromCache) {
+          try {
+            const { data: userData } = await supabase.auth.getUser();
+            await supabase.from("judit_logs" as any).insert({
+              processo_numero: numeroLimpo,
+              tribunal: data?.tribunal || null,
+              request_payload: { numero_processo: numeroLimpo, fonte: "judit-processo-interno", with_attachments: comAnexos },
+              raw_response: data,
+              status: "sucesso",
+              error_message: null,
+              created_by: userData?.user?.id || null,
+            });
+            await queryClient.invalidateQueries({ queryKey: ["judit_logs", numeroLimpo] });
+          } catch (_) { /* noop */ }
+        }
         const preenchidos = filled.size;
-        toast.success(`${comAnexos ? "Judit c/ anexos" : "Judit"} preenchida — ${preenchidos} campo(s). Salve para criar o processo.`);
-        return;
+        toast.success(`Judit recuperada e formulário preenchido — ${preenchidos} campo(s).`);
+        return true;
       }
 
       // Persiste
@@ -810,11 +829,27 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       await queryClient.invalidateQueries({ queryKey: ["processo", processo.id] });
       const preenchidos = filled.size;
       toast.success(`${comAnexos ? "Judit c/ anexos" : "Judit"} sincronizada — ${preenchidos} campo(s) do processo preenchido(s).`);
+      return true;
     } catch (e: any) {
       toast.error(`Erro Judit ${comAnexos ? "c/ anexos" : "Interno"}: ` + (e?.message || "desconhecido"));
+      return false;
     } finally {
       if (comAnexos) setSyncingAnexos(false); else setSyncingInterno(false);
     }
+  };
+
+  const handleJuditButtonClick = async () => {
+    if (isNovo) {
+      const ok = await handleSyncJuditInterno(comAnexosJudit, true);
+      if (ok) {
+        setJuditNovoCardVisible(true);
+        onJuditNovoPreenchido?.();
+      }
+      return;
+    }
+
+    await handleFetchJuditOnly(comAnexosJudit);
+    onNavigate?.("analise-judit");
   };
 
   const copy = (t: string) => navigator.clipboard.writeText(t);
@@ -840,15 +875,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       <div className="flex items-center gap-2 flex-wrap">
         <Button
           size="sm"
-          onClick={async () => {
-            await handleFetchJuditOnly(comAnexosJudit);
-            onNavigate?.("analise-judit");
-          }}
+          onClick={handleJuditButtonClick}
           disabled={juditBusy || saving}
           className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
         >
-          {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          {syncing || syncingAnexos
+          {juditBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {juditBusy
             ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando… ${juditElapsed}s`)
             : "Judit"}
         </Button>
@@ -947,16 +979,13 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 </DropdownMenu>
                 <Button
                   size="sm"
-                  onClick={async () => {
-                    await handleFetchJuditOnly(comAnexosJudit);
-                    onNavigate?.("analise-judit");
-                  }}
+                  onClick={handleJuditButtonClick}
                   disabled={juditBusy || saving}
                   className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  title="Consultar Judit (sem alterar o formulário)"
+                  title={isNovo ? "Consultar Judit e preencher o formulário" : "Consultar Judit (sem alterar o formulário)"}
                 >
-                  {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  {syncing || syncingAnexos
+                  {juditBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {juditBusy
                     ? (juditElapsed < 3 ? "Judit…" : `${juditElapsed}s`)
                     : "Judit"}
                 </Button>
@@ -968,7 +997,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   />
                   Com anexos
                 </label>
-                <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos}>
+                <Button size="sm" onClick={handleSave} disabled={saving || juditBusy}>
                   {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
                   Salvar
                 </Button>
@@ -984,15 +1013,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           <div className="flex items-center justify-end gap-2 flex-wrap">
               <Button
                 size="sm"
-                onClick={async () => {
-                  await handleFetchJuditOnly(comAnexosJudit);
-                  onNavigate?.("analise-judit");
-                }}
+                onClick={handleJuditButtonClick}
                 disabled={juditBusy || saving}
                 className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {syncing || syncingAnexos
+                {juditBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {juditBusy
                   ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando crawler… ${juditElapsed}s`)
                   : "Judit"}
               </Button>
@@ -1028,6 +1054,18 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <span className="font-mono">{juditElapsed}s · {juditProgress}%</span>
               </div>
               <Progress value={juditProgress} className="h-2" />
+            </div>
+          )}
+
+          {isNovo && juditNovoCardVisible && !juditBusy && (
+            <div className="mb-4 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-100">
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold">Informações Judit recuperadas e formulário preenchido.</p>
+                  <p className="text-sm">Clique no menu esquerdo em <strong>Análise Judit</strong> para ver todas as informações recuperadas da consulta.</p>
+                </div>
+              </div>
             </div>
           )}
 
