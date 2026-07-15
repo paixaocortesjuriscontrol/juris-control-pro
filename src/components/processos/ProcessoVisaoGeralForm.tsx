@@ -1163,6 +1163,22 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   <FormField label="Área">
                     <Input className={cn(inputCls, jcls("area"))} value={form.area || ""} onChange={(e) => update("area", e.target.value)} />
                   </FormField>
+                  <FormField label="Coordenação Responsável">
+                    <Select
+                      value={form.coordenacao_id || "__none__"}
+                      onValueChange={(v) => update("coordenacao_id", v === "__none__" ? "" : v)}
+                    >
+                      <SelectTrigger className={cn(inputCls, jcls("coordenacao_id"))}>
+                        <SelectValue placeholder="Selecione a coordenação" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Nenhuma</SelectItem>
+                        {(coordenacoesTarefa as any[]).map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
                   <FormField label="Fase Processual">
                     {(() => {
                       const FASES = ["Conhecimento", "Instrutória", "Recursal", "Execução"];
