@@ -1,4 +1,4 @@
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -172,8 +172,10 @@ const getAudienciaBusinessKey = (audiencia: Partial<AudienciaDetectada>) => {
 
 export default function ProcessoDetalhes() {
   const { id } = useParams<{ id: string }>();
-  // Modo "novo processo": rota /processos/novo reutiliza esta tela em branco.
-  const isNovo = id === "novo";
+  const location = useLocation();
+  // Modo "novo processo": a rota estática /processos/novo não fornece `id`
+  // via useParams, então a detecção precisa considerar também o pathname.
+  const isNovo = id === "novo" || location.pathname === "/processos/novo";
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
