@@ -15,11 +15,13 @@ interface Props {
 }
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const SITUACOES_FIXAS = ["pendente","confirmado","reagendado","tratado","cancelado","ignorado"] as const;
+const TODOS = "__todos__";
 
 export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }: Props) {
   const hoje = new Date();
-  const [ano, setAno] = useState<number>(hoje.getFullYear());
-  const [mes, setMes] = useState<number>(hoje.getMonth() + 1);
+  const [ano, setAno] = useState<number | "todos">(hoje.getFullYear());
+  const [mes, setMes] = useState<number | "todos">(hoje.getMonth() + 1);
   const { coordenacoes, unicaCoordenacaoId, precisaSelecionar } = useCoordenacoesDoUsuario();
   const [coordSel, setCoordSel] = useState<string>("__todas__");
 
@@ -36,19 +38,34 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
     queryKey: ["relatorio-audiencias", ano, mes, coordenacaoFiltro],
     enabled: open,
     queryFn: async () => {
-      const inicio = new Date(Date.UTC(ano, mes - 1, 1)).toISOString();
-      const fim = new Date(Date.UTC(ano, mes, 1)).toISOString();
       let q = supabase
         .from("audiencias_detectadas")
         .select("id, status, criado_por, data_audiencia, coordenacao_id, audiencia_envolvidos(usuario_id)")
-        .gte("data_audiencia", inicio)
-        .lt("data_audiencia", fim);
+        ;
+      if (ano !== "todos" && mes !== "todos") {
+        const inicio = new Date(Date.UTC(ano as number, (mes as number) - 1, 1)).toISOString();
+        const fim = new Date(Date.UTC(ano as number, mes as number, 1)).toISOString();
+        q = q.gte("data_audiencia", inicio).lt("data_audiencia", fim);
+      } else if (ano !== "todos") {
+        const inicio = new Date(Date.UTC(ano as number, 0, 1)).toISOString();
+        const fim = new Date(Date.UTC((ano as number) + 1, 0, 1)).toISOString();
+        q = q.gte("data_audiencia", inicio).lt("data_audiencia", fim);
+      } else if (mes !== "todos") {
+        // Todos os anos, mês específico: aplica filtro por extract em memória
+        // (query traz tudo e filtra abaixo)
+      }
       if (coordenacaoFiltro) q = q.eq("coordenacao_id", coordenacaoFiltro);
-      const { data, error } = await q.limit(5000);
+      const { data, error } = await q.limit(20000);
       if (error) throw error;
 
+      const dataFiltrada = (data ?? []).filter((a: any) => {
+        if (mes === "todos" || !a.data_audiencia) return true;
+        const m = new Date(a.data_audiencia).getUTCMonth() + 1;
+        return m === (mes as number);
+      });
+
       const userIds = new Set<string>();
-      for (const a of data ?? []) {
+      for (const a of dataFiltrada) {
         if (a.criado_por) userIds.add(a.criado_por);
         for (const e of (a.audiencia_envolvidos ?? []) as any[]) if (e.usuario_id) userIds.add(e.usuario_id);
       }
@@ -56,9 +73,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
         .from("profiles").select("id, nome").in("id", Array.from(userIds));
       const nomeMap = new Map((profiles ?? []).map((p: any) => [p.id, p.nome ?? "(sem nome)"]));
 
-      const situacoes = new Set<string>();
+      const situacoes = new Set<string>(SITUACOES_FIXAS);
       const linhas = new Map<string, Record<string, number>>();
-      for (const a of data ?? []) {
+      for (const a of dataFiltrada) {
         const situ = (a.status ?? "pendente").toString();
         situacoes.add(situ);
         const users = new Set<string>();
@@ -70,7 +87,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
           linhas.get(uid)![situ] = (linhas.get(uid)![situ] ?? 0) + 1;
         }
       }
-      const situacoesArr = Array.from(situacoes).sort();
+      const fixSet = new Set<string>(SITUACOES_FIXAS);
+      const extras = Array.from(situacoes).filter((s) => !fixSet.has(s)).sort();
+      const situacoesArr = [...SITUACOES_FIXAS, ...extras];
       const rows = Array.from(linhas.entries()).map(([uid, cnts]) => {
         const total = Object.values(cnts).reduce((a, b) => a + b, 0);
         return {
@@ -97,8 +116,10 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
     const footer = ["TOTAL", ...data.situacoes.map((s) => totaisPorSitu[s] ?? 0), totalGeral];
     const ws = XLSX.utils.aoa_to_sheet([header, ...body, footer]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `Audiências ${MESES[mes-1]}-${ano}`);
-    XLSX.writeFile(wb, `relatorio-audiencias-${ano}-${String(mes).padStart(2,"0")}.xlsx`);
+    const sufMes = mes === "todos" ? "Todos" : MESES[(mes as number) - 1];
+    const sufAno = ano === "todos" ? "Todos" : String(ano);
+    XLSX.utils.book_append_sheet(wb, ws, `Audiências ${sufMes}-${sufAno}`.slice(0, 31));
+    XLSX.writeFile(wb, `relatorio-audiencias-${sufAno}-${mes === "todos" ? "todos" : String(mes).padStart(2,"0")}.xlsx`);
   }
 
   const anos = Array.from({ length: 6 }, (_, i) => hoje.getFullYear() - 3 + i);
@@ -110,13 +131,19 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
           <DialogTitle>Relatório de Audiências</DialogTitle>
         </DialogHeader>
         <div className="flex items-center gap-3">
-          <Select value={String(mes)} onValueChange={(v) => setMes(Number(v))}>
+          <Select value={mes === "todos" ? TODOS : String(mes)} onValueChange={(v) => setMes(v === TODOS ? "todos" : Number(v))}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-            <SelectContent>{MESES.map((m, i) => <SelectItem key={i} value={String(i+1)}>{m}</SelectItem>)}</SelectContent>
+            <SelectContent>
+              <SelectItem value={TODOS}>Todos os meses</SelectItem>
+              {MESES.map((m, i) => <SelectItem key={i} value={String(i+1)}>{m}</SelectItem>)}
+            </SelectContent>
           </Select>
-          <Select value={String(ano)} onValueChange={(v) => setAno(Number(v))}>
+          <Select value={ano === "todos" ? TODOS : String(ano)} onValueChange={(v) => setAno(v === TODOS ? "todos" : Number(v))}>
             <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-            <SelectContent>{anos.map((a) => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}</SelectContent>
+            <SelectContent>
+              <SelectItem value={TODOS}>Todos</SelectItem>
+              {anos.map((a) => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
+            </SelectContent>
           </Select>
           {!coordenacaoId && precisaSelecionar && (
             <Select value={coordSel} onValueChange={setCoordSel}>
