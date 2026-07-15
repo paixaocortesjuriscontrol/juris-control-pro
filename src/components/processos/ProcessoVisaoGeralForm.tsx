@@ -1262,18 +1262,26 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
 
             {/* COLUNA LATERAL — cards de status / pendências */}
             <div className="space-y-4">
-              <PendenciasProcessoCard
-                audiencias={audiencias}
-                intimacoes={intimacoes}
-                tarefas={tarefas}
-                movimentacoes={movimentacoes}
-                eventosAgenda={eventosAgenda}
-                processoId={processo?.id}
-                processoNumero={processo?.numero}
-                onNavigate={onNavigate}
-              />
-              <DepositosRecursaisCard processoId={processo.id} />
-              <CustasProcessuaisCard processoId={processo.id} />
+              {isNovo ? (
+                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  Salve o processo para habilitar Pendências, Depósitos Recursais e Custas Processuais.
+                </div>
+              ) : (
+                <>
+                  <PendenciasProcessoCard
+                    audiencias={audiencias}
+                    intimacoes={intimacoes}
+                    tarefas={tarefas}
+                    movimentacoes={movimentacoes}
+                    eventosAgenda={eventosAgenda}
+                    processoId={processo?.id}
+                    processoNumero={processo?.numero}
+                    onNavigate={onNavigate}
+                  />
+                  <DepositosRecursaisCard processoId={processo.id} />
+                  <CustasProcessuaisCard processoId={processo.id} />
+                </>
+              )}
 
               {/* Metadados sistema */}
               <div className="text-[11px] text-muted-foreground space-y-0.5 pt-2 border-t">
