@@ -1114,7 +1114,19 @@ export function ProcessoFormDialog({ open, onOpenChange, processo, asPage = fals
       queryClient.invalidateQueries({ queryKey: ["pastas"] });
       form.reset();
       setFiles([]);
-      onOpenChange(false);
+      if (asPage) {
+        // Em modo página, navega para o detalhe do processo recém-criado
+        // (ou apenas para a lista, no caso de edição).
+        if (!isEditing && newProcessoIdRef) {
+          navigate(`/processos/${newProcessoIdRef}`, { replace: true });
+        } else if (isEditing && processo?.id) {
+          navigate(`/processos/${processo.id}`, { replace: true });
+        } else {
+          navigate("/processos");
+        }
+      } else {
+        onOpenChange(false);
+      }
     } catch (error: any) {
       console.error("Error saving process:", error);
       toast({
