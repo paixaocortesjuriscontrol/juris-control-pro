@@ -1178,6 +1178,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     isBuscando: () => buscandoJudit,
     save: (options?: { silent?: boolean }) => handleSave(options),
     getValues: () => form,
+    getBennerExtra: () => bennerExtraRef.current || {},
   }), [buscandoJudit, form, dado, juditSessionFields, turmasTst, relatoresTst]);
 
   const handleSave = async (options?: { silent?: boolean }): Promise<boolean | string> => {
