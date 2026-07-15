@@ -217,10 +217,17 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     setForm((prev) => ({ ...prev, [field]: value }));
 
   const handleSave = async () => {
-    if (!processo?.id) return;
     if (form.status === "encerrado" && !String(form.motivo_encerramento || "").trim()) {
       toast.error("Informe o motivo do encerramento antes de salvar.");
       return;
+    }
+    // Validação mínima para criação
+    if (isNovo) {
+      const numeroRaw = String(form.numero || "").trim();
+      if (!numeroRaw || numeroRaw.replace(/\D/g, "").length < 5) {
+        toast.error("Informe o número do processo antes de salvar.");
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -233,6 +240,36 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           payload[f] = v === "" || v == null ? null : v;
         }
       }
+
+      if (isNovo) {
+        // Modo criação: INSERT e redireciona para a página do novo processo.
+        payload.numero = String(form.numero || "").trim();
+        const { data: novo, error: errInsert } = await supabase
+          .from("processos")
+          .insert(payload as any)
+          .select("id")
+          .single();
+        if (errInsert) throw errInsert;
+
+        if (responsaveis.length > 0 && novo?.id) {
+          const inserts = responsaveis.map((r: any) => ({
+            processo_id: novo.id,
+            usuario_id: r.usuario_id,
+            coordenacao_id: r.coordenacao_id || null,
+            papel: r.papel || "responsavel",
+            ativo: true,
+          }));
+          await supabase
+            .from("processos_responsaveis")
+            .insert(inserts as any);
+        }
+
+        await queryClient.invalidateQueries({ queryKey: ["processos"] });
+        toast.success("Processo criado com sucesso!");
+        navigate(`/processos/${novo.id}`, { replace: true });
+        return;
+      }
+
       const { error } = await supabase
         .from("processos")
         .update(payload as any)
