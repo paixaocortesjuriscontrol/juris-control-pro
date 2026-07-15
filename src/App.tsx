@@ -12,7 +12,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Processos from "./pages/Processos";
 import ProcessoDetalhes from "./pages/ProcessoDetalhes";
-import NovoProcesso from "./pages/NovoProcesso";
+// /processos/novo reutiliza a mesma tela de ProcessoDetalhes em modo criação
 import BuscarProcessos from "./pages/BuscarProcessos";
 import Coordenacoes from "./pages/Coordenacoes";
 import ModelosTitulo from "./pages/ModelosTitulo";
@@ -134,7 +134,7 @@ function App() {
               <Route path="/processos" element={<ProtectedRoute><Processos /></ProtectedRoute>} />
               <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
               <Route path="/clientes/:id" element={<ProtectedRoute><ClienteDetalhes /></ProtectedRoute>} />
-              <Route path="/processos/novo" element={<ProtectedRoute><NovoProcesso /></ProtectedRoute>} />
+              <Route path="/processos/novo" element={<ProtectedRoute><ProcessoDetalhes /></ProtectedRoute>} />
               <Route path="/processos/:id" element={<ProtectedRoute><ProcessoDetalhes /></ProtectedRoute>} />
               <Route path="/prazos" element={<ProtectedRoute><Prazos /></ProtectedRoute>} />
               <Route path="/lista-atividades" element={<ProtectedRoute><ListaAtividades /></ProtectedRoute>} />
