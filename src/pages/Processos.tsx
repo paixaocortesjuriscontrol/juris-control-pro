@@ -792,7 +792,7 @@ const Processos = () => {
                 </Button>
                 <Button 
                   className="bg-primary hover:bg-primary/90 flex-1 sm:flex-none"
-                  onClick={() => setShowFormDialog(true)}
+                  onClick={() => navigate("/processos/novo")}
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   <span className="hidden sm:inline">Novo Processo</span>

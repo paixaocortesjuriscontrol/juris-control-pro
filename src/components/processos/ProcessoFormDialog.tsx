@@ -3,6 +3,7 @@ import { z } from "zod";
 import { useForm, useWatch, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { Loader2, Pencil, Upload, FileText, Trash2, FolderOpen, Plus, Sparkles } from "lucide-react";
 import {
   Dialog,
@@ -102,6 +103,11 @@ interface ProcessoFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   processo?: any;
+  /**
+   * Quando true, renderiza o formulário como página inteira (rota `/processos/novo`)
+   * em vez de dentro de um Dialog modal. Após salvar, navega para `/processos/:id`.
+   */
+  asPage?: boolean;
 }
 
 // Format CNJ mask: NNNNNNN-DD.AAAA.J.TR.OOOO
@@ -159,7 +165,8 @@ const AnexosJuditTabPanel = memo(function AnexosJuditTabPanel({
   return <ProcessoAnexosJuditTab processoNumero={numero} processoId={processoId} />;
 });
 
-export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFormDialogProps) {
+export function ProcessoFormDialog({ open, onOpenChange, processo, asPage = false }: ProcessoFormDialogProps) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [fetchingFromApi, setFetchingFromApi] = useState(false);
   const [fetchingJudit, setFetchingJudit] = useState(false);
@@ -902,6 +909,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
   const onSubmit = async (values: FormValues) => {
     setLoading(true);
+    let createdProcessoId: string | null = null;
     try {
       let pastaId = values.pasta_id || null;
       
@@ -1049,6 +1057,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
         const { data: newProcesso, error } = await supabase.from("processos").insert(processData).select("id").single();
 
         if (error) throw error;
+        createdProcessoId = newProcesso.id;
 
         // Insert responsible lawyers
         if (responsaveis.length > 0) {
@@ -1107,7 +1116,19 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       queryClient.invalidateQueries({ queryKey: ["pastas"] });
       form.reset();
       setFiles([]);
-      onOpenChange(false);
+      if (asPage) {
+        // Em modo página, navega para o detalhe do processo recém-criado
+        // (ou apenas para a lista, no caso de edição).
+        if (!isEditing && createdProcessoId) {
+          navigate(`/processos/${createdProcessoId}`, { replace: true });
+        } else if (isEditing && processo?.id) {
+          navigate(`/processos/${processo.id}`, { replace: true });
+        } else {
+          navigate("/processos");
+        }
+      } else {
+        onOpenChange(false);
+      }
     } catch (error: any) {
       console.error("Error saving process:", error);
       toast({
@@ -1120,23 +1141,22 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {isEditing && <Pencil className="w-5 h-5" />}
-            {isEditing ? "Editar Processo" : "Novo Processo"}
-          </DialogTitle>
-          <DialogDescription>
-            {isEditing 
-              ? "Atualize as informações do processo conforme necessário."
-              : "Preencha as informações do processo ou busque automaticamente pelo número CNJ."
-            }
-          </DialogDescription>
-        </DialogHeader>
+  const headerNode = (
+    <>
+      <div className="flex items-center gap-2 text-lg font-semibold">
+        {isEditing && <Pencil className="w-5 h-5" />}
+        {isEditing ? "Editar Processo" : "Novo Processo"}
+      </div>
+      <p className="text-sm text-muted-foreground">
+        {isEditing
+          ? "Atualize as informações do processo conforme necessário."
+          : "Preencha as informações do processo ou busque automaticamente pelo número CNJ."}
+      </p>
+    </>
+  );
 
-        <Form {...form}>
+  const formNode = (
+    <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <div className="w-full overflow-x-auto -mx-1 px-1">
@@ -2222,17 +2242,53 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
               </TabsContent>
             </Tabs>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <div className={asPage ? "flex justify-end gap-2 border-t pt-4" : "flex justify-end gap-2 sm:justify-end"}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (asPage) {
+                    navigate("/processos");
+                  } else {
+                    onOpenChange(false);
+                  }
+                }}
+              >
                 Cancelar
               </Button>
               <Button type="submit" disabled={loading || isUploading}>
                 {(loading || isUploading) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {isEditing ? "Salvar Alterações" : "Cadastrar Processo"}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </Form>
+  );
+
+  if (asPage) {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-1">{headerNode}</div>
+        {formNode}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {isEditing && <Pencil className="w-5 h-5" />}
+            {isEditing ? "Editar Processo" : "Novo Processo"}
+          </DialogTitle>
+          <DialogDescription>
+            {isEditing
+              ? "Atualize as informações do processo conforme necessário."
+              : "Preencha as informações do processo ou busque automaticamente pelo número CNJ."}
+          </DialogDescription>
+        </DialogHeader>
+        {formNode}
       </DialogContent>
     </Dialog>
   );
