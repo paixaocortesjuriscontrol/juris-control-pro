@@ -336,6 +336,28 @@ serve(async (req) => {
     }
   }
 
+  // ── Finaliza log de execução ──
+  if (execId) {
+    const totalNovos = resultados.reduce(
+      (acc: number, r: any) => acc + (typeof r?.novos === "number" ? r.novos : 0),
+      0
+    );
+    const totalErros = resultados.filter((r: any) => r?.erro).length;
+    const finalizadoEm = new Date();
+    await supabase
+      .from("execucoes_acompanhamento_especial")
+      .update({
+        status: "concluido",
+        finalizado_em: finalizadoEm.toISOString(),
+        duracao_ms: finalizadoEm.getTime() - iniciadoEm.getTime(),
+        total_processos: resultados.length,
+        total_novos_eventos: totalNovos,
+        total_erros: totalErros,
+        detalhes: { resultados },
+      })
+      .eq("id", execId);
+  }
+
   return new Response(
     JSON.stringify({ ok: true, slot, processados: resultados.length, resultados }),
     { headers }
