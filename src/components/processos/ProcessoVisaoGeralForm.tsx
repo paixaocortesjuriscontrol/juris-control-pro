@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Save, Loader2, Sparkles, Copy, Bell, Users, Scale, FileText, Building2, DollarSign, Activity, Paperclip, Plus, Flame, ListTodo, Clock, CalendarDays, Gavel } from "lucide-react";
+import { Save, Loader2, Sparkles, Copy, Bell, Users, Scale, FileText, Building2, DollarSign, Activity, Paperclip, Plus, Flame, ListTodo, Clock, CalendarDays, Gavel, CheckCircle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
