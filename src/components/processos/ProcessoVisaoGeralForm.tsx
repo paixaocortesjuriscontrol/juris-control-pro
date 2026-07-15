@@ -32,6 +32,7 @@ import { AcompanhamentoEspecialToggle } from "./AcompanhamentoEspecialToggle";
 import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
 import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
 import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
+import { TestemunhasSection } from "./TestemunhasSection";
 import type { NovoItemTipo } from "@/components/shared/NovoItemPanel";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -1283,6 +1284,13 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   </FormField>
                 </div>
               </section>
+
+              {/* Testemunhas */}
+              {!isNovo && processo?.id && (
+                <section>
+                  <TestemunhasSection processoId={processo.id} />
+                </section>
+              )}
 
               {/* Datas */}
               <section>

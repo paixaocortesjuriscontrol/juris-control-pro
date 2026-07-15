@@ -22,6 +22,8 @@ interface ProcessosPaginadosFilters {
   periodoFim?: Date;
   clienteIds?: string[];
   tipoProcesso?: string;
+  testemunhaNome?: string;
+  comTestemunha?: boolean;
   enabled?: boolean;
 }
 
@@ -63,6 +65,8 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
         _periodo_fim: filters.periodoFim ? filters.periodoFim.toISOString() : null,
         _cliente_ids: filters.clienteIds && filters.clienteIds.length > 0 ? filters.clienteIds : null,
         _tipo_processo: filters.tipoProcesso && filters.tipoProcesso !== "all" ? filters.tipoProcesso : null,
+        _testemunha_nome: filters.testemunhaNome && filters.testemunhaNome.trim() ? filters.testemunhaNome.trim() : null,
+        _com_testemunha: filters.comTestemunha ?? false,
       };
 
       // Se há restrição de coordenações (não-admin com "Todas" selecionado)

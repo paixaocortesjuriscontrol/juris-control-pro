@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -21,6 +22,8 @@ export interface FiltrosAvancados {
   responsavelId?: string;
   responsavelNome?: string;
   instancia: "1" | "2" | "superior" | "todos";
+  testemunhaNome?: string;
+  comTestemunha?: boolean;
 }
 
 interface FiltrosAvancadosProcessosProps {
@@ -84,7 +87,9 @@ export function FiltrosAvancadosProcessos({
     filtros.periodoInicio ||
     filtros.periodoFim ||
     filtros.responsavelId ||
-    filtros.instancia !== "todos";
+    filtros.instancia !== "todos" ||
+    !!filtros.testemunhaNome ||
+    !!filtros.comTestemunha;
 
   const handleResponsavelSelect = (id: string, nome: string) => {
     onFiltrosChange({ ...filtros, responsavelId: id, responsavelNome: nome });
@@ -257,6 +262,27 @@ export function FiltrosAvancadosProcessos({
                   <Label htmlFor="inst-todos" className="text-sm font-normal cursor-pointer">Todos</Label>
                 </div>
               </RadioGroup>
+            </div>
+
+            {/* Testemunhas */}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground uppercase">Testemunhas:</Label>
+              <Input
+                placeholder="Nome da testemunha"
+                value={filtros.testemunhaNome || ""}
+                onChange={(e) => onFiltrosChange({ ...filtros, testemunhaNome: e.target.value })}
+                className="h-8 text-xs"
+              />
+              <div className="flex items-center gap-2 pt-1">
+                <Checkbox
+                  id="com-testemunha"
+                  checked={!!filtros.comTestemunha}
+                  onCheckedChange={(v) => onFiltrosChange({ ...filtros, comTestemunha: !!v })}
+                />
+                <Label htmlFor="com-testemunha" className="text-sm font-normal cursor-pointer">
+                  Com testemunhas cadastradas
+                </Label>
+              </div>
             </div>
           </div>
 

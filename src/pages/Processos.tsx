@@ -335,6 +335,8 @@ const Processos = () => {
     periodoFim: filtrosAplicados.periodoFim,
     clienteIds: clienteIds,
     tipoProcesso: tipoProcessoFilter,
+    testemunhaNome: filtrosAplicados.testemunhaNome,
+    comTestemunha: filtrosAplicados.comTestemunha,
     enabled: coordenacaoCarregada, // Não buscar enquanto está carregando a coordenação
   });
 
