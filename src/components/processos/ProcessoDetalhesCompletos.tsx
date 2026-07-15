@@ -1004,6 +1004,7 @@ export function ProcessoDetalhesCompletos({
                   eventosAgenda={eventosAgenda}
                   onNavigate={handleSectionChange}
                   onAddItem={abrirNovoItem}
+                  onNumeroChange={onNumeroChange}
                   hideJuditButtons
                 />
               )}
