@@ -1,105 +1,46 @@
+## Objetivo
 
-# Plano de melhorias – Coordenação Dra. Beatriz
+Ao clicar em **Novo Processo** na lista de Processos e Casos, abrir **a mesma tela de detalhe do processo** (mesmo layout, abas laterais, cards, botão Judit, botão Buscar Dados, campos idênticos) — porém com o formulário **em branco**, ao invés de abrir um modal (`ProcessoFormDialog`).
 
-Entrega em **4 fases**, aprovando cada uma antes de seguir. Reaproveita a infraestrutura já existente de e-mail e WhatsApp (`enviar-whatsapp-zapi`, funções `enviar-alertas-*`, `notificar-*`).
+Após o primeiro **Salvar**, o processo é criado e a URL passa a apontar para o registro real (`/processos/:id`), habilitando as abas dependentes (Andamentos, Prazos, Audiências, Pub. DJEN, etc.).
 
----
+## Como funciona hoje
 
-## Fase 1 — Quick wins (baixo risco, alto impacto)
+- `src/pages/Processos.tsx` linha 795: botão `Novo Processo` seta `showFormDialog=true` e abre `ProcessoFormDialog` (modal com abas Dados Básicos / Tribunal / Partes / Administrativo / Contingencial / Documentos / Análise Judit / Anexos Judit).
+- Edição inline hoje vive em `src/pages/ProcessoDetalhes.tsx` (rota `/processos/:id`) que carrega o processo por id via React Query e renderiza toda a lateral (Visão Geral, Tarefa, Prazo, Audiência, Pub. DJEN, Andamentos, etc.) mais cards à direita (Pendências, Depósitos, Custas).
 
-Objetivo: entregas visíveis na tela em pouco tempo, sem mexer em motor de notificações.
+## Mudanças
 
-1. **Análise DJEN — marcar como lida sem reload**
-   Atualização otimista da lista (mutate cache do React Query, sem `invalidateQueries` que recarrega tudo). A publicação some/muda de estilo instantaneamente.
+**1. Nova rota `/processos/novo`**
+- Em `src/App.tsx`, registrar `<Route path="/processos/novo" element={<ProtectedRoute><ProcessoDetalhes /></ProtectedRoute>} />` **antes** de `/processos/:id`.
 
-2. **Painel de Controle — retirar tratados dos contadores**
-   Nos cards *Prazos, Audiências, Parcelamento, Eventos*, o número no topo passa a contar apenas itens não tratados (usa `isItemTratado` já existente).
+**2. Modo criação em `ProcessoDetalhes.tsx`**
+- Detectar via `useParams`/`useLocation` quando estamos em `/processos/novo` → flag `isNovo`.
+- Quando `isNovo=true`:
+  - Não executar `useQuery` do processo (ou retornar objeto vazio com defaults: `tipo_processo='judicial'`, `situacao='ativo'`, `area='civel'`, sem `id`).
+  - Renderizar **direto a aba "Visão Geral"** em modo edição (reaproveitando `ProcessoEditarCompleto` ou o formulário inline já existente), com todos os campos vazios.
+  - Ocultar/desabilitar itens da sidebar de detalhe que exigem processo existente: Tarefa, Evento, Prazo, Audiência, Pub. DJEN, Redistribuições, Andamentos, Pedidos, Cobrança, Análise Judit, Distribuições, Comentários, Pasta (deixar apenas Visão Geral ativa e mostrar tooltip "Disponível após salvar").
+  - Ocultar cards laterais (Pendências, Depósitos Recursais, Custas) — todos dependem de `processo.id`.
+  - Botão **Judit** e **Buscar Dados**: manter funcionando exatamente como no modal atual (usam apenas o número CNJ digitado — não exigem `processo.id`). Reaproveitar handlers de `ProcessoFormDialog`.
+  - Botão **Salvar** cria via `supabase.from("processos").insert({...})` respeitando validações atuais do modal (número obrigatório, área obrigatória etc.). No sucesso: `navigate('/processos/' + novo.id, { replace: true })` — a partir daí a página vira o modo detalhe normal com todas as abas ativas.
+  - Título/breadcrumb: "Novo Processo" ao invés de nome das partes.
 
-3. **Painel de Controle — retirar tratados do Kanban**
-   Itens tratados deixam de aparecer nas colunas dos cards. (Ficam acessíveis via filtro "mostrar tratados", opcional.)
+**3. Botão "Novo Processo" em `Processos.tsx`**
+- Trocar `onClick={() => setShowFormDialog(true)}` por `onClick={() => navigate('/processos/novo')}`.
+- Remover renderização do `<ProcessoFormDialog ... />` **quando usado para criação** (mantém apenas se ainda for usado para editar — verificar `processoToEdit`). Se toda edição já é inline em `ProcessoDetalhes`, remover totalmente o dialog e o state `showFormDialog`.
 
-4. **Painel de Controle — botão 👁 para ocultar totalizadores**
-   Toggle no topo do painel que oculta/mostra a faixa de cards totalizadores. Preferência salva em `localStorage` por usuário.
-
-5. **Painel de Controle — botão Notificações só para admin/coordenador**
-   Esconder o botão para demais papéis usando `useUserRole().isAdminOrCoordinator`.
-
----
-
-## Fase 2 — Notificações individualizadas e alertas de mudança/perda  ✅ CONCLUÍDA
-
-Objetivo: cada membro escolhe como/quando ser avisado; sistema avisa mudanças de situação e prazos perdidos usando WhatsApp/e-mail **já configurados**.
-
-6. **Config individual de notificações por membro** (dentro do botão "Notificações" do Painel de Controle)
-   - Nova tabela `config_notificacoes_usuario` (por usuário): canais habilitados (email/whatsapp/in-app), tipos de evento (mudança de situação, prazo perdido, tarefa nova, comentário, etc.), janela de envio (horário útil).
-   - UI: aba "Meu perfil de notificações" com switches por tipo e canal.
-   - Admin/coord vê configuração dos membros da coordenação (somente leitura + poder resetar).
-
-7. **Alerta de mudança de situação** (tarefa, prazo, evento, audiência, parcelamento — tudo que sai do botão Adicionar)
-   - Trigger em cada tabela: quando `status`/`situacao` muda, enfileira notificação.
-   - Nova função edge `notificar-mudanca-situacao` que resolve responsáveis e dispara via `enviar-whatsapp-zapi` e e-mail conforme a config individual.
-
-8. **Alerta de prazo perdido**
-   - Cron diário identifica itens vencidos e ainda não tratados dos responsáveis.
-   - Envia lembrete e-mail + WhatsApp: "Você tem X pendências vencidas — abra o sistema para tratar".
-   - Não repete o mesmo item mais de 1x/dia por usuário (`historico_alertas_enviados`).
-
----
-
-## Fase 3 — Automação IA + títulos pré-prontos + relatório  ✅ CONCLUÍDA
-
-9. **Análise DJEN — botão "Pré-agendar tarefas com IA"**
-   - Analisa publicações do dia (filtradas na tela) com IA (padrão do projeto).
-   - Para cada publicação, propõe: tipo (tarefa/prazo/audiência/evento), título, data sugerida, responsável sugerido.
-   - Abre modal de revisão em lote; usuário confirma/edita e o sistema cria os itens vinculados à publicação.
-
-10. **Coordenações — títulos pré-prontos**
-    - Nova aba no menu Coordenações: CRUD de "Modelos de título" com campos: nome, tipo (tarefa/prazo/evento/audiência/parcelamento), título template, descrição template, prioridade padrão.
-    - Nos formulários de novo item, um seletor "Usar modelo" preenche os campos.
-
-11. **Painel de Controle — Relatório de Audiências**
-    - Botão abre modal com filtro Ano/Mês (default: mês atual).
-    - Tabela: linhas = usuários da coordenação; colunas = situações (realizada, adiada, cancelada, pendente…); célula = contagem.
-    - Totais por linha/coluna; exportação em Excel/PDF (reaproveita utils existentes).
-
----
-
-## Fase 4 — Reagendar vs Nova audiência  ✅ CONCLUÍDA
-
-12. **Formulário de alteração de audiência**
-    - Botão **Reagendar**: edita o mesmo registro, apenas data/hora/tipo; grava linha em `historico_reagendamentos_audiencia` (data anterior, nova, quem, quando). Sem duplicar.
-    - Botão **Nova audiência**: cria novo registro copiando os campos da atual, exigindo nova data/hora/tipo; vincula "originada de" a atual.
-    - Fluxo dispara Fase 2 (alerta de mudança de situação para os responsáveis).
-
----
+**4. Reaproveitamento**
+- Extrair de `ProcessoFormDialog` os handlers `buscarDadosCNJ` e `buscarJudit` para um hook `useProcessoBuscas` (ou copiar direto para `ProcessoDetalhes` no modo novo). Assim o botão Judit funciona igual.
 
 ## Detalhes técnicos
 
-```text
-Tabelas novas (Fase 2/3/4):
-  config_notificacoes_usuario   (usuario_id, canal, tipo_evento, ativo, janela_horario)
-  modelos_titulo_coordenacao    (coordenacao_id, tipo, titulo, descricao, prioridade)
-  historico_reagendamentos_aud  (audiencia_id, data_anterior, data_nova, tipo_anterior, tipo_novo, alterado_por, alterado_em)
+- Ordem das rotas em `App.tsx` importa: `/processos/novo` **antes** de `/processos/:id` (senão `id="novo"` é capturado como uuid).
+- No modo `isNovo`, guarda de segurança: qualquer `useQuery(['processo', id])` só roda se `id && id !== 'novo'` — usar `enabled: !!id && id !== 'novo'`.
+- Componentes de aba (`ProcessoAgendaTab`, `ProcessoDocumentosTab`, `ProcessoPortalTab`, `ProcessoPedidosTab`, etc.) não precisam ser tocados — basta não renderizá-los.
+- Após criar, `invalidateQueries(['processos'])` para atualizar a lista.
 
-Triggers:
-  after_update_status em: tarefas, eventos_agenda, audiencias_detectadas, prazos, parcelas_evento
-    → INSERT em fila (notificacoes) + invoca notificar-mudanca-situacao
+## Fora de escopo
 
-Edge functions novas:
-  notificar-mudanca-situacao   (dispatcher: lê config do usuário, chama enviar-whatsapp-zapi + email)
-  alertar-prazos-perdidos      (cron diário; reaproveita enviar-alertas-tarefas)
-  ia-preagendar-djen           (IA analisa publicações e retorna sugestões estruturadas)
-
-Reuso:
-  - enviar-whatsapp-zapi (já existe, WhatsApp funcionando hoje)
-  - enviar-alertas-tarefas / enviar-alerta-coordenacao (padrão e-mail)
-  - useUserRole().isAdminOrCoordinator para gates de UI
-  - isItemTratado (src/components/shared/TratadoCheck.tsx) para todos os filtros de "tratados"
-```
-
----
-
-## Ordem sugerida de aprovação
-
-Fase 1 → validar em produção → Fase 2 → Fase 3 → Fase 4.
-Se preferir outra ordem (ex.: começar por Reagendar), me avise.
+- Não altero o layout visual da tela de detalhe.
+- Não mexo em edição de processos já existentes (continua inline como está hoje).
+- Mantenho `ProcessoFormDialog` no repositório caso ainda seja chamado de outros lugares (Coordenações, Pastas) — busca rápida antes de deletar.
