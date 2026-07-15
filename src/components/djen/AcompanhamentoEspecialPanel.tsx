@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { CalendarIcon, PlayCircle, Loader2, CheckCircle2, XCircle, Clock, Info, RefreshCw, Server } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -26,6 +27,7 @@ type Execucao = {
   total_novos_eventos: number;
   total_erros: number;
   erro: string | null;
+  detalhes?: any;
 };
 
 const HORARIOS = [
@@ -57,6 +59,7 @@ export function AcompanhamentoEspecialPanel() {
   const [dataFim, setDataFim] = useState<Date>(hoje);
   const [slotFiltro, setSlotFiltro] = useState<string>("todos");
   const [executando, setExecutando] = useState<number | null>(null);
+  const [detalheExec, setDetalheExec] = useState<Execucao | null>(null);
 
   const { data: execucoes, isLoading, refetch } = useQuery({
     queryKey: ["execucoes-acompanhamento-especial", dataInicio.toISOString().slice(0, 10), dataFim.toISOString().slice(0, 10), slotFiltro],
@@ -67,7 +70,7 @@ export function AcompanhamentoEspecialPanel() {
       fim.setHours(23, 59, 59, 999);
       let q = supabase
         .from("execucoes_acompanhamento_especial")
-        .select("id, slot, disparo, status, iniciado_em, finalizado_em, duracao_ms, total_processos, total_novos_eventos, total_erros, erro")
+        .select("id, slot, disparo, status, iniciado_em, finalizado_em, duracao_ms, total_processos, total_novos_eventos, total_erros, erro, detalhes")
         .gte("iniciado_em", inicio.toISOString())
         .lte("iniciado_em", fim.toISOString())
         .order("iniciado_em", { ascending: false })
@@ -97,8 +100,16 @@ export function AcompanhamentoEspecialPanel() {
         body: { slot, manual: true, invocado_por: userData.user?.id ?? null },
       });
       if (error) throw error;
+      const resultados: any[] = data?.resultados ?? [];
+      const novos = resultados.reduce(
+        (a, r) => a + (typeof r?.novos === "number" ? r.novos : 0),
+        0
+      );
+      const consultados = resultados.filter((r) => typeof r?.novos === "number").length;
+      const skipped = resultados.filter((r) => r?.skipped).length;
+      const erros = resultados.filter((r) => r?.erro).length;
       toast.success(`Slot ${slot}h executado`, {
-        description: `${data?.processados ?? 0} processo(s) processado(s).`,
+        description: `${consultados} consultado(s) na Judit · ${novos} novo(s) evento(s) · ${skipped} pulado(s) · ${erros} erro(s)`,
       });
       await qc.invalidateQueries({ queryKey: ["execucoes-acompanhamento-especial"] });
     } catch (e: any) {
@@ -281,7 +292,7 @@ export function AcompanhamentoEspecialPanel() {
                     const badge = STATUS_BADGE[e.status] ?? STATUS_BADGE.executando;
                     const Icon = badge.Icon;
                     return (
-                      <TableRow key={e.id}>
+                      <TableRow key={e.id} className="cursor-pointer hover:bg-muted/40" onClick={() => setDetalheExec(e)}>
                         <TableCell className="whitespace-nowrap text-sm">
                           {format(new Date(e.iniciado_em), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}
                         </TableCell>
@@ -333,6 +344,68 @@ export function AcompanhamentoEspecialPanel() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog detalhe da execução */}
+      <Dialog open={!!detalheExec} onOpenChange={(o) => !o && setDetalheExec(null)}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalhes da execução</DialogTitle>
+            <DialogDescription>
+              {detalheExec &&
+                `${format(new Date(detalheExec.iniciado_em), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })} · slot ${detalheExec.slot ?? "—"}h · ${detalheExec.disparo}`}
+            </DialogDescription>
+          </DialogHeader>
+          {detalheExec && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                <div className="rounded border p-2"><div className="text-xs text-muted-foreground">Processos</div><div className="font-semibold">{detalheExec.total_processos}</div></div>
+                <div className="rounded border p-2"><div className="text-xs text-muted-foreground">Novos eventos</div><div className="font-semibold text-blue-600">{detalheExec.total_novos_eventos}</div></div>
+                <div className="rounded border p-2"><div className="text-xs text-muted-foreground">Erros</div><div className="font-semibold text-destructive">{detalheExec.total_erros}</div></div>
+                <div className="rounded border p-2"><div className="text-xs text-muted-foreground">Duração</div><div className="font-semibold">{formatDuracao(detalheExec.duracao_ms)}</div></div>
+              </div>
+              {detalheExec.erro && (
+                <div className="rounded border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive whitespace-pre-wrap">
+                  {detalheExec.erro}
+                </div>
+              )}
+              {Array.isArray(detalheExec.detalhes?.resultados) && detalheExec.detalhes.resultados.length > 0 ? (
+                <div className="rounded-md border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Processo ID</TableHead>
+                        <TableHead>Resultado</TableHead>
+                        <TableHead className="text-right">Novos</TableHead>
+                        <TableHead className="text-right">Steps</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {detalheExec.detalhes.resultados.map((r: any, i: number) => (
+                        <TableRow key={i}>
+                          <TableCell className="text-xs font-mono">{r.processo_id?.slice(0, 8) ?? "—"}…</TableCell>
+                          <TableCell>
+                            {r.skipped ? (
+                              <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-500/30">pulado: {r.skipped}</Badge>
+                            ) : r.erro ? (
+                              <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">erro: {String(r.erro).slice(0, 60)}</Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 border-emerald-500/30">consultado</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">{typeof r.novos === "number" ? r.novos : "—"}</TableCell>
+                          <TableCell className="text-right">{typeof r.total_steps === "number" ? r.total_steps : "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground text-center py-4">Sem detalhes por processo.</div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
