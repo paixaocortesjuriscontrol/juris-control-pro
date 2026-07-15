@@ -875,10 +875,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       <div className="flex items-center gap-2 flex-wrap">
         <Button
           size="sm"
-          onClick={async () => {
-            await handleFetchJuditOnly(comAnexosJudit);
-            onNavigate?.("analise-judit");
-          }}
+          onClick={handleJuditButtonClick}
           disabled={juditBusy || saving}
           className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
         >
@@ -982,13 +979,10 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 </DropdownMenu>
                 <Button
                   size="sm"
-                  onClick={async () => {
-                    await handleFetchJuditOnly(comAnexosJudit);
-                    onNavigate?.("analise-judit");
-                  }}
+                  onClick={handleJuditButtonClick}
                   disabled={juditBusy || saving}
                   className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  title="Consultar Judit (sem alterar o formulário)"
+                  title={isNovo ? "Consultar Judit e preencher o formulário" : "Consultar Judit (sem alterar o formulário)"}
                 >
                   {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                   {syncing || syncingAnexos
@@ -1019,10 +1013,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           <div className="flex items-center justify-end gap-2 flex-wrap">
               <Button
                 size="sm"
-                onClick={async () => {
-                  await handleFetchJuditOnly(comAnexosJudit);
-                  onNavigate?.("analise-judit");
-                }}
+                onClick={handleJuditButtonClick}
                 disabled={juditBusy || saving}
                 className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
               >
@@ -1063,6 +1054,18 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <span className="font-mono">{juditElapsed}s · {juditProgress}%</span>
               </div>
               <Progress value={juditProgress} className="h-2" />
+            </div>
+          )}
+
+          {isNovo && juditNovoCardVisible && !juditBusy && (
+            <div className="mb-4 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-100">
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold">Informações Judit recuperadas e formulário preenchido.</p>
+                  <p className="text-sm">Clique no menu esquerdo em <strong>Análise Judit</strong> para ver todas as informações recuperadas da consulta.</p>
+                </div>
+              </div>
             </div>
           )}
 
