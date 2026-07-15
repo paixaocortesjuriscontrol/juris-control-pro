@@ -879,8 +879,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           disabled={juditBusy || saving}
           className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
         >
-          {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-          {syncing || syncingAnexos
+          {juditBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {juditBusy
             ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando… ${juditElapsed}s`)
             : "Judit"}
         </Button>
@@ -984,8 +984,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                   title={isNovo ? "Consultar Judit e preencher o formulário" : "Consultar Judit (sem alterar o formulário)"}
                 >
-                  {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  {syncing || syncingAnexos
+                  {juditBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {juditBusy
                     ? (juditElapsed < 3 ? "Judit…" : `${juditElapsed}s`)
                     : "Judit"}
                 </Button>
@@ -997,7 +997,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   />
                   Com anexos
                 </label>
-                <Button size="sm" onClick={handleSave} disabled={saving || syncing || syncingAnexos}>
+                <Button size="sm" onClick={handleSave} disabled={saving || juditBusy}>
                   {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
                   Salvar
                 </Button>
@@ -1017,8 +1017,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 disabled={juditBusy || saving}
                 className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
               >
-                {syncing || syncingAnexos ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {syncing || syncingAnexos
+                {juditBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                {juditBusy
                   ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando crawler… ${juditElapsed}s`)
                   : "Judit"}
               </Button>
