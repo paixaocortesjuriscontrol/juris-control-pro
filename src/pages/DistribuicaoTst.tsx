@@ -1214,16 +1214,29 @@ export default function DistribuicaoTst() {
             }
           }
 
-          // Mesma extração do formulário individual: nomes por polo (sem advogados)
-          const nomesPorPolo = (poloUpper: string) =>
+          // Reclamante/Reclamada: PRIORIDADE ABSOLUTA aos campos já desambiguados
+          // pelo backend (`data.reclamante`/`data.reclamada`), que cruzam com a
+          // instância de origem e aplicam o override Santander.
+          // ATENÇÃO: no TST as partes vêm como ACTIVE/PASSIVE = recorrente/recorrido
+          // (ex.: quando o Banco recorre ele é ACTIVE, mas é RECLAMADO na origem).
+          // Usar polo ACTIVE/PASSIVE aqui inverte reclamante ↔ reclamada — bug
+          // relatado pela advocacia com processos vindo com Santander como
+          // "Reclamante" e o cliente como "Reclamada".
+          const nomesPorPersonType = (re: RegExp) =>
             [...new Set(
               partiesDetail
-                .filter((p: any) => (p?.polo || "").toString().toUpperCase() === poloUpper && !p?.is_advogado)
+                .filter((p: any) => !p?.is_advogado && re.test(String(p?.tipo_pessoa || "")))
                 .map((p: any) => String(p?.nome || "").trim())
                 .filter(Boolean)
             )].join(" / ");
-          const reclamanteJudit = nomesPorPolo("ACTIVE");
-          const reclamadaJudit = nomesPorPolo("PASSIVE");
+          const reclamanteJudit =
+            (juditData?.reclamante && String(juditData.reclamante).trim()) ||
+            nomesPorPersonType(/RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE/i) ||
+            "";
+          const reclamadaJudit =
+            (juditData?.reclamada && String(juditData.reclamada).trim()) ||
+            nomesPorPersonType(/RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID/i) ||
+            "";
 
           // Trânsito em julgado: situação contém "trânsito" OU processo_baixado === "S"
           const situacaoStr = (juditData.situacao_processo || "").toString();
