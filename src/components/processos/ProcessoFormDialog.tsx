@@ -3,7 +3,6 @@ import { z } from "zod";
 import { useForm, useWatch, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
 import { Loader2, Pencil, Upload, FileText, Trash2, FolderOpen, Plus, Sparkles } from "lucide-react";
 import {
   Dialog,
@@ -103,11 +102,6 @@ interface ProcessoFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   processo?: any;
-  /**
-   * Quando true, renderiza o formulário como página inteira (rota `/processos/novo`)
-   * em vez de dentro de um Dialog modal. Após salvar, navega para `/processos/:id`.
-   */
-  asPage?: boolean;
 }
 
 // Format CNJ mask: NNNNNNN-DD.AAAA.J.TR.OOOO
@@ -165,8 +159,7 @@ const AnexosJuditTabPanel = memo(function AnexosJuditTabPanel({
   return <ProcessoAnexosJuditTab processoNumero={numero} processoId={processoId} />;
 });
 
-export function ProcessoFormDialog({ open, onOpenChange, processo, asPage = false }: ProcessoFormDialogProps) {
-  const navigate = useNavigate();
+export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFormDialogProps) {
   const [loading, setLoading] = useState(false);
   const [fetchingFromApi, setFetchingFromApi] = useState(false);
   const [fetchingJudit, setFetchingJudit] = useState(false);
