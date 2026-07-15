@@ -1141,23 +1141,22 @@ export function ProcessoFormDialog({ open, onOpenChange, processo, asPage = fals
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {isEditing && <Pencil className="w-5 h-5" />}
-            {isEditing ? "Editar Processo" : "Novo Processo"}
-          </DialogTitle>
-          <DialogDescription>
-            {isEditing 
-              ? "Atualize as informações do processo conforme necessário."
-              : "Preencha as informações do processo ou busque automaticamente pelo número CNJ."
-            }
-          </DialogDescription>
-        </DialogHeader>
+  const headerNode = (
+    <>
+      <div className="flex items-center gap-2 text-lg font-semibold">
+        {isEditing && <Pencil className="w-5 h-5" />}
+        {isEditing ? "Editar Processo" : "Novo Processo"}
+      </div>
+      <p className="text-sm text-muted-foreground">
+        {isEditing
+          ? "Atualize as informações do processo conforme necessário."
+          : "Preencha as informações do processo ou busque automaticamente pelo número CNJ."}
+      </p>
+    </>
+  );
 
-        <Form {...form}>
+  const formNode = (
+    <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <div className="w-full overflow-x-auto -mx-1 px-1">
