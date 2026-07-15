@@ -133,6 +133,10 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   hideJuditButtons = false,
 }, ref) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  // Modo criação: quando o processo ainda não tem id, `handleSave` faz INSERT
+  // e redireciona para a URL do novo processo.
+  const isNovo = !processo?.id;
   const [form, setForm] = useState<Record<string, any>>({});
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
