@@ -909,6 +909,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo, asPage = fals
 
   const onSubmit = async (values: FormValues) => {
     setLoading(true);
+    let createdProcessoId: string | null = null;
     try {
       let pastaId = values.pasta_id || null;
       
