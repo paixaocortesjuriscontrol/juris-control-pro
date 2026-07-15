@@ -324,7 +324,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return deduplicadas;
     },
-    enabled: !!id && !!processo?.numero,
+    enabled: !!id && !isNovo && !!processo?.numero,
   });
 
   // Intimações query - carrega sempre pois é usada no card de pendências
@@ -340,7 +340,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && !!processo?.numero,
+    enabled: !!id && !isNovo && !!processo?.numero,
   });
 
   // Tarefas query - carrega sempre pois é usada no card de pendências
@@ -359,7 +359,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && !isNovo,
   });
 
   // Documentos query - lazy load
@@ -375,7 +375,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && (activeTab === "documentos" || activeTab === ""),
+    enabled: !!id && !isNovo && (activeTab === "documentos" || activeTab === ""),
   });
 
   // Publicações DJEN query - lazy load
@@ -391,7 +391,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && !isNovo,
   });
 
   // Movimentações query - lazy load (também alimenta redistribuições)
@@ -407,7 +407,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && (activeTab === "andamentos" || activeTab === "redistribuicoes"),
+    enabled: !!id && !isNovo && (activeTab === "andamentos" || activeTab === "redistribuicoes"),
   });
 
   // Redistribuições derivadas de movimentacoes (elimina query duplicada)
@@ -433,7 +433,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && activeTab === "monitoramento360",
+    enabled: !!id && !isNovo && activeTab === "monitoramento360",
   });
 
   // Eventos Agenda query - lazy load
@@ -449,7 +449,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && activeTab === "agenda",
+    enabled: !!id && !isNovo && activeTab === "agenda",
   });
 
   // Coordenações query
@@ -497,7 +497,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && !isNovo,
   });
 
   // Derive responsáveis text
