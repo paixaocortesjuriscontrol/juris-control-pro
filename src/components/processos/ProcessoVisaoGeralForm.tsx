@@ -201,6 +201,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   useEffect(() => {
     if (!processo?.id && !isNovo) return;
     const next: Record<string, any> = {};
+    next.numero = (processo as any)?.numero ?? "";
     for (const f of FIELDS) next[f] = (processo as any)[f] ?? "";
     setForm(next);
     // Recupera campos preenchidos pela Judit em sessões anteriores para
@@ -215,6 +216,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
 
   const update = (field: string, value: any) =>
     setForm((prev) => ({ ...prev, [field]: value }));
+
+  const getNumeroProcessoAtual = () => {
+    const numeroRaw = String(form.numero || processo?.numero || "").trim();
+    const cnjMatch = numeroRaw.match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
+    return cnjMatch ? cnjMatch[0] : numeroRaw;
+  };
 
   const handleSave = async () => {
     if (form.status === "encerrado" && !String(form.motivo_encerramento || "").trim()) {
@@ -312,7 +319,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
    * para que a aba "Anexos Judit" exiba a lista com o botão de IA.
    */
   const handleSyncJudit = async (comAnexos: boolean = false, forceRefresh: boolean = false) => {
-    if (!processo?.numero) {
+    const numeroLimpo = getNumeroProcessoAtual();
+    if (!numeroLimpo) {
       toast.warning("Processo sem número CNJ cadastrado.");
       return;
     }
@@ -320,8 +328,6 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     // extra (ex.: "0010996-92.2021.5.15.0094 (transitou em julgado...)") que,
     // se enviado bruto, quebra o cache de anexos (a chave processo_numero
     // fica diferente da chave usada pela aba "Anexos Judit").
-    const cnjMatch = String(processo.numero).match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
-    const numeroLimpo = cnjMatch ? cnjMatch[0] : String(processo.numero).trim();
     if (comAnexos) setSyncingAnexos(true); else setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
@@ -505,12 +511,11 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
    * usuário clicar em "Preencher formulário" dentro da Análise Judit.
    */
   const handleFetchJuditOnly = async (comAnexos: boolean = false, forceRefresh: boolean = false) => {
-    if (!processo?.numero) {
+    const numeroLimpo = getNumeroProcessoAtual();
+    if (!numeroLimpo) {
       toast.warning("Processo sem número CNJ cadastrado.");
       return;
     }
-    const cnjMatch = String(processo.numero).match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
-    const numeroLimpo = cnjMatch ? cnjMatch[0] : String(processo.numero).trim();
     if (comAnexos) setSyncingAnexos(true); else setSyncing(true);
     try {
       const { data, error } = await supabase.functions.invoke("buscar-judit", {
@@ -610,12 +615,11 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
    * Judit traz valor).
    */
   const handleSyncJuditInterno = async (comAnexos: boolean = false, forceRefresh: boolean = false, presetData: any = null) => {
-    if (!processo?.numero) {
+    const numeroLimpo = getNumeroProcessoAtual();
+    if (!numeroLimpo) {
       toast.warning("Processo sem número CNJ cadastrado.");
       return;
     }
-    const cnjMatch = String(processo.numero).match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
-    const numeroLimpo = cnjMatch ? cnjMatch[0] : String(processo.numero).trim();
     if (comAnexos) setSyncingAnexos(true); else setSyncingInterno(true);
     try {
       // Reaproveita a última resposta Judit gravada em judit_logs para este CNJ,
@@ -673,6 +677,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           filled.add(field);
         }
       };
+      apply("numero", numeroLimpo);
       for (const f of FIELDS) apply(f, (data as any)[f]);
       // Quando a Judit retornou tribunal, marcamos o processo como Judicial.
       if (data?.tribunal || data?.tribunal_acronimo) {
@@ -680,6 +685,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       }
       setForm(next);
       setJuditSessionFields(filled);
+
+      if (isNovo) {
+        const preenchidos = filled.size;
+        toast.success(`${comAnexos ? "Judit c/ anexos" : "Judit"} preenchida — ${preenchidos} campo(s). Salve para criar o processo.`);
+        return;
+      }
 
       // Persiste
       const updatePayload: Record<string, any> = {};
@@ -913,8 +924,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <Button
                   size="sm"
                   onClick={async () => {
-                    await handleFetchJuditOnly(comAnexosJudit);
-                    onNavigate?.("analise-judit");
+                    if (isNovo) {
+                      await handleSyncJuditInterno(comAnexosJudit);
+                    } else {
+                      await handleFetchJuditOnly(comAnexosJudit);
+                      onNavigate?.("analise-judit");
+                    }
                   }}
                   disabled={juditBusy || saving}
                   className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -950,8 +965,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               <Button
                 size="sm"
                 onClick={async () => {
-                  await handleFetchJuditOnly(comAnexosJudit);
-                  onNavigate?.("analise-judit");
+                  if (isNovo) {
+                    await handleSyncJuditInterno(comAnexosJudit);
+                  } else {
+                    await handleFetchJuditOnly(comAnexosJudit);
+                    onNavigate?.("analise-judit");
+                  }
                 }}
                 disabled={juditBusy || saving}
                 className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
