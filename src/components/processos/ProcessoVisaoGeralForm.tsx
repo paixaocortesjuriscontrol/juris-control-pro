@@ -554,14 +554,19 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData?.user?.id || null;
 
-      // Logs (alimenta a aba Análise Judit)
-      await supabase.from("consultas_judit").insert({
-        processo_id: processo.id,
-        requisitada_em: new Date().toISOString(),
-        status_http: 200,
-        payload_resposta: data,
-        erro: null,
-      });
+      // Logs (alimenta a aba Análise Judit). No modo "novo processo" ainda
+      // não existe processo.id — nesse caso pulamos consultas_judit (que
+      // exige processo_id) e alimentamos apenas judit_logs (chaveado por
+      // processo_numero).
+      if (processo?.id) {
+        await supabase.from("consultas_judit").insert({
+          processo_id: processo.id,
+          requisitada_em: new Date().toISOString(),
+          status_http: 200,
+          payload_resposta: data,
+          erro: null,
+        });
+      }
       try {
         await supabase.from("judit_logs" as any).insert({
           processo_numero: numeroLimpo,
@@ -615,7 +620,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         }
       }
 
-      await queryClient.invalidateQueries({ queryKey: ["consultas_judit", processo.id] });
+      if (processo?.id) {
+        await queryClient.invalidateQueries({ queryKey: ["consultas_judit", processo.id] });
+      }
       await queryClient.invalidateQueries({ queryKey: ["judit_logs", numeroLimpo] });
       toast.success("Consulta Judit concluída. Veja a aba Análise Judit.");
     } catch (e: any) {
