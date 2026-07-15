@@ -1010,6 +1010,16 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               <section>
                 <SectionHeader icon={FileText} title="Identificação" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {isNovo && (
+                    <FormField label="Número do Processo *" className="md:col-span-2">
+                      <Input
+                        className={inputCls}
+                        placeholder="0000000-00.0000.0.00.0000"
+                        value={form.numero || ""}
+                        onChange={(e) => update("numero", e.target.value)}
+                      />
+                    </FormField>
+                  )}
                   <FormField label="Objeto da ação (assunto)" className="md:col-span-2">
                     <Textarea
                       rows={3}
