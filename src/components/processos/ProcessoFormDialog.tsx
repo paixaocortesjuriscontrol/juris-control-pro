@@ -2242,17 +2242,53 @@ export function ProcessoFormDialog({ open, onOpenChange, processo, asPage = fals
               </TabsContent>
             </Tabs>
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <div className={asPage ? "flex justify-end gap-2 border-t pt-4" : "flex justify-end gap-2 sm:justify-end"}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  if (asPage) {
+                    navigate("/processos");
+                  } else {
+                    onOpenChange(false);
+                  }
+                }}
+              >
                 Cancelar
               </Button>
               <Button type="submit" disabled={loading || isUploading}>
                 {(loading || isUploading) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {isEditing ? "Salvar Alterações" : "Cadastrar Processo"}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </Form>
+  );
+
+  if (asPage) {
+    return (
+      <div className="space-y-4">
+        <div className="space-y-1">{headerNode}</div>
+        {formNode}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            {isEditing && <Pencil className="w-5 h-5" />}
+            {isEditing ? "Editar Processo" : "Novo Processo"}
+          </DialogTitle>
+          <DialogDescription>
+            {isEditing
+              ? "Atualize as informações do processo conforme necessário."
+              : "Preencha as informações do processo ou busque automaticamente pelo número CNJ."}
+          </DialogDescription>
+        </DialogHeader>
+        {formNode}
       </DialogContent>
     </Dialog>
   );
