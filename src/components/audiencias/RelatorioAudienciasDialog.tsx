@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Download } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import * as XLSX from "xlsx";
 
 interface Props {
@@ -19,9 +20,20 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
   const hoje = new Date();
   const [ano, setAno] = useState<number>(hoje.getFullYear());
   const [mes, setMes] = useState<number>(hoje.getMonth() + 1);
+  const { coordenacoes, unicaCoordenacaoId, precisaSelecionar } = useCoordenacoesDoUsuario();
+  const [coordSel, setCoordSel] = useState<string>("__todas__");
+
+  // Coordenação efetiva aplicada nos filtros
+  const coordenacaoFiltro = coordenacaoId
+    ?? (precisaSelecionar ? (coordSel === "__todas__" ? undefined : coordSel) : (unicaCoordenacaoId ?? undefined));
+
+  useEffect(() => {
+    // Reset ao abrir
+    if (open) setCoordSel("__todas__");
+  }, [open]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["relatorio-audiencias", ano, mes, coordenacaoId],
+    queryKey: ["relatorio-audiencias", ano, mes, coordenacaoFiltro],
     enabled: open,
     queryFn: async () => {
       const inicio = new Date(Date.UTC(ano, mes - 1, 1)).toISOString();
@@ -31,7 +43,7 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
         .select("id, status, criado_por, data_audiencia, coordenacao_id, audiencia_envolvidos(usuario_id)")
         .gte("data_audiencia", inicio)
         .lt("data_audiencia", fim);
-      if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
+      if (coordenacaoFiltro) q = q.eq("coordenacao_id", coordenacaoFiltro);
       const { data, error } = await q.limit(5000);
       if (error) throw error;
 
@@ -106,6 +118,17 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
             <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
             <SelectContent>{anos.map((a) => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}</SelectContent>
           </Select>
+          {!coordenacaoId && precisaSelecionar && (
+            <Select value={coordSel} onValueChange={setCoordSel}>
+              <SelectTrigger className="w-64"><SelectValue placeholder="Coordenação" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__todas__">Todas as coordenações</SelectItem>
+                {coordenacoes.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Button variant="outline" size="sm" className="ml-auto" onClick={exportar} disabled={!data || data.rows.length === 0}>
             <Download className="h-4 w-4 mr-2" /> Excel
           </Button>
