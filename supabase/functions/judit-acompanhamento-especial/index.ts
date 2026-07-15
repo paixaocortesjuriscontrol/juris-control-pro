@@ -113,13 +113,15 @@ serve(async (req) => {
       const freq = Math.max(1, Math.min(3, p.acompanhamento_freq_diaria ?? 1));
 
       // Filtra por slot: só roda se a freq do processo alcança este slot
-      if (!forcedProcessoId && slot && freq < minFreqRequired) {
+      // (execuções manuais via UI ignoram esse guard)
+      if (disparo !== "manual" && !forcedProcessoId && slot && freq < minFreqRequired) {
         resultados.push({ processo_id: p.id, skipped: "slot-fora-da-freq" });
         continue;
       }
 
       // Evita rodar duas vezes no mesmo slot no mesmo dia BRT
-      if (!forcedProcessoId && p.acompanhamento_ultima_checagem_em) {
+      // (execuções manuais via UI ignoram esse guard — a intenção é justamente forçar)
+      if (disparo !== "manual" && !forcedProcessoId && p.acompanhamento_ultima_checagem_em) {
         const ult = new Date(
           new Date(p.acompanhamento_ultima_checagem_em).getTime() - 3 * 60 * 60 * 1000
         );
