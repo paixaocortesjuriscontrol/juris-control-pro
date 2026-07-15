@@ -16,7 +16,7 @@ export default function NovoProcesso() {
   const navigate = useNavigate();
 
   return (
-    <MainLayout>
+    <MainLayout title="Novo Processo">
       <div className="mb-4 flex items-center gap-2">
         <Button
           variant="ghost"
