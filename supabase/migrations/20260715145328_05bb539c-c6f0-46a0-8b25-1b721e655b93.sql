@@ -1,0 +1,2 @@
+ALTER TABLE public.monitoramentos_djen DROP CONSTRAINT IF EXISTS monitoramentos_djen_tipo_check;
+ALTER TABLE public.monitoramentos_djen ADD CONSTRAINT monitoramentos_djen_tipo_check CHECK (tipo = ANY (ARRAY['palavra-chave'::text, 'advogado'::text, 'processo'::text, 'nome'::text, 'parte'::text, 'geral'::text]));
