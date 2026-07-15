@@ -1056,7 +1056,11 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                         className={inputCls}
                         placeholder="0000000-00.0000.0.00.0000"
                         value={form.numero || ""}
-                        onChange={(e) => update("numero", e.target.value)}
+                        onChange={(e) => {
+                          update("numero", e.target.value);
+                          onNumeroChange?.(e.target.value);
+                        }}
+                        onBlur={(e) => onNumeroChange?.(e.target.value)}
                       />
                     </FormField>
                   )}
