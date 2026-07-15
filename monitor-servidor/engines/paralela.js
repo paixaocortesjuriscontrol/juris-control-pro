@@ -943,43 +943,81 @@ async function buscarPaginado(slot, params, signal) {
   let emptyStreak = 0;
   let noNewStreak = 0;
   let failedStreak = 0;
+
+  // Tenta uma janela lógica (equivalente a 50 itens) com um dado pageSize.
+  // Retorna { ok, items, aborted } — items já são os brutos coletados.
+  // Se pageSize=50: 1 request (page = windowIdx).
+  // Se pageSize=10: 5 requests (pages windowIdx*5 .. windowIdx*5+4).
+  // ok=false só se ALGUMA sub-página falhou de forma persistente (500/429
+  // após 4 tentativas ou erro de rede). 404 encerra e devolve ok=true com
+  // aborted=true para o caller parar.
+  async function fetchWindow(windowIdx, pageSize) {
+    const subPages = pageSize === 50 ? 1 : Math.floor(50 / pageSize);
+    const startPage = windowIdx * subPages;
+    const collected = [];
+    for (let sub = 0; sub < subPages; sub++) {
+      if (signal?.aborted) throw new Error("cancelado");
+      const p = startPage + sub;
+      const query = {
+        ...params,
+        pagina: String(p),
+        page: String(p),
+        tamanhoPagina: String(pageSize),
+        size: String(pageSize),
+        itensPorPagina: String(pageSize),
+      };
+      let out;
+      let lastErr;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        out = await djenFetchSlot(slot, query, signal).catch((e) => {
+          lastErr = e;
+          return null;
+        });
+        if (out && out.status !== 429 && out.status < 500) break;
+        await delay(out?.status === 429 ? 8000 * (attempt + 1) : 3000 * (attempt + 1), signal);
+      }
+      if (!out || out.status < 200 || out.status >= 300) {
+        if (out && out.status === 404) {
+          return { ok: true, items: collected, aborted: true };
+        }
+        return {
+          ok: false,
+          items: collected,
+          err: out ? new Error(`HTTP ${out.status}`) : (lastErr || new Error("Falha ao consultar VPS DJEN")),
+        };
+      }
+      const data = typeof out.body === "string" ? JSON.parse(out.body) : out.body;
+      const items = extractItems(data);
+      for (const it of items) collected.push(it);
+      if (subPages > 1 && sub < subPages - 1 && PAGE_DELAY_MS > 0) {
+        await delay(PAGE_DELAY_MS, signal);
+      }
+    }
+    return { ok: true, items: collected, aborted: false };
+  }
+
   // O Comunica oficial usa paginação 0-based; pagina=0 é a primeira.
   // Começar em 1 pulava a página onde ficam buscas pequenas por advogado.
-  for (let page = 0; page < 1000; page++) {
+  for (let windowIdx = 0; windowIdx < 1000; windowIdx++) {
     if (signal?.aborted) throw new Error("cancelado");
-    const query = {
-      ...params,
-      pagina: String(page),
-      page: String(page),
-      tamanhoPagina: "50",
-      size: "50",
-      itensPorPagina: "50",
-    };
-    let out;
-    let lastErr;
-    for (let attempt = 0; attempt < 4; attempt++) {
-      out = await djenFetchSlot(slot, query, signal).catch((e) => {
-        lastErr = e;
-        return null;
-      });
-      if (out && out.status !== 429 && out.status < 500) break;
-      await delay(out?.status === 429 ? 8000 * (attempt + 1) : 3000 * (attempt + 1), signal);
+    // Tenta com size=50 primeiro; se falhar persistente, degrada para size=10
+    // APENAS nesta janela (mesmos 50 itens fatiados em 5 sub-páginas de 10).
+    let result = await fetchWindow(windowIdx, 50);
+    if (!result.ok) {
+      console.log(`[paralela.buscarPaginado] janela ${windowIdx} degradada para size=10 após falha (${result.err?.message || "?"})`);
+      result = await fetchWindow(windowIdx, 10);
     }
-    if (!out || out.status === 404 || out.status < 200 || out.status >= 300) {
-      // Falha de página isolada não deve abortar toda a busca: a API PJE
-      // Comunica frequentemente erra páginas no meio e volta a responder.
+    if (!result.ok) {
       failedStreak += 1;
       if (failedStreak >= CONSECUTIVE_FAILED_PAGES_LIMIT) {
-        if (!out) throw lastErr || new Error("Falha ao consultar VPS DJEN");
-        if (out.status === 404) break;
-        throw new Error(`HTTP ${out.status}`);
+        throw result.err || new Error("Falha ao consultar VPS DJEN");
       }
       if (PAGE_DELAY_MS > 0) await delay(PAGE_DELAY_MS, signal);
       continue;
     }
     failedStreak = 0;
-    const data = typeof out.body === "string" ? JSON.parse(out.body) : out.body;
-    const items = extractItems(data);
+    if (result.aborted) break;
+    const items = result.items;
     let added = 0;
     for (const item of items) {
       const id = getIdDjen(item);
