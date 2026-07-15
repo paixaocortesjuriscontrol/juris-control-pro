@@ -1057,6 +1057,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo, asPage = fals
         const { data: newProcesso, error } = await supabase.from("processos").insert(processData).select("id").single();
 
         if (error) throw error;
+        createdProcessoId = newProcesso.id;
 
         // Insert responsible lawyers
         if (responsaveis.length > 0) {
@@ -1118,8 +1119,8 @@ export function ProcessoFormDialog({ open, onOpenChange, processo, asPage = fals
       if (asPage) {
         // Em modo página, navega para o detalhe do processo recém-criado
         // (ou apenas para a lista, no caso de edição).
-        if (!isEditing && newProcessoIdRef) {
-          navigate(`/processos/${newProcessoIdRef}`, { replace: true });
+        if (!isEditing && createdProcessoId) {
+          navigate(`/processos/${createdProcessoId}`, { replace: true });
         } else if (isEditing && processo?.id) {
           navigate(`/processos/${processo.id}`, { replace: true });
         } else {
