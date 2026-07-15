@@ -841,12 +841,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         <Button
           size="sm"
           onClick={async () => {
-            if (isNovo) {
-              await handleSyncJuditInterno(comAnexosJudit);
-            } else {
-              await handleFetchJuditOnly(comAnexosJudit);
-              onNavigate?.("analise-judit");
-            }
+            await handleFetchJuditOnly(comAnexosJudit);
+            onNavigate?.("analise-judit");
           }}
           disabled={juditBusy || saving}
           className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -993,12 +989,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               <Button
                 size="sm"
                 onClick={async () => {
-                  if (isNovo) {
-                    await handleSyncJuditInterno(comAnexosJudit);
-                  } else {
-                    await handleFetchJuditOnly(comAnexosJudit);
-                    onNavigate?.("analise-judit");
-                  }
+                  await handleFetchJuditOnly(comAnexosJudit);
+                  onNavigate?.("analise-judit");
                 }}
                 disabled={juditBusy || saving}
                 className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
