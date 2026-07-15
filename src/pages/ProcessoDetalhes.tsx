@@ -253,7 +253,7 @@ export default function ProcessoDetalhes() {
   // mesma tela de detalhe/edição com o formulário em branco. Os cards
   // laterais e ações que dependem de `processo.id` simplesmente ficam
   // inativos até o primeiro Salvar (INSERT) via ProcessoVisaoGeralForm.
-  const processo = isNovo
+  const processo: any = isNovo
     ? {
         id: null,
         numero: "",
