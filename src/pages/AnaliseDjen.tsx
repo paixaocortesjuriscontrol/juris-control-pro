@@ -4738,7 +4738,7 @@ const AnaliseDjen = () => {
             variant="outline"
             size="sm"
             onClick={handleMarcarLidas}
-            disabled={selectedIds.size === 0 || marcarComoLida.isPending}
+            disabled={selectedIds.size === 0}
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
           >
             {marcarComoLida.isPending ? (
