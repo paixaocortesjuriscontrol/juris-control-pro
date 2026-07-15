@@ -7007,6 +7007,56 @@ export type Database = {
           },
         ]
       }
+      processos_testemunhas: {
+        Row: {
+          arrolada_por: string | null
+          cpf_rg: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          id: string
+          nome: string
+          observacoes: string | null
+          processo_id: string
+          telefone: string | null
+          updated_at: string
+        }
+        Insert: {
+          arrolada_por?: string | null
+          cpf_rg?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          nome: string
+          observacoes?: string | null
+          processo_id: string
+          telefone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          arrolada_por?: string | null
+          cpf_rg?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          processo_id?: string
+          telefone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processos_testemunhas_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           area_principal: string | null
@@ -9357,48 +9407,93 @@ export type Database = {
           total: number
         }[]
       }
-      get_processos_paginados: {
-        Args: {
-          _area?: string
-          _cliente_ids?: string[]
-          _com_audiencia?: boolean
-          _com_intimacao?: boolean
-          _com_movimento?: boolean
-          _com_publicacao_djen?: boolean
-          _com_tarefa?: boolean
-          _coordenacao_id?: string
-          _instancia?: string
-          _page?: number
-          _page_size?: number
-          _periodo_fim?: string
-          _periodo_inicio?: string
-          _responsavel_id?: string
-          _search?: string
-          _status?: string
-          _tipo_processo?: string
-        }
-        Returns: {
-          advogado_responsavel: Json
-          area: string
-          assunto: string
-          cliente: Json
-          comarca: string
-          coordenacao_id: string
-          created_at: string
-          data_distribuicao: string
-          id: string
-          numero: string
-          pasta_id: string
-          polo_ativo: string
-          polo_passivo: string
-          status: string
-          tipo_processo: string
-          total_count: number
-          tribunal: string
-          valor_causa: number
-          vara: string
-        }[]
-      }
+      get_processos_paginados:
+        | {
+            Args: {
+              _area?: string
+              _cliente_ids?: string[]
+              _com_audiencia?: boolean
+              _com_intimacao?: boolean
+              _com_movimento?: boolean
+              _com_publicacao_djen?: boolean
+              _com_tarefa?: boolean
+              _coordenacao_id?: string
+              _instancia?: string
+              _page?: number
+              _page_size?: number
+              _periodo_fim?: string
+              _periodo_inicio?: string
+              _responsavel_id?: string
+              _search?: string
+              _status?: string
+              _tipo_processo?: string
+            }
+            Returns: {
+              advogado_responsavel: Json
+              area: string
+              assunto: string
+              cliente: Json
+              comarca: string
+              coordenacao_id: string
+              created_at: string
+              data_distribuicao: string
+              id: string
+              numero: string
+              pasta_id: string
+              polo_ativo: string
+              polo_passivo: string
+              status: string
+              tipo_processo: string
+              total_count: number
+              tribunal: string
+              valor_causa: number
+              vara: string
+            }[]
+          }
+        | {
+            Args: {
+              _area?: string
+              _cliente_ids?: string[]
+              _com_audiencia?: boolean
+              _com_intimacao?: boolean
+              _com_movimento?: boolean
+              _com_publicacao_djen?: boolean
+              _com_tarefa?: boolean
+              _com_testemunha?: boolean
+              _coordenacao_id?: string
+              _instancia?: string
+              _page?: number
+              _page_size?: number
+              _periodo_fim?: string
+              _periodo_inicio?: string
+              _responsavel_id?: string
+              _search?: string
+              _status?: string
+              _testemunha_nome?: string
+              _tipo_processo?: string
+            }
+            Returns: {
+              advogado_responsavel: Json
+              area: string
+              assunto: string
+              cliente: Json
+              comarca: string
+              coordenacao_id: string
+              created_at: string
+              data_distribuicao: string
+              id: string
+              numero: string
+              pasta_id: string
+              polo_ativo: string
+              polo_passivo: string
+              status: string
+              tipo_processo: string
+              total_count: number
+              tribunal: string
+              valor_causa: number
+              vara: string
+            }[]
+          }
       get_publicacoes_contagens_por_monitoramento: {
         Args: never
         Returns: {
