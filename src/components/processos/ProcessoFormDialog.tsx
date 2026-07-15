@@ -3,6 +3,7 @@ import { z } from "zod";
 import { useForm, useWatch, type Control } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { Loader2, Pencil, Upload, FileText, Trash2, FolderOpen, Plus, Sparkles } from "lucide-react";
 import {
   Dialog,
@@ -160,6 +161,7 @@ const AnexosJuditTabPanel = memo(function AnexosJuditTabPanel({
 });
 
 export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFormDialogProps) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [fetchingFromApi, setFetchingFromApi] = useState(false);
   const [fetchingJudit, setFetchingJudit] = useState(false);
@@ -1109,19 +1111,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       queryClient.invalidateQueries({ queryKey: ["pastas"] });
       form.reset();
       setFiles([]);
-      if (asPage) {
-        // Em modo página, navega para o detalhe do processo recém-criado
-        // (ou apenas para a lista, no caso de edição).
-        if (!isEditing && createdProcessoId) {
-          navigate(`/processos/${createdProcessoId}`, { replace: true });
-        } else if (isEditing && processo?.id) {
-          navigate(`/processos/${processo.id}`, { replace: true });
-        } else {
-          navigate("/processos");
-        }
-      } else {
-        onOpenChange(false);
-      }
+      onOpenChange(false);
     } catch (error: any) {
       console.error("Error saving process:", error);
       toast({
