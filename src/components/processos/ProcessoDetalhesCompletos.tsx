@@ -186,6 +186,7 @@ export function ProcessoDetalhesCompletos({
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Inicializa com initialSection se fornecido (vem do ?tab= da URL)
   const [activeSection, setActiveSection] = useState<string>(initialSection || "resumo");
+  const [juditNovoDestaque, setJuditNovoDestaque] = useState(false);
 
   // Ref para o formulário Resumo — permite autosave ao trocar de seção
   const visaoGeralRef = useRef<ProcessoVisaoGeralFormHandle>(null);
@@ -900,12 +901,17 @@ export function ProcessoDetalhesCompletos({
                 <div key={group.label} className="flex items-center gap-1">
                   {gi > 0 && <span className="text-muted-foreground/40 px-1">|</span>}
                   {group.items.map((item) => (
+                    (() => {
+                      const destacarJudit = juditNovoDestaque && item.id === "analise-judit";
+                      return (
                     <button
                       key={item.id}
                       onClick={() => handleSectionChange(item.id)}
                       className={cn(
                         "flex items-center gap-1 px-2 py-1.5 text-[11px] rounded-md whitespace-nowrap transition-colors",
-                        activeSection === item.id
+                        destacarJudit
+                          ? "bg-emerald-600 text-white font-semibold hover:bg-emerald-700"
+                          : activeSection === item.id
                           ? "bg-primary text-primary-foreground font-medium"
                           : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
                       )}
@@ -918,6 +924,8 @@ export function ProcessoDetalhesCompletos({
                         </Badge>
                       )}
                     </button>
+                      );
+                    })()
                   ))}
                 </div>
               ))}
@@ -939,12 +947,17 @@ export function ProcessoDetalhesCompletos({
                     {group.label}
                   </p>
                   {group.items.map((item) => (
+                    (() => {
+                      const destacarJudit = juditNovoDestaque && item.id === "analise-judit";
+                      return (
                     <button
                       key={item.id}
                       onClick={() => handleSectionChange(item.id)}
                       className={cn(
                         "w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-left transition-colors",
-                        activeSection === item.id
+                        destacarJudit
+                          ? "bg-emerald-600 text-white border-r-2 border-emerald-700 font-semibold hover:bg-emerald-700"
+                          : activeSection === item.id
                           ? "bg-primary/10 text-primary border-r-2 border-primary font-medium"
                           : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                       )}
@@ -957,6 +970,8 @@ export function ProcessoDetalhesCompletos({
                         </Badge>
                       )}
                     </button>
+                      );
+                    })()
                   ))}
                 </div>
               ))}
@@ -1005,6 +1020,7 @@ export function ProcessoDetalhesCompletos({
                   onNavigate={handleSectionChange}
                   onAddItem={abrirNovoItem}
                   onNumeroChange={onNumeroChange}
+                  onJuditNovoPreenchido={() => setJuditNovoDestaque(true)}
                   hideJuditButtons
                 />
               )}
