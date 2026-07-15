@@ -199,7 +199,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
 
   // Inicializa form quando processo carregar/trocar
   useEffect(() => {
-    if (!processo?.id) return;
+    if (!processo?.id && !isNovo) return;
     const next: Record<string, any> = {};
     for (const f of FIELDS) next[f] = (processo as any)[f] ?? "";
     setForm(next);
@@ -211,7 +211,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     } else {
       setJuditSessionFields(new Set());
     }
-  }, [processo?.id, processo?.updated_at]);
+  }, [processo?.id, processo?.updated_at, isNovo]);
 
   const update = (field: string, value: any) =>
     setForm((prev) => ({ ...prev, [field]: value }));
