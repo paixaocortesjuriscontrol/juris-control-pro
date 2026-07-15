@@ -173,7 +173,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       if (error) throw error;
       return (data || []).map((m: any) => m.coordenacao_id as string);
     },
-    enabled: novaTarefaOpen && !!user?.id && !isUserAdmin,
+    enabled: !!user?.id && !isUserAdmin,
   });
   const { data: coordenacoesTarefa = [] } = useQuery({
     queryKey: ["coordenacoes-processo-adicionar", isUserAdmin, membrosCoordenacoes],
@@ -188,7 +188,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       if (error) throw error;
       return data || [];
     },
-    enabled: novaTarefaOpen && (isUserAdmin || membrosCoordenacoes.length > 0),
+    enabled: isUserAdmin || membrosCoordenacoes.length > 0,
   });
   // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
