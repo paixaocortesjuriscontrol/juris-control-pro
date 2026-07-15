@@ -5,7 +5,7 @@ import { Loader2, Download, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 interface Props {
   open: boolean;
@@ -107,18 +107,112 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
     return tot;
   }, [data]);
 
-  function exportar() {
+  async function exportar() {
     if (!data) return;
-    const header = ["Usuário", ...data.situacoes, "Total"];
-    const body = data.rows.map((r) => [r.usuario, ...data.situacoes.map((s) => r.contagens[s] ?? 0), r.total]);
-    const totalGeral = data.rows.reduce((a, r) => a + r.total, 0);
-    const footer = ["TOTAL", ...data.situacoes.map((s) => totaisPorSitu[s] ?? 0), totalGeral];
-    const ws = XLSX.utils.aoa_to_sheet([header, ...body, footer]);
-    const wb = XLSX.utils.book_new();
     const sufMes = mes === "todos" ? "Todos" : MESES[(mes as number) - 1];
     const sufAno = ano === "todos" ? "Todos" : String(ano);
-    XLSX.utils.book_append_sheet(wb, ws, `Audiências ${sufMes}-${sufAno}`.slice(0, 31));
-    XLSX.writeFile(wb, `relatorio-audiencias-${sufAno}-${mes === "todos" ? "todos" : String(mes).padStart(2,"0")}.xlsx`);
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "JurisControl";
+    wb.created = new Date();
+    const ws = wb.addWorksheet(`Audiências ${sufMes}-${sufAno}`.slice(0, 31), {
+      views: [{ state: "frozen", ySplit: 3 }],
+    });
+
+    const cols = ["Usuário", ...data.situacoes, "Total"];
+    const totalCols = cols.length;
+
+    // Título mesclado
+    ws.mergeCells(1, 1, 1, totalCols);
+    const titleCell = ws.getCell(1, 1);
+    titleCell.value = `RELATÓRIO DE AUDIÊNCIAS — ${sufMes} / ${sufAno}`;
+    titleCell.font = { name: "Calibri", size: 14, bold: true, color: { argb: "FFFFFFFF" } };
+    titleCell.alignment = { horizontal: "center", vertical: "middle" };
+    titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+    ws.getRow(1).height = 28;
+
+    // Linha em branco (visual)
+    ws.getRow(2).height = 4;
+
+    // Cabeçalho
+    const headerRow = ws.getRow(3);
+    headerRow.values = cols;
+    headerRow.height = 24;
+    headerRow.eachCell((cell) => {
+      cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2C5282" } };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFFFFFFF" } },
+        left: { style: "thin", color: { argb: "FFFFFFFF" } },
+        bottom: { style: "thin", color: { argb: "FFFFFFFF" } },
+        right: { style: "thin", color: { argb: "FFFFFFFF" } },
+      };
+    });
+    // Capitaliza cabeçalhos de situação
+    for (let c = 2; c <= totalCols; c++) {
+      const v = headerRow.getCell(c).value as string;
+      if (typeof v === "string") headerRow.getCell(c).value = v.charAt(0).toUpperCase() + v.slice(1);
+    }
+
+    // Corpo
+    data.rows.forEach((r, idx) => {
+      const rowNum = 4 + idx;
+      const row = ws.getRow(rowNum);
+      row.values = [r.usuario, ...data.situacoes.map((s) => r.contagens[s] ?? 0), r.total];
+      const zebra = idx % 2 === 0 ? "FFF7FAFC" : "FFFFFFFF";
+      row.eachCell({ includeEmpty: true }, (cell, colNum) => {
+        cell.font = { name: "Calibri", size: 11, color: { argb: "FF1A202C" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: zebra } };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFE2E8F0" } },
+          left: { style: "thin", color: { argb: "FFE2E8F0" } },
+          bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+          right: { style: "thin", color: { argb: "FFE2E8F0" } },
+        };
+        cell.alignment = {
+          horizontal: colNum === 1 ? "left" : "center",
+          vertical: "middle",
+        };
+        if (colNum === totalCols) {
+          cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FF1A202C" } };
+        }
+      });
+      row.height = 20;
+    });
+
+    // Rodapé TOTAL
+    const totalRowNum = 4 + data.rows.length;
+    const totalGeral = data.rows.reduce((a, r) => a + r.total, 0);
+    const totalRow = ws.getRow(totalRowNum);
+    totalRow.values = ["TOTAL", ...data.situacoes.map((s) => totaisPorSitu[s] ?? 0), totalGeral];
+    totalRow.height = 24;
+    totalRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
+      cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+      cell.alignment = { horizontal: colNum === 1 ? "left" : "center", vertical: "middle" };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFFFFFFF" } },
+        left: { style: "thin", color: { argb: "FFFFFFFF" } },
+        bottom: { style: "thin", color: { argb: "FFFFFFFF" } },
+        right: { style: "thin", color: { argb: "FFFFFFFF" } },
+      };
+    });
+
+    // Larguras
+    ws.getColumn(1).width = 34;
+    for (let c = 2; c <= totalCols; c++) ws.getColumn(c).width = 14;
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `relatorio-audiencias-${sufAno}-${mes === "todos" ? "todos" : String(mes).padStart(2, "0")}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   const anos = Array.from({ length: 6 }, (_, i) => hoje.getFullYear() - 3 + i);
