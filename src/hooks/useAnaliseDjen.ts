@@ -225,10 +225,18 @@ export function useAnaliseDjen(filtros: FiltrosAnalise = {}) {
       await queryClient.cancelQueries({ queryKey: ['analise-djen'] });
       const previous = queryClient.getQueriesData<PublicacaoAnalise[]>({ queryKey: ['analise-djen'] });
       const idSet = new Set(ids);
-      queryClient.setQueriesData<PublicacaoAnalise[]>(
-        { queryKey: ['analise-djen'] },
-        (old) => (Array.isArray(old) ? old.map((p) => (idSet.has(p.id) ? { ...p, lida: true } : p)) : old),
-      );
+      // Remove da lista quando o filtro ativo é "apenas não lidas"; caso
+      // contrário, apenas marca como lida para refletir a mudança na UI
+      // sem depender do refetch.
+      previous.forEach(([queryKey, data]) => {
+        if (!Array.isArray(data)) return;
+        const filtrosDaQuery: any = Array.isArray(queryKey) ? queryKey[2] : undefined;
+        const apenasNaoLidas = !!filtrosDaQuery?.apenasNaoLidas;
+        const next = apenasNaoLidas
+          ? data.filter((p) => !idSet.has(p.id))
+          : data.map((p) => (idSet.has(p.id) ? { ...p, lida: true } : p));
+        queryClient.setQueryData(queryKey, next);
+      });
       return { previous };
     },
     onError: (_err, _ids, ctx) => {
