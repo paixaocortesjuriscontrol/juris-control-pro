@@ -262,6 +262,10 @@ export interface DistribuicaoTstFormHandle {
   isBuscando: () => boolean;
   save: (options?: { silent?: boolean }) => Promise<boolean | string>;
   getValues: () => any;
+  /** Retorna o state `bennerExtra` (campos do quadro Análise/Julgamento que
+   *  vivem fora do react-hook-form). Necessário para o botão "Verificar
+   *  Pendências" avaliar o registro completo. */
+  getBennerExtra: () => Record<string, any>;
 }
 
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
@@ -1174,6 +1178,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     isBuscando: () => buscandoJudit,
     save: (options?: { silent?: boolean }) => handleSave(options),
     getValues: () => form,
+    getBennerExtra: () => bennerExtraRef.current || {},
   }), [buscandoJudit, form, dado, juditSessionFields, turmasTst, relatoresTst]);
 
   const handleSave = async (options?: { silent?: boolean }): Promise<boolean | string> => {

@@ -521,11 +521,16 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               // controladas fora dele (trânsito, segredo etc.) para que
               // `getPendencias` avalie o registro completo.
               const formVals = (formRef.current?.getValues?.() as any) || {};
+              const extraVals = (formRef.current?.getBennerExtra?.() as any) || {};
               const row: any = {
                 ...formVals,
+                ...extraVals,
                 transito_julgado: transitoJulgado,
                 segredo_justica: segredoJustica,
                 processo_outro_escritorio: outroEscritorio,
+                recurso_terceiro: recursoTerceiro,
+                acordo: acordo,
+                cejusc: cejusc,
               };
 
               const pend = getPendencias(row);
