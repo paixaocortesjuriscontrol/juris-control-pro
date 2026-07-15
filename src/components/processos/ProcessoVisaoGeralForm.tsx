@@ -47,6 +47,12 @@ interface Props {
   onNavigate?: (section: string) => void;
   onAddItem?: (tipo: NovoItemTipo) => void;
   /**
+   * Notifica o container quando o usuário digita/atualiza o número do processo
+   * (usado no modo "novo processo" para sincronizar `processo.numero` no pai,
+   * habilitando a aba "Análise Judit" que depende desse campo).
+   */
+  onNumeroChange?: (numero: string) => void;
+  /**
    * Quando true, renderiza apenas o cabeçalho com a barra de ações Judit
    * (Sincronizar / Judit c/ anexos / Judit Interno / Análise Judit / Anexos
    * Judit / Salvar). Usado nas seções "analise-judit" e "anexos-judit" para
@@ -131,6 +137,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   compact = false,
   actionsOnly = false,
   hideJuditButtons = false,
+  onNumeroChange,
 }, ref) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -547,14 +554,19 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData?.user?.id || null;
 
-      // Logs (alimenta a aba Análise Judit)
-      await supabase.from("consultas_judit").insert({
-        processo_id: processo.id,
-        requisitada_em: new Date().toISOString(),
-        status_http: 200,
-        payload_resposta: data,
-        erro: null,
-      });
+      // Logs (alimenta a aba Análise Judit). No modo "novo processo" ainda
+      // não existe processo.id — nesse caso pulamos consultas_judit (que
+      // exige processo_id) e alimentamos apenas judit_logs (chaveado por
+      // processo_numero).
+      if (processo?.id) {
+        await supabase.from("consultas_judit").insert({
+          processo_id: processo.id,
+          requisitada_em: new Date().toISOString(),
+          status_http: 200,
+          payload_resposta: data,
+          erro: null,
+        });
+      }
       try {
         await supabase.from("judit_logs" as any).insert({
           processo_numero: numeroLimpo,
@@ -608,7 +620,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         }
       }
 
-      await queryClient.invalidateQueries({ queryKey: ["consultas_judit", processo.id] });
+      if (processo?.id) {
+        await queryClient.invalidateQueries({ queryKey: ["consultas_judit", processo.id] });
+      }
       await queryClient.invalidateQueries({ queryKey: ["judit_logs", numeroLimpo] });
       toast.success("Consulta Judit concluída. Veja a aba Análise Judit.");
     } catch (e: any) {
@@ -827,12 +841,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         <Button
           size="sm"
           onClick={async () => {
-            if (isNovo) {
-              await handleSyncJuditInterno(comAnexosJudit);
-            } else {
-              await handleFetchJuditOnly(comAnexosJudit);
-              onNavigate?.("analise-judit");
-            }
+            await handleFetchJuditOnly(comAnexosJudit);
+            onNavigate?.("analise-judit");
           }}
           disabled={juditBusy || saving}
           className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -938,12 +948,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <Button
                   size="sm"
                   onClick={async () => {
-                    if (isNovo) {
-                      await handleSyncJuditInterno(comAnexosJudit);
-                    } else {
-                      await handleFetchJuditOnly(comAnexosJudit);
-                      onNavigate?.("analise-judit");
-                    }
+                    await handleFetchJuditOnly(comAnexosJudit);
+                    onNavigate?.("analise-judit");
                   }}
                   disabled={juditBusy || saving}
                   className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -979,12 +985,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               <Button
                 size="sm"
                 onClick={async () => {
-                  if (isNovo) {
-                    await handleSyncJuditInterno(comAnexosJudit);
-                  } else {
-                    await handleFetchJuditOnly(comAnexosJudit);
-                    onNavigate?.("analise-judit");
-                  }
+                  await handleFetchJuditOnly(comAnexosJudit);
+                  onNavigate?.("analise-judit");
                 }}
                 disabled={juditBusy || saving}
                 className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -1049,7 +1051,11 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                         className={inputCls}
                         placeholder="0000000-00.0000.0.00.0000"
                         value={form.numero || ""}
-                        onChange={(e) => update("numero", e.target.value)}
+                        onChange={(e) => {
+                          update("numero", e.target.value);
+                          onNumeroChange?.(e.target.value);
+                        }}
+                        onBlur={(e) => onNumeroChange?.(e.target.value)}
                       />
                     </FormField>
                   )}

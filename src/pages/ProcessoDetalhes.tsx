@@ -230,6 +230,10 @@ export default function ProcessoDetalhes() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [responsaveisLoaded, setResponsaveisLoaded] = useState(false);
+  // Modo "novo processo": mantemos o número CNJ aqui para que o `processo`
+  // sintético reflita o que o usuário digita e habilite as abas dependentes
+  // de `processo.numero` (Análise Judit, Anexos Judit, etc.).
+  const [numeroNovo, setNumeroNovo] = useState<string>("");
 
   const { data: processoDb, isLoading: loadingProcesso } = useQuery({
     queryKey: ["processo", id],
@@ -258,7 +262,7 @@ export default function ProcessoDetalhes() {
   const processo: any = isNovo
     ? {
         id: null,
-        numero: "",
+        numero: numeroNovo,
         tipo_processo: "judicial",
         area: "civil",
         status: "ativo",
@@ -2055,6 +2059,7 @@ export default function ProcessoDetalhes() {
       <MainLayout title="" subtitle="">
         <ProcessoDetalhesCompletos
           processo={processo}
+          onNumeroChange={isNovo ? setNumeroNovo : undefined}
           responsaveis={responsaveisParaCards}
           movimentacoes={movimentacoes}
           documentos={documentosProcesso}
