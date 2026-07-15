@@ -1363,7 +1363,7 @@ export default function ProcessoDetalhes() {
     );
   };
 
-  if (loadingProcesso) {
+  if (loadingProcesso && !isNovo) {
     return (
       <MainLayout title="Carregando..." subtitle="">
         <div className="space-y-6">
@@ -1374,7 +1374,7 @@ export default function ProcessoDetalhes() {
     );
   }
 
-  if (!processo) {
+  if (!processo && !isNovo) {
     return (
       <MainLayout title="Processo não encontrado" subtitle="">
         <div className="text-center py-12">
