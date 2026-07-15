@@ -2225,37 +2225,18 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
               </TabsContent>
             </Tabs>
 
-            <div className={asPage ? "flex justify-end gap-2 border-t pt-4" : "flex justify-end gap-2 sm:justify-end"}>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  if (asPage) {
-                    navigate("/processos");
-                  } else {
-                    onOpenChange(false);
-                  }
-                }}
-              >
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
               <Button type="submit" disabled={loading || isUploading}>
                 {(loading || isUploading) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {isEditing ? "Salvar Alterações" : "Cadastrar Processo"}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
   );
-
-  if (asPage) {
-    return (
-      <div className="space-y-4">
-        <div className="space-y-1">{headerNode}</div>
-        {formNode}
-      </div>
-    );
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
