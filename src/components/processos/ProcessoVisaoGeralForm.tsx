@@ -47,6 +47,12 @@ interface Props {
   onNavigate?: (section: string) => void;
   onAddItem?: (tipo: NovoItemTipo) => void;
   /**
+   * Notifica o container quando o usuário digita/atualiza o número do processo
+   * (usado no modo "novo processo" para sincronizar `processo.numero` no pai,
+   * habilitando a aba "Análise Judit" que depende desse campo).
+   */
+  onNumeroChange?: (numero: string) => void;
+  /**
    * Quando true, renderiza apenas o cabeçalho com a barra de ações Judit
    * (Sincronizar / Judit c/ anexos / Judit Interno / Análise Judit / Anexos
    * Judit / Salvar). Usado nas seções "analise-judit" e "anexos-judit" para
@@ -131,6 +137,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   compact = false,
   actionsOnly = false,
   hideJuditButtons = false,
+  onNumeroChange,
 }, ref) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
