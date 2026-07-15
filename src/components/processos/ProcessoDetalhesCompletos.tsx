@@ -148,6 +148,7 @@ interface ProcessoDetalhesCompletosProps {
   onSelectTarefa?: (tarefaId: string) => void;
   onVoltarTarefa?: () => void;
   onCriarTarefaPublicacao?: (publicacao: any) => void;
+  onNumeroChange?: (numero: string) => void;
 }
 
 export function ProcessoDetalhesCompletos({
@@ -176,6 +177,7 @@ export function ProcessoDetalhesCompletos({
   onSelectTarefa,
   onVoltarTarefa,
   onCriarTarefaPublicacao,
+  onNumeroChange,
 }: ProcessoDetalhesCompletosProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
