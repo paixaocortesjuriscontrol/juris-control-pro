@@ -172,6 +172,8 @@ const getAudienciaBusinessKey = (audiencia: Partial<AudienciaDetectada>) => {
 
 export default function ProcessoDetalhes() {
   const { id } = useParams<{ id: string }>();
+  // Modo "novo processo": rota /processos/novo reutiliza esta tela em branco.
+  const isNovo = id === "novo";
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
@@ -227,7 +229,7 @@ export default function ProcessoDetalhes() {
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [responsaveisLoaded, setResponsaveisLoaded] = useState(false);
 
-  const { data: processo, isLoading: loadingProcesso } = useQuery({
+  const { data: processoDb, isLoading: loadingProcesso } = useQuery({
     queryKey: ["processo", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -244,8 +246,22 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && !isNovo,
   });
+
+  // Em modo "novo", usamos um objeto sintético vazio para renderizar a
+  // mesma tela de detalhe/edição com o formulário em branco. Os cards
+  // laterais e ações que dependem de `processo.id` simplesmente ficam
+  // inativos até o primeiro Salvar (INSERT) via ProcessoVisaoGeralForm.
+  const processo = isNovo
+    ? {
+        id: null,
+        numero: "",
+        tipo_processo: "judicial",
+        area: "civil",
+        status: "ativo",
+      }
+    : processoDb;
 
   // EAGER LOADING: Audiências, Intimações e Tarefas carregam sempre pois são usadas no card de pendências
   // Outras queries usam lazy loading baseado na aba ativa
