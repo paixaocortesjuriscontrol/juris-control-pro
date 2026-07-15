@@ -1354,22 +1354,6 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       </Card>
       {!compact && (
         <div className="flex flex-wrap items-center gap-6 px-4 py-3 border-t text-sm">
-          <div className="flex items-center gap-2">
-            <Bell className="w-4 h-4 text-muted-foreground" />
-            <span className="font-medium">Monitoramento:</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">Andamentos</span>
-            <MonitoramentoToggle processoId={processo.id} campo="monitorar_andamentos" valorInicial={!!processo.monitorar_andamentos} />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">DJEN</span>
-            <MonitoramentoToggle processoId={processo.id} campo="monitorar_djen" valorInicial={!!processo.monitorar_djen} />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">Prioridade DJEN</span>
-            <MonitoramentoToggle processoId={processo.id} campo="prioridade_djen" valorInicial={!!(processo as any).prioridade_djen} />
-          </div>
           <div className="w-full">
             <AcompanhamentoEspecialToggle
               processoId={processo.id}
