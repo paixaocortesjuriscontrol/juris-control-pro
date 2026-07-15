@@ -1285,6 +1285,13 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 </div>
               </section>
 
+              {/* Testemunhas */}
+              {!isNovo && processo?.id && (
+                <section>
+                  <TestemunhasSection processoId={processo.id} />
+                </section>
+              )}
+
               {/* Datas */}
               <section>
                 <SectionHeader icon={Activity} title="Datas Processuais" />
