@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Card, CardContent } from "@/components/ui/card";
