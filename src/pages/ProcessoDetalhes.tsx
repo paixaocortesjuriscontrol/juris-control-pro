@@ -2059,6 +2059,7 @@ export default function ProcessoDetalhes() {
       <MainLayout title="" subtitle="">
         <ProcessoDetalhesCompletos
           processo={processo}
+          onNumeroChange={isNovo ? setNumeroNovo : undefined}
           responsaveis={responsaveisParaCards}
           movimentacoes={movimentacoes}
           documentos={documentosProcesso}
