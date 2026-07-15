@@ -94,6 +94,8 @@ const FIELDS = [
   "funcao", "advogado_externo",
   // Pastas
   "pasta_fisica", "pasta_cliente",
+  // Coordenação
+  "coordenacao_id",
   // Descrição
   "descricao",
   // Encerramento
