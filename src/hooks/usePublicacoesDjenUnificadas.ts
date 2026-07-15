@@ -272,21 +272,26 @@ async function mergeWithLeituras(
   const { data: leituras } = await (supabase as any).rpc('get_leituras_publicacoes', { p_ids: pubIds });
 
   const userReadSet = new Set<string>();
-  const lidoPorMap = new Map<string, LeituraUsuario[]>();
+  // Dedup por usuário dentro de cada publicação — a tabela tem UNIQUE
+  // (publicacao_id, tabela_origem, usuario_id), então o mesmo usuário pode
+  // aparecer até 3× por publicação (termo/processo/descartada). Mantém a
+  // leitura mais recente.
+  const lidoPorMap = new Map<string, Map<string, LeituraUsuario>>();
 
   (leituras || []).forEach((l: any) => {
     if (l.usuario_id === userId) userReadSet.add(l.publicacao_id);
-    if (!lidoPorMap.has(l.publicacao_id)) lidoPorMap.set(l.publicacao_id, []);
-    lidoPorMap.get(l.publicacao_id)!.push({
-      nome: l.usuario_nome || 'Desconhecido',
-      lida_em: l.lida_em,
-    });
+    if (!lidoPorMap.has(l.publicacao_id)) lidoPorMap.set(l.publicacao_id, new Map());
+    const bucket = lidoPorMap.get(l.publicacao_id)!;
+    const chave = String(l.usuario_id ?? l.usuario_nome ?? '');
+    const existente = bucket.get(chave);
+    const nova: LeituraUsuario = { nome: l.usuario_nome || 'Desconhecido', lida_em: l.lida_em };
+    if (!existente || String(existente.lida_em) < String(nova.lida_em)) bucket.set(chave, nova);
   });
 
   let merged = results.map(pub => ({
     ...pub,
     lida: userReadSet.has(pub.id),
-    lido_por: lidoPorMap.get(pub.id) || [],
+    lido_por: Array.from(lidoPorMap.get(pub.id)?.values() ?? []),
   }));
 
   if (readStatus === 'nao_lidas') {
