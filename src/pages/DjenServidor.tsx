@@ -1040,6 +1040,7 @@ export default function DjenServidor() {
           <TabsTrigger value="execucoes"><Activity className="h-4 w-4 mr-1" />Execuções</TabsTrigger>
           <TabsTrigger value="publicacoes"><FileSearch className="h-4 w-4 mr-1" />Publicações</TabsTrigger>
           <TabsTrigger value="comparador"><GitCompare className="h-4 w-4 mr-1" />Comparador</TabsTrigger>
+        <TabsTrigger value="acompanhamento-especial"><Star className="h-4 w-4 mr-1" />Acompanhamento Especial</TabsTrigger>
         </TabsList>
         <TabsContent value="servidor"><div className="space-y-4"><DjenServidorParalelaCard /></div></TabsContent>
         <TabsContent value="stf"><div className="space-y-4"><DjenServidorStfCard /></div></TabsContent>
@@ -1049,6 +1050,7 @@ export default function DjenServidor() {
         <TabsContent value="execucoes"><ExecucoesPanel /></TabsContent>
         <TabsContent value="publicacoes"><PublicacoesPanel /></TabsContent>
         <TabsContent value="comparador"><ComparadorPanel /></TabsContent>
+        <TabsContent value="acompanhamento-especial"><AcompanhamentoEspecialPanel /></TabsContent>
       </Tabs>
     </MainLayout>
   );
