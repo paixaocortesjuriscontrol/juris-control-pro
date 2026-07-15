@@ -1,46 +1,51 @@
 ## Objetivo
+Rodar a rotina de Acompanhamento Especial em horários fixos (BRT) conforme a frequência escolhida pelo advogado, com máximo de 3 vezes/dia, e notificar responsáveis por email, WhatsApp e sino/painel quando houver novidades.
 
-Ao clicar em **Novo Processo** na lista de Processos e Casos, abrir **a mesma tela de detalhe do processo** (mesmo layout, abas laterais, cards, botão Judit, botão Buscar Dados, campos idênticos) — porém com o formulário **em branco**, ao invés de abrir um modal (`ProcessoFormDialog`).
+## Regras de agendamento
 
-Após o primeiro **Salvar**, o processo é criado e a URL passa a apontar para o registro real (`/processos/:id`), habilitando as abas dependentes (Andamentos, Prazos, Audiências, Pub. DJEN, etc.).
+| Vezes/dia | Horários BRT |
+|-----------|--------------|
+| 1 | 10h |
+| 2 | 10h e 18h |
+| 3 | 10h, 14h, 18h |
 
-## Como funciona hoje
-
-- `src/pages/Processos.tsx` linha 795: botão `Novo Processo` seta `showFormDialog=true` e abre `ProcessoFormDialog` (modal com abas Dados Básicos / Tribunal / Partes / Administrativo / Contingencial / Documentos / Análise Judit / Anexos Judit).
-- Edição inline hoje vive em `src/pages/ProcessoDetalhes.tsx` (rota `/processos/:id`) que carrega o processo por id via React Query e renderiza toda a lateral (Visão Geral, Tarefa, Prazo, Audiência, Pub. DJEN, Andamentos, etc.) mais cards à direita (Pendências, Depósitos, Custas).
+Em UTC (BRT = UTC-3): 13h, 17h, 21h.
 
 ## Mudanças
 
-**1. Nova rota `/processos/novo`**
-- Em `src/App.tsx`, registrar `<Route path="/processos/novo" element={<ProtectedRoute><ProcessoDetalhes /></ProtectedRoute>} />` **antes** de `/processos/:id`.
+### 1. UI — `AcompanhamentoEspecialToggle.tsx`
+- Trocar `max={6}` por `max={3}` no input "Vezes ao dia".
+- Se valor salvo for > 3, exibir/coagir para 3.
 
-**2. Modo criação em `ProcessoDetalhes.tsx`**
-- Detectar via `useParams`/`useLocation` quando estamos em `/processos/novo` → flag `isNovo`.
-- Quando `isNovo=true`:
-  - Não executar `useQuery` do processo (ou retornar objeto vazio com defaults: `tipo_processo='judicial'`, `situacao='ativo'`, `area='civel'`, sem `id`).
-  - Renderizar **direto a aba "Visão Geral"** em modo edição (reaproveitando `ProcessoEditarCompleto` ou o formulário inline já existente), com todos os campos vazios.
-  - Ocultar/desabilitar itens da sidebar de detalhe que exigem processo existente: Tarefa, Evento, Prazo, Audiência, Pub. DJEN, Redistribuições, Andamentos, Pedidos, Cobrança, Análise Judit, Distribuições, Comentários, Pasta (deixar apenas Visão Geral ativa e mostrar tooltip "Disponível após salvar").
-  - Ocultar cards laterais (Pendências, Depósitos Recursais, Custas) — todos dependem de `processo.id`.
-  - Botão **Judit** e **Buscar Dados**: manter funcionando exatamente como no modal atual (usam apenas o número CNJ digitado — não exigem `processo.id`). Reaproveitar handlers de `ProcessoFormDialog`.
-  - Botão **Salvar** cria via `supabase.from("processos").insert({...})` respeitando validações atuais do modal (número obrigatório, área obrigatória etc.). No sucesso: `navigate('/processos/' + novo.id, { replace: true })` — a partir daí a página vira o modo detalhe normal com todas as abas ativas.
-  - Título/breadcrumb: "Novo Processo" ao invés de nome das partes.
+### 2. Edge function `judit-acompanhamento-especial`
+- Aceitar `slot` (10 | 14 | 18) no body.
+- Substituir o filtro por "24/freq horas" pela regra de slot:
+  - slot 10 → processa freq ≥ 1
+  - slot 14 → processa freq ≥ 3
+  - slot 18 → processa freq ≥ 2
+- Manter guarda anti-duplicidade: só processa se `acompanhamento_ultima_checagem_em` não é do mesmo slot no mesmo dia.
+- Clamp `freq` em `[1, 3]`.
+- Após inserir eventos novos, para cada responsável ativo (`processos_responsaveis` → `profiles`):
+  - Já grava `notificacoes` (sino/painel) — mantém.
+  - Chamar `send-email` (Resend) com resumo dos novos steps.
+  - Chamar `enviar-whatsapp-zapi` com telefone do profile, se houver.
+- Consolidar por processo: um email + um WhatsApp por processo por execução, listando os N novos andamentos (não um por step).
 
-**3. Botão "Novo Processo" em `Processos.tsx`**
-- Trocar `onClick={() => setShowFormDialog(true)}` por `onClick={() => navigate('/processos/novo')}`.
-- Remover renderização do `<ProcessoFormDialog ... />` **quando usado para criação** (mantém apenas se ainda for usado para editar — verificar `processoToEdit`). Se toda edição já é inline em `ProcessoDetalhes`, remover totalmente o dialog e o state `showFormDialog`.
+### 3. Cron (pg_cron)
+- `unschedule` do job atual `judit-acompanhamento-especial-hourly` (a cada hora).
+- Criar 3 jobs:
+  - `judit-acomp-especial-10brt` — `0 13 * * *` → body `{"slot":10}`
+  - `judit-acomp-especial-14brt` — `0 17 * * *` → body `{"slot":14}`
+  - `judit-acomp-especial-18brt` — `0 21 * * *` → body `{"slot":18}`
 
-**4. Reaproveitamento**
-- Extrair de `ProcessoFormDialog` os handlers `buscarDadosCNJ` e `buscarJudit` para um hook `useProcessoBuscas` (ou copiar direto para `ProcessoDetalhes` no modo novo). Assim o botão Judit funciona igual.
+### 4. Painel de controle
+- O card/lista de eventos (`AcompanhamentoEspecialEventos`) e o sino já refletem os novos eventos. Sem alteração adicional necessária.
 
-## Detalhes técnicos
-
-- Ordem das rotas em `App.tsx` importa: `/processos/novo` **antes** de `/processos/:id` (senão `id="novo"` é capturado como uuid).
-- No modo `isNovo`, guarda de segurança: qualquer `useQuery(['processo', id])` só roda se `id && id !== 'novo'` — usar `enabled: !!id && id !== 'novo'`.
-- Componentes de aba (`ProcessoAgendaTab`, `ProcessoDocumentosTab`, `ProcessoPortalTab`, `ProcessoPedidosTab`, etc.) não precisam ser tocados — basta não renderizá-los.
-- Após criar, `invalidateQueries(['processos'])` para atualizar a lista.
+## Pré-requisitos que já existem
+- `RESEND_API_KEY` / função de envio de email.
+- `enviar-whatsapp-zapi` (Z-API) já em uso em outras rotinas.
+- `profiles.telefone` e `profiles.email` disponíveis para os responsáveis.
 
 ## Fora de escopo
-
-- Não altero o layout visual da tela de detalhe.
-- Não mexo em edição de processos já existentes (continua inline como está hoje).
-- Mantenho `ProcessoFormDialog` no repositório caso ainda seja chamado de outros lugares (Coordenações, Pastas) — busca rápida antes de deletar.
+- Alterar template visual de email/WhatsApp além do texto de andamentos.
+- Retroagir/limpar eventos antigos.

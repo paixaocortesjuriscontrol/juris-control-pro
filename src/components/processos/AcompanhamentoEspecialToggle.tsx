@@ -93,7 +93,7 @@ export function AcompanhamentoEspecialToggle({
   };
 
   const handleFreq = async (val: number) => {
-    const v = Math.max(1, Math.min(6, Math.floor(val) || 1));
+    const v = Math.max(1, Math.min(3, Math.floor(val) || 1));
     setFreq(v);
     const ok = await save({ acompanhamento_freq_diaria: v });
     if (ok) lastSavedRef.current.freq = v;
@@ -121,7 +121,7 @@ export function AcompanhamentoEspecialToggle({
               id={`freq-${processoId}`}
               type="number"
               min={1}
-              max={6}
+              max={3}
               value={freq}
               onChange={(e) => setFreq(Number(e.target.value))}
               onBlur={(e) => handleFreq(Number(e.target.value))}
@@ -133,7 +133,9 @@ export function AcompanhamentoEspecialToggle({
             <span>Baixar anexos</span>
             <Switch checked={anexos} onCheckedChange={handleAnexos} disabled={saving} />
           </div>
-          <span className="italic text-[11px]">Cada checagem consome créditos Judit.</span>
+          <span className="italic text-[11px]">
+            Execução em horário fixo BRT: 1x=10h, 2x=10h/18h, 3x=10h/14h/18h. Cada checagem consome créditos Judit.
+          </span>
         </div>
       )}
     </div>

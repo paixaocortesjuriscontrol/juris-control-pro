@@ -8,15 +8,15 @@ const corsHeaders = {
 };
 
 /**
- * Job de Acompanhamento Especial — usa Judit para varrer todos os processos
- * marcados com `acompanhamento_especial=true`. Para cada novo step encontrado
- * (com `step_date` posterior ao `acompanhamento_ultimo_step_date`):
- *  - grava em `acompanhamento_especial_eventos`
- *  - notifica responsáveis (sino)
- *  - opcional: cria tarefa automática
+ * Job de Acompanhamento Especial — roda em horários fixos BRT (10h/14h/18h),
+ * disparados por 3 cron jobs distintos que enviam `slot` no body:
+ *  - slot 10 → processa freq >= 1
+ *  - slot 14 → processa freq >= 3
+ *  - slot 18 → processa freq >= 2
+ * (freq máximo permitido = 3)
  *
- * Pensado para rodar via pg_cron a cada hora. Cada processo só é checado se
- * já passou pelo menos `24/freq_diaria` horas desde a última checagem.
+ * Para cada novo step encontrado grava em `acompanhamento_especial_eventos`,
+ * cria notificação no sino e envia email + WhatsApp aos responsáveis ativos.
  */
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -28,6 +28,7 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const juditApiKey = Deno.env.get("JUDIT_API_KEY");
+  const resendApiKey = Deno.env.get("RESEND_API_KEY");
 
   if (!juditApiKey) {
     return new Response(JSON.stringify({ error: "JUDIT_API_KEY não configurada" }), {
@@ -40,14 +41,20 @@ serve(async (req) => {
     auth: { persistSession: false },
   });
 
-  // Permite forçar apenas um processo (uso manual via UI / debug)
+  // slot BRT (10 | 14 | 18) + processo_id forçado (uso manual via UI / debug)
   let forcedProcessoId: string | null = null;
+  let slot: number | null = null;
   try {
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     forcedProcessoId = body?.processo_id ?? null;
+    slot = typeof body?.slot === "number" ? body.slot : null;
   } catch (_) {
     /* ignore */
   }
+
+  // Determina qual freq mínima roda neste slot
+  const minFreqBySlot: Record<number, number> = { 10: 1, 14: 3, 18: 2 };
+  const minFreqRequired = slot && minFreqBySlot[slot] ? minFreqBySlot[slot] : 1;
 
   // ── Selecionar processos ──
   let query = supabase
@@ -66,20 +73,32 @@ serve(async (req) => {
     });
   }
 
-  const agora = Date.now();
   const resultados: any[] = [];
+  // Data BRT (YYYY-MM-DD) para guard anti-duplicidade no mesmo slot/dia
+  const nowBrt = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  const dataBrtStr = nowBrt.toISOString().slice(0, 10);
 
   for (const p of processos ?? []) {
     try {
-      const freq = Math.max(1, Math.min(6, p.acompanhamento_freq_diaria ?? 1));
-      const intervaloMs = (24 / freq) * 3600 * 1000;
-      if (
-        !forcedProcessoId &&
-        p.acompanhamento_ultima_checagem_em &&
-        agora - new Date(p.acompanhamento_ultima_checagem_em).getTime() < intervaloMs
-      ) {
-        resultados.push({ processo_id: p.id, skipped: "intervalo" });
+      const freq = Math.max(1, Math.min(3, p.acompanhamento_freq_diaria ?? 1));
+
+      // Filtra por slot: só roda se a freq do processo alcança este slot
+      if (!forcedProcessoId && slot && freq < minFreqRequired) {
+        resultados.push({ processo_id: p.id, skipped: "slot-fora-da-freq" });
         continue;
+      }
+
+      // Evita rodar duas vezes no mesmo slot no mesmo dia BRT
+      if (!forcedProcessoId && p.acompanhamento_ultima_checagem_em) {
+        const ult = new Date(
+          new Date(p.acompanhamento_ultima_checagem_em).getTime() - 3 * 60 * 60 * 1000
+        );
+        const ultDia = ult.toISOString().slice(0, 10);
+        const ultHora = ult.getUTCHours(); // já ajustado para BRT
+        if (slot && ultDia === dataBrtStr && ultHora === slot) {
+          resultados.push({ processo_id: p.id, skipped: "ja-rodou-neste-slot" });
+          continue;
+        }
       }
 
       const cnj = (p.numero || "").trim();
@@ -137,6 +156,7 @@ serve(async (req) => {
         : 0;
       let maiorStepDate = ultimoConhecido;
       let novos = 0;
+      const novosResumo: { data: string; conteudo: string }[] = [];
 
       for (const step of steps) {
         const dataStr = step.step_date || step.date || step.movement_date;
@@ -178,6 +198,8 @@ serve(async (req) => {
         }
 
         novos++;
+        const conteudoStr = typeof conteudo === "string" ? conteudo : JSON.stringify(conteudo);
+        novosResumo.push({ data: dataStr, conteudo: conteudoStr.slice(0, 500) });
 
         // Notificar responsáveis do processo
         const { data: resps } = await supabase
@@ -191,7 +213,7 @@ serve(async (req) => {
           await supabase.from("notificacoes").insert({
             usuario_id: r.usuario_id,
             titulo: `Novidade em ${cnj}`,
-            mensagem: (typeof conteudo === "string" ? conteudo : JSON.stringify(conteudo)).slice(0, 280),
+            mensagem: conteudoStr.slice(0, 280),
             tipo: "acompanhamento_especial",
             lida: false,
             link: `/processos/${p.id}`,
@@ -203,6 +225,70 @@ serve(async (req) => {
           .from("acompanhamento_especial_eventos")
           .update({ notificou_em: new Date().toISOString() })
           .eq("id", evento!.id);
+      }
+
+      // Envio consolidado (1 email + 1 WhatsApp por processo, listando todos os novos)
+      if (novos > 0 && novosResumo.length > 0) {
+        try {
+          const { data: resps2 } = await supabase
+            .from("processos_responsaveis")
+            .select("usuario_id")
+            .eq("processo_id", p.id)
+            .eq("ativo", true);
+          const userIds = (resps2 ?? []).map((r: any) => r.usuario_id).filter(Boolean);
+          if (userIds.length > 0) {
+            const { data: profs } = await supabase
+              .from("profiles")
+              .select("id, nome, email, telefone")
+              .in("id", userIds);
+
+            const linhasTxt = novosResumo
+              .map((n) => `• ${new Date(n.data).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} — ${n.conteudo}`)
+              .join("\n");
+            const linhasHtml = novosResumo
+              .map(
+                (n) =>
+                  `<li><strong>${new Date(n.data).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</strong> — ${n.conteudo.replace(/</g, "&lt;")}</li>`
+              )
+              .join("");
+
+            // Email via Resend
+            if (resendApiKey) {
+              const emails = (profs ?? []).map((p: any) => p.email).filter(Boolean);
+              if (emails.length > 0) {
+                await fetch("https://api.resend.com/emails", {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${resendApiKey}`,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    from: "JurisControl <alertas@juriscontrol.adv.br>",
+                    to: emails,
+                    subject: `[Acompanhamento Especial] ${novos} nova(s) movimentação(ões) em ${cnj}`,
+                    html: `<p>Foram encontradas <strong>${novos}</strong> nova(s) movimentação(ões) no processo <strong>${cnj}</strong>:</p><ul>${linhasHtml}</ul><p><a href="https://juriscontrol.adv.br/processos/${p.id}">Abrir processo</a></p>`,
+                  }),
+                }).catch((e) => console.error("[acomp-especial] erro email:", e));
+              }
+            }
+
+            // WhatsApp via Z-API
+            const telefones = (profs ?? []).map((p: any) => p.telefone).filter(Boolean);
+            if (telefones.length > 0) {
+              await supabase.functions
+                .invoke("enviar-whatsapp-zapi", {
+                  body: {
+                    telefones,
+                    mensagem: `📌 *Acompanhamento Especial*\nProcesso: *${cnj}*\n${novos} nova(s) movimentação(ões):\n\n${linhasTxt}`,
+                    tipo: "evento",
+                  },
+                })
+                .catch((e) => console.error("[acomp-especial] erro whatsapp:", e));
+            }
+          }
+        } catch (notifyErr) {
+          console.error("[acomp-especial] erro notificação email/whatsapp:", notifyErr);
+        }
       }
 
       await supabase
@@ -221,7 +307,7 @@ serve(async (req) => {
   }
 
   return new Response(
-    JSON.stringify({ ok: true, processados: resultados.length, resultados }),
+    JSON.stringify({ ok: true, slot, processados: resultados.length, resultados }),
     { headers }
   );
 });
