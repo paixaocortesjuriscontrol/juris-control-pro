@@ -1,8 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Download } from "lucide-react";
+import { Loader2, Download, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
@@ -124,13 +123,17 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
 
   const anos = Array.from({ length: 6 }, (_, i) => hoje.getFullYear() - 3 + i);
 
+  if (!open) return null;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Relatório de Audiências</DialogTitle>
-        </DialogHeader>
-        <div className="flex items-center gap-3">
+    <div className="border rounded-lg bg-card shadow-sm p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-semibold">Relatório de Audiências</h3>
+        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange(false)} aria-label="Fechar">
+          <X className="h-4 w-4" />
+        </Button>
+      </div>
+      <div className="flex items-center gap-3 flex-wrap">
           <Select value={mes === "todos" ? TODOS : String(mes)} onValueChange={(v) => setMes(v === TODOS ? "todos" : Number(v))}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -192,7 +195,6 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
             </table>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+    </div>
   );
 }
