@@ -103,11 +103,6 @@ interface ProcessoFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   processo?: any;
-  /**
-   * Quando true, renderiza o formulário como página inteira (rota `/processos/novo`)
-   * em vez de dentro de um Dialog modal. Após salvar, navega para `/processos/:id`.
-   */
-  asPage?: boolean;
 }
 
 // Format CNJ mask: NNNNNNN-DD.AAAA.J.TR.OOOO
@@ -165,7 +160,7 @@ const AnexosJuditTabPanel = memo(function AnexosJuditTabPanel({
   return <ProcessoAnexosJuditTab processoNumero={numero} processoId={processoId} />;
 });
 
-export function ProcessoFormDialog({ open, onOpenChange, processo, asPage = false }: ProcessoFormDialogProps) {
+export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFormDialogProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [fetchingFromApi, setFetchingFromApi] = useState(false);
@@ -1116,19 +1111,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo, asPage = fals
       queryClient.invalidateQueries({ queryKey: ["pastas"] });
       form.reset();
       setFiles([]);
-      if (asPage) {
-        // Em modo página, navega para o detalhe do processo recém-criado
-        // (ou apenas para a lista, no caso de edição).
-        if (!isEditing && createdProcessoId) {
-          navigate(`/processos/${createdProcessoId}`, { replace: true });
-        } else if (isEditing && processo?.id) {
-          navigate(`/processos/${processo.id}`, { replace: true });
-        } else {
-          navigate("/processos");
-        }
-      } else {
-        onOpenChange(false);
-      }
+      onOpenChange(false);
     } catch (error: any) {
       console.error("Error saving process:", error);
       toast({
@@ -2242,37 +2225,18 @@ export function ProcessoFormDialog({ open, onOpenChange, processo, asPage = fals
               </TabsContent>
             </Tabs>
 
-            <div className={asPage ? "flex justify-end gap-2 border-t pt-4" : "flex justify-end gap-2 sm:justify-end"}>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  if (asPage) {
-                    navigate("/processos");
-                  } else {
-                    onOpenChange(false);
-                  }
-                }}
-              >
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
               <Button type="submit" disabled={loading || isUploading}>
                 {(loading || isUploading) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 {isEditing ? "Salvar Alterações" : "Cadastrar Processo"}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
   );
-
-  if (asPage) {
-    return (
-      <div className="space-y-4">
-        <div className="space-y-1">{headerNode}</div>
-        {formNode}
-      </div>
-    );
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

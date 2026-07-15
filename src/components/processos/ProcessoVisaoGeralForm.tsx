@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Card, CardContent } from "@/components/ui/card";
@@ -132,6 +133,10 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   hideJuditButtons = false,
 }, ref) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  // Modo criação: quando o processo ainda não tem id, `handleSave` faz INSERT
+  // e redireciona para a URL do novo processo.
+  const isNovo = !processo?.id;
   const [form, setForm] = useState<Record<string, any>>({});
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
@@ -194,7 +199,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
 
   // Inicializa form quando processo carregar/trocar
   useEffect(() => {
-    if (!processo?.id) return;
+    if (!processo?.id && !isNovo) return;
     const next: Record<string, any> = {};
     for (const f of FIELDS) next[f] = (processo as any)[f] ?? "";
     setForm(next);
@@ -206,16 +211,23 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     } else {
       setJuditSessionFields(new Set());
     }
-  }, [processo?.id, processo?.updated_at]);
+  }, [processo?.id, processo?.updated_at, isNovo]);
 
   const update = (field: string, value: any) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
   const handleSave = async () => {
-    if (!processo?.id) return;
     if (form.status === "encerrado" && !String(form.motivo_encerramento || "").trim()) {
       toast.error("Informe o motivo do encerramento antes de salvar.");
       return;
+    }
+    // Validação mínima para criação
+    if (isNovo) {
+      const numeroRaw = String(form.numero || "").trim();
+      if (!numeroRaw || numeroRaw.replace(/\D/g, "").length < 5) {
+        toast.error("Informe o número do processo antes de salvar.");
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -228,6 +240,36 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           payload[f] = v === "" || v == null ? null : v;
         }
       }
+
+      if (isNovo) {
+        // Modo criação: INSERT e redireciona para a página do novo processo.
+        payload.numero = String(form.numero || "").trim();
+        const { data: novo, error: errInsert } = await supabase
+          .from("processos")
+          .insert(payload as any)
+          .select("id")
+          .single();
+        if (errInsert) throw errInsert;
+
+        if (responsaveis.length > 0 && novo?.id) {
+          const inserts = responsaveis.map((r: any) => ({
+            processo_id: novo.id,
+            usuario_id: r.usuario_id,
+            coordenacao_id: r.coordenacao_id || null,
+            papel: r.papel || "responsavel",
+            ativo: true,
+          }));
+          await supabase
+            .from("processos_responsaveis")
+            .insert(inserts as any);
+        }
+
+        await queryClient.invalidateQueries({ queryKey: ["processos"] });
+        toast.success("Processo criado com sucesso!");
+        navigate(`/processos/${novo.id}`, { replace: true });
+        return;
+      }
+
       const { error } = await supabase
         .from("processos")
         .update(payload as any)
@@ -968,6 +1010,16 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               <section>
                 <SectionHeader icon={FileText} title="Identificação" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {isNovo && (
+                    <FormField label="Número do Processo *" className="md:col-span-2">
+                      <Input
+                        className={inputCls}
+                        placeholder="0000000-00.0000.0.00.0000"
+                        value={form.numero || ""}
+                        onChange={(e) => update("numero", e.target.value)}
+                      />
+                    </FormField>
+                  )}
                   <FormField label="Objeto da ação (assunto)" className="md:col-span-2">
                     <Textarea
                       rows={3}
@@ -1220,18 +1272,26 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
 
             {/* COLUNA LATERAL — cards de status / pendências */}
             <div className="space-y-4">
-              <PendenciasProcessoCard
-                audiencias={audiencias}
-                intimacoes={intimacoes}
-                tarefas={tarefas}
-                movimentacoes={movimentacoes}
-                eventosAgenda={eventosAgenda}
-                processoId={processo?.id}
-                processoNumero={processo?.numero}
-                onNavigate={onNavigate}
-              />
-              <DepositosRecursaisCard processoId={processo.id} />
-              <CustasProcessuaisCard processoId={processo.id} />
+              {isNovo ? (
+                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  Salve o processo para habilitar Pendências, Depósitos Recursais e Custas Processuais.
+                </div>
+              ) : (
+                <>
+                  <PendenciasProcessoCard
+                    audiencias={audiencias}
+                    intimacoes={intimacoes}
+                    tarefas={tarefas}
+                    movimentacoes={movimentacoes}
+                    eventosAgenda={eventosAgenda}
+                    processoId={processo?.id}
+                    processoNumero={processo?.numero}
+                    onNavigate={onNavigate}
+                  />
+                  <DepositosRecursaisCard processoId={processo.id} />
+                  <CustasProcessuaisCard processoId={processo.id} />
+                </>
+              )}
 
               {/* Metadados sistema */}
               <div className="text-[11px] text-muted-foreground space-y-0.5 pt-2 border-t">

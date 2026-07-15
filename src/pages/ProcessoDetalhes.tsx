@@ -172,6 +172,8 @@ const getAudienciaBusinessKey = (audiencia: Partial<AudienciaDetectada>) => {
 
 export default function ProcessoDetalhes() {
   const { id } = useParams<{ id: string }>();
+  // Modo "novo processo": rota /processos/novo reutiliza esta tela em branco.
+  const isNovo = id === "novo";
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
@@ -227,7 +229,7 @@ export default function ProcessoDetalhes() {
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [responsaveisLoaded, setResponsaveisLoaded] = useState(false);
 
-  const { data: processo, isLoading: loadingProcesso } = useQuery({
+  const { data: processoDb, isLoading: loadingProcesso } = useQuery({
     queryKey: ["processo", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -244,8 +246,22 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && !isNovo,
   });
+
+  // Em modo "novo", usamos um objeto sintético vazio para renderizar a
+  // mesma tela de detalhe/edição com o formulário em branco. Os cards
+  // laterais e ações que dependem de `processo.id` simplesmente ficam
+  // inativos até o primeiro Salvar (INSERT) via ProcessoVisaoGeralForm.
+  const processo: any = isNovo
+    ? {
+        id: null,
+        numero: "",
+        tipo_processo: "judicial",
+        area: "civil",
+        status: "ativo",
+      }
+    : processoDb;
 
   // EAGER LOADING: Audiências, Intimações e Tarefas carregam sempre pois são usadas no card de pendências
   // Outras queries usam lazy loading baseado na aba ativa
@@ -308,7 +324,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return deduplicadas;
     },
-    enabled: !!id && !!processo?.numero,
+    enabled: !!id && !isNovo && !!processo?.numero,
   });
 
   // Intimações query - carrega sempre pois é usada no card de pendências
@@ -324,7 +340,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && !!processo?.numero,
+    enabled: !!id && !isNovo && !!processo?.numero,
   });
 
   // Tarefas query - carrega sempre pois é usada no card de pendências
@@ -343,7 +359,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && !isNovo,
   });
 
   // Documentos query - lazy load
@@ -359,7 +375,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && (activeTab === "documentos" || activeTab === ""),
+    enabled: !!id && !isNovo && (activeTab === "documentos" || activeTab === ""),
   });
 
   // Publicações DJEN query - lazy load
@@ -375,7 +391,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && !isNovo,
   });
 
   // Movimentações query - lazy load (também alimenta redistribuições)
@@ -391,7 +407,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && (activeTab === "andamentos" || activeTab === "redistribuicoes"),
+    enabled: !!id && !isNovo && (activeTab === "andamentos" || activeTab === "redistribuicoes"),
   });
 
   // Redistribuições derivadas de movimentacoes (elimina query duplicada)
@@ -417,7 +433,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && activeTab === "monitoramento360",
+    enabled: !!id && !isNovo && activeTab === "monitoramento360",
   });
 
   // Eventos Agenda query - lazy load
@@ -433,7 +449,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && activeTab === "agenda",
+    enabled: !!id && !isNovo && activeTab === "agenda",
   });
 
   // Coordenações query
@@ -481,7 +497,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id,
+    enabled: !!id && !isNovo,
   });
 
   // Derive responsáveis text
@@ -1347,7 +1363,7 @@ export default function ProcessoDetalhes() {
     );
   };
 
-  if (loadingProcesso) {
+  if (loadingProcesso && !isNovo) {
     return (
       <MainLayout title="Carregando..." subtitle="">
         <div className="space-y-6">
@@ -1358,7 +1374,7 @@ export default function ProcessoDetalhes() {
     );
   }
 
-  if (!processo) {
+  if (!processo && !isNovo) {
     return (
       <MainLayout title="Processo não encontrado" subtitle="">
         <div className="text-center py-12">
