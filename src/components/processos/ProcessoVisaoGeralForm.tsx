@@ -235,6 +235,10 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         toast.error("Informe o número do processo antes de salvar.");
         return;
       }
+      if (!String(form.area || "").trim()) {
+        toast.error("Selecione a área do processo antes de salvar.");
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -251,6 +255,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       if (isNovo) {
         // Modo criação: INSERT e redireciona para a página do novo processo.
         payload.numero = String(form.numero || "").trim();
+        // Remove chaves nulas para permitir que os DEFAULTs do banco
+        // preencham colunas NOT NULL (impactante, status, acompanhamento_*,
+        // monitorar_andamentos, judit_campos, etc.).
+        for (const k of Object.keys(payload)) {
+          if (payload[k] === null || payload[k] === undefined) delete payload[k];
+        }
         const { data: novo, error: errInsert } = await supabase
           .from("processos")
           .insert(payload as any)
