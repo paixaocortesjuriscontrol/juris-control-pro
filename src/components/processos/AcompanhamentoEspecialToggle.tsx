@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,23 +24,50 @@ export function AcompanhamentoEspecialToggle({
   const [freq, setFreq] = useState<number>(frequenciaDiaria || 1);
   const [anexos, setAnexos] = useState<boolean>(comAnexos);
   const [saving, setSaving] = useState(false);
+  const lastSavedRef = useRef({
+    ativo: acompanhamentoEspecial,
+    freq: frequenciaDiaria || 1,
+    anexos: comAnexos,
+  });
 
   useEffect(() => {
-    setAtivo(acompanhamentoEspecial);
-    setFreq(frequenciaDiaria || 1);
-    setAnexos(comAnexos);
+    // Só sincroniza a partir das props quando o valor recebido diverge
+    // do último valor persistido localmente. Isso evita que uma re-render
+    // do pai com dados em cache (antes do refetch) reverta o switch que
+    // o usuário acabou de marcar.
+    if (acompanhamentoEspecial !== lastSavedRef.current.ativo) {
+      setAtivo(acompanhamentoEspecial);
+      lastSavedRef.current.ativo = acompanhamentoEspecial;
+    }
+    const nextFreq = frequenciaDiaria || 1;
+    if (nextFreq !== lastSavedRef.current.freq) {
+      setFreq(nextFreq);
+      lastSavedRef.current.freq = nextFreq;
+    }
+    if (comAnexos !== lastSavedRef.current.anexos) {
+      setAnexos(comAnexos);
+      lastSavedRef.current.anexos = comAnexos;
+    }
   }, [acompanhamentoEspecial, frequenciaDiaria, comAnexos]);
 
   const save = async (patch: Record<string, unknown>) => {
     setSaving(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("processos")
         .update(patch)
-        .eq("id", processoId);
+        .eq("id", processoId)
+        .select("id");
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(
+          "Sem permissão para alterar este processo (RLS). Peça a um admin/coordenador."
+        );
+      }
+      return true;
     } catch (e: any) {
       toast({ title: "Erro", description: e.message ?? "Falha ao atualizar acompanhamento", variant: "destructive" });
+      return false;
     } finally {
       setSaving(false);
     }
@@ -48,10 +75,15 @@ export function AcompanhamentoEspecialToggle({
 
   const handleToggle = async (checked: boolean) => {
     setAtivo(checked);
-    await save({
+    const ok = await save({
       acompanhamento_especial: checked,
       acompanhamento_ativado_em: checked ? new Date().toISOString() : null,
     });
+    if (!ok) {
+      setAtivo(!checked);
+      return;
+    }
+    lastSavedRef.current.ativo = checked;
     toast({
       title: checked ? "Acompanhamento Especial ativado" : "Acompanhamento Especial desativado",
       description: checked
@@ -63,12 +95,15 @@ export function AcompanhamentoEspecialToggle({
   const handleFreq = async (val: number) => {
     const v = Math.max(1, Math.min(6, Math.floor(val) || 1));
     setFreq(v);
-    await save({ acompanhamento_freq_diaria: v });
+    const ok = await save({ acompanhamento_freq_diaria: v });
+    if (ok) lastSavedRef.current.freq = v;
   };
 
   const handleAnexos = async (checked: boolean) => {
     setAnexos(checked);
-    await save({ acompanhamento_com_anexos: checked });
+    const ok = await save({ acompanhamento_com_anexos: checked });
+    if (ok) lastSavedRef.current.anexos = checked;
+    else setAnexos(!checked);
   };
 
   return (
