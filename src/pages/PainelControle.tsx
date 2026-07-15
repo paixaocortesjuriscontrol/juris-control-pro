@@ -1032,6 +1032,12 @@ export default function PainelControle() {
       <div className="flex flex-col -m-4 md:-m-6 md:h-[calc(100vh-64px)]">
         {/* Header */}
         <div className="px-4 md:px-6 py-3 md:py-4 bg-card border-b border-border flex-shrink-0 space-y-2">
+          {relatorioAudOpen && (
+            <RelatorioAudienciasDialog
+              open={relatorioAudOpen}
+              onOpenChange={setRelatorioAudOpen}
+            />
+          )}
           <div className="flex items-center gap-2 md:gap-3 flex-wrap">
             <div className="flex gap-1 flex-shrink-0">
               <Button
@@ -1863,10 +1869,6 @@ export default function PainelControle() {
           if (!open) setSelectedParcelamento(null);
         }}
         evento={selectedParcelamento}
-      />
-      <RelatorioAudienciasDialog
-        open={relatorioAudOpen}
-        onOpenChange={setRelatorioAudOpen}
       />
     </MainLayout>
   );
