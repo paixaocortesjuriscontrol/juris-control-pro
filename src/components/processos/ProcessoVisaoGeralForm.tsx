@@ -52,6 +52,7 @@ interface Props {
    * habilitando a aba "Análise Judit" que depende desse campo).
    */
   onNumeroChange?: (numero: string) => void;
+  onJuditNovoPreenchido?: () => void;
   /**
    * Quando true, renderiza apenas o cabeçalho com a barra de ações Judit
    * (Sincronizar / Judit c/ anexos / Judit Interno / Análise Judit / Anexos
@@ -138,6 +139,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   actionsOnly = false,
   hideJuditButtons = false,
   onNumeroChange,
+  onJuditNovoPreenchido,
 }, ref) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -151,6 +153,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [syncingAnexos, setSyncingAnexos] = useState(false);
   const [syncingInterno, setSyncingInterno] = useState(false);
   const [comAnexosJudit, setComAnexosJudit] = useState(false);
+  const [juditNovoCardVisible, setJuditNovoCardVisible] = useState(false);
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
@@ -642,7 +645,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     const numeroLimpo = getNumeroProcessoAtual();
     if (!numeroLimpo) {
       toast.warning("Processo sem número CNJ cadastrado.");
-      return;
+      return false;
     }
     if (comAnexos) setSyncingAnexos(true); else setSyncingInterno(true);
     try {
@@ -689,7 +692,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           body: { numero_processo: numeroLimpo, force_refresh: true, with_attachments: comAnexos },
         });
         if (resp.error) throw resp.error;
-        if ((resp.data as any)?.error) { toast.error((resp.data as any).error); return; }
+        if ((resp.data as any)?.error) { toast.error((resp.data as any).error); return false; }
         data = resp.data;
       }
 
@@ -709,11 +712,27 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       }
       setForm(next);
       setJuditSessionFields(filled);
+      if (isNovo) onNumeroChange?.(String(next.numero || numeroLimpo));
 
       if (isNovo) {
+        if (!fromCache) {
+          try {
+            const { data: userData } = await supabase.auth.getUser();
+            await supabase.from("judit_logs" as any).insert({
+              processo_numero: numeroLimpo,
+              tribunal: data?.tribunal || null,
+              request_payload: { numero_processo: numeroLimpo, fonte: "judit-processo-interno", with_attachments: comAnexos },
+              raw_response: data,
+              status: "sucesso",
+              error_message: null,
+              created_by: userData?.user?.id || null,
+            });
+            await queryClient.invalidateQueries({ queryKey: ["judit_logs", numeroLimpo] });
+          } catch (_) { /* noop */ }
+        }
         const preenchidos = filled.size;
-        toast.success(`${comAnexos ? "Judit c/ anexos" : "Judit"} preenchida — ${preenchidos} campo(s). Salve para criar o processo.`);
-        return;
+        toast.success(`Judit recuperada e formulário preenchido — ${preenchidos} campo(s).`);
+        return true;
       }
 
       // Persiste
@@ -810,11 +829,27 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       await queryClient.invalidateQueries({ queryKey: ["processo", processo.id] });
       const preenchidos = filled.size;
       toast.success(`${comAnexos ? "Judit c/ anexos" : "Judit"} sincronizada — ${preenchidos} campo(s) do processo preenchido(s).`);
+      return true;
     } catch (e: any) {
       toast.error(`Erro Judit ${comAnexos ? "c/ anexos" : "Interno"}: ` + (e?.message || "desconhecido"));
+      return false;
     } finally {
       if (comAnexos) setSyncingAnexos(false); else setSyncingInterno(false);
     }
+  };
+
+  const handleJuditButtonClick = async () => {
+    if (isNovo) {
+      const ok = await handleSyncJuditInterno(comAnexosJudit, true);
+      if (ok) {
+        setJuditNovoCardVisible(true);
+        onJuditNovoPreenchido?.();
+      }
+      return;
+    }
+
+    await handleFetchJuditOnly(comAnexosJudit);
+    onNavigate?.("analise-judit");
   };
 
   const copy = (t: string) => navigator.clipboard.writeText(t);
