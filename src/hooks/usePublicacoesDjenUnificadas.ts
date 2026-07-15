@@ -674,7 +674,19 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           // `lida` e `lido_por` agora vêm direto da RPC (per-user), eliminando
           // o round-trip extra que era feito por mergeWithLeituras().
           lido_por: Array.isArray(r.lido_por)
-            ? r.lido_por.map((x: any) => ({ nome: String(x?.nome ?? 'Desconhecido'), lida_em: String(x?.lida_em ?? '') }))
+            ? (() => {
+                const uniq = new Map<string, LeituraUsuario>();
+                for (const x of r.lido_por as any[]) {
+                  const chave = String(x?.usuario_id ?? x?.nome ?? '');
+                  const nova: LeituraUsuario = {
+                    nome: String(x?.nome ?? 'Desconhecido'),
+                    lida_em: String(x?.lida_em ?? ''),
+                  };
+                  const ex = uniq.get(chave);
+                  if (!ex || ex.lida_em < nova.lida_em) uniq.set(chave, nova);
+                }
+                return Array.from(uniq.values());
+              })()
             : [],
         }));
 
