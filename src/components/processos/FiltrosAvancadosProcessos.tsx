@@ -87,7 +87,9 @@ export function FiltrosAvancadosProcessos({
     filtros.periodoInicio ||
     filtros.periodoFim ||
     filtros.responsavelId ||
-    filtros.instancia !== "todos";
+    filtros.instancia !== "todos" ||
+    !!filtros.testemunhaNome ||
+    !!filtros.comTestemunha;
 
   const handleResponsavelSelect = (id: string, nome: string) => {
     onFiltrosChange({ ...filtros, responsavelId: id, responsavelNome: nome });
