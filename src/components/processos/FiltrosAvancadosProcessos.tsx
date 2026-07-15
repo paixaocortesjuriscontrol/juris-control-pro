@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -21,6 +22,8 @@ export interface FiltrosAvancados {
   responsavelId?: string;
   responsavelNome?: string;
   instancia: "1" | "2" | "superior" | "todos";
+  testemunhaNome?: string;
+  comTestemunha?: boolean;
 }
 
 interface FiltrosAvancadosProcessosProps {
