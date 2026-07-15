@@ -1469,20 +1469,25 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
       // Atualizar otimisticamente todas as queries de publicações
       const idsToMark = new Set(items.map(i => i.id));
-      queryClient.setQueriesData<CachedShape>(
-        { queryKey: ['publicacoes-unificadas'] },
-        (old) => {
-          if (!old || !old.rows) return old;
-          return {
-            ...old,
-            rows: old.rows.map(pub => idsToMark.has(pub.id) ? {
+      // Percorre cada cache individualmente para poder REMOVER as linhas quando
+      // o filtro ativo daquela query for "não lidas" (senão a publicação marcada
+      // continuaria aparecendo até o próximo refetch).
+      previousData.forEach(([queryKey, old]) => {
+        if (!old || !old.rows) return;
+        // queryKey = ['publicacoes-unificadas', userId, filtros]
+        const filtrosDaQuery: any = Array.isArray(queryKey) ? queryKey[2] : undefined;
+        const rs = filtrosDaQuery?.readStatus
+          ?? (filtrosDaQuery?.apenasNaoLidas ? 'nao_lidas' : 'todas');
+        const nowIso = new Date().toISOString();
+        const nextRows = rs === 'nao_lidas'
+          ? old.rows.filter(pub => !idsToMark.has(pub.id))
+          : old.rows.map(pub => idsToMark.has(pub.id) ? {
               ...pub,
               lida: true,
-              lido_por: [...(pub.lido_por || []), { nome: 'Você', lida_em: new Date().toISOString() }],
-            } : pub),
-          };
-        }
-      );
+              lido_por: [...(pub.lido_por || []), { nome: 'Você', lida_em: nowIso }],
+            } : pub);
+        queryClient.setQueryData<CachedShape>(queryKey as any, { ...old, rows: nextRows });
+      });
 
       return { previousData };
     },
