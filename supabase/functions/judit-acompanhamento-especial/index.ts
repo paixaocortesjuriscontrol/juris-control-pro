@@ -44,13 +44,32 @@ serve(async (req) => {
   // slot BRT (10 | 14 | 18) + processo_id forçado (uso manual via UI / debug)
   let forcedProcessoId: string | null = null;
   let slot: number | null = null;
+  let invocadoPor: string | null = null;
+  let disparo = "automatico";
   try {
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     forcedProcessoId = body?.processo_id ?? null;
     slot = typeof body?.slot === "number" ? body.slot : null;
+    invocadoPor = body?.invocado_por ?? null;
+    if (body?.manual || body?.disparo === "manual" || invocadoPor) disparo = "manual";
   } catch (_) {
     /* ignore */
   }
+
+  // ── Registra início da execução ──
+  const iniciadoEm = new Date();
+  const { data: execRow } = await supabase
+    .from("execucoes_acompanhamento_especial")
+    .insert({
+      slot,
+      disparo,
+      status: "executando",
+      iniciado_em: iniciadoEm.toISOString(),
+      invocado_por: invocadoPor,
+    })
+    .select("id")
+    .maybeSingle();
+  const execId: string | null = execRow?.id ?? null;
 
   // Determina qual freq mínima roda neste slot
   const minFreqBySlot: Record<number, number> = { 10: 1, 14: 3, 18: 2 };
@@ -67,6 +86,17 @@ serve(async (req) => {
 
   const { data: processos, error: procErr } = await query;
   if (procErr) {
+    if (execId) {
+      await supabase
+        .from("execucoes_acompanhamento_especial")
+        .update({
+          status: "erro",
+          finalizado_em: new Date().toISOString(),
+          duracao_ms: Date.now() - iniciadoEm.getTime(),
+          erro: procErr.message,
+        })
+        .eq("id", execId);
+    }
     return new Response(JSON.stringify({ error: procErr.message }), {
       status: 500,
       headers,

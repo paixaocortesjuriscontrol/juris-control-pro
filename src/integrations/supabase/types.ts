@@ -4018,6 +4018,57 @@ export type Database = {
           },
         ]
       }
+      execucoes_acompanhamento_especial: {
+        Row: {
+          created_at: string
+          detalhes: Json | null
+          disparo: string
+          duracao_ms: number | null
+          erro: string | null
+          finalizado_em: string | null
+          id: string
+          iniciado_em: string
+          invocado_por: string | null
+          slot: number | null
+          status: string
+          total_erros: number
+          total_novos_eventos: number
+          total_processos: number
+        }
+        Insert: {
+          created_at?: string
+          detalhes?: Json | null
+          disparo?: string
+          duracao_ms?: number | null
+          erro?: string | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          invocado_por?: string | null
+          slot?: number | null
+          status?: string
+          total_erros?: number
+          total_novos_eventos?: number
+          total_processos?: number
+        }
+        Update: {
+          created_at?: string
+          detalhes?: Json | null
+          disparo?: string
+          duracao_ms?: number | null
+          erro?: string | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          invocado_por?: string | null
+          slot?: number | null
+          status?: string
+          total_erros?: number
+          total_novos_eventos?: number
+          total_processos?: number
+        }
+        Relationships: []
+      }
       execucoes_agendadas: {
         Row: {
           agendado_para: string | null
