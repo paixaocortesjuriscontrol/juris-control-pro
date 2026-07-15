@@ -263,6 +263,27 @@ export function FiltrosAvancadosProcessos({
                 </div>
               </RadioGroup>
             </div>
+
+            {/* Testemunhas */}
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground uppercase">Testemunhas:</Label>
+              <Input
+                placeholder="Nome da testemunha"
+                value={filtros.testemunhaNome || ""}
+                onChange={(e) => onFiltrosChange({ ...filtros, testemunhaNome: e.target.value })}
+                className="h-8 text-xs"
+              />
+              <div className="flex items-center gap-2 pt-1">
+                <Checkbox
+                  id="com-testemunha"
+                  checked={!!filtros.comTestemunha}
+                  onCheckedChange={(v) => onFiltrosChange({ ...filtros, comTestemunha: !!v })}
+                />
+                <Label htmlFor="com-testemunha" className="text-sm font-normal cursor-pointer">
+                  Com testemunhas cadastradas
+                </Label>
+              </div>
+            </div>
           </div>
 
           {/* Action Buttons */}
