@@ -408,6 +408,7 @@ export function DjenServidorParalelaCard() {
                 <option value="palavra-chave">Palavra-chave</option>
                 <option value="processo">Processo</option>
                 <option value="parte">Parte</option>
+                <option value="geral">Busca Geral</option>
               </select>
             </div>
           )}
