@@ -5406,7 +5406,7 @@ const AnaliseDjen = () => {
                                              e.stopPropagation();
                                              marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
                                            }}
-                                           disabled={marcarComoLida.isPending}
+                                           disabled={false}
                                            title="Marcar como lida"
                                            className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
                                          >
@@ -5502,7 +5502,7 @@ const AnaliseDjen = () => {
                                             e.stopPropagation();
                                             marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
                                           }}
-                                          disabled={marcarComoLida.isPending}
+                                          disabled={false}
                                           title="Marcar como lida"
                                           className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
                                         >
