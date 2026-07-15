@@ -1496,6 +1496,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
       queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] });
       queryClient.invalidateQueries({ queryKey: ['publicacoes-djen-processo'] });
+      // Card "Kurier" tem query dedicada (contagem server-side em publicacoes_djen).
+      // Sem invalidar aqui, o card fica travado no total anterior mesmo depois de
+      // marcar todas como lidas com filtro "Não lidas" ativo.
+      queryClient.invalidateQueries({ queryKey: ['analise-djen-kurier-count'] });
 
       // Mensagem baseada no que o USUÁRIO pediu para marcar (linhas da tela),
       // não no agregado da RPC legacy (que pode falhar/parcial).
