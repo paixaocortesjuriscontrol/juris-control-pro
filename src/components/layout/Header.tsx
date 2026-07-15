@@ -19,6 +19,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { NotificacoesDropdown } from "./NotificacoesDropdown";
 import { AlterarSenhaDialog } from "./AlterarSenhaDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfigNotificacoesUsuarioCard } from "@/components/configuracoes/ConfigNotificacoesUsuarioCard";
 import { Badge } from "@/components/ui/badge";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 
@@ -36,6 +38,7 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
   const { role } = useUserRole();
   const navigate = useNavigate();
   const [senhaDialogOpen, setSenhaDialogOpen] = useState(false);
+  const [notifDialogOpen, setNotifDialogOpen] = useState(false);
   const [profileNome, setProfileNome] = useState<string | null>(null);
 
   useEffect(() => {
@@ -157,7 +160,7 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
               <KeyRound className="w-4 h-4 mr-2" />
               Alterar Senha
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setNotifDialogOpen(true)}>
               <Bell className="w-4 h-4 mr-2" />
               Notificações
             </DropdownMenuItem>
@@ -176,6 +179,15 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
         </DropdownMenu>
 
         <AlterarSenhaDialog open={senhaDialogOpen} onOpenChange={setSenhaDialogOpen} />
+
+        <Dialog open={notifDialogOpen} onOpenChange={setNotifDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Minhas notificações</DialogTitle>
+            </DialogHeader>
+            <ConfigNotificacoesUsuarioCard />
+          </DialogContent>
+        </Dialog>
       </div>
     </header>
   );
