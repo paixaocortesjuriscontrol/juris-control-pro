@@ -68,7 +68,6 @@ import { toast } from "sonner";
 import { addDays, format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn, formatProcessoNumero } from "@/lib/utils";
-import { prepararConteudoParaIA } from "@/lib/publicacao-markdown";
 import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnly, formatDateOnlyFull, stripHtmlAndDecodeEntities, decodeHtmlEntities } from "@/utils/formatConteudo";
 import { conteudoContemFraseExata } from "@/utils/djenTermoMatch";
 
