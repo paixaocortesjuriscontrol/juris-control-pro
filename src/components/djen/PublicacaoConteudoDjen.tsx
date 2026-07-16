@@ -173,6 +173,11 @@ const cleanKurierEntityName = (value: string): string => {
     .trim();
 };
 
+const splitKurierSlashList = (value: string): string[] => String(value || "")
+  .split(/\s*\/\s*/g)
+  .map((item) => cleanKurierEntityName(item))
+  .filter((item) => item.length >= 3 && !/^(?:-|OAB\s+advogado)$/i.test(item));
+
 /**
  * Extrai partes e advogados do conteúdo da publicação e dos campos estruturados.
  * Estratégia: 
@@ -285,6 +290,18 @@ const extractPartesAndAdvogados = (
         if (nome.length >= 4 && numero && uf) addAdvogado(`${nome} - OAB ${uf}-${numero}`, `${numero}-${uf}`);
       }
     }
+
+    const poloAtivoCompact = plainText.match(/\bPolo\s+Ativo\s+([\s\S]*?)(?=\s+Polo\s+Passivo\b|\s+Parte\s+intima[çc][ãa]o\b|\s+Advogados?\s+polo\b|\s+Data\s+e\s+hora\b|\s+Identificador\s+do\s+documento\b|$)/i)?.[1];
+    if (poloAtivoCompact) splitKurierSlashList(poloAtivoCompact).forEach((nome) => addParte(`[Polo Ativo] ${nome}`));
+
+    const poloPassivoCompact = plainText.match(/\bPolo\s+Passivo\s+([\s\S]*?)(?=\s+Parte\s+intima[çc][ãa]o\b|\s+Advogados?\s+polo\b|\s+Data\s+e\s+hora\b|\s+Identificador\s+do\s+documento\b|$)/i)?.[1];
+    if (poloPassivoCompact) splitKurierSlashList(poloPassivoCompact).forEach((nome) => addParte(`[Polo Passivo] ${nome}`));
+
+    const advPoloAtivoCompact = plainText.match(/\bAdvogados?\s+polo\s+ativo\s+([\s\S]*?)(?=\s+Advogados?\s+polo\s+passivo\b|\s+Data\s+e\s+hora\b|\s+Identificador\s+do\s+documento\b|\s+Classe\s+do\s+Processo\b|\s+Assunto\b|\s+[ÓO]rg[ãa]o\s+Julgado\b|\s+Prazo\b|\s+Data\s+Limite\b|$)/i)?.[1];
+    if (advPoloAtivoCompact) splitKurierSlashList(advPoloAtivoCompact).forEach((nome) => addAdvogado(nome, nome.toUpperCase()));
+
+    const advPoloPassivoCompact = plainText.match(/\bAdvogados?\s+polo\s+passivo\s+([\s\S]*?)(?=\s+Data\s+e\s+hora\b|\s+Identificador\s+do\s+documento\b|\s+Classe\s+do\s+Processo\b|\s+Assunto\b|\s+[ÓO]rg[ãa]o\s+Julgado\b|\s+Prazo\b|\s+Data\s+Limite\b|$)/i)?.[1];
+    if (advPoloPassivoCompact) splitKurierSlashList(advPoloPassivoCompact).forEach((nome) => addAdvogado(nome, nome.toUpperCase()));
 
     for (const advs of plainText.matchAll(/\bAdv\s*\(\s*s\s*\)\s*([\s\S]*?)(?=\s+(?:Agravado|Agravante|Apelado|Apelante|Reclamado|Reclamante|Exequente|Executado|Promovido|Promovente|POLO\s+ATIVO|POLO\s+PASSIVO|https?:?\/\/|Página\b|Tribunal\b)|$)/gi)) {
       const bloco = (advs[1] || "").trim();
