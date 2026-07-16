@@ -1,45 +1,24 @@
-## Testemunhas do Processo
+# Excluir a tela **Buscar DJEN** (`/buscar-djen`)
 
-Adicionar cadastro de testemunhas (múltiplas por processo) na tela de detalhes do processo, com indicação de qual parte arrolou, e filtros na listagem de processos.
+Tela não utilizada (sem link no menu, apenas via URL/Cmd+K). É o único ponto real que ainda chama `resumir-publicacoes` (Pro) na UI, então remover também elimina esse consumo residual.
 
-### 1. Banco de dados
+## Alterações no código
 
-Nova tabela `processos_testemunhas`:
-- `processo_id` (FK → processos)
-- `nome` (obrigatório)
-- `cpf_rg` (opcional)
-- `telefone` (opcional)
-- `email` (opcional)
-- `arrolada_por` (opcional — texto livre ou referência a `processos_partes.id` via UUID nullable)
-- `observacoes` (texto)
-- padrões: id, created_at, updated_at, created_by
+1. **`src/App.tsx`**
+   - Remover `import BuscarDJEN from "./pages/BuscarDJEN";`
+   - Remover a rota `<Route path="/buscar-djen" ... />`
 
-RLS: seguir padrão de `processos_partes` (acesso por coordenação/responsáveis do processo). GRANTs para `authenticated` e `service_role`.
+2. **`src/pages/BuscarDJEN.tsx`** — deletar o arquivo inteiro (`rm`).
 
-### 2. Tela de detalhes do processo
+3. **`src/components/admin/InfoSistemaTab.tsx`**
+   - Remover a linha 187 (entrada "Buscar DJEN" na lista de telas).
+   - Remover a linha 284 (entrada "buscar-djen" na lista de edge functions — obs.: essa listagem faz referência a uma edge function `buscar-djen` que **já não existe** no projeto, é só limpeza da tabela informativa).
 
-Novo card **"Testemunhas"** na aba de partes/detalhes do processo:
-- Lista de testemunhas com nome, contato, "arrolada por" (dropdown com as partes existentes do processo) e observações
-- Edição inline (padrão do projeto — sem botão "Editar")
-- Botão "+ Adicionar testemunha"
-- Ação de remover em cada linha
+4. **Paleta de comandos (Cmd+K)** — se houver entrada apontando para `/buscar-djen`, remover. (Verifico no build; se existir em `CommandPalette` ou similar, ajusto no mesmo commit.)
 
-### 3. Filtros em Processos
+## O que NÃO vou mexer
+- **Edge function `resumir-publicacoes`**: continua sendo referenciada em `AnaliseDjen.tsx` e `AnaliseDjenServidor.tsx` (mesmo com os botões atualmente ocultos por `{false && isAdmin}`). Mantenho para não quebrar caso você reative aqueles botões. Se quiser removê-la também, me diga em uma segunda rodada.
+- Utilitários `pjeComunicaClient*` e o shim em `integrations/supabase/client.ts` que menciona a antiga função `buscar-djen` — não têm ligação com a tela.
 
-Em `useProcessosPaginados` + UI de filtros da tela de Processos:
-- **Busca por nome de testemunha** (campo texto)
-- **Checkbox "Com testemunhas cadastradas"**
-
-Ajustar a RPC `get_processos_paginados` para aceitar os dois novos parâmetros (`_testemunha_nome`, `_com_testemunha`) e filtrar via EXISTS em `processos_testemunhas`.
-
-### Detalhes técnicos
-
-- Migração cria tabela + índices em `processo_id` e `nome` (para busca ILIKE)
-- Hook `useProcessoTestemunhas(processoId)` com invalidação assíncrona antes de fechar/atualizar UI
-- Validação com zod: nome obrigatório (max 200), cpf_rg (max 20), telefone (max 30), email válido, observações (max 1000)
-- Sem alterações em edge functions
-
-### Fora do escopo
-
-- Intimação/notificação de testemunhas
-- Vinculação a audiências (pode ser feito depois se solicitado)
+## Confirmação
+Se ok, aplico as remoções e faço um build check para garantir que nenhum import quebrado sobrou.
