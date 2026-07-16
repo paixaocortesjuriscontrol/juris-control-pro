@@ -24,6 +24,7 @@ interface ProcessosPaginadosFilters {
   tipoProcesso?: string;
   testemunhaNome?: string;
   comTestemunha?: boolean;
+  acompanhamentoEspecial?: boolean;
   enabled?: boolean;
 }
 
@@ -67,6 +68,7 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
         _tipo_processo: filters.tipoProcesso && filters.tipoProcesso !== "all" ? filters.tipoProcesso : null,
         _testemunha_nome: filters.testemunhaNome && filters.testemunhaNome.trim() ? filters.testemunhaNome.trim() : null,
         _com_testemunha: filters.comTestemunha ?? false,
+        _acompanhamento_especial: filters.acompanhamentoEspecial ?? false,
       };
 
       // Se há restrição de coordenações (não-admin com "Todas" selecionado)
