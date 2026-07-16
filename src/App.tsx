@@ -81,6 +81,7 @@ import CorrigirPlanilha from "./pages/CorrigirPlanilha";
 import MateriasBenner from "./pages/MateriasBenner";
 import ClassificacaoTst from "./pages/ClassificacaoTst";
 import IaResponde from "./pages/IaResponde";
+import ConsumoIA from "./pages/ConsumoIA";
 import AdminTst from "./pages/AdminTst";
 import AdminTstImportacoes from "./pages/AdminTstImportacoes";
 import AdminTstOutroEscritorio from "./pages/AdminTstOutroEscritorio";
