@@ -1276,10 +1276,24 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     <Input className={cn(inputCls, jcls("reclamados"))} value={form.reclamados || ""} onChange={(e) => update("reclamados", e.target.value)} />
                   </FormField>
                   <FormField label="Terceiros Envolvidos" className="md:col-span-2">
-                    <Textarea className={cn("text-sm min-h-[50px]", jcls("terceiro_envolvido"))} value={form.terceiro_envolvido || ""} onChange={(e) => update("terceiro_envolvido", e.target.value)} />
+                    <Textarea
+                      rows={2}
+                      className={cn("text-sm min-h-[50px] resize-y overflow-hidden", jcls("terceiro_envolvido"))}
+                      value={form.terceiro_envolvido || ""}
+                      onChange={(e) => update("terceiro_envolvido", e.target.value)}
+                      ref={(el) => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }}
+                      onInput={(e) => { const el = e.currentTarget; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }}
+                    />
                   </FormField>
                   <FormField label="Pedidos" className="md:col-span-2">
-                    <Textarea className={cn("text-sm min-h-[60px]", jcls("pedidos"))} value={form.pedidos || ""} onChange={(e) => update("pedidos", e.target.value)} />
+                    <Textarea
+                      rows={3}
+                      className={cn("text-sm min-h-[60px] resize-y overflow-hidden", jcls("pedidos"))}
+                      value={form.pedidos || ""}
+                      onChange={(e) => update("pedidos", e.target.value)}
+                      ref={(el) => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }}
+                      onInput={(e) => { const el = e.currentTarget; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }}
+                    />
                   </FormField>
                   <FormField label="Responsáveis Internos" className="md:col-span-2">
                     <SelecionarResponsaveisProcesso
