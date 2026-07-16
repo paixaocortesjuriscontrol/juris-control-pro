@@ -56,14 +56,16 @@ const getHojeBrtISO = (): string => {
   return `${get('year')}-${get('month')}-${get('day')}`;
 };
 
-const dataPublicacaoPautaInicio = (dataDisponibilizacao?: string, apenasHoje?: boolean): string | null => {
-  const dia = dataDisponibilizacao || (apenasHoje ? getHojeBrtISO() : null);
-  return dia ? `${dia}T00:00:00Z` : null;
+// DJET Pautas: sem data selecionada, "dia da pauta" = hoje (BRT), espelhando
+// o comportamento do Kurier (que assume captura do próprio dia).
+const dataPublicacaoPautaInicio = (dataDisponibilizacao?: string, _apenasHoje?: boolean): string | null => {
+  const dia = dataDisponibilizacao || getHojeBrtISO();
+  return `${dia}T00:00:00Z`;
 };
 
-const dataPublicacaoPautaFim = (dataDisponibilizacao?: string, apenasHoje?: boolean): string | null => {
-  const dia = dataDisponibilizacao || (apenasHoje ? getHojeBrtISO() : null);
-  return dia ? `${dia}T23:59:59.999Z` : null;
+const dataPublicacaoPautaFim = (dataDisponibilizacao?: string, _apenasHoje?: boolean): string | null => {
+  const dia = dataDisponibilizacao || getHojeBrtISO();
+  return `${dia}T23:59:59.999Z`;
 };
 
 const aplicarFiltroDataCapturaBrt = <T extends any>(query: T, inicioUtc: string | null, fimUtc: string | null): T => {
