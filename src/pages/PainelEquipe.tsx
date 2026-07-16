@@ -209,7 +209,9 @@ export default function PainelEquipe() {
               <SelectValue placeholder="Selecionar coordenação" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todas as coordenações</SelectItem>
+              {isAdmin && (
+                <SelectItem value="all">Todas as coordenações</SelectItem>
+              )}
               {coordenacoes?.map((coord) => (
                 <SelectItem key={coord.id} value={coord.id}>
                   {coord.nome}
