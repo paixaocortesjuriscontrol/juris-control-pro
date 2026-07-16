@@ -5,6 +5,7 @@ import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
 import { ProcessoJuditTab } from "./ProcessoJuditTab";
 import { ProcessoAnexosJuditTab } from "./ProcessoAnexosJuditTab";
 import { AnaliseJuditTab } from "@/components/distribuicao-tst/AnaliseJuditTab";
+import { ProcessoPartesTab } from "./ProcessoPartesTab";
 import { PrazoSectionEditable } from "./PrazoSectionEditable";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { BaixarAutosButton } from "./BaixarAutosButton";
@@ -840,6 +841,7 @@ export function ProcessoDetalhesCompletos({
       label: "Monitoramento",
       items: [
         { id: "analise-judit", label: "Análise Judit", icon: Sparkles },
+        { id: "partes", label: "Partes", icon: Users },
       ],
     },
     {
