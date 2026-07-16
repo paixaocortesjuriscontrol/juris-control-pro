@@ -1402,46 +1402,6 @@ export function NovaTarefaDialog({
             </Button>
           )}
         </div>
-        <Dialog open={!!analiseVisualizando} onOpenChange={(o) => !o && setAnaliseVisualizando(null)}>
-          <DialogContent className="sm:max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                Análise da IA
-              </DialogTitle>
-              <DialogDescription>
-                {analiseVisualizando?.file?.name || analiseVisualizando?.nome}
-              </DialogDescription>
-            </DialogHeader>
-            {analiseVisualizando?.analise && (
-              <div className="overflow-y-auto space-y-3 text-sm pr-2">
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary">{getCategoriaLabel(analiseVisualizando.analise.categoria)}</Badge>
-                  {analiseVisualizando.analise.tipo_documento && (
-                    <Badge variant="outline">{analiseVisualizando.analise.tipo_documento}</Badge>
-                  )}
-                  <Badge variant="outline">Confiança: {analiseVisualizando.analise.confianca}</Badge>
-                </div>
-                {analiseVisualizando.analise.descricao && (
-                  <div>
-                    <div className="font-medium mb-1">Descrição</div>
-                    <p className="text-muted-foreground">{analiseVisualizando.analise.descricao}</p>
-                  </div>
-                )}
-                {analiseVisualizando.analise.tags?.length > 0 && (
-                  <div>
-                    <div className="font-medium mb-1">Tags</div>
-                    <div className="flex flex-wrap gap-1">
-                      {analiseVisualizando.analise.tags.map((t, i) => (
-                        <Badge key={i} variant="outline" className="text-xs">{t}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
     </>
   );
 
