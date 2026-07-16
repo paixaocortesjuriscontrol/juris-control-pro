@@ -37,6 +37,7 @@ import type { NovoItemTipo } from "@/components/shared/NovoItemPanel";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
+import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 
 interface Props {
   processo: any;
@@ -1313,13 +1314,13 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <SectionHeader icon={DollarSign} title="Financeiro e Contingenciamento" />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <FormField label="Valor da Causa">
-                    <Input type="number" step="0.01" className={cn(inputCls, jcls("valor_causa"))} value={form.valor_causa ?? ""} onChange={(e) => update("valor_causa", e.target.value)} />
+                    <CurrencyInputBRL className={cn(inputCls, jcls("valor_causa"))} value={form.valor_causa ?? ""} onChange={(v) => update("valor_causa", v)} />
                   </FormField>
                   <FormField label="Valor da Condenação">
-                    <Input type="number" step="0.01" className={inputCls} value={form.valor_condenacao ?? ""} onChange={(e) => update("valor_condenacao", e.target.value)} />
+                    <CurrencyInputBRL className={inputCls} value={form.valor_condenacao ?? ""} onChange={(v) => update("valor_condenacao", v)} />
                   </FormField>
                   <FormField label="Valor Provisionado">
-                    <Input type="number" step="0.01" className={inputCls} value={form.valor_provisionado ?? ""} onChange={(e) => update("valor_provisionado", e.target.value)} />
+                    <CurrencyInputBRL className={inputCls} value={form.valor_provisionado ?? ""} onChange={(v) => update("valor_provisionado", v)} />
                   </FormField>
                   <FormField label="Posição do Cliente">
                     <Input className={inputCls} value={form.ativo_passivo || ""} onChange={(e) => update("ativo_passivo", e.target.value)} />
