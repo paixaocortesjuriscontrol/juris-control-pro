@@ -2056,7 +2056,10 @@ export default function ProcessoDetalhes() {
   // View mode: detalhes (único modo principal)
   if (viewMode === "detalhes") {
     return (
-      <MainLayout title="" subtitle="">
+      <MainLayout
+        title={processo?.numero ? `Processo ${processo.numero}` : "Detalhes do Processo"}
+        subtitle="Visão completa do processo/caso: partes, movimentações, tarefas, prazos e documentos."
+      >
         <ProcessoDetalhesCompletos
           processo={processo}
           onNumeroChange={isNovo ? setNumeroNovo : undefined}
@@ -2159,7 +2162,10 @@ export default function ProcessoDetalhes() {
 
   // View mode: editar - usando o novo layout organizado
   return (
-    <MainLayout title="" subtitle="">
+    <MainLayout
+      title={processo?.numero ? `Editar Processo ${processo.numero}` : "Editar Processo"}
+      subtitle="Edição dos dados cadastrais, partes e responsáveis do processo/caso."
+    >
       <ProcessoEditarCompleto
         processo={processo}
         formData={formData}

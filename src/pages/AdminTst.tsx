@@ -33,7 +33,10 @@ const tools = [
 
 export default function AdminTst() {
   return (
-    <MainLayout title="Admin. TST">
+    <MainLayout
+      title="Admin. TST"
+      subtitle="Ferramentas administrativas do TST: cargas, importações, classificações e utilitários."
+    >
       <div className="p-4 lg:p-6 space-y-6">
         <p className="text-sm text-muted-foreground">
           Ferramentas administrativas do TST agrupadas em um só lugar.

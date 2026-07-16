@@ -64,7 +64,10 @@ export default function RemessasBenner() {
   }, [remessas, filterStatus]);
 
   return (
-    <MainLayout title="Remessas Benner">
+    <MainLayout
+      title="Remessas Benner"
+      subtitle="Controle das remessas enviadas ao Benner: geração, envio, retorno e conciliação."
+    >
     <div className="container mx-auto py-6 space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

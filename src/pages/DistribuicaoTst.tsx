@@ -1385,7 +1385,10 @@ export default function DistribuicaoTst() {
 
   if (showCarga) {
     return (
-      <MainLayout title="Distribuição TST - Carga Benner">
+      <MainLayout
+        title="Distribuição TST - Carga Benner"
+        subtitle="Geração de carga Benner a partir dos processos selecionados na Distribuição TST."
+      >
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -1419,7 +1422,10 @@ export default function DistribuicaoTst() {
 
   if (showForm || editando) {
     return (
-      <MainLayout title="Distribuição TST">
+      <MainLayout
+        title="Distribuição TST"
+        subtitle="Detalhamento do processo distribuído: dados, partes, prazos e análise com IA."
+      >
         <div className="max-w-7xl mx-auto px-2">
           <DistribuicaoTstDetail
             dado={editando}
@@ -1501,6 +1507,7 @@ export default function DistribuicaoTst() {
   return (
     <MainLayout
       title="Distribuição TST"
+      subtitle="Gestão dos processos distribuídos no TST: filtros, cards totalizadores e ações em lote."
       headerActions={
         <div className="flex items-center gap-2">
           <Button
