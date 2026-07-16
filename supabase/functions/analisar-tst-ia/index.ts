@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,9 +23,13 @@ serve(async (req) => {
       );
     }
 
-    const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!anthropicApiKey) {
-      throw new Error("ANTHROPIC_API_KEY não configurada");
+    const hasGeminiKey = !!(
+      Deno.env.get("GEMINI_API_KEY_DJEN") ||
+      Deno.env.get("GEMINI_API_KEY") ||
+      Deno.env.get("GOOGLE_API_KEY")
+    );
+    if (!hasGeminiKey) {
+      throw new Error("GEMINI_API_KEY não configurada");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -67,7 +72,7 @@ serve(async (req) => {
     // Build document content
     let allDocContent = "";
     let docsCount = 0;
-    const maxChars = 80000; // Claude supports much larger context
+    const maxChars = 80000; // Gemini 2.5 Flash suporta ~1M tokens de contexto
 
     if (paginasIndexadas && paginasIndexadas.length > 0) {
       const grouped: Record<string, string[]> = {};
@@ -198,41 +203,33 @@ Responda APENAS em JSON válido. TODOS os campos devem ter valor string (nunca n
 }`;
 
     console.log(
-      `Analisando TST com Claude para processo ${processo.numero}, ${docsCount} documentos, ${paginasIndexadas?.length || 0} páginas indexadas`
+      `Analisando TST com Gemini para processo ${processo.numero}, ${docsCount} documentos, ${paginasIndexadas?.length || 0} páginas indexadas`
     );
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": anthropicApiKey,
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [
-          {
-            role: "user",
-            content: `DADOS DO PROCESSO:\n${processoContext}\n\nDOCUMENTOS DO PROCESSO (analise todos com atenção):\n\n${allDocContent}`,
-          },
-        ],
-        temperature: 0.2,
-      }),
+    const response = await geminiChatCompletionsFetch({
+      model: "gemini-2.5-flash",
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: `DADOS DO PROCESSO:\n${processoContext}\n\nDOCUMENTOS DO PROCESSO (analise todos com atenção):\n\n${allDocContent}`,
+        },
+      ],
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Anthropic API error:", response.status, errorText);
-      throw new Error(`Erro na API Claude: ${response.status}`);
+      console.error("Gemini API error:", response.status, errorText);
+      throw new Error(`Erro na API Gemini: ${response.status}`);
     }
 
     const data = await response.json();
-    const content = data.content?.[0]?.text;
+    const content = data?.choices?.[0]?.message?.content;
 
     if (!content) {
-      throw new Error("Resposta vazia do Claude");
+      throw new Error("Resposta vazia da IA");
     }
 
     let result;
@@ -268,7 +265,7 @@ Responda APENAS em JSON válido. TODOS os campos devem ter valor string (nunca n
     }
 
     console.log(
-      `Análise TST Claude concluída: ${Object.keys(filtered).length} campos preenchidos`
+      `Análise TST Gemini concluída: ${Object.keys(filtered).length} campos preenchidos`
     );
 
     return new Response(

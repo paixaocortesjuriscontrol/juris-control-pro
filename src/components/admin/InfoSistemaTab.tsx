@@ -139,7 +139,7 @@ const systemInfoData: SystemInfo[] = [
       { name: "PJE Comunica (DJEN)", description: "API pública do CNJ para busca de publicações do Diário de Justiça Eletrônico Nacional. Principal fonte para monitoramento de intimações.", badge: "Fonte Jurídica", badgeVariant: "default" },
       { name: "DataJud / CNJ", description: "API pública do Conselho Nacional de Justiça para consulta de processos, movimentações, redistribuições e novas distribuições.", badge: "Fonte Jurídica", badgeVariant: "default" },
       { name: "MNI (Modelo Nacional de Interoperabilidade)", description: "Webservice SOAP para consulta detalhada de processos nos tribunais (dados completos, partes, movimentos).", badge: "Fonte Jurídica", badgeVariant: "default" },
-      { name: "OpenAI (GPT-4o)", description: "IA generativa para resumo de publicações, detecção de audiências, análise de documentos e assistente jurídico inteligente.", badge: "IA", badgeVariant: "secondary" },
+      { name: "Google Gemini (gemini-2.5-flash)", description: "IA generativa (Gemini Flash) para resumo de publicações, detecção de audiências, análise de documentos, classificação TST e assistente jurídico.", badge: "IA", badgeVariant: "secondary" },
       { name: "Resend", description: "Serviço de emails transacionais para notificações de audiências, alertas de prazos, lembretes e convites.", badge: "Email", badgeVariant: "secondary" },
       { name: "Z-API (WhatsApp)", description: "Gateway para envio de mensagens WhatsApp — notificações instantâneas de audiências, prazos e alertas críticos.", badge: "WhatsApp", badgeVariant: "secondary" },
       { name: "Jina AI", description: "Extração inteligente de conteúdo de páginas web (web scraping) para backfill de publicações DJEN.", badge: "Web Scraping", badgeVariant: "outline" },
@@ -183,7 +183,7 @@ const menuInfoData: MenuInfo[] = [
   { name: "Painel da Equipe", path: "/painel-equipe", icon: <Users className="w-4 h-4" />, description: "Visão consolidada das tarefas e prazos de toda a equipe por coordenação, permitindo redistribuição de trabalho.", tables: ["tarefas", "processos", "profiles", "coordenacoes"], category: "Tarefas" },
 
   // --- DJEN e Monitoramento ---
-  { name: "Análise DJEN", path: "/analise-djen", icon: <Newspaper className="w-4 h-4" />, description: "Análise de publicações do DJEN com resumo automático via IA (OpenAI GPT-4o). Triagem por prioridade, detecção de audiências e vinculação a processos.", tables: ["publicacoes_djen", "publicacoes_djen_processos", "audiencias_detectadas"], category: "DJEN" },
+  { name: "Análise DJEN", path: "/analise-djen", icon: <Newspaper className="w-4 h-4" />, description: "Análise de publicações do DJEN com resumo automático via IA (Gemini 2.5 Flash). Triagem por prioridade, detecção de audiências e vinculação a processos.", tables: ["publicacoes_djen", "publicacoes_djen_processos", "audiencias_detectadas"], category: "DJEN" },
   { name: "Monit. DJEN", path: "/monitoramento-djen", icon: <Eye className="w-4 h-4" />, description: "Configuração de monitoramentos automáticos do DJEN por termo de busca, OAB ou cliente. Execução diária com escalonamento por tribunal.", tables: ["monitoramentos_djen", "publicacoes_djen", "audiencias_detectadas"], category: "DJEN" },
   { name: "Painel Audiências", path: "/painel-audiencias", icon: <Gavel className="w-4 h-4" />, description: "Gestão de audiências detectadas via monitoramento ou cadastradas manualmente. Atribuição de advogados, prepostos e configuração de lembretes.", tables: ["audiencias_detectadas", "audiencias_advogados", "alertas_audiencias", "lembretes_audiencia"], category: "DJEN" },
 
@@ -202,7 +202,7 @@ const menuInfoData: MenuInfo[] = [
   { name: "Repositório IA", path: "/repositorio", icon: <Bot className="w-4 h-4" />, description: "Repositório inteligente de documentos com análise via IA, extração de texto, classificação automática e chat contextual.", tables: ["documentos"], category: "Documentos" },
 
   // --- IA e Relatórios ---
-  { name: "Assistente IA", path: "/assistente-juridico", icon: <Bot className="w-4 h-4" />, description: "Chat com assistente jurídico baseado em GPT-4o para consultas, análise de peças e orientação processual.", tables: [], category: "Inteligência Artificial" },
+  { name: "Assistente IA", path: "/assistente-juridico", icon: <Bot className="w-4 h-4" />, description: "Chat com assistente jurídico baseado em Gemini 2.5 Flash para consultas, análise de peças e orientação processual.", tables: [], category: "Inteligência Artificial" },
   { name: "Relatórios", path: "/relatorios", icon: <BarChart3 className="w-4 h-4" />, description: "Relatórios gerenciais com gráficos interativos (Recharts) — distribuição por coordenação, status, prazos vencidos, produtividade. Exportação em PDF.", tables: ["processos", "tarefas", "movimentacoes", "clientes"], category: "Relatórios" },
 
   // --- Administração ---
@@ -283,7 +283,7 @@ const edgeFunctionsInfo = [
   { name: "monitorar-djen", description: "Monitora publicações DJEN por monitoramento configurado.", category: "DJEN" },
   { name: "monitorar-djen-processos", description: "Monitora publicações DJEN para processos cadastrados.", category: "DJEN" },
   { name: "monitorar-djen-trigger", description: "Trigger de monitoramento DJEN para execução sob demanda.", category: "DJEN" },
-  { name: "resumir-publicacoes", description: "Resume publicações DJEN usando GPT-4o.", category: "DJEN" },
+  { name: "resumir-publicacoes", description: "Resume publicações DJEN usando Gemini.", category: "DJEN" },
   { name: "analisar-publicacao-ia", description: "Analisa publicações com IA para detecção de audiências e prazos.", category: "DJEN" },
   { name: "analisar-tst-ia", description: "Análise especializada de publicações do TST via IA.", category: "DJEN" },
   { name: "backfill-djen", description: "Reprocessa publicações DJEN de períodos anteriores.", category: "DJEN" },
@@ -342,7 +342,7 @@ const edgeFunctionsInfo = [
 
   // IA
   { name: "analisar-documento", description: "Analisa documentos jurídicos com IA para extração de informações.", category: "IA" },
-  { name: "repositorio-chat", description: "Chat contextual com documentos do repositório via GPT-4o.", category: "IA" },
+  { name: "repositorio-chat", description: "Chat contextual com documentos do repositório via Gemini 2.5 Flash.", category: "IA" },
 ];
 
 // ===================== MONITORING DATA =====================
@@ -448,7 +448,7 @@ const monitoramentosInfo: MonitoramentoInfo[] = [
       "Busca na API PJE Comunica paginando todos os resultados",
       "Deduplicação por hash do conteúdo para evitar duplicatas",
       "Salva publicações novas na tabela publicacoes_djen",
-      "Analisa conteúdo com GPT-4o para detectar audiências",
+      "Analisa conteúdo com Gemini 2.5 Flash para detectar audiências",
       "Gera notificações e alertas por coordenação",
     ],
     oQueEncontra: ["Intimações de audiências", "Publicações de despachos e decisões", "Sentenças e acórdãos", "Citações e notificações"],

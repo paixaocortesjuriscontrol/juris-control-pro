@@ -246,7 +246,7 @@ ${documentosProcessosContexto}
 Responda de forma profissional, precisa e útil. Use formatação markdown quando apropriado.`;
 
     const response = await geminiChatCompletionsFetch({
-      model: 'gemini-2.5-pro',
+      model: 'gemini-2.5-flash',
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages
