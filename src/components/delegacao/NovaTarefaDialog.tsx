@@ -55,16 +55,6 @@ type AnexoComAnalise = {
   tamanho_bytes?: number;
   url?: string;
   uploaded?: boolean;
-  analise?: {
-    categoria: string;
-    tipo_documento: string | null;
-    descricao: string;
-    tags: string[];
-    confianca: string;
-    raw?: any;
-  };
-  analisando?: boolean;
-  erro?: string;
 };
 
 const formSchema = z.object({
@@ -157,7 +147,6 @@ export function NovaTarefaDialog({
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
-  const [analiseVisualizando, setAnaliseVisualizando] = useState<AnexoComAnalise | null>(null);
   const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
   // Recorrência
   const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
@@ -356,24 +345,12 @@ export function NovaTarefaDialog({
         if (docs && docs.length > 0) {
           setAnexos(
             docs.map((d: any) => {
-              let raw: any = null;
-              try { raw = d.conteudo_extraido ? JSON.parse(d.conteudo_extraido) : null; } catch { raw = null; }
               return {
                 id: d.id,
                 nome: d.nome,
                 tamanho_bytes: d.tamanho_bytes,
                 url: d.url,
                 uploaded: true,
-                analise: d.analisado_ia
-                  ? {
-                      categoria: d.categoria || "outros",
-                      tipo_documento: d.tipo_documento || null,
-                      descricao: d.descricao || "",
-                      tags: d.tags || [],
-                      confianca: d.confianca_ia || "media",
-                      raw,
-                    }
-                  : undefined,
               } as AnexoComAnalise;
             })
           );
@@ -418,73 +395,15 @@ export function NovaTarefaDialog({
     setRecorrenciaFim("");
   };
 
-  const analisarDocumentoComIA = async (file: File): Promise<AnexoComAnalise['analise']> => {
-    try {
-      // Ler o conteúdo do arquivo como texto (para PDFs/docs simples)
-      let content = "";
-      if (file.type === "text/plain" || file.name.endsWith('.txt')) {
-        content = await file.text();
-      } else {
-        // Para outros tipos, enviar apenas nome e tipo
-        content = `[Arquivo binário: ${file.name}]`;
-      }
-
-      const { data, error } = await supabase.functions.invoke("analisar-documento", {
-        body: {
-          fileName: file.name,
-          fileContent: content,
-          mimeType: file.type,
-        },
-      });
-
-      if (error) throw error;
-      return data;
-    } catch (err) {
-      console.error("Erro ao analisar documento:", err);
-      return undefined;
-    }
-  };
-
   const handleAddAnexo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
       const novosAnexos: AnexoComAnalise[] = Array.from(files).map(file => ({
         file,
-        analisando: true,
         uploaded: false,
       }));
-      
       setAnexos(prev => [...prev, ...novosAnexos]);
       e.target.value = '';
-
-      // Analisar cada arquivo com IA
-      for (let i = 0; i < novosAnexos.length; i++) {
-        const anexo = novosAnexos[i];
-        try {
-          const analiseRaw: any = await analisarDocumentoComIA(anexo.file!);
-          const analise = analiseRaw
-            ? {
-                categoria: analiseRaw.categoria || "outros",
-                tipo_documento: analiseRaw.tipo_documento ?? null,
-                descricao: analiseRaw.descricao || "",
-                tags: analiseRaw.tags || [],
-                confianca: analiseRaw.confianca || "media",
-                raw: analiseRaw,
-              }
-            : undefined;
-          setAnexos(prev => prev.map(a => 
-            a.file === anexo.file 
-              ? { ...a, analise, analisando: false }
-              : a
-          ));
-        } catch (err) {
-          setAnexos(prev => prev.map(a => 
-            a.file === anexo.file 
-              ? { ...a, analisando: false, erro: "Falha na análise" }
-              : a
-          ));
-        }
-      }
     }
   };
 
@@ -523,21 +442,13 @@ export function NovaTarefaDialog({
           continue;
         }
         const signedUrl = await getSignedUrlOrEmpty("documentos_processos", fileName);
-        const raw = (anexo.analise as any)?.raw || anexo.analise || null;
         await supabase.from('documentos').insert({
           nome: file.name,
-          tipo: anexo.analise?.categoria || file.type,
+          tipo: file.type,
           url: signedUrl,
           tamanho_bytes: file.size,
           processo_id: processoId,
           tarefa_id: tarefaId,
-          categoria: anexo.analise?.categoria || null,
-          tipo_documento: anexo.analise?.tipo_documento || null,
-          descricao: anexo.analise?.descricao || null,
-          tags: anexo.analise?.tags || null,
-          analisado_ia: !!anexo.analise,
-          confianca_ia: anexo.analise?.confianca || null,
-          conteudo_extraido: raw ? JSON.stringify(raw) : null,
         });
       }
     } finally {
@@ -1331,9 +1242,8 @@ export function NovaTarefaDialog({
               {/* Anexos - Sempre disponível */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium flex items-center gap-2">
-                    Documentos para Análise
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <label className="text-sm font-medium">
+                    Documentos
                   </label>
                   <div className="relative">
                     <input
@@ -1354,13 +1264,11 @@ export function NovaTarefaDialog({
                 {anexos.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">
                     Nenhum documento anexado. Clique em "Adicionar" para incluir arquivos.
-                    <br />
-                    <span className="text-amber-600">A IA irá categorizar automaticamente.</span>
                   </p>
                 ) : (
                   <div className="space-y-2">
                     {anexos.map((anexo, index) => (
-                      <div key={index} className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
+                      <div key={index} className="p-3 bg-muted/50 rounded-lg text-sm">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0 flex-1">
                             <FileText className="w-4 h-4 text-primary shrink-0" />
@@ -1391,18 +1299,6 @@ export function NovaTarefaDialog({
                               <Download className="w-3 h-3" />
                             </Button>
                           )}
-                          {anexo.analise && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              title="Ver análise da IA"
-                              onClick={() => setAnaliseVisualizando(anexo)}
-                            >
-                              <Eye className="w-3 h-3 text-amber-600" />
-                            </Button>
-                          )}
                           <Button
                             type="button"
                             variant="ghost"
@@ -1413,30 +1309,6 @@ export function NovaTarefaDialog({
                             <Trash2 className="w-3 h-3 text-destructive" />
                           </Button>
                           </div>
-                        </div>
-                        
-                        {/* Status da análise IA */}
-                        <div className="flex items-center gap-2 text-xs">
-                          {anexo.analisando ? (
-                            <>
-                              <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
-                              <span className="text-muted-foreground">Analisando com IA...</span>
-                            </>
-                          ) : anexo.analise ? (
-                            <>
-                              <CheckCircle2 className="w-3 h-3 text-green-500" />
-                              <Badge variant="secondary" className="text-xs">
-                                {getCategoriaLabel(anexo.analise.categoria)}
-                              </Badge>
-                              {anexo.analise.descricao && (
-                                <span className="text-muted-foreground truncate">
-                                  {anexo.analise.descricao}
-                                </span>
-                              )}
-                            </>
-                          ) : anexo.erro ? (
-                            <span className="text-destructive">{anexo.erro}</span>
-                          ) : null}
                         </div>
                       </div>
                     ))}
@@ -1530,46 +1402,6 @@ export function NovaTarefaDialog({
             </Button>
           )}
         </div>
-        <Dialog open={!!analiseVisualizando} onOpenChange={(o) => !o && setAnaliseVisualizando(null)}>
-          <DialogContent className="sm:max-w-xl max-h-[80vh] overflow-hidden flex flex-col">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                Análise da IA
-              </DialogTitle>
-              <DialogDescription>
-                {analiseVisualizando?.file?.name || analiseVisualizando?.nome}
-              </DialogDescription>
-            </DialogHeader>
-            {analiseVisualizando?.analise && (
-              <div className="overflow-y-auto space-y-3 text-sm pr-2">
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="secondary">{getCategoriaLabel(analiseVisualizando.analise.categoria)}</Badge>
-                  {analiseVisualizando.analise.tipo_documento && (
-                    <Badge variant="outline">{analiseVisualizando.analise.tipo_documento}</Badge>
-                  )}
-                  <Badge variant="outline">Confiança: {analiseVisualizando.analise.confianca}</Badge>
-                </div>
-                {analiseVisualizando.analise.descricao && (
-                  <div>
-                    <div className="font-medium mb-1">Descrição</div>
-                    <p className="text-muted-foreground">{analiseVisualizando.analise.descricao}</p>
-                  </div>
-                )}
-                {analiseVisualizando.analise.tags?.length > 0 && (
-                  <div>
-                    <div className="font-medium mb-1">Tags</div>
-                    <div className="flex flex-wrap gap-1">
-                      {analiseVisualizando.analise.tags.map((t, i) => (
-                        <Badge key={i} variant="outline" className="text-xs">{t}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
     </>
   );
 

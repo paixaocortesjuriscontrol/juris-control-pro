@@ -42,15 +42,6 @@ import { Label } from "@/components/ui/label";
 
 type AnexoComAnalise = {
   file: File;
-  analise?: {
-    categoria: string;
-    tipo_documento: string | null;
-    descricao: string;
-    tags: string[];
-    confianca: string;
-  };
-  analisando?: boolean;
-  erro?: string;
 };
 
 const formSchema = z.object({
@@ -425,59 +416,12 @@ export default function NovaTarefa() {
     enabled: !!tarefaRelacionadaId,
   });
 
-  const analisarDocumentoComIA = async (file: File): Promise<AnexoComAnalise['analise']> => {
-    try {
-      let content = "";
-      if (file.type === "text/plain" || file.name.endsWith('.txt')) {
-        content = await file.text();
-      } else {
-        content = `[Arquivo binário: ${file.name}]`;
-      }
-
-      const { data, error } = await supabase.functions.invoke("analisar-documento", {
-        body: {
-          fileName: file.name,
-          fileContent: content,
-          mimeType: file.type,
-        },
-      });
-
-      if (error) throw error;
-      return data;
-    } catch (err) {
-      console.error("Erro ao analisar documento:", err);
-      return undefined;
-    }
-  };
-
   const handleAddAnexo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      const novosAnexos: AnexoComAnalise[] = Array.from(files).map(file => ({
-        file,
-        analisando: true,
-      }));
-      
+      const novosAnexos: AnexoComAnalise[] = Array.from(files).map(file => ({ file }));
       setAnexos(prev => [...prev, ...novosAnexos]);
       e.target.value = '';
-
-      for (let i = 0; i < novosAnexos.length; i++) {
-        const anexo = novosAnexos[i];
-        try {
-          const analise = await analisarDocumentoComIA(anexo.file);
-          setAnexos(prev => prev.map(a => 
-            a.file === anexo.file 
-              ? { ...a, analise, analisando: false }
-              : a
-          ));
-        } catch (err) {
-          setAnexos(prev => prev.map(a => 
-            a.file === anexo.file 
-              ? { ...a, analisando: false, erro: "Falha na análise" }
-              : a
-          ));
-        }
-      }
     }
   };
 
@@ -612,7 +556,7 @@ export default function NovaTarefa() {
 
           const { error: insertError } = await supabase.from('documentos').insert({
             nome: anexo.file.name,
-            tipo: anexo.analise?.categoria || anexo.file.type,
+            tipo: anexo.file.type,
             url: signedUrl,
             tamanho_bytes: anexo.file.size,
             processo_id: values.processo_id || null,
@@ -1185,17 +1129,9 @@ export default function NovaTarefa() {
                 {/* Anexos (novos) */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium flex items-center gap-2">
-                      {isEditMode ? "Adicionar Novos Documentos" : "Documentos para Análise"}
-                      <Tooltip>
-                        <TooltipTrigger>
-                          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>A IA categoriza automaticamente os documentos anexados</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </label>
+                     <label className="text-sm font-medium">
+                       {isEditMode ? "Adicionar Novos Documentos" : "Documentos"}
+                     </label>
                     <div className="relative">
                       <input
                         type="file"
@@ -1215,13 +1151,11 @@ export default function NovaTarefa() {
                   {anexos.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">
                       {isEditMode ? "Clique em \"Adicionar\" para incluir novos arquivos." : "Nenhum documento anexado. Clique em \"Adicionar\" para incluir arquivos."}
-                      <br />
-                      <span className="text-amber-600">A IA irá categorizar automaticamente.</span>
                     </p>
                   ) : (
                     <div className="space-y-2">
                       {anexos.map((anexo, index) => (
-                        <div key={index} className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
+                        <div key={index} className="p-3 bg-muted/50 rounded-lg text-sm">
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0 flex-1">
                               <FileText className="w-4 h-4 text-primary shrink-0" />
@@ -1241,29 +1175,6 @@ export default function NovaTarefa() {
                                 <Trash2 className="w-3 h-3 text-destructive" />
                               </Button>
                             </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-2 text-xs">
-                            {anexo.analisando ? (
-                              <>
-                                <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
-                                <span className="text-muted-foreground">Analisando com IA...</span>
-                              </>
-                            ) : anexo.analise ? (
-                              <>
-                                <CheckCircle2 className="w-3 h-3 text-green-500" />
-                                <Badge variant="secondary" className="text-xs">
-                                  {getCategoriaLabel(anexo.analise.categoria)}
-                                </Badge>
-                                {anexo.analise.descricao && (
-                                  <span className="text-muted-foreground truncate">
-                                    {anexo.analise.descricao}
-                                  </span>
-                                )}
-                              </>
-                            ) : anexo.erro ? (
-                              <span className="text-destructive">{anexo.erro}</span>
-                            ) : null}
                           </div>
                         </div>
                       ))}
