@@ -4,7 +4,10 @@ import { MonitoramentoTermosParalelaCard } from "@/components/configuracoes/Moni
 
 export default function DjenLocal() {
   return (
-    <MainLayout title="DJEN Local">
+    <MainLayout
+      title="DJEN Local"
+      subtitle="Execução local (navegador) do motor DJEN Termos Paralela."
+    >
       <div className="p-4 lg:p-6 space-y-4">
         <p className="text-sm text-muted-foreground">
           Execução local (navegador) do motor DJEN Termos Paralela. Kurier e Pautas agora rodam apenas via servidor.

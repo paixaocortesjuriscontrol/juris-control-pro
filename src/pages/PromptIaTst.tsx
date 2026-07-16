@@ -49,7 +49,10 @@ export default function PromptIaTstPage() {
   );
 
   return (
-    <MainLayout title="Prompt IA TST">
+    <MainLayout
+      title="Prompt IA TST"
+      subtitle="Prompts personalizados usados na análise com IA da Distribuição TST."
+    >
     <div className="container mx-auto p-4 space-y-4 max-w-5xl">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
