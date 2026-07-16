@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2, Repeat, ClipboardList } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2, Repeat, ClipboardList, Star } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -124,6 +124,7 @@ const Processos = () => {
   const [comAudiencias, setComAudiencias] = useState(() => searchParams.get("comAudiencias") === "true");
   const [comIntimacoes, setComIntimacoes] = useState(() => searchParams.get("comIntimacoes") === "true");
   const [comTarefas, setComTarefas] = useState(() => searchParams.get("comTarefas") === "true");
+  const [acompanhamentoEspecial, setAcompanhamentoEspecial] = useState(() => searchParams.get("acompanhamentoEspecial") === "true");
   const [tipoProcessoFilter, setTipoProcessoFilter] = useState<string>(() => searchParams.get("tipo") || "all");
   
   // Filtro de grupo de clientes (da URL ou selecionado manualmente)
@@ -286,6 +287,9 @@ const Processos = () => {
     if (comTarefas) params.set("comTarefas", "true");
     else params.delete("comTarefas");
 
+    if (acompanhamentoEspecial) params.set("acompanhamentoEspecial", "true");
+    else params.delete("acompanhamentoEspecial");
+
     if (tipoProcessoFilter !== "all") params.set("tipo", tipoProcessoFilter);
     else params.delete("tipo");
 
@@ -299,7 +303,7 @@ const Processos = () => {
     if (params.toString() !== searchParams.toString()) {
       setSearchParams(params, { replace: true });
     }
-  }, [searchParams, searchQuery, areaFilter, statusFilter, coordenacaoFilter, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, tipoProcessoFilter, selectedGrupoId, selectedClienteId, setSearchParams, coordenacaoCarregada]);
+  }, [searchParams, searchQuery, areaFilter, statusFilter, coordenacaoFilter, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, acompanhamentoEspecial, tipoProcessoFilter, selectedGrupoId, selectedClienteId, setSearchParams, coordenacaoCarregada]);
 
   const { 
     data, 
@@ -331,6 +335,7 @@ const Processos = () => {
     comAudiencia: comAudiencias,
     comIntimacao: comIntimacoes,
     comTarefa: comTarefas,
+    acompanhamentoEspecial: acompanhamentoEspecial,
     periodoInicio: filtrosAplicados.periodoInicio,
     periodoFim: filtrosAplicados.periodoFim,
     clienteIds: clienteIds,
@@ -348,7 +353,7 @@ const Processos = () => {
   useEffect(() => {
     resetPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicadosKey, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, clienteIds, tipoProcessoFilter]);
+  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicadosKey, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, acompanhamentoEspecial, clienteIds, tipoProcessoFilter]);
 
   // Auto-apply the "quick" filters (always visible on the bar)
   // so selecting a responsável / período filters immediately.
@@ -439,6 +444,7 @@ const Processos = () => {
     comAudiencias ||
     comIntimacoes ||
     comTarefas ||
+    acompanhamentoEspecial ||
     !!grupoClientesParam ||
     selectedGrupoId !== "all" ||
     selectedClienteId !== "all";
@@ -717,6 +723,20 @@ const Processos = () => {
               <ClipboardList className="w-4 h-4" />
               <span className="hidden sm:inline">Com Tarefas</span>
             </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-9 gap-2 touch-manipulation select-none",
+                acompanhamentoEspecial && "bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500"
+              )}
+              onClick={() => setAcompanhamentoEspecial(prev => !prev)}
+            >
+              <Star className="w-4 h-4" />
+              <span className="hidden sm:inline">Acompanhamento Especial</span>
+            </Button>
           </div>
 
           {/* Action Buttons Row */}
@@ -885,6 +905,11 @@ const Processos = () => {
             {comTarefas && (
               <Badge variant="secondary" className="cursor-pointer bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300" onClick={() => setComTarefas(false)}>
                 Com Tarefas ×
+              </Badge>
+            )}
+            {acompanhamentoEspecial && (
+              <Badge variant="secondary" className="cursor-pointer bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300" onClick={() => setAcompanhamentoEspecial(false)}>
+                Acompanhamento Especial ×
               </Badge>
             )}
             {(filtrosAplicados.periodoInicio || filtrosAplicados.periodoFim) && (
