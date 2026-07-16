@@ -27,7 +27,6 @@ import Configuracoes from "./pages/Configuracoes";
 import Prazos from "./pages/Prazos";
 import ListaAtividades from "./pages/ListaAtividades";
 import Documentos from "./pages/Documentos";
-import BuscarDJEN from "./pages/BuscarDJEN";
 import BuscarPJE from "./pages/BuscarPJE";
 import BuscarDjEstadual from "./pages/BuscarDjEstadual";
 import NotFound from "./pages/NotFound";
@@ -151,7 +150,6 @@ function App() {
               <Route path="/importar-processos" element={<ProtectedRoute><ImportarProcessos /></ProtectedRoute>} />
               <Route path="/importar-tarefas" element={<ProtectedRoute><ImportarTarefas /></ProtectedRoute>} />
               <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
-              <Route path="/buscar-djen" element={<ProtectedRoute><BuscarDJEN /></ProtectedRoute>} />
               <Route path="/analise-djen" element={<ProtectedRoute><AnaliseDjen /></ProtectedRoute>} />
               <Route path="/analise-djen-servidor" element={<AdminRoute><AnaliseDjenServidor /></AdminRoute>} />
               <Route path="/termos-djen" element={<ProtectedRoute><TermosDjen /></ProtectedRoute>} />
