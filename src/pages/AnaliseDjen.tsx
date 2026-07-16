@@ -3066,13 +3066,29 @@ const AnaliseDjen = () => {
 
     setDescartandoSelecionadas(true);
     try {
+      let sucesso = 0;
+      const falhas: { id: string; processo: string | null; erro: string }[] = [];
       for (const p of paraDescartar) {
-        await descartarManualmente.mutateAsync({
-          id: p.id,
-          tipo_origem: p.tipo_origem as 'termo' | 'processo',
-        });
+        try {
+          await descartarManualmente.mutateAsync({
+            id: p.id,
+            tipo_origem: p.tipo_origem as 'termo' | 'processo',
+          });
+          sucesso += 1;
+        } catch (e: any) {
+          falhas.push({ id: p.id, processo: p.processo_numero ?? null, erro: e?.message || String(e) });
+        }
       }
-      toast.success(`${paraDescartar.length} duplicada(s) descartada(s).`);
+      if (falhas.length > 0) {
+        console.error('[descartar-selecionadas] falhas:', falhas);
+        toast.error(
+          `${sucesso} descartada(s). ${falhas.length} falha(s): ` +
+          falhas.slice(0, 3).map(f => f.processo || f.id).join(', ') +
+          (falhas.length > 3 ? '…' : '')
+        );
+      } else {
+        toast.success(`${paraDescartar.length} duplicada(s) descartada(s).`);
+      }
       setSelectedIds(new Map<string, TipoOrigemPublicacao>());
     } finally {
       setDescartandoSelecionadas(false);
@@ -3149,13 +3165,29 @@ const AnaliseDjen = () => {
 
     setDescartandoDupSelecionadas(true);
     try {
+      let sucesso = 0;
+      const falhas: { id: string; processo: string | null; erro: string }[] = [];
       for (const p of paraDescartar) {
-        await descartarManualmente.mutateAsync({
-          id: p.id,
-          tipo_origem: p.tipo_origem as 'termo' | 'processo',
-        });
+        try {
+          await descartarManualmente.mutateAsync({
+            id: p.id,
+            tipo_origem: p.tipo_origem as 'termo' | 'processo',
+          });
+          sucesso += 1;
+        } catch (e: any) {
+          falhas.push({ id: p.id, processo: p.processo_numero ?? null, erro: e?.message || String(e) });
+        }
       }
-      toast.success(`${paraDescartar.length} duplicada(s) descartada(s). ${mantidas} mantida(s).`);
+      if (falhas.length > 0) {
+        console.error('[descartar-duplicadas-selecionadas] falhas:', falhas);
+        toast.error(
+          `${sucesso} descartada(s). ${falhas.length} falha(s): ` +
+          falhas.slice(0, 3).map(f => f.processo || f.id).join(', ') +
+          (falhas.length > 3 ? '…' : '')
+        );
+      } else {
+        toast.success(`${paraDescartar.length} duplicada(s) descartada(s). ${mantidas} mantida(s).`);
+      }
       setSelectedIds(new Map<string, TipoOrigemPublicacao>());
     } finally {
       setDescartandoDupSelecionadas(false);
