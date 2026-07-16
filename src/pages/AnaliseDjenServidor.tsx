@@ -1841,6 +1841,7 @@ const AnaliseDjenServidor = () => {
     return texto.slice(melhorIdx).trim();
   };
 
+
   const [gerandoResumoSemIA, setGerandoResumoSemIA] = useState(false);
   const [gerandoDocResumoSemIA, setGerandoDocResumoSemIA] = useState(false);
   const [gerandoResumoSemRepeticao, setGerandoResumoSemRepeticao] = useState(false);
@@ -1991,6 +1992,277 @@ const AnaliseDjenServidor = () => {
     return [...ultimos, ...trailing].join("\n\n").trim();
   };
 
+  // allExpanded computed below after allPublicacoes is defined
+
+  const toggleExpandAll = () => {
+    const isAllExpanded = allPublicacoes.length > 0 && expandedPublicacoes.size >= allPublicacoes.length;
+    if (isAllExpanded) {
+      setExpandedPublicacoes(new Set());
+      setExpandirGeralAtivo(false);
+    } else {
+      setExpandedPublicacoes(new Set(allPublicacoes.map(p => p.id)));
+    }
+  };
+
+  const toggleExpandirGeral = () => {
+    if (expandirGeralAtivo) {
+      setExpandirGeralAtivo(false);
+      setExpandedPublicacoes(new Set());
+    } else {
+      setExpandirGeralAtivo(true);
+      setExpandedPublicacoes(new Set(allPublicacoes.map(p => p.id)));
+    }
+  };
+
+  /** Remove caracteres de controle ilegais em XML (causa erro no Word) */
+  const sanitizeForXml = (text: string | null | undefined): string => {
+    if (!text) return "";
+    // Remove caracteres de controle XML ilegais (0x00-0x08, 0x0B, 0x0C, 0x0E-0x1F exceto tab/newline/cr)
+    return text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
+  };
+
+  const docFont = "Calibri";
+  const docFontSize = 22; // 11pt
+  const darkBlue = "1E3A5F";
+  const mediumBlue = "2B5A8C";
+  const lightGray = "F2F2F2";
+  const borderGray = "CCCCCC";
+
+  /** Cria cabeçalho profissional do DOCX (mesmo estilo do PDF: faixa azul-escuro) */
+  const buildDocHeader = (subtitle: string, total: number): Paragraph[] => {
+    return [
+      new Paragraph({
+        alignment: AlignmentType.LEFT,
+        spacing: { after: 0, line: 300 },
+        shading: { type: ShadingType.SOLID, color: darkBlue, fill: darkBlue },
+        children: [
+          new TextRun({ text: "  ⚖  ", font: "Segoe UI Emoji", size: 32, color: "FFFFFF" }),
+          new TextRun({ text: "Sistema Juris Control", bold: true, size: 32, color: "FFFFFF", font: docFont }),
+        ],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.LEFT,
+        spacing: { after: 0, line: 276 },
+        shading: { type: ShadingType.SOLID, color: darkBlue, fill: darkBlue },
+        children: [
+          new TextRun({ text: `      ${subtitle}`, size: 20, color: "FFFFFF", font: docFont }),
+        ],
+      }),
+      new Paragraph({
+        alignment: AlignmentType.LEFT,
+        spacing: { after: 80, line: 276 },
+        shading: { type: ShadingType.SOLID, color: darkBlue, fill: darkBlue },
+        children: [
+          new TextRun({ text: `      Emitido em ${format(new Date(), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}  •  Total: ${total}`, size: 18, color: "B0C4DE", font: docFont, italics: true }),
+        ],
+      }),
+      new Paragraph({ text: "", spacing: { after: 300 } }),
+    ];
+  };
+
+  /** Cria bloco de metadados estilizado para cada publicação */
+  const buildPubMetadata = (pub: any, idx: number, orgaoExtra?: string | null): Paragraph[] => {
+    const paragraphs: Paragraph[] = [];
+
+    paragraphs.push(new Paragraph({
+      alignment: AlignmentType.LEFT,
+      spacing: { before: 360, after: 120 },
+      shading: { type: ShadingType.SOLID, color: mediumBlue, fill: mediumBlue },
+      children: [
+        new TextRun({ text: `  ${idx + 1}. `, bold: true, size: 24, color: "FFFFFF", font: docFont }),
+        new TextRun({ text: `PROCESSO ${formatProcessoNumero(pub.processo_numero)}`, bold: true, size: 24, color: "FFFFFF", font: docFont }),
+      ],
+    }));
+
+    const metaItems: TextRun[] = [];
+    const turmaRaw = orgaoExtra || (pub.orgao && pub.orgao !== pub.tribunal ? pub.orgao : null);
+    const turma = turmaRaw ? shortenTurma(turmaRaw) : null;
+    const orgaoLabel = pub.tribunal || pub.orgao;
+    if (orgaoLabel) {
+      metaItems.push(new TextRun({ text: "Órgão: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
+      metaItems.push(new TextRun({ text: sanitizeForXml(orgaoLabel) + "   ", size: docFontSize, font: docFont, color: "555555" }));
+    }
+    if (turma) {
+      metaItems.push(new TextRun({ text: "Turma: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
+      metaItems.push(new TextRun({ text: sanitizeForXml(turma) + "   ", size: docFontSize, font: docFont, color: "555555" }));
+    }
+    if (pub.data_disponibilizacao) {
+      metaItems.push(new TextRun({ text: "Data: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
+      metaItems.push(new TextRun({ text: formatDateOnlyFull(pub.data_disponibilizacao) + "   ", size: docFontSize, font: docFont, color: "555555" }));
+    }
+    metaItems.push(new TextRun({ text: "Tipo: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
+    metaItems.push(new TextRun({ text: sanitizeForXml(pub.tipo_comunicacao) || "Intimação", size: docFontSize, font: docFont, color: "555555" }));
+
+    if (metaItems.length > 0) {
+      paragraphs.push(new Paragraph({
+        spacing: { after: 80 },
+        shading: { type: ShadingType.SOLID, color: lightGray, fill: lightGray },
+        children: [new TextRun({ text: "  ", size: docFontSize }), ...metaItems],
+      }));
+    }
+
+    return paragraphs;
+  };
+
+  /** Cria seção de partes e advogados */
+  const buildPartesAdvogados = (pub: any): Paragraph[] => {
+    const paragraphs: Paragraph[] = [];
+    const { partes, advogados } = getPartesEAdvogadosParaExibicao(pub.partes_json, pub.advogados_json, pub.conteudo, pub.polo_ativo, pub.polo_passivo);
+
+    if (partes.length > 0) {
+      paragraphs.push(new Paragraph({
+        spacing: { before: 160, after: 60 },
+        children: [new TextRun({ text: "PARTES", bold: true, size: 20, font: docFont, color: mediumBlue })],
+        border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
+      }));
+      partes.forEach(p => {
+        const color = getParteIconColor(p);
+        const colorHex = color === "green" ? "16A34A" : color === "red" ? "DC2626" : "334155";
+        paragraphs.push(new Paragraph({
+          spacing: { after: 40 },
+          indent: { left: 360 },
+          children: [
+            new TextRun({ text: "●  ", color: colorHex, bold: true, size: docFontSize, font: docFont }),
+            new TextRun({ text: sanitizeForXml(cleanParteName(p)), size: docFontSize, font: docFont }),
+          ],
+        }));
+      });
+    }
+
+    if (advogados.length > 0) {
+      paragraphs.push(new Paragraph({
+        spacing: { before: 160, after: 60 },
+        children: [new TextRun({ text: "ADVOGADOS", bold: true, size: 20, font: docFont, color: mediumBlue })],
+        border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
+      }));
+      advogados.forEach(a => {
+        paragraphs.push(new Paragraph({
+          spacing: { after: 40 },
+          indent: { left: 360 },
+          children: [
+            new TextRun({ text: "●  ", color: "334155", bold: true, size: docFontSize, font: docFont }),
+            new TextRun({ text: sanitizeForXml(a), size: docFontSize, font: docFont }),
+          ],
+        }));
+      });
+    }
+
+    return paragraphs;
+  };
+
+  /** Formata conteúdo em parágrafos separados por quebras de linha */
+  const buildConteudoParagraphs = (rawHtml: string, label: string): Paragraph[] => {
+    const paragraphs: Paragraph[] = [];
+
+    if (label) {
+      paragraphs.push(new Paragraph({
+        spacing: { before: 160, after: 80 },
+        children: [new TextRun({ text: label, bold: true, size: 20, font: docFont, color: mediumBlue })],
+        border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
+      }));
+    }
+
+    const cleanText = sanitizeForXml(formatConteudoParaExibicao(rawHtml, true));
+    const lines = cleanText.split(/\n+/).filter(l => l.trim());
+
+    lines.forEach(line => {
+      paragraphs.push(new Paragraph({
+        spacing: { after: 80, line: 276 },
+        indent: { left: 180 },
+        children: [new TextRun({ text: line.trim(), size: docFontSize, font: docFont, color: "333333" })],
+      }));
+    });
+
+    paragraphs.push(new Paragraph({ text: "", spacing: { after: 200 } }));
+
+    return paragraphs;
+  };
+
+  /** Bloco de comentários da coordenação (DOCX) */
+  const buildComentariosParagraphs = (
+    comentarios: Array<{ autor: string; comentario: string; created_at: string }> | undefined
+  ): Paragraph[] => {
+    if (!comentarios || comentarios.length === 0) return [];
+    const paragraphs: Paragraph[] = [];
+    paragraphs.push(new Paragraph({
+      spacing: { before: 160, after: 80 },
+      children: [new TextRun({ text: `COMENTÁRIOS DA COORDENAÇÃO (${comentarios.length})`, bold: true, size: 20, font: docFont, color: mediumBlue })],
+      border: { bottom: { style: BorderStyle.SINGLE, size: 1, color: borderGray } },
+    }));
+    comentarios.forEach((c) => {
+      const dataFmt = (() => {
+        try { return format(new Date(c.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR }); } catch { return ""; }
+      })();
+      paragraphs.push(new Paragraph({
+        spacing: { before: 80, after: 20 },
+        indent: { left: 180 },
+        children: [
+          new TextRun({ text: `${sanitizeForXml(c.autor)} `, bold: true, size: docFontSize, font: docFont, color: "1E3A5F" }),
+          new TextRun({ text: `(${dataFmt})`, size: 18, font: docFont, color: "888888", italics: true }),
+        ],
+      }));
+      const linhas = sanitizeForXml(c.comentario).split(/\n+/).filter(l => l.trim());
+      linhas.forEach((line) => {
+        paragraphs.push(new Paragraph({
+          spacing: { after: 40, line: 276 },
+          indent: { left: 360 },
+          children: [new TextRun({ text: line.trim(), size: docFontSize, font: docFont, color: "333333" })],
+        }));
+      });
+    });
+    paragraphs.push(new Paragraph({ text: "", spacing: { after: 120 } }));
+    return paragraphs;
+  };
+
+  // ===== "Gerar Doc" - DOCX (plain text sem IA) =====
+  const handleGerarDoc = async () => {
+    const allPublicacoes = getPubsParaGerar();
+    if (allPublicacoes.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    try {
+      const isPautasDejt = tipoOrigem === 'djet-pautas';
+      const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
+      const children: Paragraph[] = [...buildDocHeader(`Relatório de Publicações ${origemLabel}`, allPublicacoes.length)];
+
+      const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
+      allPublicacoes.forEach((pub, idx) => {
+        children.push(...buildPubMetadata(pub, idx));
+        children.push(...buildPartesAdvogados(pub));
+        children.push(...buildConteudoParagraphs(pub.conteudo || "Sem conteúdo", "CONTEÚDO INTEGRAL"));
+        children.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
+      });
+
+      const doc = new Document({
+        styles: {
+          default: {
+            document: {
+              run: { font: docFont, size: docFontSize },
+            },
+          },
+        },
+        sections: [{
+          properties: {
+            page: {
+              margin: { top: 720, bottom: 720, left: 1080, right: 1080 },
+            },
+          },
+          children,
+        }],
+      });
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `publicacoes_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Documento Word gerado com sucesso!");
+    } catch (err: any) {
+      toast.error(`Erro ao gerar documento: ${err.message}`);
+    }
+  };
 
 
 
