@@ -51,6 +51,16 @@ function sanitizeConteudoKurier(raw: string | null | undefined): string {
   return s;
 }
 
+function extractKurierIdDjen(...values: Array<string | null | undefined>): string | null {
+  for (const value of values) {
+    const text = String(value || "");
+    if (!text) continue;
+    const match = text.match(/\bID\s*COMUNICA[ÇC][AÃ]O\s*[:\-]?\s*(\d{6,})\b/i);
+    if (match?.[1]) return match[1];
+  }
+  return null;
+}
+
 type KurierParteParsed = { papel: string; nome: string };
 
 const KURIER_PARTY_LABELS = [
@@ -1003,8 +1013,7 @@ Deno.serve(async (req: Request) => {
           }
 
           // Pré-computa campos comuns para reutilizar nas inserções de match e captura_total.
-          const idDjenMatch = conteudo.match(/ID\s*COMUNICA[ÇC][AÃ]O\s*(\d{4,})/i);
-          const idDjen = idDjenMatch ? idDjenMatch[1] : null;
+          const idDjen = extractKurierIdDjen(searchable, conteudoRaw, conteudoLimpo, conteudo);
           const hashConteudo = sha256(`${numero}|${dataDisp ?? dataPub ?? ""}|${conteudo}`);
           const digits = numero.replace(/\D/g, "");
           const basePayload: any = {

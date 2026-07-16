@@ -326,8 +326,8 @@ const AnaliseDjen = () => {
   // Estado do descarte em lote de duplicadas (botão vermelho)
   const [descartandoDuplicadas, setDescartandoDuplicadas] = useState(false);
   const [desfazendoLote, setDesfazendoLote] = useState<string | null>(null);
-  // Intervalo (data_disponibilizacao) opcional para o botão "Descartar duplicadas".
-  // Se vazio, o descarte considera apenas o dia de hoje.
+  // Intervalo opcional para o botão "Descartar duplicadas".
+  // Se vazio, o descarte segue os filtros de data visíveis na tela antes de cair para hoje.
   const [descarteDataInicio, setDescarteDataInicio] = useState<string>("");
   const [descarteDataFim, setDescarteDataFim] = useState<string>("");
 
@@ -392,15 +392,26 @@ const AnaliseDjen = () => {
       toast.error('Você só pode descartar duplicadas das coordenações às quais pertence.');
       return;
     }
-    // Define o intervalo efetivo: se nada foi preenchido, usa apenas HOJE.
-    const hojeISO = format(new Date(), 'yyyy-MM-dd');
-    const inicioEfetivo = descarteDataInicio || descarteDataFim || hojeISO;
-    const fimEfetivo = descarteDataFim || descarteDataInicio || hojeISO;
+    // Define o intervalo efetivo: campo próprio > filtros da tela > hoje.
+    const hojeISO = getHojeBrtISO();
+    const dataTela = dataDisponibilizacaoDebounced || dataPublicacaoDebounced;
+    const inicioEfetivo = descarteDataInicio || descarteDataFim || dataTela || dataInicioDebounced || dataFimDebounced || hojeISO;
+    const fimEfetivo = descarteDataFim || descarteDataInicio || dataTela || dataFimDebounced || dataInicioDebounced || hojeISO;
+    const origemIntervalo = (descarteDataInicio || descarteDataFim)
+      ? 'intervalo informado no bloco de descarte'
+      : dataDisponibilizacaoDebounced
+        ? 'filtro Data de Disponibilização da tela'
+        : dataPublicacaoDebounced
+          ? 'filtro Data de Publicação da tela'
+          : (dataInicioDebounced || dataFimDebounced)
+            ? 'filtro Data Início/Fim (captura) da tela'
+            : 'dia de hoje';
     const labelIntervalo = inicioEfetivo === fimEfetivo
       ? format(parseISO(inicioEfetivo), 'dd/MM/yyyy')
       : `${format(parseISO(inicioEfetivo), 'dd/MM/yyyy')} a ${format(parseISO(fimEfetivo), 'dd/MM/yyyy')}`;
     const confirma = window.confirm(
       `Descartar publicações duplicadas (mesmo processo + dia + conteúdo) desta coordenação no intervalo ${labelIntervalo}?\n\n` +
+      `Origem do intervalo: ${origemIntervalo}.\n\n` +
       'A publicação mais antiga de cada grupo é mantida. Você poderá DESFAZER pelo botão "Desfazer último descarte".'
     );
     if (!confirma) return;
@@ -3998,7 +4009,7 @@ const AnaliseDjen = () => {
                         ? 'Selecione uma coordenação específica para habilitar o descarte.'
                         : (!isAdmin && !userCoordenacaoIds.includes(coordenacaoFiltroEfetivo))
                           ? 'Você não pertence a esta coordenação. Apenas administradores podem descartar de qualquer coordenação.'
-                          : 'Descarta em lote as publicações duplicadas (mesmo processo + dia + conteúdo) da coordenação dentro do intervalo informado (ou apenas HOJE se vazio). Mantém a mais antiga de cada grupo. Pode ser desfeito.'
+                          : 'Descarta em lote as publicações duplicadas (mesmo processo + dia + conteúdo) da coordenação. Se o intervalo estiver vazio, usa os filtros de data da tela antes de cair para hoje. Mantém a mais antiga de cada grupo. Pode ser desfeito.'
                     }
                   >
                     {descartandoDuplicadas ? (
@@ -4015,7 +4026,7 @@ const AnaliseDjen = () => {
                       value={descarteDataInicio}
                       onChange={(e) => setDescarteDataInicio(e.target.value)}
                       className="h-7 rounded border border-input bg-background px-1 text-xs"
-                      title="Data inicial (disponibilização). Se vazio, usa só HOJE."
+                      title="Data inicial. Se vazio, usa os filtros de data da tela antes de cair para hoje."
                     />
                     <span className="text-muted-foreground">a</span>
                     <input
@@ -4023,14 +4034,14 @@ const AnaliseDjen = () => {
                       value={descarteDataFim}
                       onChange={(e) => setDescarteDataFim(e.target.value)}
                       className="h-7 rounded border border-input bg-background px-1 text-xs"
-                      title="Data final (disponibilização). Se vazio, usa só HOJE."
+                      title="Data final. Se vazio, usa os filtros de data da tela antes de cair para hoje."
                     />
                     {(descarteDataInicio || descarteDataFim) && (
                       <button
                         type="button"
                         onClick={() => { setDescarteDataInicio(""); setDescarteDataFim(""); }}
                         className="ml-1 text-muted-foreground hover:text-foreground"
-                        title="Limpar intervalo (volta a descartar só HOJE)"
+                        title="Limpar intervalo (volta a usar os filtros de data da tela)"
                       >
                         ✕
                       </button>
