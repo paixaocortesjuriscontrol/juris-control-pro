@@ -1,58 +1,103 @@
-# Padronizar TODA IA em `gemini-2.5-flash` + atualizar InfoSistema
+## Objetivo
+Tela admin `/admin/consumo-ia` com relatório detalhado de todas as chamadas de IA do sistema: usuário, tela/origem, função, modelo, tokens (input/output) e custo estimado em USD/BRL.
 
-## Escopo aprovado
-Padronizar todas as chamadas de IA para `gemini-2.5-flash`, incluindo a remoção do Claude/Anthropic. Atualizar as descrições em `src/components/admin/InfoSistemaTab.tsx`.
+## Confirmação: AI Gateway da Lovable
+Fiz um `rg` no projeto e **não há nenhum uso do AI Gateway da Lovable** (nada de `ai.gateway.lovable`, `LOVABLE_API_KEY`, `createOpenAICompatible` etc). Todas as chamadas vão direto para `generativelanguage.googleapis.com` via `_shared/gemini-openai-compat.ts` usando `GEMINI_API_KEY`. Nada a remover.
 
-## Outras ocorrências de Claude encontradas (aviso)
-Além das já listadas, achei mais uma edge function usando Claude que **também será migrada**:
+## 1. Nova tabela `ai_usage_logs`
 
-- `supabase/functions/classificar-publicacoes-tst/index.ts` — Claude `claude-sonnet-4-20250514` (backend, sem UI) → migrar para `gemini-2.5-flash`.
+Migração cria a tabela + GRANTs + RLS + índices.
 
-Nenhuma outra referência a Claude/Anthropic/GPT-4/GPT-5 foi encontrada no código executável do app (o resto é comentário/nomes de arquivo compat).
+Colunas:
+- `id uuid pk`, `created_at timestamptz default now()`
+- `user_id uuid` (auth.uid() de quem invocou a edge function)
+- `user_email text` (denormalizado do profiles p/ relatório sem join)
+- `edge_function text not null` (ex.: `repositorio-chat`, `analisar-documento`)
+- `origem text` (tela de origem, ex.: `/repositorio`, `/processos/:id`, `/assistente-juridico`) — enviado pelo frontend no body como `_origem`
+- `model text not null` (`gemini-2.5-flash` etc.)
+- `prompt_tokens int`, `completion_tokens int`, `total_tokens int`
+- `custo_usd numeric(10,6)` (calculado no servidor a partir de tokens × tabela de preços)
+- `duracao_ms int`
+- `status text` (`success` | `error` | `rate_limited`)
+- `erro text` (mensagem quando `status != success`)
+- `metadata jsonb` (livre — processo_numero, doc_id, etc.)
 
-## Alterações — Edge Functions (trocar modelo por `gemini-2.5-flash`)
+RLS:
+- Só admins fazem SELECT (via `has_role(auth.uid(), 'admin')`).
+- INSERT só via `service_role` (edge functions escrevem com service role — não expor ao anon/authenticated).
 
-Onde já existe `geminiChatCompletionsFetch`, apenas trocar o valor de `model`:
+Índices: `(created_at desc)`, `(user_id, created_at desc)`, `(edge_function, created_at desc)`.
 
-| Arquivo | Linha atual | Mudança |
-|---|---|---|
-| `repositorio-chat/index.ts` | 249: `gemini-2.5-pro` | → `gemini-2.5-flash` |
-| `preencher-form-ia-anexos/index.ts` | 323: `gemini-2.5-pro` | → `gemini-2.5-flash` |
-| `preencher-form-ia-anexos-processo/index.ts` | 185: `gemini-2.5-flash` | sem mudança |
-| `analise-quarteirizado-ia/index.ts` | 191: `gemini-2.5-pro` | → `gemini-2.5-flash` |
-| `ia-responde/index.ts` | 293: `gemini-2.5-pro` | → `gemini-2.5-flash` |
-| `analisar-documento/index.ts` | 275: `gemini-2.5-pro` | → `gemini-2.5-flash` |
+## 2. Helper compartilhado `supabase/functions/_shared/ai-usage-logger.ts`
 
-## Alterações — Migração Claude → Gemini
+Função `logAiUsage({ req, supabase, edgeFunction, model, usage, duracaoMs, status, erro?, metadata? })`:
+- Extrai `user_id` do JWT (`req.headers.authorization` → `supabase.auth.getUser`).
+- Extrai `_origem` do body (o frontend passa; fallback: header `x-lovable-origem` ou `null`).
+- Calcula `custo_usd` a partir da tabela de preços (constante no helper):
+  - `gemini-2.5-flash`: $0.30 / 1M input, $2.50 / 1M output
+  - `gemini-2.5-pro`: $1.25 / 1M input, $10 / 1M output
+  - (fácil estender)
+- Faz INSERT com `service_role` (client já criado nas functions com service role).
+- **Nunca lança** — try/catch interno; logar erro no console mas não quebrar a chamada de IA.
 
-Duas funções chamam a API da Anthropic diretamente (`https://api.anthropic.com/v1/messages`). Reescrever para usar `geminiChatCompletionsFetch` do `_shared/gemini-openai-compat.ts` (mesmo padrão das outras):
+## 3. Instrumentar as edge functions de IA (16 no total)
 
-### `supabase/functions/analisar-tst-ia/index.ts`
-- Remover leitura de `ANTHROPIC_API_KEY` e o `fetch` para `api.anthropic.com`.
-- Passar a usar `geminiChatCompletionsFetch({ model: "gemini-2.5-flash", temperature: 0.2, response_format: { type: "json_object" }, messages: [{role:"system",...},{role:"user",...}] })`.
-- Ajustar parsing: o retorno passa a ser `choices[0].message.content` (JSON string) em vez de `content[0].text`.
-- Atualizar mensagens de log ("Analisando TST com Gemini…", "Análise TST Gemini concluída…").
-- Reduzir/manter `maxChars` (era 80 000 para Claude); Gemini 2.5 Flash suporta 1M tokens de contexto, então manter os 80 000 é seguro.
+Padrão em cada function:
+```ts
+const t0 = Date.now();
+try {
+  const resp = await geminiChatCompletionsFetch({ ... });
+  const data = await resp.json();
+  await logAiUsage({ req, supabase, edgeFunction: "repositorio-chat",
+    model: "gemini-2.5-flash", usage: data.usage,
+    duracaoMs: Date.now() - t0, status: "success",
+    metadata: { conversa_id } });
+  ...
+} catch (err) {
+  await logAiUsage({ ..., status: "error", erro: String(err) });
+  throw err;
+}
+```
 
-### `supabase/functions/classificar-publicacoes-tst/index.ts`
-- Mesma reescrita: remover Anthropic e usar `geminiChatCompletionsFetch({ model: "gemini-2.5-flash", temperature: 0.1, response_format: { type: "json_object" }, ... })`.
-- Ajustar parsing para `choices[0].message.content` (JSON puro, sem cercas markdown esperadas — o `response_format: json_object` já garante).
-- Atualizar mensagens de erro/log (trocar "Claude" por "IA").
+Functions a instrumentar:
+`repositorio-chat`, `preencher-form-ia-anexos`, `preencher-form-ia-anexos-processo`, `analise-quarteirizado-ia`, `ia-responde`, `analisar-documento`, `analisar-tst-ia`, `classificar-publicacoes-tst`, `resumir-publicacoes`, `comparar-dj-santander`, `complementar-planilha-tst`, `ia-preagendar-djen`, `analisar-publicacao-ia`, `analisar-prazos-drive`, `analisar-tst-prompt-ia` — mais quaisquer outras que apareçam no `rg` na hora do build.
 
-## Alterações — `src/components/admin/InfoSistemaTab.tsx`
+## 4. Frontend — envio da tela de origem
 
-Trocar "GPT-4o" / "OpenAI" por Gemini nas descrições:
+Criar wrapper leve `src/lib/invokeIA.ts`:
+```ts
+export const invokeIA = (name, body) =>
+  supabase.functions.invoke(name, {
+    body: { ...body, _origem: window.location.pathname }
+  });
+```
+Substituir os `supabase.functions.invoke("<nome-ia>", …)` das ~12 telas identificadas por `invokeIA(...)`. Chamadas de IA feitas via `fetch` direto (poucas — ex.: `repositorio-chat` stream) recebem header `x-lovable-origem: <pathname>`.
 
-- **L142** — `"OpenAI (GPT-4o)"` → `"Google Gemini (gemini-2.5-flash)"`. Descrição: "IA generativa (Gemini Flash) para resumo de publicações, detecção de audiências, análise de documentos, classificação TST e assistente jurídico."
-- **L186** — Análise DJEN: "OpenAI GPT-4o" → "Gemini 2.5 Flash".
-- **L205** — Assistente IA: "GPT-4o" → "Gemini 2.5 Flash".
-- **L286** — `resumir-publicacoes`: "GPT-4o" → "Gemini".
-- **L345** — `repositorio-chat`: "GPT-4o" → "Gemini 2.5 Flash".
-- **L451** — "GPT-4o para detectar audiências" → "Gemini 2.5 Flash para detectar audiências".
+## 5. Tela `/admin/consumo-ia` (admin)
 
-## Fora do escopo / observações
+Rota nova no `App.tsx`, protegida por `has_role admin`. Card entrará em **Administração**.
 
-- **Segredo `ANTHROPIC_API_KEY`**: após a migração ele deixa de ser usado. Posso deixar o segredo cadastrado (inofensivo) ou remover — sinalize se quer que eu remova.
-- `resumir-publicacoes` continua com `gemini-2.5-pro` (não estava na sua lista). Se quiser padronizar tudo em `flash`, me avise que incluo. Idem `comparar-dj-santander`, `complementar-planilha-tst`, `ia-preagendar-djen`, `analisar-publicacao-ia`, `analisar-prazos-drive`, `analisar-tst-prompt-ia` (todos já Gemini, mas com modelos variando entre `flash` e `pro`).
-- Nenhuma alteração de schema/RLS.
-- Após deploy, testar: uma análise TST via `/processos/:id` (aba TST) e a classificação de publicações TST no fluxo DJEN.
+Componentes:
+- **Filtros no topo:** período (default últimos 7 dias), usuário (select multi), edge_function (select multi), modelo, status.
+- **KPIs (4 cards):** total de chamadas, total de tokens, custo total USD, custo total BRL (× cotação fixa configurável — default 5,50).
+- **Gráfico 1:** tokens/dia (barra empilhada input vs output).
+- **Gráfico 2:** top 10 funções por custo (barra horizontal).
+- **Gráfico 3:** top 10 usuários por custo (barra horizontal).
+- **Tabela detalhada** (paginada, 50/pg, ordenável): data/hora, usuário, tela (origem), edge function, modelo, prompt tokens, completion tokens, total, custo USD, duração, status. Linha expansível mostra `metadata` + `erro`.
+- **Botão "Exportar CSV"** (o filtro atual).
+
+Tudo lê direto de `ai_usage_logs` com RLS. Sem edge function extra.
+
+## 6. Detalhes técnicos
+
+- **Custo em BRL:** cotação hardcoded (5,50) mostrada com nota "estimativa". Se quiser configurável depois, dá pra puxar de `parametros_monitoramento_djen` ou nova tabela — fica fora do escopo.
+- **Retroativo:** não fazemos backfill (conforme acordado). A tela mostra "Coleta iniciada em <data>" se o filtro pegar antes da primeira linha.
+- **Segurança:** só admin lê; edge functions escrevem via service_role. Nada de escrever do browser.
+- **Performance:** para períodos longos usar agregações (`group by date_trunc('day', ...)`) via `supabase--read_query` — a tela usa RPCs SQL para os gráficos e SELECT paginado para a tabela.
+- **Sem quebra:** logger nunca lança; se der erro na tabela, a chamada de IA segue normal.
+
+## Fora de escopo
+- Alertas de estouro de orçamento.
+- Limite por usuário/coordenação.
+- Backfill de chamadas antigas.
+- Dashboard por coordenação (dá pra adicionar depois — coluna `coordenacao_id` já no metadata).
