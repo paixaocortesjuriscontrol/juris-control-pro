@@ -72,12 +72,16 @@ export default function PainelEquipe() {
   );
 
   // Coordenação efetiva: se selecionou uma específica, usa ela;
-  // se não e tem apenas uma, auto-seleciona ela; senão "all"
+  // se não, auto-seleciona a primeira coordenação do usuário.
+  // Admins podem escolher "all" explicitamente no seletor.
   const effectiveCoordenacao = useMemo(() => {
     if (selectedCoordenacao !== "all") return selectedCoordenacao;
+    if (!loadingCoord && allCoordenacaoIds.length >= 1 && !isAdmin) {
+      return allCoordenacaoIds[0];
+    }
     if (!loadingCoord && allCoordenacaoIds.length === 1) return allCoordenacaoIds[0];
     return "all";
-  }, [selectedCoordenacao, loadingCoord, allCoordenacaoIds]);
+  }, [selectedCoordenacao, loadingCoord, allCoordenacaoIds, isAdmin]);
 
   // IDs que passamos aos hooks:
   // - Se uma coordenação específica foi selecionada: null (o hook recebe coordenacaoId diretamente)
