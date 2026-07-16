@@ -67,6 +67,60 @@ export type Database = {
           },
         ]
       }
+      ai_usage_logs: {
+        Row: {
+          completion_tokens: number | null
+          created_at: string
+          custo_usd: number | null
+          duracao_ms: number | null
+          edge_function: string
+          erro: string | null
+          id: string
+          metadata: Json | null
+          model: string
+          origem: string | null
+          prompt_tokens: number | null
+          status: string
+          total_tokens: number | null
+          user_email: string | null
+          user_id: string | null
+        }
+        Insert: {
+          completion_tokens?: number | null
+          created_at?: string
+          custo_usd?: number | null
+          duracao_ms?: number | null
+          edge_function: string
+          erro?: string | null
+          id?: string
+          metadata?: Json | null
+          model: string
+          origem?: string | null
+          prompt_tokens?: number | null
+          status?: string
+          total_tokens?: number | null
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          completion_tokens?: number | null
+          created_at?: string
+          custo_usd?: number | null
+          duracao_ms?: number | null
+          edge_function?: string
+          erro?: string | null
+          id?: string
+          metadata?: Json | null
+          model?: string
+          origem?: string | null
+          prompt_tokens?: number | null
+          status?: string
+          total_tokens?: number | null
+          user_email?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       alertas_audiencias: {
         Row: {
           audiencia_id: string
