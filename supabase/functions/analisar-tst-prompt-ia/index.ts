@@ -226,7 +226,7 @@ Mapeie a resposta solicitada pelo prompt para as chaves do schema; não devolva 
     const modeloSalvo = String(promptRow.modelo || "").trim();
     const modelo = modeloSalvo.startsWith("gemini") ? modeloSalvo : (Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash");
     const aiRes = await geminiChatCompletionsFetch({
-      model: modelo,
+      _ai_usage: { edgeFunction: "analisar-tst-prompt-ia", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: modelo,
       temperature: 0,
       messages: [
         { role: "system", content: systemPrompt },

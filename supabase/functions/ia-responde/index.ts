@@ -309,7 +309,7 @@ serve(async (req) => {
 
     for (let step = 0; step < 12; step++) {
       const resp = await geminiChatCompletionsFetch({
-        model: MODEL,
+        _ai_usage: { edgeFunction: "ia-responde", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: MODEL,
         messages: convo,
         tools: TOOLS,
         tool_choice: "auto",

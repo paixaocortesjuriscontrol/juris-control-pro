@@ -56,7 +56,7 @@ ${textoPdf.substring(0, 15000)}
 Extraia todos os números de processos de cada texto.`;
 
     const response = await geminiChatCompletionsFetch({
-      model: "gemini-2.5-pro",
+      _ai_usage: { edgeFunction: "comparar-dj-santander", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: "gemini-2.5-pro",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },

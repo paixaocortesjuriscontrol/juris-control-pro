@@ -239,7 +239,7 @@ IMPORTANTE: Retorne TODOS os processos distintos encontrados no documento. Se ho
 Se alguma informação não for encontrada, retorne "(Não localizado)".`;
 
   const resp = await geminiChatCompletionsFetch({
-      model: "gemini-2.5-pro",
+      _ai_usage: { edgeFunction: "analisar-prazos-drive", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: "gemini-2.5-pro",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `Documento: ${fileName}\n\nConteúdo:\n${text.substring(0, 15000)}` },
