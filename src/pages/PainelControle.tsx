@@ -462,7 +462,7 @@ export default function PainelControle() {
       let q = supabase
         .from("eventos_agenda")
         .select("data_inicio, tipo, status, criado_por, processo_id")
-        .neq("status", "cumprido")
+        .not("status", "in", "(concluido,cancelado)")
         .gte("data_inicio", rangeInicioStr)
         .lte("data_inicio", rangeFimStr + "T23:59:59");
       if (tabMode === "pessoal") {
@@ -518,7 +518,7 @@ export default function PainelControle() {
         .from("audiencias_detectadas")
         .select("data_audiencia, status, criado_por, coordenacao_id, id")
         .not("data_audiencia", "is", null)
-        .neq("status", "cumprido")
+        .not("status", "in", "(tratado,cancelado,concluido)")
         .gte("data_audiencia", rangeInicioStr)
         .lte("data_audiencia", rangeFimStr + "T23:59:59");
 
