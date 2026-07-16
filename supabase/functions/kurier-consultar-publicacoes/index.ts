@@ -96,15 +96,66 @@ function normalizeKurierInteiroTeor(value: string): string {
     .trim();
 }
 
+function splitKurierSlashList(value: string): string[] {
+  return String(value || "")
+    .split(/\s*\/\s*/g)
+    .map((item) => item.replace(/\s+/g, " ").replace(/^[-–—\s]+|[-–—\s]+$/g, "").trim())
+    .filter((item) => item.length >= 3 && !/^(?:-|OAB\s+advogado)$/i.test(item));
+}
+
+function extractKurierCompactPartesAdvogados(texto: string): { partes: string[]; advogados: string[] } {
+  const plain = String(texto || "").replace(/\s+/g, " ").trim();
+  const partes: string[] = [];
+  const advogados: string[] = [];
+  const seenPartes = new Set<string>();
+  const seenAdvs = new Set<string>();
+
+  const addParte = (papel: string, nome: string) => {
+    const clean = nome.replace(/\s+/g, " ").replace(/^[-–—\s]+|[-–—\s]+$/g, "").trim();
+    if (!clean || clean.length < 3) return;
+    const key = `${papel}|${clean}`.toUpperCase();
+    if (seenPartes.has(key)) return;
+    seenPartes.add(key);
+    partes.push(`[${papel}] ${clean}`);
+  };
+
+  const addAdv = (nome: string) => {
+    const clean = nome.replace(/\s+/g, " ").replace(/^[-–—\s]+|[-–—\s]+$/g, "").trim();
+    if (!clean || clean.length < 3 || /^OAB\s+advogado$/i.test(clean)) return;
+    const key = clean.toUpperCase();
+    if (seenAdvs.has(key)) return;
+    seenAdvs.add(key);
+    advogados.push(clean);
+  };
+
+  const poloAtivo = plain.match(/\bPolo\s+Ativo\s+([\s\S]*?)(?=\s+Polo\s+Passivo\b|\s+Parte\s+intima[çc][ãa]o\b|\s+Advogados?\s+polo\b|\s+Data\s+e\s+hora\b|\s+Identificador\s+do\s+documento\b|$)/i)?.[1];
+  if (poloAtivo) splitKurierSlashList(poloAtivo).forEach((nome) => addParte("Polo Ativo", nome));
+
+  const poloPassivo = plain.match(/\bPolo\s+Passivo\s+([\s\S]*?)(?=\s+Parte\s+intima[çc][ãa]o\b|\s+Advogados?\s+polo\b|\s+Data\s+e\s+hora\b|\s+Identificador\s+do\s+documento\b|$)/i)?.[1];
+  if (poloPassivo) splitKurierSlashList(poloPassivo).forEach((nome) => addParte("Polo Passivo", nome));
+
+  const parteIntimacao = plain.match(/\bParte\s+intima[çc][ãa]o\s+([\s\S]*?)(?=\s+Advogado\s+intima[çc][ãa]o\b|\s+Advogados?\s+polo\b|\s+Data\s+e\s+hora\b|\s+Identificador\s+do\s+documento\b|$)/i)?.[1];
+  if (parteIntimacao) splitKurierSlashList(parteIntimacao).forEach((nome) => addParte("Parte intimação", nome));
+
+  const advAtivo = plain.match(/\bAdvogados?\s+polo\s+ativo\s+([\s\S]*?)(?=\s+Advogados?\s+polo\s+passivo\b|\s+Data\s+e\s+hora\b|\s+Identificador\s+do\s+documento\b|\s+Classe\s+do\s+Processo\b|\s+Assunto\b|\s+[ÓO]rg[ãa]o\s+Julgado\b|\s+Prazo\b|\s+Data\s+Limite\b|$)/i)?.[1];
+  if (advAtivo) splitKurierSlashList(advAtivo).forEach(addAdv);
+
+  const advPassivo = plain.match(/\bAdvogados?\s+polo\s+passivo\s+([\s\S]*?)(?=\s+Data\s+e\s+hora\b|\s+Identificador\s+do\s+documento\b|\s+Classe\s+do\s+Processo\b|\s+Assunto\b|\s+[ÓO]rg[ãa]o\s+Julgado\b|\s+Prazo\b|\s+Data\s+Limite\b|$)/i)?.[1];
+  if (advPassivo) splitKurierSlashList(advPassivo).forEach(addAdv);
+
+  return { partes, advogados };
+}
+
 function parseKurierBlobForStorage(conteudo: string): { partes: string[]; advogados: string[]; conteudoNormalizado: string | null } {
   const texto = String(conteudo || "").trim();
+  const compact = extractKurierCompactPartesAdvogados(texto);
   const isBlob =
     !/<\s*(html|table|tr|td|p|div|br)\b/i.test(texto) &&
     (/\bDATA\s+DE\s+DISPONIBILIZAÇÃO\d{4}-\d{1,2}-\d{1,2}/i.test(texto) ||
       /\bTIPO\s+DE\s+COMUNICAÇÃO[A-ZÀ-Ÿa-zà-ÿ]/.test(texto) ||
       (/\bORG[ÃA]O[A-ZÀ-Ÿ]/.test(texto) && /\bMEIO[A-ZÀ-Ÿ]/.test(texto)) ||
       /\bTRIBUNAL[A-Z]{2,5}\s+(?:DESPACHO|TEXTO|DECISÃO|SENTENÇA|ACÓRDÃO|RECURSO)/i.test(texto));
-  if (!isBlob) return { partes: [], advogados: [], conteudoNormalizado: null };
+  if (!isBlob) return { ...compact, conteudoNormalizado: null };
 
   const textoIdx = texto.search(/\bTEXTO(?=[A-ZÀ-Ÿ"'(\[])/);
   let miolo = textoIdx >= 0 ? texto.slice(textoIdx).replace(/^TEXTO/, "").trim() : texto;
@@ -157,8 +208,8 @@ function parseKurierBlobForStorage(conteudo: string): { partes: string[]; advoga
   }
 
   return {
-    partes: partes.map((p) => `[${p.papel}] ${p.nome}`),
-    advogados,
+    partes: compact.partes.length ? compact.partes : partes.map((p) => `[${p.papel}] ${p.nome}`),
+    advogados: compact.advogados.length ? compact.advogados : advogados,
     conteudoNormalizado: normalizeKurierInteiroTeor(inteiroTeor) || null,
   };
 }
