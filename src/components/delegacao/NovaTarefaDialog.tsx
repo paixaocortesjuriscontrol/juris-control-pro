@@ -345,24 +345,12 @@ export function NovaTarefaDialog({
         if (docs && docs.length > 0) {
           setAnexos(
             docs.map((d: any) => {
-              let raw: any = null;
-              try { raw = d.conteudo_extraido ? JSON.parse(d.conteudo_extraido) : null; } catch { raw = null; }
               return {
                 id: d.id,
                 nome: d.nome,
                 tamanho_bytes: d.tamanho_bytes,
                 url: d.url,
                 uploaded: true,
-                analise: d.analisado_ia
-                  ? {
-                      categoria: d.categoria || "outros",
-                      tipo_documento: d.tipo_documento || null,
-                      descricao: d.descricao || "",
-                      tags: d.tags || [],
-                      confianca: d.confianca_ia || "media",
-                      raw,
-                    }
-                  : undefined,
               } as AnexoComAnalise;
             })
           );
@@ -407,73 +395,15 @@ export function NovaTarefaDialog({
     setRecorrenciaFim("");
   };
 
-  const analisarDocumentoComIA = async (file: File): Promise<AnexoComAnalise['analise']> => {
-    try {
-      // Ler o conteúdo do arquivo como texto (para PDFs/docs simples)
-      let content = "";
-      if (file.type === "text/plain" || file.name.endsWith('.txt')) {
-        content = await file.text();
-      } else {
-        // Para outros tipos, enviar apenas nome e tipo
-        content = `[Arquivo binário: ${file.name}]`;
-      }
-
-      const { data, error } = await supabase.functions.invoke("analisar-documento", {
-        body: {
-          fileName: file.name,
-          fileContent: content,
-          mimeType: file.type,
-        },
-      });
-
-      if (error) throw error;
-      return data;
-    } catch (err) {
-      console.error("Erro ao analisar documento:", err);
-      return undefined;
-    }
-  };
-
   const handleAddAnexo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
       const novosAnexos: AnexoComAnalise[] = Array.from(files).map(file => ({
         file,
-        analisando: true,
         uploaded: false,
       }));
-      
       setAnexos(prev => [...prev, ...novosAnexos]);
       e.target.value = '';
-
-      // Analisar cada arquivo com IA
-      for (let i = 0; i < novosAnexos.length; i++) {
-        const anexo = novosAnexos[i];
-        try {
-          const analiseRaw: any = await analisarDocumentoComIA(anexo.file!);
-          const analise = analiseRaw
-            ? {
-                categoria: analiseRaw.categoria || "outros",
-                tipo_documento: analiseRaw.tipo_documento ?? null,
-                descricao: analiseRaw.descricao || "",
-                tags: analiseRaw.tags || [],
-                confianca: analiseRaw.confianca || "media",
-                raw: analiseRaw,
-              }
-            : undefined;
-          setAnexos(prev => prev.map(a => 
-            a.file === anexo.file 
-              ? { ...a, analise, analisando: false }
-              : a
-          ));
-        } catch (err) {
-          setAnexos(prev => prev.map(a => 
-            a.file === anexo.file 
-              ? { ...a, analisando: false, erro: "Falha na análise" }
-              : a
-          ));
-        }
-      }
     }
   };
 
@@ -512,21 +442,13 @@ export function NovaTarefaDialog({
           continue;
         }
         const signedUrl = await getSignedUrlOrEmpty("documentos_processos", fileName);
-        const raw = (anexo.analise as any)?.raw || anexo.analise || null;
         await supabase.from('documentos').insert({
           nome: file.name,
-          tipo: anexo.analise?.categoria || file.type,
+          tipo: file.type,
           url: signedUrl,
           tamanho_bytes: file.size,
           processo_id: processoId,
           tarefa_id: tarefaId,
-          categoria: anexo.analise?.categoria || null,
-          tipo_documento: anexo.analise?.tipo_documento || null,
-          descricao: anexo.analise?.descricao || null,
-          tags: anexo.analise?.tags || null,
-          analisado_ia: !!anexo.analise,
-          confianca_ia: anexo.analise?.confianca || null,
-          conteudo_extraido: raw ? JSON.stringify(raw) : null,
         });
       }
     } finally {
