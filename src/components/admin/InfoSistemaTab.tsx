@@ -184,7 +184,6 @@ const menuInfoData: MenuInfo[] = [
 
   // --- DJEN e Monitoramento ---
   { name: "Análise DJEN", path: "/analise-djen", icon: <Newspaper className="w-4 h-4" />, description: "Análise de publicações do DJEN com resumo automático via IA (OpenAI GPT-4o). Triagem por prioridade, detecção de audiências e vinculação a processos.", tables: ["publicacoes_djen", "publicacoes_djen_processos", "audiencias_detectadas"], category: "DJEN" },
-  { name: "Buscar DJEN", path: "/buscar-djen", icon: <Search className="w-4 h-4" />, description: "Busca manual de publicações no DJEN por termo, OAB, número de processo ou nome de parte.", tables: ["publicacoes_djen"], category: "DJEN" },
   { name: "Monit. DJEN", path: "/monitoramento-djen", icon: <Eye className="w-4 h-4" />, description: "Configuração de monitoramentos automáticos do DJEN por termo de busca, OAB ou cliente. Execução diária com escalonamento por tribunal.", tables: ["monitoramentos_djen", "publicacoes_djen", "audiencias_detectadas"], category: "DJEN" },
   { name: "Painel Audiências", path: "/painel-audiencias", icon: <Gavel className="w-4 h-4" />, description: "Gestão de audiências detectadas via monitoramento ou cadastradas manualmente. Atribuição de advogados, prepostos e configuração de lembretes.", tables: ["audiencias_detectadas", "audiencias_advogados", "alertas_audiencias", "lembretes_audiencia"], category: "DJEN" },
 
@@ -281,7 +280,6 @@ const secretsInfo = [
 
 const edgeFunctionsInfo = [
   // DJEN & Publicações
-  { name: "buscar-djen", description: "Busca publicações no DJEN por termo, OAB ou número de processo.", category: "DJEN" },
   { name: "monitorar-djen", description: "Monitora publicações DJEN por monitoramento configurado.", category: "DJEN" },
   { name: "monitorar-djen-processos", description: "Monitora publicações DJEN para processos cadastrados.", category: "DJEN" },
   { name: "monitorar-djen-trigger", description: "Trigger de monitoramento DJEN para execução sob demanda.", category: "DJEN" },
