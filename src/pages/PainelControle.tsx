@@ -824,7 +824,7 @@ export default function PainelControle() {
     const base = itensAgenda.filter((item) => {
       // Status (grupo simplificado)
       const statusGroup = painelFiltros.statusGroup ?? "todas";
-      if (statusGroup === "todas" || statusGroup === "a_concluir") {
+      if (statusGroup === "a_concluir") {
         // Os cards totalizadores representam pendências em aberto.
         if (isItemEncerrado(item)) return false;
       }
@@ -1159,7 +1159,6 @@ export default function PainelControle() {
                         setPainelFiltros((s) => ({
                           ...s,
                           classificacoes: active ? [] : [f.key],
-                          statusGroup: active ? s.statusGroup : "a_concluir",
                         }))
                       }
                       title={`Somente ${f.label}`}
@@ -1460,7 +1459,6 @@ export default function PainelControle() {
                   setPainelFiltros((f) => ({
                     ...f,
                     classificacoes: f.classificacoes.includes("tarefa") ? [] : ["tarefa"],
-                    statusGroup: f.classificacoes.includes("tarefa") ? f.statusGroup : "a_concluir",
                   }))
                 }
                 className={cn(
@@ -1485,7 +1483,6 @@ export default function PainelControle() {
                   setPainelFiltros((f) => ({
                     ...f,
                     classificacoes: f.classificacoes.includes("evento") ? [] : ["evento"],
-                    statusGroup: f.classificacoes.includes("evento") ? f.statusGroup : "a_concluir",
                   }))
                 }
                 className={cn(
@@ -1510,7 +1507,6 @@ export default function PainelControle() {
                   setPainelFiltros((f) => ({
                     ...f,
                     classificacoes: f.classificacoes.includes("prazo") ? [] : ["prazo"],
-                    statusGroup: f.classificacoes.includes("prazo") ? f.statusGroup : "a_concluir",
                   }))
                 }
                 className={cn(
@@ -1535,7 +1531,6 @@ export default function PainelControle() {
                   setPainelFiltros((f) => ({
                     ...f,
                     classificacoes: f.classificacoes.includes("audiencia") ? [] : ["audiencia"],
-                    statusGroup: f.classificacoes.includes("audiencia") ? f.statusGroup : "a_concluir",
                   }))
                 }
                 className={cn(
@@ -1560,7 +1555,6 @@ export default function PainelControle() {
                   setPainelFiltros((f) => ({
                     ...f,
                     classificacoes: f.classificacoes.includes("parcelamento") ? [] : ["parcelamento"],
-                    statusGroup: f.classificacoes.includes("parcelamento") ? f.statusGroup : "a_concluir",
                   }))
                 }
                 className={cn(
