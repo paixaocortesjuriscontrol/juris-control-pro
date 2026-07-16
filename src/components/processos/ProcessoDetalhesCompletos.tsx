@@ -1835,6 +1835,11 @@ export function ProcessoDetalhesCompletos({
                 </Tabs>
               )}
 
+              {/* Partes do processo (mesma listagem da Distribuição TST) */}
+              {activeSection === "partes" && processo?.numero && (
+                <ProcessoPartesTab processoNumero={processo.numero} />
+              )}
+
               {/* Comentários Section */}
               {activeSection === "comentarios" && (
                 <div className="space-y-3">
