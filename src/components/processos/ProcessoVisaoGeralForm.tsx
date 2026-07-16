@@ -1106,7 +1106,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       rows={3}
                       className={cn("text-sm min-h-[72px] resize-y overflow-hidden", jcls("assunto"))}
                       value={form.assunto || ""}
-                      onChange={(e) => update("assunto", e.target.value)}
+                      onChange={(e) => {
+                        update("assunto", e.target.value);
+                        const el = e.currentTarget;
+                        el.style.height = "auto";
+                        el.style.height = el.scrollHeight + "px";
+                      }}
                       ref={(el) => {
                         if (el) {
                           el.style.height = "auto";
