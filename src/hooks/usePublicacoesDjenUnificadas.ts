@@ -697,10 +697,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             : filtros.tipoOrigem === 'processo'
               ? mapped.filter((p) => p.tipo_origem === 'processo')
               : mapped;
-        // Em todas as views que NÃO sejam DJET Pautas, remover publicações
-        // capturadas via DEJT (fonte 'dejt-pdf') para não misturar pautas
-        // com intimações/processos do DJEN.
-        if (filtros.tipoOrigem !== 'djet-pautas') {
+        // Em views específicas (termo/parte/processo/kurier/descartada), remover
+        // publicações capturadas via DEJT (fonte 'dejt-pdf') para não misturar
+        // pautas com intimações/processos. No filtro "Todos", mantemos as
+        // pautas DEJT para que sejam listadas junto com as demais origens.
+        const incluirPautasDejt = !filtros.tipoOrigem || filtros.tipoOrigem === 'todos' || filtros.tipoOrigem === 'djet-pautas';
+        if (!incluirPautasDejt) {
           filteredByType = filteredByType.filter((p) => (p.fonte || '').toLowerCase() !== 'dejt-pdf');
         }
         if (filtros.monitoramentoId) {
@@ -941,8 +943,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           queryTermos = (queryTermos as any)
             .eq('tipo_publicacao', 'pauta')
             .eq('status', 'encontrada');
-        } else {
-          // Demais filtros: oculta as pautas DJET para não misturar com intimações
+        } else if (filtros.tipoOrigem && filtros.tipoOrigem !== 'todos') {
+          // Filtros específicos (termo/parte/processo/kurier/descartada):
+          // ocultam as pautas DJET para não misturar com intimações.
+          // No filtro "Todos", mantemos as pautas na listagem.
           queryTermos = (queryTermos as any).or('tipo_publicacao.is.null,tipo_publicacao.neq.pauta');
         }
 
