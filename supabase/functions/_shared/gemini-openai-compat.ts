@@ -11,6 +11,10 @@
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
 
+import { logAiUsage, type AiUsageLogParams } from "./ai-usage-logger.ts";
+
+type AiUsageCtx = Pick<AiUsageLogParams, "edgeFunction" | "authHeader" | "referer" | "origem" | "metadata">;
+
 function mapModel(model?: string): string {
   if (!model) return DEFAULT_MODEL;
   if (model.startsWith("gemini")) return model;
@@ -89,8 +93,26 @@ function toolsToGemini(tools: any[] | undefined, toolChoice: any) {
 }
 
 export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
+  const t0 = Date.now();
+  const ctx: AiUsageCtx | undefined = body?._ai_usage;
+  const logIfCtx = (extra: Partial<AiUsageLogParams>) => {
+    if (!ctx?.edgeFunction) return;
+    // fire-and-forget; never awaits blocking the response path
+    logAiUsage({
+      edgeFunction: ctx.edgeFunction,
+      model: mapModel(body?.model),
+      authHeader: ctx.authHeader ?? null,
+      referer: ctx.referer ?? null,
+      origem: ctx.origem ?? null,
+      metadata: ctx.metadata ?? {},
+      duracaoMs: Date.now() - t0,
+      ...extra,
+    }).catch(() => {});
+  };
+
   const key = Deno.env.get("GEMINI_API_KEY_DJEN") || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY");
   if (!key) {
+    logIfCtx({ status: "error", erro: "Chave Gemini não configurada" });
     return new Response(
       JSON.stringify({ error: { message: "Chave Gemini não configurada (GEMINI_API_KEY_DJEN)." } }),
       { status: 500, headers: { "Content-Type": "application/json" } },
@@ -130,6 +152,7 @@ export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
       body: JSON.stringify(geminiBody),
     });
   } catch (e: any) {
+    logIfCtx({ status: "error", erro: `Falha de rede Gemini: ${e?.message || e}` });
     return new Response(
       JSON.stringify({ error: { message: `Falha de rede Gemini: ${e?.message || e}` } }),
       { status: 502, headers: { "Content-Type": "application/json" } },
@@ -145,6 +168,11 @@ export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
     const friendly = creditsDepleted
       ? "A chave Gemini configurada está SEM CRÉDITOS no Google AI Studio. Adicione créditos em https://ai.studio/projects para continuar usando a IA."
       : `Gemini ${resp.status}: ${errText.slice(0, 500)}`;
+    logIfCtx({
+      status: resp.status === 429 ? "rate_limited" : "error",
+      erro: friendly,
+      metadata: { ...(ctx?.metadata ?? {}), gemini_status: resp.status },
+    });
     return new Response(
       JSON.stringify({ error: { message: friendly, gemini_status: resp.status, gemini_raw: errText.slice(0, 500) } }),
       { status: resp.status, headers: { "Content-Type": "application/json" } },
@@ -192,6 +220,13 @@ export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
       total_tokens: data.usageMetadata.totalTokenCount ?? 0,
     };
   }
+
+  logIfCtx({
+    status: "success",
+    prompt_tokens: data?.usageMetadata?.promptTokenCount ?? 0,
+    completion_tokens: data?.usageMetadata?.candidatesTokenCount ?? 0,
+    total_tokens: data?.usageMetadata?.totalTokenCount ?? 0,
+  });
 
   return new Response(JSON.stringify(openaiResp), {
     status: 200,
