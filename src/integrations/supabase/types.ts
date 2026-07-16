@@ -9554,6 +9554,10 @@ export type Database = {
         Returns: boolean
       }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
+      kurier_normalize_conteudo_sem_parte_intimacao: {
+        Args: { p_text: string }
+        Returns: string
+      }
       lease_proxima_execucao_servidor: {
         Args: { p_tipos?: string[]; p_worker_id: string }
         Returns: {
