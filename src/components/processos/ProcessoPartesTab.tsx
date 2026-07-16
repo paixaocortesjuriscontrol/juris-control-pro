@@ -8,7 +8,7 @@ import { Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
-  processoNumero?: string | null;
+  processoId?: string | null;
 }
 
 type Parte = {
@@ -27,36 +27,20 @@ const formatDoc = (doc: string | null) => {
   return doc;
 };
 
-export function ProcessoPartesTab({ processoNumero }: Props) {
+export function ProcessoPartesTab({ processoId }: Props) {
   const { data: partes = [], isLoading } = useQuery<Parte[]>({
-    queryKey: ["processo-partes-benner", processoNumero],
-    enabled: !!processoNumero,
+    queryKey: ["processo-partes", processoId],
+    enabled: !!processoId,
     queryFn: async () => {
-      if (!processoNumero) return [];
-      const { data: benner, error: e1 } = await supabase
-        .from("dados_benner")
-        .select("id")
-        .eq("processo", processoNumero);
-      if (e1) throw e1;
-      const ids = (benner || []).map((b: any) => b.id);
-      if (ids.length === 0) return [];
+      if (!processoId) return [];
       const { data, error } = await supabase
-        .from("partes_processo_benner")
+        .from("processos_partes")
         .select("nome, documento, tipo_pessoa, polo, is_advogado")
-        .in("dados_benner_id", ids)
+        .eq("processo_id", processoId)
         .order("is_advogado", { ascending: true })
         .order("nome", { ascending: true });
       if (error) throw error;
-      // dedup por nome+documento
-      const seen = new Set<string>();
-      const out: Parte[] = [];
-      for (const p of (data as Parte[] | null) || []) {
-        const key = `${(p.nome || "").trim().toLowerCase()}|${(p.documento || "").replace(/\D/g, "")}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push(p);
-      }
-      return out;
+      return (data as Parte[] | null) || [];
     },
   });
 
