@@ -35,7 +35,7 @@ export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
   classificacoes: [],
   souResponsavel: false,
   estouEnvolvido: false,
-  statusGroup: "todas",
+  statusGroup: "a_concluir",
   periodoInicio: "",
   periodoFim: "",
   responsavelIds: [],

@@ -96,8 +96,20 @@ const TIPO_LABELS: Record<string, string> = {
   parcelamento: "Parcelamento",
 };
 
-const isItemCancelado = (item: Pick<ItemAgendaUnificado, "status">) =>
-  (item.status ?? "").toLowerCase() === "cancelado";
+const normalizeAgendaStatus = (status?: string | null) =>
+  (status ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const isItemCancelado = (item: Pick<ItemAgendaUnificado, "status">) => {
+  const status = normalizeAgendaStatus(item.status);
+  return status === "cancelado" || status === "cancelada";
+};
+
+const isItemEncerrado = (item: ItemAgendaUnificado) =>
+  isItemTratado(item) || isItemCancelado(item);
 
 const diasDaSemana = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
@@ -710,9 +722,9 @@ export default function PainelControle() {
 
       // Status (grupo simplificado)
       if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
-        const st = (item.status ?? "").toLowerCase();
+        const st = normalizeAgendaStatus(item.status);
         const concluido = isItemTratado(item);
-        const cancelado = st === "cancelado";
+        const cancelado = isItemCancelado(item);
         if (painelFiltros.statusGroup === "a_concluir" && (concluido || cancelado)) return false;
         if (painelFiltros.statusGroup === "concluidas" && !concluido) return false;
         if (painelFiltros.statusGroup === "canceladas" && !cancelado) return false;
@@ -810,16 +822,18 @@ export default function PainelControle() {
   const contagensPorClassificacao = useMemo(() => {
     const counts = { tarefa: 0, evento: 0, prazo: 0, audiencia: 0, parcelamento: 0 };
     const base = itensAgenda.filter((item) => {
-      // Exclui itens já tratados/concluídos dos contadores dos cards totalizadores
-      if (isItemTratado(item)) return false;
       // Status (grupo simplificado)
-      if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
-        const st = (item.status ?? "").toLowerCase();
+      const statusGroup = painelFiltros.statusGroup ?? "todas";
+      if (statusGroup === "todas" || statusGroup === "a_concluir") {
+        // Os cards totalizadores representam pendências em aberto.
+        if (isItemEncerrado(item)) return false;
+      }
+      if (statusGroup !== "todas") {
         const concluido = isItemTratado(item);
-        const cancelado = st === "cancelado";
-        if (painelFiltros.statusGroup === "a_concluir" && (concluido || cancelado)) return false;
-        if (painelFiltros.statusGroup === "concluidas" && !concluido) return false;
-        if (painelFiltros.statusGroup === "canceladas" && !cancelado) return false;
+        const cancelado = isItemCancelado(item);
+        if (statusGroup === "a_concluir" && (concluido || cancelado)) return false;
+        if (statusGroup === "concluidas" && !concluido) return false;
+        if (statusGroup === "canceladas" && !cancelado) return false;
       }
       if (painelFiltros.situacoes.length > 0 && !painelFiltros.situacoes.includes(item.status)) return false;
       if (painelFiltros.souResponsavel || painelFiltros.estouEnvolvido) {
@@ -1145,6 +1159,7 @@ export default function PainelControle() {
                         setPainelFiltros((s) => ({
                           ...s,
                           classificacoes: active ? [] : [f.key],
+                          statusGroup: active ? s.statusGroup : "a_concluir",
                         }))
                       }
                       title={`Somente ${f.label}`}
@@ -1445,6 +1460,7 @@ export default function PainelControle() {
                   setPainelFiltros((f) => ({
                     ...f,
                     classificacoes: f.classificacoes.includes("tarefa") ? [] : ["tarefa"],
+                    statusGroup: f.classificacoes.includes("tarefa") ? f.statusGroup : "a_concluir",
                   }))
                 }
                 className={cn(
@@ -1469,6 +1485,7 @@ export default function PainelControle() {
                   setPainelFiltros((f) => ({
                     ...f,
                     classificacoes: f.classificacoes.includes("evento") ? [] : ["evento"],
+                    statusGroup: f.classificacoes.includes("evento") ? f.statusGroup : "a_concluir",
                   }))
                 }
                 className={cn(
@@ -1493,6 +1510,7 @@ export default function PainelControle() {
                   setPainelFiltros((f) => ({
                     ...f,
                     classificacoes: f.classificacoes.includes("prazo") ? [] : ["prazo"],
+                    statusGroup: f.classificacoes.includes("prazo") ? f.statusGroup : "a_concluir",
                   }))
                 }
                 className={cn(
@@ -1517,6 +1535,7 @@ export default function PainelControle() {
                   setPainelFiltros((f) => ({
                     ...f,
                     classificacoes: f.classificacoes.includes("audiencia") ? [] : ["audiencia"],
+                    statusGroup: f.classificacoes.includes("audiencia") ? f.statusGroup : "a_concluir",
                   }))
                 }
                 className={cn(
@@ -1541,6 +1560,7 @@ export default function PainelControle() {
                   setPainelFiltros((f) => ({
                     ...f,
                     classificacoes: f.classificacoes.includes("parcelamento") ? [] : ["parcelamento"],
+                    statusGroup: f.classificacoes.includes("parcelamento") ? f.statusGroup : "a_concluir",
                   }))
                 }
                 className={cn(
