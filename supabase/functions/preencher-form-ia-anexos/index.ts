@@ -320,7 +320,7 @@ Deno.serve(async (req) => {
 
     const callChunk = async (chunkText: string, idx: number) => {
       const res = await geminiChatCompletionsFetch({
-        model: "gemini-2.5-pro",
+        model: "gemini-2.5-flash",
         temperature: 0,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },

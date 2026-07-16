@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
     };
 
     const aiRes = await geminiChatCompletionsFetch({
-        model: "gemini-2.5-pro",
+        model: "gemini-2.5-flash",
         temperature: 0.1,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },

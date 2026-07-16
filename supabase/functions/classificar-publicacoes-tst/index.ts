@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { geminiChatCompletionsFetch } from "../_shared/gemini-openai-compat.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,9 +21,13 @@ serve(async (req) => {
       );
     }
 
-    const anthropicApiKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!anthropicApiKey) {
-      throw new Error("ANTHROPIC_API_KEY não está configurada");
+    const hasGeminiKey = !!(
+      Deno.env.get("GEMINI_API_KEY_DJEN") ||
+      Deno.env.get("GEMINI_API_KEY") ||
+      Deno.env.get("GOOGLE_API_KEY")
+    );
+    if (!hasGeminiKey) {
+      throw new Error("GEMINI_API_KEY não está configurada");
     }
 
     // 1. Buscar tabela de IRR do TST
@@ -160,41 +165,33 @@ IMPORTANTE:
 
 ${pubsTexto}`;
 
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": anthropicApiKey,
-          "anthropic-version": "2023-06-01",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 4096,
-          system: systemPrompt,
-          messages: [
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.1,
-        }),
+      const response = await geminiChatCompletionsFetch({
+        model: "gemini-2.5-flash",
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
       });
 
       if (!response.ok) {
         if (response.status === 429) {
           return new Response(
-            JSON.stringify({ error: "Limite de requisições excedido na API Claude. Tente novamente em alguns segundos." }),
+            JSON.stringify({ error: "Limite de requisições excedido na API Gemini. Tente novamente em alguns segundos." }),
             { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
         const errorText = await response.text();
-        console.error("Erro na API Claude:", response.status, errorText);
-        throw new Error(`Erro ao consultar Claude para classificação: ${response.status}`);
+        console.error("Erro na API Gemini:", response.status, errorText);
+        throw new Error(`Erro ao consultar Gemini para classificação: ${response.status}`);
       }
 
       const data = await response.json();
-      const content = data.content?.[0]?.text;
+      const content = data?.choices?.[0]?.message?.content;
 
       if (!content) {
-        console.error("Resposta vazia do Claude para lote", i);
+        console.error("Resposta vazia da IA para lote", i);
         batch.forEach((p: any) => {
           resultados.push({ id: p.id, categoria: "PRAZOS", observacao_ia: "Classificação padrão (sem resposta da IA)" });
         });
@@ -225,7 +222,7 @@ ${pubsTexto}`;
           });
         }
       } catch (parseErr) {
-        console.error("Erro ao parsear resposta do Claude:", parseErr, jsonStr);
+        console.error("Erro ao parsear resposta da IA:", parseErr, jsonStr);
         batch.forEach((p: any) => {
           resultados.push({ id: p.id, categoria: "PRAZOS", observacao_ia: "Erro no parsing da classificação" });
         });
