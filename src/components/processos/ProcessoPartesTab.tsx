@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users } from "lucide-react";
+import { Users, UserCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -17,6 +17,16 @@ type Parte = {
   tipo_pessoa: string | null;
   polo: string | null;
   is_advogado: boolean | null;
+  fonte?: string | null;
+};
+
+type Testemunha = {
+  id: string;
+  nome: string;
+  cpf_rg: string | null;
+  telefone: string | null;
+  email: string | null;
+  arrolada_por: string | null;
 };
 
 const formatDoc = (doc: string | null) => {
@@ -35,7 +45,7 @@ export function ProcessoPartesTab({ processoId }: Props) {
       if (!processoId) return [];
       const { data, error } = await supabase
         .from("processos_partes")
-        .select("nome, documento, tipo_pessoa, polo, is_advogado")
+        .select("nome, documento, tipo_pessoa, polo, is_advogado, fonte")
         .eq("processo_id", processoId)
         .order("is_advogado", { ascending: true })
         .order("nome", { ascending: true });
@@ -44,7 +54,23 @@ export function ProcessoPartesTab({ processoId }: Props) {
     },
   });
 
+  const { data: testemunhas = [], isLoading: loadingTest } = useQuery<Testemunha[]>({
+    queryKey: ["processo-testemunhas-partes", processoId],
+    enabled: !!processoId,
+    queryFn: async () => {
+      if (!processoId) return [];
+      const { data, error } = await supabase
+        .from("processos_testemunhas" as any)
+        .select("id, nome, cpf_rg, telefone, email, arrolada_por")
+        .eq("processo_id", processoId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return ((data as any) || []) as Testemunha[];
+    },
+  });
+
   return (
+    <div className="space-y-4">
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
@@ -74,6 +100,7 @@ export function ProcessoPartesTab({ processoId }: Props) {
                   <TableHead>Tipo</TableHead>
                   <TableHead>Nome</TableHead>
                   <TableHead>CPF/CNPJ</TableHead>
+                  <TableHead>Fonte</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -91,6 +118,7 @@ export function ProcessoPartesTab({ processoId }: Props) {
                     <TableCell className="text-xs">{p.tipo_pessoa || "—"}</TableCell>
                     <TableCell className="font-medium text-sm">{p.nome || "Sem nome"}</TableCell>
                     <TableCell className="text-xs font-mono">{formatDoc(p.documento)}</TableCell>
+                    <TableCell className="text-xs">{p.fonte || "—"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -99,5 +127,50 @@ export function ProcessoPartesTab({ processoId }: Props) {
         )}
       </CardContent>
     </Card>
+
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg flex items-center gap-2">
+          <UserCheck className="w-5 h-5" />
+          Testemunhas
+          {testemunhas.length > 0 && <Badge variant="secondary" className="ml-2">{testemunhas.length}</Badge>}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {loadingTest ? (
+          <Skeleton className="h-8" />
+        ) : testemunhas.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground text-sm">
+            Nenhuma testemunha cadastrada.
+          </div>
+        ) : (
+          <div className="rounded-md border overflow-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>CPF/RG</TableHead>
+                  <TableHead>Telefone</TableHead>
+                  <TableHead>E-mail</TableHead>
+                  <TableHead>Arrolada por</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {testemunhas.map((t) => (
+                  <TableRow key={t.id} className="bg-amber-50/40 dark:bg-amber-950/20">
+                    <TableCell className="font-medium text-sm">{t.nome}</TableCell>
+                    <TableCell className="text-xs font-mono">{t.cpf_rg || "—"}</TableCell>
+                    <TableCell className="text-xs">{t.telefone || "—"}</TableCell>
+                    <TableCell className="text-xs">{t.email || "—"}</TableCell>
+                    <TableCell className="text-xs">{t.arrolada_por || "—"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+    </div>
   );
 }
