@@ -55,16 +55,6 @@ type AnexoComAnalise = {
   tamanho_bytes?: number;
   url?: string;
   uploaded?: boolean;
-  analise?: {
-    categoria: string;
-    tipo_documento: string | null;
-    descricao: string;
-    tags: string[];
-    confianca: string;
-    raw?: any;
-  };
-  analisando?: boolean;
-  erro?: string;
 };
 
 const formSchema = z.object({
@@ -157,7 +147,6 @@ export function NovaTarefaDialog({
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
-  const [analiseVisualizando, setAnaliseVisualizando] = useState<AnexoComAnalise | null>(null);
   const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
   // Recorrência
   const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
