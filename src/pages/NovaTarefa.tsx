@@ -416,59 +416,12 @@ export default function NovaTarefa() {
     enabled: !!tarefaRelacionadaId,
   });
 
-  const analisarDocumentoComIA = async (file: File): Promise<AnexoComAnalise['analise']> => {
-    try {
-      let content = "";
-      if (file.type === "text/plain" || file.name.endsWith('.txt')) {
-        content = await file.text();
-      } else {
-        content = `[Arquivo binário: ${file.name}]`;
-      }
-
-      const { data, error } = await supabase.functions.invoke("analisar-documento", {
-        body: {
-          fileName: file.name,
-          fileContent: content,
-          mimeType: file.type,
-        },
-      });
-
-      if (error) throw error;
-      return data;
-    } catch (err) {
-      console.error("Erro ao analisar documento:", err);
-      return undefined;
-    }
-  };
-
   const handleAddAnexo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
-      const novosAnexos: AnexoComAnalise[] = Array.from(files).map(file => ({
-        file,
-        analisando: true,
-      }));
-      
+      const novosAnexos: AnexoComAnalise[] = Array.from(files).map(file => ({ file }));
       setAnexos(prev => [...prev, ...novosAnexos]);
       e.target.value = '';
-
-      for (let i = 0; i < novosAnexos.length; i++) {
-        const anexo = novosAnexos[i];
-        try {
-          const analise = await analisarDocumentoComIA(anexo.file);
-          setAnexos(prev => prev.map(a => 
-            a.file === anexo.file 
-              ? { ...a, analise, analisando: false }
-              : a
-          ));
-        } catch (err) {
-          setAnexos(prev => prev.map(a => 
-            a.file === anexo.file 
-              ? { ...a, analisando: false, erro: "Falha na análise" }
-              : a
-          ));
-        }
-      }
     }
   };
 
