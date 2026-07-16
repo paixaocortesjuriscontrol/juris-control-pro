@@ -42,15 +42,6 @@ import { Label } from "@/components/ui/label";
 
 type AnexoComAnalise = {
   file: File;
-  analise?: {
-    categoria: string;
-    tipo_documento: string | null;
-    descricao: string;
-    tags: string[];
-    confianca: string;
-  };
-  analisando?: boolean;
-  erro?: string;
 };
 
 const formSchema = z.object({
