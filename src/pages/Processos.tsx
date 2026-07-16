@@ -907,6 +907,11 @@ const Processos = () => {
                 Com Tarefas ×
               </Badge>
             )}
+            {acompanhamentoEspecial && (
+              <Badge variant="secondary" className="cursor-pointer bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300" onClick={() => setAcompanhamentoEspecial(false)}>
+                Acompanhamento Especial ×
+              </Badge>
+            )}
             {(filtrosAplicados.periodoInicio || filtrosAplicados.periodoFim) && (
               <Badge variant="secondary" className="cursor-pointer" onClick={() => {
                 setFiltrosAvancados(prev => ({ ...prev, periodoInicio: undefined, periodoFim: undefined }));
