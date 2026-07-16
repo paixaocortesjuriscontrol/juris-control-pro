@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
+import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 
 interface ProcessoEditarCompletoProps {
   processo: any;
@@ -99,6 +100,20 @@ export function ProcessoEditarCompleto({
     options?: { value: string; label: string }[];
   }) => {
     const value = formData[field] ?? "";
+
+    const CURRENCY_FIELDS = new Set(["valor_causa", "valor_condenacao", "valor_provisionado"]);
+    if (CURRENCY_FIELDS.has(field)) {
+      return (
+        <div className={className}>
+          <p className="text-xs font-medium text-blue-600 dark:text-blue-400">{label}</p>
+          <CurrencyInputBRL
+            value={value}
+            onChange={(v) => onInputChange(field, v)}
+            className="h-8 mt-0.5"
+          />
+        </div>
+      );
+    }
 
     if (type === "select" && options) {
       return (
