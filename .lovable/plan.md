@@ -1,103 +1,53 @@
-## Objetivo
-Tela admin `/admin/consumo-ia` com relatório detalhado de todas as chamadas de IA do sistema: usuário, tela/origem, função, modelo, tokens (input/output) e custo estimado em USD/BRL.
+## Problema confirmado
 
-## Confirmação: AI Gateway da Lovable
-Fiz um `rg` no projeto e **não há nenhum uso do AI Gateway da Lovable** (nada de `ai.gateway.lovable`, `LOVABLE_API_KEY`, `createOpenAICompatible` etc). Todas as chamadas vão direto para `generativelanguage.googleapis.com` via `_shared/gemini-openai-compat.ts` usando `GEMINI_API_KEY`. Nada a remover.
+Na coordenação Dr. Thomás, o botão informa “Nenhuma duplicada encontrada”, mas há duplicadas visíveis na tela porque existem dois problemas combinados:
 
-## 1. Nova tabela `ai_usage_logs`
+1. **Intervalo errado no botão**: quando os campos do bloco de descarte estão vazios, o botão força apenas o dia atual. As duplicadas do print são de **publicação 15/07** e **disponibilização 14/07**, então ficam fora da janela consultada.
+2. **Regra incompleta para Kurier**: o Kurier às vezes manda o `id_djen` dentro do texto como `ID COMUNICAÇÃO <número>`, não em campo próprio. Quando não extraímos isso, algumas duplicadas ficam com `id_djen = null` e dependem de hash de conteúdo. No caso do canal legado `TRF 1`, também há recortes sem esse ID, então precisa existir fallback por processo + data + conteúdo normalizado.
 
-Migração cria a tabela + GRANTs + RLS + índices.
+## Plano de correção
 
-Colunas:
-- `id uuid pk`, `created_at timestamptz default now()`
-- `user_id uuid` (auth.uid() de quem invocou a edge function)
-- `user_email text` (denormalizado do profiles p/ relatório sem join)
-- `edge_function text not null` (ex.: `repositorio-chat`, `analisar-documento`)
-- `origem text` (tela de origem, ex.: `/repositorio`, `/processos/:id`, `/assistente-juridico`) — enviado pelo frontend no body como `_origem`
-- `model text not null` (`gemini-2.5-flash` etc.)
-- `prompt_tokens int`, `completion_tokens int`, `total_tokens int`
-- `custo_usd numeric(10,6)` (calculado no servidor a partir de tokens × tabela de preços)
-- `duracao_ms int`
-- `status text` (`success` | `error` | `rate_limited`)
-- `erro text` (mensagem quando `status != success`)
-- `metadata jsonb` (livre — processo_numero, doc_id, etc.)
+### 1. Corrigir o comportamento do botão na tela
 
-RLS:
-- Só admins fazem SELECT (via `has_role(auth.uid(), 'admin')`).
-- INSERT só via `service_role` (edge functions escrevem com service role — não expor ao anon/authenticated).
+Em `src/pages/AnaliseDjen.tsx`:
 
-Índices: `(created_at desc)`, `(user_id, created_at desc)`, `(edge_function, created_at desc)`.
+- Fazer o botão “Descartar duplicadas da coordenação” usar, por padrão, os filtros já aplicados na tela:
+  - se houver `Data de Disponibilização`, usar essa data;
+  - senão, se houver `Data de Publicação`, usar essa data;
+  - senão, se houver `Data Início/Fim (captura)`, usar esse intervalo;
+  - só usar “hoje” se nenhum filtro de data estiver aplicado.
+- Atualizar o texto de confirmação para deixar claro qual intervalo será usado.
+- Se a tela estiver mostrando publicações de 14/07 ou 15/07, o botão vai consultar esse mesmo período, não apenas 16/07.
 
-## 2. Helper compartilhado `supabase/functions/_shared/ai-usage-logger.ts`
+### 2. Extrair `id_djen` do texto Kurier
 
-Função `logAiUsage({ req, supabase, edgeFunction, model, usage, duracaoMs, status, erro?, metadata? })`:
-- Extrai `user_id` do JWT (`req.headers.authorization` → `supabase.auth.getUser`).
-- Extrai `_origem` do body (o frontend passa; fallback: header `x-lovable-origem` ou `null`).
-- Calcula `custo_usd` a partir da tabela de preços (constante no helper):
-  - `gemini-2.5-flash`: $0.30 / 1M input, $2.50 / 1M output
-  - `gemini-2.5-pro`: $1.25 / 1M input, $10 / 1M output
-  - (fácil estender)
-- Faz INSERT com `service_role` (client já criado nas functions com service role).
-- **Nunca lança** — try/catch interno; logar erro no console mas não quebrar a chamada de IA.
+Em `supabase/functions/kurier-consultar-publicacoes/index.ts`:
 
-## 3. Instrumentar as edge functions de IA (16 no total)
+- Adicionar parser para `ID COMUNICAÇÃO <número>` em `Texto`/`PUBLICACAO`.
+- Gravar esse número em `publicacoes_djen.id_djen` quando existir.
+- Manter `id_kurier` como identificador interno do Kurier.
 
-Padrão em cada function:
-```ts
-const t0 = Date.now();
-try {
-  const resp = await geminiChatCompletionsFetch({ ... });
-  const data = await resp.json();
-  await logAiUsage({ req, supabase, edgeFunction: "repositorio-chat",
-    model: "gemini-2.5-flash", usage: data.usage,
-    duracaoMs: Date.now() - t0, status: "success",
-    metadata: { conversa_id } });
-  ...
-} catch (err) {
-  await logAiUsage({ ..., status: "error", erro: String(err) });
-  throw err;
-}
-```
+### 3. Backfill dos registros já existentes
 
-Functions a instrumentar:
-`repositorio-chat`, `preencher-form-ia-anexos`, `preencher-form-ia-anexos-processo`, `analise-quarteirizado-ia`, `ia-responde`, `analisar-documento`, `analisar-tst-ia`, `classificar-publicacoes-tst`, `resumir-publicacoes`, `comparar-dj-santander`, `complementar-planilha-tst`, `ia-preagendar-djen`, `analisar-publicacao-ia`, `analisar-prazos-drive`, `analisar-tst-prompt-ia` — mais quaisquer outras que apareçam no `rg` na hora do build.
+Criar migração para:
 
-## 4. Frontend — envio da tela de origem
+- Popular `publicacoes_djen.id_djen` nos registros Kurier antigos onde `id_djen IS NULL` e o conteúdo contém `ID COMUNICAÇÃO`.
+- Fazer o mesmo em `publicacoes_djen_descartadas`, para histórico ficar consistente.
 
-Criar wrapper leve `src/lib/invokeIA.ts`:
-```ts
-export const invokeIA = (name, body) =>
-  supabase.functions.invoke(name, {
-    body: { ...body, _origem: window.location.pathname }
-  });
-```
-Substituir os `supabase.functions.invoke("<nome-ia>", …)` das ~12 telas identificadas por `invokeIA(...)`. Chamadas de IA feitas via `fetch` direto (poucas — ex.: `repositorio-chat` stream) recebem header `x-lovable-origem: <pathname>`.
+### 4. Fortalecer a função de descarte
 
-## 5. Tela `/admin/consumo-ia` (admin)
+Atualizar `descartar_duplicadas_coordenacao` para detectar duplicadas Kurier por três camadas:
 
-Rota nova no `App.tsx`, protegida por `has_role admin`. Card entrará em **Administração**.
+1. mesma coordenação + mesmo `id_djen`;
+2. mesmo processo + mesma data + conteúdo Kurier normalizado sem “Parte intimação”;
+3. fallback para recortes Kurier legados sem `id_djen`, como os dois do print (`id_kurier` diferentes, mesmo processo/data/conteúdo normalizado).
 
-Componentes:
-- **Filtros no topo:** período (default últimos 7 dias), usuário (select multi), edge_function (select multi), modelo, status.
-- **KPIs (4 cards):** total de chamadas, total de tokens, custo total USD, custo total BRL (× cotação fixa configurável — default 5,50).
-- **Gráfico 1:** tokens/dia (barra empilhada input vs output).
-- **Gráfico 2:** top 10 funções por custo (barra horizontal).
-- **Gráfico 3:** top 10 usuários por custo (barra horizontal).
-- **Tabela detalhada** (paginada, 50/pg, ordenável): data/hora, usuário, tela (origem), edge function, modelo, prompt tokens, completion tokens, total, custo USD, duração, status. Linha expansível mostra `metadata` + `erro`.
-- **Botão "Exportar CSV"** (o filtro atual).
+Também ajustar a janela da função para considerar corretamente `data_disponibilizacao`, `data_publicacao` e `created_at`, evitando perder publicações que aparecem na tela por uma data mas são filtradas na função por outra.
 
-Tudo lê direto de `ai_usage_logs` com RLS. Sem edge function extra.
+### 5. Validar no caso do Dr. Thomás
 
-## 6. Detalhes técnicos
+Depois de implementar:
 
-- **Custo em BRL:** cotação hardcoded (5,50) mostrada com nota "estimativa". Se quiser configurável depois, dá pra puxar de `parametros_monitoramento_djen` ou nova tabela — fica fora do escopo.
-- **Retroativo:** não fazemos backfill (conforme acordado). A tela mostra "Coleta iniciada em <data>" se o filtro pegar antes da primeira linha.
-- **Segurança:** só admin lê; edge functions escrevem via service_role. Nada de escrever do browser.
-- **Performance:** para períodos longos usar agregações (`group by date_trunc('day', ...)`) via `supabase--read_query` — a tela usa RPCs SQL para os gráficos e SELECT paginado para a tabela.
-- **Sem quebra:** logger nunca lança; se der erro na tabela, a chamada de IA segue normal.
-
-## Fora de escopo
-- Alertas de estouro de orçamento.
-- Limite por usuário/coordenação.
-- Backfill de chamadas antigas.
-- Dashboard por coordenação (dá pra adicionar depois — coluna `coordenacao_id` já no metadata).
+- Rodar consulta no processo `1011123-46.2025.4.01.4200` da coordenação Dr. Thomás.
+- Confirmar que os dois Kurier iguais (`id_kurier 2957056940` e `2957057687`) entram no mesmo grupo de duplicidade.
+- Executar/validar o descarte e confirmar que uma fica na lista e a outra vai para `publicacoes_djen_descartadas` com lote de desfazer.
