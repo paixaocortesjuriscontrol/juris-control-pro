@@ -53,7 +53,7 @@ serve(async (req) => {
     }));
 
     const resp = await geminiChatCompletionsFetch({
-      model: "gemini-2.5-flash",
+      _ai_usage: { edgeFunction: "ia-preagendar-djen", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: "gemini-2.5-flash",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: `Publicações:\n${JSON.stringify(payload, null, 2)}\n\nRetorne JSON conforme especificado.` },

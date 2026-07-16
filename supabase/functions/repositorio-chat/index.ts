@@ -246,7 +246,7 @@ ${documentosProcessosContexto}
 Responda de forma profissional, precisa e útil. Use formatação markdown quando apropriado.`;
 
     const response = await geminiChatCompletionsFetch({
-      model: 'gemini-2.5-flash',
+      _ai_usage: { edgeFunction: "repositorio-chat", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: 'gemini-2.5-flash',
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages

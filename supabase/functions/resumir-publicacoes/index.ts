@@ -372,7 +372,7 @@ serve(async (req) => {
       try {
         for (let attempt = 0; attempt < 3; attempt++) {
           const resp = await geminiChatCompletionsFetch({
-            model: summaryModel,
+            _ai_usage: { edgeFunction: "resumir-publicacoes", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: summaryModel,
             messages: [
               { role: 'system', content: SYSTEM_PROMPT_BLOCO },
               { role: 'user', content: userMsgBloco },
@@ -468,7 +468,7 @@ serve(async (req) => {
         let respText = '';
         for (let attempt = 0; attempt < 3; attempt++) {
           const resp = await geminiChatCompletionsFetch({
-            model: summaryModel,
+            _ai_usage: { edgeFunction: "resumir-publicacoes", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: summaryModel,
             messages: [
               { role: 'system', content: SYSTEM_PROMPT_FASE_TRECHO },
               { role: 'user', content: userMsg },
@@ -548,7 +548,7 @@ serve(async (req) => {
         for (let attempt = 0; attempt < maxRetries; attempt++) {
           try {
             const resp = await geminiChatCompletionsFetch({
-              model: summaryModel,
+              _ai_usage: { edgeFunction: "resumir-publicacoes", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: summaryModel,
               messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: userMsg },
@@ -725,7 +725,7 @@ serve(async (req) => {
     console.log(`Resumindo ${publicacoesLimitadas.length} de ${totalOriginal} publicações para monitoramento:`, monitoramentoId);
 
     const response = await geminiChatCompletionsFetch({
-        model: 'gemini-2.5-pro',
+        _ai_usage: { edgeFunction: "resumir-publicacoes", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: 'gemini-2.5-pro',
         messages: [
           {
             role: 'system',

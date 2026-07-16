@@ -182,7 +182,7 @@ Deno.serve(async (req) => {
     const fullText = parts.join("\n\n");
 
     const aiRes = await geminiChatCompletionsFetch({
-      model: Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash",
+      _ai_usage: { edgeFunction: "preencher-form-ia-anexos-processo", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash",
       temperature: 0,
       response_format: { type: "json_object" },
       messages: [

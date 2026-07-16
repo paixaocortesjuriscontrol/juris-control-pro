@@ -272,7 +272,7 @@ ${fileContent.length > 8000 ? "\n[Conteúdo truncado - documento muito grande]" 
     console.log(`Analisando documento: ${fileName}`);
 
     const response = await geminiChatCompletionsFetch({
-      model: 'gemini-2.5-flash',
+      _ai_usage: { edgeFunction: "analisar-documento", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: 'gemini-2.5-flash',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }

@@ -188,7 +188,7 @@ Deno.serve(async (req) => {
     };
 
     const aiRes = await geminiChatCompletionsFetch({
-        model: "gemini-2.5-flash",
+        _ai_usage: { edgeFunction: "analise-quarteirizado-ia", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: "gemini-2.5-flash",
         temperature: 0.1,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },

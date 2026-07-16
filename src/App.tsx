@@ -81,6 +81,7 @@ import CorrigirPlanilha from "./pages/CorrigirPlanilha";
 import MateriasBenner from "./pages/MateriasBenner";
 import ClassificacaoTst from "./pages/ClassificacaoTst";
 import IaResponde from "./pages/IaResponde";
+import ConsumoIA from "./pages/ConsumoIA";
 import AdminTst from "./pages/AdminTst";
 import AdminTstImportacoes from "./pages/AdminTstImportacoes";
 import AdminTstOutroEscritorio from "./pages/AdminTstOutroEscritorio";
@@ -143,6 +144,7 @@ function App() {
               <Route path="/painel-equipe" element={<ProtectedRoute><PainelEquipe /></ProtectedRoute>} />
               <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
               <Route path="/admin" element={<AdminRoute><Administracao /></AdminRoute>} />
+              <Route path="/consumo-ia" element={<AdminRoute><ConsumoIA /></AdminRoute>} />
               <Route path="/pool-proxy-djen" element={<AdminRoute><PoolProxyDjen /></AdminRoute>} />
               <Route path="/valida-kurier" element={<AdminRoute><ValidaKurier /></AdminRoute>} />
               <Route path="/consulta-externa" element={<ProtectedRoute><ConsultaExterna /></ProtectedRoute>} />

@@ -220,7 +220,7 @@ function base64ToUint8Array(base64: string): Uint8Array {
 
 // --- AI analysis ---
 
-async function analyzeWithAI(text: string, fileName: string): Promise<any[]> {
+async function analyzeWithAI(text: string, fileName: string, req: Request): Promise<any[]> {
   if (!(Deno.env.get("GEMINI_API_KEY_DJEN") || Deno.env.get("GEMINI_API_KEY") || Deno.env.get("GOOGLE_API_KEY"))) throw new Error("GEMINI_API_KEY não configurada");
 
   const systemPrompt = `Você é um analista jurídico especializado em processos trabalhistas do TST.
@@ -239,7 +239,7 @@ IMPORTANTE: Retorne TODOS os processos distintos encontrados no documento. Se ho
 Se alguma informação não for encontrada, retorne "(Não localizado)".`;
 
   const resp = await geminiChatCompletionsFetch({
-      model: "gemini-2.5-pro",
+      _ai_usage: { edgeFunction: "analisar-prazos-drive", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: "gemini-2.5-pro",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `Documento: ${fileName}\n\nConteúdo:\n${text.substring(0, 15000)}` },

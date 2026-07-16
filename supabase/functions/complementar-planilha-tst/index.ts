@@ -57,7 +57,7 @@ REGRAS:
     }).join("\n");
 
     const resp = await geminiChatCompletionsFetch({
-        model: AI_MODEL,
+        _ai_usage: { edgeFunction: "complementar-planilha-tst", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: AI_MODEL,
         temperature: 0.1,
         messages: [
           { role: "system", content: systemPrompt },

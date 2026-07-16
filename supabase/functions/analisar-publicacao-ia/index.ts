@@ -163,6 +163,7 @@ Responda APENAS com um JSON válido no seguinte formato (sem markdown, sem expli
       tool_choice: { type: "function", function: { name: "preencher_tarefa_publicacao" } },
     };
 
+    (aiBody as any)._ai_usage = { edgeFunction: "analisar-publicacao-ia", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") };
     const response = await geminiChatCompletionsFetch(aiBody);
 
     if (!response.ok) {
