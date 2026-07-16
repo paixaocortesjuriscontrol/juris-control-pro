@@ -479,8 +479,10 @@ export function ProcessoEditarCompleto({
                       <Textarea
                         value={formData.pedidos || ""}
                         onChange={(e) => onInputChange("pedidos", e.target.value)}
-                        className="min-h-[150px] mt-0.5"
+                        className="min-h-[150px] mt-0.5 resize-y overflow-hidden"
                         placeholder="Liste os pedidos do processo..."
+                        ref={(el) => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }}
+                        onInput={(e) => { const el = e.currentTarget; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }}
                       />
                     </div>
                   </div>
