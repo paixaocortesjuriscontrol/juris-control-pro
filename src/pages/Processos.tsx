@@ -444,6 +444,7 @@ const Processos = () => {
     comAudiencias ||
     comIntimacoes ||
     comTarefas ||
+    acompanhamentoEspecial ||
     !!grupoClientesParam ||
     selectedGrupoId !== "all" ||
     selectedClienteId !== "all";
