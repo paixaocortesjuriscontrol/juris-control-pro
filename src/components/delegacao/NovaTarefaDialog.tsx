@@ -1242,9 +1242,8 @@ export function NovaTarefaDialog({
               {/* Anexos - Sempre disponível */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium flex items-center gap-2">
-                    Documentos para Análise
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                  <label className="text-sm font-medium">
+                    Documentos
                   </label>
                   <div className="relative">
                     <input
@@ -1265,13 +1264,11 @@ export function NovaTarefaDialog({
                 {anexos.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">
                     Nenhum documento anexado. Clique em "Adicionar" para incluir arquivos.
-                    <br />
-                    <span className="text-amber-600">A IA irá categorizar automaticamente.</span>
                   </p>
                 ) : (
                   <div className="space-y-2">
                     {anexos.map((anexo, index) => (
-                      <div key={index} className="p-3 bg-muted/50 rounded-lg text-sm space-y-2">
+                      <div key={index} className="p-3 bg-muted/50 rounded-lg text-sm">
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0 flex-1">
                             <FileText className="w-4 h-4 text-primary shrink-0" />
@@ -1302,18 +1299,6 @@ export function NovaTarefaDialog({
                               <Download className="w-3 h-3" />
                             </Button>
                           )}
-                          {anexo.analise && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              title="Ver análise da IA"
-                              onClick={() => setAnaliseVisualizando(anexo)}
-                            >
-                              <Eye className="w-3 h-3 text-amber-600" />
-                            </Button>
-                          )}
                           <Button
                             type="button"
                             variant="ghost"
@@ -1324,30 +1309,6 @@ export function NovaTarefaDialog({
                             <Trash2 className="w-3 h-3 text-destructive" />
                           </Button>
                           </div>
-                        </div>
-                        
-                        {/* Status da análise IA */}
-                        <div className="flex items-center gap-2 text-xs">
-                          {anexo.analisando ? (
-                            <>
-                              <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
-                              <span className="text-muted-foreground">Analisando com IA...</span>
-                            </>
-                          ) : anexo.analise ? (
-                            <>
-                              <CheckCircle2 className="w-3 h-3 text-green-500" />
-                              <Badge variant="secondary" className="text-xs">
-                                {getCategoriaLabel(anexo.analise.categoria)}
-                              </Badge>
-                              {anexo.analise.descricao && (
-                                <span className="text-muted-foreground truncate">
-                                  {anexo.analise.descricao}
-                                </span>
-                              )}
-                            </>
-                          ) : anexo.erro ? (
-                            <span className="text-destructive">{anexo.erro}</span>
-                          ) : null}
                         </div>
                       </div>
                     ))}
