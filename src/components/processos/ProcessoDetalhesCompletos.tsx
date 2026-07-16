@@ -1836,8 +1836,8 @@ export function ProcessoDetalhesCompletos({
               )}
 
               {/* Partes do processo (mesma listagem da Distribuição TST) */}
-              {activeSection === "partes" && processo?.numero && (
-                <ProcessoPartesTab processoNumero={processo.numero} />
+              {activeSection === "partes" && processo?.id && (
+                <ProcessoPartesTab processoId={processo.id} />
               )}
 
               {/* Comentários Section */}
