@@ -1,53 +1,40 @@
-## Problema confirmado
+Confirmado: card apenas na tela **Análise DJEN** (`src/pages/AnaliseDjen.tsx`). Não vou tocar em `AnaliseDjenServidor.tsx`.
 
-Na coordenação Dr. Thomás, o botão informa “Nenhuma duplicada encontrada”, mas há duplicadas visíveis na tela porque existem dois problemas combinados:
+## Verificação prévia
+Busquei em `src/components`, `src/pages` e `src/hooks`. Existem componentes parecidos, mas **nenhum** faz o que você descreveu (comparar execuções do mesmo dia mostrando, por coordenação, quantas publicações a mais cada execução seguinte encontrou):
 
-1. **Intervalo errado no botão**: quando os campos do bloco de descarte estão vazios, o botão força apenas o dia atual. As duplicadas do print são de **publicação 15/07** e **disponibilização 14/07**, então ficam fora da janela consultada.
-2. **Regra incompleta para Kurier**: o Kurier às vezes manda o `id_djen` dentro do texto como `ID COMUNICAÇÃO <número>`, não em campo próprio. Quando não extraímos isso, algumas duplicadas ficam com `id_djen = null` e dependem de hash de conteúdo. No caso do canal legado `TRF 1`, também há recortes sem esse ID, então precisa existir fallback por processo + data + conteúdo normalizado.
+- `src/components/djen/ExecucoesDoDiaLocalCard.tsx` + hook `useExecucoesDoDiaLocal` — lista execuções do dia com total e "novas vs anterior", mas agregado, sem quebra por coordenação, e filtrado pela coordenação selecionada.
+- `src/components/djen/ExecucoesDoDiaCard.tsx` (Servidor) — idem.
+- `src/pages/RelatorioExecucoes.tsx` — mostra `djen_runs` do período, mas não compara execuções do mesmo dia por coordenação.
 
-## Plano de correção
+Portanto vou criar um card novo reutilizando as mesmas tabelas usadas hoje (`execucoes_agendadas`, `publicacoes_djen_execucoes`, `publicacoes_djen.execucao_id`, `monitoramentos_djen.coordenacao_id`, `coordenacoes`). Sem migrations.
 
-### 1. Corrigir o comportamento do botão na tela
+## Novo hook
+`src/hooks/useExecucoesDoDiaPorCoordenacao.ts`
 
-Em `src/pages/AnaliseDjen.tsx`:
+- Recebe `dataYmd` (a data já usada em Análise DJEN: `dataDisponibilizacaoDebounced || dataPublicacaoDebounced`).
+- Busca `execucoes_agendadas` (tipos DJEN locais) no intervalo BRT do dia — mesma janela usada por `useExecucoesDoDiaLocal`.
+- Busca `publicacoes_djen_execucoes` filtrado por esses `execucao_id`, com join em `publicacoes_djen!inner(id, execucao_id, monitoramento:monitoramentos_djen!inner(coordenacao_id))`, **sem** filtrar por coordenação.
+- Busca `coordenacoes(id, nome)` para exibir nomes.
+- Agrega em memória:
+  - Para cada `(coordenacaoId, execId)`: `total` = nº de publicações vistas naquela execução dentro da coordenação; `novas` = publicações cuja **primeira execução do dia dentro dessa coordenação** é `execId` (comparando com a ordem cronológica das execuções do dia).
+- Retorna `{ execucoes: [{ id, iniciado_em, tipoEngine }], linhas: [{ coordenacaoId, nome, celulas: [{ execId, total, novas }] }] }`.
 
-- Fazer o botão “Descartar duplicadas da coordenação” usar, por padrão, os filtros já aplicados na tela:
-  - se houver `Data de Disponibilização`, usar essa data;
-  - senão, se houver `Data de Publicação`, usar essa data;
-  - senão, se houver `Data Início/Fim (captura)`, usar esse intervalo;
-  - só usar “hoje” se nenhum filtro de data estiver aplicado.
-- Atualizar o texto de confirmação para deixar claro qual intervalo será usado.
-- Se a tela estiver mostrando publicações de 14/07 ou 15/07, o botão vai consultar esse mesmo período, não apenas 16/07.
+## Novo componente
+`src/components/djen/ExecucoesDoDiaAdminCard.tsx`
 
-### 2. Extrair `id_djen` do texto Kurier
+- Card retraído por padrão (chevron), expande ao clicar no cabeçalho — mesmo padrão visual do `ExecucoesDoDiaLocalCard` (borda indigo, `Sparkles`).
+- Cabeçalho: "Execuções do dia por coordenação" + data + badge com nº de execuções.
+- Ao expandir, tabela: linhas = coordenações (ordem alfabética), colunas = execuções do dia em ordem cronológica com hora + tipo (Termos/Kurier/Processos). Cada célula mostra `total` e, para execuções após a primeira do dia naquela coordenação, `+N` novas (destacado em verde quando > 0). Rodapé com soma total e soma de "+novas" por execução.
+- Só renderiza quando há **2+ execuções** no dia (senão não há comparação).
 
-Em `supabase/functions/kurier-consultar-publicacoes/index.ts`:
+## Integração em `src/pages/AnaliseDjen.tsx`
+- Importar `ExecucoesDoDiaAdminCard`.
+- Renderizar logo abaixo do `<ExecucoesDoDiaLocalCard>` (~linha 4107), com guard:
+  `{isAdmin && (dataDisponibilizacaoDebounced || dataPublicacaoDebounced) && (<ExecucoesDoDiaAdminCard dataYmd={dataDisponibilizacaoDebounced || dataPublicacaoDebounced} />)}`.
+- `isAdmin` já está disponível na página (linha 141, via `useUserRole`). Não-admins não veem o card.
 
-- Adicionar parser para `ID COMUNICAÇÃO <número>` em `Texto`/`PUBLICACAO`.
-- Gravar esse número em `publicacoes_djen.id_djen` quando existir.
-- Manter `id_kurier` como identificador interno do Kurier.
-
-### 3. Backfill dos registros já existentes
-
-Criar migração para:
-
-- Popular `publicacoes_djen.id_djen` nos registros Kurier antigos onde `id_djen IS NULL` e o conteúdo contém `ID COMUNICAÇÃO`.
-- Fazer o mesmo em `publicacoes_djen_descartadas`, para histórico ficar consistente.
-
-### 4. Fortalecer a função de descarte
-
-Atualizar `descartar_duplicadas_coordenacao` para detectar duplicadas Kurier por três camadas:
-
-1. mesma coordenação + mesmo `id_djen`;
-2. mesmo processo + mesma data + conteúdo Kurier normalizado sem “Parte intimação”;
-3. fallback para recortes Kurier legados sem `id_djen`, como os dois do print (`id_kurier` diferentes, mesmo processo/data/conteúdo normalizado).
-
-Também ajustar a janela da função para considerar corretamente `data_disponibilizacao`, `data_publicacao` e `created_at`, evitando perder publicações que aparecem na tela por uma data mas são filtradas na função por outra.
-
-### 5. Validar no caso do Dr. Thomás
-
-Depois de implementar:
-
-- Rodar consulta no processo `1011123-46.2025.4.01.4200` da coordenação Dr. Thomás.
-- Confirmar que os dois Kurier iguais (`id_kurier 2957056940` e `2957057687`) entram no mesmo grupo de duplicidade.
-- Executar/validar o descarte e confirmar que uma fica na lista e a outra vai para `publicacoes_djen_descartadas` com lote de desfazer.
+## Fora do escopo
+- Sem alterações no card existente nem no `useExecucoesDoDiaLocal`.
+- Sem migrations.
+- Sem replicar na tela Servidor.

@@ -100,6 +100,7 @@ import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
 import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicacaoDjen";
 import { ExecucoesDoDiaLocalCard } from "@/components/djen/ExecucoesDoDiaLocalCard";
+import { ExecucoesDoDiaAdminCard } from "@/components/djen/ExecucoesDoDiaAdminCard";
 import { jsPDF } from "jspdf";
 import { dedupePublicacoesDjen, stripDestinatarios } from "@/utils/djenDedup";
 import { PreagendarIaDialog } from "@/components/analise-djen/PreagendarIaDialog";
@@ -4110,6 +4111,13 @@ const AnaliseDjen = () => {
           execucaoSelecionadaId={execucaoFocada?.id || null}
           onSelecionarExecucao={(exec) => setExecucaoFocada(exec)}
         />
+
+        {/* Admin: comparação de execuções do dia por coordenação */}
+        {isAdmin && (dataDisponibilizacaoDebounced || dataPublicacaoDebounced) && (
+          <ExecucoesDoDiaAdminCard
+            dataYmd={dataDisponibilizacaoDebounced || dataPublicacaoDebounced}
+          />
+        )}
 
         {/* Actions - Mobile optimized */}
         <div className="flex flex-wrap gap-1.5 md:gap-2">
