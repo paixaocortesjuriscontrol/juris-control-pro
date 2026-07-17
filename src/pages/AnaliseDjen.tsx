@@ -100,6 +100,7 @@ import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
 import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicacaoDjen";
 import { ExecucoesDoDiaLocalCard } from "@/components/djen/ExecucoesDoDiaLocalCard";
+import { ExecucoesDoDiaAdminCard } from "@/components/djen/ExecucoesDoDiaAdminCard";
 import { jsPDF } from "jspdf";
 import { dedupePublicacoesDjen, stripDestinatarios } from "@/utils/djenDedup";
 import { PreagendarIaDialog } from "@/components/analise-djen/PreagendarIaDialog";
