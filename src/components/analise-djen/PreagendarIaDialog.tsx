@@ -31,6 +31,20 @@ export function PreagendarIaDialog({ open, onOpenChange, publicacaoIds, coordena
   const [salvando, setSalvando] = useState(false);
   const qc = useQueryClient();
 
+  async function mensagemErroFunction(error: any) {
+    if (!error) return "Erro desconhecido";
+    try {
+      if (error.context) {
+        const text = await error.context.text();
+        const parsed = JSON.parse(text);
+        return parsed?.details || parsed?.error || text || error.message;
+      }
+    } catch {
+      // mantém a mensagem padrão abaixo
+    }
+    return error.message ?? String(error);
+  }
+
   async function analisar() {
     if (publicacaoIds.length === 0) return;
     setAnalisando(true);
@@ -38,7 +52,7 @@ export function PreagendarIaDialog({ open, onOpenChange, publicacaoIds, coordena
       const { data, error } = await supabase.functions.invoke("ia-preagendar-djen", {
         body: { publicacao_ids: publicacaoIds },
       });
-      if (error) throw error;
+      if (error) throw new Error(await mensagemErroFunction(error));
       setSugestoes((data?.sugestoes ?? []).map((s: Sugestao) => ({ ...s, aceitar: true })));
     } catch (e: any) {
       toast.error("Falha na IA: " + (e?.message ?? e));
