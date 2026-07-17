@@ -4112,6 +4112,13 @@ const AnaliseDjen = () => {
           onSelecionarExecucao={(exec) => setExecucaoFocada(exec)}
         />
 
+        {/* Admin: comparação de execuções do dia por coordenação */}
+        {isAdmin && (dataDisponibilizacaoDebounced || dataPublicacaoDebounced) && (
+          <ExecucoesDoDiaAdminCard
+            dataYmd={dataDisponibilizacaoDebounced || dataPublicacaoDebounced}
+          />
+        )}
+
         {/* Actions - Mobile optimized */}
         <div className="flex flex-wrap gap-1.5 md:gap-2">
           <Button
