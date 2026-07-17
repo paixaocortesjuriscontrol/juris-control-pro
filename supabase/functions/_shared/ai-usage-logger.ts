@@ -6,6 +6,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 // Tabela de preços (USD por 1M tokens). Baseada em julho/2026.
 // Extenda aqui conforme necessário.
 const PRICES: Record<string, { input: number; output: number }> = {
+  "gemini-flash-latest": { input: 0.30, output: 2.50 },
   "gemini-2.5-flash": { input: 0.30, output: 2.50 },
   "gemini-2.5-flash-preview": { input: 0.30, output: 2.50 },
   "gemini-2.5-pro": { input: 1.25, output: 10.0 },

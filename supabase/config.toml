@@ -210,3 +210,6 @@ verify_jwt = true
 
 [functions.judit-acompanhamento-especial]
 verify_jwt = false
+
+[functions.ia-preagendar-djen]
+verify_jwt = true

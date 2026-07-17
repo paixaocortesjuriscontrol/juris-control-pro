@@ -39,21 +39,24 @@ serve(async (req) => {
     const ids = publicacao_ids.slice(0, 30);
     const { data: pubs, error } = await supabase
       .from("publicacoes_djen")
-      .select("id, numero_processo, data_publicacao, texto, tribunal, orgao_julgador")
+      .select("id, processo_numero, data_publicacao, conteudo, tribunal, orgao")
       .in("id", ids);
-    if (error) throw error;
+    if (error) {
+      console.error("Erro ao buscar publicações DJEN para pré-agendamento:", error.message);
+      throw error;
+    }
 
     const payload = (pubs ?? []).map((p: any) => ({
       publicacao_id: p.id,
-      numero_processo: p.numero_processo,
+      numero_processo: p.processo_numero,
       data_publicacao: p.data_publicacao,
       tribunal: p.tribunal,
-      orgao_julgador: p.orgao_julgador,
-      texto: (p.texto ?? "").slice(0, 4000),
+      orgao_julgador: p.orgao,
+      texto: (p.conteudo ?? "").slice(0, 4000),
     }));
 
     const resp = await geminiChatCompletionsFetch({
-      _ai_usage: { edgeFunction: "ia-preagendar-djen", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: "gemini-2.5-flash",
+      _ai_usage: { edgeFunction: "ia-preagendar-djen", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") }, model: Deno.env.get("GEMINI_MODEL") || "gemini-flash-latest",
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: `Publicações:\n${JSON.stringify(payload, null, 2)}\n\nRetorne JSON conforme especificado.` },
@@ -64,7 +67,8 @@ serve(async (req) => {
 
     if (!resp.ok) {
       const errText = await resp.text();
-      return new Response(JSON.stringify({ error: "IA falhou", details: errText.slice(0, 500) }),
+      console.error("IA pré-agendamento DJEN falhou:", errText.slice(0, 1000));
+      return new Response(JSON.stringify({ error: "IA falhou", details: errText.slice(0, 1000) }),
         { status: resp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -78,6 +82,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
+    console.error("Erro em ia-preagendar-djen:", e?.message ?? e);
     return new Response(JSON.stringify({ error: String(e?.message ?? e) }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
