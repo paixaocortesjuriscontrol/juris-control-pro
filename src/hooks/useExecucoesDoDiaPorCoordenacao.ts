@@ -1,7 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-export type TipoEngineLocal = "paralela" | "kurier" | "processos";
+export type TipoEngineLocal =
+  | "paralela"
+  | "kurier"
+  | "processos"
+  | "servidor-termos"
+  | "servidor-pautas";
 
 export interface ExecucaoResumo {
   id: string;
@@ -39,6 +44,11 @@ function mapEngine(tipo: string): TipoEngineLocal {
   return "paralela";
 }
 
+function mapEngineServidor(tipo: string): TipoEngineLocal {
+  const t = String(tipo || "").toLowerCase();
+  return t.includes("pauta") ? "servidor-pautas" : "servidor-termos";
+}
+
 /**
  * Retorna a comparação das execuções DJEN locais do dia por coordenação.
  * Para cada (coordenação, execução): total de publicações vistas e quantas
@@ -56,70 +66,138 @@ export function useExecucoesDoDiaPorCoordenacao(
     enabled,
     staleTime: 30_000,
     queryFn: async (): Promise<ExecucoesDoDiaPorCoordenacao> => {
-      // Janela BRT (UTC-3) do dia
+      // Janela BRT (UTC-3) do dia — usada para execuções locais (agendadas)
       const startUtc = `${ymd}T03:00:00`;
       const endDate = new Date(`${ymd}T00:00:00Z`);
       endDate.setUTCDate(endDate.getUTCDate() + 1);
       const nextYmd = endDate.toISOString().slice(0, 10);
       const endUtc = `${nextYmd}T03:00:00`;
 
-      const { data: execs, error: execErr } = await (supabase
-        .from("execucoes_agendadas") as any)
-        .select("id, tipo, iniciado_em")
-        .in("tipo", TIPOS_LOCAIS as unknown as string[])
-        .gte("iniciado_em", startUtc)
-        .lt("iniciado_em", endUtc)
-        .order("iniciado_em", { ascending: true });
+      // 1a) Execuções LOCAIS do dia
+      const [{ data: execsLocal, error: execErrLocal }, { data: execsServ, error: execErrServ }] =
+        await Promise.all([
+          (supabase.from("execucoes_agendadas") as any)
+            .select("id, tipo, iniciado_em")
+            .in("tipo", TIPOS_LOCAIS as unknown as string[])
+            .gte("iniciado_em", startUtc)
+            .lt("iniciado_em", endUtc)
+            .order("iniciado_em", { ascending: true }),
+          // 1b) Execuções SERVIDOR do dia (mesma janela BRT)
+          (supabase.from("execucoes_servidor") as any)
+            .select("id, tipo, iniciado_em, resultado, status")
+            .gte("iniciado_em", startUtc)
+            .lt("iniciado_em", endUtc)
+            .eq("status", "concluido")
+            .order("iniciado_em", { ascending: true }),
+        ]);
 
-      if (execErr) {
-        console.error("[execucoes-do-dia-por-coordenacao] execs", execErr);
-        return { execucoes: [], linhas: [] };
+      if (execErrLocal) {
+        console.error("[execucoes-do-dia-por-coordenacao] execs locais", execErrLocal);
       }
-      if (!execs || execs.length === 0) return { execucoes: [], linhas: [] };
+      if (execErrServ) {
+        console.error("[execucoes-do-dia-por-coordenacao] execs servidor", execErrServ);
+      }
 
-      const execIds = execs.map((e: any) => e.id as string);
+      type ExecInterna = {
+        id: string;
+        iniciado_em: string;
+        tipo: string;
+        tipoEngine: TipoEngineLocal;
+        fonte: "local" | "servidor";
+      };
+
+      const locais: ExecInterna[] = (execsLocal || []).map((e: any) => ({
+        id: e.id as string,
+        iniciado_em: e.iniciado_em as string,
+        tipo: e.tipo as string,
+        tipoEngine: mapEngine(e.tipo),
+        fonte: "local",
+      }));
+
+      // Filtra servidor cujo resultado.dataInicio bate com o ymd (quando disponível)
+      const servidor: ExecInterna[] = (execsServ || [])
+        .filter((e: any) => {
+          const di = e?.resultado?.dataInicio as string | undefined;
+          return !di || di === ymd;
+        })
+        .map((e: any) => ({
+          id: e.id as string,
+          iniciado_em: e.iniciado_em as string,
+          tipo: e.tipo as string,
+          tipoEngine: mapEngineServidor(e.tipo),
+          fonte: "servidor",
+        }));
+
+      const todas: ExecInterna[] = [...locais, ...servidor].sort((a, b) =>
+        a.iniciado_em < b.iniciado_em ? -1 : a.iniciado_em > b.iniciado_em ? 1 : 0,
+      );
+
+      if (todas.length === 0) return { execucoes: [], linhas: [] };
+
       const execOrdemById = new Map<string, number>();
-      execs.forEach((e: any, idx: number) => execOrdemById.set(e.id, idx));
+      todas.forEach((e, idx) => execOrdemById.set(e.id, idx));
 
-      // Junção publicação × execução com coordenação (sem filtrar por coord).
-      const { data: rows, error: junErr } = await (supabase
-        .from("publicacoes_djen_execucoes") as any)
-        .select(
-          "publicacao_id, execucao_id, publicacao:publicacoes_djen!inner(id, monitoramento:monitoramentos_djen!inner(coordenacao_id))",
-        )
-        .in("execucao_id", execIds);
+      // 2) Junções (paralelas) — pubId prefixado por fonte para evitar colisão
+      const localExecIds = locais.map((e) => e.id);
+      const servExecIds = servidor.map((e) => e.id);
 
-      if (junErr) {
-        console.error("[execucoes-do-dia-por-coordenacao] junção", junErr);
-        return {
-          execucoes: execs.map((e: any) => ({
-            id: e.id,
-            iniciado_em: e.iniciado_em,
-            tipo: e.tipo,
-            tipoEngine: mapEngine(e.tipo),
-          })),
-          linhas: [],
-        };
+      const [junLocal, junServ] = await Promise.all([
+        localExecIds.length === 0
+          ? Promise.resolve({ data: [], error: null })
+          : (supabase.from("publicacoes_djen_execucoes") as any)
+              .select(
+                "publicacao_id, execucao_id, publicacao:publicacoes_djen!inner(id, monitoramento:monitoramentos_djen!inner(coordenacao_id))",
+              )
+              .in("execucao_id", localExecIds),
+        servExecIds.length === 0
+          ? Promise.resolve({ data: [], error: null })
+          : (supabase.from("publicacoes_djen_servidor_execucoes") as any)
+              .select(
+                "publicacao_id, execucao_id, publicacao:publicacoes_djen_servidor!inner(id, coordenacao_id)",
+              )
+              .in("execucao_id", servExecIds),
+      ]);
+
+      if ((junLocal as any).error) {
+        console.error("[execucoes-do-dia-por-coordenacao] junção local", (junLocal as any).error);
+      }
+      if ((junServ as any).error) {
+        console.error("[execucoes-do-dia-por-coordenacao] junção servidor", (junServ as any).error);
       }
 
-      // Map: coordId -> pubId -> Set<execId>
+      // Map: coordId -> pubKey (prefix:fonte:pubId) -> Set<execId>
       const porCoordPub = new Map<string, Map<string, Set<string>>>();
       const coordIds = new Set<string>();
 
-      for (const r of rows || []) {
-        const execId = r.execucao_id as string;
-        const pubId = r.publicacao_id as string;
-        const coordId = r.publicacao?.monitoramento?.coordenacao_id as
-          | string
-          | null
-          | undefined;
-        if (!coordId) continue;
-        coordIds.add(coordId);
-        if (!porCoordPub.has(coordId)) porCoordPub.set(coordId, new Map());
-        const byPub = porCoordPub.get(coordId)!;
-        if (!byPub.has(pubId)) byPub.set(pubId, new Set());
-        byPub.get(pubId)!.add(execId);
-      }
+      const consumirLinhas = (
+        rows: any[],
+        extractCoord: (r: any) => string | null | undefined,
+        prefix: "L" | "S",
+      ) => {
+        for (const r of rows || []) {
+          const execId = r.execucao_id as string;
+          const pubId = r.publicacao_id as string;
+          const coordId = extractCoord(r);
+          if (!coordId) continue;
+          coordIds.add(coordId);
+          if (!porCoordPub.has(coordId)) porCoordPub.set(coordId, new Map());
+          const byPub = porCoordPub.get(coordId)!;
+          const key = `${prefix}:${pubId}`;
+          if (!byPub.has(key)) byPub.set(key, new Set());
+          byPub.get(key)!.add(execId);
+        }
+      };
+
+      consumirLinhas(
+        (junLocal as any).data || [],
+        (r: any) => r.publicacao?.monitoramento?.coordenacao_id,
+        "L",
+      );
+      consumirLinhas(
+        (junServ as any).data || [],
+        (r: any) => r.publicacao?.coordenacao_id,
+        "S",
+      );
 
       // Nomes de coordenações
       const coordIdArr = Array.from(coordIds);
@@ -158,7 +236,7 @@ export function useExecucoesDoDiaPorCoordenacao(
           }
         }
 
-        const celulas: Celula[] = execs.map((e: any, idx: number) => ({
+        const celulas: Celula[] = todas.map((e, idx) => ({
           execId: e.id,
           total: totalPorExec.get(e.id) || 0,
           novas: novasPorExec.get(e.id) || 0,
@@ -182,11 +260,11 @@ export function useExecucoesDoDiaPorCoordenacao(
       );
 
       return {
-        execucoes: execs.map((e: any) => ({
+        execucoes: todas.map((e) => ({
           id: e.id,
           iniciado_em: e.iniciado_em,
           tipo: e.tipo,
-          tipoEngine: mapEngine(e.tipo),
+          tipoEngine: e.tipoEngine,
         })),
         linhas,
       };
