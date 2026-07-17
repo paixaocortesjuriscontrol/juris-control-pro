@@ -9,14 +9,15 @@
 //   const data = await response.json(); // mesmo formato do OpenAI
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
-const DEFAULT_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-flash-latest";
+const FALLBACK_MODEL = "gemini-flash-latest";
+const DEFAULT_MODEL = Deno.env.get("GEMINI_MODEL") || FALLBACK_MODEL;
 
 import { logAiUsage, type AiUsageLogParams } from "./ai-usage-logger.ts";
 
 type AiUsageCtx = Pick<AiUsageLogParams, "edgeFunction" | "authHeader" | "referer" | "origem" | "metadata">;
 
 function mapModel(model?: string): string {
-  if (!model) return DEFAULT_MODEL;
+  const rawModel = (model || DEFAULT_MODEL).replace(/^models\//, "").trim();
   // Modelos descontinuados pelo Google -> redirecionar para o alias atual
   const deprecated = new Set([
     "gemini-2.5-flash",
@@ -25,10 +26,10 @@ function mapModel(model?: string): string {
     "gemini-1.5-pro",
     "gemini-pro",
   ]);
-  if (deprecated.has(model)) return DEFAULT_MODEL;
-  if (model.startsWith("gemini")) return model;
+  if (deprecated.has(rawModel)) return FALLBACK_MODEL;
+  if (rawModel.startsWith("gemini")) return rawModel;
   // gpt-4o, gpt-4o-mini, gpt-4.1, etc -> Gemini padrão
-  return DEFAULT_MODEL;
+  return FALLBACK_MODEL;
 }
 
 function messagesToContents(messages: any[]) {
