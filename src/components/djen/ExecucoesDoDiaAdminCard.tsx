@@ -41,6 +41,8 @@ function fmtHora(iso: string): string {
 function rotuloEngine(t: TipoEngineLocal): string {
   if (t === "kurier") return "Kurier";
   if (t === "processos") return "Processos";
+  if (t === "servidor-termos") return "Servidor · Termos";
+  if (t === "servidor-pautas") return "Servidor · Pautas";
   return "Termos";
 }
 
