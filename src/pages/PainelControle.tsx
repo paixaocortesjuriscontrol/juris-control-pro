@@ -1069,6 +1069,7 @@ export default function PainelControle() {
               onOpenChange={setRelatorioAudOpen}
             />
           )}
+          {mostrarFiltros && (<>
           <div className="flex items-center gap-2 md:gap-3 flex-wrap">
             <div className="flex gap-1 flex-shrink-0">
               <Button
