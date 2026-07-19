@@ -1436,6 +1436,7 @@ export default function PainelControle() {
               </Select>
             </div>
           )}
+          </>)}
         </div>
 
         {/* Cards de Resumo — compactos no mobile */}
