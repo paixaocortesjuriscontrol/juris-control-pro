@@ -143,6 +143,14 @@ export default function PainelControle() {
   useEffect(() => {
     try { window.localStorage.setItem("painel:mostrarTotalizadores", mostrarTotalizadores ? "1" : "0"); } catch {}
   }, [mostrarTotalizadores]);
+  const [mostrarFiltros, setMostrarFiltros] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const v = window.localStorage.getItem("painel:mostrarFiltros");
+    return v === null ? true : v === "1";
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("painel:mostrarFiltros", mostrarFiltros ? "1" : "0"); } catch {}
+  }, [mostrarFiltros]);
 
   const updateItemAgenda = useUpdateItemAgenda();
   const updateEvento = useUpdateEvento();
