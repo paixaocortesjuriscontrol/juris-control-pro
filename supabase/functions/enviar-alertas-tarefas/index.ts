@@ -106,9 +106,31 @@ serve(async (req) => {
     let totalFalhas = 0;
     const detalhes: any[] = [];
 
+    // Cache de nomes de coordenações
+    const coordCache = new Map<string, string>();
+    async function nomeCoord(id: string): Promise<string> {
+      if (coordCache.has(id)) return coordCache.get(id)!;
+      const { data } = await supabase.from("coordenacoes").select("nome").eq("id", id).maybeSingle();
+      const nome = (data as any)?.nome ?? "";
+      coordCache.set(id, nome);
+      return nome;
+    }
+
+    // Cache de nomes de usuários (profiles)
+    const profileCache = new Map<string, string>();
+    async function nomesProfiles(ids: string[]): Promise<string[]> {
+      const faltantes = ids.filter((i) => i && !profileCache.has(i));
+      if (faltantes.length) {
+        const { data } = await supabase.from("profiles").select("id, nome").in("id", faltantes);
+        (data ?? []).forEach((p: any) => profileCache.set(p.id, p.nome ?? ""));
+      }
+      return ids.map((i) => profileCache.get(i) ?? "").filter(Boolean);
+    }
+
     for (const cfg of configs) {
       if (!cfg.canal_email && !cfg.canal_whatsapp) continue;
       if (!cfg.destinatarios_ids?.length) continue;
+      const coordNome = await nomeCoord(cfg.coordenacao_id);
 
       // Buscar destinatários (email + telefone)
       const { data: dests } = await supabase
@@ -123,48 +145,63 @@ serve(async (req) => {
         const alvoIni = alvoInfo.rangeUtcInicio;
         const alvoFim = alvoInfo.rangeUtcFim;
 
-        const itens: Array<{ id: string; titulo: string; data: string; hora?: string | null; processo?: string | null; origem: string }> = [];
+        const itens: Array<{ id: string; titulo: string; data: string; hora?: string | null; processo?: string | null; origem: string; responsaveis: string[] }> = [];
 
         // 1) Tarefas (data_vencimento é date — comparação direta em BRT)
         const { data: tarefas } = await supabase
           .from("tarefas")
-          .select("id, titulo, data_vencimento, hora_prevista, processo:processos!inner(numero, coordenacao_id)")
+          .select("id, titulo, data_vencimento, hora_prevista, responsavel_id, tarefa_responsaveis(usuario_id), processo:processos!inner(numero, coordenacao_id)")
           .eq("tipo_tarefa", cfg.tipo_tarefa)
           .eq("processo.coordenacao_id", cfg.coordenacao_id)
           .eq("data_vencimento", alvo)
           .neq("status", "concluida");
-        (tarefas ?? []).forEach((t: any) => itens.push({
-          id: t.id, titulo: t.titulo, data: t.data_vencimento, hora: t.hora_prevista,
-          processo: t.processo?.numero, origem: "tarefa",
-        }));
+        for (const t of (tarefas ?? []) as any[]) {
+          const respIds = new Set<string>();
+          if (t.responsavel_id) respIds.add(t.responsavel_id);
+          (t.tarefa_responsaveis ?? []).forEach((r: any) => r.usuario_id && respIds.add(r.usuario_id));
+          const responsaveis = await nomesProfiles([...respIds]);
+          itens.push({
+            id: t.id, titulo: t.titulo, data: t.data_vencimento, hora: t.hora_prevista,
+            processo: t.processo?.numero, origem: "tarefa", responsaveis,
+          });
+        }
 
         // 2) Audiências detectadas — data_audiencia é timestamptz, filtrar por range BRT
         if (cfg.tipo_tarefa === "AUDIÊNCIA") {
           const { data: audiencias } = await supabase
             .from("audiencias_detectadas")
-            .select("id, processo_numero, data_audiencia, hora, cliente, status")
+            .select("id, processo_numero, data_audiencia, hora, cliente, status, audiencias_advogados(advogado_id)")
             .eq("coordenacao_id", cfg.coordenacao_id)
             .gte("data_audiencia", alvoIni)
             .lte("data_audiencia", alvoFim)
             .not("status", "in", "(tratado,ignorado,cancelado)");
-          (audiencias ?? []).forEach((a: any) => itens.push({
-            id: a.id, titulo: `Audiência ${a.cliente ?? a.processo_numero ?? ""}`.trim(),
-            data: a.data_audiencia, hora: a.hora, processo: a.processo_numero, origem: "audiencia",
-          }));
+          for (const a of (audiencias ?? []) as any[]) {
+            const respIds = (a.audiencias_advogados ?? []).map((x: any) => x.advogado_id).filter(Boolean);
+            const responsaveis = await nomesProfiles(respIds);
+            itens.push({
+              id: a.id, titulo: `Audiência ${a.cliente ?? a.processo_numero ?? ""}`.trim(),
+              data: a.data_audiencia, hora: a.hora, processo: a.processo_numero, origem: "audiencia",
+              responsaveis,
+            });
+          }
         }
 
         // 3) Eventos — data_inicio timestamptz, range BRT
         if (cfg.tipo_tarefa === "OUTROS") {
           const { data: eventos } = await supabase
             .from("eventos_agenda")
-            .select("id, titulo, data_inicio, status, processo:processos!inner(coordenacao_id)")
+            .select("id, titulo, data_inicio, status, criado_por, processo:processos!inner(coordenacao_id)")
             .eq("processo.coordenacao_id", cfg.coordenacao_id)
             .gte("data_inicio", alvoIni)
             .lte("data_inicio", alvoFim)
             .neq("status", "concluido");
-          (eventos ?? []).forEach((e: any) => itens.push({
-            id: e.id, titulo: e.titulo, data: (e.data_inicio ?? "").slice(0, 10), origem: "evento",
-          }));
+          for (const e of (eventos ?? []) as any[]) {
+            const responsaveis = e.criado_por ? await nomesProfiles([e.criado_por]) : [];
+            itens.push({
+              id: e.id, titulo: e.titulo, data: (e.data_inicio ?? "").slice(0, 10), origem: "evento",
+              responsaveis,
+            });
+          }
         }
 
         if (itens.length === 0) continue;
@@ -174,12 +211,14 @@ serve(async (req) => {
         const linhas = itens.slice(0, 30).map((i) => {
           const h = i.hora ? ` às ${i.hora}` : "";
           const p = i.processo ? ` — ${i.processo}` : "";
-          return `• ${i.titulo}${h}${p}`;
+          const r = i.responsaveis?.length ? ` — Resp.: ${i.responsaveis.join(", ")}` : "";
+          return `• ${i.titulo}${h}${p}${r}`;
         }).join("\n");
         const cabecalho = nDias === 0
           ? `📅 Alertas para HOJE (${dataStr}) — ${cfg.tipo_tarefa}`
           : `⏰ Alertas para ${dataStr} (em ${nDias} dia${nDias > 1 ? "s" : ""}) — ${cfg.tipo_tarefa}`;
-        const corpoTexto = `${cabecalho}\n\n${linhas}\n\nTotal: ${itens.length} item(ns)`;
+        const linhaCoord = coordNome ? `Coordenação: ${coordNome}\n` : "";
+        const corpoTexto = `${cabecalho}\n\n${linhaCoord}${linhaCoord ? "\n" : ""}${linhas}\n\nTotal: ${itens.length} item(ns)`;
 
         // Dedupe key: mesmo dia BRT + destinatário + canal + tipo (rota "referencia_id" é uuid → não serve; usamos janela por dia)
         const inicioDiaBrtUtc = new Date(Date.now() - 3 * 60 * 60 * 1000);
