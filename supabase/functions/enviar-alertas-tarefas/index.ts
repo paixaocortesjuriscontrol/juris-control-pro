@@ -48,6 +48,7 @@ interface Config {
   dias_antes: number[];
   destinatarios_ids: string[];
   ativo: boolean;
+  dias_semana?: number[] | null;
 }
 
 // Data "hoje" em BRT (UTC-3), independente do fuso do runtime da edge function.
@@ -95,6 +96,9 @@ serve(async (req) => {
     const hoje = hojeBRT();
     console.log(`[alertas-tarefas] Executando para data BRT: ${hoje.ymd}`);
 
+    // Dia da semana em BRT (0=Dom .. 6=Sáb)
+    const diaSemanaBRT = new Date(Date.now() - 3 * 60 * 60 * 1000).getUTCDay();
+
     const { data: configsData, error: cfgErr } = await supabase
       .from("config_envio_alertas_tarefas")
       .select("*")
@@ -130,6 +134,14 @@ serve(async (req) => {
     for (const cfg of configs) {
       if (!cfg.canal_email && !cfg.canal_whatsapp) continue;
       if (!cfg.destinatarios_ids?.length) continue;
+      // Respeitar dias da semana configurados (default: dias úteis)
+      const diasSemana = Array.isArray(cfg.dias_semana) && cfg.dias_semana.length
+        ? cfg.dias_semana
+        : [1, 2, 3, 4, 5];
+      if (!diasSemana.includes(diaSemanaBRT)) {
+        console.log(`[alertas-tarefas] Pulando cfg ${cfg.id} — dia ${diaSemanaBRT} fora de [${diasSemana.join(",")}]`);
+        continue;
+      }
       const coordNome = await nomeCoord(cfg.coordenacao_id);
 
       // Buscar destinatários (email + telefone)
