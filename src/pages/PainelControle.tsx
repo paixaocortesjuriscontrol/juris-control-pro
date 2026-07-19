@@ -1027,6 +1027,15 @@ export default function PainelControle() {
           >
             {mostrarTotalizadores ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMostrarFiltros((v) => !v)}
+            title={mostrarFiltros ? "Ocultar filtros" : "Mostrar filtros"}
+            aria-label={mostrarFiltros ? "Ocultar filtros" : "Mostrar filtros"}
+          >
+            <SlidersHorizontal className={`w-4 h-4 ${mostrarFiltros ? "" : "opacity-50"}`} />
+          </Button>
           {isAdmin && (
             <Button asChild variant="outline" size="sm">
               <Link to="/dashboard">Dashboard</Link>
@@ -1040,7 +1049,7 @@ export default function PainelControle() {
           <Button variant="outline" size="sm" onClick={() => setRelatorioAudOpen(true)} title="Relatório de audiências por usuário/situação">
             <BarChart3 className="w-4 h-4 mr-1" /> Relatório Audiências
           </Button>
-          {isAdmin && (
+          {false && isAdmin && (
             <Button asChild variant="outline" size="sm">
               <Link to="/painel-intimacoes">Painel Intimações</Link>
             </Button>
