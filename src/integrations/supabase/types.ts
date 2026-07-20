@@ -8876,6 +8876,15 @@ export type Database = {
       }
     }
     Functions: {
+      _tmp_rel_recurso_fora: {
+        Args: never
+        Returns: {
+          campo: string
+          dossie: string
+          processo: string
+          valor: string
+        }[]
+      }
       add_fonte_importacao: {
         Args: { p_fonte: string; p_id: string }
         Returns: undefined
