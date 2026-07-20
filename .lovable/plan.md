@@ -1,40 +1,35 @@
-Confirmado: card apenas na tela **Análise DJEN** (`src/pages/AnaliseDjen.tsx`). Não vou tocar em `AnaliseDjenServidor.tsx`.
+## Objetivo
 
-## Verificação prévia
-Busquei em `src/components`, `src/pages` e `src/hooks`. Existem componentes parecidos, mas **nenhum** faz o que você descreveu (comparar execuções do mesmo dia mostrando, por coordenação, quantas publicações a mais cada execução seguinte encontrou):
+Identificar em `dados_benner` todos os processos cujo `tipo_recurso_reclamante`, `tipo_recurso_banco` ou `tipo_recurso_terceiro` contenha algum valor que **não** faça parte da lista atual do seletor (`OPCOES_RECURSO` em `MultiTipoRecurso.tsx`) e apresentar isso em relatório com número do processo.
 
-- `src/components/djen/ExecucoesDoDiaLocalCard.tsx` + hook `useExecucoesDoDiaLocal` — lista execuções do dia com total e "novas vs anterior", mas agregado, sem quebra por coordenação, e filtrado pela coordenação selecionada.
-- `src/components/djen/ExecucoesDoDiaCard.tsx` (Servidor) — idem.
-- `src/pages/RelatorioExecucoes.tsx` — mostra `djen_runs` do período, mas não compara execuções do mesmo dia por coordenação.
+## Diagnóstico (já confirmado por consulta ao banco)
 
-Portanto vou criar um card novo reutilizando as mesmas tabelas usadas hoje (`execucoes_agendadas`, `publicacoes_djen_execucoes`, `publicacoes_djen.execucao_id`, `monitoramentos_djen.coordenacao_id`, `coordenacoes`). Sem migrations.
+Rodei a consulta separando os valores por " + " e comparando com as 19 opções válidas. Existem muitos valores fora do padrão — divididos em três grupos:
 
-## Novo hook
-`src/hooks/useExecucoesDoDiaPorCoordenacao.ts`
+1. **Placeholders/lixo**: `-`, `--`, `---`, `-----`, `_____` (mais de 150 ocorrências somadas).
+2. **Variações de caixa/nomenclatura** que na verdade correspondem a opções válidas — apenas escritas diferentes:
+   - `Agravo de Instrumento em Recurso de Revista` / `AGRAVO DE INSTRUMENTO EM RECURSO DE REVISTA` / `AIRO` → hoje não existe na lista (a lista só tem "Agravo de Instrumento" genérico).
+   - `Recurso de Revista com Agravo` → também não está na lista.
+   - `Recurso Ordinário Trabalhista` / `ROT` / `RORSUM` → lista só tem "Recurso Ordinário".
+   - `RR`, `RECURSO DE REVISTA`, `RECURSO DE REVISTA (RR)` → equivalem a "Recurso de Revista".
+   - `AR`, `AÇÃO RESCISÓRIA`, `Ação rescisória` → "Ação Rescisória".
+   - `Rcl`, `RECLAMAÇÃO`, `Ag-Rcl` → "Reclamação".
+   - `EMB` → "Embargos de Declaração" (provável).
+3. **Códigos/tipos de ação que não são recursos** (vieram do Benner por engano): `ATORD`, `ATSUM`, `AÇÃO TRABALHISTA - RITO ORDINÁRIO/SUMARÍSSIMO`, `CUMPRSE`, `CUMSEN`, `CUMPRIMENTO DE SENTENÇA`, `PETCIV`, `MSCIV`, `HTE`, `ADESIVO`, `Agravo Regimental`.
 
-- Recebe `dataYmd` (a data já usada em Análise DJEN: `dataDisponibilizacaoDebounced || dataPublicacaoDebounced`).
-- Busca `execucoes_agendadas` (tipos DJEN locais) no intervalo BRT do dia — mesma janela usada por `useExecucoesDoDiaLocal`.
-- Busca `publicacoes_djen_execucoes` filtrado por esses `execucao_id`, com join em `publicacoes_djen!inner(id, execucao_id, monitoramento:monitoramentos_djen!inner(coordenacao_id))`, **sem** filtrar por coordenação.
-- Busca `coordenacoes(id, nome)` para exibir nomes.
-- Agrega em memória:
-  - Para cada `(coordenacaoId, execId)`: `total` = nº de publicações vistas naquela execução dentro da coordenação; `novas` = publicações cuja **primeira execução do dia dentro dessa coordenação** é `execId` (comparando com a ordem cronológica das execuções do dia).
-- Retorna `{ execucoes: [{ id, iniciado_em, tipoEngine }], linhas: [{ coordenacaoId, nome, celulas: [{ execId, total, novas }] }] }`.
+## Entrega
 
-## Novo componente
-`src/components/djen/ExecucoesDoDiaAdminCard.tsx`
+Vou gerar um **arquivo Excel** (`.xlsx`) em `/mnt/documents/` com:
 
-- Card retraído por padrão (chevron), expande ao clicar no cabeçalho — mesmo padrão visual do `ExecucoesDoDiaLocalCard` (borda indigo, `Sparkles`).
-- Cabeçalho: "Execuções do dia por coordenação" + data + badge com nº de execuções.
-- Ao expandir, tabela: linhas = coordenações (ordem alfabética), colunas = execuções do dia em ordem cronológica com hora + tipo (Termos/Kurier/Processos). Cada célula mostra `total` e, para execuções após a primeira do dia naquela coordenação, `+N` novas (destacado em verde quando > 0). Rodapé com soma total e soma de "+novas" por execução.
-- Só renderiza quando há **2+ execuções** no dia (senão não há comparação).
+- **Aba 1 — Processos com tipo de recurso fora da lista**: uma linha por combinação (processo, dossiê, campo, valor). Colunas: Processo, Dossiê, Campo (reclamante / banco / terceiro), Valor fora da lista, Valor original completo do campo.
+- **Aba 2 — Resumo por valor**: cada valor divergente e a quantidade de processos.
 
-## Integração em `src/pages/AnaliseDjen.tsx`
-- Importar `ExecucoesDoDiaAdminCard`.
-- Renderizar logo abaixo do `<ExecucoesDoDiaLocalCard>` (~linha 4107), com guard:
-  `{isAdmin && (dataDisponibilizacaoDebounced || dataPublicacaoDebounced) && (<ExecucoesDoDiaAdminCard dataYmd={dataDisponibilizacaoDebounced || dataPublicacaoDebounced} />)}`.
-- `isAdmin` já está disponível na página (linha 141, via `useUserRole`). Não-admins não veem o card.
+O relatório é somente leitura — não altera nenhum registro. Depois de gerado, você decide se quer:
+- adicionar as opções faltantes na lista do seletor,
+- ou fazer um "de-para" para normalizar os valores existentes no banco.
 
-## Fora do escopo
-- Sem alterações no card existente nem no `useExecucoesDoDiaLocal`.
-- Sem migrations.
-- Sem replicar na tela Servidor.
+## Detalhes técnicos
+
+- Fonte: tabela `dados_benner`, colunas `tipo_recurso_reclamante`, `tipo_recurso_banco`, `tipo_recurso_terceiro` (armazenam múltiplos valores separados por " + ").
+- Lista válida: `OPCOES_RECURSO` em `src/components/distribuicao-tst/MultiTipoRecurso.tsx` (19 valores).
+- Geração via `psql COPY` + montagem de xlsx com Python (`xlsxwriter`), salvando em `/mnt/documents/relatorio_tipo_recurso_fora_lista.xlsx`.
