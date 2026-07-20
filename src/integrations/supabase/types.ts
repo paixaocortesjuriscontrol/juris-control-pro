@@ -7170,6 +7170,50 @@ export type Database = {
           },
         ]
       }
+      prompts_ia_publicacoes: {
+        Row: {
+          ativo: boolean
+          coordenacao_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          prompt: string
+          tipo_item: Database["public"]["Enums"]["tipo_item_prompt_ia"]
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          ativo?: boolean
+          coordenacao_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          prompt: string
+          tipo_item: Database["public"]["Enums"]["tipo_item_prompt_ia"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          ativo?: boolean
+          coordenacao_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          prompt?: string
+          tipo_item?: Database["public"]["Enums"]["tipo_item_prompt_ia"]
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompts_ia_publicacoes_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prompts_ia_tst: {
         Row: {
           ativo: boolean
@@ -9662,6 +9706,7 @@ export type Database = {
         | "arquivado_definitivamente"
         | "suspenso"
       status_tarefa: "pendente" | "cumprido" | "atrasado" | "cancelado"
+      tipo_item_prompt_ia: "prazo" | "tarefa" | "evento" | "audiencia"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -9814,6 +9859,7 @@ export const Constants = {
         "suspenso",
       ],
       status_tarefa: ["pendente", "cumprido", "atrasado", "cancelado"],
+      tipo_item_prompt_ia: ["prazo", "tarefa", "evento", "audiencia"],
     },
   },
 } as const
