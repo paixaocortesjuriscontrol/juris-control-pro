@@ -49,6 +49,8 @@ interface Config {
   destinatarios_ids: string[];
   ativo: boolean;
   dias_semana?: number[] | null;
+  pos_vencimento_habilitado?: boolean | null;
+  pos_vencimento_horario?: string | null;
 }
 
 // Data "hoje" em BRT (UTC-3), independente do fuso do runtime da edge function.
@@ -297,6 +299,99 @@ serve(async (req) => {
         }
 
         detalhes.push({ config: cfg.id, tipo: cfg.tipo_tarefa, dias_antes: nDias, itens: itens.length });
+      }
+
+      // ============ Alertas Pós-Vencimento (itens vencidos não tratados) ============
+      if (cfg.pos_vencimento_habilitado) {
+        // Só envia se estivermos no horário configurado (janela de 1 hora)
+        const horaBRT = new Date(Date.now() - 3 * 60 * 60 * 1000).getUTCHours();
+        const horaCfg = parseInt(String(cfg.pos_vencimento_horario ?? "09:00").slice(0, 2), 10);
+        if (Number.isFinite(horaCfg) && horaBRT === horaCfg) {
+          const hojeYmd = hoje.ymd;
+          const itensVenc: Array<{ id: string; titulo: string; data: string; processo?: string | null; responsaveis: string[] }> = [];
+
+          // Tarefas vencidas (data_vencimento < hoje) e ainda não concluídas/tratadas
+          const { data: tarefasVenc } = await supabase
+            .from("tarefas")
+            .select("id, titulo, data_vencimento, data_cumprimento, responsavel_id, tarefa_responsaveis(usuario_id), processo:processos!inner(numero, coordenacao_id)")
+            .eq("tipo_tarefa", cfg.tipo_tarefa)
+            .eq("processo.coordenacao_id", cfg.coordenacao_id)
+            .lt("data_vencimento", hojeYmd)
+            .neq("status", "concluida")
+            .is("data_cumprimento", null);
+          for (const t of (tarefasVenc ?? []) as any[]) {
+            const respIds = new Set<string>();
+            if (t.responsavel_id) respIds.add(t.responsavel_id);
+            (t.tarefa_responsaveis ?? []).forEach((r: any) => r.usuario_id && respIds.add(r.usuario_id));
+            const responsaveis = await nomesProfiles([...respIds]);
+            itensVenc.push({
+              id: t.id, titulo: t.titulo, data: t.data_vencimento,
+              processo: t.processo?.numero, responsaveis,
+            });
+          }
+
+          if (itensVenc.length > 0) {
+            const linhas = itensVenc.slice(0, 40).map((i) => {
+              const p = i.processo ? ` — ${i.processo}` : "";
+              const r = i.responsaveis?.length ? ` — Resp.: ${i.responsaveis.join(", ")}` : "";
+              return `• ${i.titulo} (venceu em ${i.data.split("-").reverse().join("/")})${p}${r}`;
+            }).join("\n");
+            const cabecalho = `🚨 Itens VENCIDOS não tratados — ${cfg.tipo_tarefa}`;
+            const linhaCoord = coordNome ? `Coordenação: ${coordNome}\n\n` : "";
+            const corpoTexto = `${cabecalho}\n\n${linhaCoord}${linhas}\n\nTotal: ${itensVenc.length} item(ns) pendente(s)`;
+            const tag = `[${cfg.id.slice(0,8)}|posvenc|${hojeYmd}]`;
+
+            const inicioDiaBrtUtc = new Date(Date.now() - 3 * 60 * 60 * 1000);
+            inicioDiaBrtUtc.setUTCHours(0, 0, 0, 0);
+            const inicioJanelaUtc = new Date(inicioDiaBrtUtc.getTime() + 3 * 60 * 60 * 1000).toISOString();
+
+            for (const d of dests) {
+              if (cfg.canal_email && d.email) {
+                const { data: ja } = await supabase
+                  .from("historico_alertas_enviados")
+                  .select("id").eq("coordenacao_id", cfg.coordenacao_id)
+                  .eq("canal", "email").eq("destinatario", d.email)
+                  .eq("tipo_alerta", cfg.tipo_tarefa)
+                  .gte("enviado_em", inicioJanelaUtc)
+                  .ilike("conteudo", `%${tag}%`).maybeSingle();
+                if (!ja) {
+                  const r = await enviarEmailResend(d.email, cabecalho, corpoTexto);
+                  await supabase.from("historico_alertas_enviados").insert({
+                    coordenacao_id: cfg.coordenacao_id, tipo_alerta: cfg.tipo_tarefa,
+                    canal: "email", destinatario: d.email,
+                    conteudo: `${tag}\n${corpoTexto}`.slice(0, 2000),
+                    status: r.ok ? "enviado" : "falha", erro: r.ok ? null : (r.erro ?? "erro"),
+                  });
+                  if (r.ok) totalEnviados++; else totalFalhas++;
+                }
+              }
+              if (cfg.canal_whatsapp && d.telefone) {
+                const { data: ja } = await supabase
+                  .from("historico_alertas_enviados")
+                  .select("id").eq("coordenacao_id", cfg.coordenacao_id)
+                  .eq("canal", "whatsapp").eq("destinatario", d.telefone)
+                  .eq("tipo_alerta", cfg.tipo_tarefa)
+                  .gte("enviado_em", inicioJanelaUtc)
+                  .ilike("conteudo", `%${tag}%`).maybeSingle();
+                if (!ja) {
+                  const resp = await supabase.functions.invoke("enviar-whatsapp-zapi", {
+                    body: { telefones: [d.telefone], mensagem: corpoTexto, tipo: "lembrete" },
+                  });
+                  const ok = !resp.error;
+                  await supabase.from("historico_alertas_enviados").insert({
+                    coordenacao_id: cfg.coordenacao_id, tipo_alerta: cfg.tipo_tarefa,
+                    canal: "whatsapp", destinatario: d.telefone,
+                    conteudo: `${tag}\n${corpoTexto}`.slice(0, 2000),
+                    status: ok ? "enviado" : "falha",
+                    erro: ok ? null : String(resp.error?.message ?? "erro"),
+                  });
+                  if (ok) totalEnviados++; else totalFalhas++;
+                }
+              }
+            }
+            detalhes.push({ config: cfg.id, tipo: cfg.tipo_tarefa, pos_vencimento: itensVenc.length });
+          }
+        }
       }
     }
 

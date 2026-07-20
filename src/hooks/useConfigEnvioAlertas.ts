@@ -12,6 +12,8 @@ export interface ConfigEnvioAlerta {
   destinatarios_ids: string[];
   ativo: boolean;
   dias_semana: number[];
+  pos_vencimento_habilitado?: boolean;
+  pos_vencimento_horario?: string;
   created_at: string;
   updated_at: string;
 }
@@ -52,6 +54,8 @@ export function useConfigEnvioAlertas(coordenacaoId?: string) {
             destinatarios_ids: payload.destinatarios_ids ?? [],
             ativo: payload.ativo ?? true,
             dias_semana: payload.dias_semana ?? [1, 2, 3, 4, 5],
+            pos_vencimento_habilitado: payload.pos_vencimento_habilitado ?? false,
+            pos_vencimento_horario: payload.pos_vencimento_horario ?? "09:00",
           })
           .eq("id", (existing as any).id);
         if (error) throw error;
@@ -68,6 +72,8 @@ export function useConfigEnvioAlertas(coordenacaoId?: string) {
             destinatarios_ids: payload.destinatarios_ids ?? [],
             ativo: payload.ativo ?? true,
             dias_semana: payload.dias_semana ?? [1, 2, 3, 4, 5],
+            pos_vencimento_habilitado: payload.pos_vencimento_habilitado ?? false,
+            pos_vencimento_horario: payload.pos_vencimento_horario ?? "09:00",
             created_by: userRes.user?.id ?? null,
           });
         if (error) throw error;

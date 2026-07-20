@@ -30,7 +30,6 @@ import Documentos from "./pages/Documentos";
 import BuscarPJE from "./pages/BuscarPJE";
 import BuscarDjEstadual from "./pages/BuscarDjEstadual";
 import NotFound from "./pages/NotFound";
-import Redistribuicoes from "./pages/Redistribuicoes";
 import Clientes from "./pages/Clientes";
 import ClienteDetalhes from "./pages/ClienteDetalhes";
 import CompararDjSantander from "./pages/CompararDjSantander";
@@ -159,7 +158,6 @@ function App() {
               <Route path="/buscar-pje" element={<ProtectedRoute><BuscarPJE /></ProtectedRoute>} />
               <Route path="/buscar-dj-estadual" element={<ProtectedRoute><BuscarDjEstadual /></ProtectedRoute>} />
               <Route path="/configuracoes" element={<AdminRoute><Configuracoes /></AdminRoute>} />
-              <Route path="/redistribuicoes" element={<ProtectedRoute><Redistribuicoes /></ProtectedRoute>} />
               <Route path="/monitoramento-distribuicao" element={<ProtectedRoute><MonitoramentoDistribuicao /></ProtectedRoute>} />
               <Route path="/monitoramento-360" element={<ProtectedRoute><Monitoramento360 /></ProtectedRoute>} />
               <Route path="/monitoramento-djen" element={<ProtectedRoute><MonitoramentoDjen /></ProtectedRoute>} />

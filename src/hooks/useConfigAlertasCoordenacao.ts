@@ -33,12 +33,8 @@ export interface HistoricoAlertaEnviado {
 
 export const TIPOS_ALERTA = [
   { value: 'djen', label: 'Publicações DJEN', icon: '📰' },
-  { value: 'distribuicoes', label: 'Novas Distribuições', icon: '⚖️' },
-  { value: 'alertas360', label: 'Alertas 360°', icon: '🎯' },
-  { value: 'redistribuicoes', label: 'Redistribuições', icon: '🔄' },
   { value: 'audiencias', label: 'Audiências Detectadas', icon: '📅' },
   { value: 'tarefas', label: 'Tarefas e Prazos', icon: '✅' },
-  { value: 'andamentos', label: 'Novos Andamentos', icon: '📋' },
 ];
 
 export const DIAS_SEMANA = [

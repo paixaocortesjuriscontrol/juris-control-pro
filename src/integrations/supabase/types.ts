@@ -1687,15 +1687,23 @@ export type Database = {
           detectar_intimacoes: boolean
           horarios_andamentos: string[]
           horarios_distribuicoes: string[]
+          horarios_djen_kurier: string[]
+          horarios_djen_pautas_servidor: string[]
           horarios_djen_processos: string[]
+          horarios_djen_stf_servidor: string[]
           horarios_djen_termos: string[]
+          horarios_djen_termos_servidor: string[]
           horarios_djet_pautas: string[]
           horarios_redistribuicoes: string[]
           id: string
           monitorar_andamentos: boolean
           monitorar_distribuicoes: boolean
+          monitorar_djen_kurier: boolean
+          monitorar_djen_pautas_servidor: boolean
           monitorar_djen_processos: boolean
+          monitorar_djen_stf_servidor: boolean
           monitorar_djen_termos: boolean
+          monitorar_djen_termos_servidor: boolean
           monitorar_djet_pautas: boolean
           monitorar_redistribuicoes: boolean
           updated_at: string
@@ -1708,15 +1716,23 @@ export type Database = {
           detectar_intimacoes?: boolean
           horarios_andamentos?: string[]
           horarios_distribuicoes?: string[]
+          horarios_djen_kurier?: string[]
+          horarios_djen_pautas_servidor?: string[]
           horarios_djen_processos?: string[]
+          horarios_djen_stf_servidor?: string[]
           horarios_djen_termos?: string[]
+          horarios_djen_termos_servidor?: string[]
           horarios_djet_pautas?: string[]
           horarios_redistribuicoes?: string[]
           id?: string
           monitorar_andamentos?: boolean
           monitorar_distribuicoes?: boolean
+          monitorar_djen_kurier?: boolean
+          monitorar_djen_pautas_servidor?: boolean
           monitorar_djen_processos?: boolean
+          monitorar_djen_stf_servidor?: boolean
           monitorar_djen_termos?: boolean
+          monitorar_djen_termos_servidor?: boolean
           monitorar_djet_pautas?: boolean
           monitorar_redistribuicoes?: boolean
           updated_at?: string
@@ -1729,15 +1745,23 @@ export type Database = {
           detectar_intimacoes?: boolean
           horarios_andamentos?: string[]
           horarios_distribuicoes?: string[]
+          horarios_djen_kurier?: string[]
+          horarios_djen_pautas_servidor?: string[]
           horarios_djen_processos?: string[]
+          horarios_djen_stf_servidor?: string[]
           horarios_djen_termos?: string[]
+          horarios_djen_termos_servidor?: string[]
           horarios_djet_pautas?: string[]
           horarios_redistribuicoes?: string[]
           id?: string
           monitorar_andamentos?: boolean
           monitorar_distribuicoes?: boolean
+          monitorar_djen_kurier?: boolean
+          monitorar_djen_pautas_servidor?: boolean
           monitorar_djen_processos?: boolean
+          monitorar_djen_stf_servidor?: boolean
           monitorar_djen_termos?: boolean
+          monitorar_djen_termos_servidor?: boolean
           monitorar_djet_pautas?: boolean
           monitorar_redistribuicoes?: boolean
           updated_at?: string
@@ -1764,6 +1788,8 @@ export type Database = {
           dias_antes: number[]
           dias_semana: number[]
           id: string
+          pos_vencimento_habilitado: boolean
+          pos_vencimento_horario: string
           tipo_tarefa: string
           updated_at: string
         }
@@ -1778,6 +1804,8 @@ export type Database = {
           dias_antes?: number[]
           dias_semana?: number[]
           id?: string
+          pos_vencimento_habilitado?: boolean
+          pos_vencimento_horario?: string
           tipo_tarefa: string
           updated_at?: string
         }
@@ -1792,6 +1820,8 @@ export type Database = {
           dias_antes?: number[]
           dias_semana?: number[]
           id?: string
+          pos_vencimento_habilitado?: boolean
+          pos_vencimento_horario?: string
           tipo_tarefa?: string
           updated_at?: string
         }

@@ -43,12 +43,13 @@ interface Props {
   onClose: () => void;
 }
 
-const TIPOS_ENVIO = ["PRAZO", "TAREFA EQUIPE", "AUDIÊNCIA", "PARCELAMENTO RECORRENTE"] as const;
+const TIPOS_ENVIO = ["PRAZO", "TAREFA EQUIPE", "AUDIÊNCIA", "PARCELAMENTO RECORRENTE", "OUTROS"] as const;
 const TIPOS_ENVIO_LABELS: Record<string, string> = {
   "PRAZO": "Prazo",
   "TAREFA EQUIPE": "Tarefa",
   "AUDIÊNCIA": "Audiência",
   "PARCELAMENTO RECORRENTE": "Parcelamento Recorrente",
+  "OUTROS": "Evento",
 };
 const DIAS_PRESET = [0, 1, 2, 3, 5, 7];
 const DIA_LABEL: Record<number, string> = {
@@ -141,6 +142,8 @@ export function ConfigAlertasCoordenacaoPanel({
   const [destinatarios, setDestinatarios] = useState<string[]>([]);
   const [envioAtivo, setEnvioAtivo] = useState(true);
   const [diasSemanaEnvio, setDiasSemanaEnvio] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [posVencHab, setPosVencHab] = useState(false);
+  const [posVencHorario, setPosVencHorario] = useState("09:00");
 
   const configEnvioAtual = useMemo(
     () => configsEnvio.find((c) => c.tipo_tarefa === tipoSelecionado),
@@ -162,6 +165,10 @@ export function ConfigAlertasCoordenacaoPanel({
           ? (configEnvioAtual as any).dias_semana
           : [1, 2, 3, 4, 5]
       );
+      setPosVencHab(!!(configEnvioAtual as any).pos_vencimento_habilitado);
+      setPosVencHorario(
+        String((configEnvioAtual as any).pos_vencimento_horario ?? "09:00").slice(0, 5)
+      );
     } else {
       setEnvioCanalEmail(false);
       setEnvioCanalWhats(false);
@@ -170,6 +177,8 @@ export function ConfigAlertasCoordenacaoPanel({
       setDestinatarios([]);
       setEnvioAtivo(true);
       setDiasSemanaEnvio([1, 2, 3, 4, 5]);
+      setPosVencHab(false);
+      setPosVencHorario("09:00");
     }
   }, [tipoSelecionado, configEnvioAtual]);
 
@@ -202,6 +211,8 @@ export function ConfigAlertasCoordenacaoPanel({
       destinatarios_ids: destinatarios,
       ativo: envioAtivo,
       dias_semana: diasSemanaEnvio,
+      pos_vencimento_habilitado: posVencHab,
+      pos_vencimento_horario: posVencHorario,
     });
   };
 
@@ -210,40 +221,33 @@ export function ConfigAlertasCoordenacaoPanel({
     useConfigDeteccaoCoordenacao(coordenacaoId);
   const [detAud, setDetAud] = useState(false);
   const [detInt, setDetInt] = useState(false);
-  const [monAnd, setMonAnd] = useState(false);
-  const [hAnd, setHAnd] = useState<string[]>([]);
-  const [monDjT, setMonDjT] = useState(false);
-  const [hDjT, setHDjT] = useState<string[]>([]);
-  const [monDjP, setMonDjP] = useState(false);
-  const [hDjP, setHDjP] = useState<string[]>([]);
-  const [monDist, setMonDist] = useState(false);
-  const [hDist, setHDist] = useState<string[]>([]);
-  const [monRed, setMonRed] = useState(false);
-  const [hRed, setHRed] = useState<string[]>([]);
-  const [monPau, setMonPau] = useState(false);
-  const [hPau, setHPau] = useState<string[]>([]);
+  const [monTermosSrv, setMonTermosSrv] = useState(false);
+  const [hTermosSrv, setHTermosSrv] = useState<string[]>([]);
+  const [monPautasSrv, setMonPautasSrv] = useState(false);
+  const [hPautasSrv, setHPautasSrv] = useState<string[]>([]);
+  const [monKurier, setMonKurier] = useState(false);
+  const [hKurier, setHKurier] = useState<string[]>([]);
+  const [monStfSrv, setMonStfSrv] = useState(false);
+  const [hStfSrv, setHStfSrv] = useState<string[]>([]);
   const [deteccaoLoaded, setDeteccaoLoaded] = useState<string | null>(null);
 
   useEffect(() => {
     if (!deteccao || deteccaoLoaded === coordenacaoId) return;
     setDetAud(deteccao.detectar_audiencias);
     setDetInt(deteccao.detectar_intimacoes);
-    setMonAnd(deteccao.monitorar_andamentos);
-    setHAnd((deteccao.horarios_andamentos || []).map((h) => String(h).slice(0, 5)));
-    setMonDjT(deteccao.monitorar_djen_termos);
-    setHDjT((deteccao.horarios_djen_termos || []).map((h) => String(h).slice(0, 5)));
-    setMonDjP(deteccao.monitorar_djen_processos);
-    setHDjP((deteccao.horarios_djen_processos || []).map((h) => String(h).slice(0, 5)));
-    setMonDist(deteccao.monitorar_distribuicoes);
-    setHDist((deteccao.horarios_distribuicoes || []).map((h) => String(h).slice(0, 5)));
-    setMonRed(deteccao.monitorar_redistribuicoes);
-    setHRed((deteccao.horarios_redistribuicoes || []).map((h) => String(h).slice(0, 5)));
-    setMonPau(deteccao.monitorar_djet_pautas);
-    setHPau((deteccao.horarios_djet_pautas || []).map((h) => String(h).slice(0, 5)));
+    const map = (arr?: string[] | null) => (arr || []).map((h) => String(h).slice(0, 5));
+    setMonTermosSrv(!!(deteccao as any).monitorar_djen_termos_servidor);
+    setHTermosSrv(map((deteccao as any).horarios_djen_termos_servidor));
+    setMonPautasSrv(!!(deteccao as any).monitorar_djen_pautas_servidor);
+    setHPautasSrv(map((deteccao as any).horarios_djen_pautas_servidor));
+    setMonKurier(!!(deteccao as any).monitorar_djen_kurier);
+    setHKurier(map((deteccao as any).horarios_djen_kurier));
+    setMonStfSrv(!!(deteccao as any).monitorar_djen_stf_servidor);
+    setHStfSrv(map((deteccao as any).horarios_djen_stf_servidor));
     setDeteccaoLoaded(coordenacaoId);
   }, [deteccao, coordenacaoId, deteccaoLoaded]);
 
-  const HORARIOS_PADRAO = ["03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00"];
+  const HORARIOS_PADRAO = ["07:00", "09:00", "11:00", "13:00", "15:00", "17:00", "19:00"];
   const toggleHorario = (arr: string[], set: (v: string[]) => void, h: string) => {
     set(arr.includes(h) ? arr.filter((x) => x !== h) : [...arr, h].sort());
   };
@@ -253,19 +257,15 @@ export function ConfigAlertasCoordenacaoPanel({
       coordenacao_id: coordenacaoId,
       detectar_audiencias: detAud,
       detectar_intimacoes: detInt,
-      monitorar_andamentos: monAnd,
-      horarios_andamentos: hAnd,
-      monitorar_djen_termos: monDjT,
-      horarios_djen_termos: hDjT,
-      monitorar_djen_processos: monDjP,
-      horarios_djen_processos: hDjP,
-      monitorar_distribuicoes: monDist,
-      horarios_distribuicoes: hDist,
-      monitorar_redistribuicoes: monRed,
-      horarios_redistribuicoes: hRed,
-      monitorar_djet_pautas: monPau,
-      horarios_djet_pautas: hPau,
-    });
+      monitorar_djen_termos_servidor: monTermosSrv,
+      horarios_djen_termos_servidor: hTermosSrv,
+      monitorar_djen_pautas_servidor: monPautasSrv,
+      horarios_djen_pautas_servidor: hPautasSrv,
+      monitorar_djen_kurier: monKurier,
+      horarios_djen_kurier: hKurier,
+      monitorar_djen_stf_servidor: monStfSrv,
+      horarios_djen_stf_servidor: hStfSrv,
+    } as any);
   };
 
   return (
@@ -610,6 +610,35 @@ export function ConfigAlertasCoordenacaoPanel({
                         ))}
                       </div>
                     </div>
+
+                    <Separator />
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-sm font-semibold flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-destructive" />
+                            Alertas de itens vencidos (não tratados)
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Envia diariamente para responsável, envolvidos e coordenador quando
+                            a data passou e o item continua pendente.
+                          </p>
+                        </div>
+                        <Switch checked={posVencHab} onCheckedChange={setPosVencHab} />
+                      </div>
+                      {posVencHab && (
+                        <div className="flex items-center gap-2 pt-2">
+                          <Label className="text-sm">Horário de envio (BRT)</Label>
+                          <Input
+                            type="time"
+                            value={posVencHorario}
+                            onChange={(e) => setPosVencHorario(e.target.value)}
+                            className="w-32"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -714,17 +743,21 @@ export function ConfigAlertasCoordenacaoPanel({
                   </p>
 
                   {[
-                    { label: "Andamentos (DataJud/CNJ)", on: monAnd, setOn: setMonAnd, h: hAnd, setH: setHAnd },
-                    { label: "DJEN por termos", on: monDjT, setOn: setMonDjT, h: hDjT, setH: setHDjT },
-                    { label: "DJEN por processos", on: monDjP, setOn: setMonDjP, h: hDjP, setH: setHDjP },
-                    { label: "Distribuições", on: monDist, setOn: setMonDist, h: hDist, setH: setHDist },
-                    { label: "Redistribuições", on: monRed, setOn: setMonRed, h: hRed, setH: setHRed },
-                    { label: "DJET / Pautas", on: monPau, setOn: setMonPau, h: hPau, setH: setHPau },
+                    { label: "DJEN Termos (Servidor)", on: monTermosSrv, setOn: setMonTermosSrv, h: hTermosSrv, setH: setHTermosSrv },
+                    { label: "DJEN Pautas (Servidor)", on: monPautasSrv, setOn: setMonPautasSrv, h: hPautasSrv, setH: setHPautasSrv },
+                    { label: "DJEN Kurier", on: monKurier, setOn: setMonKurier, h: hKurier, setH: setHKurier },
+                    { label: "DJEN STF (Servidor)", on: monStfSrv, setOn: setMonStfSrv, h: hStfSrv, setH: setHStfSrv },
                   ].map((m) => (
                     <div key={m.label} className="p-3 rounded-lg border space-y-3">
                       <div className="flex items-center justify-between">
                         <Label className="font-medium">{m.label}</Label>
-                        <Switch checked={m.on} onCheckedChange={m.setOn} />
+                        <Switch
+                          checked={m.on}
+                          onCheckedChange={(v) => {
+                            m.setOn(v);
+                            if (v && m.h.length === 0) m.setH(["11:00"]);
+                          }}
+                        />
                       </div>
                       {m.on && (
                         <div className="flex flex-wrap gap-2 pt-1 border-t">
