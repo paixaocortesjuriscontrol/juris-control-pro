@@ -35,7 +35,7 @@ export interface ExecucoesDoDiaPorCoordenacao {
   linhas: LinhaCoordenacao[];
 }
 
-const TIPOS_LOCAIS = ["djen_paralela", "djen_kurier", "djen_processos"] as const;
+const TIPOS_LOCAIS = ["djen_paralela", "djen_processos"] as const;
 
 function mapEngine(tipo: string): TipoEngineLocal {
   const t = String(tipo || "").toLowerCase();
@@ -112,7 +112,7 @@ export function useExecucoesDoDiaPorCoordenacao(
         tipo: e.tipo as string,
         tipoEngine: mapEngine(e.tipo),
         fonte: "local",
-      }));
+      })).filter((e) => e.tipoEngine !== "kurier");
 
       // Filtra servidor cujo resultado.dataInicio bate com o ymd (quando disponível)
       const servidor: ExecInterna[] = (execsServ || [])
