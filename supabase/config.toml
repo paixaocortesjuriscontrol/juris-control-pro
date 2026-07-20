@@ -15,12 +15,6 @@ verify_jwt = false
 [functions.monitorar-pje]
 verify_jwt = false
 
-[functions.monitorar-redistribuicoes]
-verify_jwt = false
-
-[functions.monitorar-andamentos]
-verify_jwt = false
-
 [functions.atualizar-cron-monitoramento]
 verify_jwt = true
 
@@ -29,9 +23,6 @@ verify_jwt = true
 
 [functions.atualizar-usuario]
 verify_jwt = true
-
-[functions.monitorar-distribuicoes]
-verify_jwt = false
 
 [functions.resumir-publicacoes]
 verify_jwt = false
@@ -91,9 +82,6 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.buscar-eprocesso]
-verify_jwt = false
-
-[functions.enviar-alertas-360-email]
 verify_jwt = false
 
 [functions.executar-monitoramento]
