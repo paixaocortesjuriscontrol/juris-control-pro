@@ -9,4 +9,7 @@ export function useRedistribuicoes(_params?: any) {
     refetch: async () => ({ data: [] as any[] }),
   };
 }
+export function useProcessosComRedistribuicaoRecente(_params?: any) {
+  return { data: new Set<string>(), isLoading: false } as any;
+}
 export default useRedistribuicoes;
