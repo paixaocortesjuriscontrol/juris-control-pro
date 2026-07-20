@@ -169,7 +169,8 @@ export function useNotificacoesCountsByCoordenacao(params: UseNotificacoesCounts
   return useQuery({
     queryKey: ["notificacoes-counts-by-coordenacao", idsKey, inicio ?? "all", fim ?? "all", status, prioridade, q],
     enabled: params.coordenacaoIds.length > 0,
-    staleTime: 30_000,
+    staleTime: 5_000,
+    refetchOnWindowFocus: true,
     queryFn: () =>
       fetchCountsViaRPC(
         params.coordenacaoIds,
