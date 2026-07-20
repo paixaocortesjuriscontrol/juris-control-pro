@@ -43,7 +43,7 @@ function rotuloEngine(t: TipoEngineLocal): string {
   if (t === "processos") return "Processos";
   if (t === "servidor-termos") return "Servidor · Termos";
   if (t === "servidor-pautas") return "Servidor · Pautas";
-  if (t === "stf") return "DJEN · STF";
+  if (t === "stf") return "Servidor · STF";
   return "Termos";
 }
 

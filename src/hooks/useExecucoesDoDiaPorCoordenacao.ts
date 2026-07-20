@@ -36,18 +36,18 @@ export interface ExecucoesDoDiaPorCoordenacao {
   linhas: LinhaCoordenacao[];
 }
 
-const TIPOS_LOCAIS = ["djen_paralela", "djen_processos", "stf_flash"] as const;
+const TIPOS_LOCAIS = ["djen_paralela", "djen_processos"] as const;
 
 function mapEngine(tipo: string): TipoEngineLocal {
   const t = String(tipo || "").toLowerCase();
   if (t.includes("kurier")) return "kurier";
-  if (t.includes("stf")) return "stf";
   if (t.includes("processo")) return "processos";
   return "paralela";
 }
 
 function mapEngineServidor(tipo: string): TipoEngineLocal {
   const t = String(tipo || "").toLowerCase();
+  if (t.includes("stf")) return "stf";
   return t.includes("pauta") ? "servidor-pautas" : "servidor-termos";
 }
 
@@ -99,7 +99,7 @@ export function useExecucoesDoDiaPorCoordenacao(
       const [{ data: execsLocal, error: execErrLocal }, { data: execsServ, error: execErrServ }] =
         await Promise.all([
           (supabase.from("execucoes_agendadas") as any)
-            .select("id, tipo, iniciado_em, finalizado_em")
+            .select("id, tipo, iniciado_em")
             .in("tipo", TIPOS_LOCAIS as unknown as string[])
             .gte("iniciado_em", startUtc)
             .lt("iniciado_em", endUtc)
@@ -123,7 +123,6 @@ export function useExecucoesDoDiaPorCoordenacao(
       type ExecInterna = {
         id: string;
         iniciado_em: string;
-        finalizado_em?: string | null;
         tipo: string;
         tipoEngine: TipoEngineLocal;
         fonte: "local" | "servidor";
@@ -132,7 +131,6 @@ export function useExecucoesDoDiaPorCoordenacao(
       const locais: ExecInterna[] = (execsLocal || []).map((e: any) => ({
         id: e.id as string,
         iniciado_em: e.iniciado_em as string,
-        finalizado_em: (e.finalizado_em as string) || null,
         tipo: e.tipo as string,
         tipoEngine: mapEngine(e.tipo),
         fonte: "local",
@@ -166,10 +164,7 @@ export function useExecucoesDoDiaPorCoordenacao(
       todas.forEach((e, idx) => execOrdemById.set(e.id, idx));
 
       // 2) Junções (paralelas) — pubId prefixado por fonte para evitar colisão
-      const stfExecs = locais.filter((e) => e.tipoEngine === "stf");
-      const localExecIds = locais
-        .filter((e) => e.tipoEngine !== "stf")
-        .map((e) => e.id);
+      const localExecIds = locais.map((e) => e.id);
       const servExecIds = servidor.map((e) => e.id);
 
       const [junLocal, junServ] = await Promise.all([
@@ -229,59 +224,6 @@ export function useExecucoesDoDiaPorCoordenacao(
         (r: any) => r.publicacao?.coordenacao_id,
         "S",
       );
-
-      // 2c) STF — não há tabela de junção. Distribuímos as publicações STF
-      //     inseridas no dia pela janela [iniciado_em, finalizado_em] de cada
-      //     execução STF (ordenadas cronologicamente).
-      if (stfExecs.length > 0) {
-        const stfOrdenadas = [...stfExecs].sort((a, b) =>
-          a.iniciado_em < b.iniciado_em ? -1 : 1,
-        );
-        const janelaFim = (idx: number): string => {
-          const cur = stfOrdenadas[idx];
-          if (cur.finalizado_em) return cur.finalizado_em;
-          const prox = stfOrdenadas[idx + 1];
-          return prox ? prox.iniciado_em : endUtc;
-        };
-
-        const primeiroInicio = stfOrdenadas[0].iniciado_em;
-        const ultimoFim = janelaFim(stfOrdenadas.length - 1);
-
-        const { data: pubsStf, error: errStf } = await (supabase
-          .from("publicacoes_djen") as any)
-          .select("id, coordenacao_id, created_at")
-          .eq("fonte", "stf_digital")
-          .gte("created_at", primeiroInicio)
-          .lte("created_at", ultimoFim);
-
-        if (errStf) {
-          console.error("[execucoes-do-dia-por-coordenacao] STF pubs", errStf);
-        }
-
-        for (const p of pubsStf || []) {
-          const coordId = p.coordenacao_id as string | null;
-          if (!coordId) continue;
-          const createdAt = p.created_at as string;
-          // Encontra execução STF cuja janela contém createdAt
-          let execAlvoId: string | null = null;
-          for (let i = 0; i < stfOrdenadas.length; i++) {
-            const ini = stfOrdenadas[i].iniciado_em;
-            const fim = janelaFim(i);
-            if (createdAt >= ini && createdAt <= fim) {
-              execAlvoId = stfOrdenadas[i].id;
-              break;
-            }
-          }
-          if (!execAlvoId) continue;
-
-          coordIds.add(coordId);
-          if (!porCoordPub.has(coordId)) porCoordPub.set(coordId, new Map());
-          const byPub = porCoordPub.get(coordId)!;
-          const key = `STF:${p.id}`;
-          if (!byPub.has(key)) byPub.set(key, new Set());
-          byPub.get(key)!.add(execAlvoId);
-        }
-      }
 
       // Nomes de coordenações
       const coordIdArr = Array.from(coordIds);
