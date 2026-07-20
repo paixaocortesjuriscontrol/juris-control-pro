@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -40,7 +40,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
-import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersHorizontal } from "lucide-react";
+import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersHorizontal, FilterX } from "lucide-react";
 import { BarChart3 } from "lucide-react";
 import { RelatorioAudienciasDialog } from "@/components/audiencias/RelatorioAudienciasDialog";
 import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
@@ -135,6 +135,11 @@ export default function PainelControle() {
   const [situacaoFilter, setSituacaoFilter] = useState<string>("todos");
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
+  const limparFiltrosPainel = useCallback(() => {
+    setPainelFiltros(PAINEL_FILTROS_DEFAULT);
+    setSituacaoFilter("todos");
+    setSomenteHoje(false);
+  }, []);
   const [mostrarTotalizadores, setMostrarTotalizadores] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     const v = window.localStorage.getItem("painel:mostrarTotalizadores");
@@ -1108,6 +1113,16 @@ export default function PainelControle() {
                 <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              onClick={limparFiltrosPainel}
+              title="Limpar todos os filtros do painel"
+            >
+              <FilterX className="w-3.5 h-3.5 mr-1" />
+              Limpar filtros
+            </Button>
             {/* Filtro de coordenação para admin no modo escritório - desktop inline */}
             {isAdmin && tabMode === "escritorio" && (
               <div className="hidden md:block">
@@ -1714,10 +1729,12 @@ export default function PainelControle() {
                           <div
                             key={i}
                             className={cn(
-                              "border-r border-border last:border-r-0 p-0.5 md:p-1 transition-colors",
+                              "border-r border-border last:border-r-0 p-0.5 md:p-1 transition-colors cursor-pointer hover:bg-muted/30",
                               !ehMesAtual && "bg-muted/10",
                               ehHoje && "bg-primary/5"
                             )}
+                            onClick={limparFiltrosPainel}
+                            title="Clique para limpar filtros"
                           >
                             {/* Número do dia */}
                             <div className="flex justify-start mb-0.5 md:mb-1">
