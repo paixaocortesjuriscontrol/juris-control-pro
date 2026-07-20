@@ -328,14 +328,14 @@ export default function DistribuicaoTst() {
       const finalIds = tagIds
         ? multiRespIds.filter((id) => tagIds.includes(id))
         : multiRespIds;
-      f = { ...f, idsAllowed: finalIds.length > 0 ? finalIds : ["__none__"] };
+      f = { ...f, idsAllowed: finalIds.length > 0 ? finalIds : ["00000000-0000-0000-0000-000000000000"] };
     }
     if (filtroSemPendencia) {
       // Restringe aos IDs "pronto para enviar" sem pendências (calculados no cliente).
       const base = f.idsAllowed && f.idsAllowed.length > 0
         ? prontoSemPendenciaIds.filter((id) => f.idsAllowed!.includes(id))
         : prontoSemPendenciaIds;
-      f = { ...f, idsAllowed: base.length > 0 ? base : ["__none__"] };
+      f = { ...f, idsAllowed: base.length > 0 ? base : ["00000000-0000-0000-0000-000000000000"] };
     }
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
