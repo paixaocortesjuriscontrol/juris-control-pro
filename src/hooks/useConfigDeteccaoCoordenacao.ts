@@ -7,18 +7,20 @@ export interface ConfigDeteccaoCoordenacao {
   coordenacao_id: string;
   detectar_audiencias: boolean;
   detectar_intimacoes: boolean;
-  monitorar_andamentos: boolean;
-  horarios_andamentos: string[];
   monitorar_djen_termos: boolean;
   horarios_djen_termos: string[];
   monitorar_djen_processos: boolean;
   horarios_djen_processos: string[];
-  monitorar_distribuicoes: boolean;
-  horarios_distribuicoes: string[];
-  monitorar_redistribuicoes: boolean;
-  horarios_redistribuicoes: string[];
   monitorar_djet_pautas: boolean;
   horarios_djet_pautas: string[];
+  monitorar_djen_termos_servidor: boolean;
+  horarios_djen_termos_servidor: string[];
+  monitorar_djen_pautas_servidor: boolean;
+  horarios_djen_pautas_servidor: string[];
+  monitorar_djen_kurier: boolean;
+  horarios_djen_kurier: string[];
+  monitorar_djen_stf_servidor: boolean;
+  horarios_djen_stf_servidor: string[];
 }
 
 export type ConfigDeteccaoPayload = Partial<Omit<ConfigDeteccaoCoordenacao, "id">> & {
@@ -28,18 +30,20 @@ export type ConfigDeteccaoPayload = Partial<Omit<ConfigDeteccaoCoordenacao, "id"
 const DEFAULTS: Omit<ConfigDeteccaoCoordenacao, "id" | "coordenacao_id"> = {
   detectar_audiencias: false,
   detectar_intimacoes: false,
-  monitorar_andamentos: false,
-  horarios_andamentos: [],
   monitorar_djen_termos: false,
   horarios_djen_termos: [],
   monitorar_djen_processos: false,
   horarios_djen_processos: [],
-  monitorar_distribuicoes: false,
-  horarios_distribuicoes: [],
-  monitorar_redistribuicoes: false,
-  horarios_redistribuicoes: [],
   monitorar_djet_pautas: false,
   horarios_djet_pautas: [],
+  monitorar_djen_termos_servidor: false,
+  horarios_djen_termos_servidor: [],
+  monitorar_djen_pautas_servidor: false,
+  horarios_djen_pautas_servidor: [],
+  monitorar_djen_kurier: false,
+  horarios_djen_kurier: [],
+  monitorar_djen_stf_servidor: false,
+  horarios_djen_stf_servidor: [],
 };
 
 export function useConfigDeteccaoCoordenacao(coordenacaoId: string | null) {
