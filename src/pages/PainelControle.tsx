@@ -135,7 +135,7 @@ export default function PainelControle() {
   const [situacaoFilter, setSituacaoFilter] = useState<string>("todos");
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
-  const limparFiltrosPainel = React.useCallback(() => {
+  const limparFiltrosPainel = useCallback(() => {
     setPainelFiltros(PAINEL_FILTROS_DEFAULT);
     setSituacaoFilter("todos");
     setSomenteHoje(false);
