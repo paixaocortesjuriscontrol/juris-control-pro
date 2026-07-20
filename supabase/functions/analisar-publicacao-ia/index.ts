@@ -9,6 +9,63 @@ const corsHeaders = {
 
 const AI_MODEL = Deno.env.get("GEMINI_MODEL") || "gemini-2.5-flash";
 
+type TipoItem = "prazo" | "tarefa" | "evento" | "audiencia";
+
+const PROMPT_PADRAO_PRAZO = `Você é um assistente jurídico especializado em análise de publicações do Diário de Justiça.
+Sua função é analisar o conteúdo de publicações jurídicas e sugerir os campos para criação de um PRAZO.
+
+REGRAS IMPORTANTES:
+1. Seja conciso e objetivo
+2. O título deve ter no máximo 100 caracteres
+3. A descrição deve resumir as ações necessárias
+4. A prioridade deve ser baseada em prazos e urgência mencionados
+5. Calcule a data de vencimento com base em prazos legais mencionados ou sugira 5 dias úteis como padrão
+6. Identifique o tipo correto de tarefa baseado no conteúdo
+
+TIPOS DE TAREFA DISPONÍVEIS:
+- INTIMAÇÃO, DEFESA, RECURSO, CONTRARRAZÕES, PETIÇÃO, DILIGÊNCIA, AUDIÊNCIA, PROTOCOLO, ANÁLISE, MANIFESTAÇÃO, OUTROS
+
+PRIORIDADES:
+- baixa: Prazos longos (>15 dias) ou informativos
+- media: Prazos normais (5-15 dias)
+- alta: Prazos curtos (3-5 dias) ou citações
+- urgente: Prazos fatais próximos (<3 dias) ou liminares`;
+
+const PROMPT_PADRAO_TAREFA = `Você é um assistente jurídico especializado em análise de publicações do Diário de Justiça.
+Sua função é analisar o conteúdo de publicações jurídicas e sugerir os campos para criação de uma TAREFA DE EQUIPE.
+Foque em: ação prática a executar, responsável adequado, e prazo interno para conclusão.
+O título deve descrever a ação em até 100 caracteres. Sugira 5 dias úteis como padrão.
+PRIORIDADES: baixa, media, alta, urgente.`;
+
+const PROMPT_PADRAO_EVENTO = `Você é um assistente jurídico especializado em análise de publicações do Diário de Justiça.
+Sua função é analisar o conteúdo de publicações e sugerir os campos para criação de um EVENTO na agenda.
+Foque em data/hora do evento, local (físico ou virtual/link), assunto e observações relevantes.
+Se houver data/hora explícita, use-a como data_vencimento. Inclua link/plataforma nas observações.
+PRIORIDADES: baixa, media, alta, urgente.`;
+
+const PROMPT_PADRAO_AUDIENCIA = `Você é um assistente jurídico especializado em análise de publicações do Diário de Justiça.
+Sua função é analisar o conteúdo de publicações e sugerir os campos para agendamento de uma AUDIÊNCIA.
+Foque em: data e hora, tipo (instrução, conciliação, una, inicial), local ou link, preparação e testemunhas.
+Use a data/hora da audiência como data_vencimento. Detalhes de local/link nas observações.
+PRIORIDADES: baixa, media, alta, urgente.`;
+
+const PROMPT_PADRAO: Record<TipoItem, string> = {
+  prazo: PROMPT_PADRAO_PRAZO,
+  tarefa: PROMPT_PADRAO_TAREFA,
+  evento: PROMPT_PADRAO_EVENTO,
+  audiencia: PROMPT_PADRAO_AUDIENCIA,
+};
+
+function normalizeTipoItem(raw: unknown, tipoTarefa?: string): TipoItem {
+  const s = (typeof raw === "string" ? raw : "").toLowerCase();
+  if (s === "prazo" || s === "tarefa" || s === "evento" || s === "audiencia") return s;
+  const t = (tipoTarefa || "").toUpperCase();
+  if (t === "PRAZO") return "prazo";
+  if (t === "AUDIÊNCIA" || t === "AUDIENCIA") return "audiencia";
+  if (t === "EVENTO") return "evento";
+  return "tarefa";
+}
+
 function extrairJson(texto: string) {
   let jsonStr = texto.trim();
   if (jsonStr.startsWith("```json")) {
@@ -60,7 +117,7 @@ serve(async (req) => {
       );
     }
 
-    const { conteudo, tipoTarefa, processoNumero, dataPublicacao } = await req.json();
+    const { conteudo, tipoTarefa, tipoItem, coordenacaoId, processoNumero, dataPublicacao } = await req.json();
 
     if (!conteudo) {
       return new Response(
@@ -68,6 +125,33 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const tipoItemFinal = normalizeTipoItem(tipoItem, tipoTarefa);
+
+    // Busca prompt personalizado da coordenação (se houver). Usa cliente autenticado
+    // para respeitar RLS: só o próprio usuário/admin enxerga os prompts da sua coord.
+    let systemPromptResolved = PROMPT_PADRAO[tipoItemFinal];
+    let promptOrigem = "padrão";
+    try {
+      let query = supabaseAuth
+        .from("prompts_ia_publicacoes")
+        .select("prompt, coordenacao_id")
+        .eq("tipo_item", tipoItemFinal)
+        .eq("ativo", true);
+      if (coordenacaoId) {
+        query = query.eq("coordenacao_id", coordenacaoId);
+      }
+      const { data: promptsCustom, error: promptErr } = await query.limit(1);
+      if (promptErr) {
+        console.warn("Falha ao buscar prompt customizado:", promptErr.message);
+      } else if (promptsCustom && promptsCustom.length > 0 && promptsCustom[0].prompt) {
+        systemPromptResolved = promptsCustom[0].prompt as string;
+        promptOrigem = `customizado (coord ${promptsCustom[0].coordenacao_id})`;
+      }
+    } catch (e) {
+      console.warn("Erro consultando prompts_ia_publicacoes:", (e as Error).message);
+    }
+    console.info(`analisar-publicacao-ia tipoItem=${tipoItemFinal} prompt=${promptOrigem}`);
 
     const geminiKeySource = Deno.env.get("GEMINI_API_KEY_DJEN")
       ? "GEMINI_API_KEY_DJEN"
@@ -84,35 +168,7 @@ serve(async (req) => {
 
     const tipoDescricao = tipoTarefa ? `O usuário selecionou o tipo de tarefa: ${tipoTarefa}.` : "";
 
-    const systemPrompt = `Você é um assistente jurídico especializado em análise de publicações do Diário de Justiça.
-Sua função é analisar o conteúdo de publicações jurídicas e sugerir os campos para criação de uma tarefa.
-
-REGRAS IMPORTANTES:
-1. Seja conciso e objetivo
-2. O título deve ter no máximo 100 caracteres
-3. A descrição deve resumir as ações necessárias
-4. A prioridade deve ser baseada em prazos e urgência mencionados
-5. Calcule a data de vencimento com base em prazos legais mencionados ou sugira 5 dias úteis como padrão
-6. Identifique o tipo correto de tarefa baseado no conteúdo
-
-TIPOS DE TAREFA DISPONÍVEIS:
-- INTIMAÇÃO: Intimações gerais
-- DEFESA: Contestações, defesas preliminares
-- RECURSO: Recursos ordinários, extraordinários, especiais
-- CONTRARRAZÕES: Resposta a recursos
-- PETIÇÃO: Petições diversas
-- DILIGÊNCIA: Atos a serem cumpridos fora do processo
-- AUDIÊNCIA: Designação ou preparo de audiências
-- PROTOCOLO: Atos de protocolo
-- ANÁLISE: Análise de documentos ou situação processual
-- MANIFESTAÇÃO: Manifestações processuais
-- OUTROS: Outros tipos
-
-PRIORIDADES:
-- baixa: Prazos longos (>15 dias) ou informativos
-- media: Prazos normais (5-15 dias)
-- alta: Prazos curtos (3-5 dias) ou citações
-- urgente: Prazos fatais próximos (<3 dias) ou liminares`;
+    const systemPrompt = systemPromptResolved;
 
     const userPrompt = `Analise a seguinte publicação jurídica e sugira os campos para criação de uma tarefa:
 
