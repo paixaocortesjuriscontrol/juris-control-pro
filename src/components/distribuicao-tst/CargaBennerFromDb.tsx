@@ -507,23 +507,23 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           banco: filtrarOutraMateria((d as any).materias_analise_banco),
           terceiro: filtrarOutraMateria((d as any).materias_analise_terceiro),
         };
-        // Detecta as partes recorrentes combinando duas fontes:
-        //   1) o texto de `parte_recorrente` (quando preenchido);
-        //   2) a presença de `tipo_recurso_reclamante` / `tipo_recurso_banco`
-        //      / `tipo_recurso_terceiro` — mesma base usada para derivar o
-        //      rótulo da coluna AA. Isso garante que, quando `parte_recorrente`
-        //      estiver vazio mas houver recursos das duas partes, ainda assim
-        //      geremos uma linha por parte com o rótulo correto (Reclamante
-        //      em uma linha, Reclamada em outra), em vez de "Reclamante e
-        //      Reclamada" em uma linha única.
+        // Detecta as partes recorrentes.
+        // Regra: o campo `parte_recorrente` da aba Distribuição TST é a fonte
+        // autoritativa. Quando ele está preenchido, respeitamos ESTRITAMENTE
+        // o que a advogada informou (mesmo que existam `tipo_recurso_*` de
+        // outras partes preenchidos por engano/legado). Só usamos os campos
+        // `tipo_recurso_*` como fallback quando `parte_recorrente` está vazio.
         const parteRecorrenteNorm = normalizeText((d as any).parte_recorrente);
         const partesSet = new Set<"reclamante" | "banco" | "terceiro">();
-        if (/reclamante/.test(parteRecorrenteNorm)) partesSet.add("reclamante");
-        if (/reclamad/.test(parteRecorrenteNorm)) partesSet.add("banco");
-        if (/terceiro/.test(parteRecorrenteNorm)) partesSet.add("terceiro");
-        if (splitRecursoValues((d as any).tipo_recurso_reclamante).length > 0) partesSet.add("reclamante");
-        if (splitRecursoValues((d as any).tipo_recurso_banco).length > 0) partesSet.add("banco");
-        if (splitRecursoValues((d as any).tipo_recurso_terceiro).length > 0) partesSet.add("terceiro");
+        if (parteRecorrenteNorm) {
+          if (/reclamante/.test(parteRecorrenteNorm)) partesSet.add("reclamante");
+          if (/reclamad[ao]/.test(parteRecorrenteNorm)) partesSet.add("banco");
+          if (/terceiro/.test(parteRecorrenteNorm)) partesSet.add("terceiro");
+        } else {
+          if (splitRecursoValues((d as any).tipo_recurso_reclamante).length > 0) partesSet.add("reclamante");
+          if (splitRecursoValues((d as any).tipo_recurso_banco).length > 0) partesSet.add("banco");
+          if (splitRecursoValues((d as any).tipo_recurso_terceiro).length > 0) partesSet.add("terceiro");
+        }
         // Mantém ordem estável: reclamante → banco → terceiro
         const partes: Array<"reclamante" | "banco" | "terceiro"> = (
           ["reclamante", "banco", "terceiro"] as const
