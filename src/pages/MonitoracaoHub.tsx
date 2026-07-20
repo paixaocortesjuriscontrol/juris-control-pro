@@ -1,7 +1,7 @@
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
-import { Newspaper, Radar, RefreshCw, FileWarning, Globe, FileSearch } from "lucide-react";
+import { Newspaper, Radar, FileWarning, Globe, FileSearch } from "lucide-react";
 
 const monitoracaoCards = [
   {
@@ -31,13 +31,6 @@ const monitoracaoCards = [
     icon: FileWarning,
     path: "/capturas-intimacoes",
     color: "from-orange-500 to-orange-600",
-  },
-  {
-    title: "Redistribuições",
-    description: "Acompanhe redistribuições de processos entre varas e juízos",
-    icon: RefreshCw,
-    path: "/redistribuicoes",
-    color: "from-rose-500 to-rose-600",
   },
   {
     title: "Buscar DJ Estadual",
