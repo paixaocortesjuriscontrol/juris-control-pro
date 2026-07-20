@@ -830,18 +830,14 @@ export default function PainelControle() {
   const contagensPorClassificacao = useMemo(() => {
     const counts = { tarefa: 0, evento: 0, prazo: 0, audiencia: 0, parcelamento: 0 };
     const base = itensAgenda.filter((item) => {
-      // Status (grupo simplificado)
+      // Os cards totalizadores SEMPRE representam pendências em aberto,
+      // independentemente do filtro de status escolhido pelo usuário.
+      // Isso evita contabilizar prazos/tarefas já tratados, cumpridos ou cancelados.
+      if (isItemEncerrado(item) || isItemTratado(item) || isItemCancelado(item)) return false;
       const statusGroup = painelFiltros.statusGroup ?? "todas";
-      if (statusGroup === "a_concluir") {
-        // Os cards totalizadores representam pendências em aberto.
-        if (isItemEncerrado(item)) return false;
-      }
-      if (statusGroup !== "todas") {
-        const concluido = isItemTratado(item);
-        const cancelado = isItemCancelado(item);
-        if (statusGroup === "a_concluir" && (concluido || cancelado)) return false;
-        if (statusGroup === "concluidas" && !concluido) return false;
-        if (statusGroup === "canceladas" && !cancelado) return false;
+      if (statusGroup === "concluidas" || statusGroup === "canceladas") {
+        // Nesses filtros o calendário mostra encerrados; os cards continuam zerados.
+        return false;
       }
       if (painelFiltros.situacoes.length > 0 && !painelFiltros.situacoes.includes(item.status)) return false;
       if (painelFiltros.souResponsavel || painelFiltros.estouEnvolvido) {
