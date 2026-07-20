@@ -3,9 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Sparkles, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { tipoTarefaToTipoItem, type TipoItemPromptIa } from "@/constants/promptsIaPublicacoes";
 interface BotaoPreencherIAProps {
   conteudo: string | null | undefined;
   tipoTarefa?: string;
+  tipoItem?: TipoItemPromptIa;
+  coordenacaoId?: string | null;
   processoNumero?: string | null;
   dataPublicacao?: string | null;
   onResultado: (resultado: {
@@ -24,6 +27,8 @@ interface BotaoPreencherIAProps {
 export function BotaoPreencherIA({
   conteudo,
   tipoTarefa,
+  tipoItem,
+  coordenacaoId,
   processoNumero,
   dataPublicacao,
   onResultado,
@@ -60,10 +65,13 @@ export function BotaoPreencherIA({
 
     setLoading(true);
     try {
+      const tipoItemFinal: TipoItemPromptIa = tipoItem ?? tipoTarefaToTipoItem(tipoTarefa);
       const { data, error } = await supabase.functions.invoke("analisar-publicacao-ia", {
         body: {
           conteudo,
           tipoTarefa,
+          tipoItem: tipoItemFinal,
+          coordenacaoId: coordenacaoId ?? null,
           processoNumero,
           dataPublicacao,
         },
