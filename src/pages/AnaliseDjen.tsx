@@ -551,6 +551,8 @@ const AnaliseDjen = () => {
       dataPublicacaoDebounced,
       tribunalFiltro,
       readStatus,
+      termoBuscaDebounced,
+      monitoramentoId,
     ],
     staleTime: 30_000,
     queryFn: async () => {
@@ -562,6 +564,15 @@ const AnaliseDjen = () => {
       if (readStatus === 'nao_lidas') q = q.eq('lida', false);
       else if (readStatus === 'lidas') q = q.eq('lida', true);
       if (tribunalFiltro) q = q.eq('tribunal', tribunalFiltro);
+      if (monitoramentoId) q = q.eq('monitoramento_id', monitoramentoId);
+      if (termoBuscaDebounced) {
+        const digits = termoBuscaDebounced.replace(/\D/g, '');
+        if (digits.length >= 6) {
+          q = q.or(`numero_processo.ilike.%${digits}%,conteudo.ilike.%${termoBuscaDebounced}%`);
+        } else {
+          q = q.ilike('conteudo', `%${termoBuscaDebounced}%`);
+        }
+      }
       if (apenasHojeEfetivo) {
         const hojeBrt = getHojeBrtISO();
         q = q.gte('created_at', dateLocalToUTCRange(hojeBrt, false))
