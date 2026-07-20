@@ -716,8 +716,8 @@ export function ConfigAlertasCoordenacaoPanel({
                     <div>
                       <Label className="font-medium">Detectar audiências automaticamente</Label>
                       <p className="text-xs text-muted-foreground">
-                        Ao desligar, o sistema não gravará novas audiências detectadas por robôs
-                        (DJEN, DataJud, monitoramentos).
+                        Detecta audiências nas publicações da tela <strong>Análise DJEN</strong> e envia alertas.
+                        Este motor apenas verifica e notifica — não cadastra a audiência na agenda.
                       </p>
                     </div>
                     <Switch checked={detAud} onCheckedChange={setDetAud} />
@@ -726,7 +726,8 @@ export function ConfigAlertasCoordenacaoPanel({
                     <div>
                       <Label className="font-medium">Detectar intimações automaticamente</Label>
                       <p className="text-xs text-muted-foreground">
-                        Idem para intimações detectadas por robôs.
+                        Detecta intimações nas publicações da tela <strong>Análise DJEN</strong> e envia alertas.
+                        Este motor apenas verifica e notifica — não gera tarefas nem prazos.
                       </p>
                     </div>
                     <Switch checked={detInt} onCheckedChange={setDetInt} />
