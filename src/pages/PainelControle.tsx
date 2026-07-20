@@ -1729,10 +1729,12 @@ export default function PainelControle() {
                           <div
                             key={i}
                             className={cn(
-                              "border-r border-border last:border-r-0 p-0.5 md:p-1 transition-colors",
+                              "border-r border-border last:border-r-0 p-0.5 md:p-1 transition-colors cursor-pointer hover:bg-muted/30",
                               !ehMesAtual && "bg-muted/10",
                               ehHoje && "bg-primary/5"
                             )}
+                            onClick={limparFiltrosPainel}
+                            title="Clique para limpar filtros"
                           >
                             {/* Número do dia */}
                             <div className="flex justify-start mb-0.5 md:mb-1">
