@@ -610,6 +610,35 @@ export function ConfigAlertasCoordenacaoPanel({
                         ))}
                       </div>
                     </div>
+
+                    <Separator />
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label className="text-sm font-semibold flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-destructive" />
+                            Alertas de itens vencidos (não tratados)
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Envia diariamente para responsável, envolvidos e coordenador quando
+                            a data passou e o item continua pendente.
+                          </p>
+                        </div>
+                        <Switch checked={posVencHab} onCheckedChange={setPosVencHab} />
+                      </div>
+                      {posVencHab && (
+                        <div className="flex items-center gap-2 pt-2">
+                          <Label className="text-sm">Horário de envio (BRT)</Label>
+                          <Input
+                            type="time"
+                            value={posVencHorario}
+                            onChange={(e) => setPosVencHorario(e.target.value)}
+                            className="w-32"
+                          />
+                        </div>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
 
