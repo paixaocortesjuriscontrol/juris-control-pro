@@ -1113,6 +1113,16 @@ export default function PainelControle() {
                 <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
               </SelectContent>
             </Select>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              onClick={limparFiltrosPainel}
+              title="Limpar todos os filtros do painel"
+            >
+              <FilterX className="w-3.5 h-3.5 mr-1" />
+              Limpar filtros
+            </Button>
             {/* Filtro de coordenação para admin no modo escritório - desktop inline */}
             {isAdmin && tabMode === "escritorio" && (
               <div className="hidden md:block">
