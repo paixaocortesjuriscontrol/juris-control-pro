@@ -3924,24 +3924,11 @@ const AnaliseDjen = () => {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Termo, processo..."
+                    placeholder="Termo, processo ou palavra no conteúdo..."
                     value={termoBusca}
                     onChange={(e) => setTermoBusca(e.target.value)}
                     className="pl-9 h-9 md:h-10 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
-                <Label className="text-xs md:text-sm">Buscar no conteúdo</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Palavra ou frase no texto..."
-                    value={buscaConteudo}
-                    onChange={(e) => setBuscaConteudo(e.target.value)}
-                    className="pl-9 h-9 md:h-10 text-sm"
-                    title="Filtra apenas pelo texto da publicação (combina com o campo Buscar em AND)."
+                    title="Busca em número do processo, termo monitorado e conteúdo da publicação."
                   />
                 </div>
               </div>
