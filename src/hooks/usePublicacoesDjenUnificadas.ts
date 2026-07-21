@@ -220,7 +220,6 @@ export interface FiltrosUnificados {
   dataDisponibilizacao?: string;
   termoBusca?: string;
   /** Termo separado para buscar apenas dentro do conteúdo da publicação. Aplicado em AND com `termoBusca`. */
-  buscaConteudo?: string;
   monitoramentoId?: string;
   apenasNaoLidas?: boolean;
   readStatus?: FiltroLeituraDjen;
@@ -637,7 +636,6 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             p_data_disponibilizacao_fim: dataDisponibilizacaoFim,
             p_tribunal: filtros.tribunal || null,
             p_dedup: filtros.dedupServidor === true,
-            p_conteudo_query: filtros.buscaConteudo?.trim() || null,
           })
           .abortSignal(signal);
 
