@@ -32,9 +32,11 @@ export interface HistoricoAlertaEnviado {
 }
 
 export const TIPOS_ALERTA = [
-  { value: 'djen', label: 'Publicações DJEN', icon: '📰' },
-  { value: 'audiencias', label: 'Audiências Detectadas', icon: '📅' },
-  { value: 'tarefas', label: 'Tarefas e Prazos', icon: '✅' },
+  { value: 'tarefa', label: 'Tarefas', icon: '✅' },
+  { value: 'prazo', label: 'Prazos', icon: '⏰' },
+  { value: 'evento', label: 'Eventos', icon: '📌' },
+  { value: 'audiencia', label: 'Audiências', icon: '📅' },
+  { value: 'parcelamento', label: 'Parcelamentos', icon: '💰' },
 ];
 
 export const DIAS_SEMANA = [
