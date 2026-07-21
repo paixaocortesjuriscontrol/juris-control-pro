@@ -3841,6 +3841,7 @@ const AnaliseDjen = () => {
                   setTipoOrigem('todos');
                   setMonitoramentoId("");
                   setTermoBusca("");
+                  setBuscaConteudo("");
                   setTribunalFiltro("");
                   setDataDisponibilizacao("");
                   setDataPublicacao("");
