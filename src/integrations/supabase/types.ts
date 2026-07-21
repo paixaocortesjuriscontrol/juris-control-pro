@@ -1683,6 +1683,8 @@ export type Database = {
           coordenacao_id: string
           created_at: string
           created_by: string | null
+          destinatarios_audiencias_ids: string[]
+          destinatarios_intimacoes_ids: string[]
           detectar_audiencias: boolean
           detectar_intimacoes: boolean
           horarios_andamentos: string[]
@@ -1712,6 +1714,8 @@ export type Database = {
           coordenacao_id: string
           created_at?: string
           created_by?: string | null
+          destinatarios_audiencias_ids?: string[]
+          destinatarios_intimacoes_ids?: string[]
           detectar_audiencias?: boolean
           detectar_intimacoes?: boolean
           horarios_andamentos?: string[]
@@ -1741,6 +1745,8 @@ export type Database = {
           coordenacao_id?: string
           created_at?: string
           created_by?: string | null
+          destinatarios_audiencias_ids?: string[]
+          destinatarios_intimacoes_ids?: string[]
           detectar_audiencias?: boolean
           detectar_intimacoes?: boolean
           horarios_andamentos?: string[]

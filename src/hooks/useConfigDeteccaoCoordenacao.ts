@@ -21,6 +21,8 @@ export interface ConfigDeteccaoCoordenacao {
   horarios_djen_kurier: string[];
   monitorar_djen_stf_servidor: boolean;
   horarios_djen_stf_servidor: string[];
+  destinatarios_audiencias_ids: string[];
+  destinatarios_intimacoes_ids: string[];
 }
 
 export type ConfigDeteccaoPayload = Partial<Omit<ConfigDeteccaoCoordenacao, "id">> & {
@@ -44,6 +46,8 @@ const DEFAULTS: Omit<ConfigDeteccaoCoordenacao, "id" | "coordenacao_id"> = {
   horarios_djen_kurier: [],
   monitorar_djen_stf_servidor: false,
   horarios_djen_stf_servidor: [],
+  destinatarios_audiencias_ids: [],
+  destinatarios_intimacoes_ids: [],
 };
 
 export function useConfigDeteccaoCoordenacao(coordenacaoId: string | null) {

@@ -110,16 +110,33 @@ serve(async (req) => {
           }
 
           if (processo.coordenacao_id) {
-            const { data: membros } = await supabase
-              .from("membros_coordenacao")
-              .select("usuario_id")
-              .eq("coordenacao_id", processo.coordenacao_id);
+            // Verifica configuração de destinatários específicos
+            const { data: cfgDet } = await supabase
+              .from("config_deteccao_coordenacao")
+              .select("destinatarios_audiencias_ids")
+              .eq("coordenacao_id", processo.coordenacao_id)
+              .maybeSingle();
 
-            membros?.forEach((m: { usuario_id: string }) => {
-              if (!usuariosParaNotificar.includes(m.usuario_id)) {
-                usuariosParaNotificar.push(m.usuario_id);
-              }
-            });
+            const destEspec = (cfgDet?.destinatarios_audiencias_ids || []) as string[];
+
+            if (destEspec.length > 0) {
+              destEspec.forEach((uid) => {
+                if (uid && !usuariosParaNotificar.includes(uid)) {
+                  usuariosParaNotificar.push(uid);
+                }
+              });
+            } else {
+              const { data: membros } = await supabase
+                .from("membros_coordenacao")
+                .select("usuario_id")
+                .eq("coordenacao_id", processo.coordenacao_id);
+
+              membros?.forEach((m: { usuario_id: string }) => {
+                if (!usuariosParaNotificar.includes(m.usuario_id)) {
+                  usuariosParaNotificar.push(m.usuario_id);
+                }
+              });
+            }
           }
         }
       }
