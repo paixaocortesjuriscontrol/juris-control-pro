@@ -877,6 +877,7 @@ const AnaliseDjen = () => {
         p_offset: (descartadasPage - 1) * PAGE_SIZE_DESCARTADAS,
         p_monitoramento_id: monitoramentoId || null,
         p_read_status: readStatus,
+        p_conteudo_query: buscaConteudoDebounced || null,
       });
 
       if (error) {
