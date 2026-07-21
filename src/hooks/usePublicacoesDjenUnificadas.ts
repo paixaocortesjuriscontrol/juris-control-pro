@@ -219,6 +219,8 @@ export interface FiltrosUnificados {
   dataFim?: string;
   dataDisponibilizacao?: string;
   termoBusca?: string;
+  /** Termo separado para buscar apenas dentro do conteúdo da publicação. Aplicado em AND com `termoBusca`. */
+  buscaConteudo?: string;
   monitoramentoId?: string;
   apenasNaoLidas?: boolean;
   readStatus?: FiltroLeituraDjen;
@@ -635,6 +637,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             p_data_disponibilizacao_fim: dataDisponibilizacaoFim,
             p_tribunal: filtros.tribunal || null,
             p_dedup: filtros.dedupServidor === true,
+            p_conteudo_query: filtros.buscaConteudo?.trim() || null,
           })
           .abortSignal(signal);
 
@@ -997,6 +1000,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             if (!matchConteudo && !matchProcesso && !matchTermoMonitor && !matchProcessoDigits) return;
           }
 
+          if (filtros.buscaConteudo && filtros.buscaConteudo.trim()) {
+            const q = filtros.buscaConteudo.trim().toLowerCase();
+            if (!(pub.conteudo || '').toLowerCase().includes(q)) return;
+          }
+
           // Verificar se o processo já existe no banco
           const processoId = pub.processo_id || (pub.processo_numero ? processosExistentesMap[pub.processo_numero] || null : null);
 
@@ -1109,6 +1117,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             if (!match) return;
           }
 
+          if (filtros.buscaConteudo && filtros.buscaConteudo.trim()) {
+            const q = filtros.buscaConteudo.trim().toLowerCase();
+            if (!(pub.conteudo || '').toLowerCase().includes(q)) return;
+          }
+
           resultados.push({
             id: pub.id,
             tipo_origem: 'processo',
@@ -1200,6 +1213,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               pub.motivo_descarte?.toLowerCase().includes(termo) ||
               matchProcessoDigits;
             if (!match) return;
+          }
+
+          if (filtros.buscaConteudo && filtros.buscaConteudo.trim()) {
+            const q = filtros.buscaConteudo.trim().toLowerCase();
+            if (!(pub.conteudo || '').toLowerCase().includes(q)) return;
           }
 
           resultados.push({
