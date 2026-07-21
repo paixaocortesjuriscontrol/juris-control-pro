@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Loader2, Upload, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -12,13 +13,17 @@ import { toast } from "sonner";
 interface MeuPerfilDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSaved?: (nome?: string, avatarUrl?: string | null) => void;
 }
 
-export function MeuPerfilDialog({ open, onOpenChange }: MeuPerfilDialogProps) {
+export function MeuPerfilDialog({ open, onOpenChange, onSaved }: MeuPerfilDialogProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
     nome: "",
     senha: "",
@@ -32,7 +37,7 @@ export function MeuPerfilDialog({ open, onOpenChange }: MeuPerfilDialogProps) {
     setLoading(true);
     supabase
       .from("profiles")
-      .select("nome, filial, oab, telefone")
+      .select("nome, filial, oab, telefone, avatar_url")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data }) => {
@@ -43,9 +48,79 @@ export function MeuPerfilDialog({ open, onOpenChange }: MeuPerfilDialogProps) {
           oab: data?.oab ?? "",
           telefone: data?.telefone ?? "",
         });
+        setAvatarUrl((data as any)?.avatar_url ?? null);
         setLoading(false);
       });
   }, [open, user?.id]);
+
+  function getInitials() {
+    const nome = form.nome || user?.email || "";
+    const parts = nome.trim().split(/\s+/);
+    if (parts.length > 1) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    return nome.substring(0, 2).toUpperCase();
+  }
+
+  async function handleUploadAvatar(file: File) {
+    if (!user?.id) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecione um arquivo de imagem");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Imagem muito grande (máx. 5MB)");
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+
+      // Gera URL assinada com validade longa (1 ano)
+      const { data: signed, error: signErr } = await supabase.storage
+        .from("avatars")
+        .createSignedUrl(path, 60 * 60 * 24 * 365);
+      if (signErr) throw signErr;
+
+      const url = signed.signedUrl;
+      const { error: profErr } = await supabase
+        .from("profiles")
+        .update({ avatar_url: url } as any)
+        .eq("id", user.id);
+      if (profErr) throw profErr;
+
+      setAvatarUrl(url);
+      onSaved?.(undefined, url);
+      toast.success("Foto de perfil atualizada");
+    } catch (err: any) {
+      toast.error(err?.message || "Falha ao enviar foto");
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    if (!user?.id) return;
+    setUploadingAvatar(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ avatar_url: null } as any)
+        .eq("id", user.id);
+      if (error) throw error;
+      setAvatarUrl(null);
+      onSaved?.(undefined, null);
+      toast.success("Foto removida");
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao remover foto");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
 
   async function handleSalvar() {
     if (!user?.id) return;
@@ -76,6 +151,7 @@ export function MeuPerfilDialog({ open, onOpenChange }: MeuPerfilDialogProps) {
         if (pwError) throw pwError;
       }
 
+      onSaved?.(form.nome.trim(), avatarUrl);
       toast.success("Perfil atualizado com sucesso");
       onOpenChange(false);
     } catch (err: any) {
@@ -115,6 +191,54 @@ export function MeuPerfilDialog({ open, onOpenChange }: MeuPerfilDialogProps) {
           <DialogDescription>Atualize seus dados pessoais</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+          <div className="flex items-center gap-4">
+            <Avatar className="w-20 h-20">
+              <AvatarImage src={avatarUrl ?? undefined} />
+              <AvatarFallback className="bg-primary text-primary-foreground text-lg">
+                {getInitials()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleUploadAvatar(f);
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAvatar || loading}
+              >
+                {uploadingAvatar ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4 mr-2" />
+                )}
+                Enviar foto
+              </Button>
+              {avatarUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRemoveAvatar}
+                  disabled={uploadingAvatar}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Remover
+                </Button>
+              )}
+              <p className="text-xs text-muted-foreground">JPG, PNG ou WEBP (máx. 5MB).</p>
+            </div>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="perfil-nome">Nome Completo *</Label>
             <Input
