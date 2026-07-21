@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { NotificacoesDropdown } from "./NotificacoesDropdown";
 import { AlterarSenhaDialog } from "./AlterarSenhaDialog";
+import { MeuPerfilDialog } from "./MeuPerfilDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfigNotificacoesUsuarioCard } from "@/components/configuracoes/ConfigNotificacoesUsuarioCard";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
   const navigate = useNavigate();
   const [senhaDialogOpen, setSenhaDialogOpen] = useState(false);
   const [notifDialogOpen, setNotifDialogOpen] = useState(false);
+  const [perfilDialogOpen, setPerfilDialogOpen] = useState(false);
   const [profileNome, setProfileNome] = useState<string | null>(null);
 
   useEffect(() => {
@@ -152,7 +154,7 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setPerfilDialogOpen(true)}>
               <User className="w-4 h-4 mr-2" />
               Meu Perfil
             </DropdownMenuItem>
@@ -179,6 +181,7 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
         </DropdownMenu>
 
         <AlterarSenhaDialog open={senhaDialogOpen} onOpenChange={setSenhaDialogOpen} />
+        <MeuPerfilDialog open={perfilDialogOpen} onOpenChange={setPerfilDialogOpen} />
 
         <Dialog open={notifDialogOpen} onOpenChange={setNotifDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
