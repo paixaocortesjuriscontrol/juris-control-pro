@@ -1117,6 +1117,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             if (!match) return;
           }
 
+          if (filtros.buscaConteudo && filtros.buscaConteudo.trim()) {
+            const q = filtros.buscaConteudo.trim().toLowerCase();
+            if (!(pub.conteudo || '').toLowerCase().includes(q)) return;
+          }
+
           resultados.push({
             id: pub.id,
             tipo_origem: 'processo',
