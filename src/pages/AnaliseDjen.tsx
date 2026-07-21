@@ -174,7 +174,6 @@ const AnaliseDjen = () => {
   const [dataDisponibilizacao, setDataDisponibilizacao] = useState<string>("");
   const [dataPublicacao, setDataPublicacao] = useState<string>("");
   const [termoBusca, setTermoBusca] = useState<string>("");
-  const [buscaConteudo, setBuscaConteudo] = useState<string>("");
   const [monitoramentoId, setMonitoramentoId] = useState<string>("");
   const [tribunalFiltro, setTribunalFiltro] = useState<string>("");
   const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>('hoje');
@@ -218,7 +217,6 @@ const AnaliseDjen = () => {
   // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
   // a cada tecla (termo de busca + data digitada manualmente).
   const termoBuscaDebounced = useDebouncedValue(termoBusca, 350);
-  const buscaConteudoDebounced = useDebouncedValue(buscaConteudo, 350);
   const dataInicioDebounced = useDebouncedValue(dataInicio, 250);
   const dataFimDebounced = useDebouncedValue(dataFim, 250);
   const dataDisponibilizacaoDebounced = useDebouncedValue(dataDisponibilizacao, 250);
@@ -481,7 +479,6 @@ const AnaliseDjen = () => {
     dataFim: apenasHojeEfetivo ? undefined : (dataFimDebounced || undefined),
     dataDisponibilizacao: dataDisponibilizacaoDebounced || undefined,
     termoBusca: termoBuscaDebounced || undefined,
-    buscaConteudo: buscaConteudoDebounced || undefined,
     monitoramentoId: monitoramentoId || undefined,
     tribunal: tribunalFiltro || undefined,
     // Quando o usuário clica em "Mostrar somente únicas", aplica DISTINCT ON
@@ -843,7 +840,6 @@ const AnaliseDjen = () => {
       readStatus,
       descartadasPage,
       PAGE_SIZE_DESCARTADAS,
-      buscaConteudoDebounced,
     ],
     queryFn: async () => {
       if (!user?.id) return { rows: [] as PublicacaoUnificada[], total: 0 };
@@ -878,7 +874,6 @@ const AnaliseDjen = () => {
         p_offset: (descartadasPage - 1) * PAGE_SIZE_DESCARTADAS,
         p_monitoramento_id: monitoramentoId || null,
         p_read_status: readStatus,
-        p_conteudo_query: buscaConteudoDebounced || null,
       });
 
       if (error) {
@@ -3841,7 +3836,6 @@ const AnaliseDjen = () => {
                   setTipoOrigem('todos');
                   setMonitoramentoId("");
                   setTermoBusca("");
-                  setBuscaConteudo("");
                   setTribunalFiltro("");
                   setDataDisponibilizacao("");
                   setDataPublicacao("");
