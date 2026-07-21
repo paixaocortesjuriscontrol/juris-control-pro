@@ -3931,6 +3931,20 @@ const AnaliseDjen = () => {
                   />
                 </div>
               </div>
+
+              <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
+                <Label className="text-xs md:text-sm">Buscar no conteúdo</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Palavra ou frase no texto..."
+                    value={buscaConteudo}
+                    onChange={(e) => setBuscaConteudo(e.target.value)}
+                    className="pl-9 h-9 md:h-10 text-sm"
+                    title="Filtra apenas pelo texto da publicação (combina com o campo Buscar em AND)."
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 mt-3 md:mt-4">
