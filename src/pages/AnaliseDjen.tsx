@@ -843,6 +843,7 @@ const AnaliseDjen = () => {
       readStatus,
       descartadasPage,
       PAGE_SIZE_DESCARTADAS,
+      buscaConteudoDebounced,
     ],
     queryFn: async () => {
       if (!user?.id) return { rows: [] as PublicacaoUnificada[], total: 0 };
