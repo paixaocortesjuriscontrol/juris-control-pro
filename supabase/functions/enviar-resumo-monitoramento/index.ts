@@ -111,11 +111,17 @@ serve(async (req) => {
         continue;
       }
 
-      // Verificar se o tipo de alerta está habilitado
-      const tiposAlertasNorm = (config.tipos_alerta || []).map((t: any) => normalizeTipoAlerta(t));
-      if (!tiposAlertasNorm.includes(normalizeTipoAlerta(tipoAlerta))) {
-        console.log(`${TAG} Tipo de alerta "${tipoAlerta}" não habilitado para coordenação ${coordenacao_id}`);
-        continue;
+      // Verificar se o tipo de alerta está habilitado.
+      // Os tipos DJEN/Audiências/Intimações agora são governados pela aba
+      // "Detecção & Monitoramento" e passam sempre; os demais respeitam tipos_alerta.
+      const tipoNorm = normalizeTipoAlerta(tipoAlerta);
+      const isDeteccaoMonitoramento = ['djen', 'audiencias', 'intimacoes'].includes(tipoNorm);
+      if (!isDeteccaoMonitoramento) {
+        const tiposAlertasNorm = (config.tipos_alerta || []).map((t: any) => normalizeTipoAlerta(t));
+        if (!tiposAlertasNorm.includes(tipoNorm)) {
+          console.log(`${TAG} Tipo de alerta "${tipoAlerta}" não habilitado para coordenação ${coordenacao_id}`);
+          continue;
+        }
       }
 
       // Verificar horário de envio (usando horário de Brasília)

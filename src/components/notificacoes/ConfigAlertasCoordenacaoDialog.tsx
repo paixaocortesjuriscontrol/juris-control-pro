@@ -84,7 +84,21 @@ export function ConfigAlertasCoordenacaoPanel({
     if (config) {
       setEmailHabilitado(config.email_habilitado);
       setWhatsappHabilitado(config.whatsapp_habilitado);
-      setTiposAlerta(config.tipos_alerta || []);
+      // Migrar valores legados: 'tarefas' -> ['tarefa','prazo','evento','audiencia','parcelamento']
+      // Remover 'djen' e 'audiencias' (agora em Detecção & Monitoramento)
+      const legados = config.tipos_alerta || [];
+      const migrados = new Set<string>();
+      for (const t of legados) {
+        if (t === 'tarefas') {
+          ['tarefa', 'prazo', 'evento', 'audiencia', 'parcelamento'].forEach((x) => migrados.add(x));
+        } else if (t === 'djen' || t === 'audiencias' || t === 'alertas360' || t === 'redistribuicoes' || t === 'andamentos' || t === 'distribuicoes' || t === 'prazos') {
+          if (t === 'prazos') migrados.add('prazo');
+          // demais: descartar
+        } else {
+          migrados.add(t);
+        }
+      }
+      setTiposAlerta(Array.from(migrados));
       setApenasUrgentes(config.apenas_urgentes);
       setHorarioInicio(config.horario_inicio || "08:00");
       setHorarioFim(config.horario_fim || "18:00");
@@ -92,7 +106,7 @@ export function ConfigAlertasCoordenacaoPanel({
     } else {
       setEmailHabilitado(false);
       setWhatsappHabilitado(false);
-      setTiposAlerta(["alertas360", "prazos", "redistribuicoes"]);
+      setTiposAlerta(["tarefa", "prazo", "evento", "audiencia", "parcelamento"]);
       setApenasUrgentes(false);
       setHorarioInicio("08:00");
       setHorarioFim("18:00");

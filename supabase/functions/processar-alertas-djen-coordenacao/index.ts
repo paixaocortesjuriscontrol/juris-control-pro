@@ -137,14 +137,8 @@ serve(async (req) => {
 
       const emailHabilitado = configAlerta?.email_habilitado ?? true;
       const whatsappHabilitado = configAlerta?.whatsapp_habilitado ?? true;
-      const tiposAlerta = configAlerta?.tipos_alerta || [];
-      const djenHabilitado = tiposAlerta.length === 0 || tiposAlerta.includes('djen');
-
-      if (!djenHabilitado) {
-        console.log(`[processar-alertas-djen-coordenacao] Tipo DJEN não habilitado para coordenação ${alerta.coordenacao_id}`);
-        resultados.push({ alertaId: alerta.id, status: 'tipo_nao_habilitado' });
-        continue;
-      }
+      // DJEN agora é governado pela aba "Detecção & Monitoramento" da Central de Notificações.
+      // Não é mais necessário incluir 'djen' em tipos_alerta.
 
       // Buscar dados dos membros (telefone E email)
       if (!alerta.membros_ids?.length) {
