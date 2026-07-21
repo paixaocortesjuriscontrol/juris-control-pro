@@ -26,6 +26,16 @@ function parseJsonArraySafe(value: unknown): any[] | null {
   return arr.length ? arr : null;
 }
 
+function jsonSearchText(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
 // Helper para converter data local (YYYY-MM-DD) para range UTC considerando BRT (UTC-3)
 // Se usuário seleciona 30/01, deve buscar:
 // - Início: 30/01 00:00 BRT = 30/01 03:00 UTC
@@ -991,11 +1001,15 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             const matchConteudo = conteudoContemFraseExata(pub.conteudo, filtros.termoBusca);
             const matchProcesso = pub.processo_numero?.toLowerCase().includes(termoLower);
             const matchTermoMonitor = pub.monitoramento?.termo_busca?.toLowerCase().includes(termoLower);
+            const matchAdvogados = jsonSearchText(pub.advogados_json).toLowerCase().includes(termoLower);
+            const matchPartes = jsonSearchText(pub.partes_json).toLowerCase().includes(termoLower);
+            const matchPoloAtivo = pub.polo_ativo?.toLowerCase().includes(termoLower);
+            const matchPoloPassivo = pub.polo_passivo?.toLowerCase().includes(termoLower);
             // Busca normalizada por dígitos do processo
             const matchProcessoDigits = termoDigits.length >= 5 && pub.processo_numero
               ? (() => { const d = pub.processo_numero.replace(/\D/g, ''); return d.includes(termoDigits) || termoDigits.includes(d); })()
               : false;
-            if (!matchConteudo && !matchProcesso && !matchTermoMonitor && !matchProcessoDigits) return;
+            if (!matchConteudo && !matchProcesso && !matchTermoMonitor && !matchAdvogados && !matchPartes && !matchPoloAtivo && !matchPoloPassivo && !matchProcessoDigits) return;
           }
 
           // Verificar se o processo já existe no banco
@@ -1106,6 +1120,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               pub.processo_numero?.toLowerCase().includes(termo) ||
               pub.processo?.polo_ativo?.toLowerCase().includes(termo) ||
               pub.processo?.polo_passivo?.toLowerCase().includes(termo) ||
+              jsonSearchText(pub.advogados_json).toLowerCase().includes(termo) ||
+              jsonSearchText(pub.partes_json).toLowerCase().includes(termo) ||
               matchProcessoDigits;
             if (!match) return;
           }
@@ -1199,6 +1215,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               pub.processo_numero?.toLowerCase().includes(termo) ||
               pub.monitoramento?.termo_busca?.toLowerCase().includes(termo) ||
               pub.motivo_descarte?.toLowerCase().includes(termo) ||
+              jsonSearchText(pub.advogados_json).toLowerCase().includes(termo) ||
+              jsonSearchText(pub.partes_json).toLowerCase().includes(termo) ||
               matchProcessoDigits;
             if (!match) return;
           }
