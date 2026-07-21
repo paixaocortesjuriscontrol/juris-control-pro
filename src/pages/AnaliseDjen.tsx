@@ -481,6 +481,7 @@ const AnaliseDjen = () => {
     dataFim: apenasHojeEfetivo ? undefined : (dataFimDebounced || undefined),
     dataDisponibilizacao: dataDisponibilizacaoDebounced || undefined,
     termoBusca: termoBuscaDebounced || undefined,
+    buscaConteudo: buscaConteudoDebounced || undefined,
     monitoramentoId: monitoramentoId || undefined,
     tribunal: tribunalFiltro || undefined,
     // Quando o usuário clica em "Mostrar somente únicas", aplica DISTINCT ON
