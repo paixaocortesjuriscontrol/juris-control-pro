@@ -243,6 +243,10 @@ export function ConfigAlertasCoordenacaoPanel({
   const [hKurier, setHKurier] = useState<string[]>([]);
   const [monStfSrv, setMonStfSrv] = useState(false);
   const [hStfSrv, setHStfSrv] = useState<string[]>([]);
+  const [audMode, setAudMode] = useState<"todos" | "selecionados">("todos");
+  const [audDest, setAudDest] = useState<string[]>([]);
+  const [intMode, setIntMode] = useState<"todos" | "selecionados">("todos");
+  const [intDest, setIntDest] = useState<string[]>([]);
   const [deteccaoLoaded, setDeteccaoLoaded] = useState<string | null>(null);
 
   useEffect(() => {
@@ -258,6 +262,12 @@ export function ConfigAlertasCoordenacaoPanel({
     setHKurier(map((deteccao as any).horarios_djen_kurier));
     setMonStfSrv(!!(deteccao as any).monitorar_djen_stf_servidor);
     setHStfSrv(map((deteccao as any).horarios_djen_stf_servidor));
+    const audIds = ((deteccao as any).destinatarios_audiencias_ids || []) as string[];
+    const intIds = ((deteccao as any).destinatarios_intimacoes_ids || []) as string[];
+    setAudDest(audIds);
+    setAudMode(audIds.length > 0 ? "selecionados" : "todos");
+    setIntDest(intIds);
+    setIntMode(intIds.length > 0 ? "selecionados" : "todos");
     setDeteccaoLoaded(coordenacaoId);
   }, [deteccao, coordenacaoId, deteccaoLoaded]);
 
@@ -279,6 +289,8 @@ export function ConfigAlertasCoordenacaoPanel({
       horarios_djen_kurier: hKurier,
       monitorar_djen_stf_servidor: monStfSrv,
       horarios_djen_stf_servidor: hStfSrv,
+      destinatarios_audiencias_ids: audMode === "selecionados" ? audDest : [],
+      destinatarios_intimacoes_ids: intMode === "selecionados" ? intDest : [],
     } as any);
   };
 
