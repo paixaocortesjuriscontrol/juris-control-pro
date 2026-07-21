@@ -219,6 +219,8 @@ export interface FiltrosUnificados {
   dataFim?: string;
   dataDisponibilizacao?: string;
   termoBusca?: string;
+  /** Termo separado para buscar apenas dentro do conteúdo da publicação. Aplicado em AND com `termoBusca`. */
+  buscaConteudo?: string;
   monitoramentoId?: string;
   apenasNaoLidas?: boolean;
   readStatus?: FiltroLeituraDjen;
