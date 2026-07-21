@@ -42,6 +42,7 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
   const [notifDialogOpen, setNotifDialogOpen] = useState(false);
   const [perfilDialogOpen, setPerfilDialogOpen] = useState(false);
   const [profileNome, setProfileNome] = useState<string | null>(null);
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,11 +52,14 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
     }
     supabase
       .from("profiles")
-      .select("nome")
+      .select("nome, avatar_url")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data }) => {
-        if (!cancelled) setProfileNome(data?.nome ?? null);
+        if (!cancelled) {
+          setProfileNome(data?.nome ?? null);
+          setProfileAvatarUrl((data as any)?.avatar_url ?? null);
+        }
       });
     return () => {
       cancelled = true;
@@ -135,7 +139,7 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-2 px-2">
               <Avatar className="w-8 h-8">
-                <AvatarImage src={user?.user_metadata?.avatar_url} />
+                <AvatarImage src={profileAvatarUrl ?? user?.user_metadata?.avatar_url} />
                 <AvatarFallback className="bg-primary text-primary-foreground text-sm">
                   {getInitials()}
                 </AvatarFallback>
@@ -181,7 +185,14 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
         </DropdownMenu>
 
         <AlterarSenhaDialog open={senhaDialogOpen} onOpenChange={setSenhaDialogOpen} />
-        <MeuPerfilDialog open={perfilDialogOpen} onOpenChange={setPerfilDialogOpen} />
+        <MeuPerfilDialog
+          open={perfilDialogOpen}
+          onOpenChange={setPerfilDialogOpen}
+          onSaved={(nome, avatarUrl) => {
+            if (nome !== undefined) setProfileNome(nome);
+            if (avatarUrl !== undefined) setProfileAvatarUrl(avatarUrl);
+          }}
+        />
 
         <Dialog open={notifDialogOpen} onOpenChange={setNotifDialogOpen}>
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
