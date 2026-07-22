@@ -85,6 +85,7 @@ import ConsumoIA from "./pages/ConsumoIA";
 import AdminTst from "./pages/AdminTst";
 import AdminTstImportacoes from "./pages/AdminTstImportacoes";
 import AdminTstOutroEscritorio from "./pages/AdminTstOutroEscritorio";
+import AdminTstBasePcaDistribuicoes from "./pages/AdminTstBasePcaDistribuicoes";
 import BuscaPublicacao from "./pages/BuscaPublicacao";
 import DjenLocal from "./pages/DjenLocal";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
@@ -198,6 +199,7 @@ function App() {
               <Route path="/admin-tst/importacoes-distribuicao" element={<ProtectedRoute><AdminTstImportacoes /></ProtectedRoute>} />
               <Route path="/admin-tst/outro-escritorio" element={<AdminRoute><AdminTstOutroEscritorio /></AdminRoute>} />
               <Route path="/admin-tst/busca-publicacao" element={<AdminRoute><BuscaPublicacao /></AdminRoute>} />
+              <Route path="/admin-tst/base-pca-distribuicoes" element={<AdminRoute><AdminTstBasePcaDistribuicoes /></AdminRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>

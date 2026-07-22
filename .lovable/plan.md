@@ -1,44 +1,51 @@
-## Diagnóstico
+## Nova ferramenta: "Base PCA - TST - Distribuições"
 
-A tarefa **"tarefa teste para o Eduardo verificar..."** existe (id `6b8e6e16...`), com:
-- `data_vencimento = 2026-07-21`
-- `data_fatal = NULL`
-- `status = pendente`
-- responsável = Eduardo Torres
+Ferramenta administrativa no menu **Admin. TST** para aplicar uma TAG em massa a processos da base **Distribuição TST** (`dados_benner`) a partir de uma planilha Excel. Segue os padrões de UI/UX das telas `AdminTstOutroEscritorio` (upload + progresso + lotes) e `BulkTagAction` (seletor/criação de TAG com paleta de cores).
 
-A Edge Function `alertar-prazos-perdidos` **filtra apenas por `data_fatal < hoje`**:
+### Fluxo do usuário
 
-```ts
-.lt("data_fatal", hoje)
+1. Acessa `Admin. TST → Base PCA - TST - Distribuições`.
+2. Faz upload da planilha `.xlsx`.
+3. Sistema lê colunas **Dossiê** (col B) e **Processo** (col D), removendo aspa simples inicial (`'`) e normalizando espaços.
+4. Sistema busca em lotes na `dados_benner` casando `dossie` OU `processo` (com dígitos-apenas para processo CNJ). Mostra barra de progresso "Buscando lote X/Y — encontrados: N".
+5. Exibe resumo: total lido, encontrados, não encontrados, com botão de exportar planilha de não encontrados.
+6. Advogado escolhe uma TAG (mesmo componente da tela Distribuição TST — lista com cores, criar nova com paleta, editar cor).
+7. Clica **Aplicar TAG aos encontrados** → aplica em lotes de 200 via upsert em `dados_benner_processo_tags` com progresso "Aplicando lote X/Y".
+8. Toast final: "TAG aplicada a N processos".
+
+### Detalhes técnicos
+
+- **Rota**: `/admin-tst/base-pca-distribuicoes` protegida por `AdminRoute`. Novo card em `src/pages/AdminTst.tsx` (ícone `Tags` do lucide).
+- **Página**: `src/pages/AdminTstBasePcaDistribuicoes.tsx`.
+- **Leitura da planilha**: `XLSX.utils.sheet_to_json` com `header: 1`, detecta cabeçalho por regex (`Dossiê`, `Processo`). Aceita a coluna com apóstrofo (`'0007600-63...`) — strip inicial `^'`. Para o processo, guarda também versão só-dígitos.
+- **Busca em lotes** (500 chaves por request):
+  - Query 1: `.from("dados_benner").select("id, dossie, processo").in("dossie", chunkDossies)`
+  - Query 2: `.in("processo", chunkProcessos)` — com fallback tentando ambos formatados (com/sem máscara) já que `dados_benner.processo` é armazenado sem máscara em muitos casos (verificar pelo formato salvo — se necessário, comparar por dígitos-apenas via RPC leve `SELECT id FROM dados_benner WHERE regexp_replace(processo,'\D','','g') = ANY($1)`).
+  - Deduplica IDs encontrados.
+  - Atualiza progresso a cada lote.
+- **Aplicação da TAG**: reutiliza a lógica de `BulkTagAction.applyTagToIds` (upsert em `dados_benner_processo_tags` com `onConflict: "dado_benner_id,tag_id"`, `ignoreDuplicates`), em chunks de 200. Progresso separado.
+- **Seletor de TAG**: extrair um sub-componente `TagPickerInline` a partir do `Popover` de `BulkTagAction` (lista existente + criação com `ColorPalettePicker`), ou reutilizar `BulkTagAction` recebendo `selectedIds` já resolvidos. Preferência: extrair componente compartilhado `src/components/distribuicao-tst/TagPickerInline.tsx` usado por ambas as telas para não duplicar lógica.
+- **Não encontrados**: exportar `.xlsx` com colunas Dossiê e Processo via `XLSX.writeFile`.
+- **RPC opcional** (se busca por processo com máscara não casar): criar migration `find_dados_benner_by_dossie_or_processo(_dossies text[], _processos_digitos text[])` retornando `id`. Só se a primeira query direta não cobrir os casos.
+
+### Layout (ASCII)
+
+```text
+[ Upload da planilha ]  arquivo.xlsx
+[ Progresso: Buscando lote 3/12 — encontrados: 240 ]  [====------]
+
+Resumo
+  Total lido: 500    Encontrados: 460    Não encontrados: 40   [ Exportar não encontrados ]
+
+Selecionar TAG a aplicar
+  ( • ) Benner Completo    [criar nova TAG...]
+  [ Aplicar TAG aos 460 encontrados ]
+
+[ Progresso aplicação: 2/3 lotes ]
 ```
 
-Como a tarefa foi criada só com **data prevista** (`data_vencimento`) e sem `data_fatal`, ela **nunca entra no filtro** — por isso o Eduardo não recebeu o alerta de atraso.
+### Fora de escopo
 
-Além disso, a função hoje só olha `tarefas`. Não trata **eventos, audiências e parcelas** vencidos sem tratamento, apesar da Central de Notificações prometer "alerta de itens vencidos" para todos os tipos do botão Adicionar.
-
-## Correções propostas em `supabase/functions/alertar-prazos-perdidos/index.ts`
-
-1. **Considerar atraso quando qualquer uma das datas passou:**
-   - Tarefa vencida = `COALESCE(data_fatal, data_vencimento) < hoje` e status não concluído/cancelado/arquivado/tratado.
-   - Assim, tarefas só com data prevista (caso do teste) entram no alerta.
-
-2. **Expandir para os demais tipos do botão Adicionar** (mesma regra unificada de destinatários já usada nas outras 3 funções: config + responsáveis + envolvidos + criador):
-   - **Eventos** (`eventos_agenda`): `data_inicio < hoje` e status ≠ concluido/cancelado/tratado.
-   - **Audiências** (`audiencias_detectadas`): `data_audiencia < hoje` e status não em (tratado, ignorado, cancelado, realizada).
-   - **Parcelas** (`parcelas_evento`): `data_vencimento < hoje` e sem `pago_em`/status pago (a confirmar com uma leitura da tabela).
-
-3. **Dedup diário por usuário+tipo** no `historico_alertas_enviados` (hoje já existe por usuário; passar a incluir o tipo para não colidir entre categorias).
-
-4. **Respeito à configuração do usuário** (`config_notificacoes_usuario.evento_prazo_perdido` e canais) — mantido como está.
-
-## Verificação após o deploy
-
-- Rodar a função manualmente via `supabase--curl_edge_functions` (`POST /alertar-prazos-perdidos`).
-- Confirmar em `historico_alertas_enviados` um registro com `tipo_alerta='prazo_perdido'`, `destinatario = e98847c9-...` (Eduardo) e status `enviado`.
-- Confirmar que a tarefa `6b8e6e16...` aparece no corpo da mensagem.
-
-## Fora de escopo
-
-- Não altero UI da Central de Notificações.
-- Não altero as outras 3 funções de alerta (já aplicam a regra unificada).
-- Não mudo o agendamento do cron.
+- Não altera a tela `Distribuição TST`.
+- Não cria/edita processos que não existirem na base (apenas relata como "não encontrados").
+- Não importa nenhum outro campo da planilha (equipe, relator, etc.) — só é usada para busca por dossiê/processo.
