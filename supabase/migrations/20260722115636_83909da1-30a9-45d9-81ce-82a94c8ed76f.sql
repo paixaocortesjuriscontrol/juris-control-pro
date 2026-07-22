@@ -1,0 +1,1 @@
+ALTER TABLE public.historico_alertas_enviados ALTER COLUMN coordenacao_id DROP NOT NULL;
