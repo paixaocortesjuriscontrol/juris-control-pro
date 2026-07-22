@@ -11,20 +11,39 @@ import {
   Scale,
   ShieldCheck,
   FileText,
-  Upload as UploadIcon,
   Building2,
   Search,
   Tag as TagIcon,
+  FileSignature,
+  FileSpreadsheet,
+  Hash,
+  Users,
+  Truck,
+  Building,
+  CheckSquare,
 } from "lucide-react";
+import { useUserRole } from "@/hooks/useUserRole";
 
-type Tool = { label: string; path: string; icon: any; description: string };
+type Tool = { label: string; path: string; icon: any; description: string; adminOnly?: boolean };
 
 const groups: { title: string; description: string; tools: Tool[] }[] = [
+  {
+    title: "Importações Distribuição TST",
+    description: "Cargas e atualizações em massa da Distribuição TST — cada operação em sua própria tela.",
+    tools: [
+      { label: "Importar PDF Certidão", path: "/admin-tst/importar-certidao-pdf", icon: FileSignature, description: "Cadastra novos processos a partir do PDF da Certidão de Distribuição do TST." },
+      { label: "Importar Planilha Distribuição", path: "/admin-tst/importar-distribuicao", icon: FileSpreadsheet, description: "Importação principal da planilha de distribuição, lendo todas as abas." },
+      { label: "Atualizar Dossiês", path: "/admin-tst/atualizar-dossies", icon: Hash, description: "Atualiza o Nº do dossiê usando o CNJ como chave." },
+      { label: "Atualizar Equipe", path: "/admin-tst/atualizar-equipe", icon: Users, description: "Atualiza a equipe responsável usando o Dossiê como chave." },
+      { label: "Atualizar Situação de Envio", path: "/admin-tst/atualizar-situacao-envio", icon: Truck, description: "Atualiza Carga I a VII; cadastra processos novos como BENNER=SIM.", adminOnly: true },
+      { label: "Resposta Santander", path: "/admin-tst/resposta-santander", icon: Building, description: "Atualiza dados retornados pelo Santander (distribuição, partes, dossiê).", adminOnly: true },
+      { label: "Benner SIM (conferência)", path: "/admin-tst/benner-sim", icon: CheckSquare, description: "Marca processos como Benner=SIM em massa a partir de planilha de conferência." },
+    ],
+  },
   {
     title: "Distribuição TST",
     description: "Cargas, atualizações e marcações em massa da Distribuição TST.",
     tools: [
-      { label: "Importações Distribuição TST", path: "/admin-tst/importacoes-distribuicao", icon: UploadIcon, description: "Cargas e atualizações em massa da Distribuição TST (planilhas e PDFs) com layout documentado." },
       { label: "Verificar Outro Escritório", path: "/admin-tst/outro-escritorio", icon: Building2, description: "Importar planilha de migração, verificar processos na base e marcar como Outro Escritório." },
       { label: "Base PCA - TST - Distribuições", path: "/admin-tst/base-pca-distribuicoes", icon: TagIcon, description: "Upload da planilha, localizar Dossiê/Processo na base e aplicar uma TAG em lote." },
       { label: "Classificação TST", path: "/classificacao-tst", icon: ShieldCheck, description: "Classificar processos do TST." },
@@ -60,13 +79,17 @@ const groups: { title: string; description: string; tools: Tool[] }[] = [
 ];
 
 export default function AdminTst() {
+  const { isAdmin } = useUserRole();
+  const visibleGroups = groups
+    .map((g) => ({ ...g, tools: g.tools.filter((t) => !t.adminOnly || isAdmin) }))
+    .filter((g) => g.tools.length > 0);
   return (
     <MainLayout
       title="Admin. TST"
       subtitle="Ferramentas administrativas do TST: cargas, importações, classificações e utilitários."
     >
       <div className="p-4 lg:p-6 space-y-8">
-        {groups.map((group) => (
+        {visibleGroups.map((group) => (
           <section key={group.title} className="space-y-3">
             <div className="flex items-baseline justify-between gap-4 border-b border-border/60 pb-2">
               <div>
