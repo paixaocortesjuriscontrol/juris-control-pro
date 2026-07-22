@@ -336,6 +336,24 @@ function parseEnvolvidos(pub) {
 
 function metadataStf(pub /*, texto */) {
   const { partes, advogados, poloAtivo, poloPassivo } = parseEnvolvidos(pub);
+  // Diagnóstico: quando a API do STF devolve envolvidos vazio (comum em criminal/sigilo),
+  // registra as chaves e a confidencialidade para investigação. Sem regex no texto.
+  if (partes.length === 0 && advogados.length === 0) {
+    try {
+      const envolvidosLen = Array.isArray(pub?.envolvidos) ? pub.envolvidos.length : -1;
+      console.warn(
+        `[stfServidor] Publicação sem partes/advogados estruturados`,
+        JSON.stringify({
+          processo: pub?.processo,
+          processoId: pub?.processoId,
+          confidencialidade: pub?.confidencialidade,
+          tipo: pub?.tipo,
+          envolvidosLen,
+          keys: pub && typeof pub === 'object' ? Object.keys(pub) : [],
+        })
+      );
+    } catch {}
+  }
   return {
     partes_json: partes.length > 0 ? partes : null,
     advogados_json: advogados.length > 0 ? advogados : null,

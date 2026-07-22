@@ -894,7 +894,7 @@ export function PublicacaoConteudoDjen({
             ) : (
               <p className="text-sm text-muted-foreground flex items-center gap-2">
                 <User className="w-4 h-4 shrink-0" />
-                —
+                {fonte === 'stf_digital' ? 'Não informado pelo STF' : '—'}
               </p>
             )}
           </div>
@@ -914,7 +914,7 @@ export function PublicacaoConteudoDjen({
             ) : (
               <p className="text-sm text-muted-foreground flex items-center gap-2">
                 <User className="w-4 h-4 shrink-0" />
-                —
+                {fonte === 'stf_digital' ? 'Não informado pelo STF' : '—'}
               </p>
             )}
           </div>
