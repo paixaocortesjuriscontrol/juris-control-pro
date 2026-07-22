@@ -3394,7 +3394,7 @@ const AnaliseDjen = () => {
     : tipoOrigem === 'datajud'
       ? totalDatajudHoje
       : tipoOrigem === 'descartada'
-        ? totalDescartadasHoje
+        ? (descartadasStats?.total ?? 0)
         : totalHoje;
   const naoLidasTotalFiltrado = usarContadoresDaLista
     ? totalNaoLidasVisivel

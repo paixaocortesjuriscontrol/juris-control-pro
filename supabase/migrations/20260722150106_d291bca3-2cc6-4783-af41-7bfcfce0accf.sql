@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.get_djen_descartadas_dedup(uuid, timestamptz, timestamptz, timestamptz, timestamptz, boolean, text, integer, integer, uuid, text);
