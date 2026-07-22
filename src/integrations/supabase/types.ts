@@ -4393,7 +4393,7 @@ export type Database = {
         Row: {
           canal: string
           conteudo: string
-          coordenacao_id: string
+          coordenacao_id: string | null
           destinatario: string
           enviado_em: string
           erro: string | null
@@ -4405,7 +4405,7 @@ export type Database = {
         Insert: {
           canal: string
           conteudo: string
-          coordenacao_id: string
+          coordenacao_id?: string | null
           destinatario: string
           enviado_em?: string
           erro?: string | null
@@ -4417,7 +4417,7 @@ export type Database = {
         Update: {
           canal?: string
           conteudo?: string
-          coordenacao_id?: string
+          coordenacao_id?: string | null
           destinatario?: string
           enviado_em?: string
           erro?: string | null
