@@ -38,26 +38,87 @@ serve(async (req) => {
   const hoje = ymdBRT();
 
   try {
-    // Tarefas com data_fatal < hoje e não concluídas
-    const { data: vencidas } = await supabase
-      .from("tarefas")
-      .select("id, titulo, data_fatal, status, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id)")
-      .lt("data_fatal", hoje)
-      .not("status", "in", "(concluida,cancelada,arquivada)")
-      .limit(1000);
+    type Item = { tipo: string; titulo: string; data: string };
+    const porUsuario = new Map<string, Item[]>();
+    const push = (uids: Iterable<string>, item: Item) => {
+      for (const uid of uids) {
+        if (!uid) continue;
+        if (!porUsuario.has(uid)) porUsuario.set(uid, []);
+        porUsuario.get(uid)!.push(item);
+      }
+    };
 
-    // Agrupa por responsável
-    const porUsuario = new Map<string, any[]>();
-    for (const t of vencidas ?? []) {
+    // 1) Tarefas: COALESCE(data_fatal, data_vencimento) < hoje
+    const { data: tarefas } = await supabase
+      .from("tarefas")
+      .select("id, titulo, data_fatal, data_vencimento, status, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id)")
+      .or(`and(data_fatal.lt.${hoje}),and(data_fatal.is.null,data_vencimento.lt.${hoje})`)
+      .not("status", "in", "(concluida,cancelada,arquivada,tratada)")
+      .limit(1000);
+    for (const t of (tarefas ?? []) as any[]) {
       const ids = new Set<string>();
       if (t.responsavel_id) ids.add(t.responsavel_id);
-      for (const r of (t.tarefa_responsaveis ?? []) as any[]) if (r.usuario_id) ids.add(r.usuario_id);
-      for (const r of (t.tarefa_envolvidos ?? []) as any[]) if (r.usuario_id) ids.add(r.usuario_id);
+      for (const r of (t.tarefa_responsaveis ?? [])) if (r.usuario_id) ids.add(r.usuario_id);
+      for (const r of (t.tarefa_envolvidos ?? [])) if (r.usuario_id) ids.add(r.usuario_id);
       if (t.criado_por) ids.add(t.criado_por);
-      for (const uid of ids) {
-        if (!porUsuario.has(uid)) porUsuario.set(uid, []);
-        porUsuario.get(uid)!.push(t);
-      }
+      push(ids, { tipo: "Tarefa", titulo: t.titulo ?? "(sem título)", data: t.data_fatal ?? t.data_vencimento });
+    }
+
+    // 2) Eventos: data_inicio < hoje
+    const { data: eventos } = await supabase
+      .from("eventos_agenda")
+      .select("id, titulo, data_inicio, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id)")
+      .lt("data_inicio", `${hoje}T00:00:00Z`)
+      .not("status", "in", "(concluido,cancelado,tratado)")
+      .limit(1000);
+    for (const e of (eventos ?? []) as any[]) {
+      const ids = new Set<string>();
+      if (e.criado_por) ids.add(e.criado_por);
+      for (const r of (e.evento_responsaveis ?? [])) if (r.usuario_id) ids.add(r.usuario_id);
+      for (const r of (e.evento_envolvidos ?? [])) if (r.usuario_id) ids.add(r.usuario_id);
+      for (const r of (e.participantes_evento ?? [])) if (r.usuario_id) ids.add(r.usuario_id);
+      push(ids, { tipo: "Evento", titulo: e.titulo ?? "(sem título)", data: (e.data_inicio ?? "").slice(0, 10) });
+    }
+
+    // 3) Audiências: data_audiencia < hoje
+    const { data: audiencias } = await supabase
+      .from("audiencias_detectadas")
+      .select("id, processo_numero, cliente, data_audiencia, status, criado_por, audiencias_advogados(advogado_id), audiencia_envolvidos(usuario_id)")
+      .lt("data_audiencia", `${hoje}T00:00:00Z`)
+      .not("status", "in", "(tratado,ignorado,cancelado,realizada)")
+      .limit(1000);
+    for (const a of (audiencias ?? []) as any[]) {
+      const ids = new Set<string>();
+      if (a.criado_por) ids.add(a.criado_por);
+      for (const r of (a.audiencias_advogados ?? [])) if (r.advogado_id) ids.add(r.advogado_id);
+      for (const r of (a.audiencia_envolvidos ?? [])) if (r.usuario_id) ids.add(r.usuario_id);
+      push(ids, {
+        tipo: "Audiência",
+        titulo: `Audiência ${a.cliente ?? a.processo_numero ?? ""}`.trim(),
+        data: (a.data_audiencia ?? "").slice(0, 10),
+      });
+    }
+
+    // 4) Parcelas: data_vencimento < hoje e não pagas
+    const { data: parcelas } = await supabase
+      .from("parcelas_evento")
+      .select("id, numero, valor, data_vencimento, status, pago_em, evento:eventos_agenda(id, titulo, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id))")
+      .lt("data_vencimento", hoje)
+      .is("pago_em", null)
+      .not("status", "in", "(pago,cancelado)")
+      .limit(1000);
+    for (const p of (parcelas ?? []) as any[]) {
+      const ev = p.evento ?? {};
+      const ids = new Set<string>();
+      if (ev.criado_por) ids.add(ev.criado_por);
+      for (const r of (ev.evento_responsaveis ?? [])) if (r.usuario_id) ids.add(r.usuario_id);
+      for (const r of (ev.evento_envolvidos ?? [])) if (r.usuario_id) ids.add(r.usuario_id);
+      for (const r of (ev.participantes_evento ?? [])) if (r.usuario_id) ids.add(r.usuario_id);
+      push(ids, {
+        tipo: "Parcela",
+        titulo: `Parcela ${p.numero ?? ""} — ${ev.titulo ?? ""}`.trim(),
+        data: p.data_vencimento,
+      });
     }
 
     let enviados = 0;
@@ -81,9 +142,9 @@ serve(async (req) => {
       const c = cfg ?? { canal_email: true, canal_whatsapp: true, evento_prazo_perdido: true };
       if (c.evento_prazo_perdido === false) continue;
 
-      const linhas = itens.slice(0, 20).map((t: any) => `• ${t.titulo ?? "(sem título)"} — venceu em ${t.data_fatal}`).join("\n");
-      const corpo = `Olá ${profile.nome ?? ""},\n\nVocê tem ${itens.length} pendência(s) com prazo vencido:\n\n${linhas}${itens.length > 20 ? `\n... e mais ${itens.length - 20}` : ""}\n\nAcesse o sistema para tratar.`;
-      const assunto = `⚠️ Você tem ${itens.length} prazo(s) perdido(s)`;
+      const linhas = itens.slice(0, 30).map((i) => `• [${i.tipo}] ${i.titulo} — venceu em ${i.data}`).join("\n");
+      const corpo = `Olá ${profile.nome ?? ""},\n\nVocê tem ${itens.length} pendência(s) com prazo vencido:\n\n${linhas}${itens.length > 30 ? `\n... e mais ${itens.length - 30}` : ""}\n\nAcesse o sistema para tratar.`;
+      const assunto = `⚠️ Você tem ${itens.length} item(ns) com prazo perdido`;
 
       if (c.canal_email && profile.email) {
         const r = await enviarEmail(profile.email, assunto, corpo);
