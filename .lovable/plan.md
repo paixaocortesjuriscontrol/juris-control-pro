@@ -1,42 +1,70 @@
-## Objetivo
+## Regra unificada de destinatários
 
-Na tela **Análise DJEN**, criar um campo de busca dedicado que filtre pelo texto do conteúdo da publicação, independente do campo atual "Termo, processo..." (que continuará buscando apenas por número de processo e termo do monitoramento).
+Para **todos os tipos** (Prazo, Tarefa, Audiência, Evento, Parcelamento) e **todas as funções de alerta**, o conjunto de destinatários é sempre a **união** de:
 
-## Mudanças
+- Destinatários selecionados na configuração (quando existir).
+- **Responsáveis** do item.
+- **Envolvidos** do item.
+- **Criador** do item.
 
-### UI — `src/pages/AnaliseDjen.tsx`
-- Novo estado `buscaConteudo` + debounce `buscaConteudoDebounced` (350ms), espelhando o padrão do `termoBusca` atual.
-- Renderizar, ao lado do campo "Buscar", uma segunda caixa com label **"Buscar no conteúdo"** e placeholder `Palavra ou frase no texto…`, com ícone de lupa e botão "x" para limpar.
-- Incluir `buscaConteudoDebounced` em todas as `queryKey` e nos filtros passados para:
-  - `usePublicacoesDjenUnificadas` (novo parâmetro `buscaConteudo`)
-  - contagem Kurier server-side
-  - queries do DataJud e Pautas DEJT
-  - RPC de descartadas dedup (novo parâmetro `p_conteudo_query`)
-- Ao clicar em qualquer célula do calendário / botão "Limpar filtros", limpar também esse campo.
+Dedupe por usuário; respeita canais habilitados em `config_notificacoes_usuario` (email/whatsapp) e opt-outs específicos por evento.
 
-### Restrição do campo atual — `src/pages/AnaliseDjen.tsx` + `src/hooks/usePublicacoesDjenUnificadas.ts`
-- O campo original "Termo, processo..." passa a filtrar somente por: `numero_processo` (dígitos) e `monitoramento_termo/descricao`, deixando de aplicar `ilike` sobre `conteudo`.
-- O novo campo é o único que aplica `ilike '%texto%'` em `conteudo` (e em `complemento/tipo_movimentacao/assuntos` no DataJud e nos campos de texto de Pautas DEJT).
+## 1. `enviar-alertas-tarefas` (digest diário por coordenação/tipo)
 
-### Hook — `src/hooks/usePublicacoesDjenUnificadas.ts`
-- Adicionar `buscaConteudo?: string` à interface de filtros.
-- Propagar como novo parâmetro para as RPCs unificadas (`p_conteudo_query`) e aplicar client-side onde a filtragem já é feita em memória (blocos ~987, 1097, 1190).
+- Coletar itens do dia por `cfg.tipo_tarefa`:
+  - **TAREFA / PRAZO**: `tarefas` filtradas por `tipo_tarefa`.
+  - **AUDIÊNCIA**: `audiencias_detectadas`.
+  - **EVENTO**: `eventos_agenda`.
+  - **PARCELAMENTO**: `parcelas_evento` do dia + evento pai.
+- Para cada item, montar `Set<usuario_id>`:
+  - Tarefa/Prazo: `responsavel_id` + `tarefa_responsaveis` + `tarefa_envolvidos` + `criado_por`.
+  - Audiência: `audiencias_advogados` + `audiencia_envolvidos` + `criado_por`.
+  - Evento: `evento_responsaveis` + `evento_envolvidos` + `participantes_evento` + `criado_por`.
+  - Parcelamento: mesmos do evento pai + `criado_por`.
+- Destinatários finais = `cfg.destinatarios_ids ∪ idsColetados` (dedup).
+- Mesmo digest para todos, dedup diário em `historico_alertas_enviados`.
 
-### Backend — nova migration
-- Atualizar as funções `get_djen_publicacoes_unificadas` e `get_djen_descartadas_dedup` adicionando parâmetro `p_conteudo_query text DEFAULT NULL` que aplica `conteudo ILIKE '%' || p_conteudo_query || '%'` quando informado. `p_search_query` deixa de tocar em `conteudo` e passa a cobrir só número de processo / termo do monitoramento.
-- Preservar assinaturas antigas via `DEFAULT NULL` para não quebrar chamadas em cache.
+## 2. `alertar-audiencias`
 
-## Comportamento final
+Substituir o bloco atual (advogados + criador + destinatários específicos OU todos os membros da coordenação) por:
 
-```text
-[ Buscar ]                [ Buscar no conteúdo ]
- Termo, processo…          Palavra ou frase no texto…
-```
+- `audiencias_advogados.advogado_id`
+- `audiencia_envolvidos.usuario_id`
+- `criado_por`
+- `processo.advogado_responsavel_id`
+- `config_deteccao_coordenacao.destinatarios_audiencias_ids` (união, não fallback)
 
-- Preencher só o primeiro → filtra por processo/termo do monitoramento (sem varrer o texto).
-- Preencher só o segundo → filtra por palavra dentro do conteúdo.
-- Preencher ambos → aplica os dois filtros em AND.
-- "Limpar filtros" e clique no calendário zeram os dois.
+Remover o fallback "todos os membros da coordenação" — a regra pede união com destinatários da config, não substituição por membros.
+
+## 3. `alertar-prazos-perdidos`
+
+Hoje agrupa apenas por `responsavel_id` + `tarefa_responsaveis`. Adicionar ao `Set`:
+
+- `tarefa_envolvidos.usuario_id`
+- `criado_por`
+- Destinatários da config de "prazo perdido" da coordenação, se houver (se não existir campo, apenas união dos três acima).
+
+Manter dedup por dia via `historico_alertas_enviados` (tipo `prazo_perdido`).
+
+## 4. `processar-lembretes-audiencia` (WhatsApp X min antes)
+
+Hoje envia só para o telefone do `criado_por`. Passar a coletar telefones de:
+
+- `criado_por`
+- `audiencias_advogados.advogado_id` → `profiles.telefone`
+- `audiencia_envolvidos.usuario_id` → `profiles.telefone`
+- `processo.advogado_responsavel_id` → `profiles.telefone`
+- `config_deteccao_coordenacao.destinatarios_audiencias_ids` (união)
+
+Dedup por telefone formatado; enviar a mesma mensagem para cada.
 
 ## Fora de escopo
-- Highlight das ocorrências no texto e busca com operadores AND/OR/aspas (podem ser feitos em próximo passo se necessário).
+
+- Sem mudanças de schema.
+- Sem mudanças de UI.
+- Sem retroativo.
+
+## Verificação
+
+- Invocar `enviar-alertas-tarefas` e `alertar-audiencias` manualmente e conferir `historico_alertas_enviados` / `notificacoes`.
+- Caso concreto: Jéssica Alves (responsável) deve receber mesmo sem estar em destinatários; Eduardo Torres só recebe se estiver em destinatários, responsáveis ou envolvidos.
