@@ -722,11 +722,9 @@ export default function PainelControle() {
         const isAudiencia = tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA" || tipo === "audiencia";
         const isPrazo = tipo === "prazo" || tipo === "prazo_parcela";
         const isParcelamento = tipo === "parcelamento";
-        // Evento NUNCA pode coincidir com Audiência/Prazo/Parcelamento — mesmo quando
-        // o registro vem da tabela eventos_agenda (origem === "evento") com tipo="audiencia".
-        const isEvento =
-          !isParcelamento && !isAudiencia && !isPrazo &&
-          (item.origem === "evento" || tipoUpper === "EVENTO" || tipo === "evento");
+        // Evento é APENAS quando o tipo real do item é "evento". Não usar item.origem,
+        // que no hook useAgendaUnificada é só um rótulo interno (tarefa vs. outras origens).
+        const isEvento = tipo === "evento" || tipoUpper === "EVENTO";
         const isTarefa = !isAudiencia && !isPrazo && !isEvento && !isParcelamento;
 
         const match =
@@ -830,7 +828,7 @@ export default function PainelControle() {
     if (tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA" || tipo === "audiencia") return "audiencia";
     if (tipo === "prazo" || tipo === "prazo_parcela") return "prazo";
     if (tipo === "parcelamento") return "parcelamento";
-    if (item.origem === "evento" || tipoUpper === "EVENTO" || tipo === "evento") return "evento";
+    if (tipo === "evento" || tipoUpper === "EVENTO") return "evento";
     return "tarefa";
   };
 
