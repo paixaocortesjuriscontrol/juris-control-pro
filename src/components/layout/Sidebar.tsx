@@ -39,6 +39,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { Button } from "@/components/ui/button";
 
 type MenuItem = {
@@ -49,6 +50,7 @@ type MenuItem = {
   color?: string;
   adminOnly?: boolean;
   adminOrCoordOnly?: boolean;
+  restrictedCoordenacoes?: string[];
 };
 
 // Itens visíveis para todos os usuários autenticados
@@ -56,12 +58,12 @@ const menuItemsPublicos: MenuItem[] = [
   // Itens destacados (amarelo) - mais utilizados
   { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle", highlight: true },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
-  { icon: ArrowRightLeft, label: "Comparar DJEN", path: "/comparar-dj-santander", highlight: true },
+  { icon: ArrowRightLeft, label: "Comparar DJEN", path: "/comparar-dj-santander", highlight: true, adminOnly: true },
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true, adminOrCoordOnly: true },
   { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true, adminOrCoordOnly: true },
   // Demais itens
-  { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400" },
+  { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400", restrictedCoordenacoes: ["Dr. Renata com termos do João", "Coordenação Dra. Renata Santander"] },
   { icon: Mail, label: "Remessas Benner", path: "/remessas-benner", color: "text-sky-400", adminOnly: true },
   { icon: BookOpen, label: "Matérias Benner", path: "/materias-benner", color: "text-sky-400" },
   { icon: ShieldCheck, label: "Admin. TST", path: "/admin-tst", color: "text-sky-400", adminOnly: true },
@@ -89,6 +91,8 @@ export function Sidebar() {
   const { collapsed, setCollapsed } = useSidebarCollapsed();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isAdmin, isAdminOrCoordinator, role } = useUserRole();
+  const { coordenacoes: minhasCoordenacoes } = useCoordenacoesDoUsuario();
+  const nomesCoordenacoes = new Set((minhasCoordenacoes || []).map((c) => c.nome));
   const isAdvogadoTemporario = role === "advogado_temporario";
 
   // Advogado Temporário (perfil de conferência) vê Análise DJEN e Comparar DJEN
@@ -100,6 +104,7 @@ export function Sidebar() {
         (item) =>
           (!item.adminOnly || isAdmin) &&
             (!item.adminOrCoordOnly || isAdminOrCoordinator) &&
+          (!item.restrictedCoordenacoes || isAdmin || item.restrictedCoordenacoes.some((n) => nomesCoordenacoes.has(n))) &&
           (item.highlight || item.color || isAdminOrCoordinator)
       );
 
