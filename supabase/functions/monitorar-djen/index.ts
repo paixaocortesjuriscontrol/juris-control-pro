@@ -209,9 +209,19 @@ function conteudoContemTermoOuOr(conteudo: string, mon: Monitoramento): boolean 
   return false;
 }
 
-function condicaoConcomitanteAtendida(conteudo: string, condicao?: string | null): boolean {
+function condicaoConcomitanteAtendida(
+  conteudo: string,
+  condicao?: string | null,
+  partesJson?: any,
+  advogadosJson?: any,
+): boolean {
   if (!condicao) return true;
-  const conteudoNorm = normalizarParaBusca(conteudo);
+  const textoCompleto = [
+    conteudo || '',
+    partesJson ? (typeof partesJson === 'string' ? partesJson : JSON.stringify(partesJson)) : '',
+    advogadosJson ? (typeof advogadosJson === 'string' ? advogadosJson : JSON.stringify(advogadosJson)) : '',
+  ].filter(Boolean).join('\n');
+  const conteudoNorm = normalizarParaBusca(textoCompleto);
   const condicaoNorm = normalizarParaBusca(condicao);
   return conteudoNorm.includes(condicaoNorm);
 }
@@ -423,7 +433,7 @@ async function processPublicationFromIndex(
     advogados_json: (ladoRawD?.advogados?.length ? ladoRawD.advogados : null) ?? (ladoConteudoD.advogados.length > 0 ? ladoConteudoD.advogados : null),
   };
 
-  if (!condicaoConcomitanteAtendida(conteudo, monitoramento.condicao_concomitante)) {
+  if (!condicaoConcomitanteAtendida(conteudo, monitoramento.condicao_concomitante, metadataDescartada.partes_json, metadataDescartada.advogados_json)) {
     // RESGATE INLINE: tentar salvar sob outro monitoramento sem condição concomitante
     let rescuedId: string | null = null;
     if (allMonitoramentos && allMonitoramentos.length > 0) {

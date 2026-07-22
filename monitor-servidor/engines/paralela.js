@@ -904,11 +904,10 @@ function condicaoConcomitanteAtendida(pub, mon, conteudo) {
   if (!cond) return true;
   const grupos = String(cond).split("|").map((g) => g.trim()).filter(Boolean);
   if (grupos.length === 0) return true;
-  const tipo = mapTipo(mon?.tipo);
-  const textoNorm = mon.tipo === "parte"
-    ? normalize([...extrairPartesEstruturadas(pub), ...extrairSecoesPartesTexto(pub)].join("\n"))
-    : normalize(buildTextoCompleto(pub, conteudo));
-  if (!textoNorm) return tipo !== "parte";
+  // Condição concomitante: sempre busca em partes + advogados + conteúdo,
+  // independente do tipo do monitoramento principal.
+  const textoNorm = normalize(buildTextoCompleto(pub, conteudo));
+  if (!textoNorm) return false;
   return grupos.some((g) => {
     const ts = g.split(",").map((t) => t.trim()).filter(Boolean);
     if (ts.length === 0) return true;

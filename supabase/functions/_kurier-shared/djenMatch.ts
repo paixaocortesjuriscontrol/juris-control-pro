@@ -257,10 +257,21 @@ export function conteudoContemTermoOuOr(
   );
 }
 
-export function condicaoConcomitanteAtendida(conteudo: string, condicao?: string): boolean {
+export function condicaoConcomitanteAtendida(
+  conteudo: string,
+  condicao?: string,
+  partesJson?: any,
+  advogadosJson?: any,
+): boolean {
   if (!condicao?.trim()) return true;
-  
-  const conteudoNorm = normalizar(conteudo);
+
+  // Condição concomitante: busca em conteúdo + partes + advogados.
+  const textoCompleto = [
+    conteudo || '',
+    partesJson ? (typeof partesJson === 'string' ? partesJson : JSON.stringify(partesJson)) : '',
+    advogadosJson ? (typeof advogadosJson === 'string' ? advogadosJson : JSON.stringify(advogadosJson)) : '',
+  ].filter(Boolean).join('\n');
+  const conteudoNorm = normalizar(textoCompleto);
   
   // Se tem "+", usar lógica AND (todas as partes devem casar)
   if (condicao.includes('+')) {

@@ -1745,9 +1745,9 @@ async function consolidarResultadosTermo(
       pubsDescartadas.push({ ...pub, motivo_descarte: 'termo_nao_encontrado' });
       return false;
     }
-    const concomitanteOk = mon.tipo === 'parte'
-      ? condicaoConcomitanteAtendidaEmPartes(pub, mon.condicao_concomitante)
-      : condicaoConcomitanteAtendida(pub, mon.condicao_concomitante);
+    // Condição concomitante: sempre pesquisa em partes + advogados + conteúdo,
+    // independente do tipo do monitoramento principal.
+    const concomitanteOk = condicaoConcomitanteAtendida(pub, mon.condicao_concomitante);
     if (!concomitanteOk) {
       descartadas++;
       pubsDescartadas.push({ ...pub, motivo_descarte: `condicao_concomitante: ${mon.condicao_concomitante || ''}`.trim() });

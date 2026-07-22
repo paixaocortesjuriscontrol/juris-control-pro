@@ -116,7 +116,7 @@ export async function processPublicationFromIndex(
     advogados_json: advogadosFinais.length > 0 ? advogadosFinais : null,
   };
 
-  if (!condicaoConcomitanteAtendida(conteudo, monitoramento.condicao_concomitante)) {
+  if (!condicaoConcomitanteAtendida(conteudo, monitoramento.condicao_concomitante, metadataDescartada.partes_json, metadataDescartada.advogados_json)) {
     // RESGATE INLINE: tentar salvar sob outro monitoramento sem condição concomitante
     let rescuedId: string | null = null;
     if (allMonitoramentos && allMonitoramentos.length > 0) {
