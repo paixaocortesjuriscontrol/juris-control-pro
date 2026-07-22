@@ -64,6 +64,7 @@ import { toZonedTime } from "date-fns-tz";
 import { Link, useNavigate } from "react-router-dom";
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
 import TstPrazos from "@/pages/TstPrazos";
+import { KanbanItensAgenda } from "@/components/painel/KanbanItensAgenda";
 import PainelAudiencias from "@/pages/PainelAudiencias";
 import Notificacoes from "@/pages/Notificacoes";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
