@@ -14,6 +14,7 @@ import {
   Upload as UploadIcon,
   Building2,
   Search,
+  Tag as TagIcon,
 } from "lucide-react";
 
 const tools = [
@@ -29,6 +30,7 @@ const tools = [
   { label: "Importações Distribuição TST", path: "/admin-tst/importacoes-distribuicao", icon: UploadIcon, description: "Cargas e atualizações em massa da Distribuição TST (planilhas e PDFs) com layout documentado." },
   { label: "Verificar Outro Escritório", path: "/admin-tst/outro-escritorio", icon: Building2, description: "Importar planilha de migração, verificar processos na base e marcar como Outro Escritório." },
   { label: "Busca Publicação", path: "/admin-tst/busca-publicacao", icon: Search, description: "Buscar publicações no DJEN a partir de uma planilha de processos, período e tribunais. Roda nas VPS do servidor." },
+  { label: "Base PCA - TST - Distribuições", path: "/admin-tst/base-pca-distribuicoes", icon: TagIcon, description: "Fazer upload da planilha, localizar Dossiê/Processo na base e aplicar uma TAG em lote a todos os encontrados." },
 ];
 
 export default function AdminTst() {
