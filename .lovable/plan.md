@@ -1,27 +1,30 @@
-## Ajuste único: condição concomitante em partes + advogados + conteúdo
 
-Alterar apenas a função `condicaoConcomitanteAtendida` (e chamadas equivalentes) para validar a condição concomitante contra um texto combinado que inclua:
+## Diagnóstico (confirmado)
 
-- conteúdo/texto da publicação
-- metadados de partes (`destinatarios[].nome`, `poloAtivo`, `poloPassivo`, `partes_json`)
-- metadados de advogados (`destinatarioadvogados[].advogado.nome`, `advogados_json`)
+O banco está correto. Consultei `eventos_agenda` e existe apenas 1 registro com `tipo = 'evento'` — nenhuma audiência gravada como evento.
 
-Nada mais é alterado: a validação do termo principal (tipo `parte`, `advogado`, `palavra-chave`, `processo`) permanece exatamente como está hoje.
+O problema é no hook `src/hooks/useAgendaUnificada.ts`, que unifica várias fontes num único array. Nesse hook, o campo `origem` foi usado como rótulo interno com apenas dois valores possíveis: `"tarefa"` (veio da tabela `tarefas`) ou `"evento"` (veio de qualquer outra origem). Por isso hoje:
 
-### Arquivos a alterar
+- Audiências (tabela `audiencias_detectadas`) são mapeadas com `origem: "evento"` (linha 972)
+- Prazos derivados de parcelas são mapeados com `origem: "evento"` (linha 1117)
+- Parcelamentos também recebem `origem: "evento"` (linha 1090)
 
-1. `monitor-servidor/engines/paralela.js`
-   - Função `condicaoConcomitanteAtendida`: aceitar o objeto `pub` e concatenar texto + partes + advogados antes de aplicar a lógica atual (AND por `+` / `,`, OR por `|`, frase exata).
-   - Ajustar o(s) call site(s) para passar `pub`.
+O tipo real do item vai no campo `tipo` (`"audiencia"`, `"prazo"`, `"parcelamento"`, `"evento"`, `"prazo_parcela"`).
 
-2. `supabase/functions/_kurier-shared/djenMatch.ts`
-   - Mesma alteração em `condicaoConcomitanteAtendida` para manter paridade Kurier ↔ Servidor.
-   - Ajustar call sites em funções Kurier que chamam essa validação.
+O filtro do Painel de Controle estava tratando `origem === "evento"` como "é um evento", o que arrastava audiências, prazos e parcelamentos para o balde de Eventos. Era isso que eu tinha descrito de forma confusa — a culpa não é do banco, é do rótulo mal escolhido no hook.
 
-3. `src/hooks/useDjenTermosParalelaEngine.ts` (e, se existir com a mesma função, `useDjenTermosEngine.ts` / `useBuscaDjenDireta.ts`)
-   - Espelhar o mesmo comportamento — condição concomitante olha texto + partes + advogados.
+## O que fazer
 
-### Regra final
+Simplificar a regra em `src/pages/PainelControle.tsx` para não olhar mais para `origem`. Um item é Evento **somente** quando `tipo === "evento"` (ou, em tarefas, `tipo_tarefa === "EVENTO"`). Aplica-se ao filtro `itensPainelFiltrados`, ao classificador `classificarItem` e às contagens dos cards.
 
-- Termo principal: continua como está (parte → só partes; advogado → advogados/OAB; palavra-chave → conteúdo).
-- Condição concomitante: casa se aparecer em qualquer um de {conteúdo, partes, advogados}.
+### Regra final, sem ambiguidade
+
+- **Audiência**: `tipo === "audiencia"` OU `tipo_tarefa` = "AUDIÊNCIA/AUDIENCIA"
+- **Prazo**: `tipo` ∈ {`"prazo"`, `"prazo_parcela"`}
+- **Parcelamento**: `tipo === "parcelamento"`
+- **Evento**: `tipo === "evento"` OU `tipo_tarefa === "EVENTO"`
+- **Tarefa**: tudo o mais
+
+Nada de `item.origem === "evento"` como critério de tipo. Assim, Evento é evento e pronto — em Agenda, Lista e Kanban.
+
+Sem mudanças de banco de dados.
