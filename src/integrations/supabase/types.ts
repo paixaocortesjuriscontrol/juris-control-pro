@@ -9271,96 +9271,51 @@ export type Database = {
           transito_julgado: number
         }[]
       }
-      get_djen_descartadas_dedup:
-        | {
-            Args: {
-              p_apenas_hoje?: boolean
-              p_coordenacao_id?: string
-              p_data_disponibilizacao_fim?: string
-              p_data_disponibilizacao_inicio?: string
-              p_fim?: string
-              p_inicio?: string
-              p_limit?: number
-              p_monitoramento_id?: string
-              p_offset?: number
-              p_read_status?: string
-              p_search_query?: string
-            }
-            Returns: {
-              advogados_json: Json
-              conteudo: string
-              coordenacao_id: string
-              coordenacao_nome: string
-              created_at: string
-              data_disponibilizacao: string
-              data_publicacao: string
-              descartado_por: string
-              descartado_por_nome: string
-              fonte: string
-              id: string
-              lida: boolean
-              lido_por: Json
-              meio: string
-              monitoramento_descricao: string
-              monitoramento_id: string
-              monitoramento_oab: string
-              monitoramento_termo: string
-              monitoramento_tipo: string
-              monitoramento_uf: string
-              motivo_descarte: string
-              orgao: string
-              partes_json: Json
-              processo_numero: string
-              tipo_comunicacao: string
-              total_count: number
-              tribunal: string
-            }[]
-          }
-        | {
-            Args: {
-              p_apenas_hoje?: boolean
-              p_conteudo_query?: string
-              p_coordenacao_id?: string
-              p_data_disponibilizacao_fim?: string
-              p_data_disponibilizacao_inicio?: string
-              p_fim?: string
-              p_inicio?: string
-              p_limit?: number
-              p_monitoramento_id?: string
-              p_offset?: number
-              p_read_status?: string
-              p_search_query?: string
-            }
-            Returns: {
-              advogados_json: Json
-              conteudo: string
-              coordenacao_id: string
-              coordenacao_nome: string
-              created_at: string
-              data_disponibilizacao: string
-              data_publicacao: string
-              descartado_por: string
-              descartado_por_nome: string
-              fonte: string
-              id: string
-              lida: boolean
-              lido_por: Json
-              meio: string
-              monitoramento_descricao: string
-              monitoramento_id: string
-              monitoramento_oab: string
-              monitoramento_termo: string
-              monitoramento_tipo: string
-              monitoramento_uf: string
-              motivo_descarte: string
-              orgao: string
-              partes_json: Json
-              processo_numero: string
-              tipo_comunicacao: string
-              total_count: number
-              tribunal: string
-            }[]
-          }
+      get_djen_descartadas_dedup: {
+        Args: {
+          p_apenas_hoje?: boolean
+          p_conteudo_query?: string
+          p_coordenacao_id?: string
+          p_data_disponibilizacao_fim?: string
+          p_data_disponibilizacao_inicio?: string
+          p_fim?: string
+          p_inicio?: string
+          p_limit?: number
+          p_monitoramento_id?: string
+          p_offset?: number
+          p_read_status?: string
+          p_search_query?: string
+        }
+        Returns: {
+          advogados_json: Json
+          conteudo: string
+          coordenacao_id: string
+          coordenacao_nome: string
+          created_at: string
+          data_disponibilizacao: string
+          data_publicacao: string
+          descartado_por: string
+          descartado_por_nome: string
+          fonte: string
+          id: string
+          lida: boolean
+          lido_por: Json
+          meio: string
+          monitoramento_descricao: string
+          monitoramento_id: string
+          monitoramento_oab: string
+          monitoramento_termo: string
+          monitoramento_tipo: string
+          monitoramento_uf: string
+          motivo_descarte: string
+          orgao: string
+          partes_json: Json
+          processo_numero: string
+          tipo_comunicacao: string
+          total_count: number
+          tribunal: string
+        }[]
+      }
       get_djen_publicacoes_servidor_unificadas: {
         Args: {
           p_apenas_hoje?: boolean
