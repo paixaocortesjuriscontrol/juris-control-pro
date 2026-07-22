@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload, Loader2, X, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
@@ -14,19 +14,34 @@ interface Props {
   onUpdated: () => void;
 }
 
+type LogEntry = { processo: string; dossie: string; status: "ok" | "notfound" | "error"; msg?: string };
+
 export function DossieUpdateImport({ onUpdated }: Props) {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("");
+  const [log, setLog] = useState<LogEntry[]>([]);
+  const [counts, setCounts] = useState({ ok: 0, notfound: 0, error: 0, total: 0 });
   const fileRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
+
+  const appendLog = (entries: LogEntry[]) => {
+    setLog((prev) => {
+      const next = [...entries, ...prev];
+      return next.slice(0, 300);
+    });
+  };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    cancelRef.current = false;
     setImporting(true);
     setProgress(0);
     setStatusText("Lendo planilha…");
+    setLog([]);
+    setCounts({ ok: 0, notfound: 0, error: 0, total: 0 });
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
@@ -73,96 +88,144 @@ export function DossieUpdateImport({ onUpdated }: Props) {
       }
 
       const numeros = [...dossieMap.keys()];
-      let updated = 0;
-      let notFound = 0;
-      const LOOKUP_BATCH = 1000;
-      const UPDATE_CONCURRENCY = 8;
-      const LOOKUP_CONCURRENCY = 4;
-      const totalBatches = Math.ceil(numeros.length / LOOKUP_BATCH);
-      let doneBatches = 0;
+      const total = numeros.length;
+      setCounts({ ok: 0, notfound: 0, error: 0, total });
 
-      const lookupBatches: string[][] = [];
-      for (let i = 0; i < numeros.length; i += LOOKUP_BATCH) {
-        lookupBatches.push(numeros.slice(i, i + LOOKUP_BATCH));
-      }
+      const LOOKUP_BATCH = 200;
+      const UPDATE_CONCURRENCY = 5;
+      let ok = 0, notfound = 0, error = 0, processed = 0;
 
-      const processBatch = async (batch: string[]) => {
-        const { data } = await supabase
+      for (let bi = 0; bi < numeros.length; bi += LOOKUP_BATCH) {
+        if (cancelRef.current) break;
+        const batch = numeros.slice(bi, bi + LOOKUP_BATCH);
+        setStatusText(`Buscando lote ${Math.floor(bi / LOOKUP_BATCH) + 1}/${Math.ceil(total / LOOKUP_BATCH)}…`);
+
+        const { data, error: selErr } = await supabase
           .from("dados_benner" as any)
-          .select("id, processo")
+          .select("id, processo, dossie")
           .in("processo", batch);
 
-        if (!data || (data as any[]).length === 0) {
-          notFound += batch.length;
-          return;
-        }
+        const foundRows = (selErr ? [] : (data as any[])) || [];
+        const foundSet = new Set(foundRows.map((r: any) => r.processo));
 
-        const found = new Set((data as any[]).map((r: any) => r.processo));
-        notFound += batch.length - found.size;
+        const notFoundEntries: LogEntry[] = batch
+          .filter((p) => !foundSet.has(p))
+          .map((p) => ({ processo: p, dossie: dossieMap.get(p) || "", status: "notfound" as const }));
+        notfound += notFoundEntries.length;
+        processed += notFoundEntries.length;
 
-        const byDossie = new Map<string, string[]>();
-        for (const row of data as any[]) {
+        const updates: { row: any; newDossie: string }[] = [];
+        for (const row of foundRows) {
           const newDossie = dossieMap.get(row.processo);
-          if (!newDossie) continue;
-          if (!byDossie.has(newDossie)) byDossie.set(newDossie, []);
-          byDossie.get(newDossie)!.push(row.id);
+          if (newDossie) updates.push({ row, newDossie });
         }
 
-        const entries = [...byDossie.entries()];
-        for (let i = 0; i < entries.length; i += UPDATE_CONCURRENCY) {
-          const slice = entries.slice(i, i + UPDATE_CONCURRENCY);
-          await Promise.all(
-            slice.map(async ([dossie, ids]) => {
-              const { error } = await supabase
+        const batchLog: LogEntry[] = [...notFoundEntries];
+
+        for (let i = 0; i < updates.length; i += UPDATE_CONCURRENCY) {
+          if (cancelRef.current) break;
+          const slice = updates.slice(i, i + UPDATE_CONCURRENCY);
+          const results = await Promise.all(
+            slice.map(async ({ row, newDossie }) => {
+              const { error: upErr } = await supabase
                 .from("dados_benner" as any)
-                .update({ dossie } as any)
-                .in("id", ids);
-              if (!error) updated += ids.length;
+                .update({ dossie: newDossie } as any)
+                .eq("id", row.id);
+              return { row, newDossie, upErr };
             })
           );
+          for (const { row, newDossie, upErr } of results) {
+            if (upErr) {
+              error += 1;
+              batchLog.unshift({ processo: row.processo, dossie: newDossie, status: "error", msg: upErr.message });
+            } else {
+              ok += 1;
+              batchLog.unshift({ processo: row.processo, dossie: newDossie, status: "ok" });
+            }
+            processed += 1;
+          }
+          setCounts({ ok, notfound, error, total });
+          setProgress(Math.round((processed / total) * 100));
+          setStatusText(`${processed}/${total} · ${ok} atualizados · ${notfound} não encontrados · ${error} erros`);
         }
-      };
 
-      for (let i = 0; i < lookupBatches.length; i += LOOKUP_CONCURRENCY) {
-        const slice = lookupBatches.slice(i, i + LOOKUP_CONCURRENCY);
-        await Promise.all(
-          slice.map(async (batch) => {
-            await processBatch(batch);
-            doneBatches += 1;
-            setProgress(Math.round((doneBatches / totalBatches) * 100));
-            setStatusText(`Lote ${doneBatches}/${totalBatches} · ${updated} atualizados`);
-          })
-        );
+        appendLog(batchLog);
       }
 
-      setProgress(100);
-      if (updated > 0) {
-        toast.success(`${updated} dossiês atualizados! (${notFound} não encontrados)`);
+      setProgress(cancelRef.current ? progress : 100);
+      if (cancelRef.current) {
+        toast.warning(`Cancelado. ${ok} atualizados, ${notfound} não encontrados, ${error} erros.`);
+      } else if (ok > 0) {
+        toast.success(`${ok} dossiês atualizados! (${notfound} não encontrados, ${error} erros)`);
         onUpdated();
       } else {
-        toast.warning("Nenhum dossiê atualizado (nenhum processo correspondente encontrado)");
+        toast.warning("Nenhum dossiê atualizado");
       }
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || String(err)));
     } finally {
       setImporting(false);
-      setProgress(0);
-      setStatusText("");
+      cancelRef.current = false;
       if (fileRef.current) fileRef.current.value = "";
     }
   };
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-2 w-full">
       <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFile} />
-      <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={importing}>
-        {importing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
-        Atualizar Dossiês
-      </Button>
-      {importing && (
-        <div className="space-y-1 min-w-[200px]">
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={importing}>
+          {importing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Upload className="w-4 h-4 mr-2" />}
+          Atualizar Dossiês
+        </Button>
+        {importing && (
+          <Button variant="destructive" size="sm" onClick={() => { cancelRef.current = true; }}>
+            <X className="w-4 h-4 mr-1" /> Cancelar
+          </Button>
+        )}
+      </div>
+      {(importing || log.length > 0) && (
+        <div className="space-y-2 min-w-[280px] w-full max-w-2xl">
           <Progress value={progress} className="h-2" />
-          <p className="text-[10px] text-muted-foreground truncate">{statusText}</p>
+          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+            <span>{statusText}</span>
+            <span className="text-emerald-600">✓ {counts.ok}</span>
+            <span className="text-amber-600">? {counts.notfound}</span>
+            <span className="text-red-600">✕ {counts.error}</span>
+            <span>Total: {counts.total}</span>
+          </div>
+          {log.length > 0 && (
+            <div className="border rounded-md max-h-64 overflow-auto text-xs">
+              <table className="w-full">
+                <thead className="bg-muted sticky top-0">
+                  <tr>
+                    <th className="text-left px-2 py-1 w-8"></th>
+                    <th className="text-left px-2 py-1">Processo</th>
+                    <th className="text-left px-2 py-1">Dossiê</th>
+                    <th className="text-left px-2 py-1">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {log.map((e, idx) => (
+                    <tr key={idx} className="border-t">
+                      <td className="px-2 py-1">
+                        {e.status === "ok" && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                        {e.status === "error" && <XCircle className="w-3.5 h-3.5 text-red-600" />}
+                        {e.status === "notfound" && <span className="text-amber-600">?</span>}
+                      </td>
+                      <td className="px-2 py-1 font-mono">{e.processo}</td>
+                      <td className="px-2 py-1">{e.dossie}</td>
+                      <td className="px-2 py-1">
+                        {e.status === "ok" && "Atualizado"}
+                        {e.status === "notfound" && "Não encontrado"}
+                        {e.status === "error" && (e.msg || "Erro")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
