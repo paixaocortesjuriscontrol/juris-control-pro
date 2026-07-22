@@ -84,6 +84,13 @@ import IaResponde from "./pages/IaResponde";
 import ConsumoIA from "./pages/ConsumoIA";
 import AdminTst from "./pages/AdminTst";
 import AdminTstImportacoes from "./pages/AdminTstImportacoes";
+import ImportarCertidaoPdf from "./pages/admin-tst/ImportarCertidaoPdf";
+import ImportarDistribuicao from "./pages/admin-tst/ImportarDistribuicao";
+import AtualizarDossies from "./pages/admin-tst/AtualizarDossies";
+import AtualizarEquipe from "./pages/admin-tst/AtualizarEquipe";
+import AtualizarSituacaoEnvio from "./pages/admin-tst/AtualizarSituacaoEnvio";
+import RespostaSantander from "./pages/admin-tst/RespostaSantander";
+import BennerSim from "./pages/admin-tst/BennerSim";
 import AdminTstOutroEscritorio from "./pages/AdminTstOutroEscritorio";
 import AdminTstBasePcaDistribuicoes from "./pages/AdminTstBasePcaDistribuicoes";
 import BuscaPublicacao from "./pages/BuscaPublicacao";
@@ -197,6 +204,13 @@ function App() {
               <Route path="/ia-responde" element={<AdminRoute><IaResponde /></AdminRoute>} />
               <Route path="/admin-tst" element={<ProtectedRoute><AdminTst /></ProtectedRoute>} />
               <Route path="/admin-tst/importacoes-distribuicao" element={<ProtectedRoute><AdminTstImportacoes /></ProtectedRoute>} />
+              <Route path="/admin-tst/importar-certidao-pdf" element={<ProtectedRoute><ImportarCertidaoPdf /></ProtectedRoute>} />
+              <Route path="/admin-tst/importar-distribuicao" element={<ProtectedRoute><ImportarDistribuicao /></ProtectedRoute>} />
+              <Route path="/admin-tst/atualizar-dossies" element={<ProtectedRoute><AtualizarDossies /></ProtectedRoute>} />
+              <Route path="/admin-tst/atualizar-equipe" element={<ProtectedRoute><AtualizarEquipe /></ProtectedRoute>} />
+              <Route path="/admin-tst/atualizar-situacao-envio" element={<AdminRoute><AtualizarSituacaoEnvio /></AdminRoute>} />
+              <Route path="/admin-tst/resposta-santander" element={<AdminRoute><RespostaSantander /></AdminRoute>} />
+              <Route path="/admin-tst/benner-sim" element={<ProtectedRoute><BennerSim /></ProtectedRoute>} />
               <Route path="/admin-tst/outro-escritorio" element={<AdminRoute><AdminTstOutroEscritorio /></AdminRoute>} />
               <Route path="/admin-tst/busca-publicacao" element={<AdminRoute><BuscaPublicacao /></AdminRoute>} />
               <Route path="/admin-tst/base-pca-distribuicoes" element={<AdminRoute><AdminTstBasePcaDistribuicoes /></AdminRoute>} />
