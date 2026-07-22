@@ -1773,7 +1773,11 @@ async function run({ sb, payload, log, job }) {
   const isCancelled = async () => {
     if (!job?.id) return false;
     const { data } = await sb.from("execucoes_servidor").select("status").eq("id", job.id).maybeSingle();
-    return data?.status === "cancelado";
+    // Aborta em qualquer status terminal: cancelado, falhou, erro, timeout,
+    // concluido. Antes só reagia a 'cancelado', o que fazia o worker continuar
+    // rodando quando o usuário clicava em "Destravar" (status=falhou).
+    const st = data?.status;
+    return !!st && st !== "executando" && st !== "pendente" && st !== "agendado";
   };
   const slots = await loadPool(sb);
   if (slots.length === 0) throw new Error("Nenhuma VPS ativa em djen_proxy_pool. O DJEN Servidor não roda sem VPS.");
