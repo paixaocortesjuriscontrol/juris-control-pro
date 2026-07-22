@@ -41,7 +41,7 @@ serve(async (req) => {
     // Tarefas com data_fatal < hoje e não concluídas
     const { data: vencidas } = await supabase
       .from("tarefas")
-      .select("id, titulo, data_fatal, status, responsavel_id, tarefa_responsaveis(usuario_id)")
+      .select("id, titulo, data_fatal, status, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id)")
       .lt("data_fatal", hoje)
       .not("status", "in", "(concluida,cancelada,arquivada)")
       .limit(1000);
@@ -52,6 +52,8 @@ serve(async (req) => {
       const ids = new Set<string>();
       if (t.responsavel_id) ids.add(t.responsavel_id);
       for (const r of (t.tarefa_responsaveis ?? []) as any[]) if (r.usuario_id) ids.add(r.usuario_id);
+      for (const r of (t.tarefa_envolvidos ?? []) as any[]) if (r.usuario_id) ids.add(r.usuario_id);
+      if (t.criado_por) ids.add(t.criado_por);
       for (const uid of ids) {
         if (!porUsuario.has(uid)) porUsuario.set(uid, []);
         porUsuario.get(uid)!.push(t);
