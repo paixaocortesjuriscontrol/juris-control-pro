@@ -1617,7 +1617,7 @@ export default function PainelControle() {
           <div className="flex-1 min-h-0 overflow-hidden">
             <ListaAtividadesView
               embedded
-              onRequestNovo={() => { setSelectedItem(null); setNovoItemTipo("tarefa"); }}
+              onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("tarefa"); }}
               externalItems={itensPainelFiltrados}
               externalLoading={isLoading}
               forcedCoordenacaoId={
