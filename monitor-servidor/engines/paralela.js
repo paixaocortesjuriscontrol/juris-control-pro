@@ -474,16 +474,46 @@ function extrairSecoesPartesTexto(pub) {
 function buildTextoCompleto(pub, conteudo) {
   const obj = rawObj(pub);
   const partes = [String(conteudo || "")];
-  const advs = obj?.destinatarioadvogados || obj?.advogados || pub?.destinatarioadvogados || pub?.advogados;
-  if (Array.isArray(advs)) {
-    for (const entry of advs) {
-      const adv = entry?.advogado || entry;
-      if (adv?.nome) partes.push(String(adv.nome));
-      if (adv?.numero_oab) partes.push(`OAB ${adv.uf_oab || ""} ${adv.numero_oab}`);
+  const add = (value) => {
+    if (value === null || value === undefined) return;
+    if (typeof value === "string" || typeof value === "number") {
+      const s = String(value).trim();
+      if (s) partes.push(s);
+      return;
     }
+    if (typeof value !== "object") return;
+    const nome = value.nome || value.nomeAdvogado || value.nomeParte || value.parte || value.nomeDestinatario || value.destinatarioNome || value.nomeRepresentante || value.nomeProcurador;
+    if (nome) partes.push(String(nome));
+    const oab = value.numero_oab || value.numeroOab || value.oab || value.inscricaoOab;
+    const uf = value.uf_oab || value.ufOab || value.uf || value.siglaUf;
+    if (oab) partes.push(`OAB ${uf || ""} ${oab}`);
+  };
+  const addArray = (arr) => {
+    for (const entry of parseArrayLike(arr)) {
+      const adv = entry?.advogado || entry;
+      add(adv);
+      for (const nested of [entry?.advogados, entry?.representantes, entry?.procuradores]) {
+        for (const n of parseArrayLike(nested)) add(n?.advogado || n);
+      }
+    }
+  };
+
+  for (const root of [obj, pub]) {
+    addArray(root?.destinatarioadvogados);
+    addArray(root?.advogados);
+    addArray(root?.representantes);
+    addArray(root?.procuradores);
+    addArray(root?.advogados_json);
+    addArray(root?.destinatarios);
+    addArray(root?.partes);
+    addArray(root?.partes_json);
+    add(root?.poloAtivo || root?.polo_ativo);
+    add(root?.poloPassivo || root?.polo_passivo);
   }
-  const dest = obj?.destinatarios || pub?.destinatarios;
-  if (Array.isArray(dest)) for (const d of dest) if (d?.nome) partes.push(String(d.nome));
+  for (const parte of extrairPartesEstruturadas(pub)) add(parte);
+  for (const secao of extrairSecoesPartesTexto(pub)) add(secao);
+  const secaoAdvogados = extrairSecaoAdvogadosTexto(pub);
+  if (secaoAdvogados) add(secaoAdvogados);
   return partes.join("\n");
 }
 
