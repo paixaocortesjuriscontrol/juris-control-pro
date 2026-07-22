@@ -135,7 +135,6 @@ serve(async (req) => {
 
     for (const cfg of configs) {
       if (!cfg.canal_email && !cfg.canal_whatsapp) continue;
-      if (!cfg.destinatarios_ids?.length) continue;
       // Respeitar dias da semana configurados (default: dias úteis)
       const diasSemana = Array.isArray(cfg.dias_semana) && cfg.dias_semana.length
         ? cfg.dias_semana
@@ -146,13 +145,6 @@ serve(async (req) => {
       }
       const coordNome = await nomeCoord(cfg.coordenacao_id);
 
-      // Buscar destinatários (email + telefone)
-      const { data: dests } = await supabase
-        .from("profiles")
-        .select("id, nome, email, telefone")
-        .in("id", cfg.destinatarios_ids);
-      if (!dests?.length) continue;
-
       for (const nDias of cfg.dias_antes) {
         const alvoInfo = alvoBRT(nDias);
         const alvo = alvoInfo.ymd;
@@ -160,11 +152,13 @@ serve(async (req) => {
         const alvoFim = alvoInfo.rangeUtcFim;
 
         const itens: Array<{ id: string; titulo: string; data: string; hora?: string | null; processo?: string | null; origem: string; responsaveis: string[] }> = [];
+        // Regra: destinatários finais = config + responsáveis + envolvidos + criador de cada item
+        const idsExtras = new Set<string>();
 
         // 1) Tarefas (data_vencimento é date — comparação direta em BRT)
         const { data: tarefas } = await supabase
           .from("tarefas")
-          .select("id, titulo, data_vencimento, hora_prevista, responsavel_id, tarefa_responsaveis(usuario_id), processo:processos!inner(numero, coordenacao_id)")
+          .select("id, titulo, data_vencimento, hora_prevista, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos!inner(numero, coordenacao_id)")
           .eq("tipo_tarefa", cfg.tipo_tarefa)
           .eq("processo.coordenacao_id", cfg.coordenacao_id)
           .eq("data_vencimento", alvo)
@@ -174,6 +168,9 @@ serve(async (req) => {
           if (t.responsavel_id) respIds.add(t.responsavel_id);
           (t.tarefa_responsaveis ?? []).forEach((r: any) => r.usuario_id && respIds.add(r.usuario_id));
           const responsaveis = await nomesProfiles([...respIds]);
+          respIds.forEach((id) => idsExtras.add(id));
+          (t.tarefa_envolvidos ?? []).forEach((e: any) => e.usuario_id && idsExtras.add(e.usuario_id));
+          if (t.criado_por) idsExtras.add(t.criado_por);
           itens.push({
             id: t.id, titulo: t.titulo, data: t.data_vencimento, hora: t.hora_prevista,
             processo: t.processo?.numero, origem: "tarefa", responsaveis,
@@ -181,10 +178,10 @@ serve(async (req) => {
         }
 
         // 2) Audiências detectadas — data_audiencia é timestamptz, filtrar por range BRT
-        if (cfg.tipo_tarefa === "AUDIÊNCIA") {
+        if (cfg.tipo_tarefa === "AUDIÊNCIA" || cfg.tipo_tarefa === "AUDIENCIA") {
           const { data: audiencias } = await supabase
             .from("audiencias_detectadas")
-            .select("id, processo_numero, data_audiencia, hora, cliente, status, audiencias_advogados(advogado_id)")
+            .select("id, processo_numero, data_audiencia, hora, cliente, status, criado_por, audiencias_advogados(advogado_id), audiencia_envolvidos(usuario_id)")
             .eq("coordenacao_id", cfg.coordenacao_id)
             .gte("data_audiencia", alvoIni)
             .lte("data_audiencia", alvoFim)
@@ -192,6 +189,9 @@ serve(async (req) => {
           for (const a of (audiencias ?? []) as any[]) {
             const respIds = (a.audiencias_advogados ?? []).map((x: any) => x.advogado_id).filter(Boolean);
             const responsaveis = await nomesProfiles(respIds);
+            respIds.forEach((id: string) => idsExtras.add(id));
+            (a.audiencia_envolvidos ?? []).forEach((e: any) => e.usuario_id && idsExtras.add(e.usuario_id));
+            if (a.criado_por) idsExtras.add(a.criado_por);
             itens.push({
               id: a.id, titulo: `Audiência ${a.cliente ?? a.processo_numero ?? ""}`.trim(),
               data: a.data_audiencia, hora: a.hora, processo: a.processo_numero, origem: "audiencia",
@@ -201,16 +201,22 @@ serve(async (req) => {
         }
 
         // 3) Eventos — data_inicio timestamptz, range BRT
-        if (cfg.tipo_tarefa === "OUTROS") {
+        if (cfg.tipo_tarefa === "OUTROS" || cfg.tipo_tarefa === "EVENTO") {
           const { data: eventos } = await supabase
             .from("eventos_agenda")
-            .select("id, titulo, data_inicio, status, criado_por, processo:processos!inner(coordenacao_id)")
+            .select("id, titulo, data_inicio, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos!inner(coordenacao_id)")
             .eq("processo.coordenacao_id", cfg.coordenacao_id)
             .gte("data_inicio", alvoIni)
             .lte("data_inicio", alvoFim)
             .neq("status", "concluido");
           for (const e of (eventos ?? []) as any[]) {
-            const responsaveis = e.criado_por ? await nomesProfiles([e.criado_por]) : [];
+            const respIds = new Set<string>();
+            if (e.criado_por) respIds.add(e.criado_por);
+            (e.evento_responsaveis ?? []).forEach((r: any) => r.usuario_id && respIds.add(r.usuario_id));
+            const responsaveis = await nomesProfiles([...respIds]);
+            respIds.forEach((id) => idsExtras.add(id));
+            (e.evento_envolvidos ?? []).forEach((x: any) => x.usuario_id && idsExtras.add(x.usuario_id));
+            (e.participantes_evento ?? []).forEach((x: any) => x.usuario_id && idsExtras.add(x.usuario_id));
             itens.push({
               id: e.id, titulo: e.titulo, data: (e.data_inicio ?? "").slice(0, 10), origem: "evento",
               responsaveis,
@@ -218,7 +224,43 @@ serve(async (req) => {
           }
         }
 
+        // 4) Parcelamentos recorrentes — parcelas_evento.data_vencimento é date
+        if (cfg.tipo_tarefa === "PARCELAMENTO" || cfg.tipo_tarefa === "PARCELA") {
+          const { data: parcelas } = await supabase
+            .from("parcelas_evento")
+            .select("id, numero, data_vencimento, status, evento:eventos_agenda!inner(id, titulo, criado_por, coordenacao_id, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id))")
+            .eq("evento.coordenacao_id", cfg.coordenacao_id)
+            .eq("data_vencimento", alvo)
+            .neq("status", "pago");
+          for (const p of (parcelas ?? []) as any[]) {
+            const ev = p.evento ?? {};
+            const respIds = new Set<string>();
+            if (ev.criado_por) respIds.add(ev.criado_por);
+            (ev.evento_responsaveis ?? []).forEach((r: any) => r.usuario_id && respIds.add(r.usuario_id));
+            const responsaveis = await nomesProfiles([...respIds]);
+            respIds.forEach((id) => idsExtras.add(id));
+            (ev.evento_envolvidos ?? []).forEach((x: any) => x.usuario_id && idsExtras.add(x.usuario_id));
+            (ev.participantes_evento ?? []).forEach((x: any) => x.usuario_id && idsExtras.add(x.usuario_id));
+            itens.push({
+              id: p.id,
+              titulo: `Parcela ${p.numero ?? ""} — ${ev.titulo ?? ""}`.trim(),
+              data: p.data_vencimento,
+              origem: "parcela",
+              responsaveis,
+            });
+          }
+        }
+
         if (itens.length === 0) continue;
+
+        // Destinatários finais = destinatários da config ∪ responsáveis ∪ envolvidos ∪ criador (dedup)
+        const finalIds = new Set<string>([...(cfg.destinatarios_ids ?? []), ...idsExtras]);
+        if (finalIds.size === 0) continue;
+        const { data: dests } = await supabase
+          .from("profiles")
+          .select("id, nome, email, telefone")
+          .in("id", [...finalIds]);
+        if (!dests?.length) continue;
 
         // Montar mensagem (data BRT dd/MM/yyyy)
         const dataStr = alvoInfo.dataStrBR;
@@ -309,11 +351,12 @@ serve(async (req) => {
         if (Number.isFinite(horaCfg) && horaBRT === horaCfg) {
           const hojeYmd = hoje.ymd;
           const itensVenc: Array<{ id: string; titulo: string; data: string; processo?: string | null; responsaveis: string[] }> = [];
+          const idsExtrasVenc = new Set<string>();
 
           // Tarefas vencidas (data_vencimento < hoje) e ainda não concluídas/tratadas
           const { data: tarefasVenc } = await supabase
             .from("tarefas")
-            .select("id, titulo, data_vencimento, data_cumprimento, responsavel_id, tarefa_responsaveis(usuario_id), processo:processos!inner(numero, coordenacao_id)")
+            .select("id, titulo, data_vencimento, data_cumprimento, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos!inner(numero, coordenacao_id)")
             .eq("tipo_tarefa", cfg.tipo_tarefa)
             .eq("processo.coordenacao_id", cfg.coordenacao_id)
             .lt("data_vencimento", hojeYmd)
@@ -324,6 +367,9 @@ serve(async (req) => {
             if (t.responsavel_id) respIds.add(t.responsavel_id);
             (t.tarefa_responsaveis ?? []).forEach((r: any) => r.usuario_id && respIds.add(r.usuario_id));
             const responsaveis = await nomesProfiles([...respIds]);
+            respIds.forEach((id) => idsExtrasVenc.add(id));
+            (t.tarefa_envolvidos ?? []).forEach((e: any) => e.usuario_id && idsExtrasVenc.add(e.usuario_id));
+            if (t.criado_por) idsExtrasVenc.add(t.criado_por);
             itensVenc.push({
               id: t.id, titulo: t.titulo, data: t.data_vencimento,
               processo: t.processo?.numero, responsaveis,
@@ -331,6 +377,10 @@ serve(async (req) => {
           }
 
           if (itensVenc.length > 0) {
+            const finalIdsVenc = new Set<string>([...(cfg.destinatarios_ids ?? []), ...idsExtrasVenc]);
+            const { data: destsVenc } = finalIdsVenc.size > 0
+              ? await supabase.from("profiles").select("id, nome, email, telefone").in("id", [...finalIdsVenc])
+              : { data: [] as any[] };
             const linhas = itensVenc.slice(0, 40).map((i) => {
               const p = i.processo ? ` — ${i.processo}` : "";
               const r = i.responsaveis?.length ? ` — Resp.: ${i.responsaveis.join(", ")}` : "";
@@ -345,7 +395,7 @@ serve(async (req) => {
             inicioDiaBrtUtc.setUTCHours(0, 0, 0, 0);
             const inicioJanelaUtc = new Date(inicioDiaBrtUtc.getTime() + 3 * 60 * 60 * 1000).toISOString();
 
-            for (const d of dests) {
+            for (const d of (destsVenc ?? [])) {
               if (cfg.canal_email && d.email) {
                 const { data: ja } = await supabase
                   .from("historico_alertas_enviados")

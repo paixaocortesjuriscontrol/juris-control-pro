@@ -70,7 +70,7 @@ serve(async (req) => {
         id, audiencia_id, minutos_antes, enviado,
         audiencia:audiencias_detectadas!inner(
           id, processo_numero, data_audiencia, hora_brasilia, hora,
-          tipo_audiencia, cliente, advogado, comarca, status, criado_por
+          tipo_audiencia, cliente, advogado, comarca, status, criado_por, coordenacao_id
         )
       `)
       .eq("enviado", false)
@@ -132,18 +132,55 @@ serve(async (req) => {
           continue;
         }
 
-        // Buscar telefone do criador da audiência
+        // Regra unificada: telefones de advogados + envolvidos + criador + responsável do processo + destinatários da config
+        const usuariosSet = new Set<string>();
+        if (audiencia.criado_por) usuariosSet.add(audiencia.criado_por);
+
+        const { data: advs } = await supabase
+          .from("audiencias_advogados")
+          .select("advogado_id")
+          .eq("audiencia_id", audiencia.id);
+        (advs ?? []).forEach((a: any) => a.advogado_id && usuariosSet.add(a.advogado_id));
+
+        const { data: envs } = await supabase
+          .from("audiencia_envolvidos")
+          .select("usuario_id")
+          .eq("audiencia_id", audiencia.id);
+        (envs ?? []).forEach((e: any) => e.usuario_id && usuariosSet.add(e.usuario_id));
+
+        let coordenacaoId: string | null = audiencia.coordenacao_id ?? null;
+        if (audiencia.processo_numero) {
+          const { data: processo } = await supabase
+            .from("processos")
+            .select("advogado_responsavel_id, coordenacao_id")
+            .eq("numero", audiencia.processo_numero)
+            .maybeSingle();
+          if (processo?.advogado_responsavel_id) usuariosSet.add(processo.advogado_responsavel_id);
+          if (!coordenacaoId && processo?.coordenacao_id) coordenacaoId = processo.coordenacao_id;
+        }
+
+        if (coordenacaoId) {
+          const { data: cfgDet } = await supabase
+            .from("config_deteccao_coordenacao")
+            .select("destinatarios_audiencias_ids")
+            .eq("coordenacao_id", coordenacaoId)
+            .maybeSingle();
+          ((cfgDet?.destinatarios_audiencias_ids || []) as string[]).forEach((uid) => uid && usuariosSet.add(uid));
+        }
+
         const telefones: string[] = [];
-        if (audiencia.criado_por) {
-          const { data: perfil } = await supabase
+        if (usuariosSet.size > 0) {
+          const { data: perfis } = await supabase
             .from("profiles")
             .select("telefone")
-            .eq("id", audiencia.criado_por)
-            .single();
-
-          if (perfil?.telefone) {
-            telefones.push(perfil.telefone);
-          }
+            .in("id", [...usuariosSet]);
+          const vistos = new Set<string>();
+          (perfis ?? []).forEach((p: any) => {
+            if (p?.telefone && !vistos.has(p.telefone)) {
+              vistos.add(p.telefone);
+              telefones.push(p.telefone);
+            }
+          });
         }
 
         if (telefones.length === 0) {

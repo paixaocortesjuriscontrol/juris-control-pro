@@ -27,7 +27,7 @@ serve(async (req) => {
 
     const { data: audiencias, error: audienciasError } = await supabase
       .from("audiencias_detectadas")
-      .select("id, data_audiencia, processo_numero, cliente, advogado, hora_brasilia, comarca, alerta_enviado, criado_por")
+      .select("id, data_audiencia, processo_numero, cliente, advogado, hora_brasilia, comarca, alerta_enviado, criado_por, coordenacao_id")
       .eq("status", "pendente")
       .gte("data_audiencia", hoje.toISOString().split("T")[0])
       .lte("data_audiencia", em3Dias.toISOString().split("T")[0]);
@@ -74,72 +74,44 @@ serve(async (req) => {
 
       alertasCriados++;
 
-      // Buscar advogados associados a esta audiência
+      // Regra: destinatários = advogados + envolvidos + criador + responsável do processo + destinatários da config (união)
+      const usuariosSet = new Set<string>();
+
       const { data: advogadosAudiencia } = await supabase
         .from("audiencias_advogados")
         .select("advogado_id")
         .eq("audiencia_id", audiencia.id);
+      (advogadosAudiencia ?? []).forEach((aa: any) => aa.advogado_id && usuariosSet.add(aa.advogado_id));
 
-      const usuariosParaNotificar: string[] = [];
+      const { data: envolvidosAud } = await supabase
+        .from("audiencia_envolvidos")
+        .select("usuario_id")
+        .eq("audiencia_id", audiencia.id);
+      (envolvidosAud ?? []).forEach((e: any) => e.usuario_id && usuariosSet.add(e.usuario_id));
 
-      // Adicionar advogados associados
-      if (advogadosAudiencia && advogadosAudiencia.length > 0) {
-        advogadosAudiencia.forEach((aa: { advogado_id: string }) => {
-          if (!usuariosParaNotificar.includes(aa.advogado_id)) {
-            usuariosParaNotificar.push(aa.advogado_id);
-          }
-        });
-      }
+      if (audiencia.criado_por) usuariosSet.add(audiencia.criado_por);
 
-      // Adicionar criador
-      if (audiencia.criado_por && !usuariosParaNotificar.includes(audiencia.criado_por)) {
-        usuariosParaNotificar.push(audiencia.criado_por);
-      }
-
-      // Buscar processo e notificar responsável e coordenação
+      let coordenacaoId: string | null = audiencia.coordenacao_id ?? null;
       if (audiencia.processo_numero) {
         const { data: processo } = await supabase
           .from("processos")
           .select("advogado_responsavel_id, coordenacao_id")
           .eq("numero", audiencia.processo_numero)
           .maybeSingle();
-
-        if (processo) {
-          if (processo.advogado_responsavel_id && !usuariosParaNotificar.includes(processo.advogado_responsavel_id)) {
-            usuariosParaNotificar.push(processo.advogado_responsavel_id);
-          }
-
-          if (processo.coordenacao_id) {
-            // Verifica configuração de destinatários específicos
-            const { data: cfgDet } = await supabase
-              .from("config_deteccao_coordenacao")
-              .select("destinatarios_audiencias_ids")
-              .eq("coordenacao_id", processo.coordenacao_id)
-              .maybeSingle();
-
-            const destEspec = (cfgDet?.destinatarios_audiencias_ids || []) as string[];
-
-            if (destEspec.length > 0) {
-              destEspec.forEach((uid) => {
-                if (uid && !usuariosParaNotificar.includes(uid)) {
-                  usuariosParaNotificar.push(uid);
-                }
-              });
-            } else {
-              const { data: membros } = await supabase
-                .from("membros_coordenacao")
-                .select("usuario_id")
-                .eq("coordenacao_id", processo.coordenacao_id);
-
-              membros?.forEach((m: { usuario_id: string }) => {
-                if (!usuariosParaNotificar.includes(m.usuario_id)) {
-                  usuariosParaNotificar.push(m.usuario_id);
-                }
-              });
-            }
-          }
-        }
+        if (processo?.advogado_responsavel_id) usuariosSet.add(processo.advogado_responsavel_id);
+        if (!coordenacaoId && processo?.coordenacao_id) coordenacaoId = processo.coordenacao_id;
       }
+
+      if (coordenacaoId) {
+        const { data: cfgDet } = await supabase
+          .from("config_deteccao_coordenacao")
+          .select("destinatarios_audiencias_ids")
+          .eq("coordenacao_id", coordenacaoId)
+          .maybeSingle();
+        ((cfgDet?.destinatarios_audiencias_ids || []) as string[]).forEach((uid) => uid && usuariosSet.add(uid));
+      }
+
+      const usuariosParaNotificar = [...usuariosSet];
 
       // Criar notificações
       for (const usuarioId of usuariosParaNotificar) {
