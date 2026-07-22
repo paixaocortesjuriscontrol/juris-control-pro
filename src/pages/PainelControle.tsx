@@ -722,7 +722,11 @@ export default function PainelControle() {
         const isAudiencia = tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA" || tipo === "audiencia";
         const isPrazo = tipo === "prazo" || tipo === "prazo_parcela";
         const isParcelamento = tipo === "parcelamento";
-        const isEvento = !isParcelamento && (item.origem === "evento" || tipoUpper === "EVENTO" || tipo === "evento");
+        // Evento NUNCA pode coincidir com Audiência/Prazo/Parcelamento — mesmo quando
+        // o registro vem da tabela eventos_agenda (origem === "evento") com tipo="audiencia".
+        const isEvento =
+          !isParcelamento && !isAudiencia && !isPrazo &&
+          (item.origem === "evento" || tipoUpper === "EVENTO" || tipo === "evento");
         const isTarefa = !isAudiencia && !isPrazo && !isEvento && !isParcelamento;
 
         const match =
@@ -1413,19 +1417,19 @@ export default function PainelControle() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setNovoItemTipo("tarefa"); }}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("tarefa"); }}>
                     <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setNovoItemTipo("evento"); }}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("evento"); }}>
                     <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setNovoItemTipo("prazo"); }}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("prazo"); }}>
                     <Clock className="w-4 h-4 mr-2" /> Prazo
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setNovoItemTipo("audiencia"); }}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("audiencia"); }}>
                     <Gavel className="w-4 h-4 mr-2" /> Audiência
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setNovoItemTipo("parcelamento"); }}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("parcelamento"); }}>
                     <Coins className="w-4 h-4 mr-2" /> Parcelamento recorrente
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -1613,7 +1617,7 @@ export default function PainelControle() {
           <div className="flex-1 min-h-0 overflow-hidden">
             <ListaAtividadesView
               embedded
-              onRequestNovo={() => { setSelectedItem(null); setNovoItemTipo("tarefa"); }}
+              onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("tarefa"); }}
               externalItems={itensPainelFiltrados}
               externalLoading={isLoading}
               forcedCoordenacaoId={
