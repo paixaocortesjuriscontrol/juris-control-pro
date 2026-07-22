@@ -64,6 +64,7 @@ import { toZonedTime } from "date-fns-tz";
 import { Link, useNavigate } from "react-router-dom";
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
 import TstPrazos from "@/pages/TstPrazos";
+import { KanbanItensAgenda } from "@/components/painel/KanbanItensAgenda";
 import PainelAudiencias from "@/pages/PainelAudiencias";
 import Notificacoes from "@/pages/Notificacoes";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
@@ -1633,11 +1634,24 @@ export default function PainelControle() {
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
             {(() => {
               const c = painelFiltros.classificacoes;
-              // Se um único tipo estiver selecionado, mostra o kanban correspondente.
+              // Kanbans especializados por tipo
               if (c.length === 1 && c[0] === "prazo") return <TstPrazos embedded />;
               if (c.length === 1 && c[0] === "audiencia") return <PainelAudiencias embedded statusFilter={situacaoFilter} onStatusFilterChange={setSituacaoFilter} />;
-              // Default: audiências (kanban principal). Usuário troca o tipo pelos chips.
-              return <PainelAudiencias embedded statusFilter={situacaoFilter} onStatusFilterChange={setSituacaoFilter} />;
+              if (c.length === 1 && (c[0] === "tarefa" || c[0] === "evento" || c[0] === "parcelamento")) {
+                return (
+                  <KanbanItensAgenda
+                    itens={itensPainelFiltrados}
+                    onItemClick={handleItemClick}
+                  />
+                );
+              }
+              // Sem filtro específico ou múltiplos tipos: kanban genérico com todos os itens filtrados
+              return (
+                <KanbanItensAgenda
+                  itens={itensPainelFiltrados}
+                  onItemClick={handleItemClick}
+                />
+              );
             })()}
           </div>
         ) : viewMode === "audiencias" ? (
