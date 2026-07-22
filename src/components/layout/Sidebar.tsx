@@ -65,7 +65,7 @@ const menuItemsPublicos: MenuItem[] = [
   // Demais itens
   { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400", restrictedCoordenacoes: ["Dr. Renata com termos do João", "Coordenação Dra. Renata Santander"] },
   { icon: Mail, label: "Remessas Benner", path: "/remessas-benner", color: "text-sky-400", adminOnly: true },
-  { icon: BookOpen, label: "Matérias Benner", path: "/materias-benner", color: "text-sky-400" },
+  { icon: BookOpen, label: "Matérias Benner", path: "/materias-benner", color: "text-sky-400", restrictedCoordenacoes: ["Dr. Renata com termos do João", "Coordenação Dra. Renata Santander"] },
   { icon: ShieldCheck, label: "Admin. TST", path: "/admin-tst", color: "text-sky-400", adminOnly: true },
   { icon: Sparkles, label: "Prompt IA TST", path: "/prompts-ia-tst", color: "text-purple-400", adminOnly: true },
   { icon: Sparkles, label: "Prompt IA (Publicações)", path: "/prompt-ia-publicacoes", color: "text-purple-400", adminOrCoordOnly: true },
