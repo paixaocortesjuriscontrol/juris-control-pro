@@ -850,6 +850,7 @@ export type Database = {
       auditoria_tarefas: {
         Row: {
           acao: string
+          coordenacao_id: string | null
           created_at: string
           dados_entrada: Json | null
           dados_saida: Json | null
@@ -861,11 +862,13 @@ export type Database = {
           processo_id: string | null
           sucesso: boolean
           tarefa_id: string | null
+          tipo_item: string | null
           user_agent: string | null
           usuario_id: string | null
         }
         Insert: {
           acao: string
+          coordenacao_id?: string | null
           created_at?: string
           dados_entrada?: Json | null
           dados_saida?: Json | null
@@ -877,11 +880,13 @@ export type Database = {
           processo_id?: string | null
           sucesso?: boolean
           tarefa_id?: string | null
+          tipo_item?: string | null
           user_agent?: string | null
           usuario_id?: string | null
         }
         Update: {
           acao?: string
+          coordenacao_id?: string | null
           created_at?: string
           dados_entrada?: Json | null
           dados_saida?: Json | null
@@ -893,6 +898,7 @@ export type Database = {
           processo_id?: string | null
           sucesso?: boolean
           tarefa_id?: string | null
+          tipo_item?: string | null
           user_agent?: string | null
           usuario_id?: string | null
         }
