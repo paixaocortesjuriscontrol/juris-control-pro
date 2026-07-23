@@ -42,6 +42,7 @@ import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 import { useAuth } from "@/contexts/AuthContext";
 import { PublicacaoVinculadaCollapsible } from "@/components/shared/PublicacaoVinculadaCollapsible";
+import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 
 function ScrollAreaOrDiv({ embedded, children }: { embedded?: boolean; children: React.ReactNode }) {
   if (embedded) return <div className="px-6">{children}</div>;
@@ -392,9 +393,23 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       if (isEditing && evento) {
         await updateEvento.mutateAsync({ id: evento.id, ...payload });
         await persistirRelacionamentos(evento.id);
+        await registrarAuditoriaTarefa({
+          acao: 'atualizar', sucesso: true,
+          dadosEntrada: payload, dadosSaida: { id: evento.id },
+          origem: 'evento_dialog', tipoItem: 'evento',
+          itemId: evento.id, processoId: processoIdParaSalvar || undefined,
+          coordenacaoId: coordenacaoId || null,
+        });
       } else {
         const novo = await createEvento.mutateAsync(payload);
         if (novo?.id) await persistirRelacionamentos(novo.id);
+        await registrarAuditoriaTarefa({
+          acao: 'criar', sucesso: true,
+          dadosEntrada: payload, dadosSaida: { id: novo?.id },
+          origem: 'evento_dialog', tipoItem: 'evento',
+          itemId: novo?.id, processoId: processoIdParaSalvar || undefined,
+          coordenacaoId: coordenacaoId || null,
+        });
         if (novo?.id && onAfterCreate) {
           try { onAfterCreate({ id: novo.id, titulo: payload.titulo || "Evento" }); }
           catch (err) { console.warn("onAfterCreate falhou:", err); }
@@ -430,6 +445,16 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       }
     } catch (error) {
       console.error("Erro ao salvar evento:", error);
+      await registrarAuditoriaTarefa({
+        acao: isEditing ? 'erro_atualizar' : 'erro_criar',
+        sucesso: false,
+        dadosEntrada: payload,
+        erroMensagem: (error as any)?.message,
+        erroDetalhes: { code: (error as any)?.code, details: (error as any)?.details },
+        origem: 'evento_dialog', tipoItem: 'evento',
+        itemId: evento?.id, processoId: processoIdParaSalvar || undefined,
+        coordenacaoId: coordenacaoId || null,
+      });
     }
   };
 
