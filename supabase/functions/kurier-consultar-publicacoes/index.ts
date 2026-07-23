@@ -153,6 +153,60 @@ function extractKurierCompactPartesAdvogados(texto: string): { partes: string[];
   const advPassivo = plain.match(/\bAdvogados?\s+polo\s+passivo\s+([\s\S]*?)(?=\s+Data\s+e\s+hora\b|\s+Identificador\s+do\s+documento\b|\s+Classe\s+do\s+Processo\b|\s+Assunto\b|\s+[ÓO]rg[ãa]o\s+Julgado\b|\s+Prazo\b|\s+Data\s+Limite\b|$)/i)?.[1];
   if (advPassivo) splitKurierSlashList(advPassivo).forEach(addAdv);
 
+  // ---- TJMG / DJMG blob: "Requerente <X>; Requerido(A) <Y>. Adv - <a1>, <a2>, ... = <decisão>"
+  // Também aceita "Representante", "Autor", "Recorrente", etc.
+  const PAPEIS_TJMG = "Requerente|Requerido(?:\\s*\\(\\s*[AaOo]\\s*\\))?|Representante|Autor(?:a)?|R[ée]u|Recorrente|Recorrido|Executado|Exequente|Interessado|Impetrante|Impetrado|Reclamante|Reclamado|Agravante|Agravado|Apelante|Apelado|Embargante|Embargado";
+  const advTjmgMatches = plain.match(/(?:^|[\s.])Adv\s*[-–]\s*([^=]+?)(?=\s*=\s|$)/gi);
+  if (advTjmgMatches) {
+    // Bloco de partes: da última ocorrência de papel antes de " Adv - " até o " Adv - "
+    const advIdx = plain.search(/(?:^|[\s.])Adv\s*[-–]\s+/i);
+    if (advIdx > 0) {
+      const beforeAdv = plain.slice(0, advIdx);
+      const partesRe = new RegExp(`\\b(${PAPEIS_TJMG})\\b\\s+([^;.=]+?)(?=\\s*[;.]|\\s+Adv\\s*[-–]|$)`, "gi");
+      let pm: RegExpExecArray | null;
+      while ((pm = partesRe.exec(beforeAdv)) !== null) {
+        const papelRaw = pm[1].replace(/\s+/g, " ").trim();
+        const nome = pm[2].replace(/\s+e\s+outros?(?:\s*\(as\))?$/i, "").trim();
+        if (nome && nome.length >= 3 && nome.length <= 200) {
+          addParte(capitalizePapel(papelRaw), nome);
+        }
+      }
+    }
+    for (const block of advTjmgMatches) {
+      const advBody = block.replace(/^(?:.*?)Adv\s*[-–]\s*/i, "");
+      advBody.split(/\s*,\s*/g).forEach((nome) => {
+        const clean = nome.replace(/\s*=.*$/, "").trim();
+        if (clean) addAdv(clean);
+      });
+    }
+  }
+
+  // ---- TJDFT_DJEN blob: "PARTES NOME<Nome> POLO<letra> ID COMUNICAÇÃO... ADVOGADOS NOME<Nome> Nº OAB<num> UF<uf>"
+  // Pode ter múltiplos "NOME" seguidos em cada seção.
+  const partesBlockTjdft = plain.match(/\bPARTES\s+((?:NOME[\s\S]*?)+?)(?=\s+ADVOGADOS?\b|\s+ID\s+COMUNICA|$)/i)?.[1];
+  if (partesBlockTjdft) {
+    const re = /NOME([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ\s'.]{2,120}?)(?=\s+(?:POLO|NOME|ID\s+COMUNICA|Nº\s*OAB)\b|$)/gi;
+    let pm: RegExpExecArray | null;
+    while ((pm = re.exec(partesBlockTjdft)) !== null) {
+      addParte("Parte", pm[1].trim());
+    }
+  }
+  const advBlockTjdft = plain.match(/\bADVOGADOS?\s+((?:NOME[\s\S]*?)+)$/i)?.[1];
+  if (advBlockTjdft) {
+    const re = /NOME([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ\s'.]{2,120}?)\s+Nº\s*OAB\s*(\d{2,7})\s+UF\s*([A-Z]{2})/gi;
+    let am: RegExpExecArray | null;
+    let anyOab = false;
+    while ((am = re.exec(advBlockTjdft)) !== null) {
+      anyOab = true;
+      addAdv(`${am[1].trim()} - OAB ${am[3]}-${am[2]}`);
+    }
+    if (!anyOab) {
+      const re2 = /NOME([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ\s'.]{2,120}?)(?=\s+(?:NOME|Nº\s*OAB|POLO)\b|$)/gi;
+      let am2: RegExpExecArray | null;
+      while ((am2 = re2.exec(advBlockTjdft)) !== null) addAdv(am2[1].trim());
+    }
+  }
+
   return { partes, advogados };
 }
 
