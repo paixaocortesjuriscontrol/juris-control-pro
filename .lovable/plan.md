@@ -1,33 +1,46 @@
-## Diagnóstico atual (confirmado)
+# Auditoria de itens criados/alterados via "+ Adicionar" e por publicações
 
-- Motor `monitor-servidor/engines/stfServidor.js` grava STF em `publicacoes_djen` (`fonte='stf_digital'`) e chama `parseEnvolvidos(pub)` lendo **exclusivamente** `pub.envolvidos[]` da API `digital.stf.jus.br/.../publicacoes` para preencher `partes_json` / `advogados_json` / `polo_ativo` / `polo_passivo`.
-- Consulta ao banco: das últimas 8 publicações `stf_digital` (7 dias), **todas** têm partes e advogados populados. O RHC 274998 do print **não está** em `publicacoes_djen` nem em `publicacoes_stf` — provavelmente é publicação criminal em que a API do STF devolve `envolvidos: []` (feitos com sigilo/segredo de justiça costumam vir sem partes/advogados estruturados).
-- Diagnóstico da causa raiz está **não confirmado** — só saberemos após inspecionar o JSON bruto de uma publicação equivalente.
+Hoje já existe a tabela `auditoria_tarefas`, mas ela só é gravada em 2 lugares (Nova Tarefa e Delegar Tarefa) e não há tela para consultar. Vou instrumentar os demais fluxos do botão "+ Adicionar" e criar uma tela de consulta restrita a admin/coordenador.
 
-## Passo 1 — Confirmar a causa (obrigatório antes de corrigir)
+## 1. Backend / instrumentação
 
-Adicionar log temporário em `stfServidor.js` que, quando `parseEnvolvidos` retorna listas vazias, registre `pub.envolvidos`, `pub.partes`, `pub.polos`, `pub.processo`, `pub.tipo` no log da execução. Rodar em 1 ciclo e capturar 1–2 exemplos reais (incluindo, se possível, o RHC 274998 forçando busca por termo/processo). Objetivo: descobrir se o campo vem `[]`, com outro nome, ou preenchido só parcialmente.
+- **Migração**:
+  - Ampliar comentário/uso da `auditoria_tarefas` para cobrir `tipo_item` (tarefa | prazo | evento | audiencia | parcelamento) — adicionar coluna `tipo_item TEXT` + índice.
+  - Adicionar policy de SELECT para **coordenadores** verem auditoria de itens da sua coordenação (via `has_role(auth.uid(),'coordenador')`), mantendo admin com visão global e usuário vendo o próprio.
+  - Adicionar coluna `coordenacao_id UUID` para filtrar por coordenação (preenchida no insert quando disponível).
+- **Instrumentar `registrarAuditoriaTarefa`** nos pontos de criação/edição/exclusão que ainda não logam:
+  - `src/components/agenda/EventoDialog.tsx` (evento e audiência via agenda)
+  - `src/components/audiencias/AudienciaFormSimplificado.tsx`, `EditarAudienciaDialog.tsx`, `ReagendarAudienciaDialog.tsx`
+  - `src/components/agenda/GerarParcelasDialog.tsx` (parcelamentos)
+  - `src/components/agenda/TarefaAgendaPanel.tsx` (edições inline)
+  - Fluxos "a partir de publicação": `PreagendarIaDialog.tsx`, `CriarTarefaAudienciaDialog.tsx` — marcar `origem` como `publicacao_djen` / `publicacao_ia`.
 
-## Passo 2 — Correção (condicional ao resultado do Passo 1)
+Cada chamada envia: `acao`, `sucesso`, `tipo_item`, `origem`, `processo_id`, item_id, `dados_entrada`, `dados_saida`/`erro_*`.
 
-Dois caminhos, escolhidos conforme o achado:
+## 2. Frontend — tela de consulta
 
-- **Se a API devolve `envolvidos` sob outro nome/estrutura** (ex.: `partes[]`, `polos.ativo[]`, `advogados[]` no topo do objeto): estender `parseEnvolvidos` para tentar essas chaves alternativas antes de desistir. Continua sendo parse de dado estruturado — sem regex no texto.
-- **Se a API realmente não devolve nada estruturado para o processo** (típico em criminal/sigilo): parar de exibir “—” mudo. Renderizar em `AnaliseDjen.tsx` (bloco `PARTE(S)` / `ADVOGADO(S)`, ~linhas 2115 e 4941) uma mensagem explícita `Não informado pelo STF` quando `fonte === 'stf_digital'` e ambas as listas vierem vazias, para o usuário saber que é limitação da fonte, não bug.
+- Nova rota `/auditoria-itens` protegida por um novo wrapper `AdminOrCoordRoute` (baseado no `AdminRoute`, usando `isAdminOrCoordinator` já existente em `useUserRole`).
+- Novo arquivo `src/pages/AuditoriaItens.tsx`:
+  - Filtros: período (data), tipo de item, ação (criar/atualizar/deletar), sucesso/falha, origem, usuário, coordenação (só admin), texto livre (processo/título).
+  - Tabela paginada com colunas: data/hora (BRT), usuário, coordenação, tipo, ação, sucesso, origem, processo, título/resumo, erro.
+  - Drawer de detalhes mostrando `dados_entrada` / `dados_saida` / `erro_detalhes` formatados (JSON viewer simples).
+  - Botão "Exportar CSV" respeitando filtros.
+- Card no menu **Administração** (`src/pages/Administracao.tsx`) chamando `/auditoria-itens`, visível para admin e coordenador.
+- Item de menu no `Sidebar.tsx` na seção Administração com `adminOrCoordOnly: true`.
 
-Também executar um backfill leve: reprocessar as publicações `stf_digital` sem partes/advogados usando o `raw` retornado (se ainda disponível) ou refazendo o fetch pelo `stf_id`.
+## 3. Escopo de visibilidade
 
-## Passo 3 — Verificação
+- **Admin**: vê todas as coordenações.
+- **Coordenador**: vê apenas registros com `coordenacao_id` das coordenações que ele coordena/participa (via `has_role` + `membros_coordenacao`).
+- **Demais usuários**: sem acesso à tela (rota bloqueia), mantém apenas visão da própria auditoria via policy existente (não exposta na UI).
 
-- Rodar 1 execução STF servidor e conferir no banco que publicações com `envolvidos[]` populado continuam vindo com partes/advogados corretos (não pode regredir os 8/8 atuais).
-- Abrir a UI e verificar: (a) publicação normal exibe partes/advogados; (b) publicação criminal sem envolvidos exibe a mensagem "Não informado pelo STF".
+## 4. Verificação
 
-## Nada muda
+- Criar 1 item de cada tipo pelo "+ Adicionar" e 1 a partir de publicação; confirmar registro na tabela.
+- Forçar 1 erro (ex: campo obrigatório faltando) e conferir `sucesso=false` + `erro_mensagem`.
+- Logar como coordenador de outra coordenação e confirmar isolamento.
 
-- Nenhuma alteração no schema, nas RPCs de Análise DJEN, nos motores DJEN Termos/Pautas/Kurier ou na UI de outras fontes.
-- Nenhum fallback por regex no corpo da decisão — a memória do projeto proíbe misturar parse de texto com metadados estruturados.
+## Fora do escopo
 
-## Detalhes técnicos
-
-- Arquivos a tocar: `monitor-servidor/engines/stfServidor.js` (log de diagnóstico + eventual expansão de `parseEnvolvidos`); `src/pages/AnaliseDjen.tsx` (mensagem "Não informado pelo STF" condicionada a `fonte==='stf_digital'`).
-- Sem migrations. Sem mudança em contratos de tabela. Sem alteração no fluxo de duplicidade/descarte.
+- Retroativo: só a partir da implementação (usuário já indicou preferência por "daqui pra frente" em telas anteriores; se quiser retroativo, tratar depois).
+- Auditoria de outras entidades além das opções do "+ Adicionar".
