@@ -35,7 +35,7 @@ export interface GerarRelatorioExcelOptions {
   onProgress?: (current: number, total: number) => void;
 }
 
-export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExcelOptions): Promise<{ blob: Blob; filename: string; total: number }> {
+export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExcelOptions): Promise<{ blob: Blob; filename: string; total: number; semProcessoDossie: number }> {
   const { filters, selectedIds, onProgress } = opts;
 
   let ids: string[];
