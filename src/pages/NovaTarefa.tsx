@@ -487,6 +487,7 @@ export default function NovaTarefa() {
           origem: 'nova_tarefa_page',
           processoId: values.processo_id,
           tarefaId,
+          tipoItem: 'tarefa',
         });
       } else {
         // Modo criação - inserir nova tarefa
@@ -515,6 +516,7 @@ export default function NovaTarefa() {
           origem: 'nova_tarefa_page',
           processoId: values.processo_id,
           tarefaId,
+          tipoItem: 'tarefa',
         });
 
         // Se tiver tarefa relacionada, criar o vínculo (apenas na criação)
@@ -637,6 +639,7 @@ export default function NovaTarefa() {
         origem: 'nova_tarefa_page',
         processoId: values.processo_id,
         tarefaId: editarId,
+        tipoItem: 'tarefa',
       });
 
       toast({
