@@ -9242,6 +9242,23 @@ export type Database = {
           pronto: number
         }[]
       }
+      get_distribuicao_tst_situacao_totais: {
+        Args: { filters?: Json }
+        Returns: {
+          a_fazer: number
+          acordo: number
+          cejusc: number
+          midia_negativa: number
+          outro_escritorio: number
+          periodo_fim: string
+          periodo_inicio: string
+          prontos_envio: number
+          recurso_terceiro: number
+          segredo_justica: number
+          total: number
+          transito_julgado: number
+        }[]
+      }
       get_distribuicao_tst_stats: {
         Args: { filters?: Json }
         Returns: {

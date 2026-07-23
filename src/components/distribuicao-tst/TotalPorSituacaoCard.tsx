@@ -1,16 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import {
-  DistribuicaoTstFilters,
-  fetchAllDistribuicaoTstIds,
-} from "@/hooks/useDistribuicoesTst";
-import {
-  getPendencias,
-  COLUNAS_SELECT_PENDENCIAS,
-} from "@/utils/distribuicaoTstPendencias";
+import { DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Loader2, X, Download, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -32,8 +24,6 @@ interface Resultado {
   transversais: SituacaoRow[];
 }
 
-const BATCH = 500;
-
 const fmtDate = (d: string | null) => {
   if (!d) return "—";
   try {
@@ -47,7 +37,6 @@ const fmtDate = (d: string | null) => {
 
 export function TotalPorSituacaoCard({ filters, filtrosResumo, onClose }: Props) {
   const [loading, setLoading] = useState(true);
-  const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const abortRef = useRef(false);
 
@@ -57,112 +46,32 @@ export function TotalPorSituacaoCard({ filters, filtrosResumo, onClose }: Props)
       setLoading(true);
       setResultado(null);
       try {
-        const ids = await fetchAllDistribuicaoTstIds(filters);
+        const { data, error } = await supabase.rpc(
+          "get_distribuicao_tst_situacao_totais" as any,
+          { filters: filters as any },
+        );
         if (abortRef.current) return;
-        if (!ids || ids.length === 0) {
-          setResultado({
-            total: 0,
-            periodoInicio: null,
-            periodoFim: null,
-            principais: [],
-            transversais: [],
-          });
-          return;
-        }
-
-        const cols = Array.from(
-          new Set([
-            "id",
-            "status",
-            "processo_outro_escritorio",
-            "segredo_justica",
-            "transito_julgado",
-            "acordo",
-            "cejusc",
-            "midia_negativa",
-            "recurso_terceiro",
-            "data_distribuicao_real",
-            "data_distribuicao_planilha",
-            ...COLUNAS_SELECT_PENDENCIAS,
-          ]),
-        ).join(", ");
-
-        let outroEscritorio = 0;
-        let segredo = 0;
-        let transito = 0;
-        let prontos = 0;
-        let aFazer = 0;
-        let acordoCount = 0;
-        let cejuscCount = 0;
-        let midiaCount = 0;
-        let terceiroCount = 0;
-        let minDate: string | null = null;
-        let maxDate: string | null = null;
-
-        setProgress({ current: 0, total: ids.length });
-
-        for (let i = 0; i < ids.length; i += BATCH) {
-          if (abortRef.current) return;
-          const batch = ids.slice(i, i + BATCH);
-          const { data, error } = await supabase
-            .from("dados_benner" as any)
-            .select(cols)
-            .in("id", batch);
-          if (error) throw error;
-
-          for (const r of (data as any[]) || []) {
-            const d = r.data_distribuicao_real || r.data_distribuicao_planilha || null;
-            if (d) {
-              if (!minDate || d < minDate) minDate = d;
-              if (!maxDate || d > maxDate) maxDate = d;
-            }
-
-            // Prioridade mutuamente exclusiva:
-            if (r.processo_outro_escritorio === true) {
-              outroEscritorio++;
-            } else if (r.segredo_justica === true) {
-              segredo++;
-            } else if (r.transito_julgado === true) {
-              transito++;
-            } else if (r.status === "pronto_envio" && getPendencias(r).length === 0) {
-              prontos++;
-            } else {
-              aFazer++;
-            }
-
-            // Cortes transversais (não somam ao total):
-            const acordoStr = String(r.acordo ?? "").trim().toLowerCase();
-            if (acordoStr === "sim" || r.acordo === true) acordoCount++;
-            if (r.cejusc === true) cejuscCount++;
-            const mn = String(r.midia_negativa ?? "").trim().toLowerCase();
-            if (mn && mn !== "não" && mn !== "nao") midiaCount++;
-            if (r.recurso_terceiro === true) terceiroCount++;
-          }
-
-          setProgress({ current: Math.min(i + BATCH, ids.length), total: ids.length });
-        }
-
-        if (abortRef.current) return;
-
-        const total = ids.length;
+        if (error) throw error;
+        const row: any = Array.isArray(data) ? data[0] : data;
+        const total = Number(row?.total) || 0;
         const principais: SituacaoRow[] = [
-          { situacao: "Completos/Prontos para enviar", quantidade: prontos },
-          { situacao: "A Fazer", quantidade: aFazer },
-          { situacao: "Trânsito em julgado", quantidade: transito },
-          { situacao: "Outro escritório", quantidade: outroEscritorio },
-          { situacao: "Segredo de justiça", quantidade: segredo },
+          { situacao: "Completos/Prontos para enviar", quantidade: Number(row?.prontos_envio) || 0 },
+          { situacao: "A Fazer", quantidade: Number(row?.a_fazer) || 0 },
+          { situacao: "Trânsito em julgado", quantidade: Number(row?.transito_julgado) || 0 },
+          { situacao: "Outro escritório", quantidade: Number(row?.outro_escritorio) || 0 },
+          { situacao: "Segredo de justiça", quantidade: Number(row?.segredo_justica) || 0 },
         ];
         const transversais: SituacaoRow[] = [
-          { situacao: "Acordo", quantidade: acordoCount, transversal: true },
-          { situacao: "CEJUSC", quantidade: cejuscCount, transversal: true },
-          { situacao: "Mídia negativa", quantidade: midiaCount, transversal: true },
-          { situacao: "Recurso de terceiro", quantidade: terceiroCount, transversal: true },
+          { situacao: "Acordo", quantidade: Number(row?.acordo) || 0, transversal: true },
+          { situacao: "CEJUSC", quantidade: Number(row?.cejusc) || 0, transversal: true },
+          { situacao: "Mídia negativa", quantidade: Number(row?.midia_negativa) || 0, transversal: true },
+          { situacao: "Recurso de terceiro", quantidade: Number(row?.recurso_terceiro) || 0, transversal: true },
         ];
 
         setResultado({
           total,
-          periodoInicio: minDate,
-          periodoFim: maxDate,
+          periodoInicio: row?.periodo_inicio || null,
+          periodoFim: row?.periodo_fim || null,
           principais,
           transversais,
         });
@@ -244,14 +153,9 @@ export function TotalPorSituacaoCard({ filters, filtrosResumo, onClose }: Props)
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Processando {progress.current} de {progress.total}...
-            </div>
-            <Progress
-              value={progress.total > 0 ? (progress.current / progress.total) * 100 : 0}
-            />
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Calculando totais...
           </div>
         ) : !resultado || resultado.total === 0 ? (
           <p className="text-sm text-muted-foreground">
