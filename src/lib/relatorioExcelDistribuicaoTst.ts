@@ -62,9 +62,11 @@ export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExc
     "Status do Envio": string;
     "Em Análise": string;
     "Situação Carga Santander": string;
+    Observação: string;
   };
 
   const rows: Row[] = [];
+  let semProcessoDossie = 0;
 
   for (let i = 0; i < ids.length; i += BATCH) {
     const batch = ids.slice(i, i + BATCH);
@@ -79,9 +81,13 @@ export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExc
 
     ((bennerRows as any[]) || []).forEach((b: any) => {
       const resps = respMap.get(b.id) || [];
+      const processo = b.processo || "";
+      const dossie = b.dossie || "";
+      const semAmbos = !processo && !dossie;
+      if (semAmbos) semProcessoDossie++;
       rows.push({
-        Processo: b.processo || "",
-        Dossiê: b.dossie || "",
+        Processo: processo,
+        Dossiê: dossie,
         Equipe: b.equipe || "",
         "Data da Distribuição": fmtDate(b.data_distribuicao_real || b.data_distribuicao_planilha),
         Responsável: resps.map((r) => r.nome).join(", "),
@@ -89,6 +95,7 @@ export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExc
         "Status do Envio": statusEnvioLabel(b.status_distribuicao),
         "Em Análise": b.em_analise ? "Sim" : "Não",
         "Situação Carga Santander": b.situacao_envio_carga_id ? (situacoesMap.get(b.situacao_envio_carga_id) || "") : "",
+        Observação: semAmbos ? "Sem processo/dossiê cadastrado na base" : "",
       });
     });
 
@@ -108,11 +115,12 @@ export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExc
       "Status do Envio",
       "Em Análise",
       "Situação Carga Santander",
+      "Observação",
     ],
   });
   ws["!cols"] = [
     { wch: 24 }, { wch: 22 }, { wch: 18 }, { wch: 14 }, { wch: 30 },
-    { wch: 22 }, { wch: 16 }, { wch: 12 }, { wch: 28 },
+    { wch: 22 }, { wch: 16 }, { wch: 12 }, { wch: 28 }, { wch: 40 },
   ];
 
   const wb = XLSX.utils.book_new();
@@ -126,5 +134,5 @@ export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExc
   const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
   const filename = `relatorio-distribuicao-tst-${ts}.xlsx`;
 
-  return { blob, filename, total: rows.length };
+  return { blob, filename, total: rows.length, semProcessoDossie } as any;
 }
