@@ -6,13 +6,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3 } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { gerarRelatorioExcelDistribuicaoTst } from "@/lib/relatorioExcelDistribuicaoTst";
+import { TotalPorSituacaoCard } from "@/components/distribuicao-tst/TotalPorSituacaoCard";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds, applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
@@ -176,6 +177,9 @@ export default function DistribuicaoTst() {
   // Relatório Excel Distribuição TST
   const [xlsxRunning, setXlsxRunning] = useState(false);
   const [xlsxProgress, setXlsxProgress] = useState({ current: 0, total: 0 });
+
+  // Card "Total por Situação"
+  const [totalSituacaoOpen, setTotalSituacaoOpen] = useState(false);
 
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -891,7 +895,7 @@ export default function DistribuicaoTst() {
     setXlsxProgress({ current: 0, total: 0 });
     try {
       toast.info(selectedIds.size > 0 ? `Gerando planilha de ${selectedIds.size} processo(s)...` : "Buscando processos filtrados...");
-      const { blob, filename, total } = await gerarRelatorioExcelDistribuicaoTst({
+      const { blob, filename, total, semProcessoDossie } = await gerarRelatorioExcelDistribuicaoTst({
         filters: debouncedFilters,
         selectedIds,
         onProgress: (c, t) => setXlsxProgress({ current: c, total: t }),
@@ -909,6 +913,9 @@ export default function DistribuicaoTst() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       toast.success(`Planilha gerada com ${total} processo(s).`);
+      if (semProcessoDossie > 0) {
+        toast.warning(`${semProcessoDossie} registro(s) sem processo/dossiê incluídos — dados faltantes na base (ver coluna "Observação").`);
+      }
     } catch (err: any) {
       toast.error("Erro ao gerar planilha: " + (err?.message || String(err)));
     } finally {
@@ -1570,6 +1577,14 @@ export default function DistribuicaoTst() {
                     ? `Relatório PDF Partes (${selectedIds.size})`
                     : "Relatório PDF Partes"}
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => setTotalSituacaoOpen((v) => !v)}
+                title="Mostra o total de processos por situação (respeita os filtros aplicados) em um card na própria tela, com opção de exportar Excel."
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                {totalSituacaoOpen ? "Ocultar Total por Situação" : "Total por Situação"}
+              </Button>
               {/* Botões de importação movidos para Admin TST → Importações Distribuição TST */}
               <Link to="/dados-benner">
                 <Button variant="outline">
@@ -1624,6 +1639,17 @@ export default function DistribuicaoTst() {
             </>
           )}
         </div>
+
+        {/* Card "Total por Situação" (respeita filtros) */}
+        {totalSituacaoOpen && (
+          <TotalPorSituacaoCard
+            filters={debouncedFilters}
+            filtrosResumo={buildFiltrosResumo(debouncedFilters, {
+              responsaveisLabel: filtroResponsavelIds.length > 0 ? `${filtroResponsavelIds.length} selecionado(s)` : undefined,
+            })}
+            onClose={() => setTotalSituacaoOpen(false)}
+          />
+        )}
 
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
         {mostrarCards && (
