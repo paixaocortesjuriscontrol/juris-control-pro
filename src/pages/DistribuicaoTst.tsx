@@ -1577,6 +1577,14 @@ export default function DistribuicaoTst() {
                     ? `Relatório PDF Partes (${selectedIds.size})`
                     : "Relatório PDF Partes"}
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => setTotalSituacaoOpen((v) => !v)}
+                title="Mostra o total de processos por situação (respeita os filtros aplicados) em um card na própria tela, com opção de exportar Excel."
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                {totalSituacaoOpen ? "Ocultar Total por Situação" : "Total por Situação"}
+              </Button>
               {/* Botões de importação movidos para Admin TST → Importações Distribuição TST */}
               <Link to="/dados-benner">
                 <Button variant="outline">
