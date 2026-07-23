@@ -445,6 +445,18 @@ export function ConfigAlertasCoordenacaoPanel({
                       <strong>Alta</strong>
                     </Label>
                   </div>
+
+                  {tiposAlerta.includes("qualquer_alteracao") && (
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertDescription className="text-xs">
+                        Com <strong>“Qualquer alteração realizada”</strong> marcada, qualquer
+                        alteração em tarefas, prazos, eventos, audiências ou parcelamentos desta
+                        coordenação será notificada <strong>somente aos coordenadores</strong> da
+                        coordenação — os demais responsáveis não recebem esse alerta.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 </div>
 
                 <Separator />
