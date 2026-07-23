@@ -133,6 +133,7 @@ export function DelegarTarefaDialog({
         origem: 'delegar_tarefa_dialog',
         processoId: values.processo_id,
         tarefaId: novaTarefa.id,
+        tipoItem: 'tarefa',
       });
 
       toast({ 
@@ -155,6 +156,7 @@ export function DelegarTarefaDialog({
         erroDetalhes: { code: error.code, hint: error.hint, details: error.details },
         origem: 'delegar_tarefa_dialog',
         processoId: values.processo_id,
+        tipoItem: 'tarefa',
       });
 
       toast({
