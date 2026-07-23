@@ -134,7 +134,47 @@ serve(async (req) => {
 
     for (const item of pendentes ?? []) {
       try {
-        const responsaveis: string[] = item.responsaveis ?? [];
+        let responsaveis: string[] = item.responsaveis ?? [];
+
+        // Regra "Qualquer alteração realizada": se a coordenação tiver esta opção
+        // marcada em config_alertas_coordenacao.tipos_alerta, o alerta vai
+        // SOMENTE para os coordenadores dessa coordenação (substitui responsáveis).
+        let apenasCoordenadores = false;
+        if (item.coordenacao_id) {
+          const { data: cfgCoord } = await supabase
+            .from("config_alertas_coordenacao")
+            .select("tipos_alerta")
+            .eq("coordenacao_id", item.coordenacao_id)
+            .maybeSingle();
+          const tipos: string[] = (cfgCoord?.tipos_alerta ?? []) as string[];
+          if (Array.isArray(tipos) && tipos.includes("qualquer_alteracao")) {
+            apenasCoordenadores = true;
+            const coordSet = new Set<string>();
+            // 1) coordenador titular da coordenação
+            const { data: coordRow } = await supabase
+              .from("coordenacoes")
+              .select("coordenador_id")
+              .eq("id", item.coordenacao_id)
+              .maybeSingle();
+            if (coordRow?.coordenador_id) coordSet.add(coordRow.coordenador_id);
+            // 2) membros da coordenação com role 'coordenador'
+            const { data: membros } = await supabase
+              .from("membros_coordenacao")
+              .select("user_id")
+              .eq("coordenacao_id", item.coordenacao_id);
+            const memberIds = (membros ?? []).map((m: any) => m.user_id).filter(Boolean);
+            if (memberIds.length > 0) {
+              const { data: roles } = await supabase
+                .from("user_roles")
+                .select("user_id, role")
+                .eq("role", "coordenador")
+                .in("user_id", memberIds);
+              for (const r of roles ?? []) coordSet.add((r as any).user_id);
+            }
+            responsaveis = Array.from(coordSet);
+          }
+        }
+
         if (responsaveis.length === 0) {
           await supabase.from("notificacoes_fila").update({ processado: true, processado_em: new Date().toISOString() }).eq("id", item.id);
           continue;
