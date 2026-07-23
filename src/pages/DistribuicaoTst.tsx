@@ -1640,6 +1640,17 @@ export default function DistribuicaoTst() {
           )}
         </div>
 
+        {/* Card "Total por Situação" (respeita filtros) */}
+        {totalSituacaoOpen && (
+          <TotalPorSituacaoCard
+            filters={debouncedFilters}
+            filtrosResumo={buildFiltrosResumo(debouncedFilters, {
+              responsaveisLabel: filtroResponsavelIds.length > 0 ? `${filtroResponsavelIds.length} selecionado(s)` : undefined,
+            })}
+            onClose={() => setTotalSituacaoOpen(false)}
+          />
+        )}
+
         {/* Stats Cards (respeitam os filtros e são clicáveis) */}
         {mostrarCards && (
           <DistribuicaoTstStatsCards
