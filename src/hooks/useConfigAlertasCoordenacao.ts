@@ -37,6 +37,7 @@ export const TIPOS_ALERTA = [
   { value: 'evento', label: 'Eventos', icon: '📌' },
   { value: 'audiencia', label: 'Audiências', icon: '📅' },
   { value: 'parcelamento', label: 'Parcelamentos', icon: '💰' },
+  { value: 'qualquer_alteracao', label: 'Qualquer alteração realizada', icon: '🔔' },
 ];
 
 export const DIAS_SEMANA = [
