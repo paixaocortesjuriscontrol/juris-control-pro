@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Search, Eye, CheckCircle2, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { MainLayout } from "@/components/layout/MainLayout";
 
 interface AuditoriaRow {
   id: string;
@@ -92,13 +93,11 @@ export default function AuditoriaItens() {
   });
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Auditoria de Itens</h1>
-        <p className="text-muted-foreground">
-          Histórico de criação, atualização e exclusão de tarefas, prazos, eventos, audiências e parcelamentos.
-        </p>
-      </div>
+    <MainLayout
+      title="Auditoria de Itens"
+      subtitle="Histórico de criação, atualização e exclusão de tarefas, prazos, eventos, audiências e parcelamentos."
+    >
+      <div className="space-y-6">
 
       <Card>
         <CardHeader>
@@ -272,6 +271,7 @@ export default function AuditoriaItens() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </MainLayout>
   );
 }
