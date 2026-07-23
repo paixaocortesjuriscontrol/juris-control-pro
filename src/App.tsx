@@ -8,6 +8,8 @@ import { ImportProvider } from "@/contexts/ImportContext";
 import { SidebarContextProvider } from "@/contexts/SidebarContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import { AdminRoute } from "@/components/layout/AdminRoute";
+import { AdminOrCoordRoute } from "@/components/layout/AdminOrCoordRoute";
+import AuditoriaItens from "./pages/AuditoriaItens";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Processos from "./pages/Processos";
@@ -153,6 +155,7 @@ function App() {
               <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
               <Route path="/admin" element={<AdminRoute><Administracao /></AdminRoute>} />
               <Route path="/consumo-ia" element={<AdminRoute><ConsumoIA /></AdminRoute>} />
+              <Route path="/auditoria-itens" element={<AdminOrCoordRoute><AuditoriaItens /></AdminOrCoordRoute>} />
               <Route path="/pool-proxy-djen" element={<AdminRoute><PoolProxyDjen /></AdminRoute>} />
               <Route path="/valida-kurier" element={<AdminRoute><ValidaKurier /></AdminRoute>} />
               <Route path="/consulta-externa" element={<ProtectedRoute><ConsultaExterna /></ProtectedRoute>} />
