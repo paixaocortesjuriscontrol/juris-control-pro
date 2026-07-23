@@ -51,19 +51,13 @@ export function gerarRelatorioSituacaoExcel(
   });
   aoa.push(["Total", total, "100,0%"]);
 
-  let transversaisHeaderRow = -1;
-  let transversaisStartRow = -1;
-  let transversaisEndRow = -1;
   if (transversais.length > 0) {
     aoa.push([]);
-    transversaisHeaderRow = aoa.length; // 1-based-ish, we'll adjust when computing refs
     aoa.push(["Cortes transversais (não somam ao total)", "Quantidade", "% do Total"]);
-    transversaisStartRow = aoa.length + 1;
     transversais.forEach((l) => {
       const pct = total > 0 ? (l.quantidade / total) * 100 : 0;
       aoa.push([l.situacao, l.quantidade, `${pct.toFixed(1)}%`]);
     });
-    transversaisEndRow = aoa.length;
   }
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
