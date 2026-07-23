@@ -10,6 +10,12 @@ interface AuditoriaInput {
   origem: string;
   processoId?: string;
   tarefaId?: string;
+  /** Tipo do item auditado: tarefa | prazo | evento | audiencia | parcelamento */
+  tipoItem?: 'tarefa' | 'prazo' | 'evento' | 'audiencia' | 'parcelamento';
+  /** ID do item auditado (quando não é tarefa) */
+  itemId?: string;
+  /** Coordenação a que o item pertence (usada para RLS/consulta) */
+  coordenacaoId?: string | null;
 }
 
 export async function registrarAuditoriaTarefa(input: AuditoriaInput): Promise<void> {
@@ -33,9 +39,11 @@ export async function registrarAuditoriaTarefa(input: AuditoriaInput): Promise<v
         erro_detalhes: input.erroDetalhes || null,
         origem: input.origem,
         processo_id: input.processoId || null,
-        tarefa_id: input.tarefaId || null,
+        tarefa_id: input.tarefaId || input.itemId || null,
+        tipo_item: input.tipoItem || (input.tarefaId ? 'tarefa' : null),
+        coordenacao_id: input.coordenacaoId || null,
         user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
-      });
+      } as any);
 
     if (error) {
       console.error('[Auditoria] Erro ao registrar auditoria:', error);
