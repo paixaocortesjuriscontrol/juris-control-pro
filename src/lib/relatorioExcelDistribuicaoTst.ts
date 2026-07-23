@@ -134,5 +134,5 @@ export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExc
   const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
   const filename = `relatorio-distribuicao-tst-${ts}.xlsx`;
 
-  return { blob, filename, total: rows.length, semProcessoDossie } as any;
+  return { blob, filename, total: rows.length, semProcessoDossie };
 }
