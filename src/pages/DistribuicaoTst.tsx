@@ -178,6 +178,9 @@ export default function DistribuicaoTst() {
   const [xlsxRunning, setXlsxRunning] = useState(false);
   const [xlsxProgress, setXlsxProgress] = useState({ current: 0, total: 0 });
 
+  // Card "Total por Situação"
+  const [totalSituacaoOpen, setTotalSituacaoOpen] = useState(false);
+
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectAllLoading, setSelectAllLoading] = useState(false);
