@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 
 export interface SituacaoRow {
   situacao: string;
@@ -61,7 +61,7 @@ export function gerarRelatorioSituacaoExcel(
   }
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [{ wch: 42 }, { wch: 14 }, { wch: 14 }];
+  ws["!cols"] = [{ wch: 48 }, { wch: 16 }, { wch: 16 }];
   ws["!merges"] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
     { s: { r: 1, c: 0 }, e: { r: 1, c: 2 } },
@@ -71,20 +71,101 @@ export function gerarRelatorioSituacaoExcel(
     ws["!merges"].push({ s: { r: 3, c: 0 }, e: { r: 3, c: 2 } });
   }
 
-  // Formatação básica (negrito) via cellStyle nativo
-  const bold = { font: { bold: true } } as any;
-  const headerRow = filtrosResumo.length > 0 ? 5 : 4;
-  const titleCell = ws["A1"];
-  if (titleCell) titleCell.s = { font: { bold: true, sz: 14 } };
-  ["A", "B", "C"].forEach((col) => {
-    const ref = `${col}${headerRow + 1}`;
-    if (ws[ref]) ws[ref].s = bold;
+  // Paleta institucional (azul escuro / azul claro)
+  const NAVY = "1E3A8A";   // azul escuro
+  const NAVY_DARK = "0F1F4B";
+  const LIGHT = "DBEAFE";  // azul claro
+  const BORDER = "94A3B8";
+  const WHITE = "FFFFFF";
+
+  const border = {
+    top: { style: "thin", color: { rgb: BORDER } },
+    bottom: { style: "thin", color: { rgb: BORDER } },
+    left: { style: "thin", color: { rgb: BORDER } },
+    right: { style: "thin", color: { rgb: BORDER } },
+  } as any;
+
+  const setStyle = (ref: string, style: any) => {
+    if (!ws[ref]) ws[ref] = { t: "s", v: "" };
+    ws[ref].s = style;
+  };
+
+  // Título
+  setStyle("A1", {
+    font: { bold: true, sz: 16, color: { rgb: WHITE } },
+    fill: { patternType: "solid", fgColor: { rgb: NAVY_DARK } },
+    alignment: { horizontal: "center", vertical: "center" },
   });
-  const totalRow = headerRow + 1 + principais.length + 1;
-  ["A", "B", "C"].forEach((col) => {
-    const ref = `${col}${totalRow}`;
-    if (ws[ref]) ws[ref].s = bold;
-  });
+  ws["!rows"] = ws["!rows"] || [];
+  ws["!rows"][0] = { hpt: 28 };
+
+  // Subtítulos (período / gerado / filtros)
+  const subtitleStyle = {
+    font: { italic: true, sz: 10, color: { rgb: NAVY_DARK } },
+    fill: { patternType: "solid", fgColor: { rgb: LIGHT } },
+    alignment: { horizontal: "center" },
+  };
+  setStyle("A2", subtitleStyle);
+  setStyle("A3", subtitleStyle);
+  if (filtrosResumo.length > 0) setStyle("A4", subtitleStyle);
+
+  // Cabeçalho principais
+  const headerRowIdx = filtrosResumo.length > 0 ? 6 : 5; // 1-based
+  const headerStyle = {
+    font: { bold: true, color: { rgb: WHITE }, sz: 11 },
+    fill: { patternType: "solid", fgColor: { rgb: NAVY } },
+    alignment: { horizontal: "center", vertical: "center" },
+    border,
+  };
+  ["A", "B", "C"].forEach((col) => setStyle(`${col}${headerRowIdx}`, headerStyle));
+  ws["!rows"][headerRowIdx - 1] = { hpt: 22 };
+
+  // Linhas principais (zebra)
+  const bodyBase = {
+    font: { sz: 11, color: { rgb: NAVY_DARK } },
+    border,
+  };
+  for (let i = 0; i < principais.length; i++) {
+    const row = headerRowIdx + 1 + i;
+    const zebra = i % 2 === 0
+      ? { patternType: "solid", fgColor: { rgb: "F1F5FB" } }
+      : { patternType: "solid", fgColor: { rgb: WHITE } };
+    setStyle(`A${row}`, { ...bodyBase, fill: zebra, alignment: { horizontal: "left" } });
+    setStyle(`B${row}`, { ...bodyBase, fill: zebra, alignment: { horizontal: "right" } });
+    setStyle(`C${row}`, { ...bodyBase, fill: zebra, alignment: { horizontal: "right" } });
+  }
+
+  // Linha Total
+  const totalRow = headerRowIdx + 1 + principais.length;
+  const totalStyle = {
+    font: { bold: true, color: { rgb: WHITE }, sz: 12 },
+    fill: { patternType: "solid", fgColor: { rgb: NAVY } },
+    alignment: { horizontal: "center", vertical: "center" },
+    border,
+  };
+  ["A", "B", "C"].forEach((col) =>
+    setStyle(`${col}${totalRow}`, {
+      ...totalStyle,
+      alignment: { horizontal: col === "A" ? "left" : "right", vertical: "center" },
+    }),
+  );
+  ws["!rows"][totalRow - 1] = { hpt: 22 };
+
+  // Transversais
+  if (transversais.length > 0) {
+    const tHeader = totalRow + 2; // blank row + header
+    ["A", "B", "C"].forEach((col) => setStyle(`${col}${tHeader}`, headerStyle));
+    ws["!rows"][tHeader - 1] = { hpt: 22 };
+    for (let i = 0; i < transversais.length; i++) {
+      const row = tHeader + 1 + i;
+      const zebra = i % 2 === 0
+        ? { patternType: "solid", fgColor: { rgb: "F1F5FB" } }
+        : { patternType: "solid", fgColor: { rgb: WHITE } };
+      setStyle(`A${row}`, { ...bodyBase, fill: zebra, alignment: { horizontal: "left" } });
+      setStyle(`B${row}`, { ...bodyBase, fill: zebra, alignment: { horizontal: "right" } });
+      setStyle(`C${row}`, { ...bodyBase, fill: zebra, alignment: { horizontal: "right" } });
+    }
+  }
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Total por Situação");
