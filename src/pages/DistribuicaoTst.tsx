@@ -895,7 +895,7 @@ export default function DistribuicaoTst() {
     setXlsxProgress({ current: 0, total: 0 });
     try {
       toast.info(selectedIds.size > 0 ? `Gerando planilha de ${selectedIds.size} processo(s)...` : "Buscando processos filtrados...");
-      const { blob, filename, total } = await gerarRelatorioExcelDistribuicaoTst({
+      const { blob, filename, total, semProcessoDossie } = await gerarRelatorioExcelDistribuicaoTst({
         filters: debouncedFilters,
         selectedIds,
         onProgress: (c, t) => setXlsxProgress({ current: c, total: t }),
@@ -913,6 +913,9 @@ export default function DistribuicaoTst() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       toast.success(`Planilha gerada com ${total} processo(s).`);
+      if (semProcessoDossie > 0) {
+        toast.warning(`${semProcessoDossie} registro(s) sem processo/dossiê incluídos — dados faltantes na base (ver coluna "Observação").`);
+      }
     } catch (err: any) {
       toast.error("Erro ao gerar planilha: " + (err?.message || String(err)));
     } finally {
