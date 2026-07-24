@@ -49,6 +49,9 @@ export function PendenciasProcessoCard({
   const prazosPendentes = tarefas.filter(t => t.status === 'pendente' && isPrazoTarefa(t.tipo_tarefa));
   const tarefasPendentes = tarefas.filter(t => t.status === 'pendente' && !isPrazoTarefa(t.tipo_tarefa));
   const eventosPendentes = eventosAgenda.filter((e: any) => e.status === 'pendente');
+  const isParcelamento = (ev: any) => (ev?.tipo || "").toString().toLowerCase() === "parcelamento";
+  const eventosSemParcelamento = eventosPendentes.filter((e: any) => !isParcelamento(e));
+  const parcelamentosPendentes = eventosPendentes.filter((e: any) => isParcelamento(e));
   const movimentacoesRecentes = movimentacoes.slice(0, 5);
 
   const invalidateAll = async () => {
