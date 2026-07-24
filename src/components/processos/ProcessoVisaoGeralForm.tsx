@@ -75,7 +75,7 @@ interface Props {
 }
 
 export type ProcessoVisaoGeralFormHandle = {
-  save: () => Promise<void>;
+  save: (opts?: { silent?: boolean }) => Promise<void>;
   preencherFormularioJudit: (comAnexos?: boolean, presetData?: any) => Promise<void>;
 };
 
