@@ -416,6 +416,10 @@ export default function AdminTstBasePcaDistribuicoes() {
                       className="h-7 px-2 text-xs"
                       disabled={busy || foundIds.length === 0}
                       onClick={() => {
+                        const ok = window.confirm(
+                          `Substituir esta TAG pelos ${foundIds.length} processos encontrados agora? Os vínculos anteriores desta TAG na Distribuição TST serão removidos.`,
+                        );
+                        if (!ok) return;
                         setSelectedTagId(t.id);
                         aplicarTag(t.id, true);
                       }}
