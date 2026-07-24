@@ -1172,6 +1172,8 @@ export default function DistribuicaoTst() {
               status: juditError ? "erro_funcao" : (juditData?.error ? "erro_api" : "sucesso"),
               error_message: juditError?.message || juditData?.error || null,
               created_by: bulkUserId,
+              origem: typeof window !== 'undefined' ? window.location.pathname : null,
+              tipo_cobranca: (function(p:any){ if(!p) return 'datalake'; if(p.com_anexos===true||p.with_attachments===true) return 'com_anexos'; if(p.on_demand===true||p.force_refresh===true) return 'on_demand'; return 'datalake'; })(requestPayload),
             });
           } catch (logErr) {
             console.warn("[bulk-judit] Falha ao gravar judit_logs:", logErr);

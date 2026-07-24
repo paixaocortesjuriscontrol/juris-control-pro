@@ -421,6 +421,8 @@ export async function gravarJuditLog(params: {
         : "sucesso",
       error_message: params.juditError?.message || params.juditData?.error || null,
       created_by: params.userId,
+      origem: typeof window !== 'undefined' ? window.location.pathname : null,
+      tipo_cobranca: (function(p:any){ if(!p) return 'datalake'; if(p.com_anexos===true||p.with_attachments===true) return 'com_anexos'; if(p.on_demand===true||p.force_refresh===true) return 'on_demand'; return 'datalake'; })(params.requestPayload),
     });
   } catch (e) {
     console.warn("Falha ao gravar judit_logs:", e);
