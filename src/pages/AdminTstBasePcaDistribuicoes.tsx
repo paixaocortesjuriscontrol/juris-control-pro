@@ -178,7 +178,9 @@ export default function AdminTstBasePcaDistribuicoes() {
         }
         done++;
         setProgress(Math.round((done / totalBatches) * 100));
-        setProgressLabel(`Buscando lote ${done}/${totalBatches} — encontrados: ${bestByKey.size}`);
+        setProgressLabel(
+          `Buscando lote ${done}/${totalBatches} — encontrados: ${matchMode === "broad" ? foundSet.size : bestByKey.size}`,
+        );
       }
 
       for (let i = 0; i < processos.length; i += SEARCH_CHUNK) {
@@ -207,7 +209,9 @@ export default function AdminTstBasePcaDistribuicoes() {
         }
         done++;
         setProgress(Math.round((done / totalBatches) * 100));
-        setProgressLabel(`Buscando lote ${done}/${totalBatches} — encontrados: ${bestByKey.size}`);
+        setProgressLabel(
+          `Buscando lote ${done}/${totalBatches} — encontrados: ${matchMode === "broad" ? foundSet.size : bestByKey.size}`,
+        );
       }
 
       if (matchMode === "exact") {
