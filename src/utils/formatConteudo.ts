@@ -209,6 +209,55 @@ const stripMetadataFromContent = (text: string): string => {
 };
 
 /**
+ * Refluir linhas quebradas por extração de PDF, unindo linhas que continuam
+ * a mesma frase e preservando parágrafos (linhas em branco) e linhas
+ * estruturais (cabeçalhos em CAIXA ALTA, ADVOGADO/AGRAVANTE, Relator, etc.).
+ */
+const reflowWrappedLines = (text: string): string => {
+  if (!text) return text;
+
+  const STRUCT_PREFIX = /^(ADVOGAD[OA]|AGRAVANT[EA]|AGRAVAD[OA]|RECORRENT[EA]|RECORRID[OA]|EXEQUENTE|EXECUTAD[OA]|RECLAMANT[EA]|RECLAMAD[OA]|AUTOR[A]?|R[ÉE]U|IMPETRANTE|EMBARGANT[EA]|EMBARGAD[OA]|INTERESSAD[OA]|MINIST[ÉE]RIO|PROCURADOR|PERITO|RELATOR|REVISOR|Relator|Revisor|Complemento|Fonte|Tribunal|Órgão|Data|Código|Meio|Processo|OBS|OBS\.|PAUTA|EDITAL|DESPACHO|DECISÃO|SENTENÇA|ACÓRDÃO|CERTIDÃO|INTIMAÇÃO|COMUNICAÇÃO|ATO ORD)/;
+
+  const paragraphs = text.split(/\n{2,}/);
+  const rebuilt = paragraphs.map((para) => {
+    const lines = para.split("\n");
+    if (lines.length <= 1) return para;
+    const out: string[] = [];
+    let buf = "";
+    const flush = () => { if (buf) { out.push(buf); buf = ""; } };
+    for (let i = 0; i < lines.length; i++) {
+      const cur = lines[i].trim();
+      if (!cur) { flush(); continue; }
+      // Linha estrutural: mantém como linha isolada
+      if (STRUCT_PREFIX.test(cur) || /^[•\-–—]\s/.test(cur) || /^\d+[\.\)]\s/.test(cur)) {
+        flush();
+        out.push(cur);
+        continue;
+      }
+      if (!buf) { buf = cur; continue; }
+      const prevEnd = buf.slice(-1);
+      const startsLower = /^[a-záéíóúâêôãõçñ]/.test(cur);
+      const startsDigit = /^\d/.test(cur);
+      const endsSoft = /[a-záéíóúâêôãõçñ0-9,;\-–—]/.test(prevEnd);
+      if (endsSoft && (startsLower || startsDigit || !/^[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{2,}/.test(cur))) {
+        // hifenização no fim de linha ("proces-\nso") vira "processo"
+        if (prevEnd === "-" && startsLower) {
+          buf = buf.slice(0, -1) + cur;
+        } else {
+          buf = buf + " " + cur;
+        }
+      } else {
+        flush();
+        buf = cur;
+      }
+    }
+    flush();
+    return out.join("\n");
+  });
+  return rebuilt.join("\n\n");
+};
+
+/**
  * Classes CSS padrão para renderizar conteúdo normalizado.
  */
 export const conteudoDisplayClasses = 
