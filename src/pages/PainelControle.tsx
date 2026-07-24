@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,7 +61,8 @@ import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { toZonedTime } from "date-fns-tz";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
 import TstPrazos from "@/pages/TstPrazos";
 import { KanbanItensAgenda } from "@/components/painel/KanbanItensAgenda";
