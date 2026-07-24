@@ -738,9 +738,10 @@ serve(async (req) => {
       rdSelecionada = cached;
       foiTst = isTstRd(cached);
       respondidoDoCache = true;
-      // Refresh em background — não aguarda
-      juditCriarRequestComOpcoes(apiKey, cnj, false, CACHE_TTL_DAYS_DEFAULT)
-        .catch((e) => console.warn("[buscar-judit] bg refresh falhou:", (e as Error).message));
+      // Removido: refresh em background disparava um POST /requests extra
+      // (cobrado como consulta sem anexos) a cada cache-hit, dobrando o
+      // volume cobrado. O crawler agora só roda quando o cliente pede
+      // `force_refresh: true` ou não há cache utilizável.
       console.log(`[buscar-judit] cache-first instant response (foiTst=${foiTst})`);
     } else {
       // 2b) Crawler async — espera resultado
