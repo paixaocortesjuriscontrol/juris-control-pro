@@ -795,6 +795,23 @@ serve(async (req) => {
     }
     const situacao = extrairSituacao(rdSelecionada);
 
+    // Detecção de trânsito em julgado por movimentações (rdSelecionada + demais
+    // instâncias — em especial a TRT, que muitas vezes tem o step 848 mesmo
+    // quando o TST ainda aparece "Ativo" na capa).
+    const rdsParaTransito: any[] = [];
+    if (rdSelecionada) rdsParaTransito.push(rdSelecionada);
+    const pageDataRaw = rawCollector?.crawler?.page_data;
+    if (Array.isArray(pageDataRaw)) {
+      for (const it of pageDataRaw) {
+        const rd = it?.response_data;
+        if (rd && rd !== rdSelecionada) rdsParaTransito.push(rd);
+      }
+    }
+    if (rawCollector?.cache_lookup && rawCollector.cache_lookup !== rdSelecionada) {
+      rdsParaTransito.push(rawCollector.cache_lookup);
+    }
+    const transitoDet = detectarTransitoJulgado(rdsParaTransito);
+
     // ---------- Reclamante / Reclamada (cruzando com a instância de origem) ----------
     // Na instância TST as partes vêm como RECORRENTE/RECORRIDO (Active/Passive), o que
     // NÃO equivale a reclamante/reclamada — quando o Banco recorre, ele é ACTIVE no TST
