@@ -145,10 +145,12 @@ serve(async (req) => {
       let payload: any = null;
       let erro: string | null = null;
       let statusHttp = 0;
+      const inicioReq = Date.now();
+      const comAnexosProc = !!p.acompanhamento_com_anexos;
       try {
         const r = await fetch(
           `https://lawsuits.production.judit.io/lawsuits/${encodeURIComponent(cnj)}${
-            p.acompanhamento_com_anexos ? "?with_attachments=true" : ""
+            comAnexosProc ? "?with_attachments=true" : ""
           }`,
           { headers: { "api-key": juditApiKey, "Content-Type": "application/json" }, signal: ctl.signal }
         );
@@ -168,6 +170,53 @@ serve(async (req) => {
         payload_resposta: payload,
         erro,
       });
+
+      // Log unificado em judit_logs para aparecer na tela Consumo Judit.
+      // Resolve o dono do processo em profiles quando existir (via dono do
+      // registro em dados_benner). Fallback: user_email = "cron".
+      try {
+        let userEmail: string | null = "cron";
+        try {
+          const { data: dbRow } = await supabase
+            .from("dados_benner")
+            .select("user_id")
+            .eq("processo", cnj)
+            .limit(1)
+            .maybeSingle();
+          const donoId = (dbRow as any)?.user_id ?? null;
+          if (donoId) {
+            const { data: prof } = await supabase
+              .from("profiles")
+              .select("email")
+              .eq("id", donoId)
+              .maybeSingle();
+            if ((prof as any)?.email) userEmail = (prof as any).email;
+          }
+        } catch (_) { /* resolve best-effort */ }
+
+        const logStatus =
+          erro ? "erro_api" : (payload ? "sucesso" : "erro_api");
+        await supabase.from("judit_logs").insert({
+          processo_numero: cnj,
+          tribunal: null,
+          request_payload: {
+            numero_processo: cnj,
+            with_attachments: comAnexosProc,
+            slot,
+            origem: "acompanhamento-especial",
+          },
+          raw_response: payload ?? null,
+          status: logStatus,
+          error_message: erro,
+          created_by: null,
+          origem: "acompanhamento-especial",
+          tipo_cobranca: comAnexosProc ? "com_anexos" : "sem_anexos",
+          user_email: userEmail,
+          duracao_ms: Date.now() - inicioReq,
+        } as any);
+      } catch (logErr) {
+        console.warn("[acomp-especial] falha ao gravar judit_logs:", (logErr as Error).message);
+      }
 
       if (erro || !payload) {
         await supabase
