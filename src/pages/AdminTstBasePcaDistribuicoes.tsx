@@ -16,6 +16,8 @@ import {
 } from "@/hooks/useProcessoTags";
 import { ColorPalettePicker } from "@/components/distribuicao-tst/ColorPalettePicker";
 
+type MatchMode = "exact" | "broad";
+
 interface LinhaPlanilha {
   dossie: string;
   processo: string;
@@ -84,6 +86,7 @@ export default function AdminTstBasePcaDistribuicoes() {
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
   const [novoNome, setNovoNome] = useState("");
   const [novaCor, setNovaCor] = useState<string>(TAG_COLOR_PALETTE[10]);
+  const [matchMode, setMatchMode] = useState<MatchMode>("exact");
 
   const { data: catalogo = [], isLoading: loadingTags } = useProcessoTagsCatalogo();
   const criar = useCriarTag();
@@ -131,12 +134,15 @@ export default function AdminTstBasePcaDistribuicoes() {
         return;
       }
 
-      // Search in batches. Quando a planilha tem Dossiê + Processo, o match
-      // precisa ser do PAR exato; usar Dossiê OU Processo infla a TAG em bases
-      // com dossiês/processos reaproveitados.
+      // Search in batches. No modo seguro, quando a planilha tem Dossiê + Processo,
+      // o match precisa ser do PAR exato; usar Dossiê OU Processo pode inflar a TAG
+      // em bases com dossiês/processos reaproveitados. O modo amplo reproduz o
+      // comportamento anterior para auditoria/correção manual.
       const foundSet = new Set<string>();
       const matchedItemKeys = new Set<string>();
       const desiredKeys = new Set(items.map(buildItemKey).filter(Boolean));
+      const desiredDossieKeys = new Set(items.map((i) => i.dossie.trim().toLowerCase()).filter(Boolean));
+      const desiredProcessoKeys = new Set(items.map((i) => i.processo.trim().toLowerCase()).filter(Boolean));
       const bestByKey = new Map<string, CandidateRow>();
 
       const dossies = Array.from(new Set(items.map((i) => i.dossie).filter(Boolean)));
@@ -155,17 +161,26 @@ export default function AdminTstBasePcaDistribuicoes() {
           .in("dossie", slice);
         if (error) throw error;
         for (const row of ((data ?? []) as CandidateRow[])) {
-          for (const key of buildRowKeys(row)) {
-            if (!desiredKeys.has(key)) continue;
-            const current = bestByKey.get(key);
-            if (!current || String(row.updated_at || "") > String(current.updated_at || "")) {
-              bestByKey.set(key, row);
+          if (matchMode === "broad") {
+            const d = String(row.dossie || "").trim().toLowerCase();
+            if (!d || !desiredDossieKeys.has(d)) continue;
+            foundSet.add(row.id);
+            matchedItemKeys.add(`d:${d}`);
+          } else {
+            for (const key of buildRowKeys(row)) {
+              if (!desiredKeys.has(key)) continue;
+              const current = bestByKey.get(key);
+              if (!current || String(row.updated_at || "") > String(current.updated_at || "")) {
+                bestByKey.set(key, row);
+              }
             }
           }
         }
         done++;
         setProgress(Math.round((done / totalBatches) * 100));
-        setProgressLabel(`Buscando lote ${done}/${totalBatches} — encontrados: ${bestByKey.size}`);
+        setProgressLabel(
+          `Buscando lote ${done}/${totalBatches} — encontrados: ${matchMode === "broad" ? foundSet.size : bestByKey.size}`,
+        );
       }
 
       for (let i = 0; i < processos.length; i += SEARCH_CHUNK) {
@@ -177,31 +192,49 @@ export default function AdminTstBasePcaDistribuicoes() {
           .in("processo", slice);
         if (error) throw error;
         for (const row of ((data ?? []) as CandidateRow[])) {
-          for (const key of buildRowKeys(row)) {
-            if (!desiredKeys.has(key)) continue;
-            const current = bestByKey.get(key);
-            if (!current || String(row.updated_at || "") > String(current.updated_at || "")) {
-              bestByKey.set(key, row);
+          if (matchMode === "broad") {
+            const p = String(row.processo || "").trim().toLowerCase();
+            if (!p || !desiredProcessoKeys.has(p)) continue;
+            foundSet.add(row.id);
+            matchedItemKeys.add(`p:${p}`);
+          } else {
+            for (const key of buildRowKeys(row)) {
+              if (!desiredKeys.has(key)) continue;
+              const current = bestByKey.get(key);
+              if (!current || String(row.updated_at || "") > String(current.updated_at || "")) {
+                bestByKey.set(key, row);
+              }
             }
           }
         }
         done++;
         setProgress(Math.round((done / totalBatches) * 100));
-        setProgressLabel(`Buscando lote ${done}/${totalBatches} — encontrados: ${bestByKey.size}`);
+        setProgressLabel(
+          `Buscando lote ${done}/${totalBatches} — encontrados: ${matchMode === "broad" ? foundSet.size : bestByKey.size}`,
+        );
       }
 
-      for (const item of items) {
-        const key = buildItemKey(item);
-        if (!key) continue;
-        const row = bestByKey.get(key);
-        if (row?.id) {
-          foundSet.add(row.id);
-          matchedItemKeys.add(key);
+      if (matchMode === "exact") {
+        for (const item of items) {
+          const key = buildItemKey(item);
+          if (!key) continue;
+          const row = bestByKey.get(key);
+          if (row?.id) {
+            foundSet.add(row.id);
+            matchedItemKeys.add(key);
+          }
         }
       }
 
       const naoEncontrados = items.filter(
-        (it) => !matchedItemKeys.has(buildItemKey(it)),
+        (it) => {
+          if (matchMode === "broad") {
+            const d = it.dossie.trim().toLowerCase();
+            const p = it.processo.trim().toLowerCase();
+            return !(d && matchedItemKeys.has(`d:${d}`)) && !(p && matchedItemKeys.has(`p:${p}`));
+          }
+          return !matchedItemKeys.has(buildItemKey(it));
+        },
       );
 
       setFoundIds(Array.from(foundSet));
@@ -336,6 +369,37 @@ export default function AdminTstBasePcaDistribuicoes() {
               {fileName && <span className="text-xs text-muted-foreground">{fileName}</span>}
             </div>
 
+            <div className="flex flex-col gap-2 rounded border p-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="font-semibold">Modo de busca</div>
+                <div className="text-muted-foreground">
+                  Par exato evita inflar TAGs; busca ampla reproduz a regra antiga por Dossiê OU Processo.
+                </div>
+              </div>
+              <div className="flex rounded border p-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={matchMode === "exact" ? "default" : "ghost"}
+                  className="h-7 text-xs"
+                  disabled={busy}
+                  onClick={() => setMatchMode("exact")}
+                >
+                  Par exato
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={matchMode === "broad" ? "default" : "ghost"}
+                  className="h-7 text-xs"
+                  disabled={busy}
+                  onClick={() => setMatchMode("broad")}
+                >
+                  Dossiê OU Processo
+                </Button>
+              </div>
+            </div>
+
             {(loadingSearch || applying || progress > 0) && (
               <div className="space-y-1">
                 <Progress value={progress} />
@@ -346,7 +410,11 @@ export default function AdminTstBasePcaDistribuicoes() {
             {linhas.length > 0 && !loadingSearch && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 <Stat label="Total lido" value={linhas.length} />
-                <Stat label="Encontrados" value={foundIds.length} tone="emerald" />
+                <Stat
+                  label={matchMode === "exact" ? "Encontrados por par exato" : "Encontrados por busca ampla"}
+                  value={foundIds.length}
+                  tone="emerald"
+                />
                 <Stat label="Não encontrados" value={notFound.length} tone="rose" />
                 <div className="flex items-end">
                   <Button
