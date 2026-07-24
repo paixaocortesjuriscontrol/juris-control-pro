@@ -181,7 +181,7 @@ export function PendenciasProcessoCard({
               return (
                 <div
                   key={aud.id}
-                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-amber-500 space-y-1", clickableCardClass())}
+                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-yellow-500 space-y-1", clickableCardClass())}
                   onClick={() => navigateCard("audiencias")}
                 >
                   <div className="flex items-center justify-between gap-2">
@@ -334,13 +334,11 @@ export function PendenciasProcessoCard({
             </div>
             {tarefasPendentes.slice(0, 5).map((t) => {
               const days = getDaysLabel(t.data_vencimento);
-              const isOverdue = t.data_vencimento && isPast(new Date(t.data_vencimento));
               return (
                 <div
                   key={t.id}
                   className={cn(
-                    "text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] space-y-1",
-                    isOverdue ? "border-l-destructive" : "border-l-blue-500",
+                    "text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-blue-500 space-y-1",
                     clickableCardClass()
                   )}
                   onClick={() => navigateCard("tarefas")}
