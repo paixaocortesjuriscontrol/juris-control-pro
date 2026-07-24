@@ -894,7 +894,6 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           status: error ? "erro_funcao" : (data?.error ? "erro_api" : "sucesso"),
           error_message: error?.message || data?.error || null,
           created_by: userData?.user?.id || null,
-        user_email: (typeof window !== 'undefined' ? null : null),
         origem: typeof window !== 'undefined' ? window.location.pathname : null,
         tipo_cobranca: ((p: any) => { if(!p) return 'datalake'; if(p.com_anexos===true||p.with_attachments===true) return 'com_anexos'; if(p.on_demand===true||p.force_refresh===true) return 'on_demand'; return 'datalake'; })({ ...requestPayload),
       });
