@@ -1,36 +1,79 @@
-## Problema
+# Nova lógica de trânsito em julgado — Botão Judit (form + lote)
 
-Ao clicar em um resultado da busca global no Painel de Controle (tarefa, prazo, evento, audiência criada via "+ Adicionar"), o `BuscaGlobalPainel` navega para `/minha-agenda?selectedId=...`. Isso tira o usuário do Painel de Controle, esconde a barra superior (Pessoal/Escritório/Em Agenda/Kanban/Prazos/Audiências/…) e ainda cai em uma agenda cujos filtros padrão excluem o item, mostrando "Nenhuma atividade encontrada".
+Sem unificação. Aplico a mesma regra nova nos dois pontos que já existem, com uma detecção **centralizada na Edge Function** para não duplicar a regex.
 
-## Solução
+## Regra (proposta pela advogada)
 
-Manter o usuário no Painel de Controle quando o item vier do botão "+ Adicionar" e abrir direto o painel de detalhes lá, sem mexer nos filtros da tela.
+Considerar **trânsito em julgado** quando nas movimentações (`rd.steps[]`) da Judit existir:
 
-### Passos
+1. Movimentação com **"Transitado em Julgado"** (texto ou código CNJ `848`); **ou**
+2. Movimentação com **"Remetidos os Autos para Tribunal Regional do Trabalho"** (TST devolvendo autos após julgamento final).
 
-1. **`src/components/painel/BuscaGlobalPainel.tsx`**
-   - Trocar as rotas dos resultados que representam itens do "+ Adicionar":
-     - `tarefa`, `prazo`, `evento`, `parcelamento` → `/painel-controle?selectedId=<id>&tipo=<tipo>`
-     - `audiencia` (tarefa do tipo audiência): idem `/painel-controle?...`
-   - Manter demais tipos (`processo`, `cliente`, `publicacao`) inalterados.
-   - `audiencias_detectadas` continua indo para `/painel-audiencias` (é outro fluxo).
+**Reativação** (preserva memória `judit-multi-instance-fetch`): se depois do step de trânsito houver step de redistribuição, novo recurso ou inclusão em pauta, **não** marca trânsito.
 
-2. **`src/pages/PainelControle.tsx`**
-   - Adicionar `useSearchParams`. Em um `useEffect` de mount (guardado por `useRef` para rodar uma única vez):
-     - Ler `selectedId` e `tipo`.
-     - Buscar o item pelo id na fonte correspondente (`tarefas` para tarefa/prazo/audiência; `eventos_agenda` para evento/parcelamento).
-     - Montar o objeto no shape de `ItemAgendaUnificado` (mesmo shape já usado por `setSelectedItem`) e chamar `setSelectedItem(item)`.
-     - Limpar os `searchParams` com `{ replace: true }`.
-   - **Não alterar** `viewMode`, filtros Pessoal/Escritório, período, tipo, coordenação nem o `+ Adicionar`. A barra superior permanece igual.
-   - Se o item não for encontrado, mostrar toast "Item não encontrado ou sem permissão" e não abrir nada.
+**Data do trânsito** = `step_date` do movimento mais antigo que casou o padrão.
 
-3. **Verificação**
-   - Buscar por processo com audiência no campo do topo → clicar no resultado → confirmar:
-     - URL continua em `/painel-controle` (sem `selectedId` após consumo).
-     - Barra superior (Pessoal/Escritório/Em Agenda/…/+ Adicionar) segue visível.
-     - Painel lateral de detalhes do item abre com os dados corretos.
+## Alterações
 
-## Detalhes técnicos
+### 1. `supabase/functions/buscar-judit/index.ts` (centraliza a detecção)
 
-- Para não duplicar a lógica de mapear "linha do banco → ItemAgendaUnificado", reaproveitar o `mapper` já existente em `useAgendaUnificada` (ou o mesmo shape mínimo que outros pontos de `setSelectedItem` já usam). Se não houver um mapper exportável, criar um `mapRowToItemAgenda(row, tipo)` local em `PainelControle.tsx` com apenas os campos que `TarefaDetalhesPanel`/`EventoDetalhesPanel` consomem (id, tipo, título, status, data_vencimento/data_fatal/data_inicio, responsável, coordenacao_id, processo_id, etc.).
-- Nenhum ajuste em RLS, hooks globais ou `MinhaAgenda` — o fluxo antigo continua funcionando para quem chegar em `/minha-agenda?selectedId=...` diretamente.
+- Nova função `detectarTransitoJulgado(rd)` que percorre `rd.steps[]` procurando:
+  - `code === "848"`
+  - `/tr[âa]nsito\s+em\s+julgado/i` em `title`/`content`/`description`
+  - `/remetid[oa]s?\s+os\s+autos.*tribunal\s+regional\s+do\s+trabalho/i`
+- Verifica reativação em steps posteriores; se houver, retorna `{ transitado: false }`.
+- Aplica sobre a `rdSelecionada` **e** sobre a instância TRT (quando presente); trânsito se qualquer uma confirmar.
+- Adiciona ao payload de resposta:
+  - `transito_julgado_detectado: boolean | null`
+  - `data_transito_julgado_detectada: string | null`
+  - `motivo_transito: "movimento_848" | "texto_transito" | "remessa_trt" | null`
+
+### 2. Botão Judit do formulário — `src/components/distribuicao-tst/DistribuicaoTstForm.tsx` (~linhas 1096-1105)
+
+Substituir o bloco atual por:
+
+```ts
+if (data.transito_julgado_detectado === true) {
+  next.transito_julgado = true;
+  if (data.data_transito_julgado_detectada) {
+    next.data_transito_julgado = data.data_transito_julgado_detectada;
+  }
+  filled.add("transito_julgado");
+} else if (data.transito_julgado_detectado === false) {
+  next.transito_julgado = false;
+  next.data_transito_julgado = null;
+  filled.delete("transito_julgado");
+} else {
+  // Fallback: lógica antiga por situacao/processo_baixado
+  const juditAtivo = /ativ|active|em\s*curso|em\s*tramita|andamento/i.test(situacao) || baixado === "N";
+  const ehTransito = !juditAtivo && (/arquivad|baixad|tr[âa]nsito/i.test(situacao) || baixado === "S");
+  if (juditAtivo) { next.transito_julgado = false; next.data_transito_julgado = null; filled.delete("transito_julgado"); }
+  else if (ehTransito && next.transito_julgado !== true) { next.transito_julgado = true; filled.add("transito_julgado"); }
+}
+```
+
+Auto-save do form já cobre `transito_julgado` e `data_transito_julgado` (linha 510).
+
+### 3. Botão Judit em lote — `src/lib/juditDistribuicaoTst.ts` > `buildJuditPatch` (~linhas 302-313)
+
+Mesma precedência dentro de `buildJuditPatch`, para que `DossiesNaoLocalizadosButton` herde a regra automaticamente:
+
+```ts
+if (juditData?.transito_julgado_detectado === true) {
+  patch.transito_julgado = true;
+  if (juditData.data_transito_julgado_detectada) {
+    patch.data_transito_julgado = juditData.data_transito_julgado_detectada;
+  }
+} else if (juditData?.transito_julgado_detectado === false) {
+  patch.transito_julgado = false;
+  patch.data_transito_julgado = null;
+} else {
+  // Fallback: lógica atual (situacao/baixado)
+}
+```
+
+## Fora do escopo
+
+- Unificação dos dois botões (fica pra depois).
+- Backfill retroativo.
+- Alterações em `consultar-processo-judit` / `check-transito`.

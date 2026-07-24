@@ -538,6 +538,96 @@ function extrairSituacao(rd: any): string | null {
   return String(rd?.status || null);
 }
 
+// ---------- Detecção de trânsito em julgado por movimentação ---------------
+// Regra homologada pelo escritório: considera trânsito quando houver step com
+//   1) code CNJ 848, OU texto "Transitado em Julgado"; OU
+//   2) texto "Remetidos os Autos para Tribunal Regional do Trabalho" (TST
+//      devolvendo autos após julgamento final).
+// Se houver step POSTERIOR de reativação (redistribuição, novo recurso,
+// inclusão em pauta), o processo volta a Ativo e não marca trânsito.
+type MotivoTransito = "movimento_848" | "texto_transito" | "remessa_trt";
+function stepText(s: any): string {
+  return [s?.title, s?.content, s?.description]
+    .filter((x) => typeof x === "string")
+    .join(" \n ");
+}
+function stepMatchTransito(s: any): MotivoTransito | null {
+  if (String(s?.code || "").trim() === "848") return "movimento_848";
+  const t = stepText(s);
+  if (!t) return null;
+  if (/tr[âa]nsito\s+em\s+julgado/i.test(t)) return "texto_transito";
+  if (/remetid[oa]s?\s+os\s+autos.*tribunal\s+regional\s+do\s+trabalho/i.test(t)) return "remessa_trt";
+  return null;
+}
+function stepIsReativacao(s: any): boolean {
+  const t = stepText(s);
+  if (!t) return false;
+  return (
+    /distribu[ií]d[oa]\s+por\s+sorteio/i.test(t) ||
+    /certid[ãa]o\s+de\s+\(?re\)?distribui[çc][ãa]o/i.test(t) ||
+    /inclu[ií]d[oa]\s+em\s+pauta/i.test(t) ||
+    /(rr|airr|arr|ed-?rr|ed-?airr|ag-?airr|recurso\s+de\s+revista|agravo\s+de\s+instrumento)/i.test(String(s?.title || "")) &&
+      /(interpost|protocol|distribu)/i.test(t)
+  );
+}
+function detectarTransitoJulgado(rds: any[]): {
+  transitado: boolean | null;
+  data: string | null;
+  motivo: MotivoTransito | null;
+} {
+  let melhor: { ts: number; data: string | null; motivo: MotivoTransito } | null = null;
+  let houveReativacaoPosterior = false;
+  let algumStepAnalisado = false;
+  for (const rd of rds) {
+    const steps = Array.isArray(rd?.steps) ? rd.steps : [];
+    if (!steps.length) continue;
+    // Ordena cronologicamente (do mais antigo para o mais recente).
+    const ordenados = steps
+      .map((s: any) => ({
+        s,
+        ts: Date.parse(s?.step_date || s?.date || s?.movement_date || "") || 0,
+      }))
+      .sort((a: any, b: any) => a.ts - b.ts);
+    algumStepAnalisado = true;
+    let idxTransito = -1;
+    let motivoDetectado: MotivoTransito | null = null;
+    for (let i = 0; i < ordenados.length; i++) {
+      const motivo = stepMatchTransito(ordenados[i].s);
+      if (motivo) {
+        idxTransito = i;
+        motivoDetectado = motivo;
+        break; // primeira ocorrência = data do trânsito real
+      }
+    }
+    if (idxTransito < 0 || !motivoDetectado) continue;
+    // Reativação posterior?
+    for (let j = idxTransito + 1; j < ordenados.length; j++) {
+      if (stepIsReativacao(ordenados[j].s)) {
+        houveReativacaoPosterior = true;
+        break;
+      }
+    }
+    const step = ordenados[idxTransito].s;
+    const ts = ordenados[idxTransito].ts;
+    const dataIso = (() => {
+      const d = step?.step_date || step?.date || step?.movement_date;
+      if (!d) return null;
+      try {
+        return new Date(d).toISOString().slice(0, 10);
+      } catch {
+        return null;
+      }
+    })();
+    if (!melhor || ts < melhor.ts) {
+      melhor = { ts, data: dataIso, motivo: motivoDetectado };
+    }
+  }
+  if (!algumStepAnalisado) return { transitado: null, data: null, motivo: null };
+  if (!melhor) return { transitado: false, data: null, motivo: null };
+  if (houveReativacaoPosterior) return { transitado: false, data: null, motivo: null };
+  return { transitado: true, data: melhor.data, motivo: melhor.motivo };
+}
+
 // ---------- Handler --------------------------------------------------------
 
 serve(async (req) => {
@@ -704,6 +794,23 @@ serve(async (req) => {
       if (derivada) turmaFinal = derivada;
     }
     const situacao = extrairSituacao(rdSelecionada);
+
+    // Detecção de trânsito em julgado por movimentações (rdSelecionada + demais
+    // instâncias — em especial a TRT, que muitas vezes tem o step 848 mesmo
+    // quando o TST ainda aparece "Ativo" na capa).
+    const rdsParaTransito: any[] = [];
+    if (rdSelecionada) rdsParaTransito.push(rdSelecionada);
+    const pageDataRaw = rawCollector?.crawler?.page_data;
+    if (Array.isArray(pageDataRaw)) {
+      for (const it of pageDataRaw) {
+        const rd = it?.response_data;
+        if (rd && rd !== rdSelecionada) rdsParaTransito.push(rd);
+      }
+    }
+    if (rawCollector?.cache_lookup && rawCollector.cache_lookup !== rdSelecionada) {
+      rdsParaTransito.push(rawCollector.cache_lookup);
+    }
+    const transitoDet = detectarTransitoJulgado(rdsParaTransito);
 
     // ---------- Reclamante / Reclamada (cruzando com a instância de origem) ----------
     // Na instância TST as partes vêm como RECORRENTE/RECORRIDO (Active/Passive), o que
@@ -986,6 +1093,11 @@ serve(async (req) => {
       horario_julgamento: null,
       tipo_julgamento: null,
       processo_baixado: situacao === "Arquivado" || situacao === "Baixado" ? "S" : "N",
+
+      // Trânsito em julgado detectado por movimentação (Prompt homologado).
+      transito_julgado_detectado: transitoDet.transitado,
+      data_transito_julgado_detectada: transitoDet.data,
+      motivo_transito: transitoDet.motivo,
 
       // Metadados úteis para a UI:
       orgao_julgador: orgao,

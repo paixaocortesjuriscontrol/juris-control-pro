@@ -305,7 +305,16 @@ export function buildJuditPatch(
   if (baixado) patch.processo_baixado = baixado;
   const juditAtivo = /ativ|active|em\s*curso|em\s*tramita|andamento/i.test(situacao) || baixado === "N";
   const ehTransito = !juditAtivo && (/arquivad|baixad|tr[âa]nsito/i.test(situacao) || baixado === "S");
-  if (juditAtivo) {
+  // Precedência: detecção por movimentação (Edge Function). Fallback: heurística.
+  const transitoDet = juditData?.transito_julgado_detectado;
+  const dataTransitoDet = juditData?.data_transito_julgado_detectada || null;
+  if (transitoDet === true) {
+    patch.transito_julgado = true;
+    if (dataTransitoDet) patch.data_transito_julgado = dataTransitoDet;
+  } else if (transitoDet === false) {
+    patch.transito_julgado = false;
+    patch.data_transito_julgado = null;
+  } else if (juditAtivo) {
     patch.transito_julgado = false;
     patch.data_transito_julgado = null;
   } else if (ehTransito) {

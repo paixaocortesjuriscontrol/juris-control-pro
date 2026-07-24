@@ -1093,15 +1093,34 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           setBennerExtra((prev) => ({ ...prev, ...extraPatch }));
           for (const k of Object.keys(extraPatch)) bennerDirtyRef.current.add(k);
         }
-        const juditAtivo = /ativ|active|em\s*curso|em\s*tramita|andamento/i.test(situacao) || baixado === "N";
-        const ehTransito = !juditAtivo && (/arquivad|baixad|tr[âa]nsito/i.test(situacao) || baixado === "S");
-        if (juditAtivo) {
+        // Precedência: se a Edge Function detectou trânsito pelas
+        // movimentações (código CNJ 848, texto "Transitado em Julgado" ou
+        // "Remetidos os Autos para o TRT"), usa esse resultado. Só cai no
+        // fallback antigo (heurística por situacao/baixado) quando a detecção
+        // veio nula (sem steps para analisar).
+        const transitoDet = (data as any)?.transito_julgado_detectado;
+        const dataTransitoDet = (data as any)?.data_transito_julgado_detectada || null;
+        if (transitoDet === true) {
+          next.transito_julgado = true;
+          if (dataTransitoDet) next.data_transito_julgado = dataTransitoDet;
+          filled.add("transito_julgado");
+          if (dataTransitoDet) filled.add("data_transito_julgado");
+        } else if (transitoDet === false) {
           next.transito_julgado = false;
           next.data_transito_julgado = null;
           filled.delete("transito_julgado");
-        } else if (ehTransito && next.transito_julgado !== true) {
-          next.transito_julgado = true;
-          filled.add("transito_julgado");
+          filled.delete("data_transito_julgado");
+        } else {
+          const juditAtivo = /ativ|active|em\s*curso|em\s*tramita|andamento/i.test(situacao) || baixado === "N";
+          const ehTransito = !juditAtivo && (/arquivad|baixad|tr[âa]nsito/i.test(situacao) || baixado === "S");
+          if (juditAtivo) {
+            next.transito_julgado = false;
+            next.data_transito_julgado = null;
+            filled.delete("transito_julgado");
+          } else if (ehTransito && next.transito_julgado !== true) {
+            next.transito_julgado = true;
+            filled.add("transito_julgado");
+          }
         }
         // Pauta de julgamento — não extraímos mais automaticamente.
         // (Os campos abaixo continuam editáveis manualmente no form.)
