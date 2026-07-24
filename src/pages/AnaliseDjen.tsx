@@ -4508,13 +4508,13 @@ const AnaliseDjen = () => {
                                         Desfazer descarte
                                       </Button>
                                     </>
-                                    ) : (
+                                    ) : (pub.processo_id || importedProcessos[pub.id]) ? (
                                     <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
                                       <Gavel className="w-2.5 h-2.5 md:w-3 md:h-3 mr-0.5 md:mr-1 flex-shrink-0" />
                                       <span className="hidden sm:inline">Processo Cadastrado</span>
                                       <span className="sm:hidden">Processo</span>
                                     </Badge>
-                                  )}
+                                  ) : null}
 
                                   {(pub.fonte || '').toLowerCase() === 'kurier' && (
                                     <Badge className="bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-100 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5">
