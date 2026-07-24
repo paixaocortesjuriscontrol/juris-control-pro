@@ -1032,7 +1032,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
           if (missingParentIds.length > 0) {
             let queryParents = supabase
               .from("eventos_agenda")
-              .select("id, titulo, descricao, local, processo_id, criado_por, coordenacao_id, processo:processos(id,numero,coordenacao_id)")
+              .select("id, titulo, descricao, local, processo_id, criado_por, coordenacao_id, status, processo:processos(id,numero,coordenacao_id)")
               .in("id", missingParentIds);
             const { data: parentsRaw } = await queryParents;
             let parents = (parentsRaw ?? []) as any[];
@@ -1094,6 +1094,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
                 coordenacao_id: pe.coordenacao_id ?? pe.processo?.coordenacao_id ?? null,
                 processo: pe.processo ?? null,
                 criado_por: pe.criado_por,
+                status: pe.status ?? null,
               } as any);
             }
           }
@@ -1107,7 +1108,13 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
 
             const dataBase = parseISO(p.data_vencimento);
             const diasRestantes = differenceInDays(startOfDay(dataBase), today);
-            const statusUnificado = p.status === "pago" ? "concluido" : p.status || "pendente";
+            const parentStatus = (parent as any).status as string | null | undefined;
+            const parentEncerrado =
+              parentStatus === "cancelado" ||
+              parentStatus === "concluido" ||
+              parentStatus === "tratado";
+            let statusUnificado = p.status === "pago" ? "concluido" : p.status || "pendente";
+            if (parentEncerrado) statusUnificado = parentStatus!;
             const isAtrasado = diasRestantes < 0 && statusUnificado === "pendente";
 
             resultItems.push({
