@@ -21,11 +21,37 @@ interface LinhaPlanilha {
   processoDigitos: string;
 }
 
+interface CandidateRow {
+  id: string;
+  dossie: string | null;
+  processo: string | null;
+  updated_at?: string | null;
+}
+
 const stripAspa = (v: unknown) => String(v ?? "").trim().replace(/^'/, "").trim();
 const soDigitos = (v: unknown) => String(v ?? "").replace(/\D/g, "");
 
 const SEARCH_CHUNK = 400;
 const APPLY_CHUNK = 200;
+
+const buildItemKey = (item: LinhaPlanilha) => {
+  const d = item.dossie.trim().toLowerCase();
+  const p = item.processo.trim().toLowerCase();
+  if (d && p) return `pair:${d}||${p}`;
+  if (d) return `d:${d}`;
+  if (p) return `p:${p}`;
+  return "";
+};
+
+const buildRowKeys = (row: CandidateRow) => {
+  const d = String(row.dossie || "").trim().toLowerCase();
+  const p = String(row.processo || "").trim().toLowerCase();
+  const keys: string[] = [];
+  if (d && p) keys.push(`pair:${d}||${p}`);
+  if (d) keys.push(`d:${d}`);
+  if (p) keys.push(`p:${p}`);
+  return keys;
+};
 
 function findHeaderRow(rows: any[][]): { idx: number; colDossie: number; colProcesso: number } | null {
   for (let i = 0; i < Math.min(rows.length, 20); i++) {
@@ -104,10 +130,13 @@ export default function AdminTstBasePcaDistribuicoes() {
         return;
       }
 
-      // Search in batches
+      // Search in batches. Quando a planilha tem Dossiê + Processo, o match
+      // precisa ser do PAR exato; usar Dossiê OU Processo infla a TAG em bases
+      // com dossiês/processos reaproveitados.
       const foundSet = new Set<string>();
-      const matchedDossies = new Set<string>();
-      const matchedProcessos = new Set<string>();
+      const matchedItemKeys = new Set<string>();
+      const desiredKeys = new Set(items.map(buildItemKey).filter(Boolean));
+      const bestByKey = new Map<string, CandidateRow>();
 
       const dossies = Array.from(new Set(items.map((i) => i.dossie).filter(Boolean)));
       const processos = Array.from(new Set(items.map((i) => i.processo).filter(Boolean)));
@@ -120,40 +149,58 @@ export default function AdminTstBasePcaDistribuicoes() {
         const slice = dossies.slice(i, i + SEARCH_CHUNK);
         const { data, error } = await supabase
           .from("dados_benner")
-          .select("id, dossie, processo")
+          .select("id, dossie, processo, updated_at")
+          .not("aba_origem", "is", null)
           .in("dossie", slice);
         if (error) throw error;
-        for (const row of (data ?? []) as any[]) {
-          foundSet.add(row.id);
-          if (row.dossie) matchedDossies.add(row.dossie);
-          if (row.processo) matchedProcessos.add(row.processo);
+        for (const row of ((data ?? []) as CandidateRow[])) {
+          for (const key of buildRowKeys(row)) {
+            if (!desiredKeys.has(key)) continue;
+            const current = bestByKey.get(key);
+            if (!current || String(row.updated_at || "") > String(current.updated_at || "")) {
+              bestByKey.set(key, row);
+            }
+          }
         }
         done++;
         setProgress(Math.round((done / totalBatches) * 100));
-        setProgressLabel(`Buscando lote ${done}/${totalBatches} — encontrados: ${foundSet.size}`);
+        setProgressLabel(`Buscando lote ${done}/${totalBatches} — encontrados: ${bestByKey.size}`);
       }
 
       for (let i = 0; i < processos.length; i += SEARCH_CHUNK) {
         const slice = processos.slice(i, i + SEARCH_CHUNK);
         const { data, error } = await supabase
           .from("dados_benner")
-          .select("id, dossie, processo")
+          .select("id, dossie, processo, updated_at")
+          .not("aba_origem", "is", null)
           .in("processo", slice);
         if (error) throw error;
-        for (const row of (data ?? []) as any[]) {
-          foundSet.add(row.id);
-          if (row.dossie) matchedDossies.add(row.dossie);
-          if (row.processo) matchedProcessos.add(row.processo);
+        for (const row of ((data ?? []) as CandidateRow[])) {
+          for (const key of buildRowKeys(row)) {
+            if (!desiredKeys.has(key)) continue;
+            const current = bestByKey.get(key);
+            if (!current || String(row.updated_at || "") > String(current.updated_at || "")) {
+              bestByKey.set(key, row);
+            }
+          }
         }
         done++;
         setProgress(Math.round((done / totalBatches) * 100));
-        setProgressLabel(`Buscando lote ${done}/${totalBatches} — encontrados: ${foundSet.size}`);
+        setProgressLabel(`Buscando lote ${done}/${totalBatches} — encontrados: ${bestByKey.size}`);
+      }
+
+      for (const item of items) {
+        const key = buildItemKey(item);
+        if (!key) continue;
+        const row = bestByKey.get(key);
+        if (row?.id) {
+          foundSet.add(row.id);
+          matchedItemKeys.add(key);
+        }
       }
 
       const naoEncontrados = items.filter(
-        (it) =>
-          !(it.dossie && matchedDossies.has(it.dossie)) &&
-          !(it.processo && matchedProcessos.has(it.processo)),
+        (it) => !matchedItemKeys.has(buildItemKey(it)),
       );
 
       setFoundIds(Array.from(foundSet));
