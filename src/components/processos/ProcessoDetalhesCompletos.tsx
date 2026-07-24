@@ -194,7 +194,7 @@ export function ProcessoDetalhesCompletos({
   const handleSectionChange = (next: string) => {
     if (activeSection === "resumo" && next !== "resumo" && visaoGeralRef.current) {
       // Autosave em background — não bloqueia a navegação
-      visaoGeralRef.current.save().catch(() => {});
+      visaoGeralRef.current.save({ silent: true }).catch(() => {});
     }
     fecharNovoItem();
     if (next === "tarefas" || next === "prazo") {
