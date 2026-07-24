@@ -1094,6 +1094,11 @@ serve(async (req) => {
       tipo_julgamento: null,
       processo_baixado: situacao === "Arquivado" || situacao === "Baixado" ? "S" : "N",
 
+      // Trânsito em julgado detectado por movimentação (Prompt homologado).
+      transito_julgado_detectado: transitoDet.transitado,
+      data_transito_julgado_detectada: transitoDet.data,
+      motivo_transito: transitoDet.motivo,
+
       // Metadados úteis para a UI:
       orgao_julgador: orgao,
       classe_capa: classe,
