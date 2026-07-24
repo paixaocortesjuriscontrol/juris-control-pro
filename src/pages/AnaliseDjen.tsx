@@ -93,7 +93,7 @@ import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { PublicacaoSidePanel } from "@/components/shared/PublicacaoSidePanel";
 import { ItensCriadosPublicacaoCard, type ItemCriado } from "@/components/shared/ItensCriadosPublicacaoCard";
 import { useItensExistentesPublicacao } from "@/hooks/useItensExistentesPublicacao";
-import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
+import { ensureProcessoFromPublicacao, salvarPublicacaoNoProcesso } from "@/lib/ensureProcessoFromPublicacao";
 import { NovaAudienciaPublicacaoDialog } from "@/components/djen/NovaAudienciaPublicacaoDialog";
 import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
