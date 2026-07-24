@@ -396,6 +396,8 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
 export async function fetchAllDistribuicaoTstIds(
   filters: DistribuicaoTstFilters
 ): Promise<string[]> {
+  if (filters.idsAllowed && filters.idsAllowed.length === 0) return [];
+
   if (filters.idsAllowed && filters.idsAllowed.length > LARGE_ID_FILTER_CHUNK) {
     const all = new Set<string>();
     for (let i = 0; i < filters.idsAllowed.length; i += LARGE_ID_FILTER_CHUNK) {
@@ -1055,6 +1057,26 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
 export async function fetchMesesDataRealFiltered(
   filters: DistribuicaoTstFilters
 ): Promise<{ key: string; count: number }[]> {
+  if (filters.idsAllowed && filters.idsAllowed.length === 0) return [];
+
+  if (filters.idsAllowed && filters.idsAllowed.length > LARGE_ID_FILTER_CHUNK) {
+    const merged = new Map<string, number>();
+    for (let i = 0; i < filters.idsAllowed.length; i += LARGE_ID_FILTER_CHUNK) {
+      const slice = filters.idsAllowed.slice(i, i + LARGE_ID_FILTER_CHUNK);
+      const rows = await fetchMesesDataRealFiltered({ ...filters, idsAllowed: slice });
+      for (const row of rows) {
+        merged.set(row.key, (merged.get(row.key) || 0) + row.count);
+      }
+    }
+    return [...merged.entries()]
+      .map(([key, count]) => ({ key, count }))
+      .sort((a, b) => {
+        if (a.key === "sem-data") return 1;
+        if (b.key === "sem-data") return -1;
+        return b.key.localeCompare(a.key);
+      });
+  }
+
   const f: DistribuicaoTstFilters = { ...filters, mesAno: undefined };
 
   const UNASSIGNED = "__sem_responsavel__";
