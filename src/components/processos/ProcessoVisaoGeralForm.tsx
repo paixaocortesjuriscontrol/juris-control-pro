@@ -1002,7 +1002,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   />
                   Com anexos
                 </label>
-                <Button size="sm" onClick={handleSave} disabled={saving || juditBusy}>
+                <Button size="sm" onClick={() => handleSave()} disabled={saving || juditBusy}>
                   {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
                   Salvar
                 </Button>
