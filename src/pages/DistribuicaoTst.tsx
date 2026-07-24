@@ -64,6 +64,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+const TAG_FILTER_PENDING_ID = "00000000-0000-0000-0000-000000000000";
+
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
   const l = val.toLowerCase();
@@ -241,7 +243,7 @@ export default function DistribuicaoTst() {
   const [filtroTagId, setFiltroTagId] = useState<string>("todas");
   const { data: tagsCatalogo = [] } = useProcessoTagsCatalogo();
   // Quando uma TAG é escolhida, busca o conjunto de ids permitidos.
-  const { data: idsAllowedFromTag } = useQuery({
+  const { data: idsAllowedFromTag, isFetching: loadingIdsFromTag } = useQuery({
     queryKey: ["tag-filter-ids", filtroTagId],
     enabled: filtroTagId !== "todas" && filtroTagId !== "__sem__",
     queryFn: () => fetchDadoIdsByTag(filtroTagId),
@@ -258,7 +260,9 @@ export default function DistribuicaoTst() {
   // IDs base por TAG (intersecção). undefined = sem restrição por TAG.
   const idsAllowedFromTagFilter = filtroTagId === "todas" || filtroTagId === "__sem__"
     ? undefined
-    : (idsAllowedFromTag ?? []);
+    : loadingIdsFromTag
+      ? [TAG_FILTER_PENDING_ID]
+      : (idsAllowedFromTag ?? []);
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -401,7 +405,7 @@ export default function DistribuicaoTst() {
     setHighlightUntil(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(debouncedFilters), page]);
-  const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(debouncedFilters);
+  const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(listFilters);
 
   // Todos os cards (incluindo Total Geral, Prontos para Enviar e A fazer)
   // devem refletir o responsável atualmente selecionado no filtro — assim,
