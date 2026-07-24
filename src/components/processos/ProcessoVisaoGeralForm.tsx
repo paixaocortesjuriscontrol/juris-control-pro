@@ -237,20 +237,21 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     return cnjMatch ? cnjMatch[0] : numeroRaw;
   };
 
-  const handleSave = async () => {
+  const handleSave = async (opts?: { silent?: boolean }) => {
+    const silent = !!opts?.silent;
     if (form.status === "encerrado" && !String(form.motivo_encerramento || "").trim()) {
-      toast.error("Informe o motivo do encerramento antes de salvar.");
+      if (!silent) toast.error("Informe o motivo do encerramento antes de salvar.");
       return;
     }
     // Validação mínima para criação
     if (isNovo) {
       const numeroRaw = String(form.numero || "").trim();
       if (!numeroRaw || numeroRaw.replace(/\D/g, "").length < 5) {
-        toast.error("Informe o número do processo antes de salvar.");
+        if (!silent) toast.error("Informe o número do processo antes de salvar.");
         return;
       }
       if (!String(form.area || "").trim()) {
-        toast.error("Selecione a área do processo antes de salvar.");
+        if (!silent) toast.error("Selecione a área do processo antes de salvar.");
         return;
       }
     }
@@ -296,7 +297,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         }
 
         await queryClient.invalidateQueries({ queryKey: ["processos"] });
-        toast.success("Processo criado com sucesso!");
+        if (!silent) toast.success("Processo criado com sucesso!");
         navigate(`/processos/${novo.id}`, { replace: true });
         return;
       }
@@ -327,9 +328,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
 
       await queryClient.invalidateQueries({ queryKey: ["processo"] });
       await queryClient.invalidateQueries({ queryKey: ["processos-responsaveis"] });
-      toast.success("Processo atualizado com sucesso!");
+      if (!silent) toast.success("Processo atualizado com sucesso!");
     } catch (err: any) {
-      toast.error("Erro ao salvar: " + err.message);
+      if (!silent) toast.error("Erro ao salvar: " + err.message);
     } finally {
       setSaving(false);
     }
