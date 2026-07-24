@@ -143,6 +143,9 @@ const AnaliseDjen = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [importingProcessoId, setImportingProcessoId] = useState<string | null>(null);
+  // Mapa local: publicação recém-importada -> processo criado. Serve para trocar
+  // o botão "Importar" por "Salvar" e mostrar "Ver processo" sem recarregar a lista.
+  const [importedProcessos, setImportedProcessos] = useState<Record<string, string>>({});
   const [savingProcessoId, setSavingProcessoId] = useState<string | null>(null);
 
   // Buscar as coordenações do usuário logado (IDs e primeira para pré-seleção)
