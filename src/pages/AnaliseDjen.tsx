@@ -4601,9 +4601,9 @@ const AnaliseDjen = () => {
                                         <Copy className="w-3 h-3 md:w-3.5 md:h-3.5 text-muted-foreground hover:text-foreground" />
                                       </Button>
                                       {/* Link para detalhes do processo - qualquer tipo de origem com processo_id */}
-                                      {pub.processo_id && (
+                                      {(pub.processo_id || importedProcessos[pub.id]) && (
                                         <Link 
-                                          to={`/processos/${pub.processo_id}`}
+                                          to={`/processos/${pub.processo_id || importedProcessos[pub.id]}`}
                                           className="text-[10px] md:text-xs text-muted-foreground hover:text-primary flex items-center gap-0.5 md:gap-1 flex-shrink-0"
                                           onClick={(e) => e.stopPropagation()}
                                         >
@@ -4613,13 +4613,14 @@ const AnaliseDjen = () => {
                                       )}
                                       
                                        {/* Ações de vínculo/importação */}
-                                       {pub.processo_id ? (
+                                       {(pub.processo_id || importedProcessos[pub.id]) ? (
                                          <Button
                                            variant="outline"
                                            size="sm"
                                            onClick={(e) => {
                                              e.stopPropagation();
-                                             handleSalvarPublicacao(pub);
+                                             const pid = pub.processo_id || importedProcessos[pub.id];
+                                             handleSalvarPublicacao({ ...pub, processo_id: pid });
                                            }}
                                            disabled={savingProcessoId === pub.id}
                                            title="Vincular publicação ao processo (criar movimentação)"
