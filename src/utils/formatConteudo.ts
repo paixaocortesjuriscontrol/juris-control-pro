@@ -125,6 +125,11 @@ export const formatConteudoParaExibicao = (conteudo: string | null | undefined, 
     s = stripMetadataFromContent(s);
   }
 
+  // Refluir quebras "duras" oriundas de PDF (dejt-pdf) para que o texto ocupe
+  // toda a largura sem cortar frases no meio, preservando parágrafos reais
+  // (linhas em branco) e linhas estruturais (ADVOGADO, Relator, cabeçalhos etc.).
+  s = reflowWrappedLines(s);
+
   return s;
 };
 
