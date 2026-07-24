@@ -782,14 +782,46 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
         return;
       }
       // URL com muitos UUIDs estoura ("Failed to fetch") → executa em chunks de 200.
+      // Muitos chunks disparados em paralelo (ex.: 5k+ IDs → 25+ requisições)
+      // também causam "TypeError: Failed to fetch" (limite de conexões/rede).
+      // Usamos um pool com concorrência limitada + retry para requisições
+      // transitórias.
       const CHUNK = 200;
+      const CONCURRENCY = 4;
+      const MAX_RETRIES = 3;
       const chunks: string[][] = [];
       for (let i = 0; i < chunkSource.length; i += CHUNK) {
         chunks.push(chunkSource.slice(i, i + CHUNK));
       }
-      const results = chunks.length > 0
-        ? await Promise.all(chunks.map((c) => buildQuery(c, false)))
-        : [];
+      const runChunk = async (c: string[]) => {
+        let lastErr: any = null;
+        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+          try {
+            const res: any = await buildQuery(c, false);
+            if (res?.error) {
+              lastErr = res.error;
+              // Erros de rede/timeout costumam vir sem code; retenta.
+              await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+              continue;
+            }
+            return res;
+          } catch (e: any) {
+            lastErr = e;
+            await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+          }
+        }
+        return { data: null, error: lastErr || new Error("Falha ao carregar chunk") };
+      };
+      const results: any[] = new Array(chunks.length);
+      let cursor = 0;
+      const workers = Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, async () => {
+        while (true) {
+          const idx = cursor++;
+          if (idx >= chunks.length) return;
+          results[idx] = await runChunk(chunks[idx]);
+        }
+      });
+      if (chunks.length > 0) await Promise.all(workers);
       const merged: any[] = [];
       for (const res of results) {
         if (res.error) {
