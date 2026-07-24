@@ -4787,35 +4787,47 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          duracao_ms: number | null
           error_message: string | null
           id: string
+          origem: string | null
           processo_numero: string
           raw_response: Json | null
           request_payload: Json | null
           status: string
+          tipo_cobranca: string | null
           tribunal: string | null
+          user_email: string | null
         }
         Insert: {
           created_at?: string
           created_by?: string | null
+          duracao_ms?: number | null
           error_message?: string | null
           id?: string
+          origem?: string | null
           processo_numero: string
           raw_response?: Json | null
           request_payload?: Json | null
           status?: string
+          tipo_cobranca?: string | null
           tribunal?: string | null
+          user_email?: string | null
         }
         Update: {
           created_at?: string
           created_by?: string | null
+          duracao_ms?: number | null
           error_message?: string | null
           id?: string
+          origem?: string | null
           processo_numero?: string
           raw_response?: Json | null
           request_payload?: Json | null
           status?: string
+          tipo_cobranca?: string | null
           tribunal?: string | null
+          user_email?: string | null
         }
         Relationships: []
       }
