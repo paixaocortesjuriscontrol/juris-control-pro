@@ -37,6 +37,34 @@ Deno.serve(async (req) => {
     if (!processo_numero) return json({ error: "processo_numero obrigatório" }, 400);
     const cnj = String(processo_numero).replace(/[^0-9.-]/g, "").trim();
 
+    const requestPayload = {
+      numero_processo: cnj,
+      with_attachments: true,
+      origem: "sincronizar-anexos",
+    };
+    const logConsulta = async (
+      status: "sucesso" | "erro_funcao" | "erro_api",
+      rawResponse: unknown,
+      errorMessage: string | null,
+    ) => {
+      try {
+        await supabase.from("judit_logs").insert({
+          processo_numero: cnj,
+          tribunal: null,
+          request_payload: requestPayload,
+          raw_response: rawResponse ?? null,
+          status,
+          error_message: errorMessage,
+          created_by: user.id,
+          origem: "sincronizar-anexos",
+          tipo_cobranca: "com_anexos",
+          user_email: user.email ?? null,
+        } as any);
+      } catch (e) {
+        console.warn("[sincronizar-judit-anexos] falha ao gravar judit_logs:", (e as Error).message);
+      }
+    };
+
     // Consulta o datalake síncrono da Judit (POST /lawsuits) com anexos —
     // só ele devolve `status` e `corrupted` por anexo.
     const r = await fetch(`${JUDIT_LAWSUITS}/lawsuits`, {
@@ -46,10 +74,12 @@ Deno.serve(async (req) => {
     });
     if (!r.ok) {
       const txt = await r.text();
+      await logConsulta("erro_api", { http_status: r.status, body: txt.substring(0, 500) }, `HTTP ${r.status}`);
       return json({ error: `Judit HTTP ${r.status}: ${txt.substring(0, 200)}` }, 200);
     }
     const payload = await r.json();
     const lawsuits: any[] = Array.isArray(payload?.lawsuits) ? payload.lawsuits : [];
+    await logConsulta("sucesso", { lawsuits_count: lawsuits.length }, null);
 
     // Mantém apenas anexos baixáveis (status done, não corrompidos).
     const valid: any[] = [];

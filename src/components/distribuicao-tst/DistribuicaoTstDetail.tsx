@@ -166,21 +166,11 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
     };
     let raw = await fetchList();
     if (raw === null) return;
-    // Se a lista persistida não tem `status` (registros antigos, anteriores à
-    // correção), ressincroniza com o datalake da Judit para descartar anexos
-    // pendentes/corrompidos que devolveriam 404 ao tentar baixar.
-    const precisaSync = raw.length > 0 && raw.every((r) => r.status == null);
-    if (precisaSync) {
-      try {
-        await supabase.functions.invoke("sincronizar-judit-anexos", {
-          body: { processo_numero: processoNumero },
-        });
-        const fresh = await fetchList();
-        if (fresh !== null) raw = fresh;
-      } catch (e) {
-        console.warn("Falha ao ressincronizar anexos:", e);
-      }
-    }
+    // Anexos legados sem `status` foram normalizados via backfill
+    // (`status='done'`). Removido o auto-fire de `sincronizar-judit-anexos`,
+    // que consumia consultas Judit COM anexos (R$ 3,75) sem clique do
+    // usuário. Para ressincronizar agora é preciso clicar em
+    // "Sincronizar anexos" explicitamente.
     // Esconde anexos marcados como pending/corrupted (vindos da Judit) — só
     // exibe os baixáveis. Quando `status` é null tratamos como "done" para
     // não esconder dados legados que ainda não foram ressincronizados.

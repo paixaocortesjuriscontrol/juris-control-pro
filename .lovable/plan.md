@@ -1,79 +1,51 @@
-# Nova lógica de trânsito em julgado — Botão Judit (form + lote)
 
-Sem unificação. Aplico a mesma regra nova nos dois pontos que já existem, com uma detecção **centralizada na Edge Function** para não duplicar a regex.
+## Objetivo
+Anexos Judit passam a ser estritamente opt-in por clique. Nenhum código, edge function ou fluxo automático envia `com_anexos: true` sem que o usuário tenha marcado o checkbox no exato clique. Toda chamada cobrada da Judit passa a ser rastreável em `judit_logs`.
 
-## Regra (proposta pela advogada)
+## 1. Callsites hardcoded `com_anexos: true` sem checkbox → `false`
 
-Considerar **trânsito em julgado** quando nas movimentações (`rd.steps[]`) da Judit existir:
+- `src/components/processos/ProcessoFormDialog.tsx:669` — botão "Buscar Judit" do dialog de criação/edição. Passa a `com_anexos: false`. Quem precisa de anexos usa o formulário completo do processo (aba Análise Judit), que já tem checkbox.
+- `src/components/distribuicao-tst/DossiesNaoLocalizadosButton.tsx:116` — loop "Consultar Judit e preencher Dados Benner". Passa a `com_anexos: false`. Sem checkbox no dialog.
+- `src/pages/DistribuicaoTst.tsx` — remover estado `bulkComAnexos` (167-168), checkbox da UI (~1907) e forçar `com_anexos: false` no envio bulk (1159, 1187). A opção continua existindo dentro do formulário do processo/distribuição.
 
-1. Movimentação com **"Transitado em Julgado"** (texto ou código CNJ `848`); **ou**
-2. Movimentação com **"Remetidos os Autos para Tribunal Regional do Trabalho"** (TST devolvendo autos após julgamento final).
+## 2. Auto-fires escondidos — removidos
 
-**Reativação** (preserva memória `judit-multi-instance-fetch`): se depois do step de trânsito houver step de redistribuição, novo recurso ou inclusão em pauta, **não** marca trânsito.
+- `src/components/distribuicao-tst/DistribuicaoTstDetail.tsx:172-183` — `reloadAnexos()` invoca `sincronizar-judit-anexos` automaticamente para linhas legadas sem `status`. Remover esse ramo por completo. Sincronização passa a ocorrer só quando o usuário clica em "Sincronizar anexos".
+- Backfill único via insert tool: `UPDATE public.judit_anexos SET status = 'done' WHERE status IS NULL AND corrupted IS NOT TRUE;` para que anexos legados não fiquem visualmente escondidos após remover o auto-refresh.
+- `supabase/functions/buscar-judit/index.ts:737-744` — no ramo cache-hit dispara `juditCriarRequestComOpcoes(...)` sem `await`, consumindo uma consulta cobrada em segundo plano. Remover. Crawler só é acionado quando o cliente passa `force_refresh: true` ou não há cache utilizável.
 
-**Data do trânsito** = `step_date` do movimento mais antigo que casou o padrão.
+## 3. Acompanhamento Especial — respeitar o checkbox existente e logar
 
-## Alterações
+O cron já lê `acompanhamento_com_anexos` do processo (`supabase/functions/judit-acompanhamento-especial/index.ts:151`), então essa parte já respeita o clique — mantém como está. O que muda:
 
-### 1. `supabase/functions/buscar-judit/index.ts` (centraliza a detecção)
+- Instrumentar a função para gravar em `judit_logs` cada `GET /lawsuits`, com:
+  - `origem: "acompanhamento-especial"`;
+  - `tipo_cobranca` = `"com_anexos"` ou `"sem_anexos"` conforme `acompanhamento_com_anexos` do processo;
+  - `processo_numero`;
+  - `user_email` do dono do processo quando resolúvel via `dados_benner.user_id → profiles.email`; fallback `"cron"`.
+- Depois de instrumentado, rodo um `read_query` e devolvo no chat: quantos processos em acompanhamento especial, quantos com anexos, frequência e volume de chamadas por dia nos últimos 30 dias (via `execucoes_acompanhamento_especial`). Se houver algo desproporcional, discutimos separado.
 
-- Nova função `detectarTransitoJulgado(rd)` que percorre `rd.steps[]` procurando:
-  - `code === "848"`
-  - `/tr[âa]nsito\s+em\s+julgado/i` em `title`/`content`/`description`
-  - `/remetid[oa]s?\s+os\s+autos.*tribunal\s+regional\s+do\s+trabalho/i`
-- Verifica reativação em steps posteriores; se houver, retorna `{ transitado: false }`.
-- Aplica sobre a `rdSelecionada` **e** sobre a instância TRT (quando presente); trânsito se qualquer uma confirmar.
-- Adiciona ao payload de resposta:
-  - `transito_julgado_detectado: boolean | null`
-  - `data_transito_julgado_detectada: string | null`
-  - `motivo_transito: "movimento_848" | "texto_transito" | "remessa_trt" | null`
+## 4. `sincronizar-judit-anexos` — logar
 
-### 2. Botão Judit do formulário — `src/components/distribuicao-tst/DistribuicaoTstForm.tsx` (~linhas 1096-1105)
+- `supabase/functions/sincronizar-judit-anexos/index.ts:45` continua enviando `with_attachments: true` (a função só existe para isso e agora só roda por clique).
+- Passa a gravar em `judit_logs` com `origem: "sincronizar-anexos"`, `tipo_cobranca: "com_anexos"`, `user_email` do JWT do chamador, `processo_numero`.
 
-Substituir o bloco atual por:
+## 5. Padrão de log — `judit_logs` inequívoco
 
-```ts
-if (data.transito_julgado_detectado === true) {
-  next.transito_julgado = true;
-  if (data.data_transito_julgado_detectada) {
-    next.data_transito_julgado = data.data_transito_julgado_detectada;
-  }
-  filled.add("transito_julgado");
-} else if (data.transito_julgado_detectado === false) {
-  next.transito_julgado = false;
-  next.data_transito_julgado = null;
-  filled.delete("transito_julgado");
-} else {
-  // Fallback: lógica antiga por situacao/processo_baixado
-  const juditAtivo = /ativ|active|em\s*curso|em\s*tramita|andamento/i.test(situacao) || baixado === "N";
-  const ehTransito = !juditAtivo && (/arquivad|baixad|tr[âa]nsito/i.test(situacao) || baixado === "S");
-  if (juditAtivo) { next.transito_julgado = false; next.data_transito_julgado = null; filled.delete("transito_julgado"); }
-  else if (ehTransito && next.transito_julgado !== true) { next.transito_julgado = true; filled.add("transito_julgado"); }
-}
-```
+Todo `insert` de log passa a incluir explicitamente:
+- `origem` (`distribuicao-tst`, `formulario-processo`, `dossies-nao-localizados`, `sincronizar-anexos`, `acompanhamento-especial`, etc.);
+- `tipo_cobranca` (`"com_anexos"` ou `"sem_anexos"`);
+- `user_email` do JWT quando houver.
 
-Auto-save do form já cobre `transito_julgado` e `data_transito_julgado` (linha 510).
+Sem alteração de schema — colunas já existem.
 
-### 3. Botão Judit em lote — `src/lib/juditDistribuicaoTst.ts` > `buildJuditPatch` (~linhas 302-313)
+## Ordem de execução
+1. Frontend: `DistribuicaoTst.tsx`, `ProcessoFormDialog.tsx`, `DossiesNaoLocalizadosButton.tsx`, `DistribuicaoTstDetail.tsx`.
+2. Edge functions: `buscar-judit` (remover refresh oculto), `sincronizar-judit-anexos` (logar), `judit-acompanhamento-especial` (logar). Deploy.
+3. Insert tool: backfill `judit_anexos.status`.
+4. `read_query` + entrega no chat do relatório do acompanhamento especial.
+5. Bump versão para 4.2.7.
 
-Mesma precedência dentro de `buildJuditPatch`, para que `DossiesNaoLocalizadosButton` herde a regra automaticamente:
-
-```ts
-if (juditData?.transito_julgado_detectado === true) {
-  patch.transito_julgado = true;
-  if (juditData.data_transito_julgado_detectada) {
-    patch.data_transito_julgado = juditData.data_transito_julgado_detectada;
-  }
-} else if (juditData?.transito_julgado_detectado === false) {
-  patch.transito_julgado = false;
-  patch.data_transito_julgado = null;
-} else {
-  // Fallback: lógica atual (situacao/baixado)
-}
-```
-
-## Fora do escopo
-
-- Unificação dos dois botões (fica pra depois).
-- Backfill retroativo.
-- Alterações em `consultar-processo-judit` / `check-transito`.
+## Fora de escopo
+- Nenhuma mudança nos checkboxes existentes (formulário TST, aba Análise Judit do processo, aba Partes do Benner) — todos já são opt-in.
+- Nenhuma mudança na frequência do cron `judit-acompanhamento-especial` — apenas medição.

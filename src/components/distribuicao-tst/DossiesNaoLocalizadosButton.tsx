@@ -113,7 +113,8 @@ export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
             const requestPayload = {
               numero_processo: aplicarMascaraCnj(r.processo),
               tribunal: "TST",
-              com_anexos: true,
+              com_anexos: false,
+              origem: "dossies-nao-localizados",
             };
             const { data: juditData, error: juditError } =
               await supabase.functions.invoke("buscar-judit", { body: requestPayload });

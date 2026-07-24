@@ -34,7 +34,6 @@ import { DelegarProcessosDialog } from "@/components/distribuicao-tst/DelegarPro
 import { DistribuirAutomaticoDialog } from "@/components/distribuicao-tst/DistribuirAutomaticoDialog";
 import { CopyButton } from "@/components/ui/copy-button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
@@ -163,9 +162,10 @@ export default function DistribuicaoTst() {
   const [bulkJuditRunning, setBulkJuditRunning] = useState(false);
   const [bulkJuditProgress, setBulkJuditProgress] = useState({ current: 0, total: 0 });
   const bulkAbortRef = useRef(false);
-  // Quando ligado, o "Preencher com Judit" em lote chama a Judit com
-  // with_attachments=true (consulta cara). Default false para preservar quota.
-  const [bulkComAnexos, setBulkComAnexos] = useState(false);
+  // Bulk Judit sempre roda SEM anexos. Anexos só são consultados pelo
+  // formulário individual do processo/distribuição, quando o usuário marca
+  // explicitamente a caixinha "Com anexos" — evita cobranças caras (R$ 3,75)
+  // acidentais na tela principal.
 
   const scrollPageToTop = useCallback(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -1156,7 +1156,12 @@ export default function DistribuicaoTst() {
         setBulkJuditProgress({ current: i + 1, total: unique.length });
 
         try {
-          const requestPayload = { numero_processo: aplicarMascaraCnj(proc.processo_numero), tribunal: "TST", com_anexos: bulkComAnexos };
+          const requestPayload = {
+            numero_processo: aplicarMascaraCnj(proc.processo_numero),
+            tribunal: "TST",
+            com_anexos: false,
+            origem: "distribuicao-tst-bulk",
+          };
           const { data: juditData, error: juditError } = await supabase.functions.invoke("buscar-judit", {
             body: requestPayload,
           });
@@ -1182,48 +1187,7 @@ export default function DistribuicaoTst() {
           const recorrenteJudit = getJuditPartesResumo(juditData, proc.parte_recorrente);
           const partiesDetail = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
 
-          // Quando a busca em lote foi solicitada COM ANEXOS, persiste a lista
-          // em judit_anexos exatamente como o botão individual do formulário.
-          if (bulkComAnexos) {
-            const atts = Array.isArray((juditData as any)?.attachments) ? (juditData as any).attachments : [];
-            if (atts.length > 0) {
-              try {
-                const numeroMasc = aplicarMascaraCnj(proc.processo_numero);
-                const rowsRaw = atts.map((a: any) => ({
-                  processo_numero: proc.processo_numero,
-                  cnj: a?.cnj || numeroMasc,
-                  instance: a?.instance != null ? String(a.instance) : null,
-                  attachment_id: String(a?.step_id || a?.attachment_id || ""),
-                  step_id: a?.step_id ? String(a.step_id) : null,
-                  attachment_name: a?.attachment_name || null,
-                  attachment_date: a?.attachment_date || null,
-                  extension: a?.extension || null,
-                  status: a?.status || "done",
-                  corrupted: a?.corrupted ?? false,
-                  raw_attachment: a,
-                  created_by: bulkUserId,
-                })).filter((r: any) => r.attachment_id);
-                const seen = new Set<string>();
-                const rows = rowsRaw.filter((r: any) => {
-                  const key = getJuditAttachmentDedupKey(r);
-                  if (seen.has(key)) return false;
-                  seen.add(key);
-                  return true;
-                });
-                if (rows.length > 0) {
-                  await supabase
-                    .from("judit_anexos" as any)
-                    .delete()
-                    .eq("processo_numero", proc.processo_numero);
-                  await supabase
-                    .from("judit_anexos" as any)
-                    .insert(rows);
-                }
-              } catch (e) {
-                console.warn("[bulk-judit] Falha ao persistir judit_anexos:", e);
-              }
-            }
-          }
+          // Bulk nunca traz anexos — anexos só via formulário individual.
 
           // Reclamante/Reclamada: PRIORIDADE ABSOLUTA aos campos já desambiguados
           // pelo backend (`data.reclamante`/`data.reclamada`), que cruzam com a
@@ -1898,19 +1862,6 @@ export default function DistribuicaoTst() {
                   ? `Preencher c/ Judit (${selectedIds.size})`
                   : "Preencher com Judit"}
             </Button>
-            {isAdmin && (
-              <label
-                className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none px-1"
-                title="Inclui a lista de anexos do processo (consulta Judit mais cara)."
-              >
-                <Checkbox
-                  checked={bulkComAnexos}
-                  onCheckedChange={(v) => setBulkComAnexos(v === true)}
-                  disabled={bulkJuditRunning}
-                />
-                Com anexos
-              </label>
-            )}
             {bulkJuditRunning && (
               <Button variant="destructive" size="sm" className="h-8 text-xs" onClick={() => { bulkAbortRef.current = true; }}>
                 <X className="w-3 h-3 mr-1" /> Cancelar
