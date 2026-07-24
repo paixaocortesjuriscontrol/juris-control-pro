@@ -679,6 +679,7 @@ const Administracao = () => {
                 { label: "Cofre de Senhas", path: "/cofre-senhas", icon: KeyRound, description: "Credenciais e certificados protegidos." },
                 { label: "IA Responde", path: "/ia-responde", icon: Sparkles, description: "Assistente IA que consulta o sistema." },
                 { label: "Consumo de IA", path: "/consumo-ia", icon: Coins, description: "Relatório detalhado de tokens, custo e chamadas por usuário/tela." },
+                { label: "Consumo Judit", path: "/consumo-judit", icon: Scale, description: "Faturamento detalhado das consultas Judit por tipo, usuário e tela." },
                 { label: "Auditoria de Itens", path: "/auditoria-itens", icon: History, description: "Histórico de criação, edição e exclusão de tarefas, prazos, eventos, audiências e parcelamentos." },
               ].map((tool) => (
                 <Link key={tool.path} to={tool.path} className="group">
