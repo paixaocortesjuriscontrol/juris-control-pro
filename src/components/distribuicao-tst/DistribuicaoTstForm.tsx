@@ -894,7 +894,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           status: error ? "erro_funcao" : (data?.error ? "erro_api" : "sucesso"),
           error_message: error?.message || data?.error || null,
           created_by: userData?.user?.id || null,
-        });
+      });
       } catch (logErr) {
         console.warn("Falha ao gravar judit_logs:", logErr);
       }

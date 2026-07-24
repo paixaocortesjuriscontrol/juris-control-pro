@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server, BarChart3, Radar, Settings, Upload, KeyRound, Sparkles, Coins } from "lucide-react";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server, BarChart3, Radar, Settings, Upload, KeyRound, Sparkles, Coins, Scale } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
@@ -679,6 +679,7 @@ const Administracao = () => {
                 { label: "Cofre de Senhas", path: "/cofre-senhas", icon: KeyRound, description: "Credenciais e certificados protegidos." },
                 { label: "IA Responde", path: "/ia-responde", icon: Sparkles, description: "Assistente IA que consulta o sistema." },
                 { label: "Consumo de IA", path: "/consumo-ia", icon: Coins, description: "Relatório detalhado de tokens, custo e chamadas por usuário/tela." },
+                { label: "Consumo Judit", path: "/consumo-judit", icon: Scale, description: "Faturamento detalhado das consultas Judit por tipo, usuário e tela." },
                 { label: "Auditoria de Itens", path: "/auditoria-itens", icon: History, description: "Histórico de criação, edição e exclusão de tarefas, prazos, eventos, audiências e parcelamentos." },
               ].map((tool) => (
                 <Link key={tool.path} to={tool.path} className="group">

@@ -473,7 +473,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           status: "sucesso",
           error_message: null,
           created_by: uid,
-        });
+      });
       } catch (_) { /* noop */ }
 
       // Persiste anexos (mesma lógica da Distribuição TST) para alimentar a aba Anexos Judit
@@ -583,7 +583,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           status: "sucesso",
           error_message: null,
           created_by: uid,
-        });
+      });
       } catch (_) { /* noop */ }
 
       // Persiste anexos quando solicitado
@@ -730,7 +730,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               status: "sucesso",
               error_message: null,
               created_by: userData?.user?.id || null,
-            });
+          });
             await queryClient.invalidateQueries({ queryKey: ["judit_logs", numeroLimpo] });
           } catch (_) { /* noop */ }
         }
@@ -762,7 +762,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
             status: "sucesso",
             error_message: null,
             created_by: uid,
-          });
+        });
         } catch (_) { /* noop */ }
       }
 
