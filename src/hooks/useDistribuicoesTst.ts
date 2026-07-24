@@ -129,6 +129,7 @@ export interface DistribuicaoTst {
 export type DistribuicaoTstInsert = Omit<DistribuicaoTst, "id" | "created_at" | "updated_at">;
 
 const PAGE_SIZE = 100;
+const LARGE_ID_FILTER_CHUNK = 200;
 
 /**
  * Aplica o filtro do Select "Parte Recorrente" na coluna `recorrente`
@@ -395,6 +396,18 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
 export async function fetchAllDistribuicaoTstIds(
   filters: DistribuicaoTstFilters
 ): Promise<string[]> {
+  if (filters.idsAllowed && filters.idsAllowed.length === 0) return [];
+
+  if (filters.idsAllowed && filters.idsAllowed.length > LARGE_ID_FILTER_CHUNK) {
+    const all = new Set<string>();
+    for (let i = 0; i < filters.idsAllowed.length; i += LARGE_ID_FILTER_CHUNK) {
+      const slice = filters.idsAllowed.slice(i, i + LARGE_ID_FILTER_CHUNK);
+      const ids = await fetchAllDistribuicaoTstIds({ ...filters, idsAllowed: slice });
+      ids.forEach((id) => all.add(id));
+    }
+    return Array.from(all);
+  }
+
   const UNASSIGNED = "__sem_responsavel__";
   const respIds = filters.responsavelIds || [];
   const wantsUnassigned = respIds.includes(UNASSIGNED);
@@ -1044,6 +1057,26 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
 export async function fetchMesesDataRealFiltered(
   filters: DistribuicaoTstFilters
 ): Promise<{ key: string; count: number }[]> {
+  if (filters.idsAllowed && filters.idsAllowed.length === 0) return [];
+
+  if (filters.idsAllowed && filters.idsAllowed.length > LARGE_ID_FILTER_CHUNK) {
+    const merged = new Map<string, number>();
+    for (let i = 0; i < filters.idsAllowed.length; i += LARGE_ID_FILTER_CHUNK) {
+      const slice = filters.idsAllowed.slice(i, i + LARGE_ID_FILTER_CHUNK);
+      const rows = await fetchMesesDataRealFiltered({ ...filters, idsAllowed: slice });
+      for (const row of rows) {
+        merged.set(row.key, (merged.get(row.key) || 0) + row.count);
+      }
+    }
+    return [...merged.entries()]
+      .map(([key, count]) => ({ key, count }))
+      .sort((a, b) => {
+        if (a.key === "sem-data") return 1;
+        if (b.key === "sem-data") return -1;
+        return b.key.localeCompare(a.key);
+      });
+  }
+
   const f: DistribuicaoTstFilters = { ...filters, mesAno: undefined };
 
   const UNASSIGNED = "__sem_responsavel__";

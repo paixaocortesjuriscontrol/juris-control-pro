@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
+import { DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, X, Download, BarChart3 } from "lucide-react";
@@ -35,6 +35,79 @@ const fmtDate = (d: string | null) => {
   }
 };
 
+const LARGE_IDS_THRESHOLD = 1000;
+
+async function calcularResultadoChunked(filters: DistribuicaoTstFilters): Promise<Resultado> {
+  const ids = await fetchAllDistribuicaoTstIds(filters);
+  if (ids.length === 0) {
+    return { total: 0, periodoInicio: null, periodoFim: null, principais: [], transversais: [] };
+  }
+
+  let total = 0;
+  let prontosEnvio = 0;
+  let aFazer = 0;
+  let transito = 0;
+  let outroEscritorio = 0;
+  let segredoJustica = 0;
+  let acordo = 0;
+  let cejusc = 0;
+  let midiaNegativa = 0;
+  let recursoTerceiro = 0;
+  let periodoInicio: string | null = null;
+  let periodoFim: string | null = null;
+
+  const PAGE = 500;
+  for (let i = 0; i < ids.length; i += PAGE) {
+    const batch = ids.slice(i, i + PAGE);
+    const { data, error } = await supabase
+      .from("dados_benner" as any)
+      .select("id, transito_julgado, processo_outro_escritorio, segredo_justica, status, acordo, cejusc, midia_negativa, recurso_terceiro, data_distribuicao_real, data_distribuicao_planilha")
+      .in("id", batch);
+    if (error) throw error;
+    for (const row of (data as any[]) || []) {
+      total += 1;
+      const status = String(row.status || "");
+      const dataBase = row.data_distribuicao_real || row.data_distribuicao_planilha || null;
+      if (dataBase && (!periodoInicio || dataBase < periodoInicio)) periodoInicio = dataBase;
+      if (dataBase && (!periodoFim || dataBase > periodoFim)) periodoFim = dataBase;
+      if (status === "pronto_envio") prontosEnvio += 1;
+      if (
+        row.transito_julgado !== true &&
+        row.processo_outro_escritorio !== true &&
+        row.segredo_justica !== true &&
+        status !== "pronto_envio"
+      ) aFazer += 1;
+      if (row.transito_julgado === true) transito += 1;
+      if (row.processo_outro_escritorio === true) outroEscritorio += 1;
+      if (row.segredo_justica === true) segredoJustica += 1;
+      if (row.acordo === true || String(row.acordo || "").trim().toLowerCase() === "sim") acordo += 1;
+      if (row.cejusc === true) cejusc += 1;
+      const midia = String(row.midia_negativa || "").trim().toLowerCase();
+      if (midia && midia !== "não" && midia !== "nao") midiaNegativa += 1;
+      if (row.recurso_terceiro === true) recursoTerceiro += 1;
+    }
+  }
+
+  return {
+    total,
+    periodoInicio,
+    periodoFim,
+    principais: [
+      { situacao: "Completos/Prontos para enviar", quantidade: prontosEnvio },
+      { situacao: "A Fazer", quantidade: aFazer },
+      { situacao: "Trânsito em julgado", quantidade: transito },
+      { situacao: "Outro escritório", quantidade: outroEscritorio },
+      { situacao: "Segredo de justiça", quantidade: segredoJustica },
+    ],
+    transversais: [
+      { situacao: "Acordo", quantidade: acordo, transversal: true },
+      { situacao: "CEJUSC", quantidade: cejusc, transversal: true },
+      { situacao: "Mídia negativa", quantidade: midiaNegativa, transversal: true },
+      { situacao: "Recurso de terceiro", quantidade: recursoTerceiro, transversal: true },
+    ],
+  };
+}
+
 export function TotalPorSituacaoCard({ filters, filtrosResumo, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [resultado, setResultado] = useState<Resultado | null>(null);
@@ -46,6 +119,12 @@ export function TotalPorSituacaoCard({ filters, filtrosResumo, onClose }: Props)
       setLoading(true);
       setResultado(null);
       try {
+        if ((filters.idsAllowed?.length || 0) > LARGE_IDS_THRESHOLD) {
+          const result = await calcularResultadoChunked(filters);
+          if (!abortRef.current) setResultado(result);
+          return;
+        }
+
         const { data, error } = await supabase.rpc(
           "get_distribuicao_tst_situacao_totais" as any,
           { filters: filters as any },

@@ -208,8 +208,9 @@ export async function fetchDadoIdsByTag(tagId: string): Promise<string[]> {
   while (true) {
     const { data, error } = await supabase
       .from("dados_benner_processo_tags" as any)
-      .select("dado_benner_id")
+      .select("dado_benner_id, dados_benner!inner(aba_origem)")
       .eq("tag_id", tagId)
+      .not("dados_benner.aba_origem", "is", null)
       .range(from, from + PAGE - 1);
     if (error) throw error;
     const rows = (data as any[]) || [];
