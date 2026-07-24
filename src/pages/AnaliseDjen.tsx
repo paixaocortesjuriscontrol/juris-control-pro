@@ -1252,6 +1252,8 @@ const AnaliseDjen = () => {
           onClick: () => navigate(`/processos/${processo.id}`),
         },
       });
+      // Registra localmente para trocar o botão para "Salvar" e exibir "Ver processo"
+      setImportedProcessos((prev) => ({ ...prev, [pub.id]: processo.id }));
     } catch (error: any) {
       console.error("Erro ao importar processo:", error);
       toast.error(`Erro ao importar: ${error.message}`);
