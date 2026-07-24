@@ -1121,6 +1121,10 @@ const AnaliseDjen = () => {
       // como movimentação e sem marcar como lida — a lista permanece intacta).
       await salvarPublicacaoNoProcesso(pub, processoId);
 
+      // Invalida apenas a query da aba "Pub. DJEN" do processo alvo,
+      // sem tocar na listagem da Análise DJEN (a tela deve ficar parada).
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo", processoId] });
+
       toast.success("Publicação salva no processo!", {
         action: {
           label: "Ver processo",
