@@ -227,7 +227,7 @@ export default function AdminTstBasePcaDistribuicoes() {
     XLSX.writeFile(wb, `nao_encontrados_${Date.now()}.xlsx`);
   };
 
-  const aplicarTag = async (tagId: string) => {
+  const aplicarTag = async (tagId: string, replaceExisting = false) => {
     if (foundIds.length === 0) {
       toast.info("Nenhum processo encontrado para aplicar a TAG");
       return;
@@ -238,6 +238,14 @@ export default function AdminTstBasePcaDistribuicoes() {
     try {
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id;
+      if (replaceExisting) {
+        setProgressLabel("Limpando vínculos anteriores da TAG...");
+        const { error: deleteError } = await supabase
+          .from("dados_benner_processo_tags" as any)
+          .delete()
+          .eq("tag_id", tagId);
+        if (deleteError) throw deleteError;
+      }
       const total = Math.ceil(foundIds.length / APPLY_CHUNK);
       for (let i = 0; i < foundIds.length; i += APPLY_CHUNK) {
         const slice = foundIds.slice(i, i + APPLY_CHUNK);
@@ -254,8 +262,16 @@ export default function AdminTstBasePcaDistribuicoes() {
         setProgress(Math.round((lote / total) * 100));
         setProgressLabel(`Aplicando lote ${lote}/${total}`);
       }
-      toast.success(`TAG aplicada a ${foundIds.length} processo(s)`);
-      setProgressLabel(`TAG aplicada a ${foundIds.length} processo(s)`);
+      toast.success(
+        replaceExisting
+          ? `TAG substituída por ${foundIds.length} processo(s)`
+          : `TAG aplicada a ${foundIds.length} processo(s)`,
+      );
+      setProgressLabel(
+        replaceExisting
+          ? `TAG substituída por ${foundIds.length} processo(s)`
+          : `TAG aplicada a ${foundIds.length} processo(s)`,
+      );
     } catch (err: any) {
       toast.error("Erro ao aplicar TAG: " + (err?.message || ""));
     } finally {
@@ -387,6 +403,18 @@ export default function AdminTstBasePcaDistribuicoes() {
                         <Check className="w-3 h-3 mr-1" />
                       )}
                       Aplicar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-xs"
+                      disabled={busy || foundIds.length === 0}
+                      onClick={() => {
+                        setSelectedTagId(t.id);
+                        aplicarTag(t.id, true);
+                      }}
+                    >
+                      Substituir
                     </Button>
                   </div>
                 );
