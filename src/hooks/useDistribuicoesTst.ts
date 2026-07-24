@@ -129,6 +129,7 @@ export interface DistribuicaoTst {
 export type DistribuicaoTstInsert = Omit<DistribuicaoTst, "id" | "created_at" | "updated_at">;
 
 const PAGE_SIZE = 100;
+const LARGE_ID_FILTER_CHUNK = 200;
 
 /**
  * Aplica o filtro do Select "Parte Recorrente" na coluna `recorrente`
@@ -395,6 +396,16 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
 export async function fetchAllDistribuicaoTstIds(
   filters: DistribuicaoTstFilters
 ): Promise<string[]> {
+  if (filters.idsAllowed && filters.idsAllowed.length > LARGE_ID_FILTER_CHUNK) {
+    const all = new Set<string>();
+    for (let i = 0; i < filters.idsAllowed.length; i += LARGE_ID_FILTER_CHUNK) {
+      const slice = filters.idsAllowed.slice(i, i + LARGE_ID_FILTER_CHUNK);
+      const ids = await fetchAllDistribuicaoTstIds({ ...filters, idsAllowed: slice });
+      ids.forEach((id) => all.add(id));
+    }
+    return Array.from(all);
+  }
+
   const UNASSIGNED = "__sem_responsavel__";
   const respIds = filters.responsavelIds || [];
   const wantsUnassigned = respIds.includes(UNASSIGNED);
