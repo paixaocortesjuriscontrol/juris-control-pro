@@ -664,10 +664,12 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
 
       const requestPayload: Record<string, unknown> = {
         numero_processo: numero,
-        // Buscar com anexos para que a aba "Anexos Judit" tenha conteúdo
-        // (mesmo padrão da Distribuição TST).
-        com_anexos: true,
+        // Anexos são opt-in explícito. Este botão do dialog de criação/edição
+        // NÃO tem checkbox — para trazer anexos, o usuário abre o formulário
+        // completo do processo (aba "Análise Judit") e marca lá.
+        com_anexos: false,
         force_refresh: false,
+        origem: "processo-form-dialog",
       };
       if (tribunalHint) requestPayload.tribunal = tribunalHint;
 
