@@ -1239,13 +1239,6 @@ const AnaliseDjen = () => {
         .update({ lida: true })
         .eq('id', pub.id);
 
-      // Invalidar queries
-      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
-      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] });
-      queryClient.invalidateQueries({ queryKey: ['processos'] });
-      queryClient.invalidateQueries({ queryKey: ['pastas'] });
-
       toast.success("Processo e pasta criados com sucesso!", {
         action: {
           label: "Ver processo",
