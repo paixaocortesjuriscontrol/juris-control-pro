@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import {
   useProcessoTagsCatalogo,
   useCriarTag,
+  fetchDadoIdsByTag,
   TAG_COLOR_PALETTE,
 } from "@/hooks/useProcessoTags";
 import { ColorPalettePicker } from "@/components/distribuicao-tst/ColorPalettePicker";
@@ -240,11 +241,16 @@ export default function AdminTstBasePcaDistribuicoes() {
       const uid = userData.user?.id;
       if (replaceExisting) {
         setProgressLabel("Limpando vínculos anteriores da TAG...");
-        const { error: deleteError } = await supabase
-          .from("dados_benner_processo_tags" as any)
-          .delete()
-          .eq("tag_id", tagId);
-        if (deleteError) throw deleteError;
+        const currentIds = await fetchDadoIdsByTag(tagId);
+        for (let i = 0; i < currentIds.length; i += APPLY_CHUNK) {
+          const slice = currentIds.slice(i, i + APPLY_CHUNK);
+          const { error: deleteError } = await supabase
+            .from("dados_benner_processo_tags" as any)
+            .delete()
+            .eq("tag_id", tagId)
+            .in("dado_benner_id", slice);
+          if (deleteError) throw deleteError;
+        }
       }
       const total = Math.ceil(foundIds.length / APPLY_CHUNK);
       for (let i = 0; i < foundIds.length; i += APPLY_CHUNK) {
