@@ -1117,33 +1117,11 @@ const AnaliseDjen = () => {
     setSavingProcessoId(pub.id);
 
     try {
-      // 1. Vincular a publicação ao processo (adicionar como movimentação)
-      const { error: movError } = await supabase
-        .from('movimentacoes')
-        .insert({
-          processo_id: processoId,
-          descricao: `Publicação DJEN: ${stripHtmlAndDecodeEntities(pub.conteudo).substring(0, 1000) || 'Importado do DJEN'}`,
-          tipo: 'publicacao',
-          fonte: 'DJEN',
-          data_movimentacao: pub.data_publicacao || new Date().toISOString(),
-        });
+      // Vincula a publicação completa à aba "Pub. DJEN" do processo (sem duplicar
+      // como movimentação e sem marcar como lida — a lista permanece intacta).
+      await salvarPublicacaoNoProcesso(pub, processoId);
 
-      if (movError) throw movError;
-
-      // 2. Marcar a publicação como lida (tabela correta)
-      const { error: lidaError } = await supabase
-        .from(pub.tipo_origem === 'termo' ? 'publicacoes_djen' : 'publicacoes_djen_processos')
-        .update({ lida: true })
-        .eq('id', pub.id);
-
-      if (lidaError) throw lidaError;
-
-      // Invalidar queries
-      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
-      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] });
-
-      toast.success("Publicação vinculada ao processo!", {
+      toast.success("Publicação salva no processo!", {
         action: {
           label: "Ver processo",
           onClick: () => navigate(`/processos/${processoId}`),
