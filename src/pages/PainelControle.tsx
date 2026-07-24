@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,7 +61,8 @@ import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { toZonedTime } from "date-fns-tz";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
 import TstPrazos from "@/pages/TstPrazos";
 import { KanbanItensAgenda } from "@/components/painel/KanbanItensAgenda";
@@ -119,6 +120,8 @@ export default function PainelControle() {
   const { isAdmin, isAdminOrCoordinator } = useUserRole();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const handledSelectedIdRef = useRef(false);
   const [tabMode, setTabMode] = useState<TabMode>("pessoal");
   const [viewMode, setViewMode] = useState<ViewMode>("agenda");
   const [mesAtual, setMesAtual] = useState(new Date());
@@ -133,6 +136,56 @@ export default function PainelControle() {
   const [prazoEditando, setPrazoEditando] = useState<any | null>(null);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
   const [somenteHoje, setSomenteHoje] = useState(false);
+
+  // Abrir item vindo da busca global (?selectedId=...&origem=tarefa|evento)
+  useEffect(() => {
+    if (handledSelectedIdRef.current) return;
+    const selId = searchParams.get("selectedId");
+    const origem = searchParams.get("origem") as "tarefa" | "evento" | null;
+    if (!selId || !origem) return;
+    handledSelectedIdRef.current = true;
+    (async () => {
+      const table = origem === "evento" ? "eventos_agenda" : "tarefas";
+      const { data, error } = await supabase.from(table).select("*").eq("id", selId).maybeSingle();
+      if (error || !data) {
+        toast.error("Item não encontrado ou sem permissão");
+        setSearchParams({}, { replace: true });
+        return;
+      }
+      const row: any = data;
+      const tipoTarefa = String(row.tipo_tarefa || "").toLowerCase();
+      const tipo =
+        origem === "evento"
+          ? (row.tipo || "evento")
+          : tipoTarefa.includes("prazo")
+            ? "prazo"
+            : tipoTarefa.includes("audi")
+              ? "audiencia"
+              : "tarefa";
+      const item: ItemAgendaUnificado = {
+        ...row,
+        id: row.id,
+        origem,
+        tipo,
+        titulo: row.titulo ?? "",
+        descricao: row.descricao ?? null,
+        data_inicio: row.data_inicio || row.data_vencimento || row.data_fatal || row.created_at,
+        data_fim: row.data_fim ?? null,
+        dia_inteiro: row.dia_inteiro ?? false,
+        local: row.local ?? null,
+        recorrente: row.recorrente ?? false,
+        recorrencia_tipo: row.recorrencia_tipo ?? null,
+        status: row.status ?? "pendente",
+        concluido_em: row.concluido_em ?? null,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        processo_id: row.processo_id ?? null,
+        coordenacao_id: row.coordenacao_id ?? null,
+      };
+      setSelectedItem(item);
+      setSearchParams({}, { replace: true });
+    })();
+  }, [searchParams, setSearchParams]);
   const [situacaoFilter, setSituacaoFilter] = useState<string>("todos");
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);

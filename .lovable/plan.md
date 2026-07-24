@@ -1,40 +1,36 @@
-# Publicação 0001439-68.2026.5.18.0241 — parte "UNIAO QUIMICA" TRT18
+## Problema
 
-## Diagnóstico (confirmado no banco)
+Ao clicar em um resultado da busca global no Painel de Controle (tarefa, prazo, evento, audiência criada via "+ Adicionar"), o `BuscaGlobalPainel` navega para `/minha-agenda?selectedId=...`. Isso tira o usuário do Painel de Controle, esconde a barra superior (Pessoal/Escritório/Em Agenda/Kanban/Prazos/Audiências/…) e ainda cai em uma agenda cujos filtros padrão excluem o item, mostrando "Nenhuma atividade encontrada".
 
-- Monitoramento da coord. Dra. Beatriz Costa: `9b41a6c8-25ce-4a00-aec8-0526d73db309`, `tipo=parte`, `termo_busca=UNIAO QUIMICA`, `tribunais` contém TRT1..TRT24, `ativo=true`, `arquivado=false`, `condicao_concomitante=null`, `exclusoes=[]`.
-- A publicação foi disponibilizada no TRT18 em 22/07 e capturada 3× via **Kurier** (em outras coordenações que usam `__CAPTURA_TOTAL_KURIER__`) — a coord. da Dra. Beatriz não tem Kurier ativo.
-- No motor DJEN Paralela Servidor (fonte esperada para essa busca por parte), verifiquei `publicacoes_djen_servidor` do monitoramento `9b41a6c8…` entre 20-23/07: só apareceram publicações de **TRT2, TRT3, TRT4 e TRT10**. **TRT18 nunca foi consultado** para esse monitoramento, apesar de estar na lista `tribunais`.
-- No mesmo período, o motor processou TRT18 normalmente para outros 11 monitoramentos, então TRT18 não está desabilitado globalmente.
-- Não há registro em `execucoes_servidor_falhas` para esse monitoramento.
-- `partes_json`/`advogados_json` das cópias capturadas por Kurier estão vazios (Kurier não parseia metadados estruturados), o que é esperado e não impede validação da paralela (que usa os metadados vindos direto da API DJEN).
+## Solução
 
-Conclusão: o problema não é validação/exclusão nem termo — é o motor paralela **parando de iterar os tribunais** desse monitoramento antes de chegar em TRT18 (a lista com 24 TRTs é longa e a iteração aparentemente é abortada por limite de tempo/página/lote por rodada, sem registrar falha).
+Manter o usuário no Painel de Controle quando o item vier do botão "+ Adicionar" e abrir direto o painel de detalhes lá, sem mexer nos filtros da tela.
 
-## Plano
+### Passos
 
-1. **Auditoria do loop de tribunais em `monitor-servidor/engines/paralela.js`**
-   - Confirmar como o motor distribui/itera `mon.tribunais` por rodada: se há corte por tempo total, por número de páginas por rodada ou por `MAX_TRIBUNAIS_POR_MON` implícito.
-   - Verificar ordem de iteração (fixa? aleatória?) — a evidência mostra que só os 4 primeiros TRTs foram processados, sugerindo ordem sequencial + corte precoce.
-   - Verificar se há checkpoint para continuar de onde parou na próxima rodada (não há: a rodada seguinte também só cobriu TRT2/3/4/10).
+1. **`src/components/painel/BuscaGlobalPainel.tsx`**
+   - Trocar as rotas dos resultados que representam itens do "+ Adicionar":
+     - `tarefa`, `prazo`, `evento`, `parcelamento` → `/painel-controle?selectedId=<id>&tipo=<tipo>`
+     - `audiencia` (tarefa do tipo audiência): idem `/painel-controle?...`
+   - Manter demais tipos (`processo`, `cliente`, `publicacao`) inalterados.
+   - `audiencias_detectadas` continua indo para `/painel-audiencias` (é outro fluxo).
 
-2. **Correção do motor paralela**
-   - Registrar em `execucoes_servidor_falhas` (ou log estruturado da execução) todo tribunal do monitoramento que foi **pulado** por corte de tempo/páginas, com motivo, para diagnóstico futuro.
-   - Persistir checkpoint por monitoramento (último tribunal processado) e continuar do próximo TRT na rodada seguinte, evitando que sempre os últimos TRTs da lista fiquem de fora.
-   - Alternativa: embaralhar a ordem de tribunais por rodada, garantindo cobertura estatística.
-   - Não alterar regra de validação por parte (já correta: `nomeParte` + validação em `partes_json`/seção Partes).
+2. **`src/pages/PainelControle.tsx`**
+   - Adicionar `useSearchParams`. Em um `useEffect` de mount (guardado por `useRef` para rodar uma única vez):
+     - Ler `selectedId` e `tipo`.
+     - Buscar o item pelo id na fonte correspondente (`tarefas` para tarefa/prazo/audiência; `eventos_agenda` para evento/parcelamento).
+     - Montar o objeto no shape de `ItemAgendaUnificado` (mesmo shape já usado por `setSelectedItem`) e chamar `setSelectedItem(item)`.
+     - Limpar os `searchParams` com `{ replace: true }`.
+   - **Não alterar** `viewMode`, filtros Pessoal/Escritório, período, tipo, coordenação nem o `+ Adicionar`. A barra superior permanece igual.
+   - Se o item não for encontrado, mostrar toast "Item não encontrado ou sem permissão" e não abrir nada.
 
-3. **Resgate manual da publicação da Dra. Beatriz**
-   - Reprocessar a publicação existente (`60a544ff-b1f9-4a49-9ff6-eae0d599e127` / `a0b9b8da…` / `461fbb5c…`) contra o monitoramento `9b41a6c8…` para inserir uma cópia em `publicacoes_djen` com `coordenacao_id=d997ca10…` e `monitoramento_id=9b41a6c8…`, respeitando dedup e o padrão de "cross-coordination rescue" já existente. Isso torna a publicação visível na Análise DJEN da coord. da Dra. Beatriz sem esperar a próxima rodada.
-
-4. **Verificação**
-   - Rodar a paralela manualmente para o monitoramento `9b41a6c8…` restrito a TRT18 no dia 22/07 e confirmar que a publicação é encontrada e gravada normalmente.
-   - Checar que a nova telemetria de "tribunal pulado" aparece nos logs quando o corte ocorrer.
+3. **Verificação**
+   - Buscar por processo com audiência no campo do topo → clicar no resultado → confirmar:
+     - URL continua em `/painel-controle` (sem `selectedId` após consumo).
+     - Barra superior (Pessoal/Escritório/Em Agenda/…/+ Adicionar) segue visível.
+     - Painel lateral de detalhes do item abre com os dados corretos.
 
 ## Detalhes técnicos
 
-- Arquivo principal: `monitor-servidor/engines/paralela.js` (iteração `for tribunal of mon.tribunais`, chamada `buscarPagina({ ...baseParams, nomeParte })`).
-- Tabelas: `publicacoes_djen`, `publicacoes_djen_servidor`, `execucoes_servidor`, `execucoes_servidor_falhas`, `monitoramentos_djen`.
-- Migração: adicionar coluna `checkpoint_tribunal` em `monitoramentos_djen` (ou tabela auxiliar `djen_paralela_checkpoints`) se optarmos pela abordagem de checkpoint.
-- Regras de validação de parte permanecem intactas (memória `djen-paralela-parte-sem-palavra-chave`, `djen-content-validation-logic`).
-- Nenhum secret novo necessário.
+- Para não duplicar a lógica de mapear "linha do banco → ItemAgendaUnificado", reaproveitar o `mapper` já existente em `useAgendaUnificada` (ou o mesmo shape mínimo que outros pontos de `setSelectedItem` já usam). Se não houver um mapper exportável, criar um `mapRowToItemAgenda(row, tipo)` local em `PainelControle.tsx` com apenas os campos que `TarefaDetalhesPanel`/`EventoDetalhesPanel` consomem (id, tipo, título, status, data_vencimento/data_fatal/data_inicio, responsável, coordenacao_id, processo_id, etc.).
+- Nenhum ajuste em RLS, hooks globais ou `MinhaAgenda` — o fluxo antigo continua funcionando para quem chegar em `/minha-agenda?selectedId=...` diretamente.
