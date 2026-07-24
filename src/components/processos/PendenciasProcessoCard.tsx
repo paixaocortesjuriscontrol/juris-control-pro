@@ -395,13 +395,13 @@ export function PendenciasProcessoCard({
         )}
 
         {/* Eventos Pendentes */}
-        {eventosPendentes.length > 0 && (
+        {eventosSemParcelamento.length > 0 && (
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               <CalendarClock className="w-3.5 h-3.5" />
-              Eventos ({eventosPendentes.length})
+              Eventos ({eventosSemParcelamento.length})
             </div>
-            {eventosPendentes.slice(0, 5).map((ev: any) => {
+            {eventosSemParcelamento.slice(0, 5).map((ev: any) => {
               const days = getDaysLabel(ev.data_inicio);
               return (
                 <div
@@ -439,6 +439,53 @@ export function PendenciasProcessoCard({
                     <div className="flex items-center gap-1 text-muted-foreground">
                       <MapPin className="w-3 h-3 shrink-0" />
                       <span className="truncate">{ev.local}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Parcelamentos Pendentes */}
+        {parcelamentosPendentes.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <CalendarClock className="w-3.5 h-3.5" />
+              Parcelamentos ({parcelamentosPendentes.length})
+            </div>
+            {parcelamentosPendentes.slice(0, 5).map((ev: any) => {
+              const days = getDaysLabel(ev.data_inicio);
+              return (
+                <div
+                  key={ev.id}
+                  className={cn("text-xs p-2.5 bg-muted/40 rounded-lg border border-border/40 border-l-[3px] border-l-green-500 space-y-1", clickableCardClass())}
+                  onClick={() => navigateCard("parcelamento")}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-foreground truncate">{ev.titulo}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {days && (
+                        <Badge className={cn(
+                          "text-[10px] h-5 px-1.5 font-semibold",
+                          days.urgent
+                            ? "bg-destructive/15 text-destructive border border-destructive/30"
+                            : "bg-muted text-muted-foreground border border-border"
+                        )}>
+                          {days.label}
+                        </Badge>
+                      )}
+                      <StatusActions
+                        id={ev.id}
+                        onConcluir={() => updateStatus("eventos_agenda", ev.id, "concluido")}
+                        onCancelar={() => updateStatus("eventos_agenda", ev.id, "cancelado")}
+                      />
+                    </div>
+                  </div>
+                  {ev.data_inicio && (
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <CalendarDays className="w-3 h-3" />
+                      {formatDate(ev.data_inicio)}
                     </div>
                   )}
                 </div>
