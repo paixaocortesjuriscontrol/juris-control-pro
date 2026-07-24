@@ -473,8 +473,6 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           status: "sucesso",
           error_message: null,
           created_by: uid,
-        origem: typeof window !== 'undefined' ? window.location.pathname : null,
-        tipo_cobranca: ((p: any) => { if(!p) return 'datalake'; if(p.com_anexos===true||p.with_attachments===true) return 'com_anexos'; if(p.on_demand===true||p.force_refresh===true) return 'on_demand'; return 'datalake'; })({ numero_processo: numeroLimpo),
       });
       } catch (_) { /* noop */ }
 
@@ -585,8 +583,6 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           status: "sucesso",
           error_message: null,
           created_by: uid,
-        origem: typeof window !== 'undefined' ? window.location.pathname : null,
-        tipo_cobranca: ((p: any) => { if(!p) return 'datalake'; if(p.com_anexos===true||p.with_attachments===true) return 'com_anexos'; if(p.on_demand===true||p.force_refresh===true) return 'on_demand'; return 'datalake'; })({ numero_processo: numeroLimpo),
       });
       } catch (_) { /* noop */ }
 
@@ -734,8 +730,6 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               status: "sucesso",
               error_message: null,
               created_by: userData?.user?.id || null,
-            origem: typeof window !== 'undefined' ? window.location.pathname : null,
-            tipo_cobranca: ((p: any) => { if(!p) return 'datalake'; if(p.com_anexos===true||p.with_attachments===true) return 'com_anexos'; if(p.on_demand===true||p.force_refresh===true) return 'on_demand'; return 'datalake'; })({ numero_processo: numeroLimpo),
           });
             await queryClient.invalidateQueries({ queryKey: ["judit_logs", numeroLimpo] });
           } catch (_) { /* noop */ }
@@ -768,8 +762,6 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
             status: "sucesso",
             error_message: null,
             created_by: uid,
-          origem: typeof window !== 'undefined' ? window.location.pathname : null,
-          tipo_cobranca: ((p: any) => { if(!p) return 'datalake'; if(p.com_anexos===true||p.with_attachments===true) return 'com_anexos'; if(p.on_demand===true||p.force_refresh===true) return 'on_demand'; return 'datalake'; })({ numero_processo: numeroLimpo),
         });
         } catch (_) { /* noop */ }
       }
