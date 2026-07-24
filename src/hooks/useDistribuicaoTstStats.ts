@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { DistribuicaoTstFilters } from "./useDistribuicoesTst";
+import { DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "./useDistribuicoesTst";
 
 export interface DistribuicaoTstStats {
   total: number;
@@ -56,6 +56,96 @@ const ZERO: DistribuicaoTstStats = {
   naoPrecisaFazer: 0,
 };
 
+const CNJ_RE = /^[0-9]{7}-[0-9]{2}\.[0-9]{4}\.[0-9]\.[0-9]{2}\.[0-9]{4}$/;
+const DOSSIE_RE = /^[0-9]{2}\.[0-9]{2}\.[0-9]{3}\.[0-9]{7,}\/[0-9]{2}$/;
+const LARGE_IDS_THRESHOLD = 1000;
+
+async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Promise<DistribuicaoTstStats> {
+  const ids = await fetchAllDistribuicaoTstIds(filters);
+  if (ids.length === 0) return ZERO;
+
+  const cols = [
+    "id",
+    "processo",
+    "dossie",
+    "judit_preenchido",
+    "benner_atualizado",
+    "situacao_processo",
+    "transito_julgado",
+    "processo_outro_escritorio",
+    "segredo_justica",
+    "turma",
+    "problema_judit",
+    "data_distribuicao_real",
+    "status",
+    "equipe",
+    "tem_responsavel",
+  ].join(", ");
+
+  const rows: any[] = [];
+  const CHUNK = 500;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const slice = ids.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from("dados_benner" as any)
+      .select(cols)
+      .in("id", slice);
+    if (error) throw error;
+    rows.push(...((data as any[]) || []));
+  }
+
+  const processosUnicos = new Set<string>();
+  const stats: DistribuicaoTstStats = { ...ZERO, total: rows.length };
+
+  for (const row of rows) {
+    const processo = String(row.processo || "").trim();
+    const dossie = String(row.dossie || "").trim();
+    const situacao = String(row.situacao_processo || "").trim().toLowerCase();
+    const dataReal = String(row.data_distribuicao_real || "");
+    const equipe = String(row.equipe || "").trim();
+
+    if (processo) processosUnicos.add(processo.toLowerCase());
+    if (CNJ_RE.test(processo)) stats.processosValidos += 1;
+    else stats.processosInvalidos += 1;
+    if (DOSSIE_RE.test(dossie)) stats.dossiesValidos += 1;
+    else if (dossie) stats.dossiesInvalidos += 1;
+    else stats.dossiesNaoPreenchidos += 1;
+    if (row.judit_preenchido === true) stats.juditPreenchido += 1;
+    else stats.juditNaoPreenchido += 1;
+    if (row.benner_atualizado === true) stats.bennerSim += 1;
+    else stats.bennerNao += 1;
+    if (row.transito_julgado !== true && situacao === "ativo") stats.processosAtivos += 1;
+    if (row.transito_julgado === true) stats.transitoJulgado += 1;
+    if (row.transito_julgado !== true && situacao !== "ativo") stats.outrosSituacao += 1;
+    if (!String(row.turma || "").trim()) stats.semTurma += 1;
+    if (row.problema_judit === true) stats.problemaJudit += 1;
+    if (dataReal && dataReal <= "2025-12-31") stats.ate2025 += 1;
+    if (dataReal && dataReal >= "2026-01-01") stats.de2026 += 1;
+    if (String(row.status || "") === "pronto_envio") stats.prontoEnvio += 1;
+    if (row.tem_responsavel !== true) stats.semResponsavel += 1;
+    if (equipe) stats.comEquipe += 1;
+    else stats.semEquipe += 1;
+    if (
+      row.transito_julgado !== true &&
+      row.processo_outro_escritorio !== true &&
+      row.segredo_justica !== true &&
+      String(row.status || "") !== "pronto_envio"
+    ) {
+      stats.aFazer += 1;
+    }
+    if (
+      row.transito_julgado === true ||
+      row.processo_outro_escritorio === true ||
+      row.segredo_justica === true
+    ) {
+      stats.naoPrecisaFazer += 1;
+    }
+  }
+
+  stats.processosUnicos = processosUnicos.size;
+  return stats;
+}
+
 export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
   const [stats, setStats] = useState<DistribuicaoTstStats>(ZERO);
   const [loading, setLoading] = useState(false);
@@ -70,6 +160,12 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
+      if ((filters.idsAllowed?.length || 0) > LARGE_IDS_THRESHOLD) {
+        setStats(await computeStatsForLargeIdFilter(filters));
+        setLoadedOnce(true);
+        return;
+      }
+
       const { data, error } = await supabase.rpc(
         "get_distribuicao_tst_stats" as any,
         { filters: filters as any }
