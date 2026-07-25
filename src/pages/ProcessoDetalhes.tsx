@@ -455,7 +455,7 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && !isNovo && activeTab === "agenda",
+    enabled: !!id && !isNovo,
   });
 
   // Coordenações query
