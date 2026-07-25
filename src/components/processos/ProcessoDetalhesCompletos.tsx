@@ -798,7 +798,7 @@ export function ProcessoDetalhesCompletos({
   // Mantém todas as seções existentes, apenas organizadas por categoria.
   const navGroups: Array<{
     label: string;
-    items: Array<{ id: string; label: string; icon: any; count?: number }>;
+    items: Array<{ id: string; label: string; icon: any; count?: number; iconColor?: string }>;
   }> = [
     {
       label: "Visão geral",
@@ -809,11 +809,11 @@ export function ProcessoDetalhesCompletos({
     {
       label: "Prazos & Eventos",
       items: [
-        { id: "tarefas", label: "Tarefa", icon: ClipboardList, count: tarefasSemPrazo.length },
-        { id: "agenda", label: "Evento", icon: CalendarPlus, count: eventosDoProcesso.length },
-        { id: "prazo", label: "Prazo", icon: Clock, count: prazosDoProcesso.length },
-        { id: "audiencias", label: "Audiência", icon: Gavel, count: audiencias.length },
-        { id: "parcelamento", label: "Parcelamento recorrente", icon: Coins, count: parcelamentosDoProcesso.length },
+        { id: "tarefas", label: "Tarefa", icon: ClipboardList, count: tarefasSemPrazo.length, iconColor: "text-blue-500" },
+        { id: "agenda", label: "Evento", icon: CalendarPlus, count: eventosDoProcesso.length, iconColor: "text-violet-500" },
+        { id: "prazo", label: "Prazo", icon: Clock, count: prazosDoProcesso.length, iconColor: "text-red-500" },
+        { id: "audiencias", label: "Audiência", icon: Gavel, count: audiencias.length, iconColor: "text-yellow-500" },
+        { id: "parcelamento", label: "Parcelamento recorrente", icon: Coins, count: parcelamentosDoProcesso.length, iconColor: "text-emerald-500" },
       ],
     },
     {
