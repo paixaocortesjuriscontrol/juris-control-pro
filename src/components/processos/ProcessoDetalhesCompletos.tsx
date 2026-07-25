@@ -257,7 +257,7 @@ export function ProcessoDetalhesCompletos({
   const audienciaSelecionadaAtual = audienciaSelecionada
     ? audiencias.find((aud: any) => aud.id === audienciaSelecionada.id) ?? audienciaSelecionada
     : null;
-  const tarefasSemPrazo = tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa) && !isPrazoTarefa(t.tipo_tarefa));
+  const tarefasSemPrazo = tarefas.filter((t: any) => !isPrazoTarefa(t.tipo_tarefa));
   const prazosDoProcesso = tarefas.filter((t: any) => isPrazoTarefa(t.tipo_tarefa));
 
   // Inline editable resumo
@@ -798,7 +798,7 @@ export function ProcessoDetalhesCompletos({
   // Mantém todas as seções existentes, apenas organizadas por categoria.
   const navGroups: Array<{
     label: string;
-    items: Array<{ id: string; label: string; icon: any; count?: number }>;
+    items: Array<{ id: string; label: string; icon: any; count?: number; iconColor?: string }>;
   }> = [
     {
       label: "Visão geral",
@@ -809,11 +809,11 @@ export function ProcessoDetalhesCompletos({
     {
       label: "Prazos & Eventos",
       items: [
-        { id: "tarefas", label: "Tarefa", icon: ClipboardList, count: tarefasSemPrazo.length },
-        { id: "agenda", label: "Evento", icon: CalendarPlus, count: eventosDoProcesso.length },
-        { id: "prazo", label: "Prazo", icon: Clock, count: prazosDoProcesso.length },
-        { id: "audiencias", label: "Audiência", icon: Gavel, count: audiencias.length },
-        { id: "parcelamento", label: "Parcelamento recorrente", icon: Coins, count: parcelamentosDoProcesso.length },
+        { id: "tarefas", label: "Tarefa", icon: ClipboardList, count: tarefasSemPrazo.length, iconColor: "text-blue-500" },
+        { id: "agenda", label: "Evento", icon: CalendarPlus, count: eventosDoProcesso.length, iconColor: "text-violet-500" },
+        { id: "prazo", label: "Prazo", icon: Clock, count: prazosDoProcesso.length, iconColor: "text-red-500" },
+        { id: "audiencias", label: "Audiência", icon: Gavel, count: audiencias.length, iconColor: "text-yellow-500" },
+        { id: "parcelamento", label: "Parcelamento recorrente", icon: Coins, count: parcelamentosDoProcesso.length, iconColor: "text-emerald-500" },
       ],
     },
     {
@@ -918,7 +918,7 @@ export function ProcessoDetalhesCompletos({
                           : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
                       )}
                     >
-                      <item.icon className="w-3 h-3 flex-shrink-0" />
+                      <item.icon className={cn("w-3 h-3 flex-shrink-0", !destacarJudit && activeSection !== item.id && item.iconColor)} />
                       <span>{item.label}</span>
                       {item.count !== undefined && item.count > 0 && (
                         <Badge variant="secondary" className="ml-1 text-[8px] h-3.5 px-1 min-w-[14px] flex items-center justify-center bg-background/80">
@@ -964,7 +964,7 @@ export function ProcessoDetalhesCompletos({
                           : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                       )}
                     >
-                      <item.icon className="w-3.5 h-3.5 flex-shrink-0" />
+                      <item.icon className={cn("w-3.5 h-3.5 flex-shrink-0", !destacarJudit && activeSection !== item.id && item.iconColor)} />
                       <span className="truncate">{item.label}</span>
                       {item.count !== undefined && item.count > 0 && (
                         <Badge variant="secondary" className="ml-auto text-[9px] h-4 px-1 min-w-[16px] flex items-center justify-center">
