@@ -257,7 +257,7 @@ export function ProcessoDetalhesCompletos({
   const audienciaSelecionadaAtual = audienciaSelecionada
     ? audiencias.find((aud: any) => aud.id === audienciaSelecionada.id) ?? audienciaSelecionada
     : null;
-  const tarefasSemPrazo = tarefas.filter((t: any) => !isTarefaAudiencia(t.tipo_tarefa) && !isPrazoTarefa(t.tipo_tarefa));
+  const tarefasSemPrazo = tarefas.filter((t: any) => !isPrazoTarefa(t.tipo_tarefa));
   const prazosDoProcesso = tarefas.filter((t: any) => isPrazoTarefa(t.tipo_tarefa));
 
   // Inline editable resumo
