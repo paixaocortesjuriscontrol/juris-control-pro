@@ -650,6 +650,9 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           .abortSignal(signal);
 
         if (pageError) {
+          if ((pageError as any)?.code === '57014' || /statement timeout|canceling statement/i.test(pageError.message || '')) {
+            throw new Error('A busca demorou demais e foi interrompida. Reduza o período de datas ou use um filtro mais específico.');
+          }
           throw new Error(`RPC get error: ${pageError.message || JSON.stringify(pageError)}`);
         }
 
