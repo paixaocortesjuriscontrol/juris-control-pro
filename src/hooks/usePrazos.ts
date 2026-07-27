@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { registrarAuditoriaTarefa, tipoItemDeTarefa } from "@/hooks/useAuditoriaTarefas";
 
 // Main type - using Tarefa as main name, Prazo as alias
 export type Tarefa = {
