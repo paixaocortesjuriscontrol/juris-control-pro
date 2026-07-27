@@ -643,6 +643,7 @@ const Administracao = () => {
                       <SelectContent>
                         <SelectItem value="admin">Administrador</SelectItem>
                         <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
+                        <SelectItem value="assistente_coordenador">Assistente Coordenador</SelectItem>
                         <SelectItem value="advogado">Advogado</SelectItem>
                         <SelectItem value="advogado_temporario">Advogado DJEN Conferência</SelectItem>
                         <SelectItem value="estagiario">Estagiário</SelectItem>
@@ -1035,6 +1036,7 @@ const Administracao = () => {
                     <SelectContent>
                       <SelectItem value="admin">Administrador</SelectItem>
                       <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
+                      <SelectItem value="assistente_coordenador">Assistente Coordenador</SelectItem>
                       <SelectItem value="advogado">Advogado</SelectItem>
                       <SelectItem value="advogado_temporario">Advogado DJEN Conferência</SelectItem>
                       <SelectItem value="estagiario">Estagiário</SelectItem>
