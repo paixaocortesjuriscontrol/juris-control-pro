@@ -53,11 +53,12 @@ const OPCOES_RECURSO_NORM = [
   "Incidente de assunção de competência",
   "Incidente de recurso repetitivo",
   "Incidente de resolução de demanda repetitiva",
-  "Incidente de superação e revisão de precedentes",
+  "Incidente de superação e revisão dos precedentes",
   "Mandado de Segurança",
   "Medida Cautelar",
   "Reclamação",
   "Recurso de Revista",
+  "Recurso de Revista com Agravo (ARR)",
   "Recurso Especial",
   "Recurso Extraordinário",
   "Recurso Ordinário",
@@ -1860,27 +1861,22 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <Label className="flex items-center">Decisão - Análise do Quarteirizado (G)<ReqMark /> <IaBadge field="decisao_quarteirizado" value={form.decisao_quarteirizado} /></Label>
             {(() => {
               const OPCOES_QUARTEIRIZADO = [
-                "Acordo",
-                "Arquivado",
                 "Desistir - Falha Processual",
                 "Desistir - Fatos e Provas",
                 "Desistir - Jurisprudência consolidada",
                 "Desistir - Mídia Negativa",
-                "Desistir - Súmula 266 C.TST",
+                "Desistir Súmula 266 C. TST",
                 "Prosseguir",
-                "Prosseguir - Recurso do Reclamante",
-                "Prosseguir - Recurso de Terceiro",
-                "Sobrestamento",
               ];
               const valor = form.decisao_quarteirizado || "";
               const isPredef = OPCOES_QUARTEIRIZADO.includes(valor);
+              const foraDaLista = !isPredef && !!valor.trim();
               return (
                 <div className="space-y-2">
                   <Select
-                    value={isPredef ? valor : (valor ? "__custom__" : "__none__")}
+                    value={isPredef ? valor : (foraDaLista ? valor : "__none__")}
                     onValueChange={(v) => {
                       if (v === "__none__") set("decisao_quarteirizado", null);
-                      else if (v === "__custom__") set("decisao_quarteirizado", valor && !isPredef ? valor : " ");
                       else set("decisao_quarteirizado", v);
                     }}
                   >
@@ -1890,15 +1886,17 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                       {OPCOES_QUARTEIRIZADO.map((opt) => (
                         <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                       ))}
-                      <SelectItem value="__custom__">Outro…</SelectItem>
+                      {foraDaLista && (
+                        <SelectItem value={valor} className="text-destructive">
+                          {valor} (NÃO PODE ENVIAR BENNER)
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
-                  {!isPredef && valor && (
-                    <Input
-                      value={valor}
-                      onChange={e => set("decisao_quarteirizado", e.target.value)}
-                      placeholder="Descreva a decisão"
-                    />
+                  {foraDaLista && (
+                    <p className="text-xs text-destructive">
+                      Valor fora da lista permitida — NÃO PODE ENVIAR BENNER.
+                    </p>
                   )}
                 </div>
               );

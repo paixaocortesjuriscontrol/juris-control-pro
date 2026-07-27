@@ -20,11 +20,12 @@ const OPCOES_RECURSO = [
   "Incidente de assunção de competência",
   "Incidente de recurso repetitivo",
   "Incidente de resolução de demanda repetitiva",
-  "Incidente de superação e revisão de precedentes",
+  "Incidente de superação e revisão dos precedentes",
   "Mandado de Segurança",
   "Medida Cautelar",
   "Reclamação",
   "Recurso de Revista",
+  "Recurso de Revista com Agravo (ARR)",
   "Recurso Especial",
   "Recurso Extraordinário",
   "Recurso Ordinário",
@@ -84,13 +85,9 @@ export function MultiTipoRecurso({ value, onChange }: Props) {
           <div key={idx} className="space-y-2 rounded-md border border-border/60 p-2">
             <div className="flex items-center gap-2">
               <Select
-              value={isPredef ? t : (t ? "__custom__" : "")}
+              value={isPredef ? t : (t.trim() ? t : "")}
               onValueChange={(v) => {
-                if (v === "__custom__") {
-                  setAt(idx, t && !isPredef ? t : " ");
-                } else {
-                  setAt(idx, v);
-                }
+                setAt(idx, v);
               }}
             >
               <SelectTrigger className="flex-1 min-w-0">
@@ -100,7 +97,11 @@ export function MultiTipoRecurso({ value, onChange }: Props) {
                 {OPCOES_RECURSO.map((opt) => (
                   <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                 ))}
-                <SelectItem value="__custom__">Outro…</SelectItem>
+                {!isPredef && t.trim() && (
+                  <SelectItem value={t} className="text-destructive">
+                    {t} (NÃO PODE ENVIAR BENNER)
+                  </SelectItem>
+                )}
               </SelectContent>
               </Select>
               {tipos.length > 1 ? (
