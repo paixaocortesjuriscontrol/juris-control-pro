@@ -536,6 +536,15 @@ const Coordenacoes = () => {
                                 <ClipboardList className="w-4 h-4 mr-2" />
                                 Delegar tarefa
                               </DropdownMenuItem>
+                              {isAdminOrCoordinator && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => setNivelAcessoMembro(member)}>
+                                    <ShieldCheck className="w-4 h-4 mr-2" />
+                                    Nível de Acesso
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem 
                                 className="text-destructive"
