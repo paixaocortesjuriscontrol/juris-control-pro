@@ -52,7 +52,7 @@ serve(async (req) => {
       .select("role")
       .eq("user_id", user.id);
 
-    const isAdminOrCoord = roles?.some(r => r.role === "admin" || r.role === "coordenador");
+    const isAdminOrCoord = roles?.some(r => r.role === "admin" || r.role === "coordenador" || r.role === "assistente_coordenador");
     if (!isAdminOrCoord) {
       throw new Error("Apenas administradores podem enviar convites");
     }
