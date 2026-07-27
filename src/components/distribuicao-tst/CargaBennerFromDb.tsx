@@ -439,7 +439,20 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         let motivo = getMotivoRejeicaoDossie(dossie, numProcesso);
         if (!motivo && !turmaRaw) motivo = "Turma não preenchida";
         let isRejected = false;
-        if (motivo) {
+        // Bloqueios impeditivos (situação do processo / pendências) rejeitam
+        // sempre, inclusive em seleção manual.
+        const motivoBloqueio = getMotivoBloqueioCarga(d);
+        if (motivoBloqueio) {
+          rejected.push({
+            "Dossiê": dossie,
+            "Número do Processo": numProcesso,
+            "Data Distribuição": formatDateDDMMYYYY(d.data_distribuicao),
+            "Turma": d.turma || "",
+            "Relator": d.relator || "",
+            "Motivo": motivoBloqueio,
+          });
+          isRejected = true;
+        } else if (motivo) {
           // Em modo "seleção manual" o usuário escolheu cada linha conscientemente:
           // não descartamos a linha; apenas registramos um aviso e seguimos preenchendo
           // todos os campos (Tribunal, Tipo de Recurso, Data, Turma, Relator, etc.).
