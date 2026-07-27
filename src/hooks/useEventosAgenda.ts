@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
+import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 
 export interface EventoAgenda {
   id: string;
