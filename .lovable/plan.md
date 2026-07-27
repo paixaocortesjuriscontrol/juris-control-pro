@@ -1,39 +1,33 @@
-## Objetivo
+## Diagnóstico (confirmado)
 
-Adicionar, no menu de 3 pontinhos de cada membro dentro de uma coordenação (tela Coordenações), a opção **"Nível de Acesso"**, onde é possível definir quais opções de menu aquele usuário pode ver/acessar. Por padrão, **todas as opções vêm marcadas**. Somente **administrador** e **coordenador** (incluindo assistente coordenador) podem abrir e alterar.
+O processo existe: há **14 publicações** em `publicacoes_djen` com `dedup_processo_digits = 56906950720258090051` (fontes TJGO, servidor e kurier, em 7 coordenações/datas diferentes) — exatamente o número mostrado nos cards.
 
-## Banco de dados
+A causa da lista vazia é **timeout da RPC de listagem**, não ausência de dados:
 
-Nova tabela `permissoes_menu_usuario`:
-- `user_id` (usuário alvo)
-- `menu_path` (ex: `/processos`, `/analise-djen`)
-- `permitido` (booleano)
-- registro único por usuário + item de menu
-- campos padrão de data de criação/atualização
+- `get_djen_publicacoes_unificadas` tem `SET statement_timeout = '20s'`.
+- Executei o predicado de busca dessa RPC no banco: **21,4 s** (Seq Scan em `publicacoes_djen`, 143.873 linhas, `ILIKE '%...%'` em `conteudo`, `advogados_json::text`, `partes_json::text` etc.).
+- `get_djen_stats_per_user` (cards) usa `statement_timeout = '25s'` e um predicado mais leve, então **conclui** e mostra 14.
 
-Regras de acesso:
-- O próprio usuário pode ler suas permissões (necessário para o menu funcionar).
-- Administradores e coordenadores/assistentes coordenadores podem ler e alterar as permissões dos membros.
-- Ausência de registro = **permitido** (padrão "tudo liberado"), então nada muda para os usuários atuais.
+Resultado: cards contam 14, a lista estoura o limite de 20 s e volta vazia.
 
-## Interface
+## O que fazer
 
-1. **Coordenações → membro → 3 pontinhos → "Nível de Acesso"** (novo item, acima de "Remover da equipe"), visível apenas para admin/coordenador.
-2. Novo diálogo `NivelAcessoDialog`:
-   - Cabeçalho com nome do membro.
-   - Chave "Marcar todos / Desmarcar todos".
-   - Lista de todas as opções do menu lateral (públicas + administrativas), agrupadas como na sidebar, cada uma com um checkbox — todas marcadas por padrão.
-   - Itens que o membro já não alcança pelo próprio perfil (ex.: telas exclusivas de admin) aparecem desabilitados e sinalizados, para evitar falsa impressão de liberação.
-   - Botões Cancelar / Salvar, com feedback de sucesso e recarregamento do cache.
+### 1. Caminho rápido para busca por número de processo (principal)
+Nas RPCs `get_djen_publicacoes_unificadas`, `count_djen_publicacoes_unificadas`, `get_djen_stats_per_user` e `get_djen_descartadas_dedup`:
 
-## Aplicação das permissões
+- Se o termo digitado tiver **≥ 11 dígitos** (número CNJ), pesquisar **apenas por dígitos do processo** usando as colunas já normalizadas (`dedup_processo_digits`, com fallback para `regexp_replace(processo_numero…)`), com comparação por igualdade/prefixo — sem varrer `conteudo`, `partes_json` e `advogados_json`.
+- Se o termo for texto (busca por palavra/parte/advogado), manter o comportamento atual.
 
-- Novo hook `useMenuPermissions()` que carrega as permissões do usuário logado.
-- `Sidebar.tsx`: além dos filtros atuais de perfil, esconde itens marcados como não permitidos.
-- Guarda de rota: ao acessar diretamente uma URL bloqueada, o usuário é redirecionado para a tela inicial com aviso — as restrições de perfil e RLS existentes continuam valendo como camada principal de segurança.
+### 2. Índices de apoio
+- `CREATE INDEX ... ON public.publicacoes_djen (dedup_processo_digits)` e equivalente em `publicacoes_djen_processos` / `publicacoes_djen_descartadas`.
+- Extensão `pg_trgm` + índice GIN em `conteudo` para acelerar a busca textual livre (`ILIKE '%texto%'`), que hoje também é Seq Scan.
+
+### 3. Salvaguardas
+- Elevar `statement_timeout` da RPC de listagem de 20 s para 30 s (rede de segurança; após o item 1 a consulta deve cair para milissegundos).
+- No hook `src/hooks/usePublicacoesDjenUnificadas.ts`, quando a RPC falhar por timeout (`57014`), exibir aviso claro na tela em vez de renderizar "Nenhuma publicação encontrada" silenciosamente.
+
+## Validação
+Reexecutar o mesmo predicado no banco após os índices e medir o tempo, e conferir na tela Análise DJEN que a busca por `5690695-07.2025.8.09.0051` lista as 14 publicações (batendo com os cards).
 
 ## Detalhes técnicos
-
-- A lista de itens de menu será extraída de `Sidebar.tsx` para um módulo compartilhado (`src/config/menuItems.ts`) para ser reutilizada pelo diálogo, pelo hook e pela guarda de rota.
-- Permissões são gravadas somente quando diferentes do padrão (grava-se apenas os itens desmarcados), mantendo a tabela enxuta.
-- Alteração de versão do sistema para `4.2.9`.
+Alterações: uma migração SQL (índices + redefinição das quatro funções) e ajuste pontual de tratamento de erro no hook de listagem. Nenhuma mudança de layout ou de regra de negócio de captura DJEN.
