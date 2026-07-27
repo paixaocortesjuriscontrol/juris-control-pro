@@ -959,6 +959,17 @@ function shouldExclude(conteudo, mon, pub) {
   });
 }
 
+// Erros que justificam failover para outra VPS / degradação de página.
+// Inclui erros de rede do undici (`fetch failed`, timeout, reset) — antes só
+// 5xx era tratado, e o `fetch failed` caía direto na refila sem tentar outra VPS.
+function isErroRecuperavel(msg) {
+  const s = String(msg || "");
+  return /HTTP\s*5\d\d/.test(s)
+    || /Falha ao consultar VPS/i.test(s)
+    || /fetch failed/i.test(s)
+    || /timeout|timed out|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ENOTFOUND|socket hang up|network|UND_ERR/i.test(s);
+}
+
 async function buscarPaginado(slot, params, signal) {
   const all = [];
   const seen = new Set();
@@ -973,12 +984,10 @@ async function buscarPaginado(slot, params, signal) {
   let noNewStreak = 0;
   let failedStreak = 0;
 
-  // TST: páginas de 50 itens vêm devolvendo timeout/fetch failed com
-  // frequência. Para esse tribunal começamos direto com pageSize=10
-  // (mesmo caminho já usado na degradação), evitando gastar 4 tentativas
-  // longas antes de degradar.
-  const tribunalParam = String(params?.siglaTribunal || "").toUpperCase();
-  const PAGE_SIZE_INICIAL = tribunalParam === "TST" ? 10 : 50;
+  // Todos os tribunais começam em 50 e degradam para 10 quando a janela
+  // falha. O `fetch failed` observado no TST é erro de rede/timeout da VPS,
+  // não excesso de itens por página — por isso não há regra especial aqui.
+  const PAGE_SIZE_INICIAL = 50;
 
   // Tenta uma janela lógica (equivalente a 50 itens) com um dado pageSize.
   // Retorna { ok, items, aborted } — items já são os brutos coletados.
@@ -1969,8 +1978,8 @@ async function run({ sb, payload, log, job }) {
               pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
             } catch (firstErr) {
               const msg = String(firstErr?.message || firstErr || "");
-              const is5xx = /HTTP\s*5\d\d/.test(msg) || /Falha ao consultar VPS/.test(msg);
-              if (!is5xx || cancelled || signal.aborted) throw firstErr;
+              const recuperavel = isErroRecuperavel(msg);
+              if (!recuperavel || cancelled || signal.aborted) throw firstErr;
               // Failover entre VPS: o slot atual derruba persistentemente esta
               // tupla (tribunal, mon, dia). Tenta os demais slots do pool antes
               // de empurrar para a refila — espelha o fallback do browser que
@@ -1998,7 +2007,7 @@ async function run({ sb, payload, log, job }) {
                 } catch (altErr) {
                   lastErr = altErr;
                   const altMsg = String(altErr?.message || altErr || "");
-                  if (!/HTTP\s*5\d\d/.test(altMsg) && !/Falha ao consultar VPS/.test(altMsg)) throw altErr;
+                  if (!isErroRecuperavel(altMsg)) throw altErr;
                 }
               }
               if (!recovered) throw lastErr;
@@ -2023,7 +2032,7 @@ async function run({ sb, payload, log, job }) {
           } catch (e) {
             if (cancelled || signal.aborted || String(e?.message || e).includes("cancel")) throw e;
             const errMsg = String(e?.message || e || "");
-            const is5xx = /HTTP\s*5\d\d/.test(errMsg) || /Falha ao consultar VPS/.test(errMsg);
+            const is5xx = isErroRecuperavel(errMsg);
             const isStf = String(item.tribunal || "").toUpperCase() === "STF";
             if (isStf && is5xx) {
               // Não refila STF em 5xx: PJE Comunica devolve 500 sistemático
