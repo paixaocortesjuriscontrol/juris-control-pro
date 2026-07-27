@@ -1,0 +1,1 @@
+UPDATE public.membros_coordenacao SET cargo = 'coordenador' WHERE cargo = 'Advogado Cooredenador';
