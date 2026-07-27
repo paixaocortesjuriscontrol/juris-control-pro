@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck } from "lucide-react";
 import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import { DelegarTarefaDialog } from "@/components/coordenacoes/DelegarTarefaDial
 import { DelegarTarefaLoteDialog } from "@/components/coordenacoes/DelegarTarefaLoteDialog";
 import { ReatribuirProcessoDialog } from "@/components/coordenacoes/ReatribuirProcessoDialog";
 import { PautasExcelDialog } from "@/components/coordenacoes/PautasExcelDialog";
+import { NivelAcessoDialog } from "@/components/coordenacoes/NivelAcessoDialog";
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -60,7 +61,7 @@ const areaLabels = {
 
 const Coordenacoes = () => {
   const { data: coordenacoes, isLoading } = useCoordenacoesFull();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isAdminOrCoordinator } = useUserRole();
   const [selectedCoord, setSelectedCoord] = useState<any>(null);
   const [coordDialog, setCoordDialog] = useState(false);
   const [editCoord, setEditCoord] = useState<any>(null);
@@ -72,6 +73,7 @@ const Coordenacoes = () => {
   const [reatribuirDialog, setReatribuirDialog] = useState(false);
   const [pautasExcelDialog, setPautasExcelDialog] = useState(false);
   const [transferirDialog, setTransferirDialog] = useState(false);
+  const [nivelAcessoMembro, setNivelAcessoMembro] = useState<any>(null);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null);
   const [editingCargoId, setEditingCargoId] = useState<string | null>(null);
