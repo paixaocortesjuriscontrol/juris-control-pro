@@ -1699,27 +1699,10 @@ export default function PainelControle() {
             </div>
           ) : (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
-            {(() => {
-              const c = painelFiltros.classificacoes;
-              // Kanbans especializados por tipo
-              if (c.length === 1 && c[0] === "prazo") return <TstPrazos embedded />;
-              if (c.length === 1 && c[0] === "audiencia") return <PainelAudiencias embedded statusFilter={situacaoFilter} onStatusFilterChange={setSituacaoFilter} />;
-              if (c.length === 1 && (c[0] === "tarefa" || c[0] === "evento" || c[0] === "parcelamento")) {
-                return (
-                  <KanbanItensAgenda
-                    itens={itensPainelFiltrados}
-                    onItemClick={handleItemClick}
-                  />
-                );
-              }
-              // Sem filtro específico ou múltiplos tipos: kanban genérico com todos os itens filtrados
-              return (
-                <KanbanItensAgenda
-                  itens={itensPainelFiltrados}
-                  onItemClick={handleItemClick}
-                />
-              );
-            })()}
+            <KanbanItensAgenda
+              itens={itensPainelFiltrados}
+              onItemClick={handleItemClick}
+            />
           </div>
           )
         ) : viewMode === "audiencias" ? (
