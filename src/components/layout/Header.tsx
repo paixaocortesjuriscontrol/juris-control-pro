@@ -69,6 +69,7 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
   const getRoleLabel = () => {
     if (role === "admin") return "Administrador";
     if (role === "coordenador") return "Coordenador";
+    if (role === "assistente_coordenador") return "Assistente Coordenador";
     if (role === "advogado") return "Advogado(a)";
     if (role === "advogado_temporario") return "Advogado DJEN Conferência";
     if (role === "estagiario") return "Estagiário(a)";

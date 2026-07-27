@@ -33,6 +33,7 @@ import { Loader2 } from "lucide-react";
 
 const CARGOS_OPTIONS = [
   { value: "coordenador", label: "Coordenador" },
+  { value: "assistente_coordenador", label: "Assistente Coordenador" },
   { value: "advogado_senior", label: "Advogado Sênior" },
   { value: "advogado", label: "Advogado" },
   { value: "estagiario", label: "Estagiário" },

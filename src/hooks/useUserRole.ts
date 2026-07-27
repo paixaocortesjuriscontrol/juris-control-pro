@@ -47,7 +47,9 @@ export function useUserRole() {
         ? "admin"
         : roles.includes("coordenador")
           ? "coordenador"
-          : roles[0] ?? null;
+          : roles.includes("assistente_coordenador")
+            ? "assistente_coordenador"
+            : roles[0] ?? null;
 
       if (error) {
         console.error("Error fetching user role:", error);
@@ -77,7 +79,7 @@ export function useUserRole() {
   }, [user]);
 
   const isAdmin = role === "admin";
-  const isCoordinator = role === "coordenador";
+  const isCoordinator = role === "coordenador" || role === "assistente_coordenador";
   const isAdminOrCoordinator = isAdmin || isCoordinator;
 
   return { role, loading, isAdmin, isCoordinator, isAdminOrCoordinator };
