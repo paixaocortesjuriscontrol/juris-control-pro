@@ -35,6 +35,7 @@ interface UserOpt {
 interface Coord {
   id: string;
   nome: string;
+  coordenador_id?: string | null;
   membros: { usuario_id: string }[];
 }
 
@@ -79,7 +80,7 @@ export function PeoplePicker({
       if (isAdmin) {
         const { data, error } = await supabase
           .from("coordenacoes")
-          .select(`id, nome, membros:membros_coordenacao(usuario_id)`)
+          .select(`id, nome, coordenador_id, membros:membros_coordenacao(usuario_id)`)
           .order("nome");
         if (error) throw error;
         return (data || []) as Coord[];
@@ -95,7 +96,7 @@ export function PeoplePicker({
       if (ids.length === 0) return [];
       const { data, error } = await supabase
         .from("coordenacoes")
-        .select(`id, nome, membros:membros_coordenacao(usuario_id)`)
+        .select(`id, nome, coordenador_id, membros:membros_coordenacao(usuario_id)`)
         .in("id", ids)
         .order("nome");
       if (error) throw error;
@@ -117,31 +118,50 @@ export function PeoplePicker({
   const { data: usuarios = [] } = useQuery({
     queryKey: ["people-picker-usuarios"],
     queryFn: async () => {
+      // profiles tem RLS restritiva (usuário só enxerga o próprio registro).
+      // profiles_basic é a fonte segura para listar a equipe inteira.
       const { data, error } = await supabase
+        .from("profiles_basic")
+        .select("id, nome")
+        .order("nome");
+      if (!error && data && data.length > 0) {
+        return (data as any[])
+          .filter((u) => u.id && u.nome)
+          .map((u) => ({ id: u.id as string, nome: u.nome as string }));
+      }
+      const fallback = await supabase
         .from("profiles")
         .select("id, nome")
         .eq("ativo", true)
         .order("nome");
-      if (error) throw error;
-      return (data || []) as UserOpt[];
+      if (fallback.error) throw fallback.error;
+      return (fallback.data || []) as UserOpt[];
     },
   });
+
+  const membrosDe = (c?: Coord) => {
+    const ids = new Set((c?.membros || []).map((m) => m.usuario_id));
+    if (c?.coordenador_id) ids.add(c.coordenador_id);
+    return ids;
+  };
 
   const filtrados = useMemo(() => {
     if (coordFiltro === "todas") {
       // Não-admin sem coordenação selecionada: restringe aos membros de suas coordenações
       if (!isAdmin && coordenacoes.length > 0) {
-        const ids = new Set(coordenacoes.flatMap((c) => (c.membros || []).map((m) => m.usuario_id)));
+        const ids = new Set(coordenacoes.flatMap((c) => Array.from(membrosDe(c))));
         return usuarios.filter((u) => ids.has(u.id));
       }
       return usuarios;
     }
     const c = coordenacoes.find((x) => x.id === coordFiltro);
-    const ids = new Set((c?.membros || []).map((m) => m.usuario_id));
+    const ids = membrosDe(c);
     return usuarios.filter((u) => ids.has(u.id));
   }, [usuarios, coordenacoes, coordFiltro, isAdmin]);
 
-  const selecionados = usuarios.filter((u) => selectedIds.includes(u.id));
+  const selecionados = selectedIds
+    .map((id) => usuarios.find((u) => u.id === id) || { id, nome: "Usuário" })
+    .filter(Boolean) as UserOpt[];
   const Icon = icon === "users" ? Users : UserPlus;
 
   const toggle = (id: string) => {
