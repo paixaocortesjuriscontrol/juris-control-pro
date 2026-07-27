@@ -12,6 +12,10 @@ function diaBrtHoje() {
   }).format(new Date());
 }
 
+// Teto de tentativas por item/dia. Acima disso o item é abandonado e não
+// volta a aparecer como RETRY no quadro de execuções do dia.
+const MAX_TENTATIVAS = 3;
+
 async function recordFalha(sb, { tipo, execucaoId, itemKey, payload, erro }) {
   if (!tipo || !itemKey) return;
   const dia = diaBrtHoje();
@@ -26,7 +30,7 @@ async function recordFalha(sb, { tipo, execucaoId, itemKey, payload, erro }) {
     .maybeSingle();
   if (existente?.id) {
     const tentativas = (existente.tentativas || 0) + 1;
-    const status = tentativas >= 5 ? "abandonado" : "pendente";
+    const status = tentativas >= MAX_TENTATIVAS ? "abandonado" : "pendente";
     await sb
       .from("execucoes_servidor_falhas")
       .update({
@@ -71,7 +75,7 @@ async function lerFalhasPendentes(sb, tipo) {
     .eq("tipo", tipo)
     .eq("dia_brt", dia)
     .eq("status", "pendente")
-    .lt("tentativas", 5);
+    .lt("tentativas", MAX_TENTATIVAS);
   if (error) {
     console.warn(`[falhasRefila] lerFalhasPendentes(${tipo}):`, error.message);
     return [];
@@ -79,4 +83,4 @@ async function lerFalhasPendentes(sb, tipo) {
   return data || [];
 }
 
-module.exports = { recordFalha, marcarFalhaResolvida, lerFalhasPendentes, diaBrtHoje };
+module.exports = { recordFalha, marcarFalhaResolvida, lerFalhasPendentes, diaBrtHoje, MAX_TENTATIVAS };
