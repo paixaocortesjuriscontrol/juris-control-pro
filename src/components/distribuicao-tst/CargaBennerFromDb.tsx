@@ -13,6 +13,7 @@ import { useCriarRemessa } from "@/hooks/useRemessasBenner";
 import { useNavigate } from "react-router-dom";
 import { deriveRecorrenteFromRecursos, splitRecursoValues } from "@/utils/recorrenteFromRecursos";
 import { applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
+import { getPendencias } from "@/utils/distribuicaoTstPendencias";
 
 // --- Types ---
 interface Stats {
@@ -97,6 +98,34 @@ function getMotivoRejeicaoDossie(dossie: string, numProcesso: string): string | 
   if (isCnjLike(raw)) return "Dossiê preenchido com número do processo";
   if (/[a-z]/i.test(normalized)) return "Dossiê contém texto inválido";
   if (!DOSSIE_VALIDO_REGEX.test(raw)) return "Dossiê fora do padrão esperado";
+  return null;
+}
+
+function isFlagOn(v: unknown): boolean {
+  if (v === true) return true;
+  const n = normalizeText(v);
+  return n === "sim" || n === "s" || n === "true";
+}
+
+/**
+ * Bloqueios que sempre rejeitam a linha na Carga Benner (mesmo em seleção
+ * manual): situações impeditivas marcadas no registro ou campos obrigatórios
+ * em aberto (pendências).
+ */
+function getMotivoBloqueioCarga(d: any): string | null {
+  if (isFlagOn(d?.transito_julgado)) return "Trânsito em julgado";
+  if (isFlagOn(d?.processo_outro_escritorio)) return "Processo em outro escritório";
+  if (isFlagOn(d?.problema_judit)) return "Problema Judit";
+  if (isFlagOn(d?.segredo_justica)) return "Segredo de justiça";
+  if (isFlagOn(d?.cejusc)) return "CEJUSC";
+  if (isFlagOn(d?.acordo)) return "Acordo";
+  if (isFlagOn(d?.recurso_terceiro) || isFlagOn(d?.recurso_terceiros)) return "Recurso de terceiro";
+  const pend = getPendencias(d);
+  if (pend.length > 0) {
+    const amostra = pend.slice(0, 3).map(p => p.label).join(", ");
+    const resto = pend.length > 3 ? ` (+${pend.length - 3})` : "";
+    return `Pendências: ${amostra}${resto}`;
+  }
   return null;
 }
 
@@ -410,7 +439,20 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         let motivo = getMotivoRejeicaoDossie(dossie, numProcesso);
         if (!motivo && !turmaRaw) motivo = "Turma não preenchida";
         let isRejected = false;
-        if (motivo) {
+        // Bloqueios impeditivos (situação do processo / pendências) rejeitam
+        // sempre, inclusive em seleção manual.
+        const motivoBloqueio = getMotivoBloqueioCarga(d);
+        if (motivoBloqueio) {
+          rejected.push({
+            "Dossiê": dossie,
+            "Número do Processo": numProcesso,
+            "Data Distribuição": formatDateDDMMYYYY(d.data_distribuicao),
+            "Turma": d.turma || "",
+            "Relator": d.relator || "",
+            "Motivo": motivoBloqueio,
+          });
+          isRejected = true;
+        } else if (motivo) {
           // Em modo "seleção manual" o usuário escolheu cada linha conscientemente:
           // não descartamos a linha; apenas registramos um aviso e seguimos preenchendo
           // todos os campos (Tribunal, Tipo de Recurso, Data, Turma, Relator, etc.).
