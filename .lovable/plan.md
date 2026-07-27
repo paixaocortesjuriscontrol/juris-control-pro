@@ -1,33 +1,39 @@
-## Diagnóstico confirmado
+## Objetivo
 
-1. **A reversão funcionou.** `monitor-servidor/engines/paralela.js` está hoje idêntico à versão de 22/07 — a mesma que rodava na sexta (24/07). O commit de 25/07 ("Alinhou contadores e ícones") não tocou nesse arquivo.
+Adicionar, no menu de 3 pontinhos de cada membro dentro de uma coordenação (tela Coordenações), a opção **"Nível de Acesso"**, onde é possível definir quais opções de menu aquele usuário pode ver/acessar. Por padrão, **todas as opções vêm marcadas**. Somente **administrador** e **coordenador** (incluindo assistente coordenador) podem abrir e alterar.
 
-2. **O "RETRY" não é novo.** O rótulo `RETRY <termo>` existe no motor desde **23/06** (bloco que refila falhas pendentes do mesmo dia BRT). Ele só aparece quando um tribunal falha e é reenfileirado.
+## Banco de dados
 
-3. **Causa real:** em `execucoes_servidor_falhas` (27/07) há dezenas de falhas com erro **`fetch failed`**, quase todas no **TST**. Os pendentes agora são exatamente `F. Cafe` (parte, TST) e `SANTANDER` (parte, TST), ambos com 2 tentativas; `EPB` (TST) já foi **abandonado** com 6 tentativas. É o TST derrubando a conexão em buscas amplas por parte.
+Nova tabela `permissoes_menu_usuario`:
+- `user_id` (usuário alvo)
+- `menu_path` (ex: `/processos`, `/analise-djen`)
+- `permitido` (booleano)
+- registro único por usuário + item de menu
+- campos padrão de data de criação/atualização
 
-4. **O motor roda na VPS Hostinger** — mudanças no projeto só valem após atualizar/reiniciar o `monitor-servidor` lá.
+Regras de acesso:
+- O próprio usuário pode ler suas permissões (necessário para o menu funcionar).
+- Administradores e coordenadores/assistentes coordenadores podem ler e alterar as permissões dos membros.
+- Ausência de registro = **permitido** (padrão "tudo liberado"), então nada muda para os usuários atuais.
 
-## Plano
+## Interface
 
-### Passo 1 — Cancelar a execução em andamento
-Cancelar a execução `djen_paralela_servidor` ativa (iniciada 13:23, worker `hostinger-01`) via `cancelar_execucao_servidor`, e marcar como abandonadas as falhas pendentes do dia para o TST, zerando o loop de RETRY.
+1. **Coordenações → membro → 3 pontinhos → "Nível de Acesso"** (novo item, acima de "Remover da equipe"), visível apenas para admin/coordenador.
+2. Novo diálogo `NivelAcessoDialog`:
+   - Cabeçalho com nome do membro.
+   - Chave "Marcar todos / Desmarcar todos".
+   - Lista de todas as opções do menu lateral (públicas + administrativas), agrupadas como na sidebar, cada uma com um checkbox — todas marcadas por padrão.
+   - Itens que o membro já não alcança pelo próprio perfil (ex.: telas exclusivas de admin) aparecem desabilitados e sinalizados, para evitar falsa impressão de liberação.
+   - Botões Cancelar / Salvar, com feedback de sucesso e recarregamento do cache.
 
-### Passo 2 — Reduzir a queda no TST (raiz do RETRY)
-Em `monitor-servidor/engines/paralela.js`, para unidades do TST em busca por **parte**:
-- Timeout maior por requisição e **degradação progressiva de `pageSize`** já no primeiro `fetch failed` (hoje só degrada em HTTP 500).
-- Backoff exponencial entre páginas na falha de rede, em vez de derrubar a unidade inteira.
-- Retomar a paginação **da última página confirmada** da unidade, evitando refazer 100+ páginas a cada retry.
+## Aplicação das permissões
 
-### Passo 3 — Limitar o ruído de RETRY
-- Teto de tentativas por unidade/dia menor (hoje chega a 6 antes de abandonar).
-- Rótulo passa a `RETRY 2/3 — SANTANDER (TST)` para deixar claro que é reenvio da mesma busca, não execução extra.
+- Novo hook `useMenuPermissions()` que carrega as permissões do usuário logado.
+- `Sidebar.tsx`: além dos filtros atuais de perfil, esconde itens marcados como não permitidos.
+- Guarda de rota: ao acessar diretamente uma URL bloqueada, o usuário é redirecionado para a tela inicial com aviso — as restrições de perfil e RLS existentes continuam valendo como camada principal de segurança.
 
-### Passo 4 — Visibilidade
-No quadro de execuções do dia (Análise DJEN), exibir resumo de **falhas pendentes por tribunal**, separando "motor com problema" de "TST instável".
+## Detalhes técnicos
 
-### Passo 5 — Deploy na VPS
-Nada disso entra em vigor sem atualizar o `monitor-servidor` na Hostinger (`git pull` + `pm2 restart jc-monitor-servidor`). Vou deixar o comando pronto ao final.
-
-### Detalhes técnicos
-Arquivos: `monitor-servidor/engines/paralela.js` (paginação, retry, rótulo) e o componente do quadro de execuções + `src/hooks/useExecucoesDoDiaServidor.ts` (resumo de falhas). Sem migração de banco — `execucoes_servidor_falhas` já tem `tentativas`, `status`, `ultimo_erro`.
+- A lista de itens de menu será extraída de `Sidebar.tsx` para um módulo compartilhado (`src/config/menuItems.ts`) para ser reutilizada pelo diálogo, pelo hook e pela guarda de rota.
+- Permissões são gravadas somente quando diferentes do padrão (grava-se apenas os itens desmarcados), mantendo a tabela enxuta.
+- Alteração de versão do sistema para `4.2.9`.
