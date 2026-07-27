@@ -1,10 +1,13 @@
 import { ReactNode, useEffect } from "react";
+import { Navigate, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { MonitoramentosFloatingIndicator } from "./MonitoramentosFloatingIndicator";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { startDjenTermosScheduler, stopDjenTermosScheduler } from "@/hooks/useDjenTermosScheduler";
+import { useMenuPermissions } from "@/hooks/useMenuPermissions";
+import { allMenuItems } from "@/config/menuItems";
 
 
 export interface MainLayoutProps {
@@ -18,6 +21,8 @@ export interface MainLayoutProps {
 export function MainLayout({ children, title, subtitle, headerActions, className }: MainLayoutProps) {
   const isMobile = useIsMobile();
   const { collapsed } = useSidebarCollapsed();
+  const location = useLocation();
+  const { isMenuAllowed, isLoading: loadingPermissoes } = useMenuPermissions();
 
   // Inicializa os schedulers de DJEN Termos e Termos Pro
   // O Pro scheduler carrega automaticamente do DB no construtor e auto-inicia se ativo
@@ -36,6 +41,14 @@ export function MainLayout({ children, title, subtitle, headerActions, className
       // NÃO parar o scheduler Pro no unmount, para não persistir ativo=false ao fechar/reabrir navegador
     };
   }, []);
+
+  // Guarda de rota: bloqueia acesso direto a telas desmarcadas no Nível de Acesso
+  const matchedMenu = allMenuItems.find(
+    (item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
+  );
+  if (!loadingPermissoes && matchedMenu && !isMenuAllowed(matchedMenu.path)) {
+    return <Navigate to="/painel-controle" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-background">
