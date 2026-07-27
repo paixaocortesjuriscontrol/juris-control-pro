@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { registrarAuditoriaTarefa, tipoItemDeTarefa } from "@/hooks/useAuditoriaTarefas";
 
 // Main type - using Tarefa as main name, Prazo as alias
 export type Tarefa = {
@@ -339,7 +340,32 @@ export function useCreateTarefa() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        await registrarAuditoriaTarefa({
+          acao: "erro_criar",
+          sucesso: false,
+          dadosEntrada: tarefa as any,
+          erroMensagem: error.message,
+          erroDetalhes: error as any,
+          origem: "usePrazos.useCreateTarefa",
+          processoId: tarefa.processo_id || undefined,
+          tipoItem: tipoItemDeTarefa(tarefa.tipo_tarefa),
+          coordenacaoId: tarefa.coordenacao_id ?? null,
+        });
+        throw error;
+      }
+
+      await registrarAuditoriaTarefa({
+        acao: "criar",
+        sucesso: true,
+        dadosEntrada: tarefa as any,
+        dadosSaida: data as any,
+        origem: "usePrazos.useCreateTarefa",
+        processoId: (data as any)?.processo_id || undefined,
+        tarefaId: (data as any)?.id,
+        tipoItem: tipoItemDeTarefa((data as any)?.tipo_tarefa ?? tarefa.tipo_tarefa),
+        coordenacaoId: (data as any)?.coordenacao_id ?? tarefa.coordenacao_id ?? null,
+      });
 
       // Disparar notificação para o responsável via edge function (fire and forget)
       if (data && tarefa.responsavel_id) {
@@ -418,7 +444,32 @@ export function useUpdateTarefa() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        await registrarAuditoriaTarefa({
+          acao: "erro_atualizar",
+          sucesso: false,
+          dadosEntrada: { id, ...updates } as any,
+          erroMensagem: error.message,
+          erroDetalhes: error as any,
+          origem: "usePrazos.useUpdateTarefa",
+          tarefaId: id,
+          tipoItem: tipoItemDeTarefa(updates.tipo_tarefa),
+          coordenacaoId: updates.coordenacao_id ?? null,
+        });
+        throw error;
+      }
+
+      await registrarAuditoriaTarefa({
+        acao: "atualizar",
+        sucesso: true,
+        dadosEntrada: { id, ...updates } as any,
+        dadosSaida: data as any,
+        origem: "usePrazos.useUpdateTarefa",
+        processoId: (data as any)?.processo_id || undefined,
+        tarefaId: id,
+        tipoItem: tipoItemDeTarefa((data as any)?.tipo_tarefa ?? updates.tipo_tarefa),
+        coordenacaoId: (data as any)?.coordenacao_id ?? null,
+      });
       return data;
     },
     onSuccess: (data, variables) => {
@@ -442,8 +493,36 @@ export function useDeleteTarefa() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      const { data: antes } = await supabase
+        .from("tarefas")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
       const { error } = await supabase.from("tarefas").delete().eq("id", id);
-      if (error) throw error;
+      if (error) {
+        await registrarAuditoriaTarefa({
+          acao: "erro_deletar",
+          sucesso: false,
+          dadosEntrada: (antes as any) || { id },
+          erroMensagem: error.message,
+          erroDetalhes: error as any,
+          origem: "usePrazos.useDeleteTarefa",
+          tarefaId: id,
+          tipoItem: tipoItemDeTarefa((antes as any)?.tipo_tarefa),
+          coordenacaoId: (antes as any)?.coordenacao_id ?? null,
+        });
+        throw error;
+      }
+      await registrarAuditoriaTarefa({
+        acao: "deletar",
+        sucesso: true,
+        dadosEntrada: (antes as any) || { id },
+        origem: "usePrazos.useDeleteTarefa",
+        processoId: (antes as any)?.processo_id || undefined,
+        tarefaId: id,
+        tipoItem: tipoItemDeTarefa((antes as any)?.tipo_tarefa),
+        coordenacaoId: (antes as any)?.coordenacao_id ?? null,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });

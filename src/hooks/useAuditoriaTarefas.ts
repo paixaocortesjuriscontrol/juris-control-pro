@@ -1,5 +1,13 @@
 import { supabase } from "@/integrations/supabase/client";
 
+/** Deriva o tipo de item auditado a partir do campo tipo_tarefa. */
+export function tipoItemDeTarefa(tipoTarefa?: string | null): 'tarefa' | 'prazo' | 'audiencia' {
+  const t = (tipoTarefa || '').toUpperCase();
+  if (t.includes('PRAZO')) return 'prazo';
+  if (t.includes('AUDI')) return 'audiencia';
+  return 'tarefa';
+}
+
 interface AuditoriaInput {
   acao: 'criar' | 'atualizar' | 'deletar' | 'erro_criar' | 'erro_atualizar' | 'erro_deletar';
   sucesso: boolean;

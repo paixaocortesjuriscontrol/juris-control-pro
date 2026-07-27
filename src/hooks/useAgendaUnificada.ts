@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { startOfDay, endOfDay, parseISO, differenceInDays, addDays, addMonths, addYears } from "date-fns";
 import { format } from "date-fns";
+import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -1221,9 +1222,25 @@ export function useUpdateItemAgenda() {
         const tarefaId = String(id).split("::")[0];
         const { error } = await supabase.from("tarefas").update({ status: tarefaStatus, updated_at: new Date().toISOString() }).eq("id", tarefaId);
         if (error) throw error;
+        await registrarAuditoriaTarefa({
+          acao: "atualizar",
+          sucesso: true,
+          dadosEntrada: { id: tarefaId, status: tarefaStatus },
+          origem: "useAgendaUnificada.useUpdateItemAgenda",
+          tarefaId,
+          tipoItem: "tarefa",
+        });
       } else {
         const { error } = await supabase.from("eventos_agenda").update({ status, concluido_em, updated_at: new Date().toISOString() }).eq("id", id);
         if (error) throw error;
+        await registrarAuditoriaTarefa({
+          acao: "atualizar",
+          sucesso: true,
+          dadosEntrada: { id, status, concluido_em },
+          origem: "useAgendaUnificada.useUpdateItemAgenda",
+          itemId: id,
+          tipoItem: "evento",
+        });
       }
     },
     onSuccess: () => {
@@ -1246,9 +1263,25 @@ export function useDeleteItemAgenda() {
       if (origem === "tarefa") {
         const { error } = await supabase.from("tarefas").delete().eq("id", id);
         if (error) throw error;
+        await registrarAuditoriaTarefa({
+          acao: "deletar",
+          sucesso: true,
+          dadosEntrada: { id },
+          origem: "useAgendaUnificada.useDeleteItemAgenda",
+          tarefaId: id,
+          tipoItem: "tarefa",
+        });
       } else {
         const { error } = await supabase.from("eventos_agenda").delete().eq("id", id);
         if (error) throw error;
+        await registrarAuditoriaTarefa({
+          acao: "deletar",
+          sucesso: true,
+          dadosEntrada: { id },
+          origem: "useAgendaUnificada.useDeleteItemAgenda",
+          itemId: id,
+          tipoItem: "evento",
+        });
       }
     },
     onSuccess: () => {

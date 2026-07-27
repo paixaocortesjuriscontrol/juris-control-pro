@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
+import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 
 export interface EventoAgenda {
   id: string;
@@ -232,7 +233,30 @@ export function useCreateEvento() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        await registrarAuditoriaTarefa({
+          acao: "erro_criar",
+          sucesso: false,
+          dadosEntrada: eventoData as any,
+          erroMensagem: error.message,
+          erroDetalhes: error as any,
+          origem: "useEventosAgenda.useCreateEvento",
+          tipoItem: "evento",
+          coordenacaoId: (eventoData as any)?.coordenacao_id ?? null,
+        });
+        throw error;
+      }
+
+      await registrarAuditoriaTarefa({
+        acao: "criar",
+        sucesso: true,
+        dadosEntrada: eventoData as any,
+        dadosSaida: data as any,
+        origem: "useEventosAgenda.useCreateEvento",
+        tipoItem: "evento",
+        itemId: (data as any)?.id,
+        coordenacaoId: (data as any)?.coordenacao_id ?? null,
+      });
 
       // Add participants
       if (participantes_ids && participantes_ids.length > 0) {
@@ -306,6 +330,17 @@ export function useUpdateEvento() {
       if (error) throw error;
       if (!data) throw new Error("Evento não encontrado ou sem permissão para editar");
 
+      await registrarAuditoriaTarefa({
+        acao: "atualizar",
+        sucesso: true,
+        dadosEntrada: { id, ...updates } as any,
+        dadosSaida: data as any,
+        origem: "useEventosAgenda.useUpdateEvento",
+        tipoItem: "evento",
+        itemId: id,
+        coordenacaoId: (data as any)?.coordenacao_id ?? null,
+      });
+
       // Update participants if provided
       if (participantes_ids !== undefined) {
         await supabase.from("participantes_evento").delete().eq("evento_id", id);
@@ -368,12 +403,28 @@ export function useDeleteEvento() {
 
   return useMutation({
     mutationFn: async (id: string) => {
+      const { data: antes } = await supabase
+        .from("eventos_agenda")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+
       const { error } = await supabase
         .from("eventos_agenda")
         .delete()
         .eq("id", id);
 
       if (error) throw error;
+
+      await registrarAuditoriaTarefa({
+        acao: "deletar",
+        sucesso: true,
+        dadosEntrada: (antes as any) || { id },
+        origem: "useEventosAgenda.useDeleteEvento",
+        tipoItem: "evento",
+        itemId: id,
+        coordenacaoId: (antes as any)?.coordenacao_id ?? null,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
