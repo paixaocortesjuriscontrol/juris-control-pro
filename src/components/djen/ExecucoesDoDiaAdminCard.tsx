@@ -7,6 +7,7 @@ import {
   Sparkles,
   Shield,
   Clock,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Table,
@@ -21,6 +22,7 @@ import {
   useExecucoesDoDiaPorCoordenacao,
   type TipoEngineLocal,
 } from "@/hooks/useExecucoesDoDiaPorCoordenacao";
+import { useFalhasDoDiaPorTribunal } from "@/hooks/useFalhasDoDiaPorTribunal";
 
 interface Props {
   dataYmd: string | null | undefined;
@@ -50,6 +52,7 @@ function rotuloEngine(t: TipoEngineLocal): string {
 export function ExecucoesDoDiaAdminCard({ dataYmd }: Props) {
   const [expanded, setExpanded] = useState(false);
   const { data, isLoading } = useExecucoesDoDiaPorCoordenacao(dataYmd);
+  const { data: falhas } = useFalhasDoDiaPorTribunal(dataYmd);
 
   if (!dataYmd) return null;
   if (isLoading) return null;
