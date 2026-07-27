@@ -94,6 +94,15 @@ export function ExecucoesDoDiaAdminCard({ dataYmd }: Props) {
           <Badge variant="outline" className="text-[10px] ml-1">
             {execucoes.length} execuções
           </Badge>
+          {falhas && falhas.length > 0 && (
+            <Badge
+              variant="outline"
+              className="text-[10px] ml-1 border-destructive/40 text-destructive"
+            >
+              <AlertTriangle className="h-3 w-3 mr-1" />
+              {falhas.reduce((a, f) => a + f.total, 0)} falhas
+            </Badge>
+          )}
           <Badge
             variant="outline"
             className="text-[10px] ml-1 border-amber-500/40 text-amber-700 dark:text-amber-300"
@@ -104,6 +113,32 @@ export function ExecucoesDoDiaAdminCard({ dataYmd }: Props) {
       </CardHeader>
       {expanded && (
         <CardContent className="px-3 md:px-6 pb-3 md:pb-4">
+          {falhas && falhas.length > 0 && (
+            <div className="mb-3 rounded-md border border-destructive/30 bg-destructive/5 p-2.5">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-destructive mb-1.5">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Falhas de captura por tribunal
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {falhas.map((f) => (
+                  <Badge
+                    key={f.tribunal}
+                    variant="outline"
+                    className="text-[11px] font-normal border-destructive/30"
+                    title={f.ultimoErro || undefined}
+                  >
+                    <span className="font-semibold mr-1">{f.tribunal}</span>
+                    {f.pendentes > 0 && <span>{f.pendentes} pend.</span>}
+                    {f.abandonadas > 0 && (
+                      <span className="ml-1 text-muted-foreground">
+                        {f.abandonadas} abandon.
+                      </span>
+                    )}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
           {linhas.length === 0 ? (
             <div className="text-sm text-muted-foreground">
               Nenhuma publicação encontrada nas execuções deste dia.
