@@ -45,6 +45,7 @@ import MinhaCarteira from "./pages/MinhaCarteira";
 import AnaliseDjen from "./pages/AnaliseDjen";
 import AnaliseDjenServidor from "./pages/AnaliseDjenServidor";
 import TermosDjen from "./pages/TermosDjen";
+import ManualSistema from "./pages/ManualSistema";
 import Pastas from "./pages/Pastas";
 import PastaDetalhes from "./pages/PastaDetalhes";
 import Notificacoes from "./pages/Notificacoes";
@@ -168,6 +169,7 @@ function App() {
               <Route path="/analise-djen" element={<ProtectedRoute><AnaliseDjen /></ProtectedRoute>} />
               <Route path="/analise-djen-servidor" element={<AdminRoute><AnaliseDjenServidor /></AdminRoute>} />
               <Route path="/termos-djen" element={<ProtectedRoute><TermosDjen /></ProtectedRoute>} />
+              <Route path="/manual-sistema" element={<ProtectedRoute><ManualSistema /></ProtectedRoute>} />
               <Route path="/buscar-pje" element={<ProtectedRoute><BuscarPJE /></ProtectedRoute>} />
               <Route path="/buscar-dj-estadual" element={<ProtectedRoute><BuscarDjEstadual /></ProtectedRoute>} />
               <Route path="/configuracoes" element={<AdminRoute><Configuracoes /></AdminRoute>} />
