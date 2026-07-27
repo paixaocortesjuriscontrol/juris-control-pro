@@ -6172,6 +6172,33 @@ export type Database = {
           },
         ]
       }
+      permissoes_menu_usuario: {
+        Row: {
+          created_at: string
+          id: string
+          menu_path: string
+          permitido: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          menu_path: string
+          permitido?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          menu_path?: string
+          permitido?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       processo_tags_catalogo: {
         Row: {
           ativo: boolean
