@@ -47,6 +47,7 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400", adminOrCoordOnly: true },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
+  { icon: BookOpen, label: "Manual Sistema", path: "/manual-sistema", color: "text-sky-400" },
   { icon: Brain, label: "Assistente IA", path: "/assistente-juridico", adminOnly: true },
   { icon: Server, label: "DJEN Servidor", path: "/djen-servidor", color: "text-emerald-400", adminOnly: true },
   { icon: FileText, label: "Análise DJEN Servidor", path: "/analise-djen-servidor", color: "text-emerald-400", adminOnly: true },
