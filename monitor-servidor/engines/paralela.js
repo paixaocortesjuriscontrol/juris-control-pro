@@ -2,7 +2,7 @@
 // Não chama a edge monitorar-djen; cada worker usa uma VPS do djen_proxy_pool.
 
 const { djenFetchSlot, loadPool } = require("../proxyPool");
-const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
+const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes, MAX_TENTATIVAS } = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
 const ENGINE_VERSION = "2026-07-01-prioridade-original-wave";
@@ -1907,7 +1907,7 @@ async function run({ sb, payload, log, job }) {
         }
         const syntheticItem = {
           id: `retry|${tribunal}|${monId}|${dia}`,
-          label: `RETRY ${mon.descricao || mon.termo_busca || tribunal}`,
+          label: `RETRY ${Math.min((f.tentativas || 0) + 1, MAX_TENTATIVAS)}/${MAX_TENTATIVAS} — ${mon.descricao || mon.termo_busca || tribunal} (${tribunal})`,
           tribunal,
           tipo: tipoMon,
           monitoramentoIds: [monId],
