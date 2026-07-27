@@ -167,7 +167,7 @@ serve(async (req) => {
               const { data: roles } = await supabase
                 .from("user_roles")
                 .select("user_id, role")
-                .eq("role", "coordenador")
+                .in("role", ["coordenador", "assistente_coordenador"])
                 .in("user_id", memberIds);
               for (const r of roles ?? []) coordSet.add((r as any).user_id);
             }

@@ -30,7 +30,7 @@ Deno.serve(async (req: Request) => {
       { auth: { persistSession: false } },
     );
     const { data: roles } = await admin.from("user_roles").select("role").eq("user_id", userData.user.id);
-    const allowed = (roles ?? []).some((r: any) => r.role === "admin" || r.role === "coordenador");
+    const allowed = (roles ?? []).some((r: any) => r.role === "admin" || r.role === "coordenador" || r.role === "assistente_coordenador");
     if (!allowed) return jsonResponse({ error: "Forbidden" }, 403);
 
     const { credencial_id, data, termo, tribunal, estado } = await req.json();

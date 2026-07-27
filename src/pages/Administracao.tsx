@@ -51,6 +51,7 @@ interface LoginHistory {
 const roleLabels: Record<AppRole, string> = {
   admin: "Administrador",
   coordenador: "Advogado Coordenador",
+  assistente_coordenador: "Assistente Coordenador",
   advogado: "Advogado",
   advogado_temporario: "Advogado DJEN Conferência",
   estagiario: "Estagiário",
@@ -62,6 +63,7 @@ const roleLabels: Record<AppRole, string> = {
 const roleBadgeColors: Record<AppRole, string> = {
   admin: "bg-destructive text-destructive-foreground",
   coordenador: "bg-[hsl(var(--area-empresarial))] text-white",
+  assistente_coordenador: "bg-[hsl(var(--area-empresarial))]/70 text-white",
   advogado: "bg-primary text-primary-foreground",
   advogado_temporario: "bg-amber-500/20 text-amber-700 dark:text-amber-400",
   estagiario: "bg-[hsl(var(--area-civil))] text-white",
@@ -641,6 +643,7 @@ const Administracao = () => {
                       <SelectContent>
                         <SelectItem value="admin">Administrador</SelectItem>
                         <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
+                        <SelectItem value="assistente_coordenador">Assistente Coordenador</SelectItem>
                         <SelectItem value="advogado">Advogado</SelectItem>
                         <SelectItem value="advogado_temporario">Advogado DJEN Conferência</SelectItem>
                         <SelectItem value="estagiario">Estagiário</SelectItem>
@@ -1033,6 +1036,7 @@ const Administracao = () => {
                     <SelectContent>
                       <SelectItem value="admin">Administrador</SelectItem>
                       <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
+                      <SelectItem value="assistente_coordenador">Assistente Coordenador</SelectItem>
                       <SelectItem value="advogado">Advogado</SelectItem>
                       <SelectItem value="advogado_temporario">Advogado DJEN Conferência</SelectItem>
                       <SelectItem value="estagiario">Estagiário</SelectItem>

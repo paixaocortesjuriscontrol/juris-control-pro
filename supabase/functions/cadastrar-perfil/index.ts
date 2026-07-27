@@ -47,8 +47,9 @@ serve(async (req) => {
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
-      .in("role", ["admin", "coordenador"])
-      .single();
+      .in("role", ["admin", "coordenador", "assistente_coordenador"])
+      .limit(1)
+      .maybeSingle();
 
     if (!roleData) {
       return new Response(JSON.stringify({ error: "Permissão negada" }), {
