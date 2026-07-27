@@ -1686,6 +1686,18 @@ export default function PainelControle() {
             <TstPrazos embedded />
           </div>
         ) : viewMode === "kanban" ? (
+          selectedItem ? (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <EdicaoItemPanel
+                key={selectedItem.id}
+                item={selectedItem}
+                onClose={() => setSelectedItem(null)}
+                onUpdate={() => {
+                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+                }}
+              />
+            </div>
+          ) : (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
             {(() => {
               const c = painelFiltros.classificacoes;
@@ -1709,6 +1721,7 @@ export default function PainelControle() {
               );
             })()}
           </div>
+          )
         ) : viewMode === "audiencias" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
             <PainelAudiencias embedded statusFilter={situacaoFilter} onStatusFilterChange={setSituacaoFilter} />
