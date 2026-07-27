@@ -973,11 +973,6 @@ async function buscarPaginado(slot, params, signal) {
   let noNewStreak = 0;
   let failedStreak = 0;
 
-  // Todos os tribunais começam em 50 e degradam para 10 quando a janela
-  // falha. O `fetch failed` observado no TST é erro de rede/timeout da VPS,
-  // não excesso de itens por página — por isso não há regra especial aqui.
-  const PAGE_SIZE_INICIAL = 50;
-
   // Tenta uma janela lógica (equivalente a 50 itens) com um dado pageSize.
   // Retorna { ok, items, aborted } — items já são os brutos coletados.
   // Se pageSize=50: 1 request (page = windowIdx).
@@ -1036,8 +1031,8 @@ async function buscarPaginado(slot, params, signal) {
     if (signal?.aborted) throw new Error("cancelado");
     // Tenta com size=50 primeiro; se falhar persistente, degrada para size=10
     // APENAS nesta janela (mesmos 50 itens fatiados em 5 sub-páginas de 10).
-    let result = await fetchWindow(windowIdx, PAGE_SIZE_INICIAL);
-    if (!result.ok && PAGE_SIZE_INICIAL !== 10) {
+    let result = await fetchWindow(windowIdx, 50);
+    if (!result.ok) {
       console.log(`[paralela.buscarPaginado] janela ${windowIdx} degradada para size=10 após falha (${result.err?.message || "?"})`);
       result = await fetchWindow(windowIdx, 10);
     }
@@ -1996,8 +1991,7 @@ async function run({ sb, payload, log, job }) {
                 } catch (altErr) {
                   lastErr = altErr;
                   const altMsg = String(altErr?.message || altErr || "");
-                  const alt5xx = /HTTP\s*5\d\d/.test(altMsg) || /Falha ao consultar VPS/.test(altMsg);
-                  if (!alt5xx) throw altErr;
+                  if (!/HTTP\s*5\d\d/.test(altMsg) && !/Falha ao consultar VPS/.test(altMsg)) throw altErr;
                 }
               }
               if (!recovered) throw lastErr;
