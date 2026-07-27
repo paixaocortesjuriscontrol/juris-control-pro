@@ -339,7 +339,32 @@ export function useCreateTarefa() {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        await registrarAuditoriaTarefa({
+          acao: "erro_criar",
+          sucesso: false,
+          dadosEntrada: tarefa as any,
+          erroMensagem: error.message,
+          erroDetalhes: error as any,
+          origem: "usePrazos.useCreateTarefa",
+          processoId: tarefa.processo_id || undefined,
+          tipoItem: tipoItemDeTarefa(tarefa.tipo_tarefa),
+          coordenacaoId: tarefa.coordenacao_id ?? null,
+        });
+        throw error;
+      }
+
+      await registrarAuditoriaTarefa({
+        acao: "criar",
+        sucesso: true,
+        dadosEntrada: tarefa as any,
+        dadosSaida: data as any,
+        origem: "usePrazos.useCreateTarefa",
+        processoId: (data as any)?.processo_id || undefined,
+        tarefaId: (data as any)?.id,
+        tipoItem: tipoItemDeTarefa((data as any)?.tipo_tarefa ?? tarefa.tipo_tarefa),
+        coordenacaoId: (data as any)?.coordenacao_id ?? tarefa.coordenacao_id ?? null,
+      });
 
       // Disparar notificação para o responsável via edge function (fire and forget)
       if (data && tarefa.responsavel_id) {
