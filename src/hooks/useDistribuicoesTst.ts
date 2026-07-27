@@ -158,12 +158,14 @@ export function applyParteRecorrenteFilter(query: any, option: string | undefine
         .not("recorrente", "ilike", BANCO)
         .not("recorrente", "ilike", TERCEIRO)
         .not("recorrente", "ilike", AMBOS);
+    case "Reclamada":
     case "Reclamado":
       return query
         .or(`recorrente.ilike.${RECLAMADO},recorrente.ilike.${BANCO}`)
         .not("recorrente", "ilike", RECLAMANTE)
         .not("recorrente", "ilike", TERCEIRO)
         .not("recorrente", "ilike", AMBOS);
+    case "Reclamante e Reclamada":
     case "Reclamante e Reclamado":
       return query
         .or(
@@ -183,11 +185,13 @@ export function applyParteRecorrenteFilter(query: any, option: string | undefine
         .ilike("recorrente", TERCEIRO)
         .not("recorrente", "ilike", RECLAMADO)
         .not("recorrente", "ilike", BANCO);
+    case "Reclamada e Terceiro":
     case "Reclamado e Terceiro":
       return query
         .or(`recorrente.ilike.${RECLAMADO},recorrente.ilike.${BANCO}`)
         .ilike("recorrente", TERCEIRO)
         .not("recorrente", "ilike", RECLAMANTE);
+    case "Reclamante, Reclamada e Terceiro":
     case "Reclamante, Reclamado e Terceiro":
       return query
         .ilike("recorrente", RECLAMANTE)

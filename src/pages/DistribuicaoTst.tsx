@@ -1994,12 +1994,12 @@ export default function DistribuicaoTst() {
                 <SelectContent>
                   <SelectItem value="todas">Todas as Partes Recorrentes</SelectItem>
                   <SelectItem value="Reclamante">Reclamante</SelectItem>
-                  <SelectItem value="Reclamado">Reclamado</SelectItem>
-                  <SelectItem value="Reclamante e Reclamado">Reclamante e Reclamado</SelectItem>
+                  <SelectItem value="Reclamada">Reclamada</SelectItem>
+                  <SelectItem value="Reclamante e Reclamada">Reclamante e Reclamada</SelectItem>
                   <SelectItem value="Terceiro">Terceiro</SelectItem>
                   <SelectItem value="Reclamante e Terceiro">Reclamante e Terceiro</SelectItem>
-                  <SelectItem value="Reclamado e Terceiro">Reclamado e Terceiro</SelectItem>
-                  <SelectItem value="Reclamante, Reclamado e Terceiro">Reclamante, Reclamado e Terceiro</SelectItem>
+                  <SelectItem value="Reclamada e Terceiro">Reclamada e Terceiro</SelectItem>
+                  <SelectItem value="Reclamante, Reclamada e Terceiro">Reclamante, Reclamada e Terceiro</SelectItem>
                 </SelectContent>
               </Select>
             </div>
