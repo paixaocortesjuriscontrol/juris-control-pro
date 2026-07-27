@@ -1967,8 +1967,8 @@ async function run({ sb, payload, log, job }) {
               pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
             } catch (firstErr) {
               const msg = String(firstErr?.message || firstErr || "");
-              const is5xx = /HTTP\s*5\d\d/.test(msg) || /Falha ao consultar VPS/.test(msg);
-              if (!is5xx || cancelled || signal.aborted) throw firstErr;
+              const recuperavel = isErroRecuperavel(msg);
+              if (!recuperavel || cancelled || signal.aborted) throw firstErr;
               // Failover entre VPS: o slot atual derruba persistentemente esta
               // tupla (tribunal, mon, dia). Tenta os demais slots do pool antes
               // de empurrar para a refila — espelha o fallback do browser que
@@ -1996,7 +1996,7 @@ async function run({ sb, payload, log, job }) {
                 } catch (altErr) {
                   lastErr = altErr;
                   const altMsg = String(altErr?.message || altErr || "");
-                  if (!/HTTP\s*5\d\d/.test(altMsg) && !/Falha ao consultar VPS/.test(altMsg)) throw altErr;
+                  if (!isErroRecuperavel(altMsg)) throw altErr;
                 }
               }
               if (!recovered) throw lastErr;
@@ -2021,7 +2021,7 @@ async function run({ sb, payload, log, job }) {
           } catch (e) {
             if (cancelled || signal.aborted || String(e?.message || e).includes("cancel")) throw e;
             const errMsg = String(e?.message || e || "");
-            const is5xx = /HTTP\s*5\d\d/.test(errMsg) || /Falha ao consultar VPS/.test(errMsg);
+            const is5xx = isErroRecuperavel(errMsg);
             const isStf = String(item.tribunal || "").toUpperCase() === "STF";
             if (isStf && is5xx) {
               // Não refila STF em 5xx: PJE Comunica devolve 500 sistemático
