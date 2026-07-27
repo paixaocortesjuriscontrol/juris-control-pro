@@ -1033,15 +1033,28 @@ async function buscarPaginado(slot, params, signal) {
     // APENAS nesta janela (mesmos 50 itens fatiados em 5 sub-páginas de 10).
     let result = await fetchWindow(windowIdx, 50);
     if (!result.ok) {
-      console.log(`[paralela.buscarPaginado] janela ${windowIdx} degradada para size=10 após falha (${result.err?.message || "?"})`);
+      const msg1 = String(result.err?.message || "?");
+      console.log(`[paralela.buscarPaginado] janela ${windowIdx} degradada para size=10 após falha (${msg1})`);
+      // Erro de rede (fetch failed / socket) => respira antes de degradar,
+      // senão a nova tentativa cai no mesmo bloqueio do tribunal.
+      if (/fetch failed|socket|ECONN|network|timeout/i.test(msg1)) {
+        await delay(2000, signal);
+      }
       result = await fetchWindow(windowIdx, 10);
+      if (!result.ok) {
+        // Última degradação: 5 itens por página. Buscas amplas por parte no
+        // TST derrubam a conexão com páginas grandes.
+        await delay(4000, signal);
+        result = await fetchWindow(windowIdx, 5);
+      }
     }
     if (!result.ok) {
       failedStreak += 1;
       if (failedStreak >= CONSECUTIVE_FAILED_PAGES_LIMIT) {
         throw result.err || new Error("Falha ao consultar VPS DJEN");
       }
-      if (PAGE_DELAY_MS > 0) await delay(PAGE_DELAY_MS, signal);
+      // Backoff exponencial entre janelas que falharam (2s, 4s, 8s...).
+      await delay(Math.min(2000 * Math.pow(2, failedStreak - 1), 15000), signal);
       continue;
     }
     failedStreak = 0;
