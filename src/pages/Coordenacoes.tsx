@@ -690,6 +690,15 @@ const Coordenacoes = () => {
         onOpenChange={setTransferirDialog}
       />
 
+      <NivelAcessoDialog
+        open={!!nivelAcessoMembro}
+        onOpenChange={(open) => !open && setNivelAcessoMembro(null)}
+        usuarioId={nivelAcessoMembro?.usuario?.id ?? null}
+        usuarioNome={nivelAcessoMembro?.usuario?.nome ?? null}
+        membroEhAdmin={String(nivelAcessoMembro?.cargo || "").toLowerCase().includes("admin")}
+        membroEhCoordenador={String(nivelAcessoMembro?.cargo || "").toLowerCase().includes("coordenador")}
+      />
+
       {/* Confirm Remove Member Dialog */}
       <AlertDialog open={!!removeMembroId} onOpenChange={() => setRemoveMembroId(null)}>
         <AlertDialogContent>
