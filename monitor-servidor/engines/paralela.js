@@ -959,6 +959,17 @@ function shouldExclude(conteudo, mon, pub) {
   });
 }
 
+// Erros que justificam failover para outra VPS / degradação de página.
+// Inclui erros de rede do undici (`fetch failed`, timeout, reset) — antes só
+// 5xx era tratado, e o `fetch failed` caía direto na refila sem tentar outra VPS.
+function isErroRecuperavel(msg) {
+  const s = String(msg || "");
+  return /HTTP\s*5\d\d/.test(s)
+    || /Falha ao consultar VPS/i.test(s)
+    || /fetch failed/i.test(s)
+    || /timeout|timed out|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ENOTFOUND|socket hang up|network|UND_ERR/i.test(s);
+}
+
 async function buscarPaginado(slot, params, signal) {
   const all = [];
   const seen = new Set();
