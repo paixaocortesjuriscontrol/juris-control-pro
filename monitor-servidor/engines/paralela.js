@@ -1907,7 +1907,7 @@ async function run({ sb, payload, log, job }) {
         }
         const syntheticItem = {
           id: `retry|${tribunal}|${monId}|${dia}`,
-          label: `RETRY ${mon.descricao || mon.termo_busca || tribunal}`,
+          label: `RETRY ${Math.min((f.tentativas || 0) + 1, MAX_TENTATIVAS)}/${MAX_TENTATIVAS} — ${mon.descricao || mon.termo_busca || tribunal} (${tribunal})`,
           tribunal,
           tipo: tipoMon,
           monitoramentoIds: [monId],
