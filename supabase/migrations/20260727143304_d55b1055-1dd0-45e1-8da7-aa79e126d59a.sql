@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.get_djen_publicacoes_unificadas(uuid, timestamp with time zone, timestamp with time zone, boolean, text, integer, integer, uuid, text, text, timestamp with time zone, timestamp with time zone, text, boolean);
