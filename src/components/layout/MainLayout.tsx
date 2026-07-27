@@ -47,7 +47,7 @@ export function MainLayout({ children, title, subtitle, headerActions, className
     (item) => location.pathname === item.path || location.pathname.startsWith(`${item.path}/`)
   );
   if (!loadingPermissoes && matchedMenu && !isMenuAllowed(matchedMenu.path)) {
-    return <Navigate to="/painel-controle" replace />;
+    return <Navigate to={matchedMenu.path === "/painel-controle" ? "/" : "/painel-controle"} replace />;
   }
 
   return (
