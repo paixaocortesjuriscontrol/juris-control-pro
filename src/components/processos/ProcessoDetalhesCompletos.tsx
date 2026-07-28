@@ -355,7 +355,11 @@ export function ProcessoDetalhesCompletos({
 
   const formatDate = (date: string | null | undefined) => {
     if (!date) return "Não informado";
-    return format(new Date(date), "dd/MM/yyyy", { locale: ptBR });
+    // Datas "puras" (YYYY-MM-DD ou timestamp 00:00:00Z) são ancoradas ao
+    // meio-dia local para evitar o deslocamento de -1 dia (UTC -> BRT).
+    const local = parseDataPublicacaoLocal(date);
+    if (!local) return "Não informado";
+    return format(local, "dd/MM/yyyy", { locale: ptBR });
   };
 
   const formatDateTime = (date: string | null | undefined) => {
