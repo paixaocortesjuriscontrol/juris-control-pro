@@ -1466,7 +1466,7 @@ export function ProcessoDetalhesCompletos({
                                       {tarefa.data_vencimento && (
                                         <span className="flex items-center gap-1">
                                           <Calendar className="h-3 w-3" />
-                                          {formatDate(tarefa.data_vencimento)}
+                                          Limite: {formatDate(tarefa.data_vencimento)}
                                         </span>
                                       )}
                                       {tarefa.data_fatal && (
