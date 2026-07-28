@@ -163,6 +163,15 @@ export function PendenciasProcessoCard({
   const clickableCardClass = () =>
     cn(onNavigate && "cursor-pointer hover:bg-muted/60 transition-colors");
 
+  // Identifica de qual pasta/processo é a pendência (processos distintos podem
+  // ter itens com títulos idênticos).
+  const ProcTag = () =>
+    processoNumero ? (
+      <div className="text-[10px] text-muted-foreground/80 font-mono truncate">
+        Processo {processoNumero}
+      </div>
+    ) : null;
+
   return (
     <>
     <Card className="border border-border/60 shadow-md">
@@ -334,6 +343,7 @@ export function PendenciasProcessoCard({
                   {t.descricao && (
                     <p className="text-muted-foreground line-clamp-1 mt-0.5">{t.descricao}</p>
                   )}
+                  <ProcTag />
                 </div>
               );
             })}
@@ -400,6 +410,7 @@ export function PendenciasProcessoCard({
                   {t.descricao && (
                     <p className="text-muted-foreground line-clamp-1 mt-0.5">{t.descricao}</p>
                   )}
+                  <ProcTag />
                 </div>
               );
             })}
