@@ -21,6 +21,7 @@ import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import { useQueryClient } from "@tanstack/react-query";
+import { ItemComentarios } from "@/components/comum/ItemComentarios";
 
 type Props = {
   defaultProcessoNumero?: string;
@@ -658,6 +659,8 @@ export function AudienciaFormSimplificado({
           rows={4}
         />
       </div>
+
+      <ItemComentarios tipo="audiencia" itemId={audienciaParaEditar?.id} />
 
       <div className="flex justify-end gap-2 pt-2 border-t">
         {onCancel && (
