@@ -37,16 +37,63 @@ interface AuditoriaRow {
   erro_mensagem: string | null;
   erro_detalhes: any;
   user_agent: string | null;
+  campos_alterados: any;
 }
 
 const TIPOS = ["tarefa", "prazo", "evento", "audiencia", "parcelamento"] as const;
 const ACOES = ["criar", "atualizar", "deletar", "erro_criar", "erro_atualizar", "erro_deletar"] as const;
+
+const LABELS: Record<string, string> = {
+  titulo: "Título",
+  descricao: "Descrição",
+  observacoes: "Observações",
+  observacao: "Observação",
+  status: "Situação",
+  situacao: "Situação",
+  prioridade: "Prioridade",
+  data_vencimento: "Data de vencimento",
+  data_fatal: "Data fatal",
+  data_cumprimento: "Data de cumprimento",
+  tratado_em: "Tratado em",
+  responsavel_id: "Responsável",
+  coordenacao_id: "Coordenação",
+  processo_id: "Processo",
+  data_inicio: "Data de início",
+  data_fim: "Data de término",
+  tipo: "Tipo",
+  tipo_tarefa: "Tipo",
+  local: "Local",
+  valor: "Valor",
+};
+
+const labelCampo = (campo: string) => LABELS[campo] || campo.replace(/_/g, " ");
+
+const formatValor = (v: any): string => {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "Sim" : "Não";
+  if (typeof v === "object") return JSON.stringify(v);
+  const s = String(v);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if (m) return m[4] ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : `${m[3]}/${m[2]}/${m[1]}`;
+  return s.length > 120 ? `${s.slice(0, 120)}…` : s;
+};
+
+const getDiff = (r: AuditoriaRow): { campo: string; de: any; para: any }[] => {
+  if (Array.isArray(r.campos_alterados)) return r.campos_alterados;
+  return [];
+};
+
+const getTituloItem = (r: AuditoriaRow): string => {
+  const fonte = r.dados_saida || r.dados_entrada || {};
+  return fonte?.titulo || fonte?.descricao || fonte?.nome || "—";
+};
 
 export default function AuditoriaItens() {
   const [tipoItem, setTipoItem] = useState<string>("todos");
   const [acao, setAcao] = useState<string>("todos");
   const [sucesso, setSucesso] = useState<string>("todos");
   const [origem, setOrigem] = useState("");
+  const [buscaUsuario, setBuscaUsuario] = useState("");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [selected, setSelected] = useState<AuditoriaRow | null>(null);
