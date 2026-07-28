@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   formatConteudoParaExibicao,
   conteudoDisplayClasses,
+  formatDateOnlyFull,
 } from "@/utils/formatConteudo";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
