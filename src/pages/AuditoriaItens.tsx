@@ -256,8 +256,11 @@ export default function AuditoriaItens() {
                       <TableCell className="whitespace-nowrap text-xs">
                         {format(new Date(r.created_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}
                       </TableCell>
-                      <TableCell className="text-xs font-medium">
-                        {nomeUsuario(r.usuario_id)}
+                      <TableCell className="text-xs">
+                        <div className="font-medium">{nomeUsuario(r.usuario_id)}</div>
+                        {emailUsuario(r.usuario_id) && (
+                          <div className="text-[11px] text-muted-foreground">{emailUsuario(r.usuario_id)}</div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{r.tipo_item || "—"}</Badge>
@@ -325,7 +328,13 @@ export default function AuditoriaItens() {
               <div className="space-y-4 text-sm pr-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div><span className="text-muted-foreground">Data:</span> {format(new Date(selected.created_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}</div>
-                  <div><span className="text-muted-foreground">Alterado por:</span> <span className="font-medium">{nomeUsuario(selected.usuario_id)}</span></div>
+                  <div>
+                    <span className="text-muted-foreground">Alterado por:</span>{" "}
+                    <span className="font-medium">{nomeUsuario(selected.usuario_id)}</span>
+                    {emailUsuario(selected.usuario_id) && (
+                      <span className="text-muted-foreground"> ({emailUsuario(selected.usuario_id)})</span>
+                    )}
+                  </div>
                   <div><span className="text-muted-foreground">Tipo:</span> {selected.tipo_item || "—"}</div>
                   <div><span className="text-muted-foreground">Item:</span> {getTituloItem(selected)}</div>
                   <div><span className="text-muted-foreground">Ação:</span> {selected.acao}</div>
