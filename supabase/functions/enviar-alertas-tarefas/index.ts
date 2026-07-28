@@ -329,12 +329,7 @@ serve(async (req) => {
 
         // Montar mensagem (data BRT dd/MM/yyyy)
         const dataStr = alvoInfo.dataStrBR;
-        const linhas = itens.slice(0, 30).map((i) => {
-          const h = i.hora ? ` às ${i.hora}` : "";
-          const p = i.processo ? ` — ${i.processo}` : "";
-          const r = i.responsaveis?.length ? ` — Resp.: ${i.responsaveis.join(", ")}` : "";
-          return `• ${i.titulo}${h}${p}${r}`;
-        }).join("\n");
+        const linhas = itens.slice(0, 30).map((i) => formatarItem(i)).join("\n\n");
         const cabecalho = nDias === 0
           ? `📅 Alertas para HOJE (${dataStr}) — ${cfg.tipo_tarefa}`
           : `⏰ Alertas para ${dataStr} (em ${nDias} dia${nDias > 1 ? "s" : ""}) — ${cfg.tipo_tarefa}`;
