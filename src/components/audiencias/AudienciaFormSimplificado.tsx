@@ -22,6 +22,7 @@ import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import { useQueryClient } from "@tanstack/react-query";
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
+import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPublicacaoVinculada";
 
 type Props = {
   defaultProcessoNumero?: string;
@@ -365,6 +366,7 @@ export function AudienciaFormSimplificado({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {isEditing && <AudienciaPublicacaoVinculada audienciaId={audienciaParaEditar?.id} />}
       {!hideTitleHeader && (
         <div className="flex items-center justify-between gap-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-foreground flex items-center gap-2">
