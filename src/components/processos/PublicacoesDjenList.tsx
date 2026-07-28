@@ -35,6 +35,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { jsPDF } from "jspdf";
 import { useAgendadosPorPublicacao } from "@/hooks/useAgendadosPorPublicacao";
+import { useNavigate } from "react-router-dom";
 
 interface PublicacaoDjen {
   id: string;
@@ -69,6 +70,7 @@ export function PublicacoesDjenList({
 }: PublicacoesDjenListProps) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -609,9 +611,17 @@ export function PublicacoesDjenList({
                         {agendadosPorPub[pub.id].map((item) => {
                           const meta = tipoLabel[item.tipo] ?? tipoLabel.tarefa;
                           return (
-                            <div
+                            <button
                               key={`${item.origem}-${item.id}`}
-                              className="flex flex-wrap items-center gap-1.5 text-[10px] md:text-xs"
+                              type="button"
+                              onClick={() =>
+                                navigate(
+                                  item.origem === "audiencia"
+                                    ? `/painel-audiencias?selectedId=${item.id}`
+                                    : `/painel-controle?selectedId=${item.id}&origem=tarefa`
+                                )
+                              }
+                              className="w-full text-left flex flex-wrap items-center gap-1.5 text-[10px] md:text-xs rounded px-1 py-0.5 hover:bg-accent transition-colors cursor-pointer"
                             >
                               <Badge variant="outline" className={cn("px-1.5 py-0", meta.cls)}>
                                 {meta.label}
@@ -623,7 +633,8 @@ export function PublicacoesDjenList({
                               {item.status && (
                                 <span className="text-muted-foreground capitalize">• {item.status}</span>
                               )}
-                            </div>
+                              <span className="ml-auto text-primary underline">abrir</span>
+                            </button>
                           );
                         })}
                       </div>
