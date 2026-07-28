@@ -36,6 +36,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { PublicacaoVinculadaCollapsible } from "@/components/shared/PublicacaoVinculadaCollapsible";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { formatConteudoParaExibicao, conteudoDisplayClasses, parseDataPublicacaoLocal } from "@/utils/formatConteudo";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
@@ -336,6 +337,17 @@ export function PrazoDialog({
   }, [open, prazo?.id, unicaCoordenacaoId]);
 
   // Auto-calcular data limite quando Prazo (dias) muda
+  // Coordenadores da coordenação são responsáveis obrigatórios do prazo
+  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null);
+
+  useEffect(() => {
+    if (coordenadoresIds.length === 0) return;
+    setResponsaveisIds((prev) => {
+      const faltando = coordenadoresIds.filter((id) => !prev.includes(id));
+      return faltando.length > 0 ? [...prev, ...faltando] : prev;
+    });
+  }, [JSON.stringify(coordenadoresIds)]);
+
   useEffect(() => {
     if (prazo) return;
     if (dataLimiteEditadaManualmente) return;
@@ -808,7 +820,13 @@ export function PrazoDialog({
             onChange={setResponsaveisIds}
             placeholder="Adicionar responsável"
             emptyLabel="Nenhum responsável selecionado"
+            lockedIds={coordenadoresIds}
           />
+          {coordenadoresIds.length > 0 && (
+            <p className="text-[11px] text-muted-foreground">
+              Coordenadores da coordenação são responsáveis obrigatórios e não podem ser removidos.
+            </p>
+          )}
           {!mostrarEnvolvidos && (
             <button
               type="button"

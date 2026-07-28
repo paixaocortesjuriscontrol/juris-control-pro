@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, ChevronsUpDown, UserPlus, X, Users } from "lucide-react";
+import { Check, ChevronsUpDown, UserPlus, X, Users, Lock } from "lucide-react";
 
 interface UserOpt {
   id: string;
@@ -45,6 +45,8 @@ interface Props {
   placeholder?: string;
   emptyLabel?: string;
   icon?: "user" | "users";
+  /** IDs que não podem ser removidos pelo usuário (ex.: coordenadores obrigatórios) */
+  lockedIds?: string[];
 }
 
 function initials(name: string) {
@@ -64,6 +66,7 @@ export function PeoplePicker({
   placeholder = "Adicionar pessoa",
   emptyLabel = "Nenhuma pessoa selecionada",
   icon = "user",
+  lockedIds = [],
 }: Props) {
   const [open, setOpen] = useState(false);
   const { user } = useAuth();
@@ -166,13 +169,17 @@ export function PeoplePicker({
 
   const toggle = (id: string) => {
     if (selectedIds.includes(id)) {
+      if (lockedIds.includes(id)) return;
       onChange(selectedIds.filter((x) => x !== id));
     } else {
       onChange([...selectedIds, id]);
     }
   };
 
-  const remover = (id: string) => onChange(selectedIds.filter((x) => x !== id));
+  const remover = (id: string) => {
+    if (lockedIds.includes(id)) return;
+    onChange(selectedIds.filter((x) => x !== id));
+  };
 
   return (
     <div className="space-y-2">
@@ -180,7 +187,9 @@ export function PeoplePicker({
         {selecionados.length === 0 && (
           <span className="text-xs text-muted-foreground px-1">{emptyLabel}</span>
         )}
-        {selecionados.map((u) => (
+        {selecionados.map((u) => {
+          const locked = lockedIds.includes(u.id);
+          return (
           <Badge
             key={u.id}
             variant="secondary"
@@ -192,6 +201,9 @@ export function PeoplePicker({
               </AvatarFallback>
             </Avatar>
             <span className="text-xs">{u.nome}</span>
+            {locked ? (
+              <Lock className="h-3 w-3 opacity-60" aria-label="Responsável obrigatório" />
+            ) : (
             <button
               type="button"
               onClick={() => remover(u.id)}
@@ -200,8 +212,10 @@ export function PeoplePicker({
             >
               <X className="h-3 w-3" />
             </button>
+            )}
           </Badge>
-        ))}
+          );
+        })}
 
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
@@ -272,7 +286,7 @@ export function PeoplePicker({
                     <div className="p-1">
                       <button
                         type="button"
-                        onClick={() => onChange([])}
+                        onClick={() => onChange(selectedIds.filter((id) => lockedIds.includes(id)))}
                         className="w-full text-xs text-muted-foreground hover:text-destructive py-1.5 px-2 rounded hover:bg-muted text-left"
                       >
                         Limpar seleção ({selecionados.length})
