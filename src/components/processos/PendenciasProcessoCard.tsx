@@ -312,10 +312,16 @@ export function PendenciasProcessoCard({
                     </div>
                   </div>
                   <div className="flex items-center gap-3 text-muted-foreground flex-wrap">
-                    {(t.data_fatal || t.data_vencimento) && (
+                    {t.data_vencimento && (
                       <span className="flex items-center gap-1">
                         <CalendarDays className="w-3 h-3" />
-                        Vence: {formatDate(t.data_fatal || t.data_vencimento)}
+                        Limite: {formatDate(t.data_vencimento)}
+                      </span>
+                    )}
+                    {t.data_fatal && (
+                      <span className="flex items-center gap-1">
+                        <CalendarDays className="w-3 h-3" />
+                        Fatal: {formatDate(t.data_fatal)}
                       </span>
                     )}
                   </div>
