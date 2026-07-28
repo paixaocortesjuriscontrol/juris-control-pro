@@ -139,6 +139,17 @@ export default function AuditoriaItens() {
     enabled: userIds.length > 0,
   });
 
+  const nomeUsuario = (id: string | null) =>
+    id ? profiles?.[id] || id.slice(0, 8) : "—";
+
+  const rowsFiltradas = useMemo(() => {
+    const termo = buscaUsuario.trim().toLowerCase();
+    if (!termo) return rows || [];
+    return (rows || []).filter((r) =>
+      nomeUsuario(r.usuario_id).toLowerCase().includes(termo)
+    );
+  }, [rows, buscaUsuario, profiles]);
+
   return (
     <MainLayout
       title="Auditoria de Itens"
