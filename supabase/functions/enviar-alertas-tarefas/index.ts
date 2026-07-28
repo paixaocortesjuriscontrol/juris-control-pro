@@ -410,13 +410,13 @@ serve(async (req) => {
         const horaCfg = parseInt(String(cfg.pos_vencimento_horario ?? "09:00").slice(0, 2), 10);
         if (Number.isFinite(horaCfg) && horaBRT === horaCfg) {
           const hojeYmd = hoje.ymd;
-          const itensVenc: Array<{ id: string; titulo: string; data: string; processo?: string | null; responsaveis: string[] }> = [];
+          const itensVenc: ItemDetalhado[] = [];
           const idsExtrasVenc = new Set<string>();
 
           // Tarefas vencidas (data_vencimento < hoje) e ainda não concluídas/tratadas
           const { data: tarefasVenc } = await supabase
             .from("tarefas")
-            .select("id, titulo, data_vencimento, data_cumprimento, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos!inner(numero, coordenacao_id)")
+            .select("id, titulo, data_vencimento, data_cumprimento, observacoes, descricao, partes_ativas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos!inner(numero, coordenacao_id, polo_ativo, reclamante, cliente:clientes!processos_cliente_id_fkey(nome))")
             .eq("tipo_tarefa", cfg.tipo_tarefa)
             .eq("processo.coordenacao_id", cfg.coordenacao_id)
             .lt("data_vencimento", hojeYmd)
@@ -428,11 +428,16 @@ serve(async (req) => {
             (t.tarefa_responsaveis ?? []).forEach((r: any) => r.usuario_id && respIds.add(r.usuario_id));
             const responsaveis = await nomesProfiles([...respIds]);
             respIds.forEach((id) => idsExtrasVenc.add(id));
-            (t.tarefa_envolvidos ?? []).forEach((e: any) => e.usuario_id && idsExtrasVenc.add(e.usuario_id));
+            const envIdsV = (t.tarefa_envolvidos ?? []).map((e: any) => e.usuario_id).filter(Boolean);
+            const envolvidos = await nomesProfiles(envIdsV);
+            envIdsV.forEach((id: string) => idsExtrasVenc.add(id));
             if (t.criado_por) idsExtrasVenc.add(t.criado_por);
             itensVenc.push({
               id: t.id, titulo: t.titulo, data: t.data_vencimento,
-              processo: t.processo?.numero, responsaveis,
+              processo: t.processo?.numero, origem: "tarefa", responsaveis, envolvidos,
+              observacao: t.observacoes ?? t.descricao ?? null,
+              cliente: t.processo?.cliente?.nome ?? null,
+              reclamante: t.processo?.reclamante ?? t.processo?.polo_ativo ?? t.partes_ativas ?? null,
             });
           }
 
@@ -441,11 +446,9 @@ serve(async (req) => {
             const { data: destsVenc } = finalIdsVenc.size > 0
               ? await supabase.from("profiles").select("id, nome, email, telefone").in("id", [...finalIdsVenc])
               : { data: [] as any[] };
-            const linhas = itensVenc.slice(0, 40).map((i) => {
-              const p = i.processo ? ` — ${i.processo}` : "";
-              const r = i.responsaveis?.length ? ` — Resp.: ${i.responsaveis.join(", ")}` : "";
-              return `• ${i.titulo} (venceu em ${i.data.split("-").reverse().join("/")})${p}${r}`;
-            }).join("\n");
+            const linhas = itensVenc.slice(0, 40)
+              .map((i) => formatarItem(i, `(venceu em ${String(i.data).slice(0, 10).split("-").reverse().join("/")})`))
+              .join("\n\n");
             const cabecalho = `🚨 Itens VENCIDOS não tratados — ${cfg.tipo_tarefa}`;
             const linhaCoord = coordNome ? `Coordenação: ${coordNome}\n\n` : "";
             const corpoTexto = `${cabecalho}\n\n${linhaCoord}${linhas}\n\nTotal: ${itensVenc.length} item(ns) pendente(s)`;
