@@ -36,6 +36,7 @@ type Props = {
   defaultDataAudiencia?: string;
   publicacaoId?: string;
   publicacaoTipoOrigem?: "termo" | "processo" | "descartada" | "datajud";
+  publicacaoConteudo?: string;
   secondarySave?: {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
@@ -81,6 +82,7 @@ export function AudienciaFormSimplificado({
   defaultDataAudiencia,
   publicacaoId,
   publicacaoTipoOrigem,
+  publicacaoConteudo,
   secondarySave,
   tertiarySave,
   onAfterCreate,
