@@ -242,9 +242,7 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
           <TableHeader>
             <TableRow>
               <TableHead>Item</TableHead>
-              <TableHead>Responsáveis</TableHead>
-              <TableHead>Reclamante</TableHead>
-              <TableHead>Cliente</TableHead>
+              <TableHead>Responsáveis e envolvidos</TableHead>
               <TableHead>Processo</TableHead>
               <TableHead>Data</TableHead>
               <TableHead>Prazo</TableHead>
@@ -267,21 +265,21 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
                       {item.descricao && (
                         <p className="text-xs text-muted-foreground truncate">{item.descricao}</p>
                       )}
+                      {getReclamante(item) !== "-" && (
+                        <p className="text-xs text-muted-foreground truncate" title={getReclamante(item)}>
+                          Reclamante: {getReclamante(item)}
+                        </p>
+                      )}
+                      {getCliente(item) !== "-" && (
+                        <p className="text-xs text-muted-foreground truncate" title={getCliente(item)}>
+                          Cliente: {getCliente(item)}
+                        </p>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm truncate block max-w-[180px]">
+                    <span className="text-sm block max-w-[240px]" title={pessoas.map((p) => p.nome).join(", ")}>
                       {pessoas.length ? pessoas.map((p) => p.nome).join(", ") : "Não atribuído"}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm truncate block max-w-[200px]" title={getReclamante(item)}>
-                      {getReclamante(item)}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <span className="text-sm truncate block max-w-[180px]" title={getCliente(item)}>
-                      {getCliente(item)}
                     </span>
                   </TableCell>
                   <TableCell>
