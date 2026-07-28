@@ -1270,6 +1270,11 @@ export function ProcessoDetalhesCompletos({
                                     {tarefa.descricao && (
                                       <p className="text-xs text-muted-foreground line-clamp-1">{tarefa.descricao}</p>
                                     )}
+                                    {(tarefa.processo?.numero || processo?.numero) && (
+                                      <p className="text-[11px] font-mono text-muted-foreground">
+                                        Processo: {tarefa.processo?.numero || processo?.numero}
+                                      </p>
+                                    )}
                                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                       {tarefa.data_vencimento && (
                                         <span className="flex items-center gap-1">
