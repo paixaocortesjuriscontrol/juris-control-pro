@@ -93,6 +93,10 @@ export interface NovaAudiencia {
   advogados_ids?: string[];
   envolvidos_ids?: string[];
   coordenacao_id?: string;
+  /** Origem do registro ('manual' | 'publicacao'). Default: 'manual'. */
+  origem?: string;
+  /** Conteúdo da publicação DJEN que originou a audiência. */
+  conteudo_publicacao?: string;
 }
 
 interface AudienciasFiltros {
@@ -223,10 +227,11 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
-      // Extrair advogados_ids antes de inserir
-      // publicacao_id é ignorado aqui — vínculo com publicação DJEN agora é feito
-      // via tabelas de junção (audiencias_publicacoes / _processos / _descartadas)
-      const { advogados_ids, envolvidos_ids, publicacao_id: _ignorePublicacaoId, ...dadosAudiencia } = novaAudiencia;
+      // Extrair advogados_ids antes de inserir.
+      // publicacao_id só é gravado quando aponta para publicacoes_djen (FK);
+      // para publicações de processos/descartadas o vínculo é feito nas
+      // tabelas de junção (audiencias_publicacoes_processos / _descartadas).
+      const { advogados_ids, envolvidos_ids, ...dadosAudiencia } = novaAudiencia;
 
       // Converter data para formato ISO completo (timestamp with time zone)
       let dataAudienciaISO: string | null = null;
@@ -242,7 +247,9 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
           ...dadosAudiencia,
           processo_id: dadosAudiencia.processo_id || null,
           data_audiencia: dataAudienciaISO,
-          origem: 'manual',
+          publicacao_id: dadosAudiencia.publicacao_id || null,
+          conteudo_publicacao: dadosAudiencia.conteudo_publicacao || null,
+          origem: dadosAudiencia.origem || 'manual',
           criado_por: user.id,
           status: dadosAudiencia.status || 'pendente',
           modalidade: dadosAudiencia.modalidade || null,
