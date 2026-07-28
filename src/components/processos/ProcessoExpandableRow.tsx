@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnlyFull } from "@/utils/formatConteudo";
+import { formatDateSafe } from "@/utils/date";
 
 interface ProcessoExpandableRowProps {
   processo: {
@@ -685,11 +686,11 @@ export function ProcessoExpandableRow({
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium text-muted-foreground">
                             {int.data_intimacao
-                              ? format(new Date(int.data_intimacao), "dd/MM/yyyy")
+                              ? formatDateSafe(int.data_intimacao)
                               : "Data não informada"}
                             {int.data_limite && (
                               <span className="text-red-600 ml-2">
-                                Prazo: {format(new Date(int.data_limite), "dd/MM/yyyy")}
+                                Limite: {formatDateSafe(int.data_limite)}
                               </span>
                             )}
                           </span>
@@ -793,9 +794,19 @@ export function ProcessoExpandableRow({
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          {tarefa.prazo_fatal && (
+                          {tarefa.data_vencimento && (
                             <span>
-                              Prazo: {format(new Date(tarefa.prazo_fatal), "dd/MM/yyyy")}
+                              Limite: {formatDateSafe(tarefa.data_vencimento)}
+                            </span>
+                          )}
+                          {tarefa.data_fatal && (
+                            <span>
+                              Fatal: {formatDateSafe(tarefa.data_fatal)}
+                            </span>
+                          )}
+                          {!tarefa.data_fatal && tarefa.prazo_fatal && (
+                            <span>
+                              Fatal: {formatDateSafe(tarefa.prazo_fatal)}
                             </span>
                           )}
                           {tarefa.responsavel?.nome && (
