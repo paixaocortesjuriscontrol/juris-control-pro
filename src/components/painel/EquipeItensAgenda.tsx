@@ -58,6 +58,15 @@ function getRefDate(item: ItemAgendaUnificado): Date | null {
   return isValid(d) ? d : null;
 }
 
+function isItemCancelado(item: ItemAgendaUnificado): boolean {
+  const normalize = (v?: string | null) =>
+    (v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  const anyItem = item as unknown as { status?: string | null; situacao?: string | null; status_tst?: string | null };
+  return [anyItem.status, anyItem.situacao, anyItem.status_tst].some((v) =>
+    ["cancelado", "cancelada"].includes(normalize(v)),
+  );
+}
+
 function getBaseId(id: string) {
   return id.split("::")[0];
 }
