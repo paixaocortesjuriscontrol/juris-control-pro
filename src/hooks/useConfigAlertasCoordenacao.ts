@@ -94,32 +94,26 @@ export function useConfigAlertasCoordenacao(coordenacaoId?: string) {
   // Criar ou atualizar config
   const salvarConfig = useMutation({
     mutationFn: async (config: Partial<ConfigAlertaCoordenacao> & { coordenacao_id: string }) => {
-      // Verificar se já existe
-      const { data: existing } = await supabase
-        .from('config_alertas_coordenacao')
-        .select('id')
-        .eq('coordenacao_id', config.coordenacao_id)
-        .maybeSingle();
+      // Upsert direto (evita falhas quando o SELECT prévio é bloqueado por RLS)
+      const payload = {
+        coordenacao_id: config.coordenacao_id,
+        email_habilitado: config.email_habilitado ?? false,
+        whatsapp_habilitado: config.whatsapp_habilitado ?? false,
+        tipos_alerta: config.tipos_alerta ?? [],
+        apenas_urgentes: config.apenas_urgentes ?? false,
+        horario_inicio: config.horario_inicio ?? null,
+        horario_fim: config.horario_fim ?? null,
+        dias_semana: config.dias_semana ?? [],
+      };
 
-      if (existing) {
-        const { error } = await supabase
-          .from('config_alertas_coordenacao')
-          .update({
-            email_habilitado: config.email_habilitado,
-            whatsapp_habilitado: config.whatsapp_habilitado,
-            tipos_alerta: config.tipos_alerta,
-            apenas_urgentes: config.apenas_urgentes,
-            horario_inicio: config.horario_inicio,
-            horario_fim: config.horario_fim,
-            dias_semana: config.dias_semana,
-          })
-          .eq('id', existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('config_alertas_coordenacao')
-          .insert(config);
-        if (error) throw error;
+      const { data, error } = await supabase
+        .from('config_alertas_coordenacao')
+        .upsert(payload, { onConflict: 'coordenacao_id' })
+        .select('id');
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error('Sem permissão para salvar a configuração desta coordenação.');
       }
     },
     onSuccess: async () => {
