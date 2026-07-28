@@ -125,14 +125,14 @@ export default function AuditoriaItens() {
   const { data: profiles } = useQuery({
     queryKey: ["auditoria-profiles", userIds.sort().join(",")],
     queryFn: async () => {
-      if (userIds.length === 0) return {} as Record<string, string>;
+      if (userIds.length === 0) return {} as Record<string, { nome: string; email: string }>;
       const { data } = await supabase
         .from("profiles")
         .select("id, nome_completo, email")
         .in("id", userIds);
-      const map: Record<string, string> = {};
+      const map: Record<string, { nome: string; email: string }> = {};
       (data || []).forEach((p: any) => {
-        map[p.id] = p.nome_completo || p.email || p.id;
+        map[p.id] = { nome: p.nome_completo || p.email || p.id, email: p.email || "" };
       });
       return map;
     },
@@ -140,13 +140,15 @@ export default function AuditoriaItens() {
   });
 
   const nomeUsuario = (id: string | null) =>
-    id ? profiles?.[id] || id.slice(0, 8) : "—";
+    id ? profiles?.[id]?.nome || id.slice(0, 8) : "—";
+
+  const emailUsuario = (id: string | null) => (id ? profiles?.[id]?.email || "" : "");
 
   const rowsFiltradas = useMemo(() => {
     const termo = buscaUsuario.trim().toLowerCase();
     if (!termo) return rows || [];
     return (rows || []).filter((r) =>
-      nomeUsuario(r.usuario_id).toLowerCase().includes(termo)
+      `${nomeUsuario(r.usuario_id)} ${emailUsuario(r.usuario_id)}`.toLowerCase().includes(termo)
     );
   }, [rows, buscaUsuario, profiles]);
 
