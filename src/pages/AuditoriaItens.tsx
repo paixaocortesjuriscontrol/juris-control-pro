@@ -128,11 +128,11 @@ export default function AuditoriaItens() {
       if (userIds.length === 0) return {} as Record<string, { nome: string; email: string }>;
       const { data } = await supabase
         .from("profiles")
-        .select("id, nome_completo, email")
+        .select("id, nome, email")
         .in("id", userIds);
       const map: Record<string, { nome: string; email: string }> = {};
       (data || []).forEach((p: any) => {
-        map[p.id] = { nome: p.nome_completo || p.email || p.id, email: p.email || "" };
+        map[p.id] = { nome: p.nome || p.email || p.id, email: p.email || "" };
       });
       return map;
     },
