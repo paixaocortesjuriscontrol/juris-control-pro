@@ -272,6 +272,14 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
 
   const membroAtual = membros.find((m) => m.id === selectedMembro) || null;
 
+  const isItemCancelado = (item: { status?: string | null; situacao?: string | null; status_tst?: string | null }) => {
+    const normalize = (v?: string | null) =>
+      (v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+    return [item.status, item.situacao, item.status_tst].some((v) =>
+      ["cancelado", "cancelada"].includes(normalize(v)),
+    );
+  };
+
   const listaItens = useMemo(() => {
     const base = membroAtual ? membroAtual.itens : itens;
     const q = search.trim().toLowerCase();
