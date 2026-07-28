@@ -366,7 +366,6 @@ export function AudienciaFormSimplificado({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {isEditing && <AudienciaPublicacaoVinculada audienciaId={audienciaParaEditar?.id} />}
       {!hideTitleHeader && (
         <div className="flex items-center justify-between gap-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-foreground flex items-center gap-2">
@@ -430,6 +429,8 @@ export function AudienciaFormSimplificado({
           </div>
         </div>
       )}
+
+      {isEditing && <AudienciaPublicacaoVinculada audienciaId={audienciaParaEditar?.id} />}
 
       <div className="space-y-1.5">
         <Label className="text-sm">
