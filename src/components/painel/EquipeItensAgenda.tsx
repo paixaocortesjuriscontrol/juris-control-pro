@@ -297,7 +297,7 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
             })}
             {listaItens.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                   <ListTodo className="w-9 h-9 mx-auto mb-2 opacity-50" />
                   Nenhum item encontrado
                 </TableCell>
