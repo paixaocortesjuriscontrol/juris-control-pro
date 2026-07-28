@@ -304,7 +304,7 @@ export function PendenciasProcessoCard({
               Prazos ({prazosPendentes.length})
             </div>
             {prazosPendentes.slice(0, 5).map((t) => {
-              const days = getDaysLabel(t.data_fatal || t.data_vencimento);
+              const days = getDaysLabel(t.data_vencimento || t.data_fatal);
               return (
                 <div
                   key={t.id}

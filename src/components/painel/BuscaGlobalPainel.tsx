@@ -164,7 +164,7 @@ export function BuscaGlobalPainel() {
             id: `t-${t.id}`,
             tipo: (t.tipo_tarefa || "").toLowerCase().includes("prazo") ? "prazo" : "tarefa",
             titulo: t.titulo,
-            subtitulo: [t.tipo_tarefa, t.status, t.data_fatal || t.data_vencimento, t.descricao].filter(Boolean).join(" • "),
+            subtitulo: [t.tipo_tarefa, t.status, t.data_vencimento || t.data_fatal, t.descricao].filter(Boolean).join(" • "),
             to: `/painel-controle?selectedId=${t.id}&origem=tarefa`,
           })
         );

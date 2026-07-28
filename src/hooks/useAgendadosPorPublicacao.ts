@@ -188,7 +188,7 @@ export function useAgendadosPorPublicacao(pubs: PubRef[]) {
               origem: "tarefa",
               tipo: t.tipo || "tarefa",
               titulo: t.titulo || "(sem título)",
-              data: t.data_fatal || t.data_vencimento,
+              data: t.data_vencimento || t.data_fatal,
               status: t.status,
             })
           );

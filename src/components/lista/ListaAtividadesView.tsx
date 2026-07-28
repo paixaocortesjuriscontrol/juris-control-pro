@@ -985,9 +985,15 @@ export default function ListaAtividadesView({
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-1 font-medium text-foreground">
                                 <CalendarIcon className="h-3 w-3 text-destructive shrink-0" />
-                                <span className="text-muted-foreground shrink-0">Fatal:</span>
-                                <span>{fmtDateTime(item.data_fatal || item.data_vencimento || item.data_inicio, (r as any).hora_fatal)}</span>
+                                <span className="text-muted-foreground shrink-0">Limite:</span>
+                                <span>{fmtDateTime(item.data_vencimento || item.data_inicio, (r as any).hora_fatal)}</span>
                               </div>
+                              {item.data_fatal && (
+                                <div className="flex items-center gap-1 text-foreground">
+                                  <span className="text-muted-foreground shrink-0">Fatal:</span>
+                                  <span>{fmtDateTime(item.data_fatal, (r as any).hora_fatal)}</span>
+                                </div>
+                              )}
                               <div className="text-muted-foreground">
                                 Base: {fmtDateTime((r as Prazo).data_base)}
                               </div>

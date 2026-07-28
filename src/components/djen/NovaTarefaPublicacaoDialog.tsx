@@ -261,12 +261,15 @@ export function NovaTarefaPublicacaoDialog({
                     <div className="font-mono text-xs">{aplicarMascaraCnj(publicacao.processo_numero)}</div>
                   )}
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {(publicacao as any)?.data_disponibilizacao && (
+                      <span>
+                        Disponibilização:{" "}
+                        {formatDateOnlyFull((publicacao as any).data_disponibilizacao)}
+                      </span>
+                    )}
                     {publicacao?.data_publicacao && (
                       <span>
-                        Publicado em{" "}
-                        {format(parseISO(publicacao.data_publicacao), "dd/MM/yyyy", {
-                          locale: ptBR,
-                        })}
+                        Publicação: {formatDateOnlyFull(publicacao.data_publicacao)}
                       </span>
                     )}
                     {publicacao?.tribunal && (

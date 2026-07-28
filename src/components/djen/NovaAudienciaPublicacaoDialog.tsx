@@ -112,9 +112,14 @@ export function NovaAudienciaPublicacaoDialog({
                     <div className="font-mono text-xs">{aplicarMascaraCnj(publicacao.processo_numero)}</div>
                   )}
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {(publicacao as any)?.data_disponibilizacao && (
+                      <span>
+                        Disponibilização: {formatDateOnlyFull((publicacao as any).data_disponibilizacao)}
+                      </span>
+                    )}
                     {publicacao?.data_publicacao && (
                       <span>
-                        Publicado em {formatDateOnlyFull(publicacao.data_publicacao)}
+                        Publicação: {formatDateOnlyFull(publicacao.data_publicacao)}
                       </span>
                     )}
                     {publicacao?.tribunal && <Badge variant="outline">{publicacao.tribunal}</Badge>}
