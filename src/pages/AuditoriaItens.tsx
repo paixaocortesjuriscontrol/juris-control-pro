@@ -37,16 +37,63 @@ interface AuditoriaRow {
   erro_mensagem: string | null;
   erro_detalhes: any;
   user_agent: string | null;
+  campos_alterados: any;
 }
 
 const TIPOS = ["tarefa", "prazo", "evento", "audiencia", "parcelamento"] as const;
 const ACOES = ["criar", "atualizar", "deletar", "erro_criar", "erro_atualizar", "erro_deletar"] as const;
+
+const LABELS: Record<string, string> = {
+  titulo: "Título",
+  descricao: "Descrição",
+  observacoes: "Observações",
+  observacao: "Observação",
+  status: "Situação",
+  situacao: "Situação",
+  prioridade: "Prioridade",
+  data_vencimento: "Data de vencimento",
+  data_fatal: "Data fatal",
+  data_cumprimento: "Data de cumprimento",
+  tratado_em: "Tratado em",
+  responsavel_id: "Responsável",
+  coordenacao_id: "Coordenação",
+  processo_id: "Processo",
+  data_inicio: "Data de início",
+  data_fim: "Data de término",
+  tipo: "Tipo",
+  tipo_tarefa: "Tipo",
+  local: "Local",
+  valor: "Valor",
+};
+
+const labelCampo = (campo: string) => LABELS[campo] || campo.replace(/_/g, " ");
+
+const formatValor = (v: any): string => {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "Sim" : "Não";
+  if (typeof v === "object") return JSON.stringify(v);
+  const s = String(v);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
+  if (m) return m[4] ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : `${m[3]}/${m[2]}/${m[1]}`;
+  return s.length > 120 ? `${s.slice(0, 120)}…` : s;
+};
+
+const getDiff = (r: AuditoriaRow): { campo: string; de: any; para: any }[] => {
+  if (Array.isArray(r.campos_alterados)) return r.campos_alterados;
+  return [];
+};
+
+const getTituloItem = (r: AuditoriaRow): string => {
+  const fonte = r.dados_saida || r.dados_entrada || {};
+  return fonte?.titulo || fonte?.descricao || fonte?.nome || "—";
+};
 
 export default function AuditoriaItens() {
   const [tipoItem, setTipoItem] = useState<string>("todos");
   const [acao, setAcao] = useState<string>("todos");
   const [sucesso, setSucesso] = useState<string>("todos");
   const [origem, setOrigem] = useState("");
+  const [buscaUsuario, setBuscaUsuario] = useState("");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [selected, setSelected] = useState<AuditoriaRow | null>(null);
@@ -91,6 +138,17 @@ export default function AuditoriaItens() {
     },
     enabled: userIds.length > 0,
   });
+
+  const nomeUsuario = (id: string | null) =>
+    id ? profiles?.[id] || id.slice(0, 8) : "—";
+
+  const rowsFiltradas = useMemo(() => {
+    const termo = buscaUsuario.trim().toLowerCase();
+    if (!termo) return rows || [];
+    return (rows || []).filter((r) =>
+      nomeUsuario(r.usuario_id).toLowerCase().includes(termo)
+    );
+  }, [rows, buscaUsuario, profiles]);
 
   return (
     <MainLayout
@@ -140,6 +198,10 @@ export default function AuditoriaItens() {
             <Input value={origem} onChange={(e) => setOrigem(e.target.value)} placeholder="ex: nova_tarefa_page" />
           </div>
           <div>
+            <Label>Usuário</Label>
+            <Input value={buscaUsuario} onChange={(e) => setBuscaUsuario(e.target.value)} placeholder="nome ou e-mail" />
+          </div>
+          <div>
             <Label>De</Label>
             <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
           </div>
@@ -158,7 +220,7 @@ export default function AuditoriaItens() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            Registros {rows ? `(${rows.length})` : ""}
+            Registros {rows ? `(${rowsFiltradas.length})` : ""}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -166,7 +228,7 @@ export default function AuditoriaItens() {
             <div className="flex items-center justify-center py-10">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
-          ) : (rows || []).length === 0 ? (
+          ) : rowsFiltradas.length === 0 ? (
             <p className="text-sm text-muted-foreground py-10 text-center">
               Nenhum registro encontrado com os filtros atuais.
             </p>
@@ -178,25 +240,53 @@ export default function AuditoriaItens() {
                     <TableHead>Data/Hora</TableHead>
                     <TableHead>Usuário</TableHead>
                     <TableHead>Tipo</TableHead>
+                    <TableHead>Item</TableHead>
                     <TableHead>Ação</TableHead>
+                    <TableHead>O que foi alterado</TableHead>
                     <TableHead>Resultado</TableHead>
                     <TableHead>Origem</TableHead>
                     <TableHead className="w-[80px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(rows || []).map((r) => (
+                  {rowsFiltradas.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap text-xs">
                         {format(new Date(r.created_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}
                       </TableCell>
-                      <TableCell className="text-xs">
-                        {r.usuario_id ? (profiles?.[r.usuario_id] || r.usuario_id.slice(0, 8)) : "—"}
+                      <TableCell className="text-xs font-medium">
+                        {nomeUsuario(r.usuario_id)}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{r.tipo_item || "—"}</Badge>
                       </TableCell>
+                      <TableCell className="text-xs max-w-[220px] truncate" title={getTituloItem(r)}>
+                        {getTituloItem(r)}
+                      </TableCell>
                       <TableCell className="text-xs">{r.acao}</TableCell>
+                      <TableCell className="text-xs max-w-[320px]">
+                        {getDiff(r).length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {getDiff(r).slice(0, 4).map((d) => (
+                              <Badge
+                                key={d.campo}
+                                variant="secondary"
+                                className="text-[10px]"
+                                title={`${labelCampo(d.campo)}: ${formatValor(d.de)} → ${formatValor(d.para)}`}
+                              >
+                                {labelCampo(d.campo)}
+                              </Badge>
+                            ))}
+                            {getDiff(r).length > 4 && (
+                              <Badge variant="outline" className="text-[10px]">
+                                +{getDiff(r).length - 4}
+                              </Badge>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {r.sucesso ? (
                           <span className="inline-flex items-center gap-1 text-green-600 text-xs">
@@ -233,8 +323,9 @@ export default function AuditoriaItens() {
               <div className="space-y-4 text-sm pr-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div><span className="text-muted-foreground">Data:</span> {format(new Date(selected.created_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}</div>
-                  <div><span className="text-muted-foreground">Usuário:</span> {selected.usuario_id ? (profiles?.[selected.usuario_id] || selected.usuario_id) : "—"}</div>
+                  <div><span className="text-muted-foreground">Alterado por:</span> <span className="font-medium">{nomeUsuario(selected.usuario_id)}</span></div>
                   <div><span className="text-muted-foreground">Tipo:</span> {selected.tipo_item || "—"}</div>
+                  <div><span className="text-muted-foreground">Item:</span> {getTituloItem(selected)}</div>
                   <div><span className="text-muted-foreground">Ação:</span> {selected.acao}</div>
                   <div><span className="text-muted-foreground">Origem:</span> {selected.origem}</div>
                   <div><span className="text-muted-foreground">Resultado:</span> {selected.sucesso ? "Sucesso" : "Falha"}</div>
@@ -242,6 +333,31 @@ export default function AuditoriaItens() {
                   <div><span className="text-muted-foreground">Item ID:</span> {selected.tarefa_id || "—"}</div>
                   <div><span className="text-muted-foreground">Coordenação:</span> {selected.coordenacao_id || "—"}</div>
                 </div>
+                {getDiff(selected).length > 0 && (
+                  <div>
+                    <div className="font-medium mb-2">O que foi alterado ({getDiff(selected).length})</div>
+                    <div className="rounded border overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[30%]">Campo</TableHead>
+                            <TableHead>De</TableHead>
+                            <TableHead>Para</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {getDiff(selected).map((d) => (
+                            <TableRow key={d.campo}>
+                              <TableCell className="text-xs font-medium">{labelCampo(d.campo)}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground line-through">{formatValor(d.de)}</TableCell>
+                              <TableCell className="text-xs font-medium">{formatValor(d.para)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
                 {selected.erro_mensagem && (
                   <div>
                     <div className="font-medium text-red-600 mb-1">Erro</div>
