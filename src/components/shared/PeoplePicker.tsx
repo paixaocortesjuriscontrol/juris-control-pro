@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, ChevronsUpDown, UserPlus, X, Users } from "lucide-react";
+import { Check, ChevronsUpDown, UserPlus, X, Users, Lock } from "lucide-react";
 
 interface UserOpt {
   id: string;
