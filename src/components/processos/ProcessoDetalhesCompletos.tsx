@@ -65,6 +65,7 @@ import {
 import { ProcessoPedidosTab } from "./ProcessoPedidosTab";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { parseDataPublicacaoLocal } from "@/utils/formatConteudo";
 import { ptBR } from "date-fns/locale";
 import { TarefaPublicacaoView } from "./TarefaPublicacaoView";
 import { PublicacoesDjenList } from "./PublicacoesDjenList";
