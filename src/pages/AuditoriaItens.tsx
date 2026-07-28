@@ -125,14 +125,14 @@ export default function AuditoriaItens() {
   const { data: profiles } = useQuery({
     queryKey: ["auditoria-profiles", userIds.sort().join(",")],
     queryFn: async () => {
-      if (userIds.length === 0) return {} as Record<string, string>;
+      if (userIds.length === 0) return {} as Record<string, { nome: string; email: string }>;
       const { data } = await supabase
         .from("profiles")
         .select("id, nome_completo, email")
         .in("id", userIds);
-      const map: Record<string, string> = {};
+      const map: Record<string, { nome: string; email: string }> = {};
       (data || []).forEach((p: any) => {
-        map[p.id] = p.nome_completo || p.email || p.id;
+        map[p.id] = { nome: p.nome_completo || p.email || p.id, email: p.email || "" };
       });
       return map;
     },
@@ -140,13 +140,15 @@ export default function AuditoriaItens() {
   });
 
   const nomeUsuario = (id: string | null) =>
-    id ? profiles?.[id] || id.slice(0, 8) : "—";
+    id ? profiles?.[id]?.nome || id.slice(0, 8) : "—";
+
+  const emailUsuario = (id: string | null) => (id ? profiles?.[id]?.email || "" : "");
 
   const rowsFiltradas = useMemo(() => {
     const termo = buscaUsuario.trim().toLowerCase();
     if (!termo) return rows || [];
     return (rows || []).filter((r) =>
-      nomeUsuario(r.usuario_id).toLowerCase().includes(termo)
+      `${nomeUsuario(r.usuario_id)} ${emailUsuario(r.usuario_id)}`.toLowerCase().includes(termo)
     );
   }, [rows, buscaUsuario, profiles]);
 
@@ -254,8 +256,11 @@ export default function AuditoriaItens() {
                       <TableCell className="whitespace-nowrap text-xs">
                         {format(new Date(r.created_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}
                       </TableCell>
-                      <TableCell className="text-xs font-medium">
-                        {nomeUsuario(r.usuario_id)}
+                      <TableCell className="text-xs">
+                        <div className="font-medium">{nomeUsuario(r.usuario_id)}</div>
+                        {emailUsuario(r.usuario_id) && (
+                          <div className="text-[11px] text-muted-foreground">{emailUsuario(r.usuario_id)}</div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{r.tipo_item || "—"}</Badge>
@@ -323,7 +328,13 @@ export default function AuditoriaItens() {
               <div className="space-y-4 text-sm pr-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div><span className="text-muted-foreground">Data:</span> {format(new Date(selected.created_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}</div>
-                  <div><span className="text-muted-foreground">Alterado por:</span> <span className="font-medium">{nomeUsuario(selected.usuario_id)}</span></div>
+                  <div>
+                    <span className="text-muted-foreground">Alterado por:</span>{" "}
+                    <span className="font-medium">{nomeUsuario(selected.usuario_id)}</span>
+                    {emailUsuario(selected.usuario_id) && (
+                      <span className="text-muted-foreground"> ({emailUsuario(selected.usuario_id)})</span>
+                    )}
+                  </div>
                   <div><span className="text-muted-foreground">Tipo:</span> {selected.tipo_item || "—"}</div>
                   <div><span className="text-muted-foreground">Item:</span> {getTituloItem(selected)}</div>
                   <div><span className="text-muted-foreground">Ação:</span> {selected.acao}</div>
