@@ -850,6 +850,7 @@ export type Database = {
       auditoria_tarefas: {
         Row: {
           acao: string
+          campos_alterados: Json | null
           coordenacao_id: string | null
           created_at: string
           dados_entrada: Json | null
@@ -868,6 +869,7 @@ export type Database = {
         }
         Insert: {
           acao: string
+          campos_alterados?: Json | null
           coordenacao_id?: string | null
           created_at?: string
           dados_entrada?: Json | null
@@ -886,6 +888,7 @@ export type Database = {
         }
         Update: {
           acao?: string
+          campos_alterados?: Json | null
           coordenacao_id?: string | null
           created_at?: string
           dados_entrada?: Json | null
