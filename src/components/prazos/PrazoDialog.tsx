@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ItemComentarios } from "@/components/comum/ItemComentarios";
 import { CalendarIcon, Loader2, FileText, Tag, AlertTriangle } from "lucide-react";
 import { format, parseISO, addDays, addWeeks, addMonths, addYears } from "date-fns";
 import { ptBR } from "date-fns/locale";
