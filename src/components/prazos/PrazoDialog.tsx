@@ -269,12 +269,10 @@ export function PrazoDialog({
 
   // data base = data da publicação (se houver) ou hoje
   const dataBase = useMemo<Date>(() => {
-    if (publicacaoEfetiva?.data_disponibilizacao) {
-      try { return parseISO(publicacaoEfetiva.data_disponibilizacao); } catch {}
-    }
-    if (publicacaoEfetiva?.data_publicacao) {
-      try { return parseISO(publicacaoEfetiva.data_publicacao); } catch {}
-    }
+    const disp = parseDataPublicacaoLocal(publicacaoEfetiva?.data_disponibilizacao);
+    if (disp) return disp;
+    const pub = parseDataPublicacaoLocal(publicacaoEfetiva?.data_publicacao);
+    if (pub) return pub;
     return new Date();
   }, [publicacaoEfetiva?.data_disponibilizacao, publicacaoEfetiva?.data_publicacao]);
 
