@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, Gavel } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { formatDateOnlyFull } from "@/utils/formatConteudo";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
