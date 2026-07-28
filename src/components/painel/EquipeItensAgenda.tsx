@@ -58,6 +58,15 @@ function getRefDate(item: ItemAgendaUnificado): Date | null {
   return isValid(d) ? d : null;
 }
 
+function isItemCancelado(item: ItemAgendaUnificado): boolean {
+  const normalize = (v?: string | null) =>
+    (v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  const anyItem = item as unknown as { status?: string | null; situacao?: string | null; status_tst?: string | null };
+  return [anyItem.status, anyItem.situacao, anyItem.status_tst].some((v) =>
+    ["cancelado", "cancelada"].includes(normalize(v)),
+  );
+}
+
 function getBaseId(id: string) {
   return id.split("::")[0];
 }
@@ -258,7 +267,9 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
         if (!m) return;
         m.total += 1;
         m.itens.push(item);
-        if (isItemTratado(item)) {
+        if (isItemCancelado(item)) {
+          // itens cancelados não entram em atrasados/pendentes
+        } else if (isItemTratado(item)) {
           m.cumpridas += 1;
         } else {
           const d = getRefDate(item);
@@ -285,6 +296,13 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
   }, [membroAtual, itens, search]);
 
   const statusBadge = (item: ItemAgendaUnificado) => {
+    if (isItemCancelado(item)) {
+      return (
+        <Badge className="bg-muted text-muted-foreground text-xs">
+          <XCircle className="w-3 h-3 mr-1" /> Cancelado
+        </Badge>
+      );
+    }
     if (isItemTratado(item)) {
       return (
         <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs">
@@ -308,7 +326,7 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
   };
 
   const diasRestantes = (item: ItemAgendaUnificado) => {
-    if (isItemTratado(item)) return null;
+    if (isItemTratado(item) || isItemCancelado(item)) return null;
     const d = getRefDate(item);
     if (!d) return <span className="text-muted-foreground">-</span>;
     const dias = differenceInCalendarDays(d, new Date());
