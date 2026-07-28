@@ -258,7 +258,9 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
         if (!m) return;
         m.total += 1;
         m.itens.push(item);
-        if (isItemTratado(item)) {
+        if (isItemCancelado(item)) {
+          // itens cancelados não entram em atrasados/pendentes
+        } else if (isItemTratado(item)) {
           m.cumpridas += 1;
         } else {
           const d = getRefDate(item);
@@ -271,14 +273,6 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
   }, [itens, pessoasExtras]);
 
   const membroAtual = membros.find((m) => m.id === selectedMembro) || null;
-
-  const isItemCancelado = (item: { status?: string | null; situacao?: string | null; status_tst?: string | null }) => {
-    const normalize = (v?: string | null) =>
-      (v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-    return [item.status, item.situacao, item.status_tst].some((v) =>
-      ["cancelado", "cancelada"].includes(normalize(v)),
-    );
-  };
 
   const listaItens = useMemo(() => {
     const base = membroAtual ? membroAtual.itens : itens;
