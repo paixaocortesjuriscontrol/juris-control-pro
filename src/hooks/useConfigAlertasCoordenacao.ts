@@ -122,8 +122,8 @@ export function useConfigAlertasCoordenacao(coordenacaoId?: string) {
         if (error) throw error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['config-alertas-coordenacao'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['config-alertas-coordenacao'] });
       toast.success('Configuração salva com sucesso');
     },
     onError: (error) => {
@@ -140,8 +140,8 @@ export function useConfigAlertasCoordenacao(coordenacaoId?: string) {
         .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['config-alertas-coordenacao'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['config-alertas-coordenacao'] });
       toast.success('Configuração removida');
     },
     onError: (error) => {
