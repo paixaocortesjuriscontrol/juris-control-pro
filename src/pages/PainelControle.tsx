@@ -1112,9 +1112,6 @@ export default function PainelControle() {
               <Link to="/painel-intimacoes">Painel Intimações</Link>
             </Button>
           )}
-          <Button asChild variant="outline" size="sm">
-            <Link to="/painel-equipe">Painel da Equipe</Link>
-          </Button>
         </div>
       }
     >
