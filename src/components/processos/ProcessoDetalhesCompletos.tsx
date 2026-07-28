@@ -1158,6 +1158,12 @@ export function ProcessoDetalhesCompletos({
                                     <p className="font-medium text-foreground truncate">{aud.comarca || '—'}</p>
                                   </div>
                                 </div>
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                >
+                                  <AudienciaPublicacaoVinculada audienciaId={aud.id} className="mt-3" />
+                                </div>
                               </CardContent>
                             </Card>
                           ))}
