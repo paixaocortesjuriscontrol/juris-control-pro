@@ -3505,6 +3505,11 @@ const AnaliseDjen = () => {
             };
           const markPubComoLida = async () => {
             if (!selectedPublicacao) return;
+            // Mantém a publicação visível na lista mesmo com o filtro "não lidas"
+            setPubsTratadasSessao((prev) => ({
+              ...prev,
+              [selectedPublicacao.id]: { ...selectedPublicacao, lida: true },
+            }));
             try {
               const tabela = selectedPublicacao.tipo_origem === "processo"
                 ? "publicacoes_djen_processos"
