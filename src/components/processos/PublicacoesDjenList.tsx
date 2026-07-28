@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { jsPDF } from "jspdf";
+import { useAgendadosPorPublicacao } from "@/hooks/useAgendadosPorPublicacao";
 
 interface PublicacaoDjen {
   id: string;
@@ -48,6 +49,8 @@ interface PublicacaoDjen {
   polo_ativo?: string;
   polo_passivo?: string;
   tribunal?: string;
+  dedup_key?: string | null;
+  id_djen?: string | null;
 }
 
 interface PublicacoesDjenListProps {
@@ -70,6 +73,17 @@ export function PublicacoesDjenList({
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedPub, setSelectedPub] = useState<PublicacaoDjen | null>(null);
   const [markingAsRead, setMarkingAsRead] = useState(false);
+
+  const { data: agendadosPorPub = {} } = useAgendadosPorPublicacao(
+    publicacoes.map((p) => ({ id: p.id, dedup_key: p.dedup_key, id_djen: p.id_djen }))
+  );
+
+  const tipoLabel: Record<string, { label: string; cls: string }> = {
+    prazo: { label: "Prazo", cls: "bg-red-100 text-red-700 border-red-200" },
+    audiencia: { label: "Audiência", cls: "bg-amber-100 text-amber-700 border-amber-200" },
+    evento: { label: "Evento", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+    tarefa: { label: "Tarefa", cls: "bg-blue-100 text-blue-700 border-blue-200" },
+  };
 
   const toggleExpand = (id: string) => {
     const newExpanded = new Set(expandedIds);
@@ -575,6 +589,38 @@ export function PublicacoesDjenList({
                       </p>
                     )}
                   </div>
+
+                  {/* Itens agendados a partir desta publicação */}
+                  {(agendadosPorPub[pub.id]?.length ?? 0) > 0 && (
+                    <div className="mt-2 ml-4 md:ml-6 rounded-md border bg-muted/30 p-2">
+                      <p className="text-[10px] md:text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
+                        <ListChecks className="w-3 h-3" />
+                        Agendado a partir desta publicação ({agendadosPorPub[pub.id].length})
+                      </p>
+                      <div className="space-y-1">
+                        {agendadosPorPub[pub.id].map((item) => {
+                          const meta = tipoLabel[item.tipo] ?? tipoLabel.tarefa;
+                          return (
+                            <div
+                              key={`${item.origem}-${item.id}`}
+                              className="flex flex-wrap items-center gap-1.5 text-[10px] md:text-xs"
+                            >
+                              <Badge variant="outline" className={cn("px-1.5 py-0", meta.cls)}>
+                                {meta.label}
+                              </Badge>
+                              <span className="font-medium break-words">{item.titulo}</span>
+                              {item.data && (
+                                <span className="text-muted-foreground">• {formatDateOnly(item.data)}</span>
+                              )}
+                              {item.status && (
+                                <span className="text-muted-foreground capitalize">• {item.status}</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Expanded content */}
                   {isExpanded && (
