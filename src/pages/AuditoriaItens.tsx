@@ -198,6 +198,10 @@ export default function AuditoriaItens() {
             <Input value={origem} onChange={(e) => setOrigem(e.target.value)} placeholder="ex: nova_tarefa_page" />
           </div>
           <div>
+            <Label>Usuário</Label>
+            <Input value={buscaUsuario} onChange={(e) => setBuscaUsuario(e.target.value)} placeholder="nome ou e-mail" />
+          </div>
+          <div>
             <Label>De</Label>
             <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
           </div>
@@ -216,7 +220,7 @@ export default function AuditoriaItens() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            Registros {rows ? `(${rows.length})` : ""}
+            Registros {rows ? `(${rowsFiltradas.length})` : ""}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -224,7 +228,7 @@ export default function AuditoriaItens() {
             <div className="flex items-center justify-center py-10">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
-          ) : (rows || []).length === 0 ? (
+          ) : rowsFiltradas.length === 0 ? (
             <p className="text-sm text-muted-foreground py-10 text-center">
               Nenhum registro encontrado com os filtros atuais.
             </p>
@@ -236,25 +240,53 @@ export default function AuditoriaItens() {
                     <TableHead>Data/Hora</TableHead>
                     <TableHead>Usuário</TableHead>
                     <TableHead>Tipo</TableHead>
+                    <TableHead>Item</TableHead>
                     <TableHead>Ação</TableHead>
+                    <TableHead>O que foi alterado</TableHead>
                     <TableHead>Resultado</TableHead>
                     <TableHead>Origem</TableHead>
                     <TableHead className="w-[80px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(rows || []).map((r) => (
+                  {rowsFiltradas.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap text-xs">
                         {format(new Date(r.created_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}
                       </TableCell>
-                      <TableCell className="text-xs">
-                        {r.usuario_id ? (profiles?.[r.usuario_id] || r.usuario_id.slice(0, 8)) : "—"}
+                      <TableCell className="text-xs font-medium">
+                        {nomeUsuario(r.usuario_id)}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{r.tipo_item || "—"}</Badge>
                       </TableCell>
+                      <TableCell className="text-xs max-w-[220px] truncate" title={getTituloItem(r)}>
+                        {getTituloItem(r)}
+                      </TableCell>
                       <TableCell className="text-xs">{r.acao}</TableCell>
+                      <TableCell className="text-xs max-w-[320px]">
+                        {getDiff(r).length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {getDiff(r).slice(0, 4).map((d) => (
+                              <Badge
+                                key={d.campo}
+                                variant="secondary"
+                                className="text-[10px]"
+                                title={`${labelCampo(d.campo)}: ${formatValor(d.de)} → ${formatValor(d.para)}`}
+                              >
+                                {labelCampo(d.campo)}
+                              </Badge>
+                            ))}
+                            {getDiff(r).length > 4 && (
+                              <Badge variant="outline" className="text-[10px]">
+                                +{getDiff(r).length - 4}
+                              </Badge>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {r.sucesso ? (
                           <span className="inline-flex items-center gap-1 text-green-600 text-xs">
