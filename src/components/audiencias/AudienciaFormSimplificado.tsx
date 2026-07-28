@@ -274,6 +274,10 @@ export function AudienciaFormSimplificado({
       advogados_ids: responsaveisIds,
       envolvidos_ids: envolvidosIds,
       coordenacao_id: coordenacaoId || undefined,
+      // Vínculo com a publicação DJEN que originou a audiência
+      origem: publicacaoId ? "publicacao" : undefined,
+      publicacao_id: publicacaoId && publicacaoTipoOrigem === "termo" ? publicacaoId : undefined,
+      conteudo_publicacao: publicacaoConteudo || undefined,
     };
 
     if (isEditing) {
