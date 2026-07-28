@@ -643,3 +643,19 @@ export function parseKurierBlob(
     inteiroTeor: normalizeKurierInteiroTeor(inteiroTeorLimpo),
   };
 }
+
+/**
+ * Converte uma data de publicação (date ou timestamp ISO) em um Date LOCAL
+ * ancorado ao meio-dia do dia informado, evitando o deslocamento de -1 dia
+ * causado pela conversão UTC -> BRT (ex.: 2026-07-27T00:00:00Z vira 26/07).
+ */
+export const parseDataPublicacaoLocal = (dateString: string | null | undefined): Date | null => {
+  if (!dateString) return null;
+  const match = dateString.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) {
+    const d = new Date(dateString);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const [, year, month, day] = match;
+  return new Date(Number(year), Number(month) - 1, Number(day), 12, 0, 0, 0);
+};

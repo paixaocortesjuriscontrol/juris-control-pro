@@ -4,7 +4,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { FileText, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnlyFull } from "@/utils/formatConteudo";
 import { cn } from "@/lib/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
@@ -78,7 +78,7 @@ export function PublicacaoVinculadaCollapsible({ publicacao, className, defaultO
             )}
             {dataRef && (
               <span className="text-xs text-emerald-700 dark:text-emerald-400">
-                Pub. {format(parseISO(dataRef), "dd/MM/yyyy", { locale: ptBR })}
+                Pub. {formatDateOnlyFull(dataRef)}
               </span>
             )}
           </div>

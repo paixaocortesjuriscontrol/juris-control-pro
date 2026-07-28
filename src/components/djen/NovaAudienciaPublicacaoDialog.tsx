@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, Gavel } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { formatDateOnlyFull } from "@/utils/formatConteudo";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
@@ -113,7 +114,7 @@ export function NovaAudienciaPublicacaoDialog({
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     {publicacao?.data_publicacao && (
                       <span>
-                        Publicado em {format(parseISO(publicacao.data_publicacao), "dd/MM/yyyy", { locale: ptBR })}
+                        Publicado em {formatDateOnlyFull(publicacao.data_publicacao)}
                       </span>
                     )}
                     {publicacao?.tribunal && <Badge variant="outline">{publicacao.tribunal}</Badge>}

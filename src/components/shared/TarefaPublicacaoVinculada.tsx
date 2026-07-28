@@ -7,7 +7,7 @@ import { FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState } from "react";
-import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnlyFull } from "@/utils/formatConteudo";
 import { cn } from "@/lib/utils";
 import { CopyButton } from "@/components/ui/copy-button";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
@@ -110,7 +110,7 @@ export function TarefaPublicacaoVinculada({ tarefaId, className }: Props) {
             )}
             {(publicacao as any).data_publicacao && (
               <span className="text-xs text-emerald-700 dark:text-emerald-400">
-                Pub. {format(parseISO((publicacao as any).data_publicacao), "dd/MM/yyyy", { locale: ptBR })}
+                Pub. {formatDateOnlyFull((publicacao as any).data_publicacao)}
               </span>
             )}
           </div>
