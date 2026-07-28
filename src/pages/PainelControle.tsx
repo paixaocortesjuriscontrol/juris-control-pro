@@ -66,6 +66,7 @@ import { toast } from "sonner";
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
 import TstPrazos from "@/pages/TstPrazos";
 import { KanbanItensAgenda } from "@/components/painel/KanbanItensAgenda";
+import { EquipeItensAgenda } from "@/components/painel/EquipeItensAgenda";
 import PainelAudiencias from "@/pages/PainelAudiencias";
 import Notificacoes from "@/pages/Notificacoes";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
@@ -75,7 +76,7 @@ import { Sparkles } from "lucide-react";
 const TIME_ZONE = "America/Sao_Paulo";
 
 type TabMode = "pessoal" | "escritorio";
-type ViewMode = "agenda" | "lista" | "kanban" | "prazos" | "audiencias" | "notificacoes";
+type ViewMode = "agenda" | "lista" | "kanban" | "equipe" | "prazos" | "audiencias" | "notificacoes";
 
 // Cores dos tipos
 const TIPO_CORES: Record<string, string> = {
@@ -1224,6 +1225,15 @@ export default function PainelControle() {
                 >
                   Kanban
                 </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "equipe" ? "default" : "outline"}
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setViewMode("equipe")}
+                  title="Painel da Equipe (obedece os filtros)"
+                >
+                  Equipe
+                </Button>
                 {([
                   { key: "prazo",         label: "Prazos" },
                   { key: "audiencia",     label: "Audiências" },
@@ -1704,6 +1714,26 @@ export default function PainelControle() {
               onItemClick={handleItemClick}
             />
           </div>
+          )
+        ) : viewMode === "equipe" ? (
+          selectedItem ? (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <EdicaoItemPanel
+                key={selectedItem.id}
+                item={selectedItem}
+                onClose={() => setSelectedItem(null)}
+                onUpdate={() => {
+                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+                }}
+              />
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
+              <EquipeItensAgenda
+                itens={itensPainelFiltrados}
+                onItemClick={handleItemClick}
+              />
+            </div>
           )
         ) : viewMode === "audiencias" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
