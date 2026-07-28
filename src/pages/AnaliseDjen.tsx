@@ -185,6 +185,10 @@ const AnaliseDjen = () => {
   // Execução do dia selecionada no card "Execuções do dia" (DJEN Local).
   // Quando setada, filtra a listagem por novasIds (as publicações vistas pela 1ª vez nesta execução).
   const [execucaoFocada, setExecucaoFocada] = useState<import("@/hooks/useExecucoesDoDiaLocal").ExecucaoLocalDoDia | null>(null);
+  // Publicações tratadas nesta sessão (marcadas como lidas ao salvar um item).
+  // Mantidas na lista para que a publicação não "suma" logo após o advogado
+  // criar um prazo/tarefa/audiência a partir dela.
+  const [pubsTratadasSessao, setPubsTratadasSessao] = useState<Record<string, any>>({});
   // Toggle para ocultar visualmente publicações duplicadas (mesmo processo +
   // mesmo conteúdo dentro da mesma coordenação). Não altera o banco; apenas
   // filtra a lista renderizada. Preferência persistida em localStorage.
@@ -3214,6 +3218,14 @@ const AnaliseDjen = () => {
   // Filtro client-side por data de disponibilização.
   const allPublicacoes = useMemo(() => {
     let result = mergedPublicacoes;
+    // Reinjeta as publicações tratadas nesta sessão (que o filtro "não lidas"
+    // removeria do resultado do servidor logo após salvar um item).
+    const tratadas = Object.values(pubsTratadasSessao) as any[];
+    if (tratadas.length > 0) {
+      const presentes = new Set(result.map((p: any) => p.id));
+      const faltantes = tratadas.filter((p) => p && !presentes.has(p.id));
+      if (faltantes.length > 0) result = [...faltantes, ...result];
+    }
     if (tipoOrigem === 'kurier') {
       result = result.filter(pub => (pub.fonte || '').toLowerCase() === 'kurier');
     }
@@ -3249,7 +3261,7 @@ const AnaliseDjen = () => {
       result = dedupePublicacoesDjen(result);
     }
     return result;
-  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas, tipoOrigem, execucaoFocada]);
+  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas, tipoOrigem, execucaoFocada, pubsTratadasSessao]);
 
   // Quantas publicações foram ocultadas pela deduplicação (para o badge).
   const totalDuplicadasOcultas = useMemo(() => {
@@ -3493,6 +3505,11 @@ const AnaliseDjen = () => {
             };
           const markPubComoLida = async () => {
             if (!selectedPublicacao) return;
+            // Mantém a publicação visível na lista mesmo com o filtro "não lidas"
+            setPubsTratadasSessao((prev) => ({
+              ...prev,
+              [selectedPublicacao.id]: { ...selectedPublicacao, lida: true },
+            }));
             try {
               const tabela = selectedPublicacao.tipo_origem === "processo"
                 ? "publicacoes_djen_processos"

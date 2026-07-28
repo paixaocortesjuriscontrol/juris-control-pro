@@ -169,6 +169,7 @@ export function NovaAudienciaPublicacaoDialog({
                 defaultDataAudiencia={aiDefaults?.data_audiencia}
                 publicacaoId={publicacao?.id}
                 publicacaoTipoOrigem={publicacao?.tipo_origem}
+                publicacaoConteudo={publicacao?.conteudo}
                 resolveProcessoBeforeSubmit={publicacao && user?.id ? async () => {
                   const proc = await ensureProcessoFromPublicacao(
                     publicacao,
