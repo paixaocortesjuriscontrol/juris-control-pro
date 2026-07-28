@@ -5,13 +5,14 @@ import { PublicacaoVinculadaCollapsible } from "@/components/shared/PublicacaoVi
 interface Props {
   audienciaId?: string | null;
   className?: string;
+  defaultOpen?: boolean;
 }
 
 /**
  * Exibe a publicação DJEN vinculada a uma audiência (termo, processo ou descartada),
  * usando o mesmo visual do Painel de Controle. Nada é renderizado sem vínculo.
  */
-export function AudienciaPublicacaoVinculada({ audienciaId, className }: Props) {
+export function AudienciaPublicacaoVinculada({ audienciaId, className, defaultOpen = false }: Props) {
   const { data: publicacao } = useQuery({
     queryKey: ["audiencia-publicacao-vinculada", audienciaId],
     enabled: !!audienciaId,
@@ -67,5 +68,11 @@ export function AudienciaPublicacaoVinculada({ audienciaId, className }: Props) 
   });
 
   if (!publicacao) return null;
-  return <PublicacaoVinculadaCollapsible publicacao={publicacao as any} className={className} />;
+  return (
+    <PublicacaoVinculadaCollapsible
+      publicacao={publicacao as any}
+      className={className}
+      defaultOpen={defaultOpen}
+    />
+  );
 }

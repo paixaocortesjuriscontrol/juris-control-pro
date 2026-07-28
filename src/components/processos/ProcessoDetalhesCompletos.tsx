@@ -3,6 +3,7 @@ import JSZip from "jszip";
 import { ProcessoTstTab } from "./ProcessoTstTab";
 import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
 import { ProcessoJuditTab } from "./ProcessoJuditTab";
+import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPublicacaoVinculada";
 import { ProcessoAnexosJuditTab } from "./ProcessoAnexosJuditTab";
 import { AnaliseJuditTab } from "@/components/distribuicao-tst/AnaliseJuditTab";
 import { ProcessoPartesTab } from "./ProcessoPartesTab";
@@ -1157,6 +1158,12 @@ export function ProcessoDetalhesCompletos({
                                     <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Comarca</p>
                                     <p className="font-medium text-foreground truncate">{aud.comarca || '—'}</p>
                                   </div>
+                                </div>
+                                <div
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                >
+                                  <AudienciaPublicacaoVinculada audienciaId={aud.id} className="mt-3" />
                                 </div>
                               </CardContent>
                             </Card>
