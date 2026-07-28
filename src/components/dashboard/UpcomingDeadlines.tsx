@@ -6,6 +6,7 @@ import { useUpcomingPrazos } from "@/hooks/useDashboardData";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
+import { parseDateSafe } from "@/utils/date";
 
 export function UpcomingDeadlines() {
   const navigate = useNavigate();
@@ -62,7 +63,7 @@ export function UpcomingDeadlines() {
       </div>
       <div className="p-4 space-y-3">
         {prazos.map((prazo: any) => {
-          const dataVencimento = new Date(prazo.data_vencimento);
+          const dataVencimento = parseDateSafe(prazo.data_vencimento) ?? new Date(prazo.data_vencimento);
           const hoje = new Date();
           hoje.setHours(0, 0, 0, 0);
           const daysRemaining = differenceInDays(dataVencimento, hoje);

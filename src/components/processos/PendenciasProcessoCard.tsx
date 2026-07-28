@@ -9,12 +9,11 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { parseDateSafe as parseDateSafeUtil } from "@/utils/date";
 
 // Parse "YYYY-MM-DD" como data local para evitar deslocamento por timezone.
 function parseDateSafe(value: string): Date {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  return new Date(value);
+  return parseDateSafeUtil(value) ?? new Date(value);
 }
 
 const isPrazoTarefa = (tipo: string | null | undefined) =>
@@ -44,11 +43,18 @@ export function PendenciasProcessoCard({
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const audienciasPendentes = audiencias.filter(a => a.status === 'pendente');
+  // Um item só é pendência se o status for "pendente" E não houver marca de
+  // conclusão/tratamento (o status pode ficar desatualizado em fluxos antigos).
+  const tarefaEmAberto = (t: any) =>
+    t.status === 'pendente' && !t.data_cumprimento && !t.tratado_em && !t.concluido_em;
+  const eventoEmAberto = (e: any) =>
+    e.status === 'pendente' && !e.concluido_em && !e.tratado_em && !e.data_cumprimento;
+
+  const audienciasPendentes = audiencias.filter(a => a.status === 'pendente' && !a.concluido_em);
   const intimacoesPendentes = intimacoes.filter(i => i.status === 'pendente');
-  const prazosPendentes = tarefas.filter(t => t.status === 'pendente' && isPrazoTarefa(t.tipo_tarefa));
-  const tarefasPendentes = tarefas.filter(t => t.status === 'pendente' && !isPrazoTarefa(t.tipo_tarefa));
-  const eventosPendentes = eventosAgenda.filter((e: any) => e.status === 'pendente');
+  const prazosPendentes = tarefas.filter(t => tarefaEmAberto(t) && isPrazoTarefa(t.tipo_tarefa));
+  const tarefasPendentes = tarefas.filter(t => tarefaEmAberto(t) && !isPrazoTarefa(t.tipo_tarefa));
+  const eventosPendentes = eventosAgenda.filter(eventoEmAberto);
   const isParcelamento = (ev: any) => (ev?.tipo || "").toString().toLowerCase() === "parcelamento";
   const eventosSemParcelamento = eventosPendentes.filter((e: any) => !isParcelamento(e));
   const parcelamentosPendentes = eventosPendentes.filter((e: any) => isParcelamento(e));
@@ -156,6 +162,15 @@ export function PendenciasProcessoCard({
 
   const clickableCardClass = () =>
     cn(onNavigate && "cursor-pointer hover:bg-muted/60 transition-colors");
+
+  // Identifica de qual pasta/processo é a pendência (processos distintos podem
+  // ter itens com títulos idênticos).
+  const ProcTag = () =>
+    processoNumero ? (
+      <div className="text-[10px] text-muted-foreground/80 font-mono truncate">
+        Processo {processoNumero}
+      </div>
+    ) : null;
 
   return (
     <>
@@ -328,6 +343,7 @@ export function PendenciasProcessoCard({
                   {t.descricao && (
                     <p className="text-muted-foreground line-clamp-1 mt-0.5">{t.descricao}</p>
                   )}
+                  <ProcTag />
                 </div>
               );
             })}
@@ -394,6 +410,7 @@ export function PendenciasProcessoCard({
                   {t.descricao && (
                     <p className="text-muted-foreground line-clamp-1 mt-0.5">{t.descricao}</p>
                   )}
+                  <ProcTag />
                 </div>
               );
             })}

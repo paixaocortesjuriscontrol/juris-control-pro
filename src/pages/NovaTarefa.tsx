@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { parseDateSafe } from "@/utils/date";
 
 type AnexoComAnalise = {
   file: File;
@@ -1068,7 +1069,7 @@ export default function NovaTarefa() {
                             <p className="text-xs text-muted-foreground">
                               {tarefa.tipo_tarefa}
                               {tarefa.processo?.numero && ` • ${tarefa.processo.numero}`}
-                              {tarefa.data_vencimento && ` • ${format(new Date(tarefa.data_vencimento), "dd/MM/yyyy")}`}
+                              {tarefa.data_vencimento && ` • ${format(parseDateSafe(tarefa.data_vencimento)!, "dd/MM/yyyy")}`}
                             </p>
                           </div>
                           <Button
