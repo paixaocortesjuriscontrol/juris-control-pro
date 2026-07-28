@@ -158,7 +158,7 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
     };
   }, [itens]);
 
-  const { data: pessoasExtras = {} } = useQuery({
+  const { data: pessoasExtras = {} as Record<string, PessoasPorPapel> } = useQuery<Record<string, PessoasPorPapel>>({
     queryKey: ["equipe-pessoas-extras", pessoaLookupIds],
     enabled: pessoaLookupIds.tarefas.length + pessoaLookupIds.eventos.length + pessoaLookupIds.audiencias.length > 0,
     staleTime: 60 * 1000,
