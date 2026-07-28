@@ -164,6 +164,15 @@ export function useAgendadosPorPublicacao(pubs: PubRef[]) {
       for (const r of ap ?? []) linkAud(r.audiencia_id, djenToPub.get(r.publicacao_id) ?? []);
       for (const r of ad ?? []) linkAud(r.audiencia_id, descartadaToPub.get(r.publicacao_descartada_id) ?? []);
 
+      // 3b) Audiências que guardam a publicação diretamente (audiencias_detectadas.publicacao_id)
+      if (djenIds.length) {
+        const { data: audDiretas } = await (supabase as any)
+          .from("audiencias_detectadas")
+          .select("id, publicacao_id")
+          .in("publicacao_id", djenIds);
+        for (const r of audDiretas ?? []) linkAud(r.id, djenToPub.get(r.publicacao_id) ?? []);
+      }
+
       // 4) Buscar dados dos itens
       const tarefaIds = [...tarefaToPubs.keys()];
       if (tarefaIds.length) {
