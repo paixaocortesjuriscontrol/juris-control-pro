@@ -51,6 +51,7 @@ interface PublicacaoDjen {
   tribunal?: string;
   dedup_key?: string | null;
   id_djen?: string | null;
+  hash_conteudo?: string | null;
 }
 
 interface PublicacoesDjenListProps {
@@ -75,7 +76,14 @@ export function PublicacoesDjenList({
   const [markingAsRead, setMarkingAsRead] = useState(false);
 
   const { data: agendadosPorPub = {} } = useAgendadosPorPublicacao(
-    publicacoes.map((p) => ({ id: p.id, dedup_key: p.dedup_key, id_djen: p.id_djen }))
+    publicacoes.map((p) => ({
+      id: p.id,
+      dedup_key: p.dedup_key,
+      id_djen: p.id_djen,
+      hash_conteudo: p.hash_conteudo,
+      processo_numero: p.processo_numero,
+      data_publicacao: p.data_publicacao,
+    }))
   );
 
   const tipoLabel: Record<string, { label: string; cls: string }> = {
