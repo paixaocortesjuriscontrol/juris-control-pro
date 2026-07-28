@@ -133,6 +133,37 @@ serve(async (req) => {
       return ids.map((i) => profileCache.get(i) ?? "").filter(Boolean);
     }
 
+    type ItemDetalhado = {
+      id: string;
+      titulo: string;
+      data: string;
+      hora?: string | null;
+      processo?: string | null;
+      origem: string;
+      responsaveis: string[];
+      envolvidos?: string[];
+      observacao?: string | null;
+      cliente?: string | null;
+      reclamante?: string | null;
+    };
+
+    const clean = (v?: string | null) => {
+      const s = String(v ?? "").trim();
+      return s ? s : null;
+    };
+
+    function formatarItem(i: ItemDetalhado, prefixoData?: string): string {
+      const h = i.hora ? ` às ${i.hora}` : "";
+      const linhas: string[] = [`• ${i.titulo}${h}${prefixoData ? ` ${prefixoData}` : ""}`];
+      if (clean(i.processo)) linhas.push(`   Processo: ${i.processo}`);
+      if (clean(i.reclamante)) linhas.push(`   Reclamante: ${i.reclamante}`);
+      if (clean(i.cliente)) linhas.push(`   Cliente: ${i.cliente}`);
+      if (i.responsaveis?.length) linhas.push(`   Responsáveis: ${i.responsaveis.join(", ")}`);
+      if (i.envolvidos?.length) linhas.push(`   Envolvidos: ${i.envolvidos.join(", ")}`);
+      if (clean(i.observacao)) linhas.push(`   Observação: ${String(i.observacao).replace(/\s+/g, " ").slice(0, 500)}`);
+      return linhas.join("\n");
+    }
+
     for (const cfg of configs) {
       if (!cfg.canal_email && !cfg.canal_whatsapp) continue;
       // Respeitar dias da semana configurados (default: dias úteis)
@@ -151,14 +182,14 @@ serve(async (req) => {
         const alvoIni = alvoInfo.rangeUtcInicio;
         const alvoFim = alvoInfo.rangeUtcFim;
 
-        const itens: Array<{ id: string; titulo: string; data: string; hora?: string | null; processo?: string | null; origem: string; responsaveis: string[] }> = [];
+        const itens: ItemDetalhado[] = [];
         // Regra: destinatários finais = config + responsáveis + envolvidos + criador de cada item
         const idsExtras = new Set<string>();
 
         // 1) Tarefas (data_vencimento é date — comparação direta em BRT)
         const { data: tarefas } = await supabase
           .from("tarefas")
-          .select("id, titulo, data_vencimento, hora_prevista, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos!inner(numero, coordenacao_id)")
+          .select("id, titulo, data_vencimento, hora_prevista, observacoes, descricao, partes_ativas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos!inner(numero, coordenacao_id, polo_ativo, reclamante, cliente:clientes!processos_cliente_id_fkey(nome))")
           .eq("tipo_tarefa", cfg.tipo_tarefa)
           .eq("processo.coordenacao_id", cfg.coordenacao_id)
           .eq("data_vencimento", alvo)
@@ -169,11 +200,17 @@ serve(async (req) => {
           (t.tarefa_responsaveis ?? []).forEach((r: any) => r.usuario_id && respIds.add(r.usuario_id));
           const responsaveis = await nomesProfiles([...respIds]);
           respIds.forEach((id) => idsExtras.add(id));
-          (t.tarefa_envolvidos ?? []).forEach((e: any) => e.usuario_id && idsExtras.add(e.usuario_id));
+          const envIds = (t.tarefa_envolvidos ?? []).map((e: any) => e.usuario_id).filter(Boolean);
+          const envolvidos = await nomesProfiles(envIds);
+          envIds.forEach((id: string) => idsExtras.add(id));
           if (t.criado_por) idsExtras.add(t.criado_por);
           itens.push({
             id: t.id, titulo: t.titulo, data: t.data_vencimento, hora: t.hora_prevista,
             processo: t.processo?.numero, origem: "tarefa", responsaveis,
+            envolvidos,
+            observacao: t.observacoes ?? t.descricao ?? null,
+            cliente: t.processo?.cliente?.nome ?? null,
+            reclamante: t.processo?.reclamante ?? t.processo?.polo_ativo ?? t.partes_ativas ?? null,
           });
         }
 
@@ -181,7 +218,7 @@ serve(async (req) => {
         if (cfg.tipo_tarefa === "AUDIÊNCIA" || cfg.tipo_tarefa === "AUDIENCIA") {
           const { data: audiencias } = await supabase
             .from("audiencias_detectadas")
-            .select("id, processo_numero, data_audiencia, hora, cliente, status, criado_por, audiencias_advogados(advogado_id), audiencia_envolvidos(usuario_id)")
+            .select("id, processo_numero, data_audiencia, hora, cliente, polo_ativo, observacoes, status, criado_por, audiencias_advogados(advogado_id), audiencia_envolvidos(usuario_id)")
             .eq("coordenacao_id", cfg.coordenacao_id)
             .gte("data_audiencia", alvoIni)
             .lte("data_audiencia", alvoFim)
@@ -190,12 +227,18 @@ serve(async (req) => {
             const respIds = (a.audiencias_advogados ?? []).map((x: any) => x.advogado_id).filter(Boolean);
             const responsaveis = await nomesProfiles(respIds);
             respIds.forEach((id: string) => idsExtras.add(id));
-            (a.audiencia_envolvidos ?? []).forEach((e: any) => e.usuario_id && idsExtras.add(e.usuario_id));
+            const envIdsA = (a.audiencia_envolvidos ?? []).map((e: any) => e.usuario_id).filter(Boolean);
+            const envolvidos = await nomesProfiles(envIdsA);
+            envIdsA.forEach((id: string) => idsExtras.add(id));
             if (a.criado_por) idsExtras.add(a.criado_por);
             itens.push({
               id: a.id, titulo: `Audiência ${a.cliente ?? a.processo_numero ?? ""}`.trim(),
               data: a.data_audiencia, hora: a.hora, processo: a.processo_numero, origem: "audiencia",
               responsaveis,
+              envolvidos,
+              observacao: a.observacoes ?? null,
+              cliente: a.cliente ?? null,
+              reclamante: a.polo_ativo ?? null,
             });
           }
         }
@@ -204,7 +247,7 @@ serve(async (req) => {
         if (cfg.tipo_tarefa === "OUTROS" || cfg.tipo_tarefa === "EVENTO") {
           const { data: eventos } = await supabase
             .from("eventos_agenda")
-            .select("id, titulo, data_inicio, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos!inner(coordenacao_id)")
+            .select("id, titulo, data_inicio, descricao, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos!inner(numero, coordenacao_id, polo_ativo, reclamante, cliente:clientes!processos_cliente_id_fkey(nome))")
             .eq("processo.coordenacao_id", cfg.coordenacao_id)
             .gte("data_inicio", alvoIni)
             .lte("data_inicio", alvoFim)
@@ -215,11 +258,20 @@ serve(async (req) => {
             (e.evento_responsaveis ?? []).forEach((r: any) => r.usuario_id && respIds.add(r.usuario_id));
             const responsaveis = await nomesProfiles([...respIds]);
             respIds.forEach((id) => idsExtras.add(id));
-            (e.evento_envolvidos ?? []).forEach((x: any) => x.usuario_id && idsExtras.add(x.usuario_id));
-            (e.participantes_evento ?? []).forEach((x: any) => x.usuario_id && idsExtras.add(x.usuario_id));
+            const envIdsE = [
+              ...(e.evento_envolvidos ?? []).map((x: any) => x.usuario_id),
+              ...(e.participantes_evento ?? []).map((x: any) => x.usuario_id),
+            ].filter(Boolean);
+            const envolvidos = await nomesProfiles([...new Set<string>(envIdsE)]);
+            envIdsE.forEach((id: string) => idsExtras.add(id));
             itens.push({
               id: e.id, titulo: e.titulo, data: (e.data_inicio ?? "").slice(0, 10), origem: "evento",
               responsaveis,
+              envolvidos,
+              processo: e.processo?.numero ?? null,
+              observacao: e.descricao ?? null,
+              cliente: e.processo?.cliente?.nome ?? null,
+              reclamante: e.processo?.reclamante ?? e.processo?.polo_ativo ?? null,
             });
           }
         }
@@ -228,7 +280,7 @@ serve(async (req) => {
         if (cfg.tipo_tarefa === "PARCELAMENTO" || cfg.tipo_tarefa === "PARCELA") {
           const { data: parcelas } = await supabase
             .from("parcelas_evento")
-            .select("id, numero, data_vencimento, status, pago_em, evento:eventos_agenda!inner(id, titulo, status, criado_por, coordenacao_id, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id))")
+            .select("id, numero, valor, data_vencimento, observacoes, status, pago_em, evento:eventos_agenda!inner(id, titulo, status, descricao, criado_por, coordenacao_id, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(numero, polo_ativo, reclamante, cliente:clientes!processos_cliente_id_fkey(nome)))")
             .eq("evento.coordenacao_id", cfg.coordenacao_id)
             .eq("data_vencimento", alvo)
             .is("pago_em", null)
@@ -243,14 +295,23 @@ serve(async (req) => {
             (ev.evento_responsaveis ?? []).forEach((r: any) => r.usuario_id && respIds.add(r.usuario_id));
             const responsaveis = await nomesProfiles([...respIds]);
             respIds.forEach((id) => idsExtras.add(id));
-            (ev.evento_envolvidos ?? []).forEach((x: any) => x.usuario_id && idsExtras.add(x.usuario_id));
-            (ev.participantes_evento ?? []).forEach((x: any) => x.usuario_id && idsExtras.add(x.usuario_id));
+            const envIdsP = [
+              ...(ev.evento_envolvidos ?? []).map((x: any) => x.usuario_id),
+              ...(ev.participantes_evento ?? []).map((x: any) => x.usuario_id),
+            ].filter(Boolean);
+            const envolvidos = await nomesProfiles([...new Set<string>(envIdsP)]);
+            envIdsP.forEach((id: string) => idsExtras.add(id));
             itens.push({
               id: p.id,
               titulo: `Parcela ${p.numero ?? ""} — ${ev.titulo ?? ""}`.trim(),
               data: p.data_vencimento,
               origem: "parcela",
               responsaveis,
+              envolvidos,
+              processo: ev.processo?.numero ?? null,
+              observacao: p.observacoes ?? ev.descricao ?? null,
+              cliente: ev.processo?.cliente?.nome ?? null,
+              reclamante: ev.processo?.reclamante ?? ev.processo?.polo_ativo ?? null,
             });
           }
         }
@@ -268,12 +329,7 @@ serve(async (req) => {
 
         // Montar mensagem (data BRT dd/MM/yyyy)
         const dataStr = alvoInfo.dataStrBR;
-        const linhas = itens.slice(0, 30).map((i) => {
-          const h = i.hora ? ` às ${i.hora}` : "";
-          const p = i.processo ? ` — ${i.processo}` : "";
-          const r = i.responsaveis?.length ? ` — Resp.: ${i.responsaveis.join(", ")}` : "";
-          return `• ${i.titulo}${h}${p}${r}`;
-        }).join("\n");
+        const linhas = itens.slice(0, 30).map((i) => formatarItem(i)).join("\n\n");
         const cabecalho = nDias === 0
           ? `📅 Alertas para HOJE (${dataStr}) — ${cfg.tipo_tarefa}`
           : `⏰ Alertas para ${dataStr} (em ${nDias} dia${nDias > 1 ? "s" : ""}) — ${cfg.tipo_tarefa}`;
@@ -354,13 +410,13 @@ serve(async (req) => {
         const horaCfg = parseInt(String(cfg.pos_vencimento_horario ?? "09:00").slice(0, 2), 10);
         if (Number.isFinite(horaCfg) && horaBRT === horaCfg) {
           const hojeYmd = hoje.ymd;
-          const itensVenc: Array<{ id: string; titulo: string; data: string; processo?: string | null; responsaveis: string[] }> = [];
+          const itensVenc: ItemDetalhado[] = [];
           const idsExtrasVenc = new Set<string>();
 
           // Tarefas vencidas (data_vencimento < hoje) e ainda não concluídas/tratadas
           const { data: tarefasVenc } = await supabase
             .from("tarefas")
-            .select("id, titulo, data_vencimento, data_cumprimento, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos!inner(numero, coordenacao_id)")
+            .select("id, titulo, data_vencimento, data_cumprimento, observacoes, descricao, partes_ativas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos!inner(numero, coordenacao_id, polo_ativo, reclamante, cliente:clientes!processos_cliente_id_fkey(nome))")
             .eq("tipo_tarefa", cfg.tipo_tarefa)
             .eq("processo.coordenacao_id", cfg.coordenacao_id)
             .lt("data_vencimento", hojeYmd)
@@ -372,11 +428,16 @@ serve(async (req) => {
             (t.tarefa_responsaveis ?? []).forEach((r: any) => r.usuario_id && respIds.add(r.usuario_id));
             const responsaveis = await nomesProfiles([...respIds]);
             respIds.forEach((id) => idsExtrasVenc.add(id));
-            (t.tarefa_envolvidos ?? []).forEach((e: any) => e.usuario_id && idsExtrasVenc.add(e.usuario_id));
+            const envIdsV = (t.tarefa_envolvidos ?? []).map((e: any) => e.usuario_id).filter(Boolean);
+            const envolvidos = await nomesProfiles(envIdsV);
+            envIdsV.forEach((id: string) => idsExtrasVenc.add(id));
             if (t.criado_por) idsExtrasVenc.add(t.criado_por);
             itensVenc.push({
               id: t.id, titulo: t.titulo, data: t.data_vencimento,
-              processo: t.processo?.numero, responsaveis,
+              processo: t.processo?.numero, origem: "tarefa", responsaveis, envolvidos,
+              observacao: t.observacoes ?? t.descricao ?? null,
+              cliente: t.processo?.cliente?.nome ?? null,
+              reclamante: t.processo?.reclamante ?? t.processo?.polo_ativo ?? t.partes_ativas ?? null,
             });
           }
 
@@ -385,11 +446,9 @@ serve(async (req) => {
             const { data: destsVenc } = finalIdsVenc.size > 0
               ? await supabase.from("profiles").select("id, nome, email, telefone").in("id", [...finalIdsVenc])
               : { data: [] as any[] };
-            const linhas = itensVenc.slice(0, 40).map((i) => {
-              const p = i.processo ? ` — ${i.processo}` : "";
-              const r = i.responsaveis?.length ? ` — Resp.: ${i.responsaveis.join(", ")}` : "";
-              return `• ${i.titulo} (venceu em ${i.data.split("-").reverse().join("/")})${p}${r}`;
-            }).join("\n");
+            const linhas = itensVenc.slice(0, 40)
+              .map((i) => formatarItem(i, `(venceu em ${String(i.data).slice(0, 10).split("-").reverse().join("/")})`))
+              .join("\n\n");
             const cabecalho = `🚨 Itens VENCIDOS não tratados — ${cfg.tipo_tarefa}`;
             const linhaCoord = coordNome ? `Coordenação: ${coordNome}\n\n` : "";
             const corpoTexto = `${cabecalho}\n\n${linhaCoord}${linhas}\n\nTotal: ${itensVenc.length} item(ns) pendente(s)`;
