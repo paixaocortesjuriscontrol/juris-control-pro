@@ -14,6 +14,9 @@ interface PubRef {
   id: string;
   dedup_key?: string | null;
   id_djen?: string | null;
+  hash_conteudo?: string | null;
+  processo_numero?: string | null;
+  data_publicacao?: string | null;
 }
 
 /**
@@ -24,6 +27,10 @@ export function useAgendadosPorPublicacao(pubs: PubRef[]) {
   const pubIds = pubs.map((p) => p.id).sort();
   const dedupKeys = pubs.map((p) => p.dedup_key).filter(Boolean) as string[];
   const idsDjen = pubs.map((p) => p.id_djen).filter(Boolean) as string[];
+  const hashes = pubs.map((p) => p.hash_conteudo).filter(Boolean) as string[];
+  const processosDigits = Array.from(
+    new Set(pubs.map((p) => (p.processo_numero || "").replace(/\D/g, "")).filter(Boolean)),
+  );
 
   return useQuery({
     queryKey: ["agendados-por-publicacao", pubIds],
@@ -36,24 +43,77 @@ export function useAgendadosPorPublicacao(pubs: PubRef[]) {
         mapa.set(pubId, arr);
       };
 
-      // 1) Publicações "globais" equivalentes (publicacoes_djen) por dedup_key / id_djen
+      // 1) Publicações "globais" equivalentes (publicacoes_djen) por dedup_key / id_djen /
+      //    hash_conteudo, com fallback por número do processo + data de publicação.
       const djenToPub = new Map<string, string[]>();
-      if (dedupKeys.length > 0 || idsDjen.length > 0) {
+      const dataDia = (v?: string | null) => (v ? String(v).slice(0, 10) : "");
+      if (dedupKeys.length > 0 || idsDjen.length > 0 || hashes.length > 0 || processosDigits.length > 0) {
         const filtros: string[] = [];
         if (dedupKeys.length) filtros.push(`dedup_key.in.(${dedupKeys.map((k) => `"${k}"`).join(",")})`);
         if (idsDjen.length) filtros.push(`id_djen.in.(${idsDjen.map((k) => `"${k}"`).join(",")})`);
+        if (hashes.length) filtros.push(`hash_conteudo.in.(${hashes.map((k) => `"${k}"`).join(",")})`);
+        if (processosDigits.length)
+          filtros.push(`dedup_processo_digits.in.(${processosDigits.map((k) => `"${k}"`).join(",")})`);
         const { data: globais } = await (supabase as any)
           .from("publicacoes_djen")
-          .select("id, dedup_key, id_djen")
+          .select("id, dedup_key, id_djen, hash_conteudo, dedup_processo_digits, processo_numero, data_publicacao")
           .or(filtros.join(","));
         for (const g of globais ?? []) {
+          const gDigits = g.dedup_processo_digits || (g.processo_numero || "").replace(/\D/g, "");
           const relacionadas = pubs
-            .filter((p) => (p.dedup_key && p.dedup_key === g.dedup_key) || (p.id_djen && p.id_djen === g.id_djen))
+            .filter((p) => {
+              if (p.dedup_key && p.dedup_key === g.dedup_key) return true;
+              if (p.id_djen && p.id_djen === g.id_djen) return true;
+              if (p.hash_conteudo && p.hash_conteudo === g.hash_conteudo) return true;
+              const pDigits = (p.processo_numero || "").replace(/\D/g, "");
+              if (
+                pDigits &&
+                gDigits &&
+                pDigits === gDigits &&
+                dataDia(p.data_publicacao) &&
+                dataDia(p.data_publicacao) === dataDia(g.data_publicacao)
+              )
+                return true;
+              return false;
+            })
             .map((p) => p.id);
           if (relacionadas.length) djenToPub.set(g.id, relacionadas);
         }
       }
       const djenIds = [...djenToPub.keys()];
+
+      // 1b) Publicações descartadas equivalentes (audiências podem estar vinculadas a elas)
+      const descartadaToPub = new Map<string, string[]>();
+      if (dedupKeys.length > 0 || idsDjen.length > 0 || processosDigits.length > 0) {
+        const filtros: string[] = [];
+        if (dedupKeys.length) filtros.push(`dedup_key.in.(${dedupKeys.map((k) => `"${k}"`).join(",")})`);
+        if (idsDjen.length) filtros.push(`id_djen.in.(${idsDjen.map((k) => `"${k}"`).join(",")})`);
+        if (processosDigits.length)
+          filtros.push(`dedup_processo_digits.in.(${processosDigits.map((k) => `"${k}"`).join(",")})`);
+        const { data: descartadas } = await (supabase as any)
+          .from("publicacoes_djen_descartadas")
+          .select("id, dedup_key, id_djen, dedup_processo_digits, processo_numero, data_publicacao")
+          .or(filtros.join(","));
+        for (const g of descartadas ?? []) {
+          const gDigits = g.dedup_processo_digits || (g.processo_numero || "").replace(/\D/g, "");
+          const relacionadas = pubs
+            .filter((p) => {
+              if (p.dedup_key && p.dedup_key === g.dedup_key) return true;
+              if (p.id_djen && p.id_djen === g.id_djen) return true;
+              const pDigits = (p.processo_numero || "").replace(/\D/g, "");
+              return !!(
+                pDigits &&
+                gDigits &&
+                pDigits === gDigits &&
+                dataDia(p.data_publicacao) &&
+                dataDia(p.data_publicacao) === dataDia(g.data_publicacao)
+              );
+            })
+            .map((p) => p.id);
+          if (relacionadas.length) descartadaToPub.set(g.id, relacionadas);
+        }
+      }
+      const descartadaIds = [...descartadaToPub.keys()];
 
       // 2) Vínculos tarefa <-> publicação
       const tarefaToPubs = new Map<string, Set<string>>();
@@ -82,7 +142,7 @@ export function useAgendadosPorPublicacao(pubs: PubRef[]) {
         alvo.forEach((p) => s.add(p));
         audToPubs.set(audId, s);
       };
-      const [{ data: app }, { data: ap }] = await Promise.all([
+      const [{ data: app }, { data: ap }, { data: ad }] = await Promise.all([
         (supabase as any)
           .from("audiencias_publicacoes_processos")
           .select("audiencia_id, publicacao_processo_id")
@@ -93,9 +153,16 @@ export function useAgendadosPorPublicacao(pubs: PubRef[]) {
               .select("audiencia_id, publicacao_id")
               .in("publicacao_id", djenIds)
           : Promise.resolve({ data: [] }),
+        descartadaIds.length
+          ? (supabase as any)
+              .from("audiencias_publicacoes_descartadas")
+              .select("audiencia_id, publicacao_descartada_id")
+              .in("publicacao_descartada_id", descartadaIds)
+          : Promise.resolve({ data: [] }),
       ]);
       for (const r of app ?? []) linkAud(r.audiencia_id, [r.publicacao_processo_id]);
       for (const r of ap ?? []) linkAud(r.audiencia_id, djenToPub.get(r.publicacao_id) ?? []);
+      for (const r of ad ?? []) linkAud(r.audiencia_id, descartadaToPub.get(r.publicacao_descartada_id) ?? []);
 
       // 4) Buscar dados dos itens
       const tarefaIds = [...tarefaToPubs.keys()];
