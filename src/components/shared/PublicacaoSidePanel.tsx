@@ -1,13 +1,12 @@
-import { FileText } from "lucide-react";
-import { format, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
+import { FileText } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import {
   formatConteudoParaExibicao,
   conteudoDisplayClasses,
+  formatDateOnlyFull,
 } from "@/utils/formatConteudo";
 
 interface PublicacaoSidePanelProps {
