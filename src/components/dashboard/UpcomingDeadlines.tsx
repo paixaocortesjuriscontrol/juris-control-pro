@@ -6,6 +6,7 @@ import { useUpcomingPrazos } from "@/hooks/useDashboardData";
 import { format, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
+import { parseDateSafe } from "@/utils/date";
 
 export function UpcomingDeadlines() {
   const navigate = useNavigate();
