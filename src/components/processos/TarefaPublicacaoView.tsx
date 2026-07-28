@@ -377,7 +377,8 @@ export function TarefaPublicacaoView({
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-";
     try {
-      return format(new Date(dateString), "dd/MM/yyyy", { locale: ptBR });
+      const d = parseDateSafe(dateString);
+      return d ? format(d, "dd/MM/yyyy", { locale: ptBR }) : dateString;
     } catch {
       return dateString;
     }
@@ -572,7 +573,7 @@ export function TarefaPublicacaoView({
   const getStatusInfo = () => {
     if (!tarefa || !tarefa.data_vencimento) return null;
     const hoje = startOfDay(new Date());
-    const vencimento = startOfDay(new Date(tarefa.data_vencimento));
+    const vencimento = startOfDay(parseDateSafe(tarefa.data_vencimento) ?? new Date(tarefa.data_vencimento));
     const dias = differenceInDays(vencimento, hoje);
     const isConcluido = tarefa.status === "cumprido";
     const isAtrasado = dias < 0 && !isConcluido;
@@ -1094,7 +1095,7 @@ export function TarefaPublicacaoView({
                 </h3>
                 {tarefasVinculadas.map((t: any) => {
                   const isSelected = t.id === tarefaId;
-                  const isVencida = t.data_vencimento && new Date(t.data_vencimento) < new Date() && t.status !== 'cumprido';
+                  const isVencida = t.data_vencimento && startOfDay(parseDateSafe(t.data_vencimento) ?? new Date(t.data_vencimento)) < startOfDay(new Date()) && t.status !== 'cumprido';
                   
                   return (
                     <div key={t.id} className="space-y-1">
