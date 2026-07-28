@@ -102,13 +102,15 @@ serve(async (req) => {
     // 4) Parcelas: data_vencimento < hoje e não pagas
     const { data: parcelas } = await supabase
       .from("parcelas_evento")
-      .select("id, numero, valor, data_vencimento, status, pago_em, evento:eventos_agenda(id, titulo, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id))")
+      .select("id, numero, valor, data_vencimento, status, pago_em, evento:eventos_agenda(id, titulo, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id))")
       .lt("data_vencimento", hoje)
       .is("pago_em", null)
-      .not("status", "in", "(pago,cancelado)")
+      .not("status", "in", "(pago,paga,cancelado,cancelada)")
       .limit(1000);
     for (const p of (parcelas ?? []) as any[]) {
       const ev = p.evento ?? {};
+      // Ignora parcelas cujo evento (parcelamento) foi cancelado/concluído
+      if (["cancelado", "cancelada", "concluido", "tratado"].includes(String(ev.status ?? "").toLowerCase())) continue;
       const ids = new Set<string>();
       if (ev.criado_por) ids.add(ev.criado_por);
       for (const r of (ev.evento_responsaveis ?? [])) if (r.usuario_id) ids.add(r.usuario_id);

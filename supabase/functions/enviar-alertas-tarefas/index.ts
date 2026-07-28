@@ -208,7 +208,7 @@ serve(async (req) => {
             .eq("processo.coordenacao_id", cfg.coordenacao_id)
             .gte("data_inicio", alvoIni)
             .lte("data_inicio", alvoFim)
-            .neq("status", "concluido");
+            .not("status", "in", "(concluido,cancelado,tratado)");
           for (const e of (eventos ?? []) as any[]) {
             const respIds = new Set<string>();
             if (e.criado_por) respIds.add(e.criado_por);
@@ -228,12 +228,16 @@ serve(async (req) => {
         if (cfg.tipo_tarefa === "PARCELAMENTO" || cfg.tipo_tarefa === "PARCELA") {
           const { data: parcelas } = await supabase
             .from("parcelas_evento")
-            .select("id, numero, data_vencimento, status, evento:eventos_agenda!inner(id, titulo, criado_por, coordenacao_id, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id))")
+            .select("id, numero, data_vencimento, status, pago_em, evento:eventos_agenda!inner(id, titulo, status, criado_por, coordenacao_id, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id))")
             .eq("evento.coordenacao_id", cfg.coordenacao_id)
             .eq("data_vencimento", alvo)
-            .neq("status", "pago");
+            .is("pago_em", null)
+            .not("status", "in", "(pago,paga,cancelado,cancelada)")
+            .not("evento.status", "in", "(cancelado,concluido,tratado)");
           for (const p of (parcelas ?? []) as any[]) {
             const ev = p.evento ?? {};
+            // Segurança extra: ignora parcelas de eventos cancelados/concluídos
+            if (["cancelado", "cancelada", "concluido", "tratado"].includes(String(ev.status ?? "").toLowerCase())) continue;
             const respIds = new Set<string>();
             if (ev.criado_por) respIds.add(ev.criado_por);
             (ev.evento_responsaveis ?? []).forEach((r: any) => r.usuario_id && respIds.add(r.usuario_id));
