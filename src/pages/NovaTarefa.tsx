@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { parseDateSafe } from "@/utils/date";
 
 type AnexoComAnalise = {
   file: File;

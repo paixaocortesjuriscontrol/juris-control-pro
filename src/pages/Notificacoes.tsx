@@ -54,6 +54,7 @@ import { GerarRelatorioPdfDialog } from "@/components/notificacoes/GerarRelatori
 import { AlertasNaoCadastradosNotificacoes } from "@/components/notificacoes/AlertasNaoCadastradosNotificacoes";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
+import { parseDateSafe } from "@/utils/date";
 
 interface NotificacoesProps { embedded?: boolean }
 export default function Notificacoes({ embedded = false }: NotificacoesProps = {}) {

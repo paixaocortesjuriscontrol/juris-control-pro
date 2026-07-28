@@ -38,6 +38,7 @@ import { startOfDay, parseISO, isBefore, isAfter, format, formatDistanceToNow } 
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { parseDateSafe } from "@/utils/date";
 
 interface Props {
   coordenacaoId: string;

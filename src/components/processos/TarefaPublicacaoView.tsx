@@ -74,6 +74,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
+import { parseDateSafe } from "@/utils/date";
 
 const formSchema = z.object({
   tipo_tarefa: z.string().min(1, "Tipo é obrigatório"),
