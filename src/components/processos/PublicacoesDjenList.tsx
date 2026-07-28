@@ -35,6 +35,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { jsPDF } from "jspdf";
 import { useAgendadosPorPublicacao } from "@/hooks/useAgendadosPorPublicacao";
+import { useNavigate } from "react-router-dom";
 
 interface PublicacaoDjen {
   id: string;
@@ -69,6 +70,7 @@ export function PublicacoesDjenList({
 }: PublicacoesDjenListProps) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
