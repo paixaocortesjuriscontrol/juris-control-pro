@@ -68,6 +68,12 @@ const LABELS: Record<string, string> = {
 
 const labelCampo = (campo: string) => LABELS[campo] || campo.replace(/_/g, " ");
 
+const labelOrigem = (origem: string) => {
+  if (origem?.startsWith("db_trigger:tarefas")) return "Tarefas/Prazos (sistema)";
+  if (origem?.startsWith("db_trigger:eventos_agenda")) return "Agenda (sistema)";
+  return origem;
+};
+
 const formatValor = (v: any): string => {
   if (v === null || v === undefined || v === "") return "—";
   if (typeof v === "boolean") return v ? "Sim" : "Não";
@@ -303,7 +309,7 @@ export default function AuditoriaItens() {
                           </span>
                         )}
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{r.origem}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{labelOrigem(r.origem)}</TableCell>
                       <TableCell>
                         <Button size="sm" variant="ghost" onClick={() => setSelected(r)}>
                           <Eye className="w-4 h-4" />
@@ -338,7 +344,7 @@ export default function AuditoriaItens() {
                   <div><span className="text-muted-foreground">Tipo:</span> {selected.tipo_item || "—"}</div>
                   <div><span className="text-muted-foreground">Item:</span> {getTituloItem(selected)}</div>
                   <div><span className="text-muted-foreground">Ação:</span> {selected.acao}</div>
-                  <div><span className="text-muted-foreground">Origem:</span> {selected.origem}</div>
+                  <div><span className="text-muted-foreground">Origem:</span> {labelOrigem(selected.origem)}</div>
                   <div><span className="text-muted-foreground">Resultado:</span> {selected.sucesso ? "Sucesso" : "Falha"}</div>
                   <div><span className="text-muted-foreground">Processo:</span> {selected.processo_id || "—"}</div>
                   <div><span className="text-muted-foreground">Item ID:</span> {selected.tarefa_id || "—"}</div>
