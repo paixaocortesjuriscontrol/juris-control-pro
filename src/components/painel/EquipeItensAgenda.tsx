@@ -321,7 +321,7 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
   return (
     <div className="space-y-4">
       {/* Cards por membro */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
         {membros.map((m) => {
           const taxa = m.total > 0 ? Math.round((m.cumpridas / m.total) * 100) : 0;
           return (
@@ -334,44 +334,25 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
                 selectedMembro === m.id && "ring-2 ring-primary"
               )}
             >
-              <CardContent className="pt-4">
-                <div className="flex items-start gap-3 mb-3">
-                  <Avatar className="h-9 w-9">
-                    <AvatarFallback className="bg-primary/10 text-primary text-xs">
+              <CardContent className="p-2.5">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback className="bg-primary/10 text-primary text-[10px]">
                       {getInitials(m.nome)}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-sm truncate">{m.nome}</h4>
-                    <p className="text-xs text-muted-foreground">{m.total} item(ns)</p>
+                    <h4 className="font-semibold text-xs truncate leading-tight">{m.nome}</h4>
+                    <p className="text-[10px] text-muted-foreground leading-tight">{m.total} item(ns)</p>
                   </div>
-                  {m.atrasadas > 0 && (
-                    <Badge variant="destructive" className="text-xs">{m.atrasadas} atrasada{m.atrasadas > 1 ? "s" : ""}</Badge>
-                  )}
                 </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Conclusão</span>
-                    <span className="font-medium">{taxa}%</span>
-                  </div>
-                  <Progress value={taxa} className="h-2" />
-                  <div className="grid grid-cols-4 gap-2 pt-1">
-                    <div className="text-center">
-                      <p className="text-base font-bold">{m.total}</p>
-                      <p className="text-[10px] text-muted-foreground">Total</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-base font-bold text-amber-600">{m.pendentes}</p>
-                      <p className="text-[10px] text-muted-foreground">Pend.</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-base font-bold text-destructive">{m.atrasadas}</p>
-                      <p className="text-[10px] text-muted-foreground">Atras.</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-base font-bold text-emerald-600">{m.cumpridas}</p>
-                      <p className="text-[10px] text-muted-foreground">Cumpr.</p>
-                    </div>
+                <div className="space-y-1">
+                  <Progress value={taxa} className="h-1" />
+                  <div className="flex items-center justify-between text-[10px] font-semibold">
+                    <span title="Pendentes" className="text-amber-600">{m.pendentes}p</span>
+                    <span title="Atrasadas" className="text-destructive">{m.atrasadas}a</span>
+                    <span title="Cumpridas" className="text-emerald-600">{m.cumpridas}c</span>
+                    <span className="text-muted-foreground font-medium">{taxa}%</span>
                   </div>
                 </div>
               </CardContent>
