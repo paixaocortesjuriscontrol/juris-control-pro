@@ -38,13 +38,11 @@ export function PublicacaoSidePanel({ publicacao, className }: PublicacaoSidePan
             </div>
           )}
           <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            {publicacao?.data_disponibilizacao && (
+              <span>Disp.: {formatDateOnlyFull(publicacao.data_disponibilizacao)}</span>
+            )}
             {publicacao?.data_publicacao && (
-              <span>
-                Publicado em{" "}
-                {format(parseISO(publicacao.data_publicacao), "dd/MM/yyyy", {
-                  locale: ptBR,
-                })}
-              </span>
+              <span>Pub.: {formatDateOnlyFull(publicacao.data_publicacao)}</span>
             )}
             {publicacao?.tribunal && (
               <Badge variant="outline">{publicacao.tribunal}</Badge>
