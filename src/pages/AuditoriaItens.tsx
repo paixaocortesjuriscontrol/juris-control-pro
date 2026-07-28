@@ -323,8 +323,9 @@ export default function AuditoriaItens() {
               <div className="space-y-4 text-sm pr-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div><span className="text-muted-foreground">Data:</span> {format(new Date(selected.created_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}</div>
-                  <div><span className="text-muted-foreground">Usuário:</span> {selected.usuario_id ? (profiles?.[selected.usuario_id] || selected.usuario_id) : "—"}</div>
+                  <div><span className="text-muted-foreground">Alterado por:</span> <span className="font-medium">{nomeUsuario(selected.usuario_id)}</span></div>
                   <div><span className="text-muted-foreground">Tipo:</span> {selected.tipo_item || "—"}</div>
+                  <div><span className="text-muted-foreground">Item:</span> {getTituloItem(selected)}</div>
                   <div><span className="text-muted-foreground">Ação:</span> {selected.acao}</div>
                   <div><span className="text-muted-foreground">Origem:</span> {selected.origem}</div>
                   <div><span className="text-muted-foreground">Resultado:</span> {selected.sucesso ? "Sucesso" : "Falha"}</div>
@@ -332,6 +333,31 @@ export default function AuditoriaItens() {
                   <div><span className="text-muted-foreground">Item ID:</span> {selected.tarefa_id || "—"}</div>
                   <div><span className="text-muted-foreground">Coordenação:</span> {selected.coordenacao_id || "—"}</div>
                 </div>
+                {getDiff(selected).length > 0 && (
+                  <div>
+                    <div className="font-medium mb-2">O que foi alterado ({getDiff(selected).length})</div>
+                    <div className="rounded border overflow-hidden">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[30%]">Campo</TableHead>
+                            <TableHead>De</TableHead>
+                            <TableHead>Para</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {getDiff(selected).map((d) => (
+                            <TableRow key={d.campo}>
+                              <TableCell className="text-xs font-medium">{labelCampo(d.campo)}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground line-through">{formatValor(d.de)}</TableCell>
+                              <TableCell className="text-xs font-medium">{formatValor(d.para)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
                 {selected.erro_mensagem && (
                   <div>
                     <div className="font-medium text-red-600 mb-1">Erro</div>
