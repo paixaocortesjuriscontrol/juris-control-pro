@@ -28,6 +28,13 @@ interface AuditoriaInput {
 
 export async function registrarAuditoriaTarefa(input: AuditoriaInput): Promise<void> {
   try {
+    // As alterações bem-sucedidas em tarefas/eventos_agenda são auditadas pela
+    // trigger do banco (audit_item_changes), que grava o diff campo a campo.
+    // Evita duplicidade e registros sem "o que foi alterado".
+    if (input.sucesso && ['criar', 'atualizar', 'deletar'].includes(input.acao)) {
+      return;
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
