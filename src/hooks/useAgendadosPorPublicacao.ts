@@ -33,7 +33,7 @@ export function useAgendadosPorPublicacao(pubs: PubRef[]) {
   );
 
   return useQuery({
-    queryKey: ["agendados-por-publicacao", pubIds],
+    queryKey: ["agendados-por-publicacao", pubIds, hashes.length, processosDigits],
     enabled: pubIds.length > 0,
     queryFn: async () => {
       const mapa = new Map<string, ItemAgendado[]>();
