@@ -37,7 +37,7 @@ import { toast } from "sonner";
 import { PublicacaoVinculadaCollapsible } from "@/components/shared/PublicacaoVinculadaCollapsible";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
-import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
+import { formatConteudoParaExibicao, conteudoDisplayClasses, parseDataPublicacaoLocal } from "@/utils/formatConteudo";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
