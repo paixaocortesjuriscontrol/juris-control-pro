@@ -31,6 +31,26 @@ interface MembroStats {
   itens: ItemAgendaUnificado[];
 }
 
+interface PessoaItem {
+  id: string;
+  nome: string;
+}
+
+interface PessoasPorPapel {
+  responsaveis: PessoaItem[];
+  envolvidos: PessoaItem[];
+}
+
+const TIPO_BAR_CLASSES: Record<string, string> = {
+  evento: "bg-green-500",
+  tarefa: "bg-blue-500",
+  tarefa_delegada: "bg-blue-600",
+  prazo: "bg-red-500",
+  audiencia: "bg-yellow-500",
+  prazo_parcela: "bg-red-400",
+  parcelamento: "bg-emerald-500",
+};
+
 function getRefDate(item: ItemAgendaUnificado): Date | null {
   const raw = item.data_fatal ?? item.data_vencimento ?? item.data_inicio;
   if (!raw) return null;
@@ -38,13 +58,43 @@ function getRefDate(item: ItemAgendaUnificado): Date | null {
   return isValid(d) ? d : null;
 }
 
-function getPessoas(item: ItemAgendaUnificado): { id: string; nome: string }[] {
-  const map = new Map<string, string>();
-  if (item.responsavel?.id) map.set(item.responsavel.id, item.responsavel.nome);
-  (item.participantes || []).forEach((p) => {
-    if (p.usuario_id) map.set(p.usuario_id, p.usuario?.nome || "Sem nome");
-  });
-  return Array.from(map, ([id, nome]) => ({ id, nome }));
+function getBaseId(id: string) {
+  return id.split("::")[0];
+}
+
+function getPessoaLookupKey(item: ItemAgendaUnificado) {
+  if (item.id.startsWith("audiencia-det-")) return `audiencia:${item.id.replace("audiencia-det-", "")}`;
+  if (item.origem === "tarefa") return `tarefa:${getBaseId(item.id)}`;
+  if (item.grupo_parcelas) return `evento:${item.grupo_parcelas}`;
+  if (item.origem === "evento" && !item.id.startsWith("parcela-") && !item.id.startsWith("prazo-tst-")) {
+    return `evento:${getBaseId(item.id)}`;
+  }
+  return null;
+}
+
+function addPessoa(map: Map<string, string>, pessoa?: PessoaItem | null) {
+  if (!pessoa?.id) return;
+  map.set(pessoa.id, pessoa.nome || "Sem nome");
+}
+
+function getPessoasPorPapel(item: ItemAgendaUnificado, extra?: PessoasPorPapel): PessoasPorPapel {
+  const responsaveis = new Map<string, string>();
+  const envolvidos = new Map<string, string>();
+
+  addPessoa(responsaveis, item.responsavel);
+  (extra?.responsaveis || []).forEach((p) => addPessoa(responsaveis, p));
+  (item.participantes || []).forEach((p) => addPessoa(envolvidos, { id: p.usuario_id, nome: p.usuario?.nome || "Sem nome" }));
+  (extra?.envolvidos || []).forEach((p) => addPessoa(envolvidos, p));
+
+  return {
+    responsaveis: Array.from(responsaveis, ([id, nome]) => ({ id, nome })),
+    envolvidos: Array.from(envolvidos, ([id, nome]) => ({ id, nome })).filter((p) => !responsaveis.has(p.id)),
+  };
+}
+
+function getPessoas(item: ItemAgendaUnificado, extra?: PessoasPorPapel): PessoaItem[] {
+  const pessoas = getPessoasPorPapel(item, extra);
+  return [...pessoas.responsaveis, ...pessoas.envolvidos];
 }
 
 const getInitials = (name: string) =>
@@ -86,16 +136,126 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
   const getCliente = (item: ItemAgendaUnificado) =>
     (item.processo_id ? processoInfo[item.processo_id]?.cliente : null) || "-";
 
+  const pessoaLookupIds = useMemo(() => {
+    const tarefas = new Set<string>();
+    const eventos = new Set<string>();
+    const audiencias = new Set<string>();
+
+    itens.forEach((item) => {
+      const key = getPessoaLookupKey(item);
+      if (!key) return;
+      const [tipo, id] = key.split(":");
+      if (!id) return;
+      if (tipo === "tarefa") tarefas.add(id);
+      if (tipo === "evento") eventos.add(id);
+      if (tipo === "audiencia") audiencias.add(id);
+    });
+
+    return {
+      tarefas: Array.from(tarefas),
+      eventos: Array.from(eventos),
+      audiencias: Array.from(audiencias),
+    };
+  }, [itens]);
+
+  const { data: pessoasExtras = {} as Record<string, PessoasPorPapel> } = useQuery<Record<string, PessoasPorPapel>>({
+    queryKey: ["equipe-pessoas-extras", pessoaLookupIds],
+    enabled: pessoaLookupIds.tarefas.length + pessoaLookupIds.eventos.length + pessoaLookupIds.audiencias.length > 0,
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const result: Record<string, PessoasPorPapel> = {};
+      const userIds = new Set<string>();
+      const ensure = (key: string) => {
+        if (!result[key]) result[key] = { responsaveis: [], envolvidos: [] };
+        return result[key];
+      };
+
+      const [tarefaResp, tarefaEnv, eventoResp, eventoEnv, audienciaResp, audienciaEnv] = await Promise.all([
+        pessoaLookupIds.tarefas.length
+          ? supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", pessoaLookupIds.tarefas)
+          : Promise.resolve({ data: [], error: null }),
+        pessoaLookupIds.tarefas.length
+          ? supabase.from("tarefa_envolvidos").select("tarefa_id, usuario_id").in("tarefa_id", pessoaLookupIds.tarefas)
+          : Promise.resolve({ data: [], error: null }),
+        pessoaLookupIds.eventos.length
+          ? supabase.from("evento_responsaveis").select("evento_id, usuario_id").in("evento_id", pessoaLookupIds.eventos)
+          : Promise.resolve({ data: [], error: null }),
+        pessoaLookupIds.eventos.length
+          ? supabase.from("evento_envolvidos").select("evento_id, usuario_id").in("evento_id", pessoaLookupIds.eventos)
+          : Promise.resolve({ data: [], error: null }),
+        pessoaLookupIds.audiencias.length
+          ? supabase.from("audiencias_advogados").select("audiencia_id, advogado_id").in("audiencia_id", pessoaLookupIds.audiencias)
+          : Promise.resolve({ data: [], error: null }),
+        pessoaLookupIds.audiencias.length
+          ? supabase.from("audiencia_envolvidos").select("audiencia_id, usuario_id").in("audiencia_id", pessoaLookupIds.audiencias)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      const responses = [tarefaResp, tarefaEnv, eventoResp, eventoEnv, audienciaResp, audienciaEnv];
+      const firstError = responses.find((res) => res.error)?.error;
+      if (firstError) throw firstError;
+
+      (tarefaResp.data || []).forEach((row: any) => {
+        if (!row.tarefa_id || !row.usuario_id) return;
+        ensure(`tarefa:${row.tarefa_id}`).responsaveis.push({ id: row.usuario_id, nome: "" });
+        userIds.add(row.usuario_id);
+      });
+      (tarefaEnv.data || []).forEach((row: any) => {
+        if (!row.tarefa_id || !row.usuario_id) return;
+        ensure(`tarefa:${row.tarefa_id}`).envolvidos.push({ id: row.usuario_id, nome: "" });
+        userIds.add(row.usuario_id);
+      });
+      (eventoResp.data || []).forEach((row: any) => {
+        if (!row.evento_id || !row.usuario_id) return;
+        ensure(`evento:${row.evento_id}`).responsaveis.push({ id: row.usuario_id, nome: "" });
+        userIds.add(row.usuario_id);
+      });
+      (eventoEnv.data || []).forEach((row: any) => {
+        if (!row.evento_id || !row.usuario_id) return;
+        ensure(`evento:${row.evento_id}`).envolvidos.push({ id: row.usuario_id, nome: "" });
+        userIds.add(row.usuario_id);
+      });
+      (audienciaResp.data || []).forEach((row: any) => {
+        if (!row.audiencia_id || !row.advogado_id) return;
+        ensure(`audiencia:${row.audiencia_id}`).responsaveis.push({ id: row.advogado_id, nome: "" });
+        userIds.add(row.advogado_id);
+      });
+      (audienciaEnv.data || []).forEach((row: any) => {
+        if (!row.audiencia_id || !row.usuario_id) return;
+        ensure(`audiencia:${row.audiencia_id}`).envolvidos.push({ id: row.usuario_id, nome: "" });
+        userIds.add(row.usuario_id);
+      });
+
+      if (userIds.size > 0) {
+        const { data: profiles, error } = await supabase
+          .from("profiles")
+          .select("id, nome")
+          .in("id", Array.from(userIds));
+        if (error) throw error;
+
+        const names = new Map((profiles || []).map((p: any) => [p.id, p.nome || "Sem nome"]));
+        Object.values(result).forEach((grupo) => {
+          grupo.responsaveis = grupo.responsaveis.map((p) => ({ ...p, nome: names.get(p.id) || "Sem nome" }));
+          grupo.envolvidos = grupo.envolvidos.map((p) => ({ ...p, nome: names.get(p.id) || "Sem nome" }));
+        });
+      }
+
+      return result;
+    },
+  });
+
   const membros = useMemo<MembroStats[]>(() => {
     const map = new Map<string, MembroStats>();
     itens.forEach((item) => {
-      const pessoas = getPessoas(item);
+      const key = getPessoaLookupKey(item);
+      const pessoas = getPessoas(item, key ? pessoasExtras[key] : undefined);
       const alvo = pessoas.length ? pessoas : [{ id: "__sem__", nome: "Não atribuído" }];
       alvo.forEach(({ id, nome }) => {
         if (!map.has(id)) {
           map.set(id, { id, nome, total: 0, pendentes: 0, atrasadas: 0, cumpridas: 0, itens: [] });
         }
-        const m = map.get(id)!;
+        const m = map.get(id);
+        if (!m) return;
         m.total += 1;
         m.itens.push(item);
         if (isItemTratado(item)) {
@@ -108,7 +268,7 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
       });
     });
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [itens]);
+  }, [itens, pessoasExtras]);
 
   const membroAtual = membros.find((m) => m.id === selectedMembro) || null;
 
@@ -252,14 +412,20 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
           <TableBody>
             {listaItens.map((item) => {
               const d = getRefDate(item);
-              const pessoas = getPessoas(item);
+              const key = getPessoaLookupKey(item);
+              const pessoasPorPapel = getPessoasPorPapel(item, key ? pessoasExtras[key] : undefined);
+              const pessoas = [...pessoasPorPapel.responsaveis, ...pessoasPorPapel.envolvidos];
               return (
                 <TableRow
                   key={`${item.origem}-${item.id}`}
                   className="hover:bg-muted/50 cursor-pointer"
                   onClick={() => onItemClick(item)}
                 >
-                  <TableCell>
+                  <TableCell className="relative pl-4">
+                    <span
+                      aria-hidden="true"
+                      className={cn("absolute left-0 top-0 h-full w-1", TIPO_BAR_CLASSES[item.tipo] || "bg-muted")}
+                    />
                     <div className="max-w-[260px]">
                       <p className="font-medium truncate text-sm">{item.titulo}</p>
                       {item.descricao && (
@@ -278,9 +444,24 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="text-sm block max-w-[240px]" title={pessoas.map((p) => p.nome).join(", ")}>
-                      {pessoas.length ? pessoas.map((p) => p.nome).join(", ") : "Não atribuído"}
-                    </span>
+                    {pessoas.length ? (
+                      <div className="max-w-[280px] space-y-1 text-xs" title={pessoas.map((p) => p.nome).join(", ")}>
+                        {pessoasPorPapel.responsaveis.length > 0 && (
+                          <p className="line-clamp-2">
+                            <span className="font-semibold">Responsáveis:</span>{" "}
+                            {pessoasPorPapel.responsaveis.map((p) => p.nome).join(", ")}
+                          </p>
+                        )}
+                        {pessoasPorPapel.envolvidos.length > 0 && (
+                          <p className="line-clamp-2 text-muted-foreground">
+                            <span className="font-semibold text-foreground">Envolvidos:</span>{" "}
+                            {pessoasPorPapel.envolvidos.map((p) => p.nome).join(", ")}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Não atribuído</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <span className="font-mono text-xs text-muted-foreground">
