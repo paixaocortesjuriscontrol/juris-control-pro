@@ -185,6 +185,10 @@ const AnaliseDjen = () => {
   // Execução do dia selecionada no card "Execuções do dia" (DJEN Local).
   // Quando setada, filtra a listagem por novasIds (as publicações vistas pela 1ª vez nesta execução).
   const [execucaoFocada, setExecucaoFocada] = useState<import("@/hooks/useExecucoesDoDiaLocal").ExecucaoLocalDoDia | null>(null);
+  // Publicações tratadas nesta sessão (marcadas como lidas ao salvar um item).
+  // Mantidas na lista para que a publicação não "suma" logo após o advogado
+  // criar um prazo/tarefa/audiência a partir dela.
+  const [pubsTratadasSessao, setPubsTratadasSessao] = useState<Record<string, any>>({});
   // Toggle para ocultar visualmente publicações duplicadas (mesmo processo +
   // mesmo conteúdo dentro da mesma coordenação). Não altera o banco; apenas
   // filtra a lista renderizada. Preferência persistida em localStorage.
