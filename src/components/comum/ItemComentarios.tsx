@@ -102,9 +102,8 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
   const initials = (n: string) =>
     n.split(" ").map((p) => p[0]).join("").toUpperCase().slice(0, 2);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!novo.trim()) return;
+  const handleSubmit = () => {
+    if (!novo.trim() || addMut.isPending) return;
     addMut.mutate(novo.trim());
   };
 
@@ -177,23 +176,30 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
         )}
       </ScrollArea>
 
-      <form onSubmit={handleSubmit} className="flex gap-2">
+      <div className="flex gap-2">
         <Textarea
           placeholder="Escreva um comentário..."
           value={novo}
           onChange={(e) => setNovo(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
           className="resize-none min-h-[48px] text-sm"
           rows={2}
         />
         <Button
-          type="submit"
+          type="button"
+          onClick={handleSubmit}
           size="icon"
           disabled={!novo.trim() || addMut.isPending}
           className="shrink-0 self-end"
         >
           {addMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
-      </form>
+      </div>
     </div>
   );
 }
