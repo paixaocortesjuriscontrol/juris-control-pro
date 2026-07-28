@@ -1346,7 +1346,7 @@ export default function Notificacoes({ embedded = false }: NotificacoesProps = {
                           Processo: {prazo.processo?.numero}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Vencimento: {format(new Date(prazo.data_vencimento), 'dd/MM/yyyy')}
+                          Vencimento: {format(parseDateSafe(prazo.data_vencimento)!, 'dd/MM/yyyy')}
                         </p>
                       </div>
                     ))}
@@ -1744,7 +1744,7 @@ export default function Notificacoes({ embedded = false }: NotificacoesProps = {
                                 Processo: {prazo.processo?.numero}
                               </p>
                               <p className="text-xs text-muted-foreground mt-2">
-                                Vencimento: {format(new Date(prazo.data_vencimento), "dd/MM/yyyy")}
+                                Vencimento: {format(parseDateSafe(prazo.data_vencimento)!, "dd/MM/yyyy")}
                               </p>
                             </div>
                             <Button 
@@ -1810,7 +1810,7 @@ export default function Notificacoes({ embedded = false }: NotificacoesProps = {
                                 Processo: {(tarefa.processo as any)?.numero || '-'}
                               </p>
                               <p className="text-xs text-muted-foreground mt-2">
-                                Vencimento: {format(new Date(tarefa.data_vencimento), "dd/MM/yyyy")}
+                                Vencimento: {format(parseDateSafe(tarefa.data_vencimento)!, "dd/MM/yyyy")}
                               </p>
                             </div>
                             <Button 

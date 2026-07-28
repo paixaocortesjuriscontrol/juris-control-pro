@@ -472,7 +472,7 @@ export function CoordenacaoDetalhesView({
   const formatDate = (dateStr: string | null | undefined) => {
     if (!dateStr) return null;
     try {
-      return format(new Date(dateStr), 'dd/MM/yyyy', { locale: ptBR });
+      return format(parseDateSafe(dateStr)!, 'dd/MM/yyyy', { locale: ptBR });
     } catch {
       return dateStr;
     }
@@ -720,7 +720,7 @@ export function CoordenacaoDetalhesView({
                     <div className="flex items-center gap-1 text-xs text-primary">
                       <Timer className="h-3 w-3" />
                       <span className="font-medium">
-                        Vencimento: {format(new Date(prazo.data_vencimento), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                        Vencimento: {format(parseDateSafe(prazo.data_vencimento)!, 'dd/MM/yyyy', { locale: ptBR })}
                       </span>
                     </div>
                   </div>
