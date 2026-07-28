@@ -9055,6 +9055,14 @@ export type Database = {
         Args: { _processo_id: string; _user_id: string }
         Returns: boolean
       }
+      can_comment_audiencia: {
+        Args: { _audiencia_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_comment_tarefa: {
+        Args: { _tarefa_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_manage_evento: {
         Args: { _evento_id: string; _user_id: string }
         Returns: boolean
