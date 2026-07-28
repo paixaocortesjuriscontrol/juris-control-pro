@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { jsPDF } from "jspdf";
+import { useAgendadosPorPublicacao } from "@/hooks/useAgendadosPorPublicacao";
 
 interface PublicacaoDjen {
   id: string;
@@ -48,6 +49,8 @@ interface PublicacaoDjen {
   polo_ativo?: string;
   polo_passivo?: string;
   tribunal?: string;
+  dedup_key?: string | null;
+  id_djen?: string | null;
 }
 
 interface PublicacoesDjenListProps {
@@ -70,6 +73,17 @@ export function PublicacoesDjenList({
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedPub, setSelectedPub] = useState<PublicacaoDjen | null>(null);
   const [markingAsRead, setMarkingAsRead] = useState(false);
+
+  const { data: agendadosPorPub = {} } = useAgendadosPorPublicacao(
+    publicacoes.map((p) => ({ id: p.id, dedup_key: p.dedup_key, id_djen: p.id_djen }))
+  );
+
+  const tipoLabel: Record<string, { label: string; cls: string }> = {
+    prazo: { label: "Prazo", cls: "bg-red-100 text-red-700 border-red-200" },
+    audiencia: { label: "Audiência", cls: "bg-amber-100 text-amber-700 border-amber-200" },
+    evento: { label: "Evento", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+    tarefa: { label: "Tarefa", cls: "bg-blue-100 text-blue-700 border-blue-200" },
+  };
 
   const toggleExpand = (id: string) => {
     const newExpanded = new Set(expandedIds);
