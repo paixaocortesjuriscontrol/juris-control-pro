@@ -856,6 +856,8 @@ export function PrazoDialog({
           />
         </div>
 
+        <ItemComentarios tipo="tarefa" itemId={prazo?.id} />
+
       </div>
 
       <div className="flex justify-end gap-2 px-5 py-3 border-t bg-muted/30">
