@@ -133,6 +133,37 @@ serve(async (req) => {
       return ids.map((i) => profileCache.get(i) ?? "").filter(Boolean);
     }
 
+    type ItemDetalhado = {
+      id: string;
+      titulo: string;
+      data: string;
+      hora?: string | null;
+      processo?: string | null;
+      origem: string;
+      responsaveis: string[];
+      envolvidos?: string[];
+      observacao?: string | null;
+      cliente?: string | null;
+      reclamante?: string | null;
+    };
+
+    const clean = (v?: string | null) => {
+      const s = String(v ?? "").trim();
+      return s ? s : null;
+    };
+
+    function formatarItem(i: ItemDetalhado, prefixoData?: string): string {
+      const h = i.hora ? ` às ${i.hora}` : "";
+      const linhas: string[] = [`• ${i.titulo}${h}${prefixoData ? ` ${prefixoData}` : ""}`];
+      if (clean(i.processo)) linhas.push(`   Processo: ${i.processo}`);
+      if (clean(i.reclamante)) linhas.push(`   Reclamante: ${i.reclamante}`);
+      if (clean(i.cliente)) linhas.push(`   Cliente: ${i.cliente}`);
+      if (i.responsaveis?.length) linhas.push(`   Responsáveis: ${i.responsaveis.join(", ")}`);
+      if (i.envolvidos?.length) linhas.push(`   Envolvidos: ${i.envolvidos.join(", ")}`);
+      if (clean(i.observacao)) linhas.push(`   Observação: ${String(i.observacao).replace(/\s+/g, " ").slice(0, 500)}`);
+      return linhas.join("\n");
+    }
+
     for (const cfg of configs) {
       if (!cfg.canal_email && !cfg.canal_whatsapp) continue;
       // Respeitar dias da semana configurados (default: dias úteis)
