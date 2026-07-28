@@ -590,6 +590,38 @@ export function PublicacoesDjenList({
                     )}
                   </div>
 
+                  {/* Itens agendados a partir desta publicação */}
+                  {(agendadosPorPub[pub.id]?.length ?? 0) > 0 && (
+                    <div className="mt-2 ml-4 md:ml-6 rounded-md border bg-muted/30 p-2">
+                      <p className="text-[10px] md:text-xs font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
+                        <ListChecks className="w-3 h-3" />
+                        Agendado a partir desta publicação ({agendadosPorPub[pub.id].length})
+                      </p>
+                      <div className="space-y-1">
+                        {agendadosPorPub[pub.id].map((item) => {
+                          const meta = tipoLabel[item.tipo] ?? tipoLabel.tarefa;
+                          return (
+                            <div
+                              key={`${item.origem}-${item.id}`}
+                              className="flex flex-wrap items-center gap-1.5 text-[10px] md:text-xs"
+                            >
+                              <Badge variant="outline" className={cn("px-1.5 py-0", meta.cls)}>
+                                {meta.label}
+                              </Badge>
+                              <span className="font-medium break-words">{item.titulo}</span>
+                              {item.data && (
+                                <span className="text-muted-foreground">• {formatDateOnly(item.data)}</span>
+                              )}
+                              {item.status && (
+                                <span className="text-muted-foreground capitalize">• {item.status}</span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Expanded content */}
                   {isExpanded && (
                     <div className="mt-2 md:mt-3 space-y-2 md:space-y-3 border-t pt-2 md:pt-3">
