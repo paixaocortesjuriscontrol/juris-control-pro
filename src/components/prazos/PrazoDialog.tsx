@@ -36,6 +36,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { PublicacaoVinculadaCollapsible } from "@/components/shared/PublicacaoVinculadaCollapsible";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { formatConteudoParaExibicao, conteudoDisplayClasses, parseDataPublicacaoLocal } from "@/utils/formatConteudo";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
