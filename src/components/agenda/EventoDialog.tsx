@@ -1,4 +1,5 @@
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import {
@@ -134,6 +135,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const [processoId, setProcessoId] = useState("");
   const [processoSearch, setProcessoSearch] = useState("");
   const [situacao, setSituacao] = useState<"pendente" | "concluido" | "cancelado">("pendente");
+  const { podeCancelar } = usePodeCancelarItens();
 
   // Recorrência
   const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
@@ -488,7 +490,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   <SelectContent>
                     <SelectItem value="pendente">⏳ Pendente</SelectItem>
                     <SelectItem value="concluido">✔️ Concluído</SelectItem>
-                    <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                    {podeCancelar && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
                   </SelectContent>
                 </Select>
                 <Button

@@ -1,4 +1,5 @@
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,6 +118,7 @@ export function AudienciaFormSimplificado({
     terceirizado: audienciaParaEditar?.terceirizado ?? "",
   });
   const [situacao, setSituacao] = useState<string>(audienciaParaEditar?.status ?? "pendente");
+  const { podeCancelar } = usePodeCancelarItens();
   const [processoNumero, setProcessoNumero] = useState(
     audienciaParaEditar?.processo_numero
       ? formatProcessoNumero(audienciaParaEditar.processo_numero)
@@ -390,7 +392,7 @@ export function AudienciaFormSimplificado({
                 <SelectItem value="confirmado">✅ Confirmado</SelectItem>
                 <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
                 <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                {podeCancelar && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
                 <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
               </SelectContent>
             </Select>

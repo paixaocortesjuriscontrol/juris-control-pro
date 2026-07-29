@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { format, parseISO, differenceInDays, startOfDay, isAfter } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -184,6 +185,7 @@ export function TarefaAgendaPanel({
   const queryClient = useQueryClient();
   
   const [comentario, setComentario] = useState("");
+  const { podeCancelar } = usePodeCancelarItens();
   const [sendingComment, setSendingComment] = useState(false);
   const [comentariosOpen, setComentariosOpen] = useState(true);
   const [detalhesOpen, setDetalhesOpen] = useState(true);

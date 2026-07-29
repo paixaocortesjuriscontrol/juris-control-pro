@@ -1,4 +1,5 @@
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
@@ -63,6 +64,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = !!evento;
   const [situacao, setSituacao] = useState<"pendente" | "concluido" | "cancelado">("pendente");
+  const { podeCancelar } = usePodeCancelarItens();
   const { precisaSelecionar, unicaCoordenacaoId, coordenacoes: coordenacoesUsuario, isAdmin } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   
@@ -595,7 +597,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           <SelectContent>
             <SelectItem value="pendente">⏳ Pendente</SelectItem>
             <SelectItem value="concluido">✔️ Concluído</SelectItem>
-            <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+            {podeCancelar && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
           </SelectContent>
         </Select>
         <Button
@@ -624,7 +626,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
             <SelectContent>
               <SelectItem value="pendente">⏳ Pendente</SelectItem>
               <SelectItem value="concluido">✔️ Concluído</SelectItem>
-              <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+              {podeCancelar && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
             </SelectContent>
           </Select>
           <Button
