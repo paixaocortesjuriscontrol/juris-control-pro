@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Check, ChevronsUpDown, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +58,8 @@ export function SelecionarResponsaveisProcesso({
 }: SelecionarResponsaveisProcessoProps) {
   const [open, setOpen] = useState(false);
   const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>(coordenacaoIdPadrao || "all");
+  const queryClient = useQueryClient();
+  const syncedFor = useRef<string | null>(null);
 
   // Fetch coordenações
   const { data: coordenacoes = [] } = useQuery({
@@ -113,13 +116,48 @@ export function SelecionarResponsaveisProcesso({
     enabled: !!processoId,
   });
 
-  // Sincronizar valor inicial quando carregar responsáveis existentes
+  // Sincroniza o valor inicial apenas uma vez por processo, para não
+  // sobrescrever alterações locais do usuário em refetches.
   useEffect(() => {
-    if (responsaveisExistentes && responsaveisExistentes.length > 0) {
-      // Atualizar o valor com os dados do banco
+    if (!processoId || !responsaveisExistentes) return;
+    if (syncedFor.current === processoId) return;
+    syncedFor.current = processoId;
+    if (responsaveisExistentes.length > 0) {
       onChange(responsaveisExistentes as Responsavel[]);
     }
-  }, [responsaveisExistentes]);
+  }, [responsaveisExistentes, processoId]);
+
+  /**
+   * Persistência imediata (edição inline): sempre que a seleção muda e já
+   * existe processo, grava direto no banco — assim o usuário não perde a
+   * escolha caso não clique em "Salvar".
+   */
+  const persist = async (next: Responsavel[]) => {
+    onChange(next);
+    if (!processoId) return;
+    try {
+      await supabase
+        .from("processos_responsaveis")
+        .update({ ativo: false } as any)
+        .eq("processo_id", processoId);
+      if (next.length > 0) {
+        const rows = next.map((r) => ({
+          processo_id: processoId,
+          usuario_id: r.usuario_id,
+          coordenacao_id: r.coordenacao_id || null,
+          papel: r.papel || "responsavel",
+          ativo: true,
+        }));
+        const { error } = await supabase
+          .from("processos_responsaveis")
+          .upsert(rows as any, { onConflict: "processo_id,usuario_id" });
+        if (error) throw error;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["processos-responsaveis", processoId] });
+    } catch (e: any) {
+      toast.error("Erro ao salvar responsáveis: " + (e?.message || ""));
+    }
+  };
 
   // Filtrar membros por coordenação
   const membrosFiltrados = coordenacaoFiltro === "all" 
@@ -145,9 +183,9 @@ export function SelecionarResponsaveisProcesso({
 
   const handleToggle = (membro: typeof membrosUnicos[0]) => {
     if (isSelected(membro.usuario_id)) {
-      onChange(value.filter(r => r.usuario_id !== membro.usuario_id));
+      persist(value.filter(r => r.usuario_id !== membro.usuario_id));
     } else {
-      onChange([
+      persist([
         ...value,
         {
           id: crypto.randomUUID(),
@@ -164,11 +202,11 @@ export function SelecionarResponsaveisProcesso({
   };
 
   const handleRemove = (usuarioId: string) => {
-    onChange(value.filter(r => r.usuario_id !== usuarioId));
+    persist(value.filter(r => r.usuario_id !== usuarioId));
   };
 
   const handleChangePapel = (usuarioId: string, papel: string) => {
-    onChange(
+    persist(
       value.map(r => 
         r.usuario_id === usuarioId ? { ...r, papel } : r
       )
