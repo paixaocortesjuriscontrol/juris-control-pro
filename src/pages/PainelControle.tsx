@@ -1748,6 +1748,8 @@ export default function PainelControle() {
         ) : viewMode === "notificacoes" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
             <MinhasMensagensRecebidas
+              coordenacaoId={adminCoordFilter}
+              todosDestinatarios={tabMode === "escritorio" && isAdminOrCoordinator}
               periodoInicio={
                 somenteHoje
                   ? new Date(new Date().setHours(0, 0, 0, 0))
