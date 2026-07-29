@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 
 interface Responsavel {
   id: string;
@@ -57,22 +58,25 @@ export function SelecionarResponsaveisProcesso({
   coordenacaoIdPadrao,
 }: SelecionarResponsaveisProcessoProps) {
   const [open, setOpen] = useState(false);
-  const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>(coordenacaoIdPadrao || "all");
   const queryClient = useQueryClient();
   const syncedFor = useRef<string | null>(null);
+  const {
+    isAdmin,
+    coordenacoes: coordenacoesDoUsuario,
+    unicaCoordenacaoId,
+    precisaSelecionar,
+  } = useCoordenacoesDoUsuario();
+  const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>(
+    coordenacaoIdPadrao || "all"
+  );
 
-  // Fetch coordenações
-  const { data: coordenacoes = [] } = useQuery({
-    queryKey: ["coordenacoes-select"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("coordenacoes")
-        .select("id, nome")
-        .order("nome");
-      if (error) throw error;
-      return data || [];
-    },
-  });
+  // Usuário de uma única coordenação: trava o filtro nela.
+  useEffect(() => {
+    if (coordenacaoIdPadrao) return;
+    if (unicaCoordenacaoId) setCoordenacaoFiltro(unicaCoordenacaoId);
+  }, [unicaCoordenacaoId, coordenacaoIdPadrao]);
+
+  const coordenacoes = coordenacoesDoUsuario;
 
   // Fetch todos os membros de coordenação
   const { data: todosMembros = [] } = useQuery({
@@ -116,16 +120,48 @@ export function SelecionarResponsaveisProcesso({
     enabled: !!processoId,
   });
 
+  // Fallback: processos antigos guardam apenas `advogado_responsavel_id`.
+  const { data: advogadoResponsavel } = useQuery({
+    queryKey: ["processo-advogado-responsavel", processoId],
+    queryFn: async () => {
+      if (!processoId) return null;
+      const { data, error } = await supabase
+        .from("processos")
+        .select("advogado_responsavel_id, coordenacao_id, advogado:profiles!processos_advogado_responsavel_id_fkey(id, nome)")
+        .eq("id", processoId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+    enabled: !!processoId,
+  });
+
   // Sincroniza o valor inicial apenas uma vez por processo, para não
   // sobrescrever alterações locais do usuário em refetches.
   useEffect(() => {
     if (!processoId || !responsaveisExistentes) return;
     if (syncedFor.current === processoId) return;
-    syncedFor.current = processoId;
     if (responsaveisExistentes.length > 0) {
+      syncedFor.current = processoId;
       onChange(responsaveisExistentes as Responsavel[]);
+      return;
     }
-  }, [responsaveisExistentes, processoId]);
+    // Sem vínculos na tabela: usa o advogado responsável do processo.
+    if (advogadoResponsavel === undefined) return;
+    syncedFor.current = processoId;
+    const adv = advogadoResponsavel?.advogado;
+    if (adv?.id) {
+      onChange([
+        {
+          id: crypto.randomUUID(),
+          usuario_id: adv.id,
+          coordenacao_id: advogadoResponsavel?.coordenacao_id || null,
+          papel: "responsavel",
+          usuario: { id: adv.id, nome: adv.nome },
+        },
+      ]);
+    }
+  }, [responsaveisExistentes, advogadoResponsavel, processoId]);
 
   /**
    * Persistência imediata (edição inline): sempre que a seleção muda e já
@@ -153,7 +189,13 @@ export function SelecionarResponsaveisProcesso({
           .upsert(rows as any, { onConflict: "processo_id,usuario_id" });
         if (error) throw error;
       }
+      // Mantém o "advogado responsável" do processo em sincronia com o 1º selecionado.
+      await supabase
+        .from("processos")
+        .update({ advogado_responsavel_id: next[0]?.usuario_id ?? null } as any)
+        .eq("id", processoId);
       await queryClient.invalidateQueries({ queryKey: ["processos-responsaveis", processoId] });
+      await queryClient.invalidateQueries({ queryKey: ["processo-advogado-responsavel", processoId] });
     } catch (e: any) {
       toast.error("Erro ao salvar responsáveis: " + (e?.message || ""));
     }
@@ -236,13 +278,14 @@ export function SelecionarResponsaveisProcesso({
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[350px] p-0" align="start">
+            {precisaSelecionar && (
             <div className="p-2 border-b">
               <Select value={coordenacaoFiltro} onValueChange={setCoordenacaoFiltro}>
                 <SelectTrigger className="h-8">
                   <SelectValue placeholder="Filtrar por coordenação" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas as coordenações</SelectItem>
+                  {isAdmin && <SelectItem value="all">Todas as coordenações</SelectItem>}
                   {coordenacoes.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       {c.nome}
@@ -251,6 +294,7 @@ export function SelecionarResponsaveisProcesso({
                 </SelectContent>
               </Select>
             </div>
+            )}
             <Command>
               <CommandInput placeholder="Buscar membro..." />
               <CommandList>
