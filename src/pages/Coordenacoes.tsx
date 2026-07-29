@@ -453,11 +453,16 @@ const Coordenacoes = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {selectedCoord.membros.map((member: any) => (
+                    {selectedCoord.membros.map((member: any) => {
+                      const percentage = selectedCoord.processCount > 0
+                        ? ((member.processCount || 0) / selectedCoord.processCount) * 100
+                        : 0;
+                      return (
                       <div 
                         key={member.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+                        className="p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
                       >
+                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <Avatar>
                             <AvatarFallback className="bg-secondary text-secondary-foreground">
@@ -515,7 +520,9 @@ const Coordenacoes = () => {
                         <div className="flex items-center gap-4">
                           <div className="text-right">
                             <p className="text-lg font-semibold text-foreground">{member.processCount || 0}</p>
-                            <p className="text-xs text-muted-foreground">processos</p>
+                            <p className="text-xs text-muted-foreground">
+                              processos{selectedCoord.processCount > 0 ? ` (${percentage.toFixed(0)}%)` : ""}
+                            </p>
                           </div>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -556,8 +563,40 @@ const Coordenacoes = () => {
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
+                       </div>
+                       {selectedCoord.processCount > 0 && (
+                         <div className="h-2 rounded-full bg-muted overflow-hidden mt-2">
+                           <div
+                             className={cn(
+                               "h-full rounded-full transition-all duration-500",
+                               "bg-primary",
+                               selectedCoord.area === "civil" && "bg-area-civil",
+                               selectedCoord.area === "trabalhista" && "bg-area-trabalhista",
+                               selectedCoord.area === "empresarial" && "bg-area-empresarial"
+                             )}
+                             style={{ width: `${percentage}%` }}
+                           />
+                         </div>
+                       )}
                       </div>
-                    ))}
+                      );
+                    })}
+                    {selectedCoord.processCount > 0 && selectedCoord.unassignedCount > 0 && (
+                      <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-200 dark:border-amber-800">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium text-amber-700 dark:text-amber-400">Não distribuídos</span>
+                          <span className="text-sm text-amber-600 dark:text-amber-500">
+                            {selectedCoord.unassignedCount} ({((selectedCoord.unassignedCount / selectedCoord.processCount) * 100).toFixed(0)}%)
+                          </span>
+                        </div>
+                        <div className="h-2 rounded-full bg-amber-200 dark:bg-amber-900 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                            style={{ width: `${(selectedCoord.unassignedCount / selectedCoord.processCount) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
