@@ -79,6 +79,15 @@ const TIME_ZONE = "America/Sao_Paulo";
 type TabMode = "pessoal" | "escritorio";
 type ViewMode = "agenda" | "lista" | "kanban" | "equipe" | "prazos" | "audiencias" | "notificacoes";
 
+const isPainelViewMode = (value: string | null): value is ViewMode =>
+  value === "agenda" ||
+  value === "lista" ||
+  value === "kanban" ||
+  value === "equipe" ||
+  value === "prazos" ||
+  value === "audiencias" ||
+  value === "notificacoes";
+
 // Cores dos tipos
 const TIPO_CORES: Record<string, string> = {
   evento: "bg-green-500",
@@ -127,7 +136,7 @@ export default function PainelControle() {
   const handledSelectedIdRef = useRef(false);
   const [tabMode, setTabMode] = useState<TabMode>("pessoal");
   const [viewMode, setViewMode] = useState<ViewMode>(
-    (searchParams.get("view") as ViewMode) || "agenda"
+    isPainelViewMode(searchParams.get("view")) ? searchParams.get("view") : "agenda"
   );
   const [mesAtual, setMesAtual] = useState(new Date());
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
@@ -141,6 +150,14 @@ export default function PainelControle() {
   const [prazoEditando, setPrazoEditando] = useState<any | null>(null);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
   const [somenteHoje, setSomenteHoje] = useState(false);
+
+  useEffect(() => {
+    const viewParam = searchParams.get("view");
+    if (isPainelViewMode(viewParam) && viewParam !== viewMode) {
+      setSelectedItem(null);
+      setViewMode(viewParam);
+    }
+  }, [searchParams, viewMode]);
 
   // Abrir item vindo da busca global (?selectedId=...&origem=tarefa|evento)
   useEffect(() => {
