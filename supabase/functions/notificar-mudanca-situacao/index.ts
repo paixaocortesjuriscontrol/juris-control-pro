@@ -231,9 +231,19 @@ serve(async (req) => {
         const detalhes = await buscarDetalhesEntidade(supabase, item.entidade, item.entidade_id);
 
         const tituloItem = item.titulo ?? labelEntidade(item.entidade);
-        const assunto = `[${labelEntidade(item.entidade)}] ${tituloItem} — ${item.status_anterior ?? "?"} → ${item.status_novo ?? "?"}`;
+        const conteudoComentario: string = String(ctx.conteudo ?? "");
+        const assunto = isComentario
+          ? `[${labelEntidade(item.entidade)}] Novo comentário — ${tituloItem}`
+          : `[${labelEntidade(item.entidade)}] ${tituloItem} — ${item.status_anterior ?? "?"} → ${item.status_novo ?? "?"}`;
 
-        const linhas: string[] = [
+        const linhas: string[] = isComentario ? [
+          `${labelEntidade(item.entidade)}: ${tituloItem}`,
+          ``,
+          `Novo comentário de: ${atorNome}${atorEmail ? ` <${atorEmail}>` : ""}`,
+          `Data/hora: ${quando} (BRT)`,
+          ``,
+          `"${conteudoComentario}"`,
+        ] : [
           `${labelEntidade(item.entidade)}: ${tituloItem}`,
           ``,
           `Situação anterior: ${item.status_anterior ?? "-"}`,
@@ -247,18 +257,24 @@ serve(async (req) => {
         const corpo = linhas.join("\n");
 
         // HTML rico
-        const rows: string[] = [
+        const rows: string[] = (isComentario ? [
+          ["Comentário de", esc(atorNome) + (atorEmail ? ` <span style="color:#666">&lt;${esc(atorEmail)}&gt;</span>` : "")] as [string, string],
+          ["Data/hora", `${esc(quando)} <span style="color:#666">(BRT)</span>`] as [string, string],
+          ["Comentário", `<div style="white-space:pre-wrap"><strong>${esc(conteudoComentario)}</strong></div>`] as [string, string],
+          ...(coordNome ? [["Coordenação", esc(coordNome)] as [string, string]] : []),
+          ...Object.entries(detalhes).map(([k, v]) => [esc(k), esc(v)] as [string, string]),
+        ] : [
           ["Situação anterior", esc(item.status_anterior ?? "-")],
           ["Nova situação", `<strong>${esc(item.status_novo ?? "-")}</strong>`],
           ["Alterado por", esc(atorNome) + (atorEmail ? ` <span style="color:#666">&lt;${esc(atorEmail)}&gt;</span>` : "")],
           ["Data/hora", `${esc(quando)} <span style="color:#666">(BRT)</span>`],
           ...(coordNome ? [["Coordenação", esc(coordNome)] as [string, string]] : []),
           ...Object.entries(detalhes).map(([k, v]) => [esc(k), esc(v)] as [string, string]),
-        ].map(([k, v]) => `<tr><td style="padding:6px 12px;color:#666;white-space:nowrap;vertical-align:top">${k}</td><td style="padding:6px 12px;color:#111">${v}</td></tr>`).join("");
+        ]).map(([k, v]) => `<tr><td style="padding:6px 12px;color:#666;white-space:nowrap;vertical-align:top">${k}</td><td style="padding:6px 12px;color:#111">${v}</td></tr>`).join("");
 
         const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111;max-width:640px">
   <div style="padding:16px 20px;background:#0f172a;color:#fff;border-radius:8px 8px 0 0">
-    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:0.8">${esc(labelEntidade(item.entidade))} · situação alterada</div>
+    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:0.8">${esc(labelEntidade(item.entidade))} · ${isComentario ? "novo comentário" : "situação alterada"}</div>
     <div style="font-size:18px;font-weight:600;margin-top:4px">${esc(tituloItem)}</div>
   </div>
   <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 8px 8px">
@@ -271,16 +287,17 @@ serve(async (req) => {
         const notifRows = responsaveis.map((uid) => {
           const cfg = cfgMap.get(uid);
           if (cfg && cfg.canal_in_app === false) return null;
-          if (cfg && cfg.evento_mudanca_situacao === false) return null;
+          if (cfg && (isComentario ? cfg.evento_comentario === false : cfg.evento_mudanca_situacao === false)) return null;
           return {
             usuario_id: uid,
-            tipo: "mudanca_situacao",
+            tipo: isComentario ? "comentario" : "mudanca_situacao",
             titulo: assunto,
             mensagem: corpo,
             lida: false,
             dados: {
               entidade: item.entidade,
               entidade_id: item.entidade_id,
+              ...(isComentario ? { conteudo: conteudoComentario } : {}),
               status_anterior: item.status_anterior,
               status_novo: item.status_novo,
               alterado_por: atorId,
@@ -296,23 +313,23 @@ serve(async (req) => {
 
         for (const p of profiles ?? []) {
           const cfg: any = cfgMap.get(p.id) ?? {
-            canal_email: true, canal_whatsapp: true, evento_mudanca_situacao: true,
+            canal_email: true, canal_whatsapp: true, evento_mudanca_situacao: true, evento_comentario: true,
             janela_hora_inicio: 8, janela_hora_fim: 20,
           };
-          if (cfg.evento_mudanca_situacao === false) continue;
+          if (isComentario ? cfg.evento_comentario === false : cfg.evento_mudanca_situacao === false) continue;
           if (!dentroDaJanela(cfg.janela_hora_inicio, cfg.janela_hora_fim)) continue;
 
           if (cfg.canal_email && p.email) {
             const r = await enviarEmail(p.email, assunto, corpo, html);
             await supabase.from("historico_alertas_enviados").insert({
-              tipo_alerta: "mudanca_situacao", canal: "email", destinatario: p.email,
+              tipo_alerta: isComentario ? "comentario" : "mudanca_situacao", canal: "email", destinatario: p.email,
               conteudo: corpo, referencia_id: item.entidade_id, status: r.ok ? "enviado" : "erro", erro: r.erro,
             });
           }
           if (cfg.canal_whatsapp && p.telefone) {
             const r = await enviarWhatsApp(supabase, p.telefone, corpo);
             await supabase.from("historico_alertas_enviados").insert({
-              tipo_alerta: "mudanca_situacao", canal: "whatsapp", destinatario: p.telefone,
+              tipo_alerta: isComentario ? "comentario" : "mudanca_situacao", canal: "whatsapp", destinatario: p.telefone,
               conteudo: corpo, referencia_id: item.entidade_id, status: r.ok ? "enviado" : "erro", erro: r.erro,
             });
           }
