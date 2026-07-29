@@ -66,6 +66,7 @@ export function AtribuirProcessoDialog({
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
   const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>(coordenacaoId);
+  const [somenteSemResponsavel, setSomenteSemResponsavel] = useState(false);
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -86,7 +87,7 @@ export function AtribuirProcessoDialog({
 
   // Fetch all processes without responsible lawyer (optionally filtered by coordination)
   const { data: processosNaoAtribuidos } = useQuery({
-    queryKey: ["processos-nao-atribuidos-all", coordenacaoFilter],
+    queryKey: ["processos-nao-atribuidos-all", coordenacaoFilter, somenteSemResponsavel],
     queryFn: async () => {
       let query = supabase
         .from("processos")
@@ -100,10 +101,14 @@ export function AtribuirProcessoDialog({
           cliente_id, 
           coordenacao_id,
           cliente:clientes(id, nome),
-          coordenacao:coordenacoes(id, nome)
+          coordenacao:coordenacoes(id, nome),
+          responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome)
         `)
-        .is("advogado_responsavel_id", null)
         .order("created_at", { ascending: false });
+
+      if (somenteSemResponsavel) {
+        query = query.is("advogado_responsavel_id", null);
+      }
 
       if (coordenacaoFilter && coordenacaoFilter !== "all") {
         query = query.eq("coordenacao_id", coordenacaoFilter);
@@ -261,7 +266,9 @@ export function AtribuirProcessoDialog({
               render={() => (
                 <FormItem className="flex-1 overflow-hidden flex flex-col">
                   <div className="flex items-center justify-between">
-                    <FormLabel>Processos sem Responsável ({processosFiltrados?.length || 0})</FormLabel>
+                    <FormLabel>
+                      {somenteSemResponsavel ? "Processos sem Responsável" : "Processos"} ({processosFiltrados?.length || 0})
+                    </FormLabel>
                     {processosFiltrados.length > 0 && (
                       <Button
                         type="button"
@@ -336,6 +343,13 @@ export function AtribuirProcessoDialog({
                         </SelectContent>
                       </Select>
                     </div>
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                      <Checkbox
+                        checked={somenteSemResponsavel}
+                        onCheckedChange={(c) => setSomenteSemResponsavel(!!c)}
+                      />
+                      Mostrar somente processos sem responsável
+                    </label>
                   </div>
 
                   {processosFiltrados.length > 0 ? (
@@ -369,6 +383,9 @@ export function AtribuirProcessoDialog({
                                   </div>
                                   <p className="text-xs text-muted-foreground truncate">
                                     {processo.cliente?.nome || processo.polo_ativo || processo.assunto || "Sem descrição"}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    Responsável: {(processo as any).responsavel?.nome || "Sem responsável"}
                                   </p>
                                 </div>
                               </FormItem>
