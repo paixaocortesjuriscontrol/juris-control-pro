@@ -434,11 +434,9 @@ export function BeatrizCostaImportTab({
             } else {
               results.set(p.numero, { status: "sucesso", msg: "Cadastrado" });
               novos++;
-              if (buscarAndamentos && inserted) {
+              if (inserted) {
                 await gravarResponsaveis(inserted.id);
-                buscarAndamentosExternos(inserted.id, p.numero).catch(() => {});
-              } else if (inserted) {
-                await gravarResponsaveis(inserted.id);
+                if (buscarAndamentos) buscarAndamentosExternos(inserted.id, p.numero).catch(() => {});
               }
             }
           }
