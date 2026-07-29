@@ -1169,7 +1169,11 @@ Deno.serve(async (req: Request) => {
             }
           } else if (capturaTotalCoords.length === 0) {
             totalDescartadas++;
-            motivoDescarte = motivoDescarte ?? (motivoExcl ? `excluido_por_termo:${motivoExcl}` : "sem_match_monitoramento");
+            motivoDescarte = motivoDescarte ?? (
+              motivoExcl
+                ? `excluido_por_termo:${motivoExcl}`
+                : (bloqueadoPorTribunal ? "tribunal_nao_permitido" : "sem_match_monitoramento")
+            );
           }
 
           // 3) Captura total: garante 1 linha por item recebido em CADA coord
