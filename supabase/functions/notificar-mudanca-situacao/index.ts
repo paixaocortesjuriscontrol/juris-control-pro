@@ -15,6 +15,29 @@ function labelEntidade(e: string): string {
   return { tarefa: "Tarefa", evento: "Evento", audiencia: "Audiência", parcela: "Parcela" }[e] ?? e;
 }
 
+// Rótulos amigáveis para TODAS as situações (inclui as novas)
+const LABEL_SITUACAO: Record<string, string> = {
+  criado: "Criado",
+  a_confirmar: "A confirmar",
+  pendente: "Pendente",
+  em_execucao: "Em execução",
+  revisao: "Revisão",
+  verificado: "Verificado",
+  cumprido: "Concluído com sucesso",
+  concluido: "Concluído com sucesso",
+  concluido_sem_sucesso: "Concluído sem sucesso",
+  cancelado: "Cancelado",
+  confirmado: "Confirmado",
+  reagendado: "Reagendado",
+  tratado: "Tratado",
+  ignorado: "Ignorado",
+  atrasado: "Atrasado",
+};
+function labelSituacao(s?: string | null): string {
+  if (!s) return "-";
+  return LABEL_SITUACAO[s] ?? String(s).replace(/_/g, " ");
+}
+
 function fmtBRT(iso?: string | null): string {
   if (!iso) return "-";
   try {
