@@ -62,6 +62,7 @@ import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { toZonedTime } from "date-fns-tz";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useMensagensNaoLidas } from "@/hooks/useMensagensNaoLidas";
 import { toast } from "sonner";
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
 import TstPrazos from "@/pages/TstPrazos";
