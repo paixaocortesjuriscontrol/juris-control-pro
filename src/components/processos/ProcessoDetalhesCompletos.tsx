@@ -259,8 +259,29 @@ export function ProcessoDetalhesCompletos({
   const audienciaSelecionadaAtual = audienciaSelecionada
     ? audiencias.find((aud: any) => aud.id === audienciaSelecionada.id) ?? audienciaSelecionada
     : null;
-  const tarefasSemPrazo = tarefas.filter((t: any) => !isPrazoTarefa(t.tipo_tarefa));
-  const prazosDoProcesso = tarefas.filter((t: any) => isPrazoTarefa(t.tipo_tarefa));
+  // Agrupa itens idênticos criados uma vez por responsável (mesmo título/data/tipo)
+  // exibindo um único card com todos os responsáveis listados.
+  const agruparDuplicados = (lista: any[]) => {
+    const mapa = new Map<string, any>();
+    for (const item of lista) {
+      const chave = [
+        (item.titulo || "").trim().toLowerCase(),
+        item.data_vencimento || "",
+        item.tipo_tarefa || "",
+        item.status || "",
+      ].join("|");
+      const existente = mapa.get(chave);
+      const nome = item.responsavel?.nome;
+      if (!existente) {
+        mapa.set(chave, { ...item, _responsaveisNomes: nome ? [nome] : [] });
+      } else if (nome && !existente._responsaveisNomes.includes(nome)) {
+        existente._responsaveisNomes.push(nome);
+      }
+    }
+    return Array.from(mapa.values());
+  };
+  const tarefasSemPrazo = agruparDuplicados(tarefas.filter((t: any) => !isPrazoTarefa(t.tipo_tarefa)));
+  const prazosDoProcesso = agruparDuplicados(tarefas.filter((t: any) => isPrazoTarefa(t.tipo_tarefa)));
 
   // Inline editable resumo
   const [resumoForm, setResumoForm] = useState<Record<string, any>>({});
@@ -1289,10 +1310,10 @@ export function ProcessoDetalhesCompletos({
                                           {formatDate(tarefa.data_vencimento)}
                                         </span>
                                       )}
-                                      {tarefa.responsavel?.nome && (
+                                      {(tarefa._responsaveisNomes?.length ?? 0) > 0 && (
                                         <span className="flex items-center gap-1">
                                           <User className="h-3 w-3" />
-                                          {tarefa.responsavel.nome}
+                                          {tarefa._responsaveisNomes.join(", ")}
                                         </span>
                                       )}
                                     </div>
