@@ -39,7 +39,7 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
     queryFn: async () => {
       let q = supabase
         .from("audiencias_detectadas")
-        .select("id, status, criado_por, data_audiencia, coordenacao_id, audiencia_envolvidos(usuario_id)")
+        .select("id, status, criado_por, data_audiencia, coordenacao_id, audiencia_envolvidos(usuario_id), audiencias_advogados(advogado_id)")
         ;
       if (ano !== "todos" && mes !== "todos") {
         const inicio = new Date(Date.UTC(ano as number, (mes as number) - 1, 1)).toISOString();
@@ -67,6 +67,7 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
       for (const a of dataFiltrada) {
         if (a.criado_por) userIds.add(a.criado_por);
         for (const e of (a.audiencia_envolvidos ?? []) as any[]) if (e.usuario_id) userIds.add(e.usuario_id);
+        for (const r of (a.audiencias_advogados ?? []) as any[]) if (r.advogado_id) userIds.add(r.advogado_id);
       }
       const { data: profiles } = await supabase
         .from("profiles").select("id, nome").in("id", Array.from(userIds));
@@ -78,8 +79,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
         const situ = (a.status ?? "pendente").toString();
         situacoes.add(situ);
         const users = new Set<string>();
-        if (a.criado_por) users.add(a.criado_por);
         for (const e of (a.audiencia_envolvidos ?? []) as any[]) if (e.usuario_id) users.add(e.usuario_id);
+        for (const r of (a.audiencias_advogados ?? []) as any[]) if (r.advogado_id) users.add(r.advogado_id);
+        if (users.size === 0 && a.criado_por) users.add(a.criado_por);
         if (users.size === 0) users.add("__sem_responsavel__");
         for (const uid of users) {
           if (!linhas.has(uid)) linhas.set(uid, {});
