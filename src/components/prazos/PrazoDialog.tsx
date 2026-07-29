@@ -404,7 +404,7 @@ export function PrazoDialog({
       processo_id: processoIdParaSalvar,
       responsavel_id: responsaveisIds[0],
       observacoes: observacoes.trim() || undefined,
-      status: situacao,
+      status: situacao as any,
       data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
       // Preserva o tipo original quando estamos editando uma tarefa/prazo
       // existente. Só fixa "PRAZO" quando é uma criação nova a partir deste
