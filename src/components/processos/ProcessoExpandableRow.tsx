@@ -805,11 +805,6 @@ export function ProcessoExpandableRow({
                               Fatal: {formatDateSafe(tarefa.data_fatal)}
                             </span>
                           )}
-                          {!tarefa.data_fatal && tarefa.prazo_fatal && (
-                            <span>
-                              Fatal: {formatDateSafe(tarefa.prazo_fatal)}
-                            </span>
-                          )}
                           {tarefa.responsavel?.nome && (
                             <span>• Resp.: {tarefa.responsavel.nome}</span>
                           )}
