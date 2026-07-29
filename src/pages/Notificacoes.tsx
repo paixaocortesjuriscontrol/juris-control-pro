@@ -1020,22 +1020,24 @@ export default function Notificacoes({
 
       {/* Cards de resumo por tipo */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-13 gap-3 mb-6">
-        <Card 
-          className={cn(
-            "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
-            activeTab === "dashboard" && "ring-2 ring-primary"
-          )}
-          onClick={() => setActiveTab("dashboard")}
-        >
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
-              <div className="p-1.5 rounded-lg bg-primary/10">
-                <LayoutDashboard className="w-4 h-4 text-primary" />
+        {!embedded && (
+          <Card 
+            className={cn(
+              "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
+              activeTab === "dashboard" && "ring-2 ring-primary"
+            )}
+            onClick={() => setActiveTab("dashboard")}
+          >
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="p-1.5 rounded-lg bg-primary/10">
+                  <LayoutDashboard className="w-4 h-4 text-primary" />
+                </div>
               </div>
-            </div>
-            <p className="mt-2 text-xs font-medium">Dashboard</p>
-          </CardContent>
-        </Card>
+              <p className="mt-2 text-xs font-medium">Dashboard</p>
+            </CardContent>
+          </Card>
+        )}
 
         <Card 
           className={cn(
@@ -1263,14 +1265,16 @@ export default function Notificacoes({
 
         {/* Dashboard por Coordenação */}
         <TabsContent value="dashboard" className="space-y-4">
-          <DashboardCoordenacoes 
-            onSelectCoordenacao={handleSelectCoordenacao}
-            selectedCoordenacaoId={coordenacaoId}
-            periodoInicio={periodoInicio}
-            periodoFim={periodoFim}
-            statusFilter={statusFilter}
-            searchQuery={searchQuery}
-          />
+          {!embedded && (
+            <DashboardCoordenacoes 
+              onSelectCoordenacao={handleSelectCoordenacao}
+              selectedCoordenacaoId={coordenacaoId}
+              periodoInicio={periodoInicio}
+              periodoFim={periodoFim}
+              statusFilter={statusFilter}
+              searchQuery={searchQuery}
+            />
+          )}
         </TabsContent>
 
         {/* Detalhes da Coordenação */}
