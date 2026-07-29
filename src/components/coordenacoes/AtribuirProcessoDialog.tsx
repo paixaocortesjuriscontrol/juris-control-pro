@@ -66,6 +66,7 @@ export function AtribuirProcessoDialog({
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
   const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>(coordenacaoId);
+  const [somenteSemResponsavel, setSomenteSemResponsavel] = useState(false);
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -86,7 +87,7 @@ export function AtribuirProcessoDialog({
 
   // Fetch all processes without responsible lawyer (optionally filtered by coordination)
   const { data: processosNaoAtribuidos } = useQuery({
-    queryKey: ["processos-nao-atribuidos-all", coordenacaoFilter],
+    queryKey: ["processos-nao-atribuidos-all", coordenacaoFilter, somenteSemResponsavel],
     queryFn: async () => {
       let query = supabase
         .from("processos")
@@ -100,10 +101,14 @@ export function AtribuirProcessoDialog({
           cliente_id, 
           coordenacao_id,
           cliente:clientes(id, nome),
-          coordenacao:coordenacoes(id, nome)
+          coordenacao:coordenacoes(id, nome),
+          responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome)
         `)
-        .is("advogado_responsavel_id", null)
         .order("created_at", { ascending: false });
+
+      if (somenteSemResponsavel) {
+        query = query.is("advogado_responsavel_id", null);
+      }
 
       if (coordenacaoFilter && coordenacaoFilter !== "all") {
         query = query.eq("coordenacao_id", coordenacaoFilter);
