@@ -445,6 +445,7 @@ export function PrazoDialog({
       }
 
       if (tarefaId) {
+        await anexosRef.current?.uploadPendentes(tarefaId, processoIdParaSalvar);
         // Atualizar coordenação do processo, se alterada
         const processoId = processoIdParaSalvar;
         if (processoId && coordenacaoId) {
