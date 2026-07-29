@@ -135,12 +135,29 @@ serve(async (req) => {
     for (const item of pendentes ?? []) {
       try {
         let responsaveis: string[] = item.responsaveis ?? [];
+        const isComentario = item.tipo_evento === "comentario";
+
+        if (isComentario && item.coordenacao_id) {
+          const { data: cfgC } = await supabase
+            .from("config_alertas_coordenacao")
+            .select("tipos_alerta")
+            .eq("coordenacao_id", item.coordenacao_id)
+            .maybeSingle();
+          const tipos: string[] = (cfgC?.tipos_alerta ?? []) as string[];
+          // "Comentários" é padrão: só ignora se existir config e o tipo tiver sido desmarcado
+          if (cfgC && Array.isArray(tipos) && !tipos.includes("comentario")) {
+            await supabase.from("notificacoes_fila")
+              .update({ processado: true, processado_em: new Date().toISOString() })
+              .eq("id", item.id);
+            continue;
+          }
+        }
 
         // Regra "Qualquer alteração realizada": se a coordenação tiver esta opção
         // marcada em config_alertas_coordenacao.tipos_alerta, o alerta vai
         // SOMENTE para os coordenadores dessa coordenação (substitui responsáveis).
         let apenasCoordenadores = false;
-        if (item.coordenacao_id) {
+        if (!isComentario && item.coordenacao_id) {
           const { data: cfgCoord } = await supabase
             .from("config_alertas_coordenacao")
             .select("tipos_alerta")
