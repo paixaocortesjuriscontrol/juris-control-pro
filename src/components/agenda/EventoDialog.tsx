@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
+import { ItemAnexos, type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
 import {
   Select,
   SelectContent,
@@ -114,6 +115,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const isEditing = !!evento;
   const secondaryClickedRef = useRef(false);
   const tertiaryClickedRef = useRef(false);
+  const anexosRef = useRef<ItemAnexosHandle>(null);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const { user } = useAuth();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
@@ -397,6 +399,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       if (isEditing && evento) {
         await updateEvento.mutateAsync({ id: evento.id, ...payload });
         await persistirRelacionamentos(evento.id);
+        await anexosRef.current?.uploadPendentes(evento.id, processoIdParaSalvar);
         await registrarAuditoriaTarefa({
           acao: 'atualizar', sucesso: true,
           dadosEntrada: payload, dadosSaida: { id: evento.id },
@@ -407,6 +410,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       } else {
         const novo = await createEvento.mutateAsync(payload);
         if (novo?.id) await persistirRelacionamentos(novo.id);
+        if (novo?.id) await anexosRef.current?.uploadPendentes(novo.id, processoIdParaSalvar);
         await registrarAuditoriaTarefa({
           acao: 'criar', sucesso: true,
           dadosEntrada: payload, dadosSaida: { id: novo?.id },
@@ -856,6 +860,13 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                 </div>
               )}
             </div>
+
+            <ItemAnexos
+              ref={anexosRef}
+              tipo="evento"
+              itemId={evento?.id}
+              processoId={processoId}
+            />
 
             <ItemComentarios tipo="evento" itemId={evento?.id} />
 
