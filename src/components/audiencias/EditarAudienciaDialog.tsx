@@ -519,12 +519,9 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
             <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
               <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                <SelectItem value="confirmado">✅ Confirmado</SelectItem>
-                <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
-                <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                {(podeCancelar || formData.status === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
-                <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button type="submit" form={formId} size="sm" disabled={isLoading}>
@@ -548,12 +545,9 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
             <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
               <SelectTrigger className="h-9 w-[140px] sm:w-[180px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                <SelectItem value="confirmado">✅ Confirmado</SelectItem>
-                <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
-                <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                {(podeCancelar || formData.status === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
-                <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button
@@ -595,12 +589,9 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
               <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
                 <SelectTrigger className="h-9 w-[180px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                  <SelectItem value="confirmado">✅ Confirmado</SelectItem>
-                  <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
-                  <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                  {(podeCancelar || formData.status === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
-                  <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+                  {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Button type="submit" form={formId} size="sm" disabled={isLoading}>
