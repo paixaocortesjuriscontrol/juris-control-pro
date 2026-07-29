@@ -1,4 +1,4 @@
-import { Bell, Check, CheckCheck, Trash2, Clock, AlertTriangle } from "lucide-react";
+import { Bell, Check, CheckCheck, Trash2, Clock, AlertTriangle, Mail, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
+import { useAlertasRecebidos } from "@/hooks/useAlertasRecebidos";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
@@ -27,6 +28,8 @@ export function NotificacoesDropdown() {
     marcarTodasComoLidas,
     excluirNotificacao,
   } = useNotificacoes();
+  const { alertas, totalNaoVistos, marcarComoVistos } = useAlertasRecebidos();
+  const totalGeral = totalPendentes + totalNaoVistos;
 
   const handleNotificacaoClick = (notificacao: typeof notificacoes[0]) => {
     marcarComoLida.mutate(notificacao.id);
@@ -66,16 +69,16 @@ export function NotificacoesDropdown() {
   };
 
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={(open) => { if (open) marcarComoVistos(); }}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
-          {totalPendentes > 0 && (
+          {totalGeral > 0 && (
             <Badge 
               className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
               variant="destructive"
             >
-              {totalPendentes > 9 ? '9+' : totalPendentes}
+              {totalGeral > 9 ? '9+' : totalGeral}
             </Badge>
           )}
         </Button>
@@ -100,10 +103,47 @@ export function NotificacoesDropdown() {
                   </Badge>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="alertas" className="flex-1 text-xs">
+                Alertas
+                {totalNaoVistos > 0 && (
+                  <Badge variant="destructive" className="ml-1 h-5 px-1.5">
+                    {totalNaoVistos}
+                  </Badge>
+                )}
+              </TabsTrigger>
             </TabsList>
           </div>
           
           <DropdownMenuSeparator />
+
+          <TabsContent value="alertas" className="mt-0">
+            <ScrollArea className="h-[300px]">
+              {alertas.length === 0 ? (
+                <div className="p-4 text-center text-muted-foreground">
+                  Nenhum alerta enviado por WhatsApp ou e-mail
+                </div>
+              ) : (
+                alertas.map((a) => (
+                  <div key={a.id} className="flex flex-col items-start p-3 border-b border-border/50">
+                    <div className="flex items-center gap-2">
+                      {a.canal === "email" ? (
+                        <Mail className="h-3.5 w-3.5 text-blue-500" />
+                      ) : (
+                        <MessageCircle className="h-3.5 w-3.5 text-green-500" />
+                      )}
+                      <span className="font-medium text-sm capitalize">{a.tipo_alerta?.replace(/_/g, " ")}</span>
+                    </div>
+                    {a.conteudo && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{a.conteudo}</p>
+                    )}
+                    <span className="text-xs text-muted-foreground mt-1">
+                      {formatDistanceToNow(new Date(a.enviado_em), { addSuffix: true, locale: ptBR })}
+                    </span>
+                  </div>
+                ))
+              )}
+            </ScrollArea>
+          </TabsContent>
           
           <TabsContent value="notificacoes" className="mt-0">
             <div className="flex items-center justify-end px-3 py-1">
