@@ -107,13 +107,26 @@ export function useCoordenacoesFull() {
                 return { ...m, processCount: distinct.size };
               }
 
-              const { count } = await supabase
-                .from("processos")
-                .select("id", { count: "exact", head: true })
-                .eq("coordenacao_id", coord.id)
-                .eq("advogado_responsavel_id", userId);
+              // Conta processos onde o usuário é responsável principal (legado)
+              // ou está vinculado em processos_responsaveis (múltiplos responsáveis)
+              const [{ data: principais }, { data: vinculos }] = await Promise.all([
+                supabase
+                  .from("processos")
+                  .select("id")
+                  .eq("coordenacao_id", coord.id)
+                  .eq("advogado_responsavel_id", userId),
+                supabase
+                  .from("processos_responsaveis")
+                  .select("processo_id, processos!inner(coordenacao_id)")
+                  .eq("usuario_id", userId)
+                  .eq("processos.coordenacao_id", coord.id),
+              ]);
 
-              return { ...m, processCount: count || 0 };
+              const ids = new Set<string>();
+              (principais || []).forEach((p: any) => ids.add(p.id));
+              (vinculos || []).forEach((v: any) => ids.add(v.processo_id));
+
+              return { ...m, processCount: ids.size };
             })
           );
 

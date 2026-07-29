@@ -608,6 +608,7 @@ const Coordenacoes = () => {
                             <div 
                               className={cn(
                                 "h-full rounded-full transition-all duration-500",
+                                "bg-primary",
                                 selectedCoord.area === "civil" && "bg-area-civil",
                                 selectedCoord.area === "trabalhista" && "bg-area-trabalhista",
                                 selectedCoord.area === "empresarial" && "bg-area-empresarial"

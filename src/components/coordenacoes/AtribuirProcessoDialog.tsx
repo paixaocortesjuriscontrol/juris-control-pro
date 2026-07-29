@@ -65,6 +65,7 @@ export function AtribuirProcessoDialog({
   const [searchQuery, setSearchQuery] = useState("");
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
+  const [somenteSemResponsavel, setSomenteSemResponsavel] = useState(false);
   const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>(coordenacaoId);
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const { toast } = useToast();
@@ -138,10 +139,11 @@ export function AtribuirProcessoDialog({
       
       const matchesArea = areaFilter === "all" || p.area === areaFilter;
       const matchesCliente = clienteFilter === "all" || p.cliente_id === clienteFilter;
-      
-      return matchesSearch && matchesArea && matchesCliente;
+      const matchesSemResp = !somenteSemResponsavel || !p.advogado_responsavel_id;
+
+      return matchesSearch && matchesArea && matchesCliente && matchesSemResp;
     });
-  }, [processosNaoAtribuidos, searchQuery, areaFilter, clienteFilter]);
+  }, [processosNaoAtribuidos, searchQuery, areaFilter, clienteFilter, somenteSemResponsavel]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -344,6 +346,16 @@ export function AtribuirProcessoDialog({
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Checkbox
+                      id="somente-sem-resp"
+                      checked={somenteSemResponsavel}
+                      onCheckedChange={(c) => setSomenteSemResponsavel(!!c)}
+                    />
+                    <label htmlFor="somente-sem-resp" className="text-xs text-muted-foreground cursor-pointer">
+                      Somente processos sem responsável
+                    </label>
                   </div>
 
                   {processosFiltrados.length > 0 ? (
