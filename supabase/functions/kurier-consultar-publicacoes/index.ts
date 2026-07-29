@@ -294,6 +294,7 @@ import {
   shouldExclude,
   type Monitoramento,
 } from "../_kurier-shared/djenMatch.ts";
+import { tribunalPermitidoKurier } from "../_kurier-shared/tribunalSigla.ts";
 
 // Consome publicações pendentes de UMA credencial Kurier em lotes de 50.
 // Persiste em kurier_publicacoes_raw (idempotente por id_kurier) e em
@@ -656,7 +657,7 @@ Deno.serve(async (req: Request) => {
     if (coordIdsArr.length > 0) {
       let monitQuery = admin
         .from("monitoramentos_djen")
-        .select("id, tipo, termo_busca, oab, uf, exclusoes, condicao_concomitante, termos_or, descricao, buscar_parte, coordenacao_id, criado_por, somente_kurier")
+        .select("id, tipo, termo_busca, oab, uf, exclusoes, condicao_concomitante, termos_or, descricao, buscar_parte, coordenacao_id, criado_por, somente_kurier, tribunais")
         .eq("ativo", true)
         .in("coordenacao_id", coordIdsArr);
       if (monitoramento_ids?.length) monitQuery = monitQuery.in("id", monitoramento_ids);
@@ -1054,9 +1055,21 @@ Deno.serve(async (req: Request) => {
           const candidatos = candidatoMap.size > 0 ? Array.from(candidatoMap.values()) : monitoramentos;
           let matched: (Monitoramento & { coordenacao_id?: string | null }) | null = null;
           let motivoExcl: string | null = null;
+          let bloqueadoPorTribunal = false;
           for (const m of candidatos) {
             try {
               if (!kurierMatchesMonitoramento(searchable || conteudo, m as Monitoramento)) continue;
+              // Escopo de tribunais do termo — mesma regra do DJEN Termos Servidor
+              // (paralela.js: "tribunal_nao_permitido"). Termo sem tribunais
+              // definidos aceita qualquer tribunal; sigla não reconhecida passa.
+              const escopo = tribunalPermitidoKurier(tribunal, (m as any).tribunais);
+              if (!escopo.permitido) {
+                bloqueadoPorTribunal = true;
+                continue;
+              }
+              if (!escopo.reconhecida && ((m as any).tribunais?.length ?? 0) > 0) {
+                console.warn(`[kurier] sigla de tribunal não reconhecida: "${tribunal}" (monit ${m.id})`);
+              }
               const motivo = shouldExclude(searchable || conteudo, m.exclusoes || [], null, null);
               if (motivo) { motivoExcl = motivo; continue; }
               matched = m;
@@ -1156,7 +1169,11 @@ Deno.serve(async (req: Request) => {
             }
           } else if (capturaTotalCoords.length === 0) {
             totalDescartadas++;
-            motivoDescarte = motivoDescarte ?? (motivoExcl ? `excluido_por_termo:${motivoExcl}` : "sem_match_monitoramento");
+            motivoDescarte = motivoDescarte ?? (
+              motivoExcl
+                ? `excluido_por_termo:${motivoExcl}`
+                : (bloqueadoPorTribunal ? "tribunal_nao_permitido" : "sem_match_monitoramento")
+            );
           }
 
           // 3) Captura total: garante 1 linha por item recebido em CADA coord
