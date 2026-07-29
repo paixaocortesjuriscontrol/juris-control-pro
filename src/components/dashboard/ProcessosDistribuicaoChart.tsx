@@ -55,27 +55,33 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
-// Custom label that shows total on top of bar
+// Custom label that shows total at the end of the horizontal bar
 const renderTotalLabel = (props: any) => {
-  const { x, y, width, value, index, data } = props;
+  const { x, y, width, height, index, data } = props;
   const entry = data[index];
   if (!entry) return null;
-  
+
   const total = entry.distribuidos + entry.naoDistribuidos;
   if (total === 0) return null;
-  
+
   return (
     <text
-      x={x + width / 2}
-      y={y - 8}
+      x={x + width + 6}
+      y={y + height / 2}
       fill="hsl(var(--foreground))"
-      textAnchor="middle"
+      textAnchor="start"
+      dominantBaseline="middle"
       fontSize={11}
       fontWeight={700}
     >
       {total.toLocaleString('pt-BR')}
     </text>
   );
+};
+
+const shortName = (nome: string) => {
+  const s = (nome || '').replace(/Coordena[çc][aã]o\s*/gi, '').trim();
+  return s.length > 28 ? `${s.slice(0, 27)}…` : s;
 };
 
 export function ProcessosDistribuicaoChart({ data }: ProcessosDistribuicaoChartProps) {
@@ -88,6 +94,14 @@ export function ProcessosDistribuicaoChart({ data }: ProcessosDistribuicaoChartP
   const totalDistribuidos = data.reduce((sum, d) => sum + d.distribuidos, 0);
   const totalNaoDistribuidos = data.reduce((sum, d) => sum + d.naoDistribuidos, 0);
 
+  // Ordena do maior para o menor e remove coordenações zeradas
+  const chartData = [...data]
+    .filter((d) => d.distribuidos + d.naoDistribuidos > 0)
+    .sort((a, b) => (b.distribuidos + b.naoDistribuidos) - (a.distribuidos + a.naoDistribuidos))
+    .map((d) => ({ ...d, label: shortName(d.nome) }));
+
+  const chartHeight = Math.max(280, chartData.length * 28 + 60);
+
   return (
     <Card className="animate-slide-up">
       <CardHeader className="pb-2">
@@ -97,63 +111,32 @@ export function ProcessosDistribuicaoChart({ data }: ProcessosDistribuicaoChartP
         </div>
       </CardHeader>
       <CardContent>
-        <div className="h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="w-full overflow-y-auto" style={{ maxHeight: 460 }}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
             <BarChart
-              data={data}
-              margin={{ top: 25, right: 10, left: -10, bottom: 0 }}
+              data={chartData}
+              layout="vertical"
+              margin={{ top: 8, right: 56, left: 8, bottom: 8 }}
               barGap={2}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
-              <XAxis 
-                dataKey="nome" 
-                tick={({ x, y, payload }) => {
-                  // Simplify coordination name (remove "Coordenação")
-                  const simpleName = payload.value.replace(/Coordena[çc][aã]o\s*/gi, '');
-                  const words = simpleName.split(' ');
-                  const lines: string[] = [];
-                  let currentLine = '';
-                  
-                  words.forEach((word: string) => {
-                    if (currentLine.length + word.length > 10) {
-                      if (currentLine) lines.push(currentLine.trim());
-                      currentLine = word + ' ';
-                    } else {
-                      currentLine += word + ' ';
-                    }
-                  });
-                  if (currentLine.trim()) lines.push(currentLine.trim());
-                  
-                  return (
-                    <g transform={`translate(${x},${y})`}>
-                      {lines.map((line, index) => (
-                        <text
-                          key={index}
-                          x={0}
-                          y={index * 12}
-                          dy={12}
-                          textAnchor="middle"
-                          fill="hsl(var(--muted-foreground))"
-                          fontSize={10}
-                        >
-                          {line}
-                        </text>
-                      ))}
-                    </g>
-                  );
-                }}
-                tickLine={false}
-                axisLine={{ stroke: "hsl(var(--border))" }}
-                height={50}
-                interval={0}
-              />
-              <YAxis 
+              <XAxis
+                type="number"
                 tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
                 tickLine={false}
                 axisLine={{ stroke: "hsl(var(--border))" }}
-                tickFormatter={(value) => value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}
+                tickFormatter={(value) => (value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value)}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <YAxis
+                type="category"
+                dataKey="label"
+                width={190}
+                interval={0}
+                tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                tickLine={false}
+                axisLine={{ stroke: "hsl(var(--border))" }}
+              />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
               <Legend 
                 wrapperStyle={{ fontSize: "12px", paddingTop: "8px" }}
                 formatter={(value) => <span className="text-muted-foreground">{value}</span>}
@@ -164,7 +147,7 @@ export function ProcessosDistribuicaoChart({ data }: ProcessosDistribuicaoChartP
                 stackId="a"
                 radius={[0, 0, 0, 0]}
               >
-                {data.map((entry, index) => (
+                {chartData.map((entry, index) => (
                   <Cell key={`cell-dist-${index}`} fill={getAreaColor(entry.area)} />
                 ))}
               </Bar>
@@ -172,11 +155,11 @@ export function ProcessosDistribuicaoChart({ data }: ProcessosDistribuicaoChartP
                 dataKey="naoDistribuidos" 
                 name="Não Distribuídos" 
                 stackId="a"
-                radius={[4, 4, 0, 0]}
+                radius={[0, 4, 4, 0]}
                 fill={naoDistribuidoColor}
               >
                 <LabelList 
-                  content={(props) => renderTotalLabel({ ...props, data })}
+                  content={(props) => renderTotalLabel({ ...props, data: chartData })}
                 />
               </Bar>
             </BarChart>
