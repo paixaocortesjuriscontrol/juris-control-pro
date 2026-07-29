@@ -1,37 +1,47 @@
-# Fechar os apontamentos restantes da Dra. Janaina (sem mexer no Kurier)
+## Diagnóstico (verificado)
 
-Motor DJEN/Kurier fica de fora, conforme combinado.
+Hoje o Kurier **não considera** os tribunais cadastrados no termo:
 
-## 1. "Concluí a tarefa e continua pendente" — não é bug de status (confirmado)
+- Em `supabase/functions/kurier-consultar-publicacoes/index.ts`, a query de monitoramentos (linha ~659) seleciona `id, tipo, termo_busca, oab, uf, exclusoes, condicao_concomitante, termos_or, descricao, buscar_parte, coordenacao_id, criado_por, somente_kurier` — a coluna `tribunais` **não é lida**.
+- O matching (`kurierMatchesMonitoramento`, linha ~481, e o loop da linha ~1057) valida só termo/OAB/exclusões/condição concomitante. Nenhuma checagem de tribunal.
+- O motor Servidor DJEN Termos já faz isso: `monitor-servidor/engines/paralela.js` linha 1232 — `if (tribunaisMon.length > 0 && !tribunaisMon.includes(tribunal))` → descarta com motivo `tribunal_nao_permitido`.
 
-Consultei os dados: **zero** tarefas com `status = 'pendente'` e `data_cumprimento` preenchida, e **zero** eventos pendentes com `concluido_em`. Ou seja, a conclusão está gravando certo. O que confunde é que existem processos diferentes com **títulos de tarefa idênticos**, e o card de pendências não mostra de qual pasta/processo é o item.
+Complicador confirmado nos dados: o Kurier grava o tribunal em formatos livres, enquanto os termos usam sigla canônica.
 
-Correção proposta (UX, não dados):
-- Em `PendenciasProcessoCard.tsx`, exibir o **número do processo (CNJ)** abaixo do título de cada pendência, junto com a data de criação. Assim fica claro quando a pendência é de outra pasta homônima.
-- Reforçar a filtragem: além de `status = 'pendente'`, ocultar qualquer item que já tenha `data_cumprimento` (tarefas) ou `concluido_em` (eventos), mesmo que o `status` tenha ficado desatualizado — igual à regra já usada nos cards do Painel de Controle. Hoje o card olha só o `status`.
+```text
+Kurier (publicacoes_djen.tribunal)   Termo (monitoramentos_djen.tribunais)
+"TRT 10_DJEN"                        "TRT10"
+"TRT - 2 REGIAO"                     "TRT2"
+"TJSP_DJEN - ESTADUAL"               "TJSP"
+"DJMG" / "DJMG - Judiciário"         "TJMG"
+"TRF 1"                              "TRF1"
+```
 
-## 2. Prazo aparecendo em dois dias diferentes (04/08 x 05/08) — causa confirmada
+Sem normalização, um filtro literal descartaria quase tudo.
 
-Achei a inconsistência: em `ProcessoExpandableRow.tsx` as datas de prazo são formatadas com `new Date(tarefa.prazo_fatal)` direto. Como o valor vem como `"2025-08-05"` (data pura), o JS interpreta como UTC 00:00 e, em BRT, exibe **04/08** — um dia a menos. Já o card da pasta usa parse seguro e mostra 05/08. Daí a divergência entre as telas.
+## O que será feito
 
-Correção:
-- Aplicar o mesmo `parseDateSafe` (já existente em `PendenciasProcessoCard.tsx`) em todos os pontos que formatam data pura sem proteção de fuso, começando por `ProcessoExpandableRow.tsx` (prazo fatal, data limite, data da intimação).
-- Estender a mesma correção às demais telas que formatam esses campos com `new Date(...)` cru: `UpcomingDeadlines.tsx`, `TarefaPublicacaoView.tsx`, `NovaTarefa.tsx`, `Notificacoes.tsx` e `CoordenacaoDetalhesView.tsx`.
-- Centralizar a função num utilitário compartilhado (`src/utils/date.ts` → `parseDateSafe`) para não repetir a lógica.
+1. **Normalizador de sigla de tribunal (Kurier)**
+   Nova função em `supabase/functions/_kurier-shared/` que converte a string bruta do Kurier na sigla canônica: remove sufixos (`_DJEN`, `- ESTADUAL`, `- Judiciário`), remove espaços/hífens internos (`TRT - 10 REGIAO` → `TRT10`), e mapeia diários estaduais conhecidos (`DJMG`→`TJMG`, `DJMS`→`TJMS`, etc.). Retorna `null` quando não reconhece.
 
-## 3. Padronização de rótulos
+2. **Carregar `tribunais` do monitoramento**
+   Incluir a coluna na query de monitoramentos e no tipo usado no matching.
 
-Manter em todas as telas os mesmos rótulos já adotados no card: **Limite** (`data_vencimento`) e **Fatal** (`data_fatal`), eliminando o "Prazo:" genérico da linha expandida de processos, que hoje ora aponta para um campo, ora para o outro.
+3. **Aplicar o filtro no matching**
+   Ao avaliar cada candidato: se o monitoramento tem `tribunais` preenchido e a sigla normalizada da publicação **não** está na lista, o candidato não casa (segue para o próximo termo). Termo sem `tribunais` (nulo/vazio) continua aceitando qualquer tribunal — mesma regra do Servidor.
 
-## Fora deste plano
-- Motor Kurier / escopo de tribunais (adiado a seu pedido).
-- Itens já corrigidos anteriormente: data da publicação (28/07), audiência sem publicação vinculada e publicação sumindo da Análise DJEN após salvar.
+4. **Sigla não reconhecida**
+   Se a normalização falhar, **não descartar**: o item passa (comportamento conservador, para não perder publicação por formato novo do Kurier) e é registrado em log para ajuste do mapa.
 
-## Arquivos alterados
-- `src/utils/date.ts` (novo utilitário)
-- `src/components/processos/PendenciasProcessoCard.tsx`
-- `src/components/processos/ProcessoExpandableRow.tsx`
-- `src/components/processos/TarefaPublicacaoView.tsx`
-- `src/components/dashboard/UpcomingDeadlines.tsx`
-- `src/pages/NovaTarefa.tsx`, `src/pages/Notificacoes.tsx`
-- `src/components/notificacoes/CoordenacaoDetalhesView.tsx`
+5. **Descarte igual ao DJEN Termos Servidor**
+   Quando nenhum termo casar por causa do tribunal, a publicação **não** é inserida em `publicacoes_djen`; conta em `total_descartadas` e o motivo `tribunal_nao_permitido` é gravado em `kurier_publicacoes_raw.motivo_descarte` (mesmo caminho já usado para `sem_match_monitoramento`), preservando rastreabilidade.
+
+6. **Captura total permanece intacta** — conforme definido, coordenações com captura total continuam recebendo tudo que o Kurier trouxer, sem filtro de tribunal.
+
+## Detalhes técnicos
+
+- Arquivos tocados: `supabase/functions/_kurier-shared/` (novo utilitário + export), `supabase/functions/kurier-consultar-publicacoes/index.ts`. `kurier-consultar-personalizado` recebe o mesmo filtro se compartilhar o caminho de matching.
+- Nenhuma migração de banco: `monitoramentos_djen.tribunais` já existe e está populado.
+- Nenhum efeito retroativo — vale só para execuções novas.
+- `monitor-servidor/engines/kurier.js` não muda: ele apenas invoca a edge function.
+- Validação após o deploy: rodar uma credencial via `curl_edge_functions` e conferir nos logs a contagem de `tribunal_nao_permitido` e que nada com tribunal válido foi barrado.
