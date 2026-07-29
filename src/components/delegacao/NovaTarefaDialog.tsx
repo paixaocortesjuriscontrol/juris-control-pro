@@ -150,6 +150,8 @@ export function NovaTarefaDialog({
   const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
   // Recorrência
   const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
+  const [prazoDias, setPrazoDias] = useState<number>(0);
+  const [prazoUnidade, setPrazoUnidade] = useState<"uteis" | "corridos">("uteis");
   const [recorrenciaIntervalo, setRecorrenciaIntervalo] = useState<number>(1);
   const [recorrenciaOcorrencias, setRecorrenciaOcorrencias] = useState<string>("");
   const [recorrenciaFim, setRecorrenciaFim] = useState<string>("");
