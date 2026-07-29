@@ -6290,6 +6290,7 @@ export type Database = {
           depositos_vinculados: string | null
           descricao: string | null
           dossie_tst: string | null
+          empresa_terceirizada: string | null
           entidade: string | null
           epoca_razao: string | null
           equipe_tst: string | null
@@ -6377,6 +6378,7 @@ export type Database = {
           preparo_tst: string | null
           prioridade_djen: boolean
           probabilidade: string | null
+          processos_relacionados: string | null
           providencias_tst: string | null
           provisionamento_possivel: number | null
           provisionamento_provavel: number | null
@@ -6401,6 +6403,7 @@ export type Database = {
           risco: string | null
           risco_anterior: string | null
           risco_atual: string | null
+          segredo_justica: boolean | null
           setor: string | null
           sigla_unidade: string | null
           sistema: string | null
@@ -6492,6 +6495,7 @@ export type Database = {
           depositos_vinculados?: string | null
           descricao?: string | null
           dossie_tst?: string | null
+          empresa_terceirizada?: string | null
           entidade?: string | null
           epoca_razao?: string | null
           equipe_tst?: string | null
@@ -6579,6 +6583,7 @@ export type Database = {
           preparo_tst?: string | null
           prioridade_djen?: boolean
           probabilidade?: string | null
+          processos_relacionados?: string | null
           providencias_tst?: string | null
           provisionamento_possivel?: number | null
           provisionamento_provavel?: number | null
@@ -6603,6 +6608,7 @@ export type Database = {
           risco?: string | null
           risco_anterior?: string | null
           risco_atual?: string | null
+          segredo_justica?: boolean | null
           setor?: string | null
           sigla_unidade?: string | null
           sistema?: string | null
@@ -6694,6 +6700,7 @@ export type Database = {
           depositos_vinculados?: string | null
           descricao?: string | null
           dossie_tst?: string | null
+          empresa_terceirizada?: string | null
           entidade?: string | null
           epoca_razao?: string | null
           equipe_tst?: string | null
@@ -6781,6 +6788,7 @@ export type Database = {
           preparo_tst?: string | null
           prioridade_djen?: boolean
           probabilidade?: string | null
+          processos_relacionados?: string | null
           providencias_tst?: string | null
           provisionamento_possivel?: number | null
           provisionamento_provavel?: number | null
@@ -6805,6 +6813,7 @@ export type Database = {
           risco?: string | null
           risco_anterior?: string | null
           risco_atual?: string | null
+          segredo_justica?: boolean | null
           setor?: string | null
           sigla_unidade?: string | null
           sistema?: string | null
