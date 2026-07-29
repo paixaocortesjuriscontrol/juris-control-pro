@@ -88,6 +88,8 @@ const FIELDS = [
   "orgao_julgador", "vara", "comarca", "uf", "materia",
   // Partes
   "polo_ativo", "polo_passivo", "terceiro_envolvido", "reclamante", "reclamados", "pedidos",
+  // Importação Beatriz Costa
+  "empresa_terceirizada", "processos_relacionados", "segredo_justica",
   // Datas
   "data_distribuicao", "data_recebimento", "data_citacao",
   // Financeiro / contingenciais
@@ -106,6 +108,7 @@ const FIELDS = [
 ] as const;
 
 const NUMERIC_FIELDS = new Set(["valor_causa", "valor_condenacao", "valor_provisionado"]);
+const BOOLEAN_FIELDS = new Set(["segredo_justica"]);
 const DATE_FIELDS = new Set(["data_distribuicao", "data_recebimento", "data_citacao"]);
 
 function FormField({
@@ -216,7 +219,11 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     if (!processo?.id && !isNovo) return;
     const next: Record<string, any> = {};
     next.numero = (processo as any)?.numero ?? "";
-    for (const f of FIELDS) next[f] = (processo as any)[f] ?? "";
+    for (const f of FIELDS) {
+      next[f] = BOOLEAN_FIELDS.has(f)
+        ? Boolean((processo as any)?.[f])
+        : ((processo as any)?.[f] ?? "");
+    }
     setForm(next);
     // Recupera campos preenchidos pela Judit em sessões anteriores para
     // manter o destaque verde mesmo após sair e voltar.
@@ -260,7 +267,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       const payload: Record<string, any> = {};
       for (const f of FIELDS) {
         const v = form[f];
-        if (NUMERIC_FIELDS.has(f)) {
+        if (BOOLEAN_FIELDS.has(f)) {
+          payload[f] = Boolean(v);
+        } else if (NUMERIC_FIELDS.has(f)) {
           payload[f] = v === "" || v == null ? null : Number(v);
         } else {
           payload[f] = v === "" || v == null ? null : v;
@@ -308,7 +317,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         .eq("id", processo.id);
       if (error) throw error;
 
-      if (responsaveis.length > 0) {
+      {
         await supabase
           .from("processos_responsaveis")
           .update({ ativo: false } as any)
@@ -320,10 +329,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           papel: r.papel || "responsavel",
           ativo: true,
         }));
-        const { error: errResp } = await supabase
-          .from("processos_responsaveis")
-          .upsert(inserts as any, { onConflict: "processo_id,usuario_id" });
-        if (errResp) throw errResp;
+        if (inserts.length > 0) {
+          const { error: errResp } = await supabase
+            .from("processos_responsaveis")
+            .upsert(inserts as any, { onConflict: "processo_id,usuario_id" });
+          if (errResp) throw errResp;
+        }
       }
 
       await queryClient.invalidateQueries({ queryKey: ["processo"] });
@@ -1301,6 +1312,28 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       processoId={processo.id}
                       value={responsaveis}
                       onChange={setResponsaveis}
+                    />
+                  </FormField>
+                  <FormField label="Empresa Terceirizada">
+                    <Input className={cn(inputCls, jcls("empresa_terceirizada"))} value={form.empresa_terceirizada || ""} onChange={(e) => update("empresa_terceirizada", e.target.value)} />
+                  </FormField>
+                  <FormField label="Segredo de Justiça">
+                    <div className="flex items-center gap-2 h-9">
+                      <Checkbox
+                        checked={!!form.segredo_justica}
+                        onCheckedChange={(c) => update("segredo_justica", c === true)}
+                      />
+                      <span className="text-sm text-muted-foreground">Processo em segredo de justiça</span>
+                    </div>
+                  </FormField>
+                  <FormField label="Processos Relacionados" className="md:col-span-2">
+                    <Textarea
+                      rows={2}
+                      className={cn("text-sm min-h-[50px] resize-y overflow-hidden", jcls("processos_relacionados"))}
+                      value={form.processos_relacionados || ""}
+                      onChange={(e) => update("processos_relacionados", e.target.value)}
+                      ref={(el) => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }}
+                      onInput={(e) => { const el = e.currentTarget; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }}
                     />
                   </FormField>
                 </div>
