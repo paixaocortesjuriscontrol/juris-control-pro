@@ -134,6 +134,7 @@ export function PrazoDialog({
   const updatePrazo = useUpdatePrazo();
   const secondaryClickedRef = useRef(false);
   const tertiaryClickedRef = useRef(false);
+  const anexosRef = useRef<ItemAnexosHandle>(null);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
 
   // Quando editando um prazo existente, carregar publicação vinculada (se houver)
@@ -892,7 +893,7 @@ export function PrazoDialog({
           ref={anexosRef}
           tipo="tarefa"
           itemId={prazo?.id}
-          processoId={processoId}
+          processoId={processoIdEfetivo}
         />
 
         <ItemComentarios tipo="tarefa" itemId={prazo?.id} />
