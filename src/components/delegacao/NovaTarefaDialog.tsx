@@ -57,6 +57,26 @@ type AnexoComAnalise = {
   uploaded?: boolean;
 };
 
+function addBusinessDays(start: Date, days: number): Date {
+  let remaining = days;
+  const d = new Date(start);
+  while (remaining > 0) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) remaining--;
+  }
+  return d;
+}
+
+function computeDataPrevista(base: string | undefined, dias: number, unidade: "uteis" | "corridos"): string {
+  if (!base || !dias || dias <= 0) return "";
+  const [y, m, d] = base.split("-").map(Number);
+  if (!y || !m || !d) return "";
+  const baseDate = new Date(y, m - 1, d, 12, 0, 0);
+  const result = unidade === "uteis" ? addBusinessDays(baseDate, dias) : addDays(baseDate, dias);
+  return format(result, "yyyy-MM-dd");
+}
+
 const formSchema = z.object({
   tipo_vinculo: z.enum(["processo", "sem_vinculo"]),
   coordenacao_id: z.string().optional(),
@@ -150,6 +170,8 @@ export function NovaTarefaDialog({
   const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
   // Recorrência
   const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
+  const [prazoDias, setPrazoDias] = useState<number>(0);
+  const [prazoUnidade, setPrazoUnidade] = useState<"uteis" | "corridos">("uteis");
   const [recorrenciaIntervalo, setRecorrenciaIntervalo] = useState<number>(1);
   const [recorrenciaOcorrencias, setRecorrenciaOcorrencias] = useState<string>("");
   const [recorrenciaFim, setRecorrenciaFim] = useState<string>("");
@@ -390,6 +412,8 @@ export function NovaTarefaDialog({
     setMostrarEnvolvidos(false);
     setSituacao("pendente");
     setRecorrenciaTipo("nenhuma");
+    setPrazoDias(0);
+    setPrazoUnidade("uteis");
     setRecorrenciaIntervalo(1);
     setRecorrenciaOcorrencias("");
     setRecorrenciaFim("");
@@ -1052,12 +1076,61 @@ export function NovaTarefaDialog({
                   <FormItem>
                     <FormLabel>Data base</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <Input
+                        type="date"
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          if (prazoDias > 0) {
+                            const calc = computeDataPrevista(e.target.value, prazoDias, prazoUnidade);
+                            if (calc) form.setValue("data_vencimento", calc);
+                          }
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* Prazo em dias (calcula a Data prevista) */}
+              <div className="space-y-1.5">
+                <Label>Prazo</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={prazoDias}
+                    onChange={(e) => {
+                      const dias = parseInt(e.target.value || "0", 10) || 0;
+                      setPrazoDias(dias);
+                      const calc = computeDataPrevista(form.getValues("data_base"), dias, prazoUnidade);
+                      if (calc) form.setValue("data_vencimento", calc);
+                    }}
+                    className="w-20"
+                  />
+                  <Select
+                    value={prazoUnidade}
+                    onValueChange={(v) => {
+                      const unidade = v as "uteis" | "corridos";
+                      setPrazoUnidade(unidade);
+                      const calc = computeDataPrevista(form.getValues("data_base"), prazoDias, unidade);
+                      if (calc) form.setValue("data_vencimento", calc);
+                    }}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="uteis">Dias úteis</SelectItem>
+                      <SelectItem value="corridos">Dias corridos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Calcula a Data prevista a partir da Data base. Você ainda pode editar a data manualmente.
+                </p>
+              </div>
 
               {/* Datas */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
