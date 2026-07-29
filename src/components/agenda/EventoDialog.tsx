@@ -1,3 +1,4 @@
+import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
@@ -134,7 +135,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
 
   const [processoId, setProcessoId] = useState("");
   const [processoSearch, setProcessoSearch] = useState("");
-  const [situacao, setSituacao] = useState<"pendente" | "concluido" | "cancelado">("pendente");
+  const [situacao, setSituacao] = useState<string>("pendente");
   const { podeCancelar } = usePodeCancelarItens();
 
   // Recorrência
@@ -488,9 +489,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                    <SelectItem value="concluido">✔️ Concluído</SelectItem>
-                    {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+                    {situacoesDisponiveis("evento", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Button

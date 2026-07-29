@@ -1,3 +1,4 @@
+import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
@@ -169,7 +170,7 @@ export function NovaTarefaDialog({
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
-  const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
+  const [situacao, setSituacao] = useState<string>("pendente");
   const { podeCancelar } = usePodeCancelarItens();
   // Recorrência
   const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
@@ -548,7 +549,7 @@ export function NovaTarefaDialog({
           hora_fatal: values.hora_fatal || null,
           link_local: values.local || null,
           prioridade: values.prioridade,
-          status: situacao,
+          status: situacao as any,
           data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
           recorrente: recorrenciaTipo !== "nenhuma",
           recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
@@ -617,7 +618,7 @@ export function NovaTarefaDialog({
         hora_fatal: values.hora_fatal || null,
         link_local: values.local || null,
         prioridade: values.prioridade,
-        status: situacao,
+        status: situacao as any,
         criado_por: userData?.id || null,
         recorrente: recorrenciaTipo !== "nenhuma",
         recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
@@ -829,9 +830,9 @@ export function NovaTarefaDialog({
           <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
             <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="pendente">⏳ Pendente</SelectItem>
-              <SelectItem value="cumprido">✔️ Concluída</SelectItem>
-              {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelada</SelectItem>}
+              {situacoesDisponiveis("tarefa", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button
@@ -856,9 +857,9 @@ export function NovaTarefaDialog({
             <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
               <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                <SelectItem value="cumprido">✔️ Concluída</SelectItem>
-                {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelada</SelectItem>}
+                {situacoesDisponiveis("tarefa", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button

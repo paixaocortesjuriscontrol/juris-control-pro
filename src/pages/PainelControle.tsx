@@ -1101,7 +1101,7 @@ export default function PainelControle() {
           )}
           {isAdminOrCoordinator && (
             <Button asChild variant="outline" size="sm">
-              <Link to="/notificacoes">Notificações</Link>
+              <Link to="/notificacoes">Config. Notificações</Link>
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={() => setRelatorioAudOpen(true)} title="Relatório de audiências por usuário/situação">
@@ -1230,6 +1230,15 @@ export default function PainelControle() {
                   title="Painel da Equipe (obedece os filtros)"
                 >
                   Equipe
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "notificacoes" ? "default" : "destructive"}
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setViewMode("notificacoes")}
+                  title="Central de notificações (mantém menu e filtros)"
+                >
+                  Alertas
                 </Button>
                 {([
                   { key: "prazo",         label: "Prazos" },

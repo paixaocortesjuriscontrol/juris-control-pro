@@ -1,3 +1,4 @@
+import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useMemo } from "react";
@@ -63,7 +64,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditing = !!evento;
-  const [situacao, setSituacao] = useState<"pendente" | "concluido" | "cancelado">("pendente");
+  const [situacao, setSituacao] = useState<string>("pendente");
   const { podeCancelar } = usePodeCancelarItens();
   const { precisaSelecionar, unicaCoordenacaoId, coordenacoes: coordenacoesUsuario, isAdmin } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
@@ -595,9 +596,9 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
           <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="pendente">⏳ Pendente</SelectItem>
-            <SelectItem value="concluido">✔️ Concluído</SelectItem>
-            {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+            {situacoesDisponiveis("parcelamento", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Button
@@ -624,9 +625,9 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
             <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="pendente">⏳ Pendente</SelectItem>
-              <SelectItem value="concluido">✔️ Concluído</SelectItem>
-              {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+              {situacoesDisponiveis("parcelamento", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Button

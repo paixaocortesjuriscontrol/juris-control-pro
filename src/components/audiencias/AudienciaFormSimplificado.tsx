@@ -1,3 +1,4 @@
+import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
@@ -388,12 +389,9 @@ export function AudienciaFormSimplificado({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                <SelectItem value="confirmado">✅ Confirmado</SelectItem>
-                <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
-                <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
-                <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
+                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button

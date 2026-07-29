@@ -1,3 +1,4 @@
+import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -236,7 +237,7 @@ export function PrazoDialog({
   const [observacoes, setObservacoes] = useState("");
   const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
-  const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
+  const [situacao, setSituacao] = useState<string>("pendente");
   const { podeCancelar } = usePodeCancelarItens();
   // Processo resolvido a partir da publicação (quando não há defaultProcessoId)
   const [resolvedProcessoId, setResolvedProcessoId] = useState<string>("");
@@ -404,7 +405,7 @@ export function PrazoDialog({
       processo_id: processoIdParaSalvar,
       responsavel_id: responsaveisIds[0],
       observacoes: observacoes.trim() || undefined,
-      status: situacao,
+      status: situacao as any,
       data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
       // Preserva o tipo original quando estamos editando uma tarefa/prazo
       // existente. Só fixa "PRAZO" quando é uma criação nova a partir deste
@@ -564,9 +565,9 @@ export function PrazoDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                <SelectItem value="cumprido">✔️ Cumprido</SelectItem>
-                {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+                {situacoesDisponiveis("prazo", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button
