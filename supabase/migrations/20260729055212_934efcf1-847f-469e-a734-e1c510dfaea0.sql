@@ -1,0 +1,13 @@
+CREATE INDEX IF NOT EXISTS idx_tarefas_coord_status_venc ON public.tarefas (coordenacao_id, status, data_vencimento);
+CREATE INDEX IF NOT EXISTS idx_tarefas_coord_tipo_venc ON public.tarefas (coordenacao_id, tipo_registro, data_vencimento);
+CREATE INDEX IF NOT EXISTS idx_tarefas_coord_data_fatal ON public.tarefas (coordenacao_id, data_fatal);
+CREATE INDEX IF NOT EXISTS idx_eventos_agenda_coord_status_data ON public.eventos_agenda (coordenacao_id, status, data_inicio);
+CREATE INDEX IF NOT EXISTS idx_eventos_agenda_coord_tipo_data ON public.eventos_agenda (coordenacao_id, tipo, data_inicio);
+CREATE INDEX IF NOT EXISTS idx_parcelas_evento_evento_venc ON public.parcelas_evento (evento_id, data_vencimento);
+CREATE INDEX IF NOT EXISTS idx_parcelas_evento_status_venc ON public.parcelas_evento (status, data_vencimento);
+CREATE INDEX IF NOT EXISTS idx_processos_coordenacao_id ON public.processos (coordenacao_id);
+CREATE INDEX IF NOT EXISTS idx_audiencias_coord_data ON public.audiencias_detectadas (coordenacao_id, data_audiencia);
+ANALYZE public.tarefas;
+ANALYZE public.eventos_agenda;
+ANALYZE public.parcelas_evento;
+ANALYZE public.audiencias_detectadas;
