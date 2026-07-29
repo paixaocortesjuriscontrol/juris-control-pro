@@ -167,14 +167,17 @@ export function AtribuirProcessoDialog({
 
     setLoading(true);
     try {
-      // Batch update: set primary responsible for all processes at once
+      // Batch update em lotes pequenos: URLs muito longas causam "Bad Request"
       const primaryId = responsaveis[0].usuario_id;
-      const { error: updateError } = await supabase
-        .from("processos")
-        .update({ advogado_responsavel_id: primaryId })
-        .in("id", values.processos);
-
-      if (updateError) throw updateError;
+      const ID_BATCH = 100;
+      for (let i = 0; i < values.processos.length; i += ID_BATCH) {
+        const idsBatch = values.processos.slice(i, i + ID_BATCH);
+        const { error: updateError } = await supabase
+          .from("processos")
+          .update({ advogado_responsavel_id: primaryId })
+          .in("id", idsBatch);
+        if (updateError) throw updateError;
+      }
 
       // Batch upsert all processos_responsaveis in one call
       const inserts = values.processos.flatMap((processoId) =>
@@ -187,7 +190,7 @@ export function AtribuirProcessoDialog({
       );
 
       // Supabase handles up to ~1000 rows per upsert; batch if needed
-      const BATCH_SIZE = 500;
+      const BATCH_SIZE = 200;
       for (let i = 0; i < inserts.length; i += BATCH_SIZE) {
         const batch = inserts.slice(i, i + BATCH_SIZE);
         const { error: upsertError } = await supabase
