@@ -1307,7 +1307,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       onInput={(e) => { const el = e.currentTarget; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }}
                     />
                   </FormField>
-                  <FormField label="Responsáveis Internos" className="md:col-span-2">
+                  <FormField label="Responsáveis" className="md:col-span-2">
                     <SelecionarResponsaveisProcesso
                       processoId={processo.id}
                       value={responsaveis}
