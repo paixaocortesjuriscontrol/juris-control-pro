@@ -135,9 +135,10 @@ export default function PainelControle() {
   const { totalNaoLidas } = useMensagensNaoLidas();
   const handledSelectedIdRef = useRef(false);
   const [tabMode, setTabMode] = useState<TabMode>("pessoal");
-  const [viewMode, setViewMode] = useState<ViewMode>(
-    isPainelViewMode(searchParams.get("view")) ? searchParams.get("view") : "agenda"
-  );
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const viewParam = searchParams.get("view");
+    return isPainelViewMode(viewParam) ? viewParam : "agenda";
+  });
   const [mesAtual, setMesAtual] = useState(new Date());
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
