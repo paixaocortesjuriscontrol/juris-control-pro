@@ -49,6 +49,7 @@ const SITUACOES = [
   { value: "cumprido", label: "Concluído com sucesso" },
   { value: "concluido_sem_sucesso", label: "Concluído sem sucesso" },
   { value: "revisao", label: "Revisão" },
+  { value: "verificado", label: "Verificado" },
 ];
 
 const CLASSIFICACOES = [
