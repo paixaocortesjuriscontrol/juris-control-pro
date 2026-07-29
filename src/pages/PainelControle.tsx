@@ -1747,7 +1747,31 @@ export default function PainelControle() {
           </div>
         ) : viewMode === "notificacoes" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
-            <Notificacoes embedded />
+            <Notificacoes
+              embedded
+              coordenacaoIdExterno={adminCoordFilter}
+              periodoInicioExterno={
+                somenteHoje
+                  ? new Date(new Date().setHours(0, 0, 0, 0))
+                  : painelFiltros.periodoInicio
+                    ? new Date(`${painelFiltros.periodoInicio}T00:00:00`)
+                    : undefined
+              }
+              periodoFimExterno={
+                somenteHoje
+                  ? new Date(new Date().setHours(0, 0, 0, 0))
+                  : painelFiltros.periodoFim
+                    ? new Date(`${painelFiltros.periodoFim}T00:00:00`)
+                    : undefined
+              }
+              statusFilterExterno={
+                situacaoFilter === "pendente"
+                  ? "pendente"
+                  : situacaoFilter === "tratado" || situacaoFilter === "confirmado"
+                    ? "concluido"
+                    : "todas"
+              }
+            />
           </div>
         ) : (
         <div className="flex flex-1 min-h-0 overflow-hidden relative">
