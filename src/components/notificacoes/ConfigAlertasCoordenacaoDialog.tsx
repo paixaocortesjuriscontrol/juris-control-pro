@@ -98,6 +98,8 @@ export function ConfigAlertasCoordenacaoPanel({
           migrados.add(t);
         }
       }
+      // "Comentários" vem marcado por padrão em todas as coordenações
+      migrados.add('comentario');
       setTiposAlerta(Array.from(migrados));
       setApenasUrgentes(config.apenas_urgentes);
       setHorarioInicio(config.horario_inicio || "08:00");
@@ -106,7 +108,7 @@ export function ConfigAlertasCoordenacaoPanel({
     } else {
       setEmailHabilitado(false);
       setWhatsappHabilitado(false);
-      setTiposAlerta(["tarefa", "prazo", "evento", "audiencia", "parcelamento"]);
+      setTiposAlerta(["tarefa", "prazo", "evento", "audiencia", "parcelamento", "comentario"]);
       setApenasUrgentes(false);
       setHorarioInicio("08:00");
       setHorarioFim("18:00");
