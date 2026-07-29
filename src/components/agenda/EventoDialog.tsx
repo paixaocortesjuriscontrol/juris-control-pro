@@ -135,7 +135,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
 
   const [processoId, setProcessoId] = useState("");
   const [processoSearch, setProcessoSearch] = useState("");
-  const [situacao, setSituacao] = useState<"pendente" | "concluido" | "cancelado">("pendente");
+  const [situacao, setSituacao] = useState<string>("pendente");
   const { podeCancelar } = usePodeCancelarItens();
 
   // Recorrência
