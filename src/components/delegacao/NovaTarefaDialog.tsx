@@ -412,6 +412,8 @@ export function NovaTarefaDialog({
     setMostrarEnvolvidos(false);
     setSituacao("pendente");
     setRecorrenciaTipo("nenhuma");
+    setPrazoDias(0);
+    setPrazoUnidade("uteis");
     setRecorrenciaIntervalo(1);
     setRecorrenciaOcorrencias("");
     setRecorrenciaFim("");
