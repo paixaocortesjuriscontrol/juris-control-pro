@@ -191,7 +191,8 @@ export function ProcessoExpandableRow({
         .from("tarefas")
         .select("*, responsavel:profiles!tarefas_responsavel_id_fkey(id, nome)")
         .eq("processo_id", processo.id)
-        .order("prazo_fatal", { ascending: true });
+        .order("data_fatal", { ascending: true, nullsFirst: false })
+        .order("data_vencimento", { ascending: true, nullsFirst: false });
 
       if (error) throw error;
       return data || [];
