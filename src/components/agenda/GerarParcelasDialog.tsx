@@ -656,10 +656,17 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
             )}
             {/* Título do Parcelamento */}
             <div>
-              <Label htmlFor="titulo" className="flex items-center gap-1.5">
-                <FileText className="w-4 h-4" />
-                Título do Parcelamento *
-              </Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="titulo" className="flex items-center gap-1.5">
+                  <FileText className="w-4 h-4" />
+                  Título do Parcelamento *
+                </Label>
+                <ModeloTituloPicker
+                  tipo="parcela"
+                  coordenacaoId={coordenacaoId}
+                  onSelect={(m) => setFormData((prev) => ({ ...prev, titulo: m.titulo }))}
+                />
+              </div>
               <AutoResizeTextarea
                 id="titulo"
                 value={formData.titulo}
