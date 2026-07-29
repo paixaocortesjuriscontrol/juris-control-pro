@@ -294,6 +294,7 @@ import {
   shouldExclude,
   type Monitoramento,
 } from "../_kurier-shared/djenMatch.ts";
+import { tribunalPermitidoKurier } from "../_kurier-shared/tribunalSigla.ts";
 
 // Consome publicações pendentes de UMA credencial Kurier em lotes de 50.
 // Persiste em kurier_publicacoes_raw (idempotente por id_kurier) e em
