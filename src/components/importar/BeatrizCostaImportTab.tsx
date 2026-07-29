@@ -588,6 +588,42 @@ export function BeatrizCostaImportTab({
             </div>
           )}
 
+          {membrosDisponiveis.length > 0 && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Responsáveis pelo processo (opcional, vários)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Todos os processos importados receberão estes responsáveis internos.
+              </p>
+              <ScrollArea className="h-[160px] max-w-md border rounded-md p-2">
+                <div className="space-y-1">
+                  {membrosDisponiveis.map((m) => (
+                    <label
+                      key={m.id}
+                      htmlFor={`benner-resp-${m.id}`}
+                      className="flex items-center gap-3 p-2 rounded hover:bg-muted/50 cursor-pointer"
+                    >
+                      <Checkbox
+                        id={`benner-resp-${m.id}`}
+                        checked={responsaveisIds.includes(m.id)}
+                        onCheckedChange={() => toggleResponsavel(m.id)}
+                        disabled={importing || parsing}
+                      />
+                      <span className="text-sm">{m.nome}</span>
+                    </label>
+                  ))}
+                </div>
+              </ScrollArea>
+              {responsaveisIds.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {responsaveisIds.length} responsável(is) selecionado(s)
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
               <Users className="h-4 w-4" />
