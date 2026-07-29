@@ -426,6 +426,38 @@ export type Database = {
           },
         ]
       }
+      alertas_recebidos_leituras: {
+        Row: {
+          alerta_id: string
+          created_at: string
+          id: string
+          lido_em: string
+          user_id: string
+        }
+        Insert: {
+          alerta_id: string
+          created_at?: string
+          id?: string
+          lido_em?: string
+          user_id: string
+        }
+        Update: {
+          alerta_id?: string
+          created_at?: string
+          id?: string
+          lido_em?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alertas_recebidos_leituras_alerta_id_fkey"
+            columns: ["alerta_id"]
+            isOneToOne: false
+            referencedRelation: "historico_alertas_enviados"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       areas_atuacao: {
         Row: {
           ativo: boolean

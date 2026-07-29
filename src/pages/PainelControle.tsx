@@ -68,7 +68,7 @@ import TstPrazos from "@/pages/TstPrazos";
 import { KanbanItensAgenda } from "@/components/painel/KanbanItensAgenda";
 import { EquipeItensAgenda } from "@/components/painel/EquipeItensAgenda";
 import PainelAudiencias from "@/pages/PainelAudiencias";
-import Notificacoes from "@/pages/Notificacoes";
+import MinhasMensagensRecebidas from "@/components/notificacoes/MinhasMensagensRecebidas";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 import { AcompanhamentoEspecialEventos } from "@/components/processos/AcompanhamentoEspecialEventos";
 import { Sparkles } from "lucide-react";
@@ -1747,29 +1747,20 @@ export default function PainelControle() {
           </div>
         ) : viewMode === "notificacoes" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
-            <Notificacoes
-              embedded
-              coordenacaoIdExterno={adminCoordFilter}
-              periodoInicioExterno={
+            <MinhasMensagensRecebidas
+              periodoInicio={
                 somenteHoje
                   ? new Date(new Date().setHours(0, 0, 0, 0))
                   : painelFiltros.periodoInicio
                     ? new Date(`${painelFiltros.periodoInicio}T00:00:00`)
                     : undefined
               }
-              periodoFimExterno={
+              periodoFim={
                 somenteHoje
                   ? new Date(new Date().setHours(0, 0, 0, 0))
                   : painelFiltros.periodoFim
                     ? new Date(`${painelFiltros.periodoFim}T00:00:00`)
                     : undefined
-              }
-              statusFilterExterno={
-                situacaoFilter === "pendente"
-                  ? "pendente"
-                  : situacaoFilter === "tratado" || situacaoFilter === "confirmado"
-                    ? "concluido"
-                    : "todas"
               }
             />
           </div>
