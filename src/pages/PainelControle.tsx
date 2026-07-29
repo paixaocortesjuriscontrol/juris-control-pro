@@ -1101,7 +1101,7 @@ export default function PainelControle() {
           )}
           {isAdminOrCoordinator && (
             <Button asChild variant="outline" size="sm">
-              <Link to="/config-notificacoes">Config. Notificações</Link>
+              <Link to="/notificacoes">Config. Notificações</Link>
             </Button>
           )}
           <Button variant="outline" size="sm" onClick={() => setRelatorioAudOpen(true)} title="Relatório de audiências por usuário/situação">
