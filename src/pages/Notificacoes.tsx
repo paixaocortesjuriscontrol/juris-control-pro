@@ -56,22 +56,60 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { parseDateSafe } from "@/utils/date";
 
-interface NotificacoesProps { embedded?: boolean }
-export default function Notificacoes({ embedded = false }: NotificacoesProps = {}) {
+interface NotificacoesProps {
+  embedded?: boolean;
+  /** Filtros externos (Painel de Controle) — quando embedded, substituem os filtros internos */
+  coordenacaoIdExterno?: string;
+  periodoInicioExterno?: Date;
+  periodoFimExterno?: Date;
+  searchQueryExterno?: string;
+  statusFilterExterno?: string;
+}
+export default function Notificacoes({
+  embedded = false,
+  coordenacaoIdExterno,
+  periodoInicioExterno,
+  periodoFimExterno,
+  searchQueryExterno,
+  statusFilterExterno,
+}: NotificacoesProps = {}) {
   // Central de Notificações
   // Mantém a UI responsiva: carregamento incremental (evita payloads gigantes)
   const PAGE_SIZE = 200;
 
-  const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [coordenacaoId, setCoordenacaoId] = useState<string>(coordenacaoIdExterno || "todas");
+  const [activeTab, setActiveTab] = useState(embedded ? "todos" : "dashboard");
+  const [searchQuery, setSearchQuery] = useState(searchQueryExterno || "");
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("todas");
-  const [statusFilter, setStatusFilter] = useState<string>("pendente");
+  const [statusFilter, setStatusFilter] = useState<string>(statusFilterExterno || "pendente");
   // Padrão: Hoje (comportamento original)
-  const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(() => startOfDay(new Date()));
-  const [periodoFim, setPeriodoFim] = useState<Date | undefined>(() => startOfDay(new Date()));
+  const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(() =>
+    embedded ? periodoInicioExterno : startOfDay(new Date())
+  );
+  const [periodoFim, setPeriodoFim] = useState<Date | undefined>(() =>
+    embedded ? periodoFimExterno : startOfDay(new Date())
+  );
   const [filterCategory, setFilterCategory] = useState<string | undefined>(undefined);
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
+
+  // Sincroniza filtros externos (Painel de Controle) quando embedded
+  useEffect(() => {
+    if (!embedded) return;
+    setCoordenacaoId(coordenacaoIdExterno || "todas");
+  }, [embedded, coordenacaoIdExterno]);
+  useEffect(() => {
+    if (!embedded) return;
+    setPeriodoInicio(periodoInicioExterno);
+    setPeriodoFim(periodoFimExterno);
+  }, [embedded, periodoInicioExterno?.getTime(), periodoFimExterno?.getTime()]);
+  useEffect(() => {
+    if (!embedded) return;
+    setSearchQuery(searchQueryExterno || "");
+  }, [embedded, searchQueryExterno]);
+  useEffect(() => {
+    if (!embedded) return;
+    setStatusFilter(statusFilterExterno || "todas");
+  }, [embedded, statusFilterExterno]);
   
   
   const navigate = useNavigate();
