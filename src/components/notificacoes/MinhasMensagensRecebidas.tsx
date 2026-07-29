@@ -29,9 +29,15 @@ function onlyDigits(v?: string | null) {
 export default function MinhasMensagensRecebidas({
   periodoInicio,
   periodoFim,
+  coordenacaoId,
+  todosDestinatarios = false,
 }: {
   periodoInicio?: Date;
   periodoFim?: Date;
+  /** "todas" ou id da coordenação */
+  coordenacaoId?: string;
+  /** quando true (modo Escritório para admin/coordenador), mostra mensagens de todos */
+  todosDestinatarios?: boolean;
 }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -54,12 +60,17 @@ export default function MinhasMensagensRecebidas({
   const email = (perfil?.email || user?.email || "").toLowerCase();
   const telefone = onlyDigits(perfil?.telefone);
 
-  const inicioISO = periodoInicio ? new Date(periodoInicio.setHours(0, 0, 0, 0)).toISOString() : undefined;
-  const fimISO = periodoFim ? new Date(new Date(periodoFim).setHours(23, 59, 59, 999)).toISOString() : undefined;
+  const inicioISO = periodoInicio
+    ? new Date(new Date(periodoInicio).setHours(0, 0, 0, 0)).toISOString()
+    : undefined;
+  const fimISO = periodoFim
+    ? new Date(new Date(periodoFim).setHours(23, 59, 59, 999)).toISOString()
+    : undefined;
+  const coordFiltro = coordenacaoId && coordenacaoId !== "todas" ? coordenacaoId : undefined;
 
   const { data: mensagens = [], isLoading } = useQuery({
-    queryKey: ["minhas-mensagens", email, telefone, inicioISO, fimISO],
-    enabled: !!email || !!telefone,
+    queryKey: ["minhas-mensagens", email, telefone, inicioISO, fimISO, coordFiltro, todosDestinatarios],
+    enabled: todosDestinatarios || !!email || !!telefone,
     queryFn: async () => {
       let q = supabase
         .from("historico_alertas_enviados")
@@ -68,6 +79,7 @@ export default function MinhasMensagensRecebidas({
         .limit(500);
       if (inicioISO) q = q.gte("enviado_em", inicioISO);
       if (fimISO) q = q.lte("enviado_em", fimISO);
+      if (coordFiltro) q = q.eq("coordenacao_id", coordFiltro);
       if (!inicioISO && !fimISO) {
         const d = new Date();
         d.setDate(d.getDate() - 30);
@@ -75,7 +87,9 @@ export default function MinhasMensagensRecebidas({
       }
       const { data, error } = await q;
       if (error) throw error;
-      return ((data || []) as Mensagem[]).filter((m) => {
+      const rows = (data || []) as Mensagem[];
+      if (todosDestinatarios) return rows;
+      return rows.filter((m) => {
         const dest = (m.destinatario || "").toLowerCase();
         if (email && dest === email) return true;
         if (telefone && onlyDigits(dest).endsWith(telefone.slice(-8))) return true;
