@@ -1,7 +1,7 @@
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Textarea } from "@/components/ui/textarea";
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
+import { ItemAnexos, type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
 import {
   Select,
   SelectContent,
@@ -63,6 +64,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const anexosRef = useRef<ItemAnexosHandle>(null);
   const isEditing = !!evento;
   const [situacao, setSituacao] = useState<string>("pendente");
   const { podeCancelar } = usePodeCancelarItens();
@@ -473,6 +475,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         }
 
         toast.success("Parcelamento atualizado!");
+        await anexosRef.current?.uploadPendentes(evento.id, processoIds[0] || null);
       } else {
         // Criar novo evento - parcelamento é recorrente até todas parcelas serem pagas
         const { data: novoEvento, error: eventoError } = await supabase
@@ -544,6 +547,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         }
 
         toast.success(`Parcelamento criado com ${formData.totalParcelas} parcelas!`);
+        await anexosRef.current?.uploadPendentes(novoEvento.id, processoIds[0] || null);
       }
       
       await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
@@ -1089,6 +1093,13 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                 </>
               )}
             </div>
+
+            <ItemAnexos
+              ref={anexosRef}
+              tipo="evento"
+              itemId={evento?.id}
+              processoId={processoIds[0] || null}
+            />
 
             <ItemComentarios tipo="evento" itemId={evento?.id} />
 

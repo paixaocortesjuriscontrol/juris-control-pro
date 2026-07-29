@@ -25,6 +25,7 @@ import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import { useQueryClient } from "@tanstack/react-query";
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
+import { ItemAnexos, type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
 import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPublicacaoVinculada";
 
 type Props = {
@@ -97,6 +98,7 @@ export function AudienciaFormSimplificado({
   const { criarAudiencia } = useAudienciasDetectadas();
   const isEditing = !!audienciaParaEditar?.id;
   const secondaryClickedRef = useRef(false);
+  const anexosRef = useRef<ItemAnexosHandle>(null);
   const tertiaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const toDateInput = (value?: string | null) => value ? value.slice(0, 10) : "";
@@ -318,6 +320,7 @@ export function AudienciaFormSimplificado({
 
       await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
       await queryClient.invalidateQueries({ queryKey: ["audiencias-processo"] });
+      await anexosRef.current?.uploadPendentes(audienciaParaEditar.id, dadosAudiencia.processo_id || null);
       if (invalidateKey) {
         await queryClient.invalidateQueries({ queryKey: invalidateKey });
       }
@@ -347,6 +350,9 @@ export function AudienciaFormSimplificado({
       if (criada?.id && onAfterCreate) {
         try { onAfterCreate({ id: criada.id, titulo: payload.titulo || "Audiência" }); }
         catch (err) { console.warn("onAfterCreate falhou:", err); }
+      }
+      if (criada?.id) {
+        await anexosRef.current?.uploadPendentes(criada.id, payload.processo_id || null);
       }
     }
     setForm({ ...empty });
@@ -679,6 +685,13 @@ export function AudienciaFormSimplificado({
           rows={4}
         />
       </div>
+
+      <ItemAnexos
+        ref={anexosRef}
+        tipo="audiencia"
+        itemId={audienciaParaEditar?.id}
+        processoId={audienciaParaEditar?.processo_id || defaultProcessoId || null}
+      />
 
       <ItemComentarios tipo="audiencia" itemId={audienciaParaEditar?.id} />
 

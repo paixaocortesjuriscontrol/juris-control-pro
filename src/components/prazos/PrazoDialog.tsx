@@ -29,6 +29,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
+import { ItemAnexos, type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
 import { CalendarIcon, Loader2, FileText, Tag, AlertTriangle } from "lucide-react";
 import { format, parseISO, addDays, addWeeks, addMonths, addYears } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -133,6 +134,7 @@ export function PrazoDialog({
   const updatePrazo = useUpdatePrazo();
   const secondaryClickedRef = useRef(false);
   const tertiaryClickedRef = useRef(false);
+  const anexosRef = useRef<ItemAnexosHandle>(null);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
 
   // Quando editando um prazo existente, carregar publicação vinculada (se houver)
@@ -443,6 +445,7 @@ export function PrazoDialog({
       }
 
       if (tarefaId) {
+        await anexosRef.current?.uploadPendentes(tarefaId, processoIdParaSalvar);
         // Atualizar coordenação do processo, se alterada
         const processoId = processoIdParaSalvar;
         if (processoId && coordenacaoId) {
@@ -886,6 +889,13 @@ export function PrazoDialog({
             rows={4}
           />
         </div>
+
+        <ItemAnexos
+          ref={anexosRef}
+          tipo="tarefa"
+          itemId={prazo?.id}
+          processoId={processoIdEfetivo}
+        />
 
         <ItemComentarios tipo="tarefa" itemId={prazo?.id} />
 

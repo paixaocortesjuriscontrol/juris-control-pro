@@ -3809,11 +3809,13 @@ export type Database = {
       documentos: {
         Row: {
           analisado_ia: boolean | null
+          audiencia_id: string | null
           categoria: string | null
           confianca_ia: string | null
           conteudo_extraido: string | null
           created_at: string
           descricao: string | null
+          evento_id: string | null
           id: string
           nome: string
           paginas_extraidas: number | null
@@ -3830,11 +3832,13 @@ export type Database = {
         }
         Insert: {
           analisado_ia?: boolean | null
+          audiencia_id?: string | null
           categoria?: string | null
           confianca_ia?: string | null
           conteudo_extraido?: string | null
           created_at?: string
           descricao?: string | null
+          evento_id?: string | null
           id?: string
           nome: string
           paginas_extraidas?: number | null
@@ -3851,11 +3855,13 @@ export type Database = {
         }
         Update: {
           analisado_ia?: boolean | null
+          audiencia_id?: string | null
           categoria?: string | null
           confianca_ia?: string | null
           conteudo_extraido?: string | null
           created_at?: string
           descricao?: string | null
+          evento_id?: string | null
           id?: string
           nome?: string
           paginas_extraidas?: number | null
@@ -3871,6 +3877,20 @@ export type Database = {
           url?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "documentos_audiencia_id_fkey"
+            columns: ["audiencia_id"]
+            isOneToOne: false
+            referencedRelation: "audiencias_detectadas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "documentos_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos_agenda"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "documentos_pasta_id_fkey"
             columns: ["pasta_id"]
