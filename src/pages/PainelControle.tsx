@@ -124,7 +124,9 @@ export default function PainelControle() {
   const [searchParams, setSearchParams] = useSearchParams();
   const handledSelectedIdRef = useRef(false);
   const [tabMode, setTabMode] = useState<TabMode>("pessoal");
-  const [viewMode, setViewMode] = useState<ViewMode>("agenda");
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    (searchParams.get("view") as ViewMode) || "agenda"
+  );
   const [mesAtual, setMesAtual] = useState(new Date());
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -1238,7 +1240,7 @@ export default function PainelControle() {
                   onClick={() => setViewMode("notificacoes")}
                   title="Central de notificações (mantém menu e filtros)"
                 >
-                  Alertas
+                  Alertas{totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ""}
                 </Button>
                 {([
                   { key: "prazo",         label: "Prazos" },
