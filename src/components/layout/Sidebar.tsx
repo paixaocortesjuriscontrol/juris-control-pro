@@ -87,7 +87,7 @@ export function Sidebar() {
                 </span>
                 {totalNaoLidas > 0 && (
                   <NavLink
-                    to="/painel?tab=alertas"
+                    to="/painel-controle?view=notificacoes"
                     title={`${totalNaoLidas} mensagem(ns) não lida(s)`}
                     className="inline-flex items-center px-2 py-0.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-semibold shadow-sm"
                   >
