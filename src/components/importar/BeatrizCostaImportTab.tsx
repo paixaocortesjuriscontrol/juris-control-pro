@@ -9,6 +9,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
@@ -253,6 +255,7 @@ export function BeatrizCostaImportTab({
   const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState("");
   const [buscarAndamentos, setBuscarAndamentos] = useState(false);
+  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [visibleRows, setVisibleRows] = useState(TABLE_PAGE_SIZE);
   const cancelledRef = useRef(false);
   const { toast } = useToast();
@@ -264,6 +267,24 @@ export function BeatrizCostaImportTab({
     setProgress(0);
     setProgressMsg("");
     setVisibleRows(TABLE_PAGE_SIZE);
+  };
+
+  const toggleResponsavel = (id: string) =>
+    setResponsaveisIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  /** Grava os responsáveis internos escolhidos para o processo importado. */
+  const gravarResponsaveis = async (processoId: string) => {
+    if (responsaveisIds.length === 0) return;
+    const rows = responsaveisIds.map((uid) => ({
+      processo_id: processoId,
+      usuario_id: uid,
+      coordenacao_id: selectedCoordenacao || null,
+      papel: "responsavel",
+      ativo: true,
+    }));
+    await supabase
+      .from("processos_responsaveis")
+      .upsert(rows as any, { onConflict: "processo_id,usuario_id" });
   };
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -397,6 +418,7 @@ export function BeatrizCostaImportTab({
               results.set(p.numero, { status: "erro", msg: error.message });
               erros++;
             } else {
+              await gravarResponsaveis(existingId);
               results.set(p.numero, { status: "sucesso", msg: "Atualizado (já existia)" });
               atualizados++;
             }
@@ -413,7 +435,10 @@ export function BeatrizCostaImportTab({
               results.set(p.numero, { status: "sucesso", msg: "Cadastrado" });
               novos++;
               if (buscarAndamentos && inserted) {
+                await gravarResponsaveis(inserted.id);
                 buscarAndamentosExternos(inserted.id, p.numero).catch(() => {});
+              } else if (inserted) {
+                await gravarResponsaveis(inserted.id);
               }
             }
           }
