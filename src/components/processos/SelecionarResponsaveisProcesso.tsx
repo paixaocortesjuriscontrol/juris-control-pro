@@ -201,10 +201,14 @@ export function SelecionarResponsaveisProcesso({
     }
   };
 
-  // Filtrar membros por coordenação
-  const membrosFiltrados = coordenacaoFiltro === "all" 
-    ? todosMembros 
-    : todosMembros.filter(m => m.coordenacao_id === coordenacaoFiltro);
+  // Filtrar membros por coordenação (não-admin só enxerga as suas)
+  const idsPermitidos = coordenacoes.map((c) => c.id);
+  const membrosVisiveis = isAdmin
+    ? todosMembros
+    : todosMembros.filter((m) => idsPermitidos.includes(m.coordenacao_id as string));
+  const membrosFiltrados = coordenacaoFiltro === "all"
+    ? membrosVisiveis
+    : membrosVisiveis.filter((m) => m.coordenacao_id === coordenacaoFiltro);
 
   // Agrupar membros únicos (pode estar em múltiplas coordenações)
   const membrosUnicos = membrosFiltrados.reduce((acc, m) => {
