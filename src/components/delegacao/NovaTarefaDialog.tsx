@@ -1,3 +1,4 @@
+import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -890,7 +891,19 @@ export function NovaTarefaDialog({
                 name="titulo"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Título</FormLabel>
+                    <div className="flex items-center justify-between gap-2">
+                      <FormLabel>Título</FormLabel>
+                      <ModeloTituloPicker
+                        tipo="tarefa"
+                        coordenacaoId={coordenacaoId}
+                        onSelect={(m) => {
+                          form.setValue("titulo", m.titulo, { shouldDirty: true });
+                          if (m.descricao && !form.getValues("descricao")) {
+                            form.setValue("descricao", m.descricao, { shouldDirty: true });
+                          }
+                        }}
+                      />
+                    </div>
                     <FormControl>
                       <AutoResizeTextarea
                         placeholder="Título da tarefa"

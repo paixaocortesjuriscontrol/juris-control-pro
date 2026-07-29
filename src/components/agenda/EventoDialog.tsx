@@ -1,3 +1,4 @@
+import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import {
@@ -531,6 +532,16 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               <Label htmlFor="titulo" className="text-sm">
                 Título do evento <span className="text-destructive">*</span>
               </Label>
+              <div className="mt-1 flex justify-end">
+                <ModeloTituloPicker
+                  tipo="evento"
+                  coordenacaoId={coordenacaoId}
+                  onSelect={(m) => {
+                    setTitulo(m.titulo);
+                    if (m.descricao) setObservacoes((prev) => prev || m.descricao || "");
+                  }}
+                />
+              </div>
               <AutoResizeTextarea
                 id="titulo"
                 value={titulo}

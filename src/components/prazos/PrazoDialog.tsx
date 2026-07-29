@@ -1,3 +1,4 @@
+import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
@@ -609,9 +610,19 @@ export function PrazoDialog({
         )}
 
         <div className="space-y-1.5">
-          <Label className="text-sm">
-            Título do prazo<span className="text-destructive">*</span>
-          </Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-sm">
+              Título do prazo<span className="text-destructive">*</span>
+            </Label>
+            <ModeloTituloPicker
+              tipo="prazo"
+              coordenacaoId={coordenacaoId}
+              onSelect={(m) => {
+                setTitulo(m.titulo);
+                if (m.descricao) setObservacoes((prev) => prev || m.descricao || "");
+              }}
+            />
+          </div>
           <Input
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}

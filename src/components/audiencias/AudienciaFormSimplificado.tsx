@@ -1,3 +1,4 @@
+import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -442,6 +443,16 @@ export function AudienciaFormSimplificado({
         <Label className="text-sm">
           Título da audiência<span className="text-destructive">*</span>
         </Label>
+        <div className="mb-1 flex justify-end">
+          <ModeloTituloPicker
+            tipo="audiencia"
+            coordenacaoId={coordenacaoId}
+            onSelect={(m) => {
+              set("titulo", m.titulo);
+              if (m.descricao && !form.observacoes) set("observacoes", m.descricao);
+            }}
+          />
+        </div>
         <AutoResizeTextarea
           value={form.titulo}
           onChange={(e) => set("titulo", e.target.value)}
