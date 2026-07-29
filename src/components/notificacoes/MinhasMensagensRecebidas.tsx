@@ -42,7 +42,7 @@ export default function MinhasMensagensRecebidas({
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [busca, setBusca] = useState("");
-  const [apenasNaoLidas, setApenasNaoLidas] = useState(false);
+  const [filtroLeitura, setFiltroLeitura] = useState<"todas" | "nao_lidas" | "lidas">("todas");
 
   const { data: perfil } = useQuery({
     queryKey: ["perfil-contatos", user?.id],
@@ -116,14 +116,15 @@ export default function MinhasMensagensRecebidas({
   const lista = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     return mensagens.filter((m) => {
-      if (apenasNaoLidas && lidos.has(m.id)) return false;
+      if (filtroLeitura === "nao_lidas" && lidos.has(m.id)) return false;
+      if (filtroLeitura === "lidas" && !lidos.has(m.id)) return false;
       if (!termo) return true;
       return (
         (m.conteudo || "").toLowerCase().includes(termo) ||
         (m.tipo_alerta || "").toLowerCase().includes(termo)
       );
     });
-  }, [mensagens, busca, apenasNaoLidas, lidos]);
+  }, [mensagens, busca, filtroLeitura, lidos]);
 
   const naoLidas = mensagens.filter((m) => !lidos.has(m.id)).length;
 
@@ -158,13 +159,29 @@ export default function MinhasMensagensRecebidas({
             placeholder="Buscar na mensagem..."
             className="h-9 w-56"
           />
-          <Button
-            size="sm"
-            variant={apenasNaoLidas ? "default" : "outline"}
-            onClick={() => setApenasNaoLidas((v) => !v)}
-          >
-            Só não lidas
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant={filtroLeitura === "todas" ? "default" : "outline"}
+              onClick={() => setFiltroLeitura("todas")}
+            >
+              Todas
+            </Button>
+            <Button
+              size="sm"
+              variant={filtroLeitura === "nao_lidas" ? "default" : "outline"}
+              onClick={() => setFiltroLeitura("nao_lidas")}
+            >
+              Não lidas
+            </Button>
+            <Button
+              size="sm"
+              variant={filtroLeitura === "lidas" ? "default" : "outline"}
+              onClick={() => setFiltroLeitura("lidas")}
+            >
+              Lidas
+            </Button>
+          </div>
           <Button
             size="sm"
             variant="outline"
