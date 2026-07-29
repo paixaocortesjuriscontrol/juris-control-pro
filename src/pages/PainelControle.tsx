@@ -62,6 +62,7 @@ import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { toZonedTime } from "date-fns-tz";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useMensagensNaoLidas } from "@/hooks/useMensagensNaoLidas";
 import { toast } from "sonner";
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
 import TstPrazos from "@/pages/TstPrazos";
@@ -122,9 +123,12 @@ export default function PainelControle() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { totalNaoLidas } = useMensagensNaoLidas();
   const handledSelectedIdRef = useRef(false);
   const [tabMode, setTabMode] = useState<TabMode>("pessoal");
-  const [viewMode, setViewMode] = useState<ViewMode>("agenda");
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    (searchParams.get("view") as ViewMode) || "agenda"
+  );
   const [mesAtual, setMesAtual] = useState(new Date());
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -1238,7 +1242,7 @@ export default function PainelControle() {
                   onClick={() => setViewMode("notificacoes")}
                   title="Central de notificações (mantém menu e filtros)"
                 >
-                  Alertas
+                  Alertas{totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ""}
                 </Button>
                 {([
                   { key: "prazo",         label: "Prazos" },

@@ -42,6 +42,7 @@ import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { useMenuPermissions } from "@/hooks/useMenuPermissions";
+import { useMensagensNaoLidas } from "@/hooks/useMensagensNaoLidas";
 import { menuItemsPublicos, menuItemsAdmin, type MenuItem } from "@/config/menuItems";
 import { Button } from "@/components/ui/button";
 
@@ -51,6 +52,7 @@ export function Sidebar() {
   const { isAdmin, isAdminOrCoordinator, role } = useUserRole();
   const { coordenacoes: minhasCoordenacoes } = useCoordenacoesDoUsuario();
   const { isMenuAllowed } = useMenuPermissions();
+  const { totalNaoLidas } = useMensagensNaoLidas();
   const nomesCoordenacoes = new Set((minhasCoordenacoes || []).map((c) => c.nome));
   const isAdvogadoTemporario = role === "advogado_temporario";
 
@@ -79,9 +81,20 @@ export function Sidebar() {
             <div className="animate-fade-in">
               <h1 className="font-serif text-lg font-bold text-sidebar-foreground">Juris Control</h1>
               <p className="text-xs text-sidebar-foreground/60">Paixão Cortes Advogados</p>
-              <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full bg-emerald-600 hover:bg-emerald-600 text-white font-serif text-[11px] font-semibold shadow-sm">
-                v{APP_VERSION}
-              </span>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-600 hover:bg-emerald-600 text-white font-serif text-[11px] font-semibold shadow-sm">
+                  v{APP_VERSION}
+                </span>
+                {totalNaoLidas > 0 && (
+                  <NavLink
+                    to="/painel?tab=alertas"
+                    title={`${totalNaoLidas} mensagem(ns) não lida(s)`}
+                    className="inline-flex items-center px-2 py-0.5 rounded-full bg-destructive text-destructive-foreground text-[11px] font-semibold shadow-sm"
+                  >
+                    {totalNaoLidas} não lidas
+                  </NavLink>
+                )}
+              </div>
             </div>
           )}
         </div>

@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "4.3.1";
+export const APP_VERSION = "4.3.2";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -17,4 +17,5 @@ export const VERSION_HISTORY = [
   { version: "2.2", date: "2026-06-12", notes: "Cards de stats unificados em Distribuição TST (Benner, Judit, Equipe, Dossiês)" },
   { version: "4.3.0", date: "2026-07-28", notes: "Correção das permissões de comentários em prazos/tarefas e audiências" },
   { version: "4.3.1", date: "2026-07-28", notes: "Painel da Equipe compacto e melhorias na visão de itens por membro" },
+  { version: "4.3.2", date: "2026-07-29", notes: "Contador de mensagens não lidas ao lado da versão e no botão Alertas" },
 ];
