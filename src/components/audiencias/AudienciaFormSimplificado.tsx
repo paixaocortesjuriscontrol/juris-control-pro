@@ -392,7 +392,7 @@ export function AudienciaFormSimplificado({
                 <SelectItem value="confirmado">✅ Confirmado</SelectItem>
                 <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
                 <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                {podeCancelar && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+                {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
                 <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
               </SelectContent>
             </Select>

@@ -490,7 +490,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   <SelectContent>
                     <SelectItem value="pendente">⏳ Pendente</SelectItem>
                     <SelectItem value="concluido">✔️ Concluído</SelectItem>
-                    {podeCancelar && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+                    {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
                   </SelectContent>
                 </Select>
                 <Button
@@ -879,7 +879,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               >
                 Cancelar
               </Button>
-              {isEditing && evento?.status !== "cancelado" && (
+              {podeCancelar && isEditing && evento?.status !== "cancelado" && (
                 <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={isPending} className="w-full sm:w-auto">
                   Cancelar evento
                 </Button>

@@ -522,7 +522,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 <SelectItem value="confirmado">✅ Confirmado</SelectItem>
                 <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
                 <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                {podeCancelar && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+                {(podeCancelar || formData.status === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
                 <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
               </SelectContent>
             </Select>
@@ -551,7 +551,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 <SelectItem value="confirmado">✅ Confirmado</SelectItem>
                 <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
                 <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                {podeCancelar && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+                {(podeCancelar || formData.status === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
                 <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
               </SelectContent>
             </Select>
@@ -598,7 +598,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                   <SelectItem value="confirmado">✅ Confirmado</SelectItem>
                   <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
                   <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                  {podeCancelar && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+                  {(podeCancelar || formData.status === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
                   <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
                 </SelectContent>
               </Select>

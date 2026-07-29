@@ -566,7 +566,7 @@ export function PrazoDialog({
               <SelectContent>
                 <SelectItem value="pendente">⏳ Pendente</SelectItem>
                 <SelectItem value="cumprido">✔️ Cumprido</SelectItem>
-                {podeCancelar && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+                {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
               </SelectContent>
             </Select>
             <Button
@@ -894,7 +894,7 @@ export function PrazoDialog({
         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
           Cancelar
         </Button>
-        {prazo?.id && (prazo.status as string) !== "cancelado" && (
+        {podeCancelar && prazo?.id && (prazo.status as string) !== "cancelado" && (
           <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={isLoading}>
             Cancelar prazo
           </Button>

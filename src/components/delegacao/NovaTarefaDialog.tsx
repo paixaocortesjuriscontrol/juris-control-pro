@@ -831,7 +831,7 @@ export function NovaTarefaDialog({
             <SelectContent>
               <SelectItem value="pendente">⏳ Pendente</SelectItem>
               <SelectItem value="cumprido">✔️ Concluída</SelectItem>
-              {podeCancelar && <SelectItem value="cancelado">❌ Cancelada</SelectItem>}
+              {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelada</SelectItem>}
             </SelectContent>
           </Select>
           <Button
@@ -858,7 +858,7 @@ export function NovaTarefaDialog({
               <SelectContent>
                 <SelectItem value="pendente">⏳ Pendente</SelectItem>
                 <SelectItem value="cumprido">✔️ Concluída</SelectItem>
-                {podeCancelar && <SelectItem value="cancelado">❌ Cancelada</SelectItem>}
+                {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelada</SelectItem>}
               </SelectContent>
             </Select>
             <Button
@@ -1438,7 +1438,7 @@ export function NovaTarefaDialog({
           >
             Cancelar
           </Button>
-          {tarefaParaEditar?.id && tarefaParaEditar.status !== "cancelado" && (
+          {podeCancelar && tarefaParaEditar?.id && tarefaParaEditar.status !== "cancelado" && (
             <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={loading} className="w-full sm:w-auto">
               Cancelar tarefa
             </Button>

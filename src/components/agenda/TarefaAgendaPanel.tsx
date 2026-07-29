@@ -996,7 +996,7 @@ export function TarefaAgendaPanel({
             </Button>
           )}
 
-          {statusAtual !== "cancelado" && !isConcluido && (
+          {podeCancelar && statusAtual !== "cancelado" && !isConcluido && (
             <Button
               size="sm"
               variant="outline"

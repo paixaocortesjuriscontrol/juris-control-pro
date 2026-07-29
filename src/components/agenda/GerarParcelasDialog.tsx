@@ -597,7 +597,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           <SelectContent>
             <SelectItem value="pendente">⏳ Pendente</SelectItem>
             <SelectItem value="concluido">✔️ Concluído</SelectItem>
-            {podeCancelar && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+            {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
           </SelectContent>
         </Select>
         <Button
@@ -626,7 +626,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
             <SelectContent>
               <SelectItem value="pendente">⏳ Pendente</SelectItem>
               <SelectItem value="concluido">✔️ Concluído</SelectItem>
-              {podeCancelar && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+              {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
             </SelectContent>
           </Select>
           <Button
@@ -1110,7 +1110,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancelar
           </Button>
-          {isEditing && evento?.status !== "cancelado" && (
+          {podeCancelar && isEditing && evento?.status !== "cancelado" && (
             <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={isSubmitting}>
               Cancelar parcelamento
             </Button>
