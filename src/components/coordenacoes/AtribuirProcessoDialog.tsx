@@ -66,7 +66,6 @@ export function AtribuirProcessoDialog({
   const [areaFilter, setAreaFilter] = useState<string>("all");
   const [clienteFilter, setClienteFilter] = useState<string>("all");
   const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>(coordenacaoId);
-  const [somenteSemResponsavel, setSomenteSemResponsavel] = useState(false);
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -85,9 +84,9 @@ export function AtribuirProcessoDialog({
     enabled: open,
   });
 
-  // Fetch all processes without responsible lawyer (optionally filtered by coordination)
+  // Fetch all processes for the selected coordination
   const { data: processosNaoAtribuidos } = useQuery({
-    queryKey: ["processos-nao-atribuidos-all", coordenacaoFilter, somenteSemResponsavel],
+    queryKey: ["processos-atribuir-all", coordenacaoFilter],
     queryFn: async () => {
       let query = supabase
         .from("processos")
@@ -105,10 +104,6 @@ export function AtribuirProcessoDialog({
           responsavel:profiles!processos_advogado_responsavel_id_fkey(id, nome)
         `)
         .order("created_at", { ascending: false });
-
-      if (somenteSemResponsavel) {
-        query = query.is("advogado_responsavel_id", null);
-      }
 
       if (coordenacaoFilter && coordenacaoFilter !== "all") {
         query = query.eq("coordenacao_id", coordenacaoFilter);
@@ -199,15 +194,18 @@ export function AtribuirProcessoDialog({
         if (upsertError) throw upsertError;
       }
 
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] }),
+        queryClient.invalidateQueries({ queryKey: ["processos-atribuir-all"] }),
+        queryClient.invalidateQueries({ queryKey: ["processos-nao-atribuidos-all"] }),
+        queryClient.invalidateQueries({ queryKey: ["processos"] }),
+        queryClient.invalidateQueries({ queryKey: ["processos-responsaveis"] }),
+      ]);
+
       toast({ 
         title: "Processos atribuídos!", 
         description: `${values.processos.length} processo(s) atribuído(s) a ${responsaveis.length} responsável(is).` 
       });
-      
-      queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
-      queryClient.invalidateQueries({ queryKey: ["processos-nao-atribuidos-all"] });
-      queryClient.invalidateQueries({ queryKey: ["processos"] });
-      queryClient.invalidateQueries({ queryKey: ["processos-responsaveis"] });
       onOpenChange(false);
       form.reset();
       setResponsaveis([]);
@@ -270,7 +268,7 @@ export function AtribuirProcessoDialog({
                 <FormItem className="flex-1 overflow-hidden flex flex-col">
                   <div className="flex items-center justify-between">
                     <FormLabel>
-                      {somenteSemResponsavel ? "Processos sem Responsável" : "Processos"} ({processosFiltrados?.length || 0})
+                      Processos da coordenação ({processosFiltrados?.length || 0})
                     </FormLabel>
                     {processosFiltrados.length > 0 && (
                       <Button
@@ -346,13 +344,6 @@ export function AtribuirProcessoDialog({
                         </SelectContent>
                       </Select>
                     </div>
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                      <Checkbox
-                        checked={somenteSemResponsavel}
-                        onCheckedChange={(c) => setSomenteSemResponsavel(!!c)}
-                      />
-                      Mostrar somente processos sem responsável
-                    </label>
                   </div>
 
                   {processosFiltrados.length > 0 ? (
