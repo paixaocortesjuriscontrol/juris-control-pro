@@ -1,7 +1,7 @@
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -64,6 +64,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const anexosRef = useRef<ItemAnexosHandle>(null);
   const isEditing = !!evento;
   const [situacao, setSituacao] = useState<string>("pendente");
   const { podeCancelar } = usePodeCancelarItens();
