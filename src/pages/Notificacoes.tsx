@@ -842,8 +842,8 @@ export default function Notificacoes({
 
   const body = (
     <>
-      {/* Filters Bar */}
-      <div className="bg-card rounded-xl border border-border/50 p-4 mb-6 animate-fade-in">
+      {/* Filters Bar (oculta quando embedded: usa os filtros superiores do Painel) */}
+      <div className={cn("bg-card rounded-xl border border-border/50 p-4 mb-6 animate-fade-in", embedded && "hidden")}>
         <div className="flex flex-col gap-4">
           {/* Search Row */}
           <div className="flex flex-col lg:flex-row gap-4">
