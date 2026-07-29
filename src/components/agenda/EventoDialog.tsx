@@ -489,9 +489,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                    <SelectItem value="concluido">✔️ Concluído</SelectItem>
-                    {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+                    {situacoesDisponiveis("evento", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Button
