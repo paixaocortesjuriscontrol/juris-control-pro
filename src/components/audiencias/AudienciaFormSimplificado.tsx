@@ -98,6 +98,7 @@ export function AudienciaFormSimplificado({
   const { criarAudiencia } = useAudienciasDetectadas();
   const isEditing = !!audienciaParaEditar?.id;
   const secondaryClickedRef = useRef(false);
+  const anexosRef = useRef<ItemAnexosHandle>(null);
   const tertiaryClickedRef = useRef(false);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const toDateInput = (value?: string | null) => value ? value.slice(0, 10) : "";
@@ -319,6 +320,7 @@ export function AudienciaFormSimplificado({
 
       await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
       await queryClient.invalidateQueries({ queryKey: ["audiencias-processo"] });
+      await anexosRef.current?.uploadPendentes(audienciaParaEditar.id, dadosAudiencia.processo_id || null);
       if (invalidateKey) {
         await queryClient.invalidateQueries({ queryKey: invalidateKey });
       }
