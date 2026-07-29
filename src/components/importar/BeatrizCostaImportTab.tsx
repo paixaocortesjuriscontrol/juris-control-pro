@@ -9,6 +9,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
@@ -253,6 +255,7 @@ export function BeatrizCostaImportTab({
   const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState("");
   const [buscarAndamentos, setBuscarAndamentos] = useState(false);
+  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [visibleRows, setVisibleRows] = useState(TABLE_PAGE_SIZE);
   const cancelledRef = useRef(false);
   const { toast } = useToast();
@@ -264,6 +267,24 @@ export function BeatrizCostaImportTab({
     setProgress(0);
     setProgressMsg("");
     setVisibleRows(TABLE_PAGE_SIZE);
+  };
+
+  const toggleResponsavel = (id: string) =>
+    setResponsaveisIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  /** Grava os responsáveis internos escolhidos para o processo importado. */
+  const gravarResponsaveis = async (processoId: string) => {
+    if (responsaveisIds.length === 0) return;
+    const rows = responsaveisIds.map((uid) => ({
+      processo_id: processoId,
+      usuario_id: uid,
+      coordenacao_id: selectedCoordenacao || null,
+      papel: "responsavel",
+      ativo: true,
+    }));
+    await supabase
+      .from("processos_responsaveis")
+      .upsert(rows as any, { onConflict: "processo_id,usuario_id" });
   };
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -397,6 +418,7 @@ export function BeatrizCostaImportTab({
               results.set(p.numero, { status: "erro", msg: error.message });
               erros++;
             } else {
+              await gravarResponsaveis(existingId);
               results.set(p.numero, { status: "sucesso", msg: "Atualizado (já existia)" });
               atualizados++;
             }
@@ -412,8 +434,9 @@ export function BeatrizCostaImportTab({
             } else {
               results.set(p.numero, { status: "sucesso", msg: "Cadastrado" });
               novos++;
-              if (buscarAndamentos && inserted) {
-                buscarAndamentosExternos(inserted.id, p.numero).catch(() => {});
+              if (inserted) {
+                await gravarResponsaveis(inserted.id);
+                if (buscarAndamentos) buscarAndamentosExternos(inserted.id, p.numero).catch(() => {});
               }
             }
           }
@@ -562,6 +585,42 @@ export function BeatrizCostaImportTab({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          )}
+
+          {membrosDisponiveis.length > 0 && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Responsáveis pelo processo (opcional, vários)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Todos os processos importados receberão estes responsáveis internos.
+              </p>
+              <ScrollArea className="h-[160px] max-w-md border rounded-md p-2">
+                <div className="space-y-1">
+                  {membrosDisponiveis.map((m) => (
+                    <label
+                      key={m.id}
+                      htmlFor={`benner-resp-${m.id}`}
+                      className="flex items-center gap-3 p-2 rounded hover:bg-muted/50 cursor-pointer"
+                    >
+                      <Checkbox
+                        id={`benner-resp-${m.id}`}
+                        checked={responsaveisIds.includes(m.id)}
+                        onCheckedChange={() => toggleResponsavel(m.id)}
+                        disabled={importing || parsing}
+                      />
+                      <span className="text-sm">{m.nome}</span>
+                    </label>
+                  ))}
+                </div>
+              </ScrollArea>
+              {responsaveisIds.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {responsaveisIds.length} responsável(is) selecionado(s)
+                </p>
+              )}
             </div>
           )}
 
