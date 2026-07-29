@@ -602,66 +602,6 @@ const Coordenacoes = () => {
               </CardContent>
             </Card>
 
-            {/* Process Distribution */}
-            {selectedCoord.membros.length > 0 && selectedCoord.processCount > 0 && (
-              <Card className="animate-slide-up" style={{ animationDelay: "200ms" }}>
-                <CardHeader>
-                  <CardTitle className="font-serif text-lg">Distribuição de Processos</CardTitle>
-                  <CardDescription>
-                    Visão geral da carga de trabalho da equipe ({selectedCoord.assignedCount} distribuídos de {selectedCoord.processCount} total)
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {/* Unassigned processes indicator */}
-                    {selectedCoord.unassignedCount > 0 && (
-                      <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-200 dark:border-amber-800">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-medium text-amber-700 dark:text-amber-400">Não distribuídos</span>
-                          <span className="text-sm text-amber-600 dark:text-amber-500">
-                            {selectedCoord.unassignedCount} ({((selectedCoord.unassignedCount / selectedCoord.processCount) * 100).toFixed(0)}%)
-                          </span>
-                        </div>
-                        <div className="h-2 rounded-full bg-amber-200 dark:bg-amber-900 overflow-hidden">
-                          <div 
-                            className="h-full rounded-full bg-amber-500 transition-all duration-500"
-                            style={{ width: `${(selectedCoord.unassignedCount / selectedCoord.processCount) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    
-                    {selectedCoord.membros.map((member: any) => {
-                      const percentage = selectedCoord.processCount > 0 
-                        ? ((member.processCount || 0) / selectedCoord.processCount) * 100 
-                        : 0;
-                      return (
-                        <div key={member.id}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-sm font-medium">{member.usuario?.nome || "Membro"}</span>
-                            <span className="text-sm text-muted-foreground">
-                              {member.processCount || 0} ({percentage.toFixed(0)}%)
-                            </span>
-                          </div>
-                          <div className="h-2 rounded-full bg-muted overflow-hidden">
-                            <div 
-                              className={cn(
-                                "h-full rounded-full transition-all duration-500",
-                                "bg-primary",
-                                selectedCoord.area === "civil" && "bg-area-civil",
-                                selectedCoord.area === "trabalhista" && "bg-area-trabalhista",
-                                selectedCoord.area === "empresarial" && "bg-area-empresarial"
-                              )}
-                              style={{ width: `${percentage}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
         )}
       </div>
