@@ -77,16 +77,6 @@ function computeDataPrevista(base: string | undefined, dias: number, unidade: "u
   return format(result, "yyyy-MM-dd");
 }
 
-type AnexoComAnaliseUnused = {
-  file?: File;
-  // Para documentos já salvos (modo edição)
-  id?: string;
-  nome?: string;
-  tamanho_bytes?: number;
-  url?: string;
-  uploaded?: boolean;
-};
-
 const formSchema = z.object({
   tipo_vinculo: z.enum(["processo", "sem_vinculo"]),
   coordenacao_id: z.string().optional(),
