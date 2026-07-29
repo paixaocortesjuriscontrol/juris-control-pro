@@ -57,6 +57,36 @@ type AnexoComAnalise = {
   uploaded?: boolean;
 };
 
+function addBusinessDays(start: Date, days: number): Date {
+  let remaining = days;
+  const d = new Date(start);
+  while (remaining > 0) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) remaining--;
+  }
+  return d;
+}
+
+function computeDataPrevista(base: string | undefined, dias: number, unidade: "uteis" | "corridos"): string {
+  if (!base || !dias || dias <= 0) return "";
+  const [y, m, d] = base.split("-").map(Number);
+  if (!y || !m || !d) return "";
+  const baseDate = new Date(y, m - 1, d, 12, 0, 0);
+  const result = unidade === "uteis" ? addBusinessDays(baseDate, dias) : addDays(baseDate, dias);
+  return format(result, "yyyy-MM-dd");
+}
+
+type AnexoComAnaliseUnused = {
+  file?: File;
+  // Para documentos já salvos (modo edição)
+  id?: string;
+  nome?: string;
+  tamanho_bytes?: number;
+  url?: string;
+  uploaded?: boolean;
+};
+
 const formSchema = z.object({
   tipo_vinculo: z.enum(["processo", "sem_vinculo"]),
   coordenacao_id: z.string().optional(),
