@@ -255,7 +255,7 @@ serve(async (req) => {
         const conteudoComentario: string = String(ctx.conteudo ?? "");
         const assunto = isComentario
           ? `[${labelEntidade(item.entidade)}] Novo comentário — ${tituloItem}`
-          : `[${labelEntidade(item.entidade)}] ${tituloItem} — ${item.status_anterior ?? "?"} → ${item.status_novo ?? "?"}`;
+          : `[${labelEntidade(item.entidade)}] ${tituloItem} — ${labelSituacao(item.status_anterior)} → ${labelSituacao(item.status_novo)}`;
 
         const linhas: string[] = isComentario ? [
           `${labelEntidade(item.entidade)}: ${tituloItem}`,
@@ -267,8 +267,8 @@ serve(async (req) => {
         ] : [
           `${labelEntidade(item.entidade)}: ${tituloItem}`,
           ``,
-          `Situação anterior: ${item.status_anterior ?? "-"}`,
-          `Nova situação: ${item.status_novo ?? "-"}`,
+          `Situação anterior: ${labelSituacao(item.status_anterior)}`,
+          `Nova situação: ${labelSituacao(item.status_novo)}`,
           `Alterado por: ${atorNome}${atorEmail ? ` <${atorEmail}>` : ""}`,
           `Data/hora: ${quando} (BRT)`,
         ];
@@ -285,8 +285,8 @@ serve(async (req) => {
           ...(coordNome ? [["Coordenação", esc(coordNome)] as [string, string]] : []),
           ...Object.entries(detalhes).map(([k, v]) => [esc(k), esc(v)] as [string, string]),
         ] : [
-          ["Situação anterior", esc(item.status_anterior ?? "-")],
-          ["Nova situação", `<strong>${esc(item.status_novo ?? "-")}</strong>`],
+          ["Situação anterior", esc(labelSituacao(item.status_anterior))],
+          ["Nova situação", `<strong>${esc(labelSituacao(item.status_novo))}</strong>`],
           ["Alterado por", esc(atorNome) + (atorEmail ? ` <span style="color:#666">&lt;${esc(atorEmail)}&gt;</span>` : "")],
           ["Data/hora", `${esc(quando)} <span style="color:#666">(BRT)</span>`],
           ...(coordNome ? [["Coordenação", esc(coordNome)] as [string, string]] : []),
