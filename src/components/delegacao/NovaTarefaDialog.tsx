@@ -1074,12 +1074,61 @@ export function NovaTarefaDialog({
                   <FormItem>
                     <FormLabel>Data base</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <Input
+                        type="date"
+                        {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          if (prazoDias > 0) {
+                            const calc = computeDataPrevista(e.target.value, prazoDias, prazoUnidade);
+                            if (calc) form.setValue("data_vencimento", calc);
+                          }
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* Prazo em dias (calcula a Data prevista) */}
+              <div className="space-y-1.5">
+                <Label>Prazo</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={prazoDias}
+                    onChange={(e) => {
+                      const dias = parseInt(e.target.value || "0", 10) || 0;
+                      setPrazoDias(dias);
+                      const calc = computeDataPrevista(form.getValues("data_base"), dias, prazoUnidade);
+                      if (calc) form.setValue("data_vencimento", calc);
+                    }}
+                    className="w-20"
+                  />
+                  <Select
+                    value={prazoUnidade}
+                    onValueChange={(v) => {
+                      const unidade = v as "uteis" | "corridos";
+                      setPrazoUnidade(unidade);
+                      const calc = computeDataPrevista(form.getValues("data_base"), prazoDias, unidade);
+                      if (calc) form.setValue("data_vencimento", calc);
+                    }}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="uteis">Dias úteis</SelectItem>
+                      <SelectItem value="corridos">Dias corridos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Calcula a Data prevista a partir da Data base. Você ainda pode editar a data manualmente.
+                </p>
+              </div>
 
               {/* Datas */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
