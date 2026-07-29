@@ -266,7 +266,9 @@ export function AtribuirProcessoDialog({
               render={() => (
                 <FormItem className="flex-1 overflow-hidden flex flex-col">
                   <div className="flex items-center justify-between">
-                    <FormLabel>Processos sem Responsável ({processosFiltrados?.length || 0})</FormLabel>
+                    <FormLabel>
+                      {somenteSemResponsavel ? "Processos sem Responsável" : "Processos"} ({processosFiltrados?.length || 0})
+                    </FormLabel>
                     {processosFiltrados.length > 0 && (
                       <Button
                         type="button"
@@ -341,6 +343,13 @@ export function AtribuirProcessoDialog({
                         </SelectContent>
                       </Select>
                     </div>
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                      <Checkbox
+                        checked={somenteSemResponsavel}
+                        onCheckedChange={(c) => setSomenteSemResponsavel(!!c)}
+                      />
+                      Mostrar somente processos sem responsável
+                    </label>
                   </div>
 
                   {processosFiltrados.length > 0 ? (
@@ -374,6 +383,9 @@ export function AtribuirProcessoDialog({
                                   </div>
                                   <p className="text-xs text-muted-foreground truncate">
                                     {processo.cliente?.nome || processo.polo_ativo || processo.assunto || "Sem descrição"}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground truncate">
+                                    Responsável: {(processo as any).responsavel?.nome || "Sem responsável"}
                                   </p>
                                 </div>
                               </FormItem>
