@@ -154,9 +154,8 @@ serve(async (req) => {
         }
 
         // Regra "Qualquer alteração realizada": se a coordenação tiver esta opção
-        // marcada em config_alertas_coordenacao.tipos_alerta, o alerta vai
-        // SOMENTE para os coordenadores dessa coordenação (substitui responsáveis).
-        let apenasCoordenadores = false;
+        // marcada, os coordenadores são ADICIONADOS aos responsáveis/envolvidos
+        // (nunca substituem — os responsáveis continuam recebendo).
         if (!isComentario && item.coordenacao_id) {
           const { data: cfgCoord } = await supabase
             .from("config_alertas_coordenacao")
@@ -165,8 +164,7 @@ serve(async (req) => {
             .maybeSingle();
           const tipos: string[] = (cfgCoord?.tipos_alerta ?? []) as string[];
           if (Array.isArray(tipos) && tipos.includes("qualquer_alteracao")) {
-            apenasCoordenadores = true;
-            const coordSet = new Set<string>();
+            const coordSet = new Set<string>(responsaveis);
             // 1) coordenador titular da coordenação
             const { data: coordRow } = await supabase
               .from("coordenacoes")
@@ -188,7 +186,7 @@ serve(async (req) => {
                 .in("user_id", memberIds);
               for (const r of roles ?? []) coordSet.add((r as any).user_id);
             }
-            responsaveis = Array.from(coordSet);
+            responsaveis = Array.from(coordSet).filter(Boolean);
           }
         }
 
