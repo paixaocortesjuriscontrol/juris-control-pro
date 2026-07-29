@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,22 +56,60 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { parseDateSafe } from "@/utils/date";
 
-interface NotificacoesProps { embedded?: boolean }
-export default function Notificacoes({ embedded = false }: NotificacoesProps = {}) {
+interface NotificacoesProps {
+  embedded?: boolean;
+  /** Filtros externos (Painel de Controle) — quando embedded, substituem os filtros internos */
+  coordenacaoIdExterno?: string;
+  periodoInicioExterno?: Date;
+  periodoFimExterno?: Date;
+  searchQueryExterno?: string;
+  statusFilterExterno?: string;
+}
+export default function Notificacoes({
+  embedded = false,
+  coordenacaoIdExterno,
+  periodoInicioExterno,
+  periodoFimExterno,
+  searchQueryExterno,
+  statusFilterExterno,
+}: NotificacoesProps = {}) {
   // Central de Notificações
   // Mantém a UI responsiva: carregamento incremental (evita payloads gigantes)
   const PAGE_SIZE = 200;
 
-  const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [coordenacaoId, setCoordenacaoId] = useState<string>(coordenacaoIdExterno || "todas");
+  const [activeTab, setActiveTab] = useState(embedded ? "todos" : "dashboard");
+  const [searchQuery, setSearchQuery] = useState(searchQueryExterno || "");
   const [prioridadeFilter, setPrioridadeFilter] = useState<string>("todas");
-  const [statusFilter, setStatusFilter] = useState<string>("pendente");
+  const [statusFilter, setStatusFilter] = useState<string>(statusFilterExterno || "pendente");
   // Padrão: Hoje (comportamento original)
-  const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(() => startOfDay(new Date()));
-  const [periodoFim, setPeriodoFim] = useState<Date | undefined>(() => startOfDay(new Date()));
+  const [periodoInicio, setPeriodoInicio] = useState<Date | undefined>(() =>
+    embedded ? periodoInicioExterno : startOfDay(new Date())
+  );
+  const [periodoFim, setPeriodoFim] = useState<Date | undefined>(() =>
+    embedded ? periodoFimExterno : startOfDay(new Date())
+  );
   const [filterCategory, setFilterCategory] = useState<string | undefined>(undefined);
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
+
+  // Sincroniza filtros externos (Painel de Controle) quando embedded
+  useEffect(() => {
+    if (!embedded) return;
+    setCoordenacaoId(coordenacaoIdExterno || "todas");
+  }, [embedded, coordenacaoIdExterno]);
+  useEffect(() => {
+    if (!embedded) return;
+    setPeriodoInicio(periodoInicioExterno);
+    setPeriodoFim(periodoFimExterno);
+  }, [embedded, periodoInicioExterno?.getTime(), periodoFimExterno?.getTime()]);
+  useEffect(() => {
+    if (!embedded) return;
+    setSearchQuery(searchQueryExterno || "");
+  }, [embedded, searchQueryExterno]);
+  useEffect(() => {
+    if (!embedded) return;
+    setStatusFilter(statusFilterExterno || "todas");
+  }, [embedded, statusFilterExterno]);
   
   
   const navigate = useNavigate();
@@ -804,8 +842,8 @@ export default function Notificacoes({ embedded = false }: NotificacoesProps = {
 
   const body = (
     <>
-      {/* Filters Bar */}
-      <div className="bg-card rounded-xl border border-border/50 p-4 mb-6 animate-fade-in">
+      {/* Filters Bar (oculta quando embedded: usa os filtros superiores do Painel) */}
+      <div className={cn("bg-card rounded-xl border border-border/50 p-4 mb-6 animate-fade-in", embedded && "hidden")}>
         <div className="flex flex-col gap-4">
           {/* Search Row */}
           <div className="flex flex-col lg:flex-row gap-4">
@@ -982,22 +1020,24 @@ export default function Notificacoes({ embedded = false }: NotificacoesProps = {
 
       {/* Cards de resumo por tipo */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-13 gap-3 mb-6">
-        <Card 
-          className={cn(
-            "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
-            activeTab === "dashboard" && "ring-2 ring-primary"
-          )}
-          onClick={() => setActiveTab("dashboard")}
-        >
-          <CardContent className="p-3">
-            <div className="flex items-center justify-between">
-              <div className="p-1.5 rounded-lg bg-primary/10">
-                <LayoutDashboard className="w-4 h-4 text-primary" />
+        {!embedded && (
+          <Card 
+            className={cn(
+              "cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg",
+              activeTab === "dashboard" && "ring-2 ring-primary"
+            )}
+            onClick={() => setActiveTab("dashboard")}
+          >
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between">
+                <div className="p-1.5 rounded-lg bg-primary/10">
+                  <LayoutDashboard className="w-4 h-4 text-primary" />
+                </div>
               </div>
-            </div>
-            <p className="mt-2 text-xs font-medium">Dashboard</p>
-          </CardContent>
-        </Card>
+              <p className="mt-2 text-xs font-medium">Dashboard</p>
+            </CardContent>
+          </Card>
+        )}
 
         <Card 
           className={cn(
@@ -1225,14 +1265,16 @@ export default function Notificacoes({ embedded = false }: NotificacoesProps = {
 
         {/* Dashboard por Coordenação */}
         <TabsContent value="dashboard" className="space-y-4">
-          <DashboardCoordenacoes 
-            onSelectCoordenacao={handleSelectCoordenacao}
-            selectedCoordenacaoId={coordenacaoId}
-            periodoInicio={periodoInicio}
-            periodoFim={periodoFim}
-            statusFilter={statusFilter}
-            searchQuery={searchQuery}
-          />
+          {!embedded && (
+            <DashboardCoordenacoes 
+              onSelectCoordenacao={handleSelectCoordenacao}
+              selectedCoordenacaoId={coordenacaoId}
+              periodoInicio={periodoInicio}
+              periodoFim={periodoFim}
+              statusFilter={statusFilter}
+              searchQuery={searchQuery}
+            />
+          )}
         </TabsContent>
 
         {/* Detalhes da Coordenação */}
