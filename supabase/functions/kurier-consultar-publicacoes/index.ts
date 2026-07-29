@@ -657,7 +657,7 @@ Deno.serve(async (req: Request) => {
     if (coordIdsArr.length > 0) {
       let monitQuery = admin
         .from("monitoramentos_djen")
-        .select("id, tipo, termo_busca, oab, uf, exclusoes, condicao_concomitante, termos_or, descricao, buscar_parte, coordenacao_id, criado_por, somente_kurier")
+        .select("id, tipo, termo_busca, oab, uf, exclusoes, condicao_concomitante, termos_or, descricao, buscar_parte, coordenacao_id, criado_por, somente_kurier, tribunais")
         .eq("ativo", true)
         .in("coordenacao_id", coordIdsArr);
       if (monitoramento_ids?.length) monitQuery = monitQuery.in("id", monitoramento_ids);
