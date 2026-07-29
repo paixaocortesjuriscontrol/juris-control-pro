@@ -9830,7 +9830,16 @@ export type Database = {
         | "arquivado_parcialmente"
         | "arquivado_definitivamente"
         | "suspenso"
-      status_tarefa: "pendente" | "cumprido" | "atrasado" | "cancelado"
+      status_tarefa:
+        | "pendente"
+        | "cumprido"
+        | "atrasado"
+        | "cancelado"
+        | "a_confirmar"
+        | "em_execucao"
+        | "revisao"
+        | "verificado"
+        | "concluido_sem_sucesso"
       tipo_item_prompt_ia: "prazo" | "tarefa" | "evento" | "audiencia"
     }
     CompositeTypes: {
@@ -9984,7 +9993,17 @@ export const Constants = {
         "arquivado_definitivamente",
         "suspenso",
       ],
-      status_tarefa: ["pendente", "cumprido", "atrasado", "cancelado"],
+      status_tarefa: [
+        "pendente",
+        "cumprido",
+        "atrasado",
+        "cancelado",
+        "a_confirmar",
+        "em_execucao",
+        "revisao",
+        "verificado",
+        "concluido_sem_sucesso",
+      ],
       tipo_item_prompt_ia: ["prazo", "tarefa", "evento", "audiencia"],
     },
   },
