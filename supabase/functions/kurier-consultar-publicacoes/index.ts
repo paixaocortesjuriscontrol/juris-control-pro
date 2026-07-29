@@ -1055,9 +1055,21 @@ Deno.serve(async (req: Request) => {
           const candidatos = candidatoMap.size > 0 ? Array.from(candidatoMap.values()) : monitoramentos;
           let matched: (Monitoramento & { coordenacao_id?: string | null }) | null = null;
           let motivoExcl: string | null = null;
+          let bloqueadoPorTribunal = false;
           for (const m of candidatos) {
             try {
               if (!kurierMatchesMonitoramento(searchable || conteudo, m as Monitoramento)) continue;
+              // Escopo de tribunais do termo — mesma regra do DJEN Termos Servidor
+              // (paralela.js: "tribunal_nao_permitido"). Termo sem tribunais
+              // definidos aceita qualquer tribunal; sigla não reconhecida passa.
+              const escopo = tribunalPermitidoKurier(tribunal, (m as any).tribunais);
+              if (!escopo.permitido) {
+                bloqueadoPorTribunal = true;
+                continue;
+              }
+              if (!escopo.reconhecida && ((m as any).tribunais?.length ?? 0) > 0) {
+                console.warn(`[kurier] sigla de tribunal não reconhecida: "${tribunal}" (monit ${m.id})`);
+              }
               const motivo = shouldExclude(searchable || conteudo, m.exclusoes || [], null, null);
               if (motivo) { motivoExcl = motivo; continue; }
               matched = m;
