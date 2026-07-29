@@ -236,7 +236,7 @@ export function PrazoDialog({
   const [observacoes, setObservacoes] = useState("");
   const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
-  const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
+  const [situacao, setSituacao] = useState<string>("pendente");
   const { podeCancelar } = usePodeCancelarItens();
   // Processo resolvido a partir da publicação (quando não há defaultProcessoId)
   const [resolvedProcessoId, setResolvedProcessoId] = useState<string>("");
@@ -564,9 +564,9 @@ export function PrazoDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="pendente">⏳ Pendente</SelectItem>
-                <SelectItem value="cumprido">✔️ Cumprido</SelectItem>
-                {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
+                {situacoesDisponiveis("prazo", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button
