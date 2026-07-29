@@ -9774,6 +9774,10 @@ export type Database = {
         Args: { p_processo_id: string; p_processo_numero: string }
         Returns: string
       }
+      resolver_destinatarios_comentario: {
+        Args: { _entidade: string; _entidade_id: string }
+        Returns: string[]
+      }
       resolver_responsaveis_entidade: {
         Args: { _entidade: string; _entidade_id: string }
         Returns: string[]
