@@ -1,4 +1,5 @@
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
@@ -236,6 +237,7 @@ export function PrazoDialog({
   const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
+  const { podeCancelar } = usePodeCancelarItens();
   // Processo resolvido a partir da publicação (quando não há defaultProcessoId)
   const [resolvedProcessoId, setResolvedProcessoId] = useState<string>("");
   // Recorrência
@@ -564,7 +566,7 @@ export function PrazoDialog({
               <SelectContent>
                 <SelectItem value="pendente">⏳ Pendente</SelectItem>
                 <SelectItem value="cumprido">✔️ Cumprido</SelectItem>
-                <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
               </SelectContent>
             </Select>
             <Button
@@ -892,7 +894,7 @@ export function PrazoDialog({
         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
           Cancelar
         </Button>
-        {prazo?.id && (prazo.status as string) !== "cancelado" && (
+        {podeCancelar && prazo?.id && (prazo.status as string) !== "cancelado" && (
           <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={isLoading}>
             Cancelar prazo
           </Button>

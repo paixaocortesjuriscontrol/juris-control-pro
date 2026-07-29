@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,7 @@ interface Props {
 export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = false, embedded = false, invalidateKey }: Props) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
+  const { podeCancelar } = usePodeCancelarItens();
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
   const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);
   const [formData, setFormData] = useState({
@@ -520,7 +522,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 <SelectItem value="confirmado">✅ Confirmado</SelectItem>
                 <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
                 <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                {(podeCancelar || formData.status === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
                 <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
               </SelectContent>
             </Select>
@@ -549,7 +551,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 <SelectItem value="confirmado">✅ Confirmado</SelectItem>
                 <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
                 <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                {(podeCancelar || formData.status === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
                 <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
               </SelectContent>
             </Select>
@@ -596,7 +598,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                   <SelectItem value="confirmado">✅ Confirmado</SelectItem>
                   <SelectItem value="reagendado">🔄 Reagendado</SelectItem>
                   <SelectItem value="tratado">✔️ Tratado</SelectItem>
-                  <SelectItem value="cancelado">❌ Cancelado</SelectItem>
+                  {(podeCancelar || formData.status === "cancelado") && <SelectItem value="cancelado">❌ Cancelado</SelectItem>}
                   <SelectItem value="ignorado">🚫 Ignorado</SelectItem>
                 </SelectContent>
               </Select>

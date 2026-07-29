@@ -1,4 +1,5 @@
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -169,6 +170,7 @@ export function NovaTarefaDialog({
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const [situacao, setSituacao] = useState<"pendente" | "cumprido" | "cancelado">("pendente");
+  const { podeCancelar } = usePodeCancelarItens();
   // Recorrência
   const [recorrenciaTipo, setRecorrenciaTipo] = useState<string>("nenhuma");
   const [prazoDias, setPrazoDias] = useState<number>(0);
@@ -829,7 +831,7 @@ export function NovaTarefaDialog({
             <SelectContent>
               <SelectItem value="pendente">⏳ Pendente</SelectItem>
               <SelectItem value="cumprido">✔️ Concluída</SelectItem>
-              <SelectItem value="cancelado">❌ Cancelada</SelectItem>
+              {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelada</SelectItem>}
             </SelectContent>
           </Select>
           <Button
@@ -856,7 +858,7 @@ export function NovaTarefaDialog({
               <SelectContent>
                 <SelectItem value="pendente">⏳ Pendente</SelectItem>
                 <SelectItem value="cumprido">✔️ Concluída</SelectItem>
-                <SelectItem value="cancelado">❌ Cancelada</SelectItem>
+                {(podeCancelar || situacao === "cancelado") && <SelectItem value="cancelado">❌ Cancelada</SelectItem>}
               </SelectContent>
             </Select>
             <Button
@@ -1436,7 +1438,7 @@ export function NovaTarefaDialog({
           >
             Cancelar
           </Button>
-          {tarefaParaEditar?.id && tarefaParaEditar.status !== "cancelado" && (
+          {podeCancelar && tarefaParaEditar?.id && tarefaParaEditar.status !== "cancelado" && (
             <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={loading} className="w-full sm:w-auto">
               Cancelar tarefa
             </Button>
