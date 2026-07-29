@@ -1314,6 +1314,28 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       onChange={setResponsaveis}
                     />
                   </FormField>
+                  <FormField label="Empresa Terceirizada">
+                    <Input className={cn(inputCls, jcls("empresa_terceirizada"))} value={form.empresa_terceirizada || ""} onChange={(e) => update("empresa_terceirizada", e.target.value)} />
+                  </FormField>
+                  <FormField label="Segredo de Justiça">
+                    <div className="flex items-center gap-2 h-9">
+                      <Checkbox
+                        checked={!!form.segredo_justica}
+                        onCheckedChange={(c) => update("segredo_justica", c === true)}
+                      />
+                      <span className="text-sm text-muted-foreground">Processo em segredo de justiça</span>
+                    </div>
+                  </FormField>
+                  <FormField label="Processos Relacionados" className="md:col-span-2">
+                    <Textarea
+                      rows={2}
+                      className={cn("text-sm min-h-[50px] resize-y overflow-hidden", jcls("processos_relacionados"))}
+                      value={form.processos_relacionados || ""}
+                      onChange={(e) => update("processos_relacionados", e.target.value)}
+                      ref={(el) => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }}
+                      onInput={(e) => { const el = e.currentTarget; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }}
+                    />
+                  </FormField>
                 </div>
               </section>
 
