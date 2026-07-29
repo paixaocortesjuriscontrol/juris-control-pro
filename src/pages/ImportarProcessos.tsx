@@ -24,6 +24,7 @@ import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, List, Building2, Users, ArrowRightLeft, Hospital, Clock, Scale, Gavel, FileText, FileBarChart, Factory } from "lucide-react";
 import { SenaiSesiImportTab } from "@/components/importar/SenaiSesiImportTab";
+import { BeatrizCostaImportTab } from "@/components/importar/BeatrizCostaImportTab";
 import { useRelatorioPedidos, TipoPedido } from "@/hooks/useRelatorioPedidos";
 import { 
   downloadProjurisTemplate, 
@@ -5953,6 +5954,10 @@ export default function ImportarProcessos() {
               <Factory className="h-4 w-4" />
               <span className="hidden sm:inline">SENAI/SESI</span>
             </TabsTrigger>
+            <TabsTrigger value="beatriz" className="flex items-center gap-2">
+              <Scale className="h-4 w-4" />
+              <span className="hidden sm:inline">Dra. Beatriz Costa</span>
+            </TabsTrigger>
             <TabsTrigger value="pedidos" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               <span className="hidden sm:inline">Pedidos</span>
@@ -9299,6 +9304,21 @@ export default function ImportarProcessos() {
           {/* Tab: SENAI / SESI */}
           <TabsContent value="senai" className="space-y-6 mt-6">
             <SenaiSesiImportTab
+              coordenacoes={coordenacoes}
+              clientes={clientes}
+              selectedCoordenacao={selectedCoordenacao}
+              setSelectedCoordenacao={setSelectedCoordenacao}
+              selectedMembro={selectedMembro}
+              setSelectedMembro={setSelectedMembro}
+              selectedCliente={selectedCliente}
+              setSelectedCliente={setSelectedCliente}
+              membrosDisponiveis={membrosDisponiveis}
+            />
+          </TabsContent>
+
+          {/* Tab: Dra. Beatriz Costa */}
+          <TabsContent value="beatriz" className="space-y-6 mt-6">
+            <BeatrizCostaImportTab
               coordenacoes={coordenacoes}
               clientes={clientes}
               selectedCoordenacao={selectedCoordenacao}
