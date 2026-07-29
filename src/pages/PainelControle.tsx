@@ -68,7 +68,7 @@ import TstPrazos from "@/pages/TstPrazos";
 import { KanbanItensAgenda } from "@/components/painel/KanbanItensAgenda";
 import { EquipeItensAgenda } from "@/components/painel/EquipeItensAgenda";
 import PainelAudiencias from "@/pages/PainelAudiencias";
-import Notificacoes from "@/pages/Notificacoes";
+import MinhasMensagensRecebidas from "@/components/notificacoes/MinhasMensagensRecebidas";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 import { AcompanhamentoEspecialEventos } from "@/components/processos/AcompanhamentoEspecialEventos";
 import { Sparkles } from "lucide-react";
