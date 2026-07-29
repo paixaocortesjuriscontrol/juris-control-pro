@@ -141,6 +141,7 @@ export default function MinhasMensagensRecebidas({
       return;
     }
     await queryClient.invalidateQueries({ queryKey: ["minhas-mensagens-leituras", user.id] });
+    await queryClient.invalidateQueries({ queryKey: ["mensagens-nao-lidas"] });
   };
 
   return (
