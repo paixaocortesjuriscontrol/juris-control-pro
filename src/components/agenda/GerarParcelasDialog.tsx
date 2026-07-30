@@ -70,7 +70,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const { podeCancelar } = usePodeCancelarItens();
   const { precisaSelecionar, unicaCoordenacaoId, coordenacoes: coordenacoesUsuario, isAdmin } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
-  
+  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null);
+
   const [formData, setFormData] = useState({
     titulo: "",
     descricao: "",
