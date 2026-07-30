@@ -192,7 +192,9 @@ export function BuscaGlobalPainel() {
             tipo: "publicacao",
             titulo: p.processo_numero || "(publicação)",
             subtitulo: [p.tribunal, p.data_disponibilizacao].filter(Boolean).join(" • "),
-            to: `/analise-djen`,
+            to: `/analise-djen?processo=${encodeURIComponent(
+              (p.processo_numero || "").replace(/\D/g, "")
+            )}&pubId=${p.id}`,
           })
         );
 
