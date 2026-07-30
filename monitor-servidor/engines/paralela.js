@@ -24,6 +24,14 @@ const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 4
 const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 1000));
 const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 800));
 const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
+// Orçamento de tempo por tupla (tribunal, monitoramento, dia). Estourou, a
+// tupla é liberada e vai para execucoes_servidor_falhas (refila) em vez de
+// travar uma das VPS por vários minutos em cima de um tribunal instável.
+const UNIT_BUDGET_MS = Math.max(15000, Number(process.env.PARALELA_UNIT_BUDGET_MS || 90000));
+// Esperas de degradação (antes fixas em 2s/4s).
+const DEGRADE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_DEGRADE_DELAY_MS || 500));
+// Teto do backoff exponencial entre janelas que falharam (antes 15s).
+const WINDOW_BACKOFF_MAX_MS = Math.max(500, Number(process.env.PARALELA_WINDOW_BACKOFF_MAX_MS || 4000));
 // Sharding: cards com muitos termos são fatiados em sub-units para que o
 // mesmo (tipo, tribunal) rode em várias VPS simultaneamente.
 // Sharding agressivo: com 10 VPS, dividir cards em fatias pequenas garante
@@ -968,7 +976,7 @@ async function buscarPaginado(slot, params, signal) {
   // zera os contadores. Espelha src/utils/pjeComunicaClient.ts.
   const EMPTY_PAGE_STREAK_LIMIT = 2;
   const NO_NEW_ITEMS_STREAK_LIMIT = 3;
-  const CONSECUTIVE_FAILED_PAGES_LIMIT = 3;
+  const CONSECUTIVE_FAILED_PAGES_LIMIT = 2;
   let emptyStreak = 0;
   let noNewStreak = 0;
   let failedStreak = 0;
@@ -997,13 +1005,17 @@ async function buscarPaginado(slot, params, signal) {
       };
       let out;
       let lastErr;
-      for (let attempt = 0; attempt < 4; attempt++) {
+      // 3 tentativas com espera curta (antes: 4 tentativas com 3s/6s/9s/12s,
+      // ou seja até 30s por sub-página só em espera). Sem dormir depois da
+      // última tentativa.
+      for (let attempt = 0; attempt < 3; attempt++) {
         out = await djenFetchSlot(slot, query, signal).catch((e) => {
           lastErr = e;
           return null;
         });
         if (out && out.status !== 429 && out.status < 500) break;
-        await delay(out?.status === 429 ? 8000 * (attempt + 1) : 3000 * (attempt + 1), signal);
+        if (attempt === 2) break;
+        await delay(out?.status === 429 ? 6000 * (attempt + 1) : 1500 * (attempt + 1), signal);
       }
       if (!out || out.status < 200 || out.status >= 300) {
         if (out && out.status === 404) {
@@ -1035,16 +1047,16 @@ async function buscarPaginado(slot, params, signal) {
     if (!result.ok) {
       const msg1 = String(result.err?.message || "?");
       console.log(`[paralela.buscarPaginado] janela ${windowIdx} degradada para size=10 após falha (${msg1})`);
-      // Erro de rede (fetch failed / socket) => respira antes de degradar,
-      // senão a nova tentativa cai no mesmo bloqueio do tribunal.
-      if (/fetch failed|socket|ECONN|network|timeout/i.test(msg1)) {
-        await delay(2000, signal);
-      }
+      const isRede = /fetch failed|socket|ECONN|network|timeout/i.test(msg1);
+      // Respiro curto antes de degradar (antes 2s fixos).
+      if (isRede && DEGRADE_DELAY_MS > 0) await delay(DEGRADE_DELAY_MS, signal);
       result = await fetchWindow(windowIdx, 10);
-      if (!result.ok) {
-        // Última degradação: 5 itens por página. Buscas amplas por parte no
-        // TST derrubam a conexão com páginas grandes.
-        await delay(4000, signal);
+      // Degradação final para size=5 só faz sentido quando o problema é
+      // payload grande (5xx / resposta truncada). Em "fetch failed" genérico
+      // a VPS/tribunal está simplesmente derrubando a conexão e insistir com
+      // 10 sub-requisições só queima tempo de uma das vias.
+      if (!result.ok && !isRede) {
+        await delay(DEGRADE_DELAY_MS * 2, signal);
         result = await fetchWindow(windowIdx, 5);
       }
     }
@@ -1053,8 +1065,8 @@ async function buscarPaginado(slot, params, signal) {
       if (failedStreak >= CONSECUTIVE_FAILED_PAGES_LIMIT) {
         throw result.err || new Error("Falha ao consultar VPS DJEN");
       }
-      // Backoff exponencial entre janelas que falharam (2s, 4s, 8s...).
-      await delay(Math.min(2000 * Math.pow(2, failedStreak - 1), 15000), signal);
+      // Backoff exponencial entre janelas que falharam, com teto curto.
+      await delay(Math.min(1000 * Math.pow(2, failedStreak - 1), WINDOW_BACKOFF_MAX_MS), signal);
       continue;
     }
     failedStreak = 0;
@@ -1843,6 +1855,10 @@ async function run({ sb, payload, log, job }) {
 
   // Acumula totais já vindos do checkpoint
   let totalNovas = 0, totalDescartadas = 0, totalDuplicatas = 0, totalErros = 0;
+  // Observabilidade de degradação: onde o tempo está sendo queimado.
+  const falhasPorTribunal = {};
+  let tempoEmFalhasMs = 0;
+  let unidadesEstouradas = 0;
   for (const item of itens) {
     if (item.status === "concluido") {
       totalNovas += item.novas;
@@ -1936,6 +1952,29 @@ async function run({ sb, payload, log, job }) {
 
   const processUnit = async (unit, slot) => {
     const item = unit.item;
+    // Executa uma busca com orçamento de tempo. Estourando o orçamento a
+    // requisição é abortada (controller filho) e a tupla vai para a refila,
+    // liberando a VPS imediatamente.
+    const buscarComOrcamento = async (slotUsado, mon, dia, tribunal) => {
+      const ac = new AbortController();
+      const onAbort = () => ac.abort();
+      signal.addEventListener("abort", onAbort);
+      let timer = null;
+      try {
+        return await Promise.race([
+          buscarTermo(slotUsado, mon, dia, tribunal, ac.signal),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => {
+              ac.abort();
+              reject(new Error(`Orçamento de ${Math.round(UNIT_BUDGET_MS / 1000)}s excedido (Falha ao consultar VPS DJEN)`));
+            }, UNIT_BUDGET_MS);
+          }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+        signal.removeEventListener("abort", onAbort);
+      }
+    };
     // Circuit breaker STF: se já acumulamos 5xx suficientes de STF nesta
     // execução, todas as próximas units STF viram no-op (concluídas com
     // mensagem informativa). Evita ocupar VPS por 90-180s cada em erro.
@@ -1969,14 +2008,20 @@ async function run({ sb, payload, log, job }) {
           // em execucoes_servidor_falhas para refila na próxima execução
           // do mesmo dia BRT.
           const itemKeyFalha = `paralela|${item.tribunal}|${monId}|${dia}`;
+          const tParInicio = Date.now();
           try {
             let pubs;
             try {
-              pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
+              pubs = await buscarComOrcamento(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal);
             } catch (firstErr) {
               const msg = String(firstErr?.message || firstErr || "");
               const is5xx = /HTTP\s*5\d\d/.test(msg) || /Falha ao consultar VPS/.test(msg);
-              if (!is5xx || cancelled || signal.aborted) throw firstErr;
+              const isRede = /fetch failed|socket|ECONN|network|timeout|Orçamento/i.test(msg);
+              // Failover só quando o erro sugere problema da VPS (5xx).
+              // "fetch failed" repetido significa que o tribunal está
+              // derrubando a conexão — trocar de VPS não resolve e custa
+              // mais uma rodada completa de tentativas.
+              if (!is5xx || isRede || cancelled || signal.aborted) throw firstErr;
               // Failover entre VPS: o slot atual derruba persistentemente esta
               // tupla (tribunal, mon, dia). Tenta os demais slots do pool antes
               // de empurrar para a refila — espelha o fallback do browser que
@@ -1991,14 +2036,16 @@ async function run({ sb, payload, log, job }) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [outrosSlots[i], outrosSlots[j]] = [outrosSlots[j], outrosSlots[i]];
               }
-              const candidatos = outrosSlots.slice(0, 2);
+              // 1 VPS alternativa (antes 2): em pico de erro isso reduz pela
+              // metade o tempo gasto antes de mandar a tupla para a refila.
+              const candidatos = outrosSlots.slice(0, 1);
               let recovered = null;
               let lastErr = firstErr;
               for (const alt of candidatos) {
                 if (cancelled || signal.aborted) break;
                 try {
                   log("paralela.failover_slot", { de: slot.label || slot.url, para: alt.label || alt.url, tribunal: item.tribunal, monId, dia, motivo: msg.slice(0, 160) });
-                  recovered = await buscarTermo(alt, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
+                  recovered = await buscarComOrcamento(alt, { ...mon, tipo: item.tipo }, dia, item.tribunal);
                   item.via = { id: alt.id, label: alt.label || alt.url };
                   break;
                 } catch (altErr) {
@@ -2029,6 +2076,9 @@ async function run({ sb, payload, log, job }) {
           } catch (e) {
             if (cancelled || signal.aborted || String(e?.message || e).includes("cancel")) throw e;
             const errMsg = String(e?.message || e || "");
+            tempoEmFalhasMs += Date.now() - tParInicio;
+            falhasPorTribunal[item.tribunal] = (falhasPorTribunal[item.tribunal] || 0) + 1;
+            if (/Orçamento/i.test(errMsg)) unidadesEstouradas += 1;
             const is5xx = /HTTP\s*5\d\d/.test(errMsg) || /Falha ao consultar VPS/.test(errMsg);
             const isStf = String(item.tribunal || "").toUpperCase() === "STF";
             if (isStf && is5xx) {
@@ -2130,7 +2180,7 @@ async function run({ sb, payload, log, job }) {
     log("paralela.cancelled", { remaining: itens.filter((i) => i.status === "pendente").length });
   }
   await flushProgresso(true);
-  log("paralela.done", { monitoramentos: itens.length, novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros });
+  log("paralela.done", { monitoramentos: itens.length, novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, falhas_por_tribunal: falhasPorTribunal, tempo_gasto_em_retries_ms: tempoEmFalhasMs, unidades_estouradas: unidadesEstouradas });
 
   // Pós-execução: enriquece linhas gravadas com processo_numero NULL
   // refazendo UMA consulta por (monitoramento, tribunal, dia) direto na API
@@ -2144,7 +2194,20 @@ async function run({ sb, payload, log, job }) {
     }
   }
 
-  return { novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, monitoramentos: itens.length, dataInicio, dataFim, vps: slots.length, cancelado: cancelled };
+  return {
+    novas: totalNovas,
+    descartadas: totalDescartadas,
+    duplicatas: totalDuplicatas,
+    erros: totalErros,
+    monitoramentos: itens.length,
+    dataInicio,
+    dataFim,
+    vps: slots.length,
+    cancelado: cancelled,
+    falhas_por_tribunal: falhasPorTribunal,
+    tempo_gasto_em_retries_ms: tempoEmFalhasMs,
+    unidades_estouradas: unidadesEstouradas,
+  };
 }
 
 module.exports = { run };
