@@ -92,6 +92,7 @@ import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { PublicacaoSidePanel } from "@/components/shared/PublicacaoSidePanel";
 import { ItensCriadosPublicacaoCard, type ItemCriado } from "@/components/shared/ItensCriadosPublicacaoCard";
+import { EdicaoItemPublicacaoInline } from "@/components/shared/EdicaoItemPublicacaoInline";
 import { useItensExistentesPublicacao } from "@/hooks/useItensExistentesPublicacao";
 import { ensureProcessoFromPublicacao, salvarPublicacaoNoProcesso } from "@/lib/ensureProcessoFromPublicacao";
 import { NovaAudienciaPublicacaoDialog } from "@/components/djen/NovaAudienciaPublicacaoDialog";
@@ -261,6 +262,8 @@ const AnaliseDjen = () => {
   // publicação atualmente selecionada. Alimenta o card verde "Itens criados
   // a partir desta publicação" exibido acima do split view.
   const [itensCriadosSessao, setItensCriadosSessao] = useState<ItemCriado[]>([]);
+  // Item do card verde aberto para edição inline.
+  const [itemEmEdicao, setItemEmEdicao] = useState<{ tipo: ItemCriado["tipo"]; id: string } | null>(null);
 
   // Resolve o processo existente na base via número da publicação para pré-preencher os formulários
   const resolverProcessoDaPublicacao = async (pub: PublicacaoUnificada) => {
