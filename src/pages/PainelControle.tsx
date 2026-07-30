@@ -163,6 +163,16 @@ export default function PainelControle() {
     }
   }, [searchParams]);
 
+  // Mantém a URL em sincronia quando o usuário troca de visão manualmente
+  useEffect(() => {
+    const viewParam = searchParams.get("view");
+    if (!viewParam || viewParam === viewMode) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete("view");
+    lastViewParamRef.current = null;
+    setSearchParams(next, { replace: true });
+  }, [viewMode, searchParams, setSearchParams]);
+
   // Abrir item vindo da busca global (?selectedId=...&origem=tarefa|evento)
   useEffect(() => {
     if (handledSelectedIdRef.current) return;
