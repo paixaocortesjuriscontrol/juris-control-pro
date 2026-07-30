@@ -24,6 +24,14 @@ const PAGE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PAGE_DELAY_MS || 4
 const TERM_DELAY_MS = Math.max(0, Number(process.env.PARALELA_TERM_DELAY_MS || 1000));
 const PARTE_OR_DELAY_MS = Math.max(0, Number(process.env.PARALELA_PARTE_OR_DELAY_MS || 800));
 const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_MS || 3000));
+// Orçamento de tempo por tupla (tribunal, monitoramento, dia). Estourou, a
+// tupla é liberada e vai para execucoes_servidor_falhas (refila) em vez de
+// travar uma das VPS por vários minutos em cima de um tribunal instável.
+const UNIT_BUDGET_MS = Math.max(15000, Number(process.env.PARALELA_UNIT_BUDGET_MS || 90000));
+// Esperas de degradação (antes fixas em 2s/4s).
+const DEGRADE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_DEGRADE_DELAY_MS || 500));
+// Teto do backoff exponencial entre janelas que falharam (antes 15s).
+const WINDOW_BACKOFF_MAX_MS = Math.max(500, Number(process.env.PARALELA_WINDOW_BACKOFF_MAX_MS || 4000));
 // Sharding: cards com muitos termos são fatiados em sub-units para que o
 // mesmo (tipo, tribunal) rode em várias VPS simultaneamente.
 // Sharding agressivo: com 10 VPS, dividir cards em fatias pequenas garante
