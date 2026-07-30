@@ -75,7 +75,7 @@ import { MonitoramentoTermoBadge } from "@/components/djen/MonitoramentoTermoBad
 
 import { usePublicacoesDjenUnificadas, PublicacaoUnificada, FiltroLeituraDjen } from "@/hooks/usePublicacoesDjenUnificadas";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
@@ -143,6 +143,7 @@ const AnaliseDjen = () => {
   const { isAdmin } = useUserRole();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const routerLocation = useLocation();
   const [importingProcessoId, setImportingProcessoId] = useState<string | null>(null);
   // Mapa local: publicação recém-importada -> processo criado. Serve para trocar
   // o botão "Importar" por "Salvar" e mostrar "Ver processo" sem recarregar a lista.
@@ -318,6 +319,24 @@ const AnaliseDjen = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ===== Foco vindo da Busca Global (?processo=...&pubId=...) =====
+  // Abre a Análise DJEN já filtrada pelo número do processo da publicação
+  // clicada, com janela ampla (todos os dias / lidas e não lidas).
+  useEffect(() => {
+    const params = new URLSearchParams(routerLocation.search);
+    const processoParam = params.get("processo");
+    const pubIdParam = params.get("pubId");
+    if (!processoParam && !pubIdParam) return;
+    if (processoParam) setTermoBusca(processoParam);
+    setFiltroDia("todos");
+    setReadStatus("todas");
+    setTipoOrigem("todos");
+    setCoordenacaoId("");
+    if (pubIdParam) {
+      setExpandedPublicacoes(new Set([pubIdParam]));
+    }
+  }, [routerLocation.search]);
 
   useEffect(() => {
     setListLimit(INITIAL_LIST_LIMIT);
