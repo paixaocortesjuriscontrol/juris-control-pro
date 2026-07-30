@@ -1576,7 +1576,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   // Descartar manualmente: move uma publicação ativa para descartadas
   // com motivo "descartado_manualmente" (chama RPC SECURITY DEFINER).
   const descartarManualmente = useMutation({
-    mutationFn: async ({ id, tipo_origem }: { id: string; tipo_origem: 'termo' | 'processo' }) => {
+    mutationFn: async ({ id, tipo_origem }: { id: string; tipo_origem: 'termo' | 'processo'; silent?: boolean }) => {
       const { data, error } = await (supabase as any).rpc('descartar_publicacao_manualmente', {
         p_id: id,
         p_tipo_origem: tipo_origem,
@@ -1585,13 +1585,17 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       if (error) throw error;
       return data;
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
+      // Em ações em lote (silent), não invalida nem exibe toast por item:
+      // a tela invalida uma única vez ao final, evitando N refreshes.
+      if (variables?.silent) return;
       await queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
       await queryClient.invalidateQueries({ queryKey: ['descartadas-count'] });
       await queryClient.invalidateQueries({ queryKey: ['descartadas-dedup'] });
       toast.success('Publicação descartada');
     },
-    onError: (error: any) => {
+    onError: (error: any, variables: any) => {
+      if (variables?.silent) return;
       toast.error(`Erro ao descartar: ${error?.message || error}`);
     },
   });
