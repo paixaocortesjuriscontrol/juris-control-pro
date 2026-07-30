@@ -2180,7 +2180,7 @@ async function run({ sb, payload, log, job }) {
     log("paralela.cancelled", { remaining: itens.filter((i) => i.status === "pendente").length });
   }
   await flushProgresso(true);
-  log("paralela.done", { monitoramentos: itens.length, novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros });
+  log("paralela.done", { monitoramentos: itens.length, novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, falhas_por_tribunal: falhasPorTribunal, tempo_gasto_em_retries_ms: tempoEmFalhasMs, unidades_estouradas: unidadesEstouradas });
 
   // Pós-execução: enriquece linhas gravadas com processo_numero NULL
   // refazendo UMA consulta por (monitoramento, tribunal, dia) direto na API
@@ -2194,7 +2194,20 @@ async function run({ sb, payload, log, job }) {
     }
   }
 
-  return { novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, monitoramentos: itens.length, dataInicio, dataFim, vps: slots.length, cancelado: cancelled };
+  return {
+    novas: totalNovas,
+    descartadas: totalDescartadas,
+    duplicatas: totalDuplicatas,
+    erros: totalErros,
+    monitoramentos: itens.length,
+    dataInicio,
+    dataFim,
+    vps: slots.length,
+    cancelado: cancelled,
+    falhas_por_tribunal: falhasPorTribunal,
+    tempo_gasto_em_retries_ms: tempoEmFalhasMs,
+    unidades_estouradas: unidadesEstouradas,
+  };
 }
 
 module.exports = { run };
