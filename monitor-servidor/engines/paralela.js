@@ -1948,6 +1948,29 @@ async function run({ sb, payload, log, job }) {
 
   const processUnit = async (unit, slot) => {
     const item = unit.item;
+    // Executa uma busca com orçamento de tempo. Estourando o orçamento a
+    // requisição é abortada (controller filho) e a tupla vai para a refila,
+    // liberando a VPS imediatamente.
+    const buscarComOrcamento = async (slotUsado, mon, dia, tribunal) => {
+      const ac = new AbortController();
+      const onAbort = () => ac.abort();
+      signal.addEventListener("abort", onAbort);
+      let timer = null;
+      try {
+        return await Promise.race([
+          buscarTermo(slotUsado, mon, dia, tribunal, ac.signal),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => {
+              ac.abort();
+              reject(new Error(`Orçamento de ${Math.round(UNIT_BUDGET_MS / 1000)}s excedido (Falha ao consultar VPS DJEN)`));
+            }, UNIT_BUDGET_MS);
+          }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+        signal.removeEventListener("abort", onAbort);
+      }
+    };
     // Circuit breaker STF: se já acumulamos 5xx suficientes de STF nesta
     // execução, todas as próximas units STF viram no-op (concluídas com
     // mensagem informativa). Evita ocupar VPS por 90-180s cada em erro.
@@ -1984,11 +2007,16 @@ async function run({ sb, payload, log, job }) {
           try {
             let pubs;
             try {
-              pubs = await buscarTermo(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
+              pubs = await buscarComOrcamento(slot, { ...mon, tipo: item.tipo }, dia, item.tribunal);
             } catch (firstErr) {
               const msg = String(firstErr?.message || firstErr || "");
               const is5xx = /HTTP\s*5\d\d/.test(msg) || /Falha ao consultar VPS/.test(msg);
-              if (!is5xx || cancelled || signal.aborted) throw firstErr;
+              const isRede = /fetch failed|socket|ECONN|network|timeout|Orçamento/i.test(msg);
+              // Failover só quando o erro sugere problema da VPS (5xx).
+              // "fetch failed" repetido significa que o tribunal está
+              // derrubando a conexão — trocar de VPS não resolve e custa
+              // mais uma rodada completa de tentativas.
+              if (!is5xx || isRede || cancelled || signal.aborted) throw firstErr;
               // Failover entre VPS: o slot atual derruba persistentemente esta
               // tupla (tribunal, mon, dia). Tenta os demais slots do pool antes
               // de empurrar para a refila — espelha o fallback do browser que
@@ -2003,14 +2031,16 @@ async function run({ sb, payload, log, job }) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [outrosSlots[i], outrosSlots[j]] = [outrosSlots[j], outrosSlots[i]];
               }
-              const candidatos = outrosSlots.slice(0, 2);
+              // 1 VPS alternativa (antes 2): em pico de erro isso reduz pela
+              // metade o tempo gasto antes de mandar a tupla para a refila.
+              const candidatos = outrosSlots.slice(0, 1);
               let recovered = null;
               let lastErr = firstErr;
               for (const alt of candidatos) {
                 if (cancelled || signal.aborted) break;
                 try {
                   log("paralela.failover_slot", { de: slot.label || slot.url, para: alt.label || alt.url, tribunal: item.tribunal, monId, dia, motivo: msg.slice(0, 160) });
-                  recovered = await buscarTermo(alt, { ...mon, tipo: item.tipo }, dia, item.tribunal, signal);
+                  recovered = await buscarComOrcamento(alt, { ...mon, tipo: item.tipo }, dia, item.tribunal);
                   item.via = { id: alt.id, label: alt.label || alt.url };
                   break;
                 } catch (altErr) {
