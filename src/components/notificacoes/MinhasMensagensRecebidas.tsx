@@ -20,6 +20,7 @@ interface Mensagem {
   conteudo: string | null;
   enviado_em: string;
   status: string | null;
+  referencia_id?: string | null;
 }
 
 function onlyDigits(v?: string | null) {
@@ -31,6 +32,7 @@ export default function MinhasMensagensRecebidas({
   periodoFim,
   coordenacaoId,
   todosDestinatarios = false,
+  onAbrirItem,
 }: {
   periodoInicio?: Date;
   periodoFim?: Date;
@@ -38,6 +40,8 @@ export default function MinhasMensagensRecebidas({
   coordenacaoId?: string;
   /** quando true (modo Escritório para admin/coordenador), mostra mensagens de todos */
   todosDestinatarios?: boolean;
+  /** abre o item (tarefa/prazo/evento/audiência) vinculado ao alerta */
+  onAbrirItem?: (referenciaId: string) => void;
 }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -74,7 +78,7 @@ export default function MinhasMensagensRecebidas({
     queryFn: async () => {
       let q = supabase
         .from("historico_alertas_enviados")
-        .select("id, tipo_alerta, canal, destinatario, conteudo, enviado_em, status")
+        .select("id, tipo_alerta, canal, destinatario, conteudo, enviado_em, status, referencia_id")
         .order("enviado_em", { ascending: false })
         .limit(500);
       if (inicioISO) q = q.gte("enviado_em", inicioISO);
@@ -205,13 +209,20 @@ export default function MinhasMensagensRecebidas({
           {lista.map((m) => {
             const lida = lidos.has(m.id);
             const isWhats = (m.canal || "").toLowerCase().includes("whats");
+            const podeAbrir = !!m.referencia_id && !!onAbrirItem;
             return (
               <Card
                 key={m.id}
                 className={cn(
                   "p-4 flex gap-3 items-start transition-colors",
-                  !lida && "border-primary/50 bg-primary/5"
+                  !lida && "border-primary/50 bg-primary/5",
+                  podeAbrir && "cursor-pointer hover:shadow-md hover:border-primary"
                 )}
+                onClick={() => {
+                  if (!podeAbrir) return;
+                  onAbrirItem!(m.referencia_id!);
+                  if (!lida) marcarLida([m.id]);
+                }}
               >
                 <div className="mt-0.5">
                   {isWhats ? (
@@ -236,7 +247,14 @@ export default function MinhasMensagensRecebidas({
                   </p>
                 </div>
                 {!lida && (
-                  <Button size="sm" variant="ghost" onClick={() => marcarLida([m.id])}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      marcarLida([m.id]);
+                    }}
+                  >
                     <Check className="h-4 w-4 mr-1" /> Lida
                   </Button>
                 )}
