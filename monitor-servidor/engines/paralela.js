@@ -2008,6 +2008,7 @@ async function run({ sb, payload, log, job }) {
           // em execucoes_servidor_falhas para refila na próxima execução
           // do mesmo dia BRT.
           const itemKeyFalha = `paralela|${item.tribunal}|${monId}|${dia}`;
+          const tParInicio = Date.now();
           try {
             let pubs;
             try {
@@ -2075,6 +2076,9 @@ async function run({ sb, payload, log, job }) {
           } catch (e) {
             if (cancelled || signal.aborted || String(e?.message || e).includes("cancel")) throw e;
             const errMsg = String(e?.message || e || "");
+            tempoEmFalhasMs += Date.now() - tParInicio;
+            falhasPorTribunal[item.tribunal] = (falhasPorTribunal[item.tribunal] || 0) + 1;
+            if (/Orçamento/i.test(errMsg)) unidadesEstouradas += 1;
             const is5xx = /HTTP\s*5\d\d/.test(errMsg) || /Falha ao consultar VPS/.test(errMsg);
             const isStf = String(item.tribunal || "").toUpperCase() === "STF";
             if (isStf && is5xx) {
