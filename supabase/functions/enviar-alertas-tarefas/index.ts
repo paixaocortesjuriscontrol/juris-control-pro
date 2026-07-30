@@ -342,6 +342,8 @@ serve(async (req) => {
         const inicioJanelaUtc = new Date(inicioDiaBrtUtc.getTime() + 3 * 60 * 60 * 1000).toISOString();
         const tag = `[${cfg.id.slice(0,8)}|${alvo}|d${nDias}]`;
         const subject = `${cabecalho}`;
+        const refs = itens.slice(0, 30).map((i) => ({ id: i.id, titulo: i.titulo, origem: i.origem }));
+        const refUnico = itens.length === 1 ? itens[0].id : null;
 
         for (const d of dests) {
           if (cfg.canal_whatsapp && d.telefone) {
@@ -366,6 +368,8 @@ serve(async (req) => {
                 canal: "whatsapp",
                 destinatario: d.telefone,
                 conteudo: `${tag}\n${corpoTexto}`.slice(0, 2000),
+                referencia_id: refUnico,
+                itens_referencias: refs,
                 status: ok ? "enviado" : "falha",
                 erro: ok ? null : String(resp.error?.message ?? "erro"),
               });
@@ -392,6 +396,8 @@ serve(async (req) => {
                 canal: "email",
                 destinatario: d.email,
                 conteudo: `${tag}\n${corpoTexto}`.slice(0, 2000),
+                referencia_id: refUnico,
+                itens_referencias: refs,
                 status: r.ok ? "enviado" : "falha",
                 erro: r.ok ? null : (r.erro ?? "erro"),
               });
@@ -453,6 +459,8 @@ serve(async (req) => {
             const linhaCoord = coordNome ? `Coordenação: ${coordNome}\n\n` : "";
             const corpoTexto = `${cabecalho}\n\n${linhaCoord}${linhas}\n\nTotal: ${itensVenc.length} item(ns) pendente(s)`;
             const tag = `[${cfg.id.slice(0,8)}|posvenc|${hojeYmd}]`;
+            const refsVenc = itensVenc.slice(0, 40).map((i) => ({ id: i.id, titulo: i.titulo, origem: i.origem }));
+            const refUnicoVenc = itensVenc.length === 1 ? itensVenc[0].id : null;
 
             const inicioDiaBrtUtc = new Date(Date.now() - 3 * 60 * 60 * 1000);
             inicioDiaBrtUtc.setUTCHours(0, 0, 0, 0);
@@ -473,6 +481,7 @@ serve(async (req) => {
                     coordenacao_id: cfg.coordenacao_id, tipo_alerta: cfg.tipo_tarefa,
                     canal: "email", destinatario: d.email,
                     conteudo: `${tag}\n${corpoTexto}`.slice(0, 2000),
+                    referencia_id: refUnicoVenc, itens_referencias: refsVenc,
                     status: r.ok ? "enviado" : "falha", erro: r.ok ? null : (r.erro ?? "erro"),
                   });
                   if (r.ok) totalEnviados++; else totalFalhas++;
@@ -495,6 +504,7 @@ serve(async (req) => {
                     coordenacao_id: cfg.coordenacao_id, tipo_alerta: cfg.tipo_tarefa,
                     canal: "whatsapp", destinatario: d.telefone,
                     conteudo: `${tag}\n${corpoTexto}`.slice(0, 2000),
+                    referencia_id: refUnicoVenc, itens_referencias: refsVenc,
                     status: ok ? "enviado" : "falha",
                     erro: ok ? null : String(resp.error?.message ?? "erro"),
                   });

@@ -6,7 +6,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Mail, MessageCircle, Check, Inbox } from "lucide-react";
+import { Mail, MessageCircle, Check, Inbox, ExternalLink } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -21,6 +27,7 @@ interface Mensagem {
   enviado_em: string;
   status: string | null;
   referencia_id?: string | null;
+  itens_referencias?: { id: string; titulo?: string | null; origem?: string | null }[] | null;
 }
 
 function onlyDigits(v?: string | null) {
@@ -78,7 +85,7 @@ export default function MinhasMensagensRecebidas({
     queryFn: async () => {
       let q = supabase
         .from("historico_alertas_enviados")
-        .select("id, tipo_alerta, canal, destinatario, conteudo, enviado_em, status, referencia_id")
+        .select("id, tipo_alerta, canal, destinatario, conteudo, enviado_em, status, referencia_id, itens_referencias")
         .order("enviado_em", { ascending: false })
         .limit(500);
       if (inicioISO) q = q.gte("enviado_em", inicioISO);
@@ -209,7 +216,10 @@ export default function MinhasMensagensRecebidas({
           {lista.map((m) => {
             const lida = lidos.has(m.id);
             const isWhats = (m.canal || "").toLowerCase().includes("whats");
-            const podeAbrir = !!m.referencia_id && !!onAbrirItem;
+            const refs = Array.isArray(m.itens_referencias) ? m.itens_referencias.filter((r) => r?.id) : [];
+            const refUnico = m.referencia_id || (refs.length === 1 ? refs[0].id : null);
+            const podeAbrir = !!refUnico && !!onAbrirItem;
+            const temLista = !refUnico && refs.length > 1 && !!onAbrirItem;
             return (
               <Card
                 key={m.id}
@@ -220,7 +230,7 @@ export default function MinhasMensagensRecebidas({
                 )}
                 onClick={() => {
                   if (!podeAbrir) return;
-                  onAbrirItem!(m.referencia_id!);
+                  onAbrirItem!(refUnico!);
                   if (!lida) marcarLida([m.id]);
                 }}
               >
@@ -245,6 +255,35 @@ export default function MinhasMensagensRecebidas({
                   <p className="text-sm whitespace-pre-wrap break-words">
                     {(m.conteudo || "").replace(/<[^>]+>/g, " ").trim() || "(sem conteúdo)"}
                   </p>
+                  {temLista && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                          Abrir item ({refs.length})
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="max-h-72 overflow-auto z-50 bg-popover">
+                        {refs.map((r) => (
+                          <DropdownMenuItem
+                            key={r.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onAbrirItem!(r.id);
+                              if (!lida) marcarLida([m.id]);
+                            }}
+                          >
+                            <span className="truncate max-w-[260px]">{r.titulo || r.id}</span>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
                 {!lida && (
                   <Button

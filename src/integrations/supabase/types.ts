@@ -4459,6 +4459,7 @@ export type Database = {
           enviado_em: string
           erro: string | null
           id: string
+          itens_referencias: Json | null
           referencia_id: string | null
           status: string
           tipo_alerta: string
@@ -4471,6 +4472,7 @@ export type Database = {
           enviado_em?: string
           erro?: string | null
           id?: string
+          itens_referencias?: Json | null
           referencia_id?: string | null
           status?: string
           tipo_alerta: string
@@ -4483,6 +4485,7 @@ export type Database = {
           enviado_em?: string
           erro?: string | null
           id?: string
+          itens_referencias?: Json | null
           referencia_id?: string | null
           status?: string
           tipo_alerta?: string

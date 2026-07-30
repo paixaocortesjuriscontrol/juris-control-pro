@@ -1,0 +1,1 @@
+ALTER TABLE public.historico_alertas_enviados ADD COLUMN IF NOT EXISTS itens_referencias jsonb;

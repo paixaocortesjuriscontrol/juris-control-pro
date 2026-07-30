@@ -1018,7 +1018,10 @@ export default function PainelControle() {
   // Abre o item (tarefa/prazo/evento/audiência) vinculado a um alerta recebido
   const abrirItemPorReferencia = async (referenciaId: string) => {
     const local = itensPainelFiltrados.find(
-      (i) => i.id === referenciaId || String(i.id).startsWith(`${referenciaId}-`)
+      (i) =>
+        i.id === referenciaId ||
+        String(i.id).startsWith(`${referenciaId}-`) ||
+        String(i.id).endsWith(`-${referenciaId}`)
     );
     if (local) {
       setSelectedItem(local);
@@ -1069,6 +1072,69 @@ export default function PainelControle() {
         status: e.status || "pendente",
       } as ItemAgendaUnificado);
       return;
+    }
+
+    const { data: audiencia } = await supabase
+      .from("audiencias_detectadas")
+      .select(
+        "id, titulo, processo_id, processo_numero, data_audiencia, hora, status, observacoes, local_audiencia, forum, criado_por, coordenacao_id, created_at, updated_at"
+      )
+      .eq("id", referenciaId)
+      .maybeSingle();
+
+    if (audiencia) {
+      const a = audiencia as any;
+      setSelectedItem({
+        id: `audiencia-det-${a.id}`,
+        titulo: a.titulo || `Audiência ${a.processo_numero ?? ""}`.trim(),
+        descricao: a.observacoes ?? null,
+        tipo: "audiencia",
+        origem: "evento",
+        data_inicio: a.data_audiencia,
+        data_fim: null,
+        dia_inteiro: !a.hora,
+        local: a.local_audiencia || a.forum || null,
+        recorrente: false,
+        status: a.status === "cumprido" ? "concluido" : a.status || "pendente",
+        concluido_em: null,
+        created_at: a.created_at,
+        updated_at: a.updated_at,
+        processo_id: a.processo_id ?? null,
+        processo: a.processo_numero ? { id: a.processo_id ?? a.id, numero: a.processo_numero } : null,
+        criado_por: a.criado_por,
+        coordenacao_id: a.coordenacao_id ?? null,
+      } as unknown as ItemAgendaUnificado);
+      return;
+    }
+
+    // Parcelas: abrir o evento-pai (parcelamento)
+    const { data: parcela } = await supabase
+      .from("parcelas_evento")
+      .select("id, evento_id")
+      .eq("id", referenciaId)
+      .maybeSingle();
+
+    if (parcela?.evento_id) {
+      const { data: eventoPai } = await supabase
+        .from("eventos_agenda")
+        .select("*, processo:processos(id,numero,assunto,cliente_id,coordenacao_id)")
+        .eq("id", parcela.evento_id)
+        .maybeSingle();
+      if (eventoPai) {
+        const e = eventoPai as any;
+        setSelectedItem({
+          ...e,
+          origem: "evento",
+          tipo: e.tipo || "parcelamento",
+          data_inicio: e.data_inicio,
+          data_fim: e.data_fim ?? null,
+          dia_inteiro: !!e.dia_inteiro,
+          recorrente: !!e.recorrente,
+          concluido_em: e.concluido_em ?? null,
+          status: e.status || "pendente",
+        } as ItemAgendaUnificado);
+        return;
+      }
     }
 
     toast.error("Item vinculado a este alerta não foi encontrado");
