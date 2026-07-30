@@ -3053,9 +3053,12 @@ const AnaliseDjen = () => {
           await descartarManualmente.mutateAsync({
             id: p.id,
             tipo_origem: p.tipo_origem as 'termo' | 'processo',
+            silent: true,
           });
         }
         setSelectedIds(new Map<string, TipoOrigemPublicacao>());
+        await invalidarListasDescarte();
+        toast.success(`${unicas.length} publicação(ões) descartada(s).`);
       } finally {
         setDescartandoSelecionadas(false);
       }
@@ -3091,12 +3094,14 @@ const AnaliseDjen = () => {
           await descartarManualmente.mutateAsync({
             id: p.id,
             tipo_origem: p.tipo_origem as 'termo' | 'processo',
+            silent: true,
           });
           sucesso += 1;
         } catch (e: any) {
           falhas.push({ id: p.id, processo: p.processo_numero ?? null, erro: e?.message || String(e) });
         }
       }
+      await invalidarListasDescarte();
       if (falhas.length > 0) {
         console.error('[descartar-selecionadas] falhas:', falhas);
         toast.error(
@@ -3190,12 +3195,14 @@ const AnaliseDjen = () => {
           await descartarManualmente.mutateAsync({
             id: p.id,
             tipo_origem: p.tipo_origem as 'termo' | 'processo',
+            silent: true,
           });
           sucesso += 1;
         } catch (e: any) {
           falhas.push({ id: p.id, processo: p.processo_numero ?? null, erro: e?.message || String(e) });
         }
       }
+      await invalidarListasDescarte();
       if (falhas.length > 0) {
         console.error('[descartar-duplicadas-selecionadas] falhas:', falhas);
         toast.error(
