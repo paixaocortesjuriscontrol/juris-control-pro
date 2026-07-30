@@ -1015,6 +1015,65 @@ export default function PainelControle() {
     setSelectedItem(item);
   };
 
+  // Abre o item (tarefa/prazo/evento/audiência) vinculado a um alerta recebido
+  const abrirItemPorReferencia = async (referenciaId: string) => {
+    const local = itensPainelFiltrados.find(
+      (i) => i.id === referenciaId || String(i.id).startsWith(`${referenciaId}-`)
+    );
+    if (local) {
+      setSelectedItem(local);
+      return;
+    }
+
+    const { data: tarefa } = await supabase
+      .from("tarefas")
+      .select(
+        "*, processo:processos!tarefas_processo_id_fkey(id,numero,assunto,cliente_id,coordenacao_id), responsavel:profiles!tarefas_responsavel_id_fkey(id,nome)"
+      )
+      .eq("id", referenciaId)
+      .maybeSingle();
+
+    if (tarefa) {
+      const t = tarefa as any;
+      setSelectedItem({
+        ...t,
+        origem: "tarefa",
+        tipo: t.tipo_tarefa || "tarefa",
+        data_inicio: t.data_vencimento || t.data_fatal || t.created_at,
+        data_fim: t.data_fatal ?? null,
+        dia_inteiro: true,
+        local: null,
+        recorrente: !!t.recorrente,
+        concluido_em: t.concluido_em ?? null,
+      } as ItemAgendaUnificado);
+      return;
+    }
+
+    const { data: evento } = await supabase
+      .from("eventos_agenda")
+      .select("*, processo:processos(id,numero,assunto,cliente_id,coordenacao_id)")
+      .eq("id", referenciaId)
+      .maybeSingle();
+
+    if (evento) {
+      const e = evento as any;
+      setSelectedItem({
+        ...e,
+        origem: "evento",
+        tipo: e.tipo || "evento",
+        data_inicio: e.data_inicio,
+        data_fim: e.data_fim ?? null,
+        dia_inteiro: !!e.dia_inteiro,
+        recorrente: !!e.recorrente,
+        concluido_em: e.concluido_em ?? null,
+        status: e.status || "pendente",
+      } as ItemAgendaUnificado);
+      return;
+    }
+
+    toast.error("Item vinculado a este alerta não foi encontrado");
+  };
+
   const handleConcluirItem = async (item: ItemAgendaUnificado) => {
     const isConcluido = isItemTratado(item);
     const nextStatus = isConcluido ? "pendente" : "concluido";
