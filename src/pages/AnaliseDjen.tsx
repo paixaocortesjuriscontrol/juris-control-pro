@@ -3485,19 +3485,37 @@ const AnaliseDjen = () => {
             for (const it of itensCriadosSessao) map.set(it.id, it);
             return Array.from(map.values());
           })();
-          const wrapperAberto = inlineFormAberto || (!!selectedPublicacao && itensCriadosSessao.length > 0);
+          const wrapperAberto =
+            inlineFormAberto || !!itemEmEdicao || (!!selectedPublicacao && itensCriadosSessao.length > 0);
           const fecharTudo = () => {
             setCriarTarefaDialogOpen(false);
             setNovoEventoOpen(false);
             setNovoPrazoOpen(false);
             setNovaAudienciaOpen(false);
+            setItemEmEdicao(null);
             setItensCriadosSessao([]);
           };
           const trocarTipo = (tipo: "tarefa" | "evento" | "prazo" | "audiencia") => {
+            setItemEmEdicao(null);
             setCriarTarefaDialogOpen(tipo === "tarefa");
             setNovoEventoOpen(tipo === "evento");
             setNovoPrazoOpen(tipo === "prazo");
             setNovaAudienciaOpen(tipo === "audiencia");
+          };
+          const abrirEdicaoItem = (item: ItemCriado) => {
+            setCriarTarefaDialogOpen(false);
+            setNovoEventoOpen(false);
+            setNovoPrazoOpen(false);
+            setNovaAudienciaOpen(false);
+            setItemEmEdicao({ tipo: item.tipo, id: item.id });
+          };
+          const fecharEdicaoItem = async () => {
+            setItemEmEdicao(null);
+            await Promise.all([
+              queryClient.invalidateQueries({ queryKey: ["itens-existentes-publicacao"] }),
+              queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] }),
+              queryClient.invalidateQueries({ queryKey: ["tarefas"] }),
+            ]);
           };
           const registrarItemCriado = (tipo: ItemCriado["tipo"]) =>
             (info: { id: string; titulo: string }) => {
@@ -3584,13 +3602,20 @@ const AnaliseDjen = () => {
                   ← Voltar para a lista
                 </Button>
               </div>
-              <ItensCriadosPublicacaoCard itens={itensDoCard} />
+              <ItensCriadosPublicacaoCard itens={itensDoCard} onSelecionarItem={abrirEdicaoItem} />
               {/* Barra "+ Adicionar" acima do formulário, sempre visível quando o
                   wrapper está aberto — permite alternar o tipo sem fechar. */}
               <div className="flex items-center justify-end">
                 {AdicionarTipoDropdown}
               </div>
-              {!inlineFormAberto && (
+              {itemEmEdicao && (
+                <EdicaoItemPublicacaoInline
+                  tipo={itemEmEdicao.tipo}
+                  id={itemEmEdicao.id}
+                  onClose={() => { void fecharEdicaoItem(); }}
+                />
+              )}
+              {!inlineFormAberto && !itemEmEdicao && (
                 <div className="rounded-md border bg-background p-6 text-sm text-muted-foreground text-center">
                   Selecione um tipo em <strong>Adicionar</strong> para cadastrar outro item para esta publicação, ou clique em <strong>Voltar para a lista</strong>.
                 </div>
