@@ -124,6 +124,46 @@ export default function MinhasMensagensRecebidas({
 
   const lidos = useMemo(() => new Set(leituras), [leituras]);
 
+  // Nomes dos destinatários (por e-mail / telefone)
+  const { data: pessoas = [] } = useQuery({
+    queryKey: ["perfis-destinatarios-alertas"],
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("nome, email, telefone");
+      return (data || []) as { nome: string | null; email: string | null; telefone: string | null }[];
+    },
+  });
+
+  const nomePorContato = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of pessoas) {
+      if (!p.nome) continue;
+      if (p.email) map.set(p.email.toLowerCase(), p.nome);
+      const tel = onlyDigits(p.telefone);
+      if (tel.length >= 8) map.set(tel.slice(-8), p.nome);
+    }
+    return map;
+  }, [pessoas]);
+
+  const nomeDestinatario = (dest?: string | null) => {
+    const d = (dest || "").trim();
+    if (!d) return "";
+    const porEmail = nomePorContato.get(d.toLowerCase());
+    if (porEmail) return porEmail;
+    const dig = onlyDigits(d);
+    if (dig.length >= 8) {
+      const porTel = nomePorContato.get(dig.slice(-8));
+      if (porTel) return porTel;
+    }
+    return d;
+  };
+
+  /** Remove códigos técnicos de deduplicação, ex.: [4ecf871c|2026-07-24|d2] */
+  const limparConteudo = (texto?: string | null) =>
+    (texto || "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\[[0-9a-f]{6,8}\|[^\]]*\]/gi, "")
+      .trim();
+
   const lista = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     return mensagens.filter((m) => {
