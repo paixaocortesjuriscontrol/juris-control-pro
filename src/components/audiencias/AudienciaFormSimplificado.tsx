@@ -133,6 +133,14 @@ export function AudienciaFormSimplificado({
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null);
+  useEffect(() => {
+    if (coordenadoresIds.length === 0) return;
+    setResponsaveisIds((prev) => {
+      const faltando = coordenadoresIds.filter((id) => !prev.includes(id));
+      return faltando.length > 0 ? [...prev, ...faltando] : prev;
+    });
+  }, [JSON.stringify(coordenadoresIds)]);
   const [buscando, setBuscando] = useState(false);
   const autoBuscaRef = useRef(false);
 

@@ -132,6 +132,14 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const [alertaValor, setAlertaValor] = useState<number>(0);
   const [alertaUnidade, setAlertaUnidade] = useState<AlertaUnidade>("horas");
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
+  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null);
+  useEffect(() => {
+    if (coordenadoresIds.length === 0) return;
+    setResponsaveisIds((prev) => {
+      const faltando = coordenadoresIds.filter((id) => !prev.includes(id));
+      return faltando.length > 0 ? [...prev, ...faltando] : prev;
+    });
+  }, [JSON.stringify(coordenadoresIds)]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const [observacoes, setObservacoes] = useState("");
