@@ -342,6 +342,8 @@ serve(async (req) => {
         const inicioJanelaUtc = new Date(inicioDiaBrtUtc.getTime() + 3 * 60 * 60 * 1000).toISOString();
         const tag = `[${cfg.id.slice(0,8)}|${alvo}|d${nDias}]`;
         const subject = `${cabecalho}`;
+        const refs = itens.slice(0, 30).map((i) => ({ id: i.id, titulo: i.titulo, origem: i.origem }));
+        const refUnico = itens.length === 1 ? itens[0].id : null;
 
         for (const d of dests) {
           if (cfg.canal_whatsapp && d.telefone) {
@@ -366,6 +368,8 @@ serve(async (req) => {
                 canal: "whatsapp",
                 destinatario: d.telefone,
                 conteudo: `${tag}\n${corpoTexto}`.slice(0, 2000),
+                referencia_id: refUnico,
+                itens_referencias: refs,
                 status: ok ? "enviado" : "falha",
                 erro: ok ? null : String(resp.error?.message ?? "erro"),
               });
@@ -392,6 +396,8 @@ serve(async (req) => {
                 canal: "email",
                 destinatario: d.email,
                 conteudo: `${tag}\n${corpoTexto}`.slice(0, 2000),
+                referencia_id: refUnico,
+                itens_referencias: refs,
                 status: r.ok ? "enviado" : "falha",
                 erro: r.ok ? null : (r.erro ?? "erro"),
               });
