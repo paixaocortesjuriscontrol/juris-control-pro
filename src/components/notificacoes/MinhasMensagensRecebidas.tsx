@@ -209,13 +209,20 @@ export default function MinhasMensagensRecebidas({
           {lista.map((m) => {
             const lida = lidos.has(m.id);
             const isWhats = (m.canal || "").toLowerCase().includes("whats");
+            const podeAbrir = !!m.referencia_id && !!onAbrirItem;
             return (
               <Card
                 key={m.id}
                 className={cn(
                   "p-4 flex gap-3 items-start transition-colors",
-                  !lida && "border-primary/50 bg-primary/5"
+                  !lida && "border-primary/50 bg-primary/5",
+                  podeAbrir && "cursor-pointer hover:shadow-md hover:border-primary"
                 )}
+                onClick={() => {
+                  if (!podeAbrir) return;
+                  onAbrirItem!(m.referencia_id!);
+                  if (!lida) marcarLida([m.id]);
+                }}
               >
                 <div className="mt-0.5">
                   {isWhats ? (
@@ -240,7 +247,14 @@ export default function MinhasMensagensRecebidas({
                   </p>
                 </div>
                 {!lida && (
-                  <Button size="sm" variant="ghost" onClick={() => marcarLida([m.id])}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      marcarLida([m.id]);
+                    }}
+                  >
                     <Check className="h-4 w-4 mr-1" /> Lida
                   </Button>
                 )}
