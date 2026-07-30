@@ -40,6 +40,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
@@ -662,8 +663,14 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   onChange={setResponsaveisIds}
                   placeholder="Selecionar responsável"
                   emptyLabel="Nenhum responsável selecionado"
+                  lockedIds={coordenadoresIds}
                 />
               </div>
+              {coordenadoresIds.length > 0 && (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Coordenadores da coordenação são responsáveis obrigatórios e não podem ser removidos.
+                </p>
+              )}
               {!mostrarEnvolvidos && (
                 <button
                   type="button"

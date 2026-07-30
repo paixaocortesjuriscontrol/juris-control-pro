@@ -18,6 +18,7 @@ import { Loader2, Search, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { useAudienciasDetectadas, NovaAudiencia } from "@/hooks/useAudienciasDetectadas";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { supabase } from "@/integrations/supabase/client";
 import { formatProcessoNumero } from "@/lib/utils";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
@@ -639,7 +640,13 @@ export function AudienciaFormSimplificado({
           onChange={setResponsaveisIds}
           placeholder="Adicionar responsável"
           emptyLabel="Nenhum responsável selecionado"
+          lockedIds={coordenadoresIds}
         />
+        {coordenadoresIds.length > 0 && (
+          <p className="text-[11px] text-muted-foreground">
+            Coordenadores da coordenação são responsáveis obrigatórios e não podem ser removidos.
+          </p>
+        )}
         {!mostrarEnvolvidos && (
           <button
             type="button"
