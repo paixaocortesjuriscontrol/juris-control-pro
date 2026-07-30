@@ -370,6 +370,16 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
     }));
   };
 
+  // Coordenadores da coordenação são participantes obrigatórios (fixos)
+  useEffect(() => {
+    if (coordenadoresIds.length === 0) return;
+    setFormData((prev) => {
+      const faltando = coordenadoresIds.filter((id) => !prev.participantes_ids.includes(id));
+      if (faltando.length === 0) return prev;
+      return { ...prev, participantes_ids: [...prev.participantes_ids, ...faltando] };
+    });
+  }, [JSON.stringify(coordenadoresIds)]);
+
   const toggleAlerta = (minutos: number) => {
     setFormData(prev => ({
       ...prev,
