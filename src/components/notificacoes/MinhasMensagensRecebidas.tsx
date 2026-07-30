@@ -6,7 +6,13 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Mail, MessageCircle, Check, Inbox } from "lucide-react";
+import { Mail, MessageCircle, Check, Inbox, ExternalLink } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -21,6 +27,7 @@ interface Mensagem {
   enviado_em: string;
   status: string | null;
   referencia_id?: string | null;
+  itens_referencias?: { id: string; titulo?: string | null; origem?: string | null }[] | null;
 }
 
 function onlyDigits(v?: string | null) {
