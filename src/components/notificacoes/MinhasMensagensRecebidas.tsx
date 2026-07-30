@@ -289,11 +289,11 @@ export default function MinhasMensagensRecebidas({
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(m.enviado_em), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                     </span>
-                    <span className="text-xs text-muted-foreground truncate">{m.destinatario}</span>
+                    <span className="text-xs text-muted-foreground truncate">{nomeDestinatario(m.destinatario)}</span>
                     {!lida && <Badge variant="destructive" className="text-[10px]">Nova</Badge>}
                   </div>
                   <p className="text-sm whitespace-pre-wrap break-words">
-                    {(m.conteudo || "").replace(/<[^>]+>/g, " ").trim() || "(sem conteúdo)"}
+                    {limparConteudo(m.conteudo) || "(sem conteúdo)"}
                   </p>
                   {temLista && (
                     <DropdownMenu>
