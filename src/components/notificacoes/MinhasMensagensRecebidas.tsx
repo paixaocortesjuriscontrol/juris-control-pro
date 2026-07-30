@@ -201,7 +201,7 @@ export default function MinhasMensagensRecebidas({
           Nenhuma mensagem recebida no período.
         </Card>
       ) : (
-        <div className="space-y-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
           {lista.map((m) => {
             const lida = lidos.has(m.id);
             const isWhats = (m.canal || "").toLowerCase().includes("whats");
