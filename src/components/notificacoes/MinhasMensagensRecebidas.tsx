@@ -20,6 +20,7 @@ interface Mensagem {
   conteudo: string | null;
   enviado_em: string;
   status: string | null;
+  referencia_id?: string | null;
 }
 
 function onlyDigits(v?: string | null) {
@@ -31,6 +32,7 @@ export default function MinhasMensagensRecebidas({
   periodoFim,
   coordenacaoId,
   todosDestinatarios = false,
+  onAbrirItem,
 }: {
   periodoInicio?: Date;
   periodoFim?: Date;
@@ -38,6 +40,8 @@ export default function MinhasMensagensRecebidas({
   coordenacaoId?: string;
   /** quando true (modo Escritório para admin/coordenador), mostra mensagens de todos */
   todosDestinatarios?: boolean;
+  /** abre o item (tarefa/prazo/evento/audiência) vinculado ao alerta */
+  onAbrirItem?: (referenciaId: string) => void;
 }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -74,7 +78,7 @@ export default function MinhasMensagensRecebidas({
     queryFn: async () => {
       let q = supabase
         .from("historico_alertas_enviados")
-        .select("id, tipo_alerta, canal, destinatario, conteudo, enviado_em, status")
+        .select("id, tipo_alerta, canal, destinatario, conteudo, enviado_em, status, referencia_id")
         .order("enviado_em", { ascending: false })
         .limit(500);
       if (inicioISO) q = q.gte("enviado_em", inicioISO);
