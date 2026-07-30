@@ -359,6 +359,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   }, 0).toFixed(2);
 
   const toggleParticipante = (userId: string) => {
+    if (coordenadoresIds.includes(userId)) return;
     setFormData(prev => ({
       ...prev,
       participantes_ids: prev.participantes_ids.includes(userId)
