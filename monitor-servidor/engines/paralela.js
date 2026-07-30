@@ -1047,16 +1047,16 @@ async function buscarPaginado(slot, params, signal) {
     if (!result.ok) {
       const msg1 = String(result.err?.message || "?");
       console.log(`[paralela.buscarPaginado] janela ${windowIdx} degradada para size=10 após falha (${msg1})`);
-      // Erro de rede (fetch failed / socket) => respira antes de degradar,
-      // senão a nova tentativa cai no mesmo bloqueio do tribunal.
-      if (/fetch failed|socket|ECONN|network|timeout/i.test(msg1)) {
-        await delay(2000, signal);
-      }
+      const isRede = /fetch failed|socket|ECONN|network|timeout/i.test(msg1);
+      // Respiro curto antes de degradar (antes 2s fixos).
+      if (isRede && DEGRADE_DELAY_MS > 0) await delay(DEGRADE_DELAY_MS, signal);
       result = await fetchWindow(windowIdx, 10);
-      if (!result.ok) {
-        // Última degradação: 5 itens por página. Buscas amplas por parte no
-        // TST derrubam a conexão com páginas grandes.
-        await delay(4000, signal);
+      // Degradação final para size=5 só faz sentido quando o problema é
+      // payload grande (5xx / resposta truncada). Em "fetch failed" genérico
+      // a VPS/tribunal está simplesmente derrubando a conexão e insistir com
+      // 10 sub-requisições só queima tempo de uma das vias.
+      if (!result.ok && !isRede) {
+        await delay(DEGRADE_DELAY_MS * 2, signal);
         result = await fetchWindow(windowIdx, 5);
       }
     }
@@ -1065,8 +1065,8 @@ async function buscarPaginado(slot, params, signal) {
       if (failedStreak >= CONSECUTIVE_FAILED_PAGES_LIMIT) {
         throw result.err || new Error("Falha ao consultar VPS DJEN");
       }
-      // Backoff exponencial entre janelas que falharam (2s, 4s, 8s...).
-      await delay(Math.min(2000 * Math.pow(2, failedStreak - 1), 15000), signal);
+      // Backoff exponencial entre janelas que falharam, com teto curto.
+      await delay(Math.min(1000 * Math.pow(2, failedStreak - 1), WINDOW_BACKOFF_MAX_MS), signal);
       continue;
     }
     failedStreak = 0;
