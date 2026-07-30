@@ -3687,7 +3687,7 @@ const AnaliseDjen = () => {
           ) : null;
         })()}
 
-        <div className={cn("space-y-6", (criarTarefaDialogOpen || novoEventoOpen || novoPrazoOpen || novaAudienciaOpen || (!!selectedPublicacao && itensCriadosSessao.length > 0)) && "hidden")}>
+        <div className={cn("space-y-6", (criarTarefaDialogOpen || novoEventoOpen || novoPrazoOpen || novaAudienciaOpen || !!itemEmEdicao || (!!selectedPublicacao && itensCriadosSessao.length > 0)) && "hidden")}>
         {/* Banners de execução DJEN */}
         <DjenExecutionBanner />
 
