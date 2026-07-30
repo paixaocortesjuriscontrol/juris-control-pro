@@ -2986,6 +2986,16 @@ const AnaliseDjen = () => {
   // selecionados), pede confirmação extra antes de descartá-los.
   const [descartandoSelecionadas, setDescartandoSelecionadas] = useState(false);
   const [descartandoDupSelecionadas, setDescartandoDupSelecionadas] = useState(false);
+  // Invalida as listas afetadas por descarte UMA única vez, ao final de uma ação em lote.
+  const invalidarListasDescarte = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] }),
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] }),
+      queryClient.invalidateQueries({ queryKey: ['descartadas-count'] }),
+      queryClient.invalidateQueries({ queryKey: ['descartadas-dedup'] }),
+      queryClient.invalidateQueries({ queryKey: ['descartadas-lotes-recentes'] }),
+    ]);
+  };
   const handleDescartarSelecionadas = async () => {
     if (selectedIds.size === 0) {
       toast.error("Selecione ao menos uma publicação");
