@@ -1855,6 +1855,10 @@ async function run({ sb, payload, log, job }) {
 
   // Acumula totais já vindos do checkpoint
   let totalNovas = 0, totalDescartadas = 0, totalDuplicatas = 0, totalErros = 0;
+  // Observabilidade de degradação: onde o tempo está sendo queimado.
+  const falhasPorTribunal = {};
+  let tempoEmFalhasMs = 0;
+  let unidadesEstouradas = 0;
   for (const item of itens) {
     if (item.status === "concluido") {
       totalNovas += item.novas;
