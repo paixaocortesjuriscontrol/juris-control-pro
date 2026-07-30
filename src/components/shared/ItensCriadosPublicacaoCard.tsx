@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { CheckCircle2, ChevronDown, ChevronRight, Clock, Calendar, ListChecks, Gavel } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Clock, Calendar, ListChecks, Gavel, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type ItemCriadoTipo = "prazo" | "evento" | "tarefa" | "audiencia";
@@ -16,6 +16,8 @@ export interface ItemCriado {
 interface Props {
   itens: ItemCriado[];
   className?: string;
+  /** Quando informado, cada linha vira um botão que abre a edição do item. */
+  onSelecionarItem?: (item: ItemCriado) => void;
 }
 
 const TIPO_META: Record<ItemCriadoTipo, { label: string; icon: React.ComponentType<any> }> = {
@@ -31,7 +33,7 @@ const TIPO_META: Record<ItemCriadoTipo, { label: string; icon: React.ComponentTy
  * a partir da publicação selecionada durante esta sessão. Some quando a lista
  * está vazia.
  */
-export function ItensCriadosPublicacaoCard({ itens, className }: Props) {
+export function ItensCriadosPublicacaoCard({ itens, className, onSelecionarItem }: Props) {
   const [aberto, setAberto] = useState(true);
   const [flashId, setFlashId] = useState<string | null>(null);
   const ultimo = itens[itens.length - 1];
@@ -72,16 +74,8 @@ export function ItensCriadosPublicacaoCard({ itens, className }: Props) {
               const meta = TIPO_META[item.tipo];
               const Icon = meta.icon;
               const isFlash = flashId === item.id;
-              return (
-                <div
-                  key={item.id}
-                  className={cn(
-                    "flex items-center gap-2 text-sm rounded px-2 py-1 border transition-colors",
-                    isFlash
-                      ? "bg-emerald-200 dark:bg-emerald-900/60 border-emerald-400 dark:border-emerald-700"
-                      : "bg-white/60 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800",
-                  )}
-                >
+              const conteudo = (
+                <>
                   <Icon className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
                   <Badge variant="outline" className="text-[10px] border-emerald-400 text-emerald-800 dark:text-emerald-300 shrink-0">
                     {meta.label}
@@ -89,6 +83,36 @@ export function ItensCriadosPublicacaoCard({ itens, className }: Props) {
                   <span className="truncate text-emerald-950 dark:text-emerald-100">
                     {item.titulo}
                   </span>
+                  {onSelecionarItem && (
+                    <Pencil className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400 shrink-0 ml-auto opacity-60 group-hover:opacity-100" />
+                  )}
+                </>
+              );
+              const baseClasses = cn(
+                "flex items-center gap-2 text-sm rounded px-2 py-1 border transition-colors",
+                isFlash
+                  ? "bg-emerald-200 dark:bg-emerald-900/60 border-emerald-400 dark:border-emerald-700"
+                  : "bg-white/60 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800",
+              );
+              if (onSelecionarItem) {
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    title="Abrir para editar"
+                    onClick={() => onSelecionarItem(item)}
+                    className={cn(
+                      baseClasses,
+                      "group w-full text-left cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/60 hover:border-emerald-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
+                    )}
+                  >
+                    {conteudo}
+                  </button>
+                );
+              }
+              return (
+                <div key={item.id} className={baseClasses}>
+                  {conteudo}
                 </div>
               );
             })}
