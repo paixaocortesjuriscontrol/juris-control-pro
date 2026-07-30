@@ -2986,6 +2986,16 @@ const AnaliseDjen = () => {
   // selecionados), pede confirmação extra antes de descartá-los.
   const [descartandoSelecionadas, setDescartandoSelecionadas] = useState(false);
   const [descartandoDupSelecionadas, setDescartandoDupSelecionadas] = useState(false);
+  // Invalida as listas afetadas por descarte UMA única vez, ao final de uma ação em lote.
+  const invalidarListasDescarte = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] }),
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] }),
+      queryClient.invalidateQueries({ queryKey: ['descartadas-count'] }),
+      queryClient.invalidateQueries({ queryKey: ['descartadas-dedup'] }),
+      queryClient.invalidateQueries({ queryKey: ['descartadas-lotes-recentes'] }),
+    ]);
+  };
   const handleDescartarSelecionadas = async () => {
     if (selectedIds.size === 0) {
       toast.error("Selecione ao menos uma publicação");
@@ -3053,9 +3063,12 @@ const AnaliseDjen = () => {
           await descartarManualmente.mutateAsync({
             id: p.id,
             tipo_origem: p.tipo_origem as 'termo' | 'processo',
+            silent: true,
           });
         }
         setSelectedIds(new Map<string, TipoOrigemPublicacao>());
+        await invalidarListasDescarte();
+        toast.success(`${unicas.length} publicação(ões) descartada(s).`);
       } finally {
         setDescartandoSelecionadas(false);
       }
@@ -3091,12 +3104,14 @@ const AnaliseDjen = () => {
           await descartarManualmente.mutateAsync({
             id: p.id,
             tipo_origem: p.tipo_origem as 'termo' | 'processo',
+            silent: true,
           });
           sucesso += 1;
         } catch (e: any) {
           falhas.push({ id: p.id, processo: p.processo_numero ?? null, erro: e?.message || String(e) });
         }
       }
+      await invalidarListasDescarte();
       if (falhas.length > 0) {
         console.error('[descartar-selecionadas] falhas:', falhas);
         toast.error(
@@ -3190,12 +3205,14 @@ const AnaliseDjen = () => {
           await descartarManualmente.mutateAsync({
             id: p.id,
             tipo_origem: p.tipo_origem as 'termo' | 'processo',
+            silent: true,
           });
           sucesso += 1;
         } catch (e: any) {
           falhas.push({ id: p.id, processo: p.processo_numero ?? null, erro: e?.message || String(e) });
         }
       }
+      await invalidarListasDescarte();
       if (falhas.length > 0) {
         console.error('[descartar-duplicadas-selecionadas] falhas:', falhas);
         toast.error(
