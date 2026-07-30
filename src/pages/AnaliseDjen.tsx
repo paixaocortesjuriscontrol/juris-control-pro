@@ -143,6 +143,7 @@ const AnaliseDjen = () => {
   const { isAdmin } = useUserRole();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const routerLocation = useLocation();
   const [importingProcessoId, setImportingProcessoId] = useState<string | null>(null);
   // Mapa local: publicação recém-importada -> processo criado. Serve para trocar
   // o botão "Importar" por "Salvar" e mostrar "Ver processo" sem recarregar a lista.
