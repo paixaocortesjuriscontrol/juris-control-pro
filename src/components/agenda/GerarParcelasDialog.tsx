@@ -1,6 +1,7 @@
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
+import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Dialog,
