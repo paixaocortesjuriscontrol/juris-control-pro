@@ -1,6 +1,7 @@
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
+import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Dialog,
@@ -70,7 +71,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const { podeCancelar } = usePodeCancelarItens();
   const { precisaSelecionar, unicaCoordenacaoId, coordenacoes: coordenacoesUsuario, isAdmin } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
-  
+  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null);
+
   const [formData, setFormData] = useState({
     titulo: "",
     descricao: "",
@@ -359,6 +361,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   }, 0).toFixed(2);
 
   const toggleParticipante = (userId: string) => {
+    if (coordenadoresIds.includes(userId)) return;
     setFormData(prev => ({
       ...prev,
       participantes_ids: prev.participantes_ids.includes(userId)
@@ -366,6 +369,16 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         : [...prev.participantes_ids, userId],
     }));
   };
+
+  // Coordenadores da coordenação são participantes obrigatórios (fixos)
+  useEffect(() => {
+    if (coordenadoresIds.length === 0) return;
+    setFormData((prev) => {
+      const faltando = coordenadoresIds.filter((id) => !prev.participantes_ids.includes(id));
+      if (faltando.length === 0) return prev;
+      return { ...prev, participantes_ids: [...prev.participantes_ids, ...faltando] };
+    });
+  }, [JSON.stringify(coordenadoresIds)]);
 
   const toggleAlerta = (minutos: number) => {
     setFormData(prev => ({

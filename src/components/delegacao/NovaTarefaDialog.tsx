@@ -41,6 +41,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, X, Upload, FileText, Trash2, Sparkles, CheckCircle2, Eye, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { Label } from "@/components/ui/label";
 import { TarefaPublicacaoVinculada } from "@/components/shared/TarefaPublicacaoVinculada";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
@@ -218,6 +219,17 @@ export function NovaTarefaDialog({
 
   const tipoVinculo = form.watch("tipo_vinculo");
   const coordenacaoId = form.watch("coordenacao_id");
+  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null);
+  useEffect(() => {
+    if (coordenadoresIds.length === 0) return;
+    setResponsaveisIds((prev) => {
+      const faltando = coordenadoresIds.filter((id) => !prev.includes(id));
+      if (faltando.length === 0) return prev;
+      const novos = [...prev, ...faltando];
+      if (!form.getValues("responsavel_id")) form.setValue("responsavel_id", novos[0]);
+      return novos;
+    });
+  }, [JSON.stringify(coordenadoresIds)]);
   const forcarVinculoPublicacao = !!publicacao;
 
   // Fetch processos based on coordination and search
@@ -1041,8 +1053,14 @@ export function NovaTarefaDialog({
                         }}
                         placeholder="Adicionar responsável"
                         emptyLabel="Nenhum responsável selecionado"
+                        lockedIds={coordenadoresIds}
                       />
                     </FormControl>
+                    {coordenadoresIds.length > 0 && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Coordenadores da coordenação são responsáveis obrigatórios e não podem ser removidos.
+                      </p>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}

@@ -18,6 +18,7 @@ import { Loader2, Search, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { useAudienciasDetectadas, NovaAudiencia } from "@/hooks/useAudienciasDetectadas";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { supabase } from "@/integrations/supabase/client";
 import { formatProcessoNumero } from "@/lib/utils";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
@@ -132,6 +133,14 @@ export function AudienciaFormSimplificado({
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null);
+  useEffect(() => {
+    if (coordenadoresIds.length === 0) return;
+    setResponsaveisIds((prev) => {
+      const faltando = coordenadoresIds.filter((id) => !prev.includes(id));
+      return faltando.length > 0 ? [...prev, ...faltando] : prev;
+    });
+  }, [JSON.stringify(coordenadoresIds)]);
   const [buscando, setBuscando] = useState(false);
   const autoBuscaRef = useRef(false);
 
@@ -639,7 +648,13 @@ export function AudienciaFormSimplificado({
           onChange={setResponsaveisIds}
           placeholder="Adicionar responsável"
           emptyLabel="Nenhum responsável selecionado"
+          lockedIds={coordenadoresIds}
         />
+        {coordenadoresIds.length > 0 && (
+          <p className="text-[11px] text-muted-foreground">
+            Coordenadores da coordenação são responsáveis obrigatórios e não podem ser removidos.
+          </p>
+        )}
         {!mostrarEnvolvidos && (
           <button
             type="button"
