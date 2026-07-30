@@ -976,7 +976,7 @@ async function buscarPaginado(slot, params, signal) {
   // zera os contadores. Espelha src/utils/pjeComunicaClient.ts.
   const EMPTY_PAGE_STREAK_LIMIT = 2;
   const NO_NEW_ITEMS_STREAK_LIMIT = 3;
-  const CONSECUTIVE_FAILED_PAGES_LIMIT = 3;
+  const CONSECUTIVE_FAILED_PAGES_LIMIT = 2;
   let emptyStreak = 0;
   let noNewStreak = 0;
   let failedStreak = 0;
@@ -1005,13 +1005,17 @@ async function buscarPaginado(slot, params, signal) {
       };
       let out;
       let lastErr;
-      for (let attempt = 0; attempt < 4; attempt++) {
+      // 3 tentativas com espera curta (antes: 4 tentativas com 3s/6s/9s/12s,
+      // ou seja até 30s por sub-página só em espera). Sem dormir depois da
+      // última tentativa.
+      for (let attempt = 0; attempt < 3; attempt++) {
         out = await djenFetchSlot(slot, query, signal).catch((e) => {
           lastErr = e;
           return null;
         });
         if (out && out.status !== 429 && out.status < 500) break;
-        await delay(out?.status === 429 ? 8000 * (attempt + 1) : 3000 * (attempt + 1), signal);
+        if (attempt === 2) break;
+        await delay(out?.status === 429 ? 6000 * (attempt + 1) : 1500 * (attempt + 1), signal);
       }
       if (!out || out.status < 200 || out.status >= 300) {
         if (out && out.status === 404) {
