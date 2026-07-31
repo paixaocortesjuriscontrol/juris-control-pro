@@ -119,7 +119,7 @@ function getMotivoBloqueioCarga(d: any): string | null {
   if (isFlagOn(d?.segredo_justica)) return "Segredo de justiça";
   if (isFlagOn(d?.cejusc)) return "CEJUSC";
   if (isFlagOn(d?.acordo)) return "Acordo";
-  if (isFlagOn(d?.recurso_terceiro) || isFlagOn(d?.recurso_terceiros)) return "Recurso de terceiro";
+  // "Recurso de terceiro" NÃO é motivo de rejeição na Carga Benner.
   const pend = getPendencias(d);
   if (pend.length > 0) {
     const amostra = pend.slice(0, 3).map(p => p.label).join(", ");
