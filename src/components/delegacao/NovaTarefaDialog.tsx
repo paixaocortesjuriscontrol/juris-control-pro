@@ -919,6 +919,13 @@ export function NovaTarefaDialog({
                           if (m.descricao && !form.getValues("descricao")) {
                             form.setValue("descricao", m.descricao, { shouldDirty: true });
                           }
+                          const p = resolverPadroes(m);
+                          for (const [k, v] of Object.entries(p)) {
+                            const atual = form.getValues(k as any);
+                            if (atual === undefined || String(atual ?? "").trim() === "") {
+                              form.setValue(k as any, v, { shouldDirty: true });
+                            }
+                          }
                         }}
                       />
                     </div>

@@ -557,6 +557,15 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   onSelect={(m) => {
                     setTitulo(m.titulo);
                     if (m.descricao) setObservacoes((prev) => prev || m.descricao || "");
+                    const p = resolverPadroes(m);
+                    if (p.observacoes) setObservacoes((prev) => prev || p.observacoes);
+                    if (p.data_inicio) setDataInicio((prev) => prev || p.data_inicio);
+                    if (p.hora_inicio) setHoraInicio((prev) => prev || p.hora_inicio);
+                    if (p.data_fim) setDataFim((prev) => prev || p.data_fim);
+                    if (p.hora_fim) setHoraFim((prev) => prev || p.hora_fim);
+                    if (p.dia_inteiro === "true") setDiaInteiro(true);
+                    if (p.local) setLocal((prev) => prev || p.local);
+                    if (p.modalidade) setModalidade((prev) => prev || p.modalidade);
                   }}
                 />
               </div>

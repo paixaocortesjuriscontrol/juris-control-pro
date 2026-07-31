@@ -685,7 +685,19 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                 <ModeloTituloPicker
                   tipo="parcela"
                   coordenacaoId={coordenacaoId}
-                  onSelect={(m) => setFormData((prev) => ({ ...prev, titulo: m.titulo }))}
+                  onSelect={(m) => {
+                    const p = resolverPadroes(m);
+                    setFormData((prev) => {
+                      const next: any = { ...prev, titulo: m.titulo };
+                      if (!next.descricao && (p.descricao || m.descricao)) next.descricao = p.descricao || m.descricao;
+                      if (p.dataVencimento) next.dataVencimento = p.dataVencimento;
+                      if (p.totalParcelas) next.totalParcelas = Number(p.totalParcelas);
+                      if (p.valorPadrao && !next.valorPadrao) next.valorPadrao = p.valorPadrao;
+                      if (p.intervalo) next.intervalo = p.intervalo;
+                      if (p.hora_alerta) next.hora_alerta = p.hora_alerta;
+                      return next;
+                    });
+                  }}
                 />
               </div>
               <AutoResizeTextarea

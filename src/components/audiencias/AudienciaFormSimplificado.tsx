@@ -462,6 +462,15 @@ export function AudienciaFormSimplificado({
             onSelect={(m) => {
               set("titulo", m.titulo);
               if (m.descricao && !form.observacoes) set("observacoes", m.descricao);
+              const p = resolverPadroes(m);
+              setForm((prev) => {
+                const next: any = { ...prev };
+                for (const [k, v] of Object.entries(p)) {
+                  if (k === "titulo") continue;
+                  if (!String(next[k] ?? "").trim()) next[k] = v;
+                }
+                return next;
+              });
             }}
           />
         </div>

@@ -628,6 +628,15 @@ export function PrazoDialog({
               onSelect={(m) => {
                 setTitulo(m.titulo);
                 if (m.descricao) setObservacoes((prev) => prev || m.descricao || "");
+                const p = resolverPadroes(m);
+                if (p.observacoes) setObservacoes((prev) => prev || p.observacoes);
+                if (p.prazo_dias) setPrazoDias(Number(p.prazo_dias));
+                if (p.prazo_unidade) setPrazoUnidade(p.prazo_unidade as Unidade);
+                if (p.data_limite) {
+                  setDataLimite((prev) => prev ?? new Date(`${p.data_limite}T12:00:00`));
+                  setDataLimiteEditadaManualmente(true);
+                }
+                if (p.data_fatal) setDataFatal((prev) => prev ?? new Date(`${p.data_fatal}T12:00:00`));
               }}
             />
           </div>
