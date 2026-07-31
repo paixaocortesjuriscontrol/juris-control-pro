@@ -10,6 +10,7 @@ import { Plus, Trash2, Save, X } from "lucide-react";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useModelosTitulo, useSaveModeloTitulo, useDeleteModeloTitulo, type TipoModelo, type ModeloTitulo } from "@/hooks/useModelosTitulo";
 import { useUserRole } from "@/hooks/useUserRole";
+import { PadroesModeloEditor } from "@/components/modelos/PadroesModeloEditor";
 
 const TIPOS: { value: TipoModelo; label: string }[] = [
   { value: "tarefa", label: "Tarefa" }, { value: "prazo", label: "Prazo" },
@@ -37,7 +38,7 @@ export default function ModelosTitulo() {
   }, [modelos]);
 
   function novo() {
-    setEditando({ coordenacao_id: coordId || coords[0]?.id, tipo: (tipo || "tarefa") as TipoModelo, nome: "", titulo: "", descricao: "", prioridade: "media" });
+    setEditando({ coordenacao_id: coordId || coords[0]?.id, tipo: (tipo || "tarefa") as TipoModelo, nome: "", titulo: "", descricao: "", prioridade: "media", padroes: {} });
   }
 
   async function submit() {
@@ -118,6 +119,13 @@ export default function ModelosTitulo() {
               <div className="md:col-span-2">
                 <label className="text-xs text-muted-foreground">Descrição template</label>
                 <Textarea rows={3} value={editando.descricao ?? ""} onChange={(e) => setEditando((s) => ({ ...s!, descricao: e.target.value }))} />
+              </div>
+              <div className="md:col-span-2">
+                <PadroesModeloEditor
+                  tipo={(editando.tipo ?? "tarefa") as TipoModelo}
+                  padroes={(editando.padroes ?? {}) as Record<string, any>}
+                  onChange={(p) => setEditando((s) => ({ ...s!, padroes: p }))}
+                />
               </div>
               <div className="md:col-span-2 flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setEditando(null)}><X className="h-4 w-4 mr-1" /> Cancelar</Button>
