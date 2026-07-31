@@ -255,7 +255,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                     if (!String((formData as any)[k] ?? "").trim()) handleChange(k, String(v));
                   }
                 }}
-              />
+                />
+              </div>
             </div>
             <Input
               id="titulo_audiencia"
