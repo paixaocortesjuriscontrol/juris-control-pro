@@ -1030,7 +1030,7 @@ export default function PainelControle() {
   };
 
   // Abre o item (tarefa/prazo/evento/audiência) vinculado a um alerta recebido
-  const abrirItemPorReferencia = async (referenciaId: string) => {
+  const abrirItemPorReferencia = async (referenciaId: string, silencioso = false): Promise<boolean> => {
     const local = itensPainelFiltrados.find(
       (i) =>
         i.id === referenciaId ||
@@ -1039,7 +1039,7 @@ export default function PainelControle() {
     );
     if (local) {
       setSelectedItem(local);
-      return;
+      return true;
     }
 
     const { data: tarefa } = await supabase
