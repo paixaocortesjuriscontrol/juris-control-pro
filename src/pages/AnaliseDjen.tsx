@@ -92,6 +92,7 @@ import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { PublicacaoSidePanel } from "@/components/shared/PublicacaoSidePanel";
 import { ItensCriadosPublicacaoCard, type ItemCriado } from "@/components/shared/ItensCriadosPublicacaoCard";
+import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { EdicaoItemPublicacaoInline } from "@/components/shared/EdicaoItemPublicacaoInline";
 import { useItensExistentesPublicacao } from "@/hooks/useItensExistentesPublicacao";
 import { ensureProcessoFromPublicacao, salvarPublicacaoNoProcesso } from "@/lib/ensureProcessoFromPublicacao";
@@ -4542,6 +4543,14 @@ const AnaliseDjen = () => {
                                   <span className="text-[10px] md:text-xs text-muted-foreground flex-shrink-0">
                                     {formatDateShort(pub.data_publicacao)}
                                   </span>
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <EtiquetaPicker
+                                      entidade="publicacao"
+                                      entidadeId={pub.id}
+                                      coordenacaoId={(pub as any).coordenacao_id ?? undefined}
+                                      compact
+                                    />
+                                  </div>
                                   
                                   {/* Badge da Coordenação - sempre visível quando há nome */}
                                   {pub.coordenacao_nome && (

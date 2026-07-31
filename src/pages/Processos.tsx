@@ -20,6 +20,8 @@ import { TransferirProcessosDialog } from "@/components/processos/TransferirProc
 import { ProcessoFormDialog } from "@/components/processos/ProcessoFormDialog";
 import { FiltrosAvancadosProcessos, FiltrosAvancados, defaultFiltrosAvancados } from "@/components/processos/FiltrosAvancadosProcessos";
 import { ProcessoExpandableRow } from "@/components/processos/ProcessoExpandableRow";
+import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
+import { useEtiquetasDeItens } from "@/hooks/useEtiquetas";
 import { cn } from "@/lib/utils";
 import { Calendar, User } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
@@ -126,6 +128,7 @@ const Processos = () => {
   const [comTarefas, setComTarefas] = useState(() => searchParams.get("comTarefas") === "true");
   const [acompanhamentoEspecial, setAcompanhamentoEspecial] = useState(() => searchParams.get("acompanhamentoEspecial") === "true");
   const [segredoJustica, setSegredoJustica] = useState(() => searchParams.get("segredoJustica") === "true");
+  const [etiquetasFiltro, setEtiquetasFiltro] = useState<string[]>([]);
   const [tipoProcessoFilter, setTipoProcessoFilter] = useState<string>(() => searchParams.get("tipo") || "all");
   
   // Filtro de grupo de clientes (da URL ou selecionado manualmente)
@@ -341,6 +344,7 @@ const Processos = () => {
     comTarefa: comTarefas,
     acompanhamentoEspecial: acompanhamentoEspecial,
     segredoJustica: segredoJustica,
+    etiquetaIds: etiquetasFiltro,
     periodoInicio: filtrosAplicados.periodoInicio,
     periodoFim: filtrosAplicados.periodoFim,
     clienteIds: clienteIds,
@@ -358,7 +362,7 @@ const Processos = () => {
   useEffect(() => {
     resetPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicadosKey, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, acompanhamentoEspecial, segredoJustica, clienteIds, tipoProcessoFilter]);
+  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicadosKey, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, acompanhamentoEspecial, segredoJustica, clienteIds, tipoProcessoFilter, JSON.stringify(etiquetasFiltro)]);
 
   // Auto-apply the "quick" filters (always visible on the bar)
   // so selecting a responsável / período filters immediately.
@@ -387,6 +391,11 @@ const Processos = () => {
 
   const processos = data?.processos || [];
   const totalCount = data?.totalCount || 0;
+  const processoIdsPagina = useMemo(
+    () => processos.map((p: any) => p.id as string),
+    [processos],
+  );
+  const { data: etiquetasPorProcesso } = useEtiquetasDeItens("processo", processoIdsPagina);
   const totalPages = data?.totalPages || 1;
 
   const handleForceRefresh = () => {
@@ -757,6 +766,13 @@ const Processos = () => {
               <Lock className="w-4 h-4" />
               <span className="hidden sm:inline">Segredo de Justiça</span>
             </Button>
+
+            <EtiquetaFilter
+              modulo="processos"
+              coordenacaoId={coordenacaoFilter !== "all" ? coordenacaoFilter : undefined}
+              value={etiquetasFiltro}
+              onChange={setEtiquetasFiltro}
+            />
           </div>
 
           {/* Action Buttons Row */}
@@ -1064,6 +1080,7 @@ const Processos = () => {
                     temRedistribuicaoRecente={temRedistribuicaoRecente || false}
                     onToggleSelection={toggleProcessoSelection}
                     onNavigate={(id) => navigate(`/processos/${id}`)}
+                    etiquetaIds={etiquetasPorProcesso?.get(processo.id) || []}
                   />
                 );
               })}

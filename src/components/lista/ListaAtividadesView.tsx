@@ -43,6 +43,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
+import { fetchIdsPorEtiquetas, useEtiquetasDeItens } from "@/hooks/useEtiquetas";
+import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
+import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { AGENDA_INFINITE_QUERY_KEY, type ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { cn } from "@/lib/utils";
@@ -191,6 +194,7 @@ export default function ListaAtividadesView({
   const [detalhesPrazo, setDetalhesPrazo] = useState<ItemAgendaUnificado | null>(null);
   const [detalhesEditOnOpen, setDetalhesEditOnOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [etiquetasFiltro, setEtiquetasFiltro] = useState<string[]>([]);
   const { setCollapsed } = useSidebarCollapsed();
 
   const debouncedSearch = useDebouncedValue(filters.search, 300);
@@ -261,9 +265,10 @@ export default function ListaAtividadesView({
         ...filters,
         search: debouncedSearch,
         page,
+        etiquetas: [...etiquetasFiltro].sort(),
       },
     ],
-    [filters, debouncedSearch, page],
+    [filters, debouncedSearch, page, etiquetasFiltro],
   );
 
   const { data: result, isLoading: queryLoading } = useQuery({
@@ -368,6 +373,11 @@ export default function ListaAtividadesView({
       if (filters.responsavelId !== "all") {
         q = q.eq("responsavel_id", filters.responsavelId);
       }
+      if (etiquetasFiltro.length > 0) {
+        const ids = await fetchIdsPorEtiquetas("tarefa", etiquetasFiltro);
+        if (ids.length === 0) return { rows: [] as Prazo[], count: 0 };
+        q = q.in("id", ids);
+      }
       if (filters.dataDe) {
         q = q.gte("data_vencimento", filters.dataDe);
       }
@@ -414,17 +424,47 @@ export default function ListaAtividadesView({
     },
   });
 
+  /** Ids dos itens marcados com alguma das etiquetas filtradas. */
+  const { data: idsPorEtiqueta } = useQuery({
+    queryKey: ["lista-atividades-etiqueta-ids", [...etiquetasFiltro].sort()],
+    enabled: etiquetasFiltro.length > 0,
+    queryFn: () => fetchIdsPorEtiquetas("tarefa", etiquetasFiltro),
+  });
+
+  const etiquetaIdsSet = useMemo(
+    () => (etiquetasFiltro.length > 0 ? new Set(idsPorEtiqueta || []) : null),
+    [etiquetasFiltro, idsPorEtiqueta],
+  );
+
   const externalRows = useMemo(() => {
     if (!usingExternalItems) return [];
+    const base = etiquetaIdsSet
+      ? (externalItems || []).filter((i: any) => etiquetaIdsSet.has(i.id))
+      : externalItems || [];
     const from = (page - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE;
-    return (externalItems || []).slice(from, to) as ListaRow[];
-  }, [externalItems, page, usingExternalItems]);
+    return base.slice(from, to) as ListaRow[];
+  }, [externalItems, page, usingExternalItems, etiquetaIdsSet]);
 
   const rows: ListaRow[] = usingExternalItems ? externalRows : (result?.rows || []);
-  const total = usingExternalItems ? (externalItems?.length || 0) : (result?.count || 0);
+  const total = usingExternalItems
+    ? (etiquetaIdsSet
+        ? (externalItems || []).filter((i: any) => etiquetaIdsSet.has(i.id)).length
+        : externalItems?.length || 0)
+    : (result?.count || 0);
   const isLoading = usingExternalItems ? externalLoading : queryLoading;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  const { data: etiquetasPorItem } = useEtiquetasDeItens(
+    "tarefa",
+    useMemo(
+      () =>
+        rows
+          .map((r: any) => String(r.id))
+          .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)),
+      [rows],
+    ),
+  );
 
   // Lookup de criadores para eventos que não têm responsável nem participante
   const criadorIds = useMemo(() => {
@@ -644,6 +684,16 @@ export default function ListaAtividadesView({
             embedded && "flex-1 min-h-0 lg:overflow-hidden"
           )}
         >
+          {!showLocalFilters && (
+            <div className="col-span-full">
+              <EtiquetaFilter
+                modulo="itens"
+                coordenacaoId={forcedCoordenacaoId && forcedCoordenacaoId !== "all" ? forcedCoordenacaoId : undefined}
+                value={etiquetasFiltro}
+                onChange={(ids) => { setEtiquetasFiltro(ids); setPage(1); }}
+              />
+            </div>
+          )}
           {/* Filtros laterais */}
           {showLocalFilters && <Card className="p-4 h-fit lg:sticky lg:top-4 space-y-4">
             <div className="flex items-center justify-between">
@@ -678,6 +728,18 @@ export default function ListaAtividadesView({
                   className="pl-7 h-8 text-sm"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">
+                Etiquetas
+              </label>
+              <EtiquetaFilter
+                modulo="itens"
+                coordenacaoId={filters.coordenacaoId || undefined}
+                value={etiquetasFiltro}
+                onChange={(ids) => { setEtiquetasFiltro(ids); setPage(1); }}
+              />
             </div>
 
             <div className="space-y-2">
@@ -960,6 +1022,15 @@ export default function ListaAtividadesView({
                               <div className="font-medium text-xs text-foreground break-words leading-snug flex items-center gap-1">
                                 <TratadoCheck tratado={isItemTratado({ ...item, ...r })} />
                                 <span>{r.titulo || "(sem título)"}</span>
+                              </div>
+                              <div data-stop>
+                                <EtiquetaPicker
+                                  entidade="tarefa"
+                                  entidadeId={r.id}
+                                  coordenacaoId={(r as any).processo?.coordenacao_id ?? undefined}
+                                  etiquetaIds={etiquetasPorItem?.get(r.id) || []}
+                                  compact
+                                />
                               </div>
                               {r.processo?.assunto && (
                                 <div className="text-[10px] text-muted-foreground break-words">
