@@ -710,6 +710,18 @@ export default function ListaAtividadesView({
             </div>
 
             <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">
+                Etiquetas
+              </label>
+              <EtiquetaFilter
+                modulo="itens"
+                coordenacaoId={filters.coordenacaoId || undefined}
+                value={etiquetasFiltro}
+                onChange={(ids) => { setEtiquetasFiltro(ids); setPage(1); }}
+              />
+            </div>
+
+            <div className="space-y-2">
               {!embedded && <>
               <label className="text-xs font-medium text-muted-foreground">
                 Coordenação
