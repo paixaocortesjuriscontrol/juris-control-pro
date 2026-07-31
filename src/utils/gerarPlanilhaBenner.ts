@@ -123,6 +123,8 @@ function toSentenceCase(s: string): string {
 function toSentenceCaseDash(s: string): string {
   const t = String(s ?? "").trim();
   if (!t) return "";
+  const canon = canonQuarteirizado(t);
+  if (canon) return canon;
   if (!t.includes("-")) return toSentenceCase(t);
   return t
     .split("-")
