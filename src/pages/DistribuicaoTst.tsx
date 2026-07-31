@@ -1043,6 +1043,12 @@ export default function DistribuicaoTst() {
 
   // Gerar carga Benner respeitando os filtros aplicados na lista
   const handleGerarCarga = async () => {
+    // Evita gerar a carga com o conjunto incompleto enquanto o cálculo de
+    // pendências (feito no cliente) ainda está em andamento.
+    if (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading) {
+      toast.info("Aguarde o cálculo de pendências terminar antes de gerar a carga.");
+      return;
+    }
     setCargaLoading(true);
     try {
       let ids: string[];
@@ -1050,7 +1056,10 @@ export default function DistribuicaoTst() {
         ids = Array.from(selectedIds);
       } else {
         toast.info("Buscando distribuições filtradas...");
-        ids = await fetchAllDistribuicaoTstIds(debouncedFilters);
+        // Usa os MESMOS filtros efetivos da listagem/cards (`listFilters`),
+        // que incluem as restrições calculadas no cliente (sem pendência,
+        // mais de um responsável, "A fazer" para não-admin).
+        ids = await fetchAllDistribuicaoTstIds(listFilters);
       }
       if (ids.length === 0) {
         toast.info("Nenhuma distribuição encontrada com os filtros atuais.");
@@ -1369,6 +1378,11 @@ export default function DistribuicaoTst() {
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
               <FileSpreadsheet className="w-6 h-6 text-primary" />
               Carga Benner
+              {cargaIdsAllowed && (
+                <span className="text-sm font-normal text-muted-foreground">
+                  ({cargaIdsAllowed.length.toLocaleString()} registro(s) recebidos da lista)
+                </span>
+              )}
             </h1>
             <Button variant="outline" onClick={() => { setShowCarga(false); setCargaDistribuicoes(null); setCargaIdsAllowed(null); }}>Voltar à Lista</Button>
           </div>
@@ -1377,18 +1391,20 @@ export default function DistribuicaoTst() {
             distribuicoes={cargaDistribuicoes || undefined}
             idsAllowed={cargaIdsAllowed || undefined}
             filters={{
-            aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
-            benner: filtroBenner as any,
-            processo: filtroProcesso || undefined,
-            dossie: filtroDossie || undefined,
-            turma: filtroTurma || undefined,
-            relator: filtroRelator || undefined,
-            parte: filtroParte || undefined,
-            parteRecorrente: filtroParteRecorrente || undefined,
-            nomeParte: filtroNomeParte || undefined,
-            mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
-            dataInicio: filtroDataInicio || undefined,
-            dataFim: filtroDataFim || undefined,
+            // Mesmos filtros efetivos da listagem, para manter coerência com
+            // o card ativo (os IDs continuam sendo a fonte principal).
+            aba_origem: listFilters.aba_origem,
+            benner: listFilters.benner as any,
+            processo: listFilters.processo,
+            dossie: listFilters.dossie,
+            turma: listFilters.turma,
+            relator: listFilters.relator,
+            parte: listFilters.parte,
+            parteRecorrente: listFilters.parteRecorrente as any,
+            nomeParte: listFilters.nomeParte,
+            mesAno: listFilters.mesAno,
+            dataInicio: listFilters.dataInicio,
+            dataFim: listFilters.dataFim,
           }} />
         </div>
       </MainLayout>
@@ -1596,10 +1612,16 @@ export default function DistribuicaoTst() {
                 </Button>
               )}
               <DossiesNaoLocalizadosButton filters={debouncedFilters} selectedIds={selectedIds} />
-              <Button variant="secondary" onClick={handleGerarCarga} disabled={cargaLoading}>
-                {cargaLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+              <Button
+                variant="secondary"
+                onClick={handleGerarCarga}
+                disabled={cargaLoading || (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading)}
+              >
+                {cargaLoading || (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
                 {cargaLoading
                   ? "Carregando..."
+                  : selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading
+                  ? "Calculando pendências..."
                   : selectedIds.size > 0
                     ? `Carga Benner (${selectedIds.size})`
                     : "Gerar Carga Benner"}
