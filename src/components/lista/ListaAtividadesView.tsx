@@ -673,6 +673,16 @@ export default function ListaAtividadesView({
             embedded && "flex-1 min-h-0 lg:overflow-hidden"
           )}
         >
+          {!showLocalFilters && (
+            <div className="col-span-full">
+              <EtiquetaFilter
+                modulo="itens"
+                coordenacaoId={forcedCoordenacaoId && forcedCoordenacaoId !== "all" ? forcedCoordenacaoId : undefined}
+                value={etiquetasFiltro}
+                onChange={(ids) => { setEtiquetasFiltro(ids); setPage(1); }}
+              />
+            </div>
+          )}
           {/* Filtros laterais */}
           {showLocalFilters && <Card className="p-4 h-fit lg:sticky lg:top-4 space-y-4">
             <div className="flex items-center justify-between">
