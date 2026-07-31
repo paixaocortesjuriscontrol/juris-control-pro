@@ -1030,7 +1030,7 @@ export default function PainelControle() {
   };
 
   // Abre o item (tarefa/prazo/evento/audiência) vinculado a um alerta recebido
-  const abrirItemPorReferencia = async (referenciaId: string) => {
+  const abrirItemPorReferencia = async (referenciaId: string, silencioso = false): Promise<boolean> => {
     const local = itensPainelFiltrados.find(
       (i) =>
         i.id === referenciaId ||
@@ -1039,7 +1039,7 @@ export default function PainelControle() {
     );
     if (local) {
       setSelectedItem(local);
-      return;
+      return true;
     }
 
     const { data: tarefa } = await supabase
@@ -1063,7 +1063,7 @@ export default function PainelControle() {
         recorrente: !!t.recorrente,
         concluido_em: t.concluido_em ?? null,
       } as ItemAgendaUnificado);
-      return;
+      return true;
     }
 
     const { data: evento } = await supabase
@@ -1085,7 +1085,7 @@ export default function PainelControle() {
         concluido_em: e.concluido_em ?? null,
         status: e.status || "pendente",
       } as ItemAgendaUnificado);
-      return;
+      return true;
     }
 
     const { data: audiencia } = await supabase
@@ -1118,7 +1118,7 @@ export default function PainelControle() {
         criado_por: a.criado_por,
         coordenacao_id: a.coordenacao_id ?? null,
       } as unknown as ItemAgendaUnificado);
-      return;
+      return true;
     }
 
     // Parcelas: abrir o evento-pai (parcelamento)
@@ -1147,11 +1147,12 @@ export default function PainelControle() {
           concluido_em: e.concluido_em ?? null,
           status: e.status || "pendente",
         } as ItemAgendaUnificado);
-        return;
+        return true;
       }
     }
 
-    toast.error("Item vinculado a este alerta não foi encontrado");
+    if (!silencioso) toast.error("Item vinculado a este alerta não foi encontrado");
+    return false;
   };
 
   // Deep link vindo dos e-mails de alerta:
@@ -1160,13 +1161,21 @@ export default function PainelControle() {
     if (handledItemParamRef.current) return;
     const itemId = searchParams.get("item");
     if (!itemId) return;
+    if (!user) return; // aguarda a sessão para respeitar RLS
     handledItemParamRef.current = true;
-    void abrirItemPorReferencia(itemId);
-    const next = new URLSearchParams(searchParams);
-    next.delete("item");
-    setSearchParams(next, { replace: true });
+    (async () => {
+      let ok = await abrirItemPorReferencia(itemId, true);
+      // Retentativa curta: em cargas frias o token/cache pode não estar pronto.
+      for (let i = 0; i < 3 && !ok; i++) {
+        await new Promise((r) => setTimeout(r, 800));
+        ok = await abrirItemPorReferencia(itemId, i === 2);
+      }
+      const next = new URLSearchParams(searchParams);
+      next.delete("item");
+      setSearchParams(next, { replace: true });
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, user]);
 
   const handleConcluirItem = async (item: ItemAgendaUnificado) => {
     const isConcluido = isItemTratado(item);

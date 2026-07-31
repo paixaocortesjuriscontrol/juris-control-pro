@@ -34,6 +34,11 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!user) {
+    // Guarda o destino (inclusive query string dos links de e-mail) para
+    // restaurar após o login, mesmo que a página seja recarregada.
+    try {
+      sessionStorage.setItem("redirectAfterLogin", `${pathname}${location.search ?? ""}`);
+    } catch {}
     return <Navigate to="/auth" replace state={{ from: location }} />;
   }
 
