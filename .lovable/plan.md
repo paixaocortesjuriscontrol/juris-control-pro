@@ -1,29 +1,30 @@
-# Matérias numeradas e fora da lista — origem e correção
+# Ajuste de Chance Turma/Relator — Distribuição TST (2026+)
 
-## O que realmente aconteceu (verificado na base)
+## Objetivo
+Nos processos distribuídos a partir de 2026 que estão **Prontos para enviar (sem pendência)**, quando o **Recurso do Reclamante** estiver preenchido e **Tem chance de êxito = SIM**, inverter as marcações de **Chance Turma** e **Chance Relator** que estejam **FAVORÁVEL** para **DESFAVORÁVEL**, e gerar um relatório Excel com todos os processos alterados.
 
-O registro **0000299-30.2020.5.09.0121 / 07.02.033.0002791426/20** foi criado em 08/05/2026 com `fontes_importacao = ["Planilha Distribuição"]`. Não houve IA nem anexos.
+## Escopo confirmado na base
+- 1.869 registros com distribuição de 2026 em diante; 174 com "Tem chance de êxito (Reclamante) = SIM"; 164 destes têm alguma marcação FAVORÁVEL na análise por matéria do reclamante.
+- Os valores gravados são exatamente `FAVORÁVEL` / `DESFAVORÁVEL` dentro do JSON `materias_analise_reclamante` (por matéria: aparelhamento, chance_turma, chance_relator, chance_exito).
+- "Pronto sem pendência" é calculado no front (regras de `distribuicaoTstPendencias`), então a seleção final dos processos será feita na tela, não por SQL cego.
 
-Os campos de matérias vieram como **texto livre da planilha importada**:
+## Como vai funcionar
+1. Nova ação na tela Distribuição TST: botão **"Ajustar Chance Turma/Relator (2026+)"**, no grupo de ações administrativas.
+2. Ao acionar, o sistema:
+   - busca em lotes os registros com distribuição a partir de 01/01/2026;
+   - mantém apenas os que estão **sem pendências** (mesma regra do card "Pronto sem pendência"), com recurso do reclamante preenchido (tipo/matérias) e êxito = SIM;
+   - em cada matéria da análise do reclamante, troca `FAVORÁVEL` por `DESFAVORÁVEL` em Chance Turma e Chance Relator (demais campos intactos);
+   - grava em lotes de 200 com barra de progresso detalhada (processo/dossiê atual) e botão **Cancelar**.
+3. Antes de gravar, exibe resumo de pré-visualização (quantos processos e quantas matérias serão alterados) para confirmação.
+4. Ao final, download automático do relatório Excel.
 
-```text
-materias_recurso_reclamante = "1. Justiça Gratuita para o ente sindical; 2. Majoração de honorários advocatícios."
-materias_recurso_banco      = "1. Perda de objeto (...); 2. Julgamento Extra Petita (...); 3. ...; 4. ..."
-```
-
-O formulário não valida esse texto contra o cadastro de matérias: `parseMateriasString` apenas quebra a string por `;` e `reconcileMateriasAnalise` cria uma linha de análise para cada pedaço. Por isso aparecem itens "fora da lista" e com o `1.`, `2.` colado no nome — e esses mesmos textos são copiados para as colunas AB..AH da Carga Benner.
-
-Resumo: **não é bug da IA nem da carga — é o texto da planilha de distribuição sendo aceito cru como matéria.**
-
-## Correção proposta
-
-1. **Sanitizar ao interpretar (`parseMateriasString`)**: além de quebrar por `;`, remover prefixos de enumeração (`1.`, `2)`, `3 -`, `•`) e ponto final solto no fim de cada item. Isso limpa tela, PDF e Carga Benner de uma vez, inclusive nos registros antigos.
-2. **Casar com o cadastro de matérias**: ao interpretar, tentar reconciliar cada item com `materias_benner` (comparação sem acentos/caixa). Quando bater, usar o nome oficial do cadastro; quando não bater, manter o texto, mas marcar visualmente como "fora do cadastro" (badge/aviso na linha da análise), para a advogada corrigir ou cadastrar a matéria.
-3. **Importação da Planilha Distribuição**: aplicar a mesma sanitização ao gravar `materias_recurso_*`, evitando que novos registros entrem numerados.
-4. **Migração de dados (opcional, recomendado)**: limpar o prefixo numérico já gravado em `materias_recurso_*` e no campo `materia` dos JSONs `materias_analise_*` de `dados_benner`.
+## Relatório Excel
+Uma aba "Alterados", uma linha por matéria alterada:
+Processo | Dossiê | Equipe | Data Distribuição | Relator | Turma | Matéria | Chance Turma (antes → depois) | Chance Relator (antes → depois) | Chance Êxito | Alterado em
 
 ## Detalhes técnicos
-
-- Regex: `^\s*(\d{1,2}\s*[.)\-–]\s*|[•\-]\s*)` aplicada uma vez por item; preserva parênteses, siglas e caixa do restante do texto.
-- Sem mudança nas regras de pendência, dedupe, filtros por chance/aparelhamento ou no layout do template da carga.
-- O item virtual "Outra Matéria" continua ignorado na análise e na planilha.
+- Novo utilitário `src/lib/ajustarChanceReclamanteTst.ts`: seleção por ano + `getPendencias(row).length === 0`, transformação imutável do JSONB, updates em chunks via Supabase, callbacks de progresso/cancelamento.
+- Novo utilitário `src/lib/relatorioAjusteChanceTst.ts` para o Excel (padrão dos relatórios existentes, datas em DD/MM/AAAA).
+- Novo diálogo `src/components/distribuicao-tst/AjustarChanceDialog.tsx` (progresso + cancelar + resumo), acionado de `DistribuicaoTst.tsx`.
+- Sem alterações de schema; apenas atualização de dados na coluna `materias_analise_reclamante`.
+- Após concluir, invalidação das queries da Distribuição TST antes de fechar o diálogo.
