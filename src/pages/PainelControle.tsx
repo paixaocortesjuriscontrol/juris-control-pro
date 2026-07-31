@@ -1161,13 +1161,21 @@ export default function PainelControle() {
     if (handledItemParamRef.current) return;
     const itemId = searchParams.get("item");
     if (!itemId) return;
+    if (!user) return; // aguarda a sessão para respeitar RLS
     handledItemParamRef.current = true;
-    void abrirItemPorReferencia(itemId);
-    const next = new URLSearchParams(searchParams);
-    next.delete("item");
-    setSearchParams(next, { replace: true });
+    (async () => {
+      let ok = await abrirItemPorReferencia(itemId, true);
+      // Retentativa curta: em cargas frias o token/cache pode não estar pronto.
+      for (let i = 0; i < 3 && !ok; i++) {
+        await new Promise((r) => setTimeout(r, 800));
+        ok = await abrirItemPorReferencia(itemId, i === 2);
+      }
+      const next = new URLSearchParams(searchParams);
+      next.delete("item");
+      setSearchParams(next, { replace: true });
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [searchParams, user]);
 
   const handleConcluirItem = async (item: ItemAgendaUnificado) => {
     const isConcluido = isItemTratado(item);
