@@ -190,7 +190,10 @@ export function getPendencias(row: any): Pendencia[] {
   if (!row) return [];
   // Situações em que o processo não exige preenchimento: Acordo, CEJUSC,
   // Processo em outro escritório, Segredo de Justiça, Trânsito em Julgado
-  // ou quando o Terceiro é a parte recorrente.
+  // ou quando o Terceiro é a única parte recorrente.
+  // Atenção: "Recurso de Terceiros = SIM" NÃO isenta o preenchimento — é
+  // apenas um campo de análise; isentar marcava como "sem pendência"
+  // processos com o formulário em branco.
   // Nesses casos "Verificar Pendências" e o Relatório de Pendências devem
   // reportar Sem pendências mesmo que existam campos vazios.
   if (
