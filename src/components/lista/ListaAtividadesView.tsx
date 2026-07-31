@@ -455,6 +455,11 @@ export default function ListaAtividadesView({
   const isLoading = usingExternalItems ? externalLoading : queryLoading;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const { data: etiquetasPorItem } = useEtiquetasDeItens(
+    "tarefa",
+    useMemo(() => rows.map((r: any) => r.id as string), [rows]),
+  );
+
   // Lookup de criadores para eventos que não têm responsável nem participante
   const criadorIds = useMemo(() => {
     const ids = new Set<string>();
