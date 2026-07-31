@@ -649,7 +649,8 @@ export function PrazoDialog({
                 }
                 if (p.data_fatal) setDataFatal((prev) => prev ?? new Date(`${p.data_fatal}T12:00:00`));
               }}
-            />
+              />
+            </div>
           </div>
           <Input
             value={titulo}
