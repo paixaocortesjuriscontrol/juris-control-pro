@@ -806,11 +806,17 @@ const Processos = () => {
                   onClick={async () => {
                     try {
                       const XLSX = await import("xlsx");
+                      const coordMap = new Map<string, string>(
+                        (coordenacoes || []).map((c: any) => [c.id, c.nome])
+                      );
                       const rows = (processos || []).map((p: any) => ({
                         Numero: p.numero || "",
                         Assunto: p.assunto || "",
-                        Cliente: p.cliente_nome || p.cliente?.nome || "",
-                        Coordenacao: p.coordenacao_nome || p.coordenacao?.nome || "",
+                        Cliente: p.cliente?.nome || p.cliente_nome || "",
+                        Coordenacao:
+                          p.coordenacao?.nome ||
+                          p.coordenacao_nome ||
+                          (p.coordenacao_id ? coordMap.get(p.coordenacao_id) || "" : ""),
                         Situacao: p.situacao || p.status || "",
                         Area: p.area || "",
                         Tribunal: p.tribunal || "",
