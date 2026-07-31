@@ -3970,6 +3970,88 @@ export type Database = {
           },
         ]
       }
+      etiquetas: {
+        Row: {
+          ativo: boolean
+          coordenacao_id: string
+          cor: string
+          created_at: string
+          created_by: string | null
+          id: string
+          modulos: string[]
+          nome: string
+          ordem: number
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          coordenacao_id: string
+          cor?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          modulos?: string[]
+          nome: string
+          ordem?: number
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          coordenacao_id?: string
+          cor?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          modulos?: string[]
+          nome?: string
+          ordem?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etiquetas_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etiquetas_itens: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          entidade: string
+          entidade_id: string
+          etiqueta_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          entidade: string
+          entidade_id: string
+          etiqueta_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          entidade?: string
+          entidade_id?: string
+          etiqueta_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etiquetas_itens_etiqueta_id_fkey"
+            columns: ["etiqueta_id"]
+            isOneToOne: false
+            referencedRelation: "etiquetas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       evento_envolvidos: {
         Row: {
           created_at: string
@@ -9773,6 +9855,10 @@ export type Database = {
         Args: { _coordenacao_id: string; _user_id: string }
         Returns: boolean
       }
+      is_membro_coordenacao: {
+        Args: { _coordenacao_id: string }
+        Returns: boolean
+      }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
       kurier_normalize_conteudo_sem_parte_intimacao: {
         Args: { p_text: string }
@@ -9819,6 +9905,10 @@ export type Database = {
       }
       mark_djen_duplicadas_global: { Args: never; Returns: number }
       mark_djenp_duplicadas_global: { Args: never; Returns: number }
+      pode_gerenciar_etiquetas: {
+        Args: { _coordenacao_id: string }
+        Returns: boolean
+      }
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
       reaper_execucoes_servidor_travadas: { Args: never; Returns: number }
       rebuild_publicacoes_djen_unica_flags: { Args: never; Returns: undefined }
