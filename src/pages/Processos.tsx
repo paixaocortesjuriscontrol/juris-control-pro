@@ -1075,6 +1075,7 @@ const Processos = () => {
                     temRedistribuicaoRecente={temRedistribuicaoRecente || false}
                     onToggleSelection={toggleProcessoSelection}
                     onNavigate={(id) => navigate(`/processos/${id}`)}
+                    etiquetaIds={etiquetasPorProcesso?.get(processo.id) || []}
                   />
                 );
               })}
