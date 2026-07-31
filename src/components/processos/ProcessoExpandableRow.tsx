@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { formatConteudoParaExibicao, conteudoDisplayClasses, formatDateOnlyFull } from "@/utils/formatConteudo";
 import { formatDateSafe } from "@/utils/date";
+import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 
 interface ProcessoExpandableRowProps {
   processo: {
@@ -35,12 +36,15 @@ interface ProcessoExpandableRowProps {
     cliente?: { id: string; nome: string; tipo: string } | null;
     pasta?: { id: string; nome: string } | null;
     advogado_responsavel?: { id: string; nome: string } | null;
+    coordenacao_id?: string | null;
   };
   isSelectionMode: boolean;
   isSelected: boolean;
   temRedistribuicaoRecente: boolean;
   onToggleSelection: (id: string) => void;
   onNavigate: (id: string) => void;
+  /** Etiquetas já carregadas em lote para esta linha. */
+  etiquetaIds?: string[];
 }
 
 export function ProcessoExpandableRow({
@@ -50,6 +54,7 @@ export function ProcessoExpandableRow({
   temRedistribuicaoRecente,
   onToggleSelection,
   onNavigate,
+  etiquetaIds,
 }: ProcessoExpandableRowProps) {
   const [expandedSection, setExpandedSection] = useState<"djen" | "andamentos" | "audiencias" | "intimacoes" | "tarefas" | null>(null);
 
@@ -291,6 +296,15 @@ export function ProcessoExpandableRow({
                   </Tooltip>
                 )}
               </div>
+            </div>
+            <div onClick={(e) => e.stopPropagation()}>
+              <EtiquetaPicker
+                entidade="processo"
+                entidadeId={processo.id}
+                coordenacaoId={processo.coordenacao_id ?? undefined}
+                etiquetaIds={etiquetaIds ?? []}
+                compact
+              />
             </div>
             <div>
               <div className="text-[11px] text-muted-foreground leading-tight">Assunto</div>
