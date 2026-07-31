@@ -1,22 +1,33 @@
-# Notificação de comentário na tarefa da Dra. Beatriz Costa
+# Modelos de Título com preenchimentos padrão
 
-## O que os dados mostram
+Hoje um modelo só preenche título e descrição. A ideia é permitir que cada modelo já traga valores padrão para os outros campos do formulário (datas, prioridade, tipo, local, horário etc.), de forma opcional.
 
-Comentário verificado: tarefa "TESTE", comentário da admin (`paixaocortesjuriscontrol@gmail.com`) em 31/07 às 15:36 BRT.
+## O que muda para a advogada
 
-- O gatilho funcionou: a fila `notificacoes_fila` recebeu o evento `comentario` (18:36 UTC), destinatários = Beatriz Costa + Jéssica Alves, e foi processada com sucesso às 18:38 UTC.
-- O alerta foi efetivamente enviado à Beatriz: existe registro em `historico_alertas_enviados` com canal `email`, destinatário `beatriz.costa@paixaocortes.adv.br`, status `enviado`, sem erro.
-- Jéssica recebeu por e-mail **e** WhatsApp; Beatriz recebeu **apenas e-mail**, porque o perfil dela está sem telefone cadastrado (`profiles.telefone` vazio).
+Na tela **Modelos de Título**, ao criar/editar um modelo aparece uma nova seção **"Preenchimentos padrão"**, com os campos correspondentes ao tipo escolhido (Prazo, Evento, Audiência, Tarefa, Parcela). Cada campo é opcional — em branco significa "não sugerir".
 
-Conclusão: o alerta de comentário não falhou. O que faltou foi o WhatsApp — e é bem possível que o e-mail tenha caído em spam/lixeira, já que o sistema o marcou como enviado.
+Datas usam regra relativa em vez de data fixa, para o modelo continuar válido no futuro:
+- "Hoje", "Amanhã", "+N dias", "+N dias úteis", "próxima segunda"
+- Exemplo: modelo "AUDIÊNCIA próxima semana" → Data = "+7 dias", Hora = "10:00"
 
-## Correções propostas
+Ao escolher o modelo no botão Modelos dentro do formulário, os campos configurados são preenchidos automaticamente. Campos que o usuário já preencheu manualmente não são sobrescritos (exceto o título, que sempre é aplicado). Um aviso curto mostra quantos campos foram preenchidos.
 
-1. **Cadastrar telefone da Dra. Beatriz Costa** (via Administração ou Meu Perfil) para que ela passe a receber os comentários também por WhatsApp. Preciso do número dela.
-2. **Aviso de destinatário sem canal**: quando um destinatário não tem telefone (ou não tem e-mail), registrar isso no histórico como "não enviado – sem telefone" em vez de simplesmente ignorar, para que essa lacuna fique visível.
-3. **Indicador na tela de Config. Notificações / Coordenações**: sinalizar com ícone de atenção os membros da coordenação sem telefone cadastrado, evitando que o problema se repita com outros usuários.
+## Campos sugeríveis por tipo
+
+- Prazo: data fatal / prazo, prioridade, tipo de prazo, observações
+- Evento: data e hora de início/fim, local, tipo de evento, observações
+- Audiência: data, hora, tipo de audiência, modalidade, local/link, observações
+- Tarefa: data de vencimento, prioridade, tipo, observações
+- Parcela: data da 1ª parcela, quantidade, valor, periodicidade
+
+A lista final de cada tipo segue exatamente os campos que já existem no respectivo formulário.
 
 ## Detalhes técnicos
 
-- Ajuste em `supabase/functions/notificar-mudanca-situacao/index.ts`: ao montar os envios, quando `p.telefone` estiver vazio, gravar linha em `historico_alertas_enviados` com `canal: 'whatsapp'`, `status: 'nao_enviado'` e `erro: 'sem telefone cadastrado'`.
-- Frontend: badge de alerta nos membros sem telefone na tela de Coordenações (leitura de `profiles.telefone`), sem mudança de regra de negócio.
+- Migração: adicionar coluna `padroes jsonb default '{}'::jsonb` em `modelos_titulo_coordenacao` (sem mudança de RLS/grants).
+- `useModelosTitulo.ts`: incluir `padroes` no tipo `ModeloTitulo` e no salvamento.
+- Novo `src/components/modelos/PadroesModeloEditor.tsx`: editor dos padrões, com o conjunto de campos definido por um mapa `tipo -> campos` em `src/constants/camposModeloTitulo.ts` (label, chave, tipo de input).
+- Novo `src/lib/aplicarPadroesModelo.ts`: resolve valores relativos de data/hora (`hoje`, `+7d`, `+5du`, `prox_segunda`) para valores concretos no fuso BRT, respeitando a suspensão CLT já usada no projeto quando o campo for dias úteis.
+- `ModeloTituloPicker.tsx`: manter a assinatura `onSelect(modelo)`; cada formulário passa a chamar `aplicarPadroesModelo(modelo, setters)` para aplicar os campos.
+- Formulários atualizados: `PrazoDialog`, `EventoDialog`, `AudienciaFormSimplificado`, `EditarAudienciaDialog`, `NovaTarefaDialog`, `GerarParcelasDialog`.
+- Sem sobrescrita de campos não vazios, e sem alteração em alertas/notificações.
