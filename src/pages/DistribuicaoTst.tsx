@@ -1043,6 +1043,12 @@ export default function DistribuicaoTst() {
 
   // Gerar carga Benner respeitando os filtros aplicados na lista
   const handleGerarCarga = async () => {
+    // Evita gerar a carga com o conjunto incompleto enquanto o cálculo de
+    // pendências (feito no cliente) ainda está em andamento.
+    if (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading) {
+      toast.info("Aguarde o cálculo de pendências terminar antes de gerar a carga.");
+      return;
+    }
     setCargaLoading(true);
     try {
       let ids: string[];
@@ -1050,7 +1056,10 @@ export default function DistribuicaoTst() {
         ids = Array.from(selectedIds);
       } else {
         toast.info("Buscando distribuições filtradas...");
-        ids = await fetchAllDistribuicaoTstIds(debouncedFilters);
+        // Usa os MESMOS filtros efetivos da listagem/cards (`listFilters`),
+        // que incluem as restrições calculadas no cliente (sem pendência,
+        // mais de um responsável, "A fazer" para não-admin).
+        ids = await fetchAllDistribuicaoTstIds(listFilters);
       }
       if (ids.length === 0) {
         toast.info("Nenhuma distribuição encontrada com os filtros atuais.");
