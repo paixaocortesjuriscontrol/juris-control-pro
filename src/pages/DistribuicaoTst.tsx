@@ -1378,6 +1378,11 @@ export default function DistribuicaoTst() {
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
               <FileSpreadsheet className="w-6 h-6 text-primary" />
               Carga Benner
+              {cargaIdsAllowed && (
+                <span className="text-sm font-normal text-muted-foreground">
+                  ({cargaIdsAllowed.length.toLocaleString()} registro(s) recebidos da lista)
+                </span>
+              )}
             </h1>
             <Button variant="outline" onClick={() => { setShowCarga(false); setCargaDistribuicoes(null); setCargaIdsAllowed(null); }}>Voltar à Lista</Button>
           </div>
@@ -1386,18 +1391,20 @@ export default function DistribuicaoTst() {
             distribuicoes={cargaDistribuicoes || undefined}
             idsAllowed={cargaIdsAllowed || undefined}
             filters={{
-            aba_origem: filtroAba !== "todas" ? filtroAba : undefined,
-            benner: filtroBenner as any,
-            processo: filtroProcesso || undefined,
-            dossie: filtroDossie || undefined,
-            turma: filtroTurma || undefined,
-            relator: filtroRelator || undefined,
-            parte: filtroParte || undefined,
-            parteRecorrente: filtroParteRecorrente || undefined,
-            nomeParte: filtroNomeParte || undefined,
-            mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
-            dataInicio: filtroDataInicio || undefined,
-            dataFim: filtroDataFim || undefined,
+            // Mesmos filtros efetivos da listagem, para manter coerência com
+            // o card ativo (os IDs continuam sendo a fonte principal).
+            aba_origem: listFilters.aba_origem,
+            benner: listFilters.benner as any,
+            processo: listFilters.processo,
+            dossie: listFilters.dossie,
+            turma: listFilters.turma,
+            relator: listFilters.relator,
+            parte: listFilters.parte,
+            parteRecorrente: listFilters.parteRecorrente as any,
+            nomeParte: listFilters.nomeParte,
+            mesAno: listFilters.mesAno,
+            dataInicio: listFilters.dataInicio,
+            dataFim: listFilters.dataFim,
           }} />
         </div>
       </MainLayout>
