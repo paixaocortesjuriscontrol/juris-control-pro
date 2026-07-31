@@ -113,7 +113,7 @@ const Auth = () => {
           }
         } else {
           toast.success("Login realizado com sucesso!");
-          navigate(destination, { replace: true });
+          goToDestination();
         }
       } else {
         const { error } = await signUp(formData.email, formData.password, formData.nome);
