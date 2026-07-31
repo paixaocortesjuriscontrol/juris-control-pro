@@ -191,6 +191,7 @@ export default function ListaAtividadesView({
   const [detalhesPrazo, setDetalhesPrazo] = useState<ItemAgendaUnificado | null>(null);
   const [detalhesEditOnOpen, setDetalhesEditOnOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [etiquetasFiltro, setEtiquetasFiltro] = useState<string[]>([]);
   const { setCollapsed } = useSidebarCollapsed();
 
   const debouncedSearch = useDebouncedValue(filters.search, 300);
@@ -415,15 +416,34 @@ export default function ListaAtividadesView({
     },
   });
 
+  /** Ids dos itens marcados com alguma das etiquetas filtradas. */
+  const { data: idsPorEtiqueta } = useQuery({
+    queryKey: ["lista-atividades-etiqueta-ids", [...etiquetasFiltro].sort()],
+    enabled: etiquetasFiltro.length > 0,
+    queryFn: () => fetchIdsPorEtiquetas("tarefa", etiquetasFiltro),
+  });
+
+  const etiquetaIdsSet = useMemo(
+    () => (etiquetasFiltro.length > 0 ? new Set(idsPorEtiqueta || []) : null),
+    [etiquetasFiltro, idsPorEtiqueta],
+  );
+
   const externalRows = useMemo(() => {
     if (!usingExternalItems) return [];
+    const base = etiquetaIdsSet
+      ? (externalItems || []).filter((i: any) => etiquetaIdsSet.has(i.id))
+      : externalItems || [];
     const from = (page - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE;
-    return (externalItems || []).slice(from, to) as ListaRow[];
-  }, [externalItems, page, usingExternalItems]);
+    return base.slice(from, to) as ListaRow[];
+  }, [externalItems, page, usingExternalItems, etiquetaIdsSet]);
 
   const rows: ListaRow[] = usingExternalItems ? externalRows : (result?.rows || []);
-  const total = usingExternalItems ? (externalItems?.length || 0) : (result?.count || 0);
+  const total = usingExternalItems
+    ? (etiquetaIdsSet
+        ? (externalItems || []).filter((i: any) => etiquetaIdsSet.has(i.id)).length
+        : externalItems?.length || 0)
+    : (result?.count || 0);
   const isLoading = usingExternalItems ? externalLoading : queryLoading;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
