@@ -959,7 +959,7 @@ export default function ListaAtividadesView({
                               </div>
                               <div className="font-medium text-xs text-foreground break-words leading-snug flex items-center gap-1">
                                 <TratadoCheck tratado={isItemTratado({ ...item, ...r })} />
-                                <span>{r.titulo}</span>
+                                <span>{r.titulo || "(sem título)"}</span>
                               </div>
                               {r.processo?.assunto && (
                                 <div className="text-[10px] text-muted-foreground break-words">

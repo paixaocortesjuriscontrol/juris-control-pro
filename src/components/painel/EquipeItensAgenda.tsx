@@ -426,7 +426,7 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
                       className={cn("absolute left-0 top-0 h-full w-1", TIPO_BAR_CLASSES[item.tipo] || "bg-muted")}
                     />
                     <div className="max-w-[260px]">
-                      <p className="font-medium truncate text-sm">{item.titulo}</p>
+                      <p className="font-medium truncate text-sm" title={item.titulo || undefined}>{item.titulo || "(sem título)"}</p>
                       {item.descricao && (
                         <p className="text-xs text-muted-foreground truncate">{item.descricao}</p>
                       )}

@@ -893,7 +893,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         let queryAud = supabase
           .from("audiencias_detectadas")
           .select(
-            "id, titulo, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, coordenacao_id, created_at, updated_at"
+            "id, titulo, tipo_audiencia, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, coordenacao_id, created_at, updated_at"
           )
           .not("data_audiencia", "is", null);
 
@@ -967,7 +967,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
 
             resultItems.push({
               id: audKey,
-              titulo: aud.titulo || `Audiência ${aud.processo_numero ?? ""}`.trim(),
+              titulo: aud.titulo || aud.tipo_audiencia || `Audiência ${aud.processo_numero ?? ""}`.trim(),
               descricao: aud.observacoes ?? null,
               tipo: "audiencia",
               origem: "evento",

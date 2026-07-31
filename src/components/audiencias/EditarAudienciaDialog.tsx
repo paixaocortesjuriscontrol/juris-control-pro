@@ -17,6 +17,8 @@ import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
 import { ReagendarAudienciaDialog } from "./ReagendarAudienciaDialog";
 import { HistoricoReagendamentosAudiencia } from "./HistoricoReagendamentosAudiencia";
+import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
+import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 
 interface Props {
   audiencia: AudienciaDetectada | null;
@@ -34,6 +36,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
   const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);
   const [formData, setFormData] = useState({
+    titulo: "",
     data_audiencia: "",
     hora: "",
     hora_local: "",
@@ -90,6 +93,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
       }
 
       setFormData({
+        titulo: (audiencia as any).titulo || audiencia.tipo_audiencia || "",
         data_audiencia: dataFormatted,
         hora: audiencia.hora || "",
         hora_local: audiencia.hora_local || "",
@@ -144,6 +148,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
       }
 
       const updateData: Record<string, any> = {
+        titulo: formData.titulo?.trim() || null,
         data_audiencia: dataAudienciaISO,
         hora: formData.hora || null,
         hora_local: formData.hora_local || null,
@@ -206,12 +211,10 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
         }
       }
 
-      await queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
-      await queryClient.invalidateQueries({ queryKey: ['audiencias-processo'] });
-      if (invalidateKey) {
-        await queryClient.invalidateQueries({ queryKey: invalidateKey });
-      }
-      await queryClient.invalidateQueries({ queryKey: ['audiencia-advogados', audiencia.id] });
+      await invalidarItensAgenda(queryClient, [
+        invalidateKey as unknown[],
+        ['audiencia-advogados', audiencia.id],
+      ].filter(Boolean) as unknown[][]);
       toast.success('Audiência atualizada com sucesso!');
       onOpenChange(false);
     } catch (error: any) {
@@ -224,6 +227,27 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const formId = `editar-audiencia-form-${audiencia?.id ?? 'new'}`;
   const formBody = (
     <form id={formId} onSubmit={handleSubmit} className="space-y-4">
+          {/* Título — sempre visível, igual ao cadastro */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="titulo_audiencia" className="text-sm font-medium">
+                Título da audiência
+              </Label>
+              <ModeloTituloPicker
+                tipo="audiencia"
+                coordenacaoId={(audiencia as any)?.coordenacao_id ?? null}
+                onSelect={(m) => handleChange("titulo", m.titulo)}
+              />
+            </div>
+            <Input
+              id="titulo_audiencia"
+              className="h-11 text-base"
+              placeholder="Digite o título da audiência"
+              value={formData.titulo}
+              onChange={(e) => handleChange("titulo", e.target.value)}
+            />
+          </div>
+
           {/* Dados Principais */}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">

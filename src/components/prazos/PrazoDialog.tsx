@@ -1,3 +1,4 @@
+import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
@@ -507,6 +508,7 @@ export function PrazoDialog({
         queryClient.invalidateQueries({ queryKey: ["processos-paginados"] }),
         queryClient.invalidateQueries({ queryKey: ["pastas"] }),
       ]);
+      await invalidarItensAgenda(queryClient);
 
       if (secondaryClickedRef.current) {
         try { await secondarySave?.onAfterSuccess(); }

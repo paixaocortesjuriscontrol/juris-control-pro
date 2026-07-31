@@ -1,3 +1,4 @@
+import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
@@ -612,6 +613,7 @@ export function NovaTarefaDialog({
         await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
         await queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite-v1"] });
         await queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] });
+        await invalidarItensAgenda(queryClient);
         onOpenChange(false);
         onSuccess?.();
         return;
@@ -747,6 +749,7 @@ export function NovaTarefaDialog({
         queryClient.invalidateQueries({ queryKey: ["lista-atividades"] }),
         queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite-v1"] }),
       ]);
+      await invalidarItensAgenda(queryClient);
       if (novaTarefa?.id && onCreated) {
         await onCreated(novaTarefa.id);
       }
@@ -803,7 +806,7 @@ export function NovaTarefaDialog({
       if (error) throw error;
       await queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
-      await queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite-v1"] });
+      await invalidarItensAgenda(queryClient);
       toast({
         title: status === "cumprido" ? "Tarefa concluída" : status === "cancelado" ? "Tarefa cancelada" : "Tarefa reaberta",
       });

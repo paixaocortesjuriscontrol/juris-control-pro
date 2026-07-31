@@ -56,50 +56,90 @@ function esc(s: any): string {
 
 async function buscarDetalhesEntidade(supabase: any, entidade: string, id: string): Promise<Record<string, string>> {
   const det: Record<string, string> = {};
+  const numeroProcesso = async (processoId?: string | null): Promise<string | null> => {
+    if (!processoId) return null;
+    const { data } = await supabase.from("processos").select("numero").eq("id", processoId).maybeSingle();
+    return data?.numero ?? null;
+  };
+  const resumo = (txt?: string | null): string | null => {
+    const t = String(txt ?? "").trim();
+    if (!t) return null;
+    return t.length > 400 ? `${t.slice(0, 400)}…` : t;
+  };
   try {
     if (entidade === "tarefa") {
       const { data } = await supabase.from("tarefas")
-        .select("titulo, tipo_tarefa, prioridade, data_vencimento, data_fatal, processo_id, orgao_julgador, descricao")
+        .select("titulo, tipo_tarefa, prioridade, status, data_vencimento, data_fatal, hora_fatal, processo_id, orgao_julgador, descricao, observacoes, partes_ativas, partes_passivas, identificador_projuris, link_local")
         .eq("id", id).maybeSingle();
       if (data) {
+        if (data.titulo) det["Título"] = data.titulo;
         if (data.tipo_tarefa) det["Tipo"] = data.tipo_tarefa;
         if (data.prioridade) det["Prioridade"] = data.prioridade;
         if (data.data_vencimento) det["Vencimento"] = fmtData(data.data_vencimento);
-        if (data.data_fatal) det["Data fatal"] = fmtData(data.data_fatal);
+        if (data.data_fatal) det["Data fatal"] = fmtData(data.data_fatal) + (data.hora_fatal ? ` ${String(data.hora_fatal).slice(0, 5)}` : "");
         if (data.orgao_julgador) det["Órgão"] = data.orgao_julgador;
+        const numero = await numeroProcesso(data.processo_id);
+        if (numero) det["Processo"] = numero;
+        if (data.identificador_projuris) det["Identificador"] = data.identificador_projuris;
+        if (data.partes_ativas) det["Polo ativo"] = data.partes_ativas;
+        if (data.partes_passivas) det["Polo passivo"] = data.partes_passivas;
+        if (data.link_local) det["Local / Link"] = data.link_local;
+        const desc = resumo(data.descricao);
+        if (desc) det["Descrição"] = desc;
+        const obs = resumo(data.observacoes);
+        if (obs) det["Observações"] = obs;
       }
     } else if (entidade === "audiencia") {
       const { data } = await supabase.from("audiencias_detectadas")
-        .select("tipo_audiencia, modalidade, data_audiencia, hora, local_audiencia, comarca, vara_camara, processo_numero, cliente, polo_ativo")
+        .select("titulo, tipo_audiencia, modalidade, data_audiencia, hora, local_audiencia, forum, comarca, vara_camara, processo_numero, cliente, polo_ativo, terceirizado, observacoes")
         .eq("id", id).maybeSingle();
       if (data) {
+        if (data.titulo) det["Título"] = data.titulo;
         if (data.tipo_audiencia) det["Tipo"] = data.tipo_audiencia;
         if (data.modalidade) det["Modalidade"] = data.modalidade;
         if (data.data_audiencia) det["Data"] = fmtData(data.data_audiencia) + (data.hora ? ` ${data.hora}` : "");
-        if (data.local_audiencia) det["Local"] = data.local_audiencia;
+        if (data.local_audiencia || data.forum) det["Local"] = data.local_audiencia || data.forum;
         if (data.vara_camara) det["Vara/Câmara"] = data.vara_camara;
         if (data.comarca) det["Comarca"] = data.comarca;
         if (data.processo_numero) det["Processo"] = data.processo_numero;
+        if (data.polo_ativo) det["Polo ativo"] = data.polo_ativo;
         if (data.cliente) det["Cliente"] = data.cliente;
+        if (data.terceirizado) det["Terceirizado"] = data.terceirizado;
+        const obs = resumo(data.observacoes);
+        if (obs) det["Observações"] = obs;
       }
     } else if (entidade === "evento") {
       const { data } = await supabase.from("eventos_agenda")
-        .select("titulo, tipo, data_inicio, data_fim, local, descricao")
+        .select("titulo, tipo, status, data_inicio, data_fim, local, descricao, processo_id")
         .eq("id", id).maybeSingle();
       if (data) {
+        if (data.titulo) det["Título"] = data.titulo;
         if (data.tipo) det["Tipo"] = data.tipo;
         if (data.data_inicio) det["Início"] = fmtBRT(data.data_inicio);
         if (data.data_fim) det["Fim"] = fmtBRT(data.data_fim);
         if (data.local) det["Local"] = data.local;
+        const numero = await numeroProcesso(data.processo_id);
+        if (numero) det["Processo"] = numero;
+        const desc = resumo(data.descricao);
+        if (desc) det["Descrição"] = desc;
       }
     } else if (entidade === "parcela") {
       const { data } = await supabase.from("parcelas_evento")
-        .select("numero, data_vencimento, valor, evento_id, observacoes")
+        .select("numero, data_vencimento, valor, evento_id, observacoes, status")
         .eq("id", id).maybeSingle();
       if (data) {
         if (data.numero != null) det["Parcela"] = String(data.numero);
         if (data.data_vencimento) det["Vencimento"] = fmtData(data.data_vencimento);
         if (data.valor != null) det["Valor"] = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(data.valor));
+        if (data.evento_id) {
+          const { data: ev } = await supabase.from("eventos_agenda")
+            .select("titulo, processo_id").eq("id", data.evento_id).maybeSingle();
+          if (ev?.titulo) det["Parcelamento"] = ev.titulo;
+          const numero = await numeroProcesso(ev?.processo_id);
+          if (numero) det["Processo"] = numero;
+        }
+        const obs = resumo(data.observacoes);
+        if (obs) det["Observações"] = obs;
       }
     }
   } catch (_e) { /* best-effort */ }
