@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2, Repeat, ClipboardList, Star } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2, Repeat, ClipboardList, Star, Lock } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -125,6 +125,7 @@ const Processos = () => {
   const [comIntimacoes, setComIntimacoes] = useState(() => searchParams.get("comIntimacoes") === "true");
   const [comTarefas, setComTarefas] = useState(() => searchParams.get("comTarefas") === "true");
   const [acompanhamentoEspecial, setAcompanhamentoEspecial] = useState(() => searchParams.get("acompanhamentoEspecial") === "true");
+  const [segredoJustica, setSegredoJustica] = useState(() => searchParams.get("segredoJustica") === "true");
   const [tipoProcessoFilter, setTipoProcessoFilter] = useState<string>(() => searchParams.get("tipo") || "all");
   
   // Filtro de grupo de clientes (da URL ou selecionado manualmente)
@@ -290,6 +291,9 @@ const Processos = () => {
     if (acompanhamentoEspecial) params.set("acompanhamentoEspecial", "true");
     else params.delete("acompanhamentoEspecial");
 
+    if (segredoJustica) params.set("segredoJustica", "true");
+    else params.delete("segredoJustica");
+
     if (tipoProcessoFilter !== "all") params.set("tipo", tipoProcessoFilter);
     else params.delete("tipo");
 
@@ -303,7 +307,7 @@ const Processos = () => {
     if (params.toString() !== searchParams.toString()) {
       setSearchParams(params, { replace: true });
     }
-  }, [searchParams, searchQuery, areaFilter, statusFilter, coordenacaoFilter, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, acompanhamentoEspecial, tipoProcessoFilter, selectedGrupoId, selectedClienteId, setSearchParams, coordenacaoCarregada]);
+  }, [searchParams, searchQuery, areaFilter, statusFilter, coordenacaoFilter, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, acompanhamentoEspecial, segredoJustica, tipoProcessoFilter, selectedGrupoId, selectedClienteId, setSearchParams, coordenacaoCarregada]);
 
   const { 
     data, 
@@ -336,6 +340,7 @@ const Processos = () => {
     comIntimacao: comIntimacoes,
     comTarefa: comTarefas,
     acompanhamentoEspecial: acompanhamentoEspecial,
+    segredoJustica: segredoJustica,
     periodoInicio: filtrosAplicados.periodoInicio,
     periodoFim: filtrosAplicados.periodoFim,
     clienteIds: clienteIds,
@@ -353,7 +358,7 @@ const Processos = () => {
   useEffect(() => {
     resetPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicadosKey, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, acompanhamentoEspecial, clienteIds, tipoProcessoFilter]);
+  }, [debouncedSearch, areaFilter, statusFilter, coordenacaoFilter, filtrosAplicadosKey, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, acompanhamentoEspecial, segredoJustica, clienteIds, tipoProcessoFilter]);
 
   // Auto-apply the "quick" filters (always visible on the bar)
   // so selecting a responsável / período filters immediately.
@@ -445,6 +450,7 @@ const Processos = () => {
     comIntimacoes ||
     comTarefas ||
     acompanhamentoEspecial ||
+    segredoJustica ||
     !!grupoClientesParam ||
     selectedGrupoId !== "all" ||
     selectedClienteId !== "all";
@@ -737,6 +743,20 @@ const Processos = () => {
               <Star className="w-4 h-4" />
               <span className="hidden sm:inline">Acompanhamento Especial</span>
             </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-9 gap-2 touch-manipulation select-none",
+                segredoJustica && "bg-slate-700 hover:bg-slate-800 text-primary-foreground border-slate-700"
+              )}
+              onClick={() => setSegredoJustica(prev => !prev)}
+            >
+              <Lock className="w-4 h-4" />
+              <span className="hidden sm:inline">Segredo de Justiça</span>
+            </Button>
           </div>
 
           {/* Action Buttons Row */}
@@ -910,6 +930,11 @@ const Processos = () => {
             {acompanhamentoEspecial && (
               <Badge variant="secondary" className="cursor-pointer bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-300" onClick={() => setAcompanhamentoEspecial(false)}>
                 Acompanhamento Especial ×
+              </Badge>
+            )}
+            {segredoJustica && (
+              <Badge variant="secondary" className="cursor-pointer bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200" onClick={() => setSegredoJustica(false)}>
+                Segredo de Justiça ×
               </Badge>
             )}
             {(filtrosAplicados.periodoInicio || filtrosAplicados.periodoFim) && (

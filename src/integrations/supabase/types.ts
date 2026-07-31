@@ -9699,6 +9699,7 @@ export type Database = {
           _periodo_inicio?: string
           _responsavel_id?: string
           _search?: string
+          _segredo_justica?: boolean
           _status?: string
           _testemunha_nome?: string
           _tipo_processo?: string
