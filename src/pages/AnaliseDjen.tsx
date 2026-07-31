@@ -4543,15 +4543,6 @@ const AnaliseDjen = () => {
                                   <span className="text-[10px] md:text-xs text-muted-foreground flex-shrink-0">
                                     {formatDateShort(pub.data_publicacao)}
                                   </span>
-                                  <div onClick={(e) => e.stopPropagation()}>
-                                    <EtiquetaPicker
-                                      entidade="publicacao"
-                                      entidadeId={pub.id}
-                                      coordenacaoId={(pub as any).coordenacao_id ?? undefined}
-                                      compact
-                                    />
-                                  </div>
-                                  
                                   {/* Badge da Coordenação - sempre visível quando há nome */}
                                   {pub.coordenacao_nome && (
                                     <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-300 text-[10px] md:text-xs px-1.5 md:px-2 py-0 md:py-0.5 max-w-[120px] md:max-w-[180px] truncate">
@@ -4701,8 +4692,22 @@ const AnaliseDjen = () => {
                                           <span className="hidden sm:inline">Ver processo</span>
                                         </Link>
                                       )}
-                                      
-                                       {/* Ações de vínculo/importação */}
+
+                                       {/* Etiquetas da publicação */}
+                                       <div
+                                         className="flex-shrink-0"
+                                         onClick={(e) => e.stopPropagation()}
+                                       >
+                                         <EtiquetaPicker
+                                           entidade="publicacao"
+                                           entidadeId={pub.id}
+                                           coordenacaoId={(pub as any).coordenacao_id ?? undefined}
+                                           coordenacaoNome={pub.coordenacao_nome ?? undefined}
+                                           compact
+                                         />
+                                       </div>
+
+                                        {/* Ações de vínculo/importação */}
                                        {(pub.processo_id || importedProcessos[pub.id]) ? (
                                          <Button
                                            variant="outline"

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tag, Loader2, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -24,6 +25,8 @@ interface Props {
   compact?: boolean;
   /** Ids já carregados em lote (evita uma consulta por linha). */
   etiquetaIds?: string[];
+  /** Nome da coordenação, exibido no cabeçalho do painel. */
+  coordenacaoNome?: string | null;
 }
 
 /**
@@ -38,6 +41,7 @@ export function EtiquetaPicker({
   readOnly,
   compact,
   etiquetaIds,
+  coordenacaoNome,
 }: Props) {
   const modulo = moduloDaEntidade(entidade);
   const { data: catalogo = [], isLoading } = useEtiquetas(coordenacaoId ?? undefined, modulo);
@@ -66,26 +70,39 @@ export function EtiquetaPicker({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 hover:bg-muted/60 rounded px-1 py-0.5"
-          onClick={(e) => e.stopPropagation()}
-          title="Gerenciar etiquetas"
-        >
+        <span className="inline-flex items-center gap-1.5 align-middle">
           {aplicadas.length > 0 && <EtiquetaBadges etiquetas={aplicadas} />}
-          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-            <Tag className="w-3 h-3" />
-            {aplicadas.length === 0 && (compact ? "Etiqueta" : "Adicionar etiqueta")}
-          </span>
-        </button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1.5 px-2 text-xs"
+            onClick={(e) => e.stopPropagation()}
+            title="Aplicar etiqueta"
+          >
+            <Tag className="h-3.5 w-3.5" />
+            {aplicadas.length > 0
+              ? `Etiquetas (${aplicadas.length})`
+              : compact
+                ? "Etiqueta"
+                : "Adicionar etiqueta"}
+          </Button>
+        </span>
       </PopoverTrigger>
       <PopoverContent
         className="w-80 p-2"
         align="start"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-1">
-          <div className="text-xs font-semibold">Etiquetas</div>
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <div>
+            <div className="text-xs font-semibold">Aplicar etiqueta</div>
+            {coordenacaoNome && (
+              <div className="text-[10px] text-muted-foreground truncate max-w-[210px]">
+                {coordenacaoNome}
+              </div>
+            )}
+          </div>
           {aplicadas.length > 0 && (
             <button
               type="button"
@@ -109,7 +126,11 @@ export function EtiquetaPicker({
           </div>
         ) : filtradas.length === 0 ? (
           <div className="text-xs text-muted-foreground py-2 space-y-1">
-            <p>Nenhuma etiqueta disponível para este módulo.</p>
+            <p>
+              Nenhuma etiqueta cadastrada para este módulo
+              {coordenacaoNome ? ` na coordenação ${coordenacaoNome}` : ""}.
+            </p>
+            <p>Cadastre a etiqueta e habilite o módulo correspondente.</p>
             <Link
               to="/etiquetas"
               className="inline-flex items-center gap-1 text-primary hover:underline"
