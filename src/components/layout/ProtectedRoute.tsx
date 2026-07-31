@@ -34,12 +34,19 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   }
 
   if (!user) {
-    // Guarda o destino (inclusive query string dos links de e-mail) para
-    // restaurar após o login, mesmo que a página seja recarregada.
+    const destination = `${pathname}${location.search ?? ""}${location.hash ?? ""}`;
+    // Mantém também o fallback em sessionStorage para navegadores que removam
+    // a query string durante autenticação, mas leva o destino na própria URL.
     try {
-      sessionStorage.setItem("redirectAfterLogin", `${pathname}${location.search ?? ""}`);
+      sessionStorage.setItem("redirectAfterLogin", destination);
     } catch {}
-    return <Navigate to="/auth" replace state={{ from: location }} />;
+    return (
+      <Navigate
+        to={`/auth?redirect=${encodeURIComponent(destination)}`}
+        replace
+        state={{ from: location }}
+      />
+    );
   }
 
   if (role === "advogado_temporario" && !ADVOGADO_TEMPORARIO_ALLOWED.has(pathname)) {

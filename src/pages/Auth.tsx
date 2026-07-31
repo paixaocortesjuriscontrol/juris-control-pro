@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Scale, Eye, EyeOff, Loader2, Mail, Lock, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ const Auth = () => {
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const redirectPath = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
   const stored = (() => {
     try {
@@ -45,11 +46,16 @@ const Auth = () => {
       return null;
     }
   })();
-  const destination = redirectPath?.pathname
-    ? `${redirectPath.pathname}${redirectPath.search ?? ""}`
-    : stored && stored !== "/auth"
-      ? stored
-      : "/painel-controle";
+  const requestedDestination = searchParams.get("redirect");
+  const isSafeInternalDestination = (value: string | null): value is string =>
+    !!value && value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/auth");
+  const destination = isSafeInternalDestination(requestedDestination)
+    ? requestedDestination
+    : redirectPath?.pathname && redirectPath.pathname !== "/auth"
+      ? `${redirectPath.pathname}${redirectPath.search ?? ""}`
+      : isSafeInternalDestination(stored)
+        ? stored
+        : "/painel-controle";
 
   const goToDestination = () => {
     try {
