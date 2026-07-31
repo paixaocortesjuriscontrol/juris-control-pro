@@ -457,7 +457,13 @@ export default function ListaAtividadesView({
 
   const { data: etiquetasPorItem } = useEtiquetasDeItens(
     "tarefa",
-    useMemo(() => rows.map((r: any) => r.id as string), [rows]),
+    useMemo(
+      () =>
+        rows
+          .map((r: any) => String(r.id))
+          .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)),
+      [rows],
+    ),
   );
 
   // Lookup de criadores para eventos que não têm responsável nem participante
