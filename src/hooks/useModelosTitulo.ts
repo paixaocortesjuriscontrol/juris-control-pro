@@ -12,6 +12,7 @@ export interface ModeloTitulo {
   titulo: string;
   descricao: string | null;
   prioridade: string | null;
+  padroes: Record<string, any> | null;
   ativo: boolean;
   criado_por: string | null;
   created_at: string;
