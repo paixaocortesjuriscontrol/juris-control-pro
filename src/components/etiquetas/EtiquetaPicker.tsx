@@ -1,0 +1,153 @@
+import { useMemo, useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tag, Loader2, Plus } from "lucide-react";
+import { Link } from "react-router-dom";
+import {
+  useEtiquetas,
+  useEtiquetasDoItem,
+  useToggleEtiquetaItem,
+  useRemoverTodasEtiquetasDoItem,
+  moduloDaEntidade,
+  type Etiqueta,
+  type EtiquetaEntidade,
+} from "@/hooks/useEtiquetas";
+import { EtiquetaBadges } from "./EtiquetaBadges";
+
+interface Props {
+  entidade: EtiquetaEntidade;
+  entidadeId?: string | null;
+  /** Coordenação do item; sem ela lista as etiquetas de todas as coordenações do usuário. */
+  coordenacaoId?: string | null;
+  readOnly?: boolean;
+  compact?: boolean;
+  /** Ids já carregados em lote (evita uma consulta por linha). */
+  etiquetaIds?: string[];
+}
+
+/**
+ * Popover de etiquetas (modelo Astrea): ícone de etiqueta, busca em ordem
+ * alfabética e checkboxes para aplicar/remover. Somente etiquetas da
+ * coordenação do item e habilitadas para o módulo são exibidas.
+ */
+export function EtiquetaPicker({
+  entidade,
+  entidadeId,
+  coordenacaoId,
+  readOnly,
+  compact,
+  etiquetaIds,
+}: Props) {
+  const modulo = moduloDaEntidade(entidade);
+  const { data: catalogo = [], isLoading } = useEtiquetas(coordenacaoId ?? undefined, modulo);
+  const { data: idsDoItem = [] } = useEtiquetasDoItem(
+    entidade,
+    etiquetaIds ? null : entidadeId,
+  );
+  const aplicadosIds = etiquetaIds ?? idsDoItem;
+  const toggle = useToggleEtiquetaItem();
+  const removerTodas = useRemoverTodasEtiquetasDoItem();
+  const [busca, setBusca] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const aplicadas: Etiqueta[] = useMemo(() => {
+    const s = new Set(aplicadosIds);
+    return catalogo.filter((e) => s.has(e.id));
+  }, [catalogo, aplicadosIds]);
+
+  const filtradas = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return q ? catalogo.filter((e) => e.nome.toLowerCase().includes(q)) : catalogo;
+  }, [catalogo, busca]);
+
+  if (readOnly || !entidadeId) return <EtiquetaBadges etiquetas={aplicadas} />;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 hover:bg-muted/60 rounded px-1 py-0.5"
+          onClick={(e) => e.stopPropagation()}
+          title="Gerenciar etiquetas"
+        >
+          {aplicadas.length > 0 && <EtiquetaBadges etiquetas={aplicadas} />}
+          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+            <Tag className="w-3 h-3" />
+            {aplicadas.length === 0 && (compact ? "Etiqueta" : "Adicionar etiqueta")}
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-80 p-2"
+        align="start"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-xs font-semibold">Etiquetas</div>
+          {aplicadas.length > 0 && (
+            <button
+              type="button"
+              className="text-[10px] text-destructive hover:underline"
+              onClick={() => removerTodas.mutate({ entidade, entidadeId })}
+              disabled={removerTodas.isPending}
+            >
+              Remover todas
+            </button>
+          )}
+        </div>
+        <Input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar etiqueta..."
+          className="h-7 text-xs mb-2"
+        />
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+            <Loader2 className="w-3 h-3 animate-spin" /> Carregando...
+          </div>
+        ) : filtradas.length === 0 ? (
+          <div className="text-xs text-muted-foreground py-2 space-y-1">
+            <p>Nenhuma etiqueta disponível para este módulo.</p>
+            <Link
+              to="/etiquetas"
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+            >
+              <Plus className="w-3 h-3" /> Gerenciar etiquetas
+            </Link>
+          </div>
+        ) : (
+          <div className="max-h-64 overflow-auto space-y-1">
+            {filtradas.map((e) => {
+              const checked = aplicadosIds.includes(e.id);
+              return (
+                <label
+                  key={e.id}
+                  className="flex items-center gap-2 text-xs px-1 py-1 rounded hover:bg-muted/60 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(v) =>
+                      toggle.mutate({
+                        etiquetaId: e.id,
+                        entidade,
+                        entidadeId,
+                        checked: !!v,
+                      })
+                    }
+                  />
+                  <span
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{ backgroundColor: e.cor }}
+                  />
+                  <span className="truncate">{e.nome}</span>
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}

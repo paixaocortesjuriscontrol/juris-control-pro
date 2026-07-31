@@ -15,6 +15,7 @@ import {
   Mail,
   Server,
   History,
+  Tag,
 } from "lucide-react";
 
 export type MenuItem = {
@@ -44,6 +45,7 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: ShieldCheck, label: "Admin. TST", path: "/admin-tst", color: "text-sky-400", adminOnly: true },
   { icon: Sparkles, label: "Prompt IA TST", path: "/prompts-ia-tst", color: "text-purple-400", adminOnly: true },
   { icon: Sparkles, label: "Prompt IA (Publicações)", path: "/prompt-ia-publicacoes", color: "text-purple-400", adminOrCoordOnly: true },
+  { icon: Tag, label: "Etiquetas", path: "/etiquetas", color: "text-amber-400", adminOrCoordOnly: true },
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400", adminOrCoordOnly: true },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
