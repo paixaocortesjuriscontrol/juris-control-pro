@@ -38,14 +38,31 @@ const Auth = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const redirectPath = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+  const stored = (() => {
+    try {
+      return sessionStorage.getItem("redirectAfterLogin");
+    } catch {
+      return null;
+    }
+  })();
   const destination = redirectPath?.pathname
     ? `${redirectPath.pathname}${redirectPath.search ?? ""}`
-    : "/painel-controle";
+    : stored && stored !== "/auth"
+      ? stored
+      : "/painel-controle";
+
+  const goToDestination = () => {
+    try {
+      sessionStorage.removeItem("redirectAfterLogin");
+    } catch {}
+    navigate(destination, { replace: true });
+  };
 
   useEffect(() => {
     if (user) {
-      navigate(destination, { replace: true });
+      goToDestination();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, navigate, destination]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
