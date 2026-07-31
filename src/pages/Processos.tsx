@@ -20,6 +20,8 @@ import { TransferirProcessosDialog } from "@/components/processos/TransferirProc
 import { ProcessoFormDialog } from "@/components/processos/ProcessoFormDialog";
 import { FiltrosAvancadosProcessos, FiltrosAvancados, defaultFiltrosAvancados } from "@/components/processos/FiltrosAvancadosProcessos";
 import { ProcessoExpandableRow } from "@/components/processos/ProcessoExpandableRow";
+import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
+import { useEtiquetasDeItens } from "@/hooks/useEtiquetas";
 import { cn } from "@/lib/utils";
 import { Calendar, User } from "lucide-react";
 import { useConfiguracoesMonitoramento } from "@/hooks/useConfiguracoesMonitoramento";
@@ -126,6 +128,7 @@ const Processos = () => {
   const [comTarefas, setComTarefas] = useState(() => searchParams.get("comTarefas") === "true");
   const [acompanhamentoEspecial, setAcompanhamentoEspecial] = useState(() => searchParams.get("acompanhamentoEspecial") === "true");
   const [segredoJustica, setSegredoJustica] = useState(() => searchParams.get("segredoJustica") === "true");
+  const [etiquetasFiltro, setEtiquetasFiltro] = useState<string[]>([]);
   const [tipoProcessoFilter, setTipoProcessoFilter] = useState<string>(() => searchParams.get("tipo") || "all");
   
   // Filtro de grupo de clientes (da URL ou selecionado manualmente)
@@ -341,6 +344,7 @@ const Processos = () => {
     comTarefa: comTarefas,
     acompanhamentoEspecial: acompanhamentoEspecial,
     segredoJustica: segredoJustica,
+    etiquetaIds: etiquetasFiltro,
     periodoInicio: filtrosAplicados.periodoInicio,
     periodoFim: filtrosAplicados.periodoFim,
     clienteIds: clienteIds,
@@ -757,6 +761,13 @@ const Processos = () => {
               <Lock className="w-4 h-4" />
               <span className="hidden sm:inline">Segredo de Justiça</span>
             </Button>
+
+            <EtiquetaFilter
+              modulo="processo"
+              coordenacaoId={coordenacaoFilter !== "all" ? coordenacaoFilter : undefined}
+              value={etiquetasFiltro}
+              onChange={setEtiquetasFiltro}
+            />
           </div>
 
           {/* Action Buttons Row */}
