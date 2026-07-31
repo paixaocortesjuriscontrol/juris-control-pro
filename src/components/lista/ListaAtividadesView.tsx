@@ -1012,6 +1012,15 @@ export default function ListaAtividadesView({
                                 <TratadoCheck tratado={isItemTratado({ ...item, ...r })} />
                                 <span>{r.titulo || "(sem título)"}</span>
                               </div>
+                              <div data-stop>
+                                <EtiquetaPicker
+                                  entidade="tarefa"
+                                  entidadeId={r.id}
+                                  coordenacaoId={(r as any).processo?.coordenacao_id ?? undefined}
+                                  etiquetaIds={etiquetasPorItem?.get(r.id) || []}
+                                  compact
+                                />
+                              </div>
                               {r.processo?.assunto && (
                                 <div className="text-[10px] text-muted-foreground break-words">
                                   {r.processo.assunto}
