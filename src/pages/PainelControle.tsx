@@ -1154,6 +1154,20 @@ export default function PainelControle() {
     toast.error("Item vinculado a este alerta não foi encontrado");
   };
 
+  // Deep link vindo dos e-mails de alerta:
+  // /painel-controle?view=notificacoes&item=<id> abre o detalhe do item.
+  useEffect(() => {
+    if (handledItemParamRef.current) return;
+    const itemId = searchParams.get("item");
+    if (!itemId) return;
+    handledItemParamRef.current = true;
+    void abrirItemPorReferencia(itemId);
+    const next = new URLSearchParams(searchParams);
+    next.delete("item");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const handleConcluirItem = async (item: ItemAgendaUnificado) => {
     const isConcluido = isItemTratado(item);
     const nextStatus = isConcluido ? "pendente" : "concluido";
