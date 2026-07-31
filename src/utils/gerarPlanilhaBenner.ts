@@ -114,7 +114,6 @@ function fixVicePresidencia(s: string): string {
     .replace(/Vice[\s\-]*Presi[eêEÊ]ncia/gi, "Vice-Presidência")
     .replace(/Vice[\s\-]*Presid[eê]ncia/gi, "Vice-Presidência");
 }
-function toSentenceCase(s: string): string {
 // Opções exatas exibidas na tela (Decisão - Análise do Quarteirizado).
 // A planilha deve respeitar exatamente esse texto, incluindo "C. TST".
 const OPCOES_QUARTEIRIZADO = [
