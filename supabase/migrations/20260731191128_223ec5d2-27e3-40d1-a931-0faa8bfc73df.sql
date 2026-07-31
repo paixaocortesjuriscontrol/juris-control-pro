@@ -1,0 +1,1 @@
+ALTER TABLE public.modelos_titulo_coordenacao ADD COLUMN IF NOT EXISTS padroes jsonb NOT NULL DEFAULT '{}'::jsonb;
