@@ -134,6 +134,7 @@ export default function PainelControle() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { totalNaoLidas } = useMensagensNaoLidas();
   const handledSelectedIdRef = useRef(false);
+  const handledItemParamRef = useRef(false);
   const [tabMode, setTabMode] = useState<TabMode>("pessoal");
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const viewParam = searchParams.get("view");
