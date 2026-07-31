@@ -391,6 +391,11 @@ const Processos = () => {
 
   const processos = data?.processos || [];
   const totalCount = data?.totalCount || 0;
+  const processoIdsPagina = useMemo(
+    () => processos.map((p: any) => p.id as string),
+    [processos],
+  );
+  const { data: etiquetasPorProcesso } = useEtiquetasDeItens("processo", processoIdsPagina);
   const totalPages = data?.totalPages || 1;
 
   const handleForceRefresh = () => {
