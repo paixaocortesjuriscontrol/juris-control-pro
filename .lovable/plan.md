@@ -3,16 +3,18 @@
 ## Objetivo
 Nos processos distribuídos a partir de 2026 que estão **Prontos para enviar (sem pendência)**, quando o **Recurso do Reclamante** estiver preenchido e **Tem chance de êxito = SIM**, inverter as marcações de **Chance Turma** e **Chance Relator** que estejam **FAVORÁVEL** para **DESFAVORÁVEL**, e gerar um relatório Excel com todos os processos alterados.
 
-## Escopo confirmado na base
-- 1.869 registros com distribuição de 2026 em diante; 174 com "Tem chance de êxito (Reclamante) = SIM"; 164 destes têm alguma marcação FAVORÁVEL na análise por matéria do reclamante.
+## Escopo
+- Somente processos **Prontos para enviar (sem pendência)** com distribuição a partir de 01/01/2026. Nenhum outro processo é tocado.
+- "Pronto sem pendência" é calculado pelas regras de `distribuicaoTstPendencias` (mesma lógica do card da tela), portanto a lista final sai desse filtro — não de um recorte por ano.
+- Dentro desse conjunto, só entram os que têm Recurso do Reclamante preenchido e "Tem chance de êxito = SIM".
 - Os valores gravados são exatamente `FAVORÁVEL` / `DESFAVORÁVEL` dentro do JSON `materias_analise_reclamante` (por matéria: aparelhamento, chance_turma, chance_relator, chance_exito).
-- "Pronto sem pendência" é calculado no front (regras de `distribuicaoTstPendencias`), então a seleção final dos processos será feita na tela, não por SQL cego.
+- O total exato de processos elegíveis é apurado e exibido na pré-visualização antes de qualquer gravação.
 
 ## Como vai funcionar
 1. Nova ação na tela Distribuição TST: botão **"Ajustar Chance Turma/Relator (2026+)"**, no grupo de ações administrativas.
 2. Ao acionar, o sistema:
-   - busca em lotes os registros com distribuição a partir de 01/01/2026;
-   - mantém apenas os que estão **sem pendências** (mesma regra do card "Pronto sem pendência"), com recurso do reclamante preenchido (tipo/matérias) e êxito = SIM;
+   - busca em lotes os registros com distribuição a partir de 01/01/2026 e descarta imediatamente todos que tenham qualquer pendência, mantendo apenas os **Prontos para enviar**;
+   - dentro desses, mantém apenas os com recurso do reclamante preenchido (tipo/matérias) e êxito = SIM;
    - em cada matéria da análise do reclamante, troca `FAVORÁVEL` por `DESFAVORÁVEL` em Chance Turma e Chance Relator (demais campos intactos);
    - grava em lotes de 200 com barra de progresso detalhada (processo/dossiê atual) e botão **Cancelar**.
 3. Antes de gravar, exibe resumo de pré-visualização (quantos processos e quantas matérias serão alterados) para confirmação.
