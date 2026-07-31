@@ -56,6 +56,22 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { parseDateSafe } from "@/utils/date";
 
+/** Formata datas com segurança: nunca lança "Invalid time value". */
+function fmtSafe(
+  value: string | Date | null | undefined,
+  pattern: string,
+  opts?: Parameters<typeof format>[2],
+  fallback = "—",
+): string {
+  const d = parseDateSafe(value as any);
+  if (!d) return fallback;
+  try {
+    return format(d, pattern, opts);
+  } catch {
+    return fallback;
+  }
+}
+
 interface NotificacoesProps {
   embedded?: boolean;
   /** Filtros externos (Painel de Controle) — quando embedded, substituem os filtros internos */
@@ -1388,7 +1404,7 @@ export default function Notificacoes({
                           Processo: {prazo.processo?.numero}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Vencimento: {format(parseDateSafe(prazo.data_vencimento)!, 'dd/MM/yyyy')}
+                          Vencimento: {fmtSafe(prazo.data_vencimento, 'dd/MM/yyyy')}
                         </p>
                       </div>
                     ))}
@@ -1555,7 +1571,7 @@ export default function Notificacoes({
                                   </div>
                                 )}
                                 <p className="text-xs text-muted-foreground mt-2">
-                                  {pub.data_publicacao && format(new Date(pub.data_publicacao), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                                  {pub.data_publicacao && fmtSafe(pub.data_publicacao, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                                 </p>
                               </div>
                               <Button 
@@ -1786,7 +1802,7 @@ export default function Notificacoes({
                                 Processo: {prazo.processo?.numero}
                               </p>
                               <p className="text-xs text-muted-foreground mt-2">
-                                Vencimento: {format(parseDateSafe(prazo.data_vencimento)!, "dd/MM/yyyy")}
+                                Vencimento: {fmtSafe(prazo.data_vencimento, "dd/MM/yyyy")}
                               </p>
                             </div>
                             <Button 
@@ -1852,7 +1868,7 @@ export default function Notificacoes({
                                 Processo: {(tarefa.processo as any)?.numero || '-'}
                               </p>
                               <p className="text-xs text-muted-foreground mt-2">
-                                Vencimento: {format(parseDateSafe(tarefa.data_vencimento)!, "dd/MM/yyyy")}
+                                Vencimento: {fmtSafe(tarefa.data_vencimento, "dd/MM/yyyy")}
                               </p>
                             </div>
                             <Button 
@@ -1905,7 +1921,7 @@ export default function Notificacoes({
                                 <p className="text-sm text-muted-foreground">{(audiencia as any).polo_ativo}</p>
                               )}
                               <p className="text-xs text-muted-foreground mt-2">
-                                {audiencia.data_audiencia && format(new Date(audiencia.data_audiencia), "dd/MM/yyyy")}
+                                {audiencia.data_audiencia && fmtSafe(audiencia.data_audiencia, "dd/MM/yyyy")}
                                 {(audiencia as any).hora_brasilia && ` às ${(audiencia as any).hora_brasilia}`}
                                 {!(audiencia as any).hora_brasilia && audiencia.hora && ` às ${audiencia.hora}`}
                               </p>
@@ -1960,11 +1976,11 @@ export default function Notificacoes({
                               <p className="font-medium">{intimacao.processo_numero || (intimacao.processo as any)?.numero}</p>
                               {(intimacao as any).data_limite && (
                                 <p className="text-xs text-primary font-medium mt-1">
-                                  Prazo: {format(new Date((intimacao as any).data_limite), "dd/MM/yyyy")}
+                                  Prazo: {fmtSafe((intimacao as any).data_limite, "dd/MM/yyyy")}
                                 </p>
                               )}
                               <p className="text-xs text-muted-foreground mt-1">
-                                {intimacao.data_intimacao && format(new Date(intimacao.data_intimacao), "dd/MM/yyyy")}
+                                {intimacao.data_intimacao && fmtSafe(intimacao.data_intimacao, "dd/MM/yyyy")}
                               </p>
                             </div>
                             {(intimacao.processo as any)?.id && (
@@ -2069,7 +2085,7 @@ export default function Notificacoes({
                                   Processo: {(andamento.processo as any)?.numero || '-'}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-2">
-                                  Capturado: {(andamento as any).created_at && format(new Date((andamento as any).created_at), "dd/MM/yyyy HH:mm")}
+                                  Capturado: {(andamento as any).created_at && fmtSafe((andamento as any).created_at, "dd/MM/yyyy HH:mm")}
                                 </p>
                               </div>
                               {(andamento.processo as any)?.id && (
