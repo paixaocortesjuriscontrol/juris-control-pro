@@ -22,6 +22,7 @@ import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/Distribuica
 // foram movidas para Admin TST → Importações Distribuição TST.
 import { CargaBennerFromDb } from "@/components/distribuicao-tst/CargaBennerFromDb";
 import { DossiesNaoLocalizadosButton } from "@/components/distribuicao-tst/DossiesNaoLocalizadosButton";
+import { AjustarChanceDialog } from "@/components/distribuicao-tst/AjustarChanceDialog";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -1612,6 +1613,7 @@ export default function DistribuicaoTst() {
                 </Button>
               )}
               <DossiesNaoLocalizadosButton filters={debouncedFilters} selectedIds={selectedIds} />
+              {isAdminOrCoordinator && <AjustarChanceDialog />}
               <Button
                 variant="secondary"
                 onClick={handleGerarCarga}
