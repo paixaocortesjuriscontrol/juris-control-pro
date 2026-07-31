@@ -38,6 +38,7 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true, adminOrCoordOnly: true },
   { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true, adminOrCoordOnly: true },
+  { icon: Tag, label: "Etiquetas", path: "/etiquetas", highlight: true, adminOrCoordOnly: true },
   // Demais itens
   { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400", restrictedCoordenacoes: ["Dr. Renata com termos do João", "Coordenação Dra. Renata Santander"] },
   { icon: Mail, label: "Remessas Benner", path: "/remessas-benner", color: "text-sky-400", adminOnly: true },
@@ -45,7 +46,6 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: ShieldCheck, label: "Admin. TST", path: "/admin-tst", color: "text-sky-400", adminOnly: true },
   { icon: Sparkles, label: "Prompt IA TST", path: "/prompts-ia-tst", color: "text-purple-400", adminOnly: true },
   { icon: Sparkles, label: "Prompt IA (Publicações)", path: "/prompt-ia-publicacoes", color: "text-purple-400", adminOrCoordOnly: true },
-  { icon: Tag, label: "Etiquetas", path: "/etiquetas", color: "text-amber-400", adminOrCoordOnly: true },
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400", adminOrCoordOnly: true },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
