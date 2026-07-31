@@ -162,11 +162,29 @@ function toSentenceCase(s: string): string {
   const lower = t.toLowerCase();
   return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
+// Opções exatas exibidas na tela (Decisão - Análise do Quarteirizado).
+// A planilha deve respeitar exatamente esse texto, incluindo "C. TST".
+const OPCOES_QUARTEIRIZADO_SAIDA = [
+  "Desistir - Falha Processual",
+  "Desistir - Fatos e Provas",
+  "Desistir - Jurisprudência consolidada",
+  "Desistir - Mídia Negativa",
+  "Desistir Súmula 266 C. TST",
+  "Prosseguir",
+];
+function canonQuarteirizado(s: string): string | null {
+  const norm = (v: string) =>
+    normalizeText(v).replace(/[\s.]+/g, " ").replace(/\s*-\s*/g, " - ").trim();
+  const n = norm(s);
+  return OPCOES_QUARTEIRIZADO_SAIDA.find(opt => norm(opt) === n) || null;
+}
 // Para "Análise do quarteirizado": se houver '-', capitalizar a primeira
 // letra de cada lado do hífen (mantendo o restante em minúsculas).
 function toSentenceCaseDash(s: string): string {
   const t = String(s ?? "").trim();
   if (!t) return "";
+  const canon = canonQuarteirizado(t);
+  if (canon) return canon;
   if (!t.includes("-")) return toSentenceCase(t);
   return t
     .split("-")
