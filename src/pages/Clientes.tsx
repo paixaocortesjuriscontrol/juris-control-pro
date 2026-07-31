@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Plus, Search, Pencil, Trash2, User, Building2, Loader2, Eye, Users } from "lucide-react";
@@ -37,6 +37,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ClienteDialog } from "@/components/clientes/ClienteDialog";
 import { GruposClientesTab } from "@/components/clientes/GruposClientesTab";
+import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
+import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
+import { useEtiquetasDeItens } from "@/hooks/useEtiquetas";
 
 export default function Clientes() {
   const navigate = useNavigate();
@@ -46,6 +49,7 @@ export default function Clientes() {
   const [clienteToDelete, setClienteToDelete] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [tipoFilter, setTipoFilter] = useState<string>("all");
+  const [etiquetasFiltro, setEtiquetasFiltro] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
   
   const { toast } = useToast();
@@ -63,6 +67,9 @@ export default function Clientes() {
     },
   });
 
+  const clienteIds = useMemo(() => clientes.map((c: any) => c.id), [clientes]);
+  const { data: etiquetasPorCliente } = useEtiquetasDeItens("cliente", clienteIds);
+
   const filteredClientes = clientes.filter((cliente) => {
     const matchesSearch =
       cliente.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -71,7 +78,11 @@ export default function Clientes() {
 
     const matchesTipo = tipoFilter === "all" || cliente.tipo === tipoFilter;
 
-    return matchesSearch && matchesTipo;
+    const aplicadas = etiquetasPorCliente?.get(cliente.id) || [];
+    const matchesEtiquetas =
+      etiquetasFiltro.length === 0 || etiquetasFiltro.some((id) => aplicadas.includes(id));
+
+    return matchesSearch && matchesTipo && matchesEtiquetas;
   });
 
   const handleEdit = (cliente: any) => {
