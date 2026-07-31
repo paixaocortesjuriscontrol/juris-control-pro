@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { linhaPainelAlertasTexto } from "../_shared/app-links.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,9 +13,10 @@ const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "JurisControl <alertas@juriscon
 async function enviarEmailResend(to: string, subject: string, texto: string): Promise<{ ok: boolean; erro?: string }> {
   if (!RESEND_API_KEY) return { ok: false, erro: "RESEND_API_KEY não configurada" };
   try {
-    const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111;white-space:pre-wrap">${
-      texto.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-    }</div>`;
+    const escapado = texto.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    // Transforma URLs em links clicáveis (ex.: link do Painel de Controle)
+    const comLinks = escapado.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#2563EB">$1</a>');
+    const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111;white-space:pre-wrap">${comLinks}</div>`;
     const resp = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -334,7 +336,7 @@ serve(async (req) => {
           ? `📅 Alertas para HOJE (${dataStr}) — ${cfg.tipo_tarefa}`
           : `⏰ Alertas para ${dataStr} (em ${nDias} dia${nDias > 1 ? "s" : ""}) — ${cfg.tipo_tarefa}`;
         const linhaCoord = coordNome ? `Coordenação: ${coordNome}\n` : "";
-        const corpoTexto = `${cabecalho}\n\n${linhaCoord}${linhaCoord ? "\n" : ""}${linhas}\n\nTotal: ${itens.length} item(ns)`;
+        const corpoTexto = `${cabecalho}\n\n${linhaCoord}${linhaCoord ? "\n" : ""}${linhas}\n\nTotal: ${itens.length} item(ns)\n\n${linhaPainelAlertasTexto(itens.length === 1 ? itens[0].id : null)}`;
 
         // Dedupe key: mesmo dia BRT + destinatário + canal + tipo (rota "referencia_id" é uuid → não serve; usamos janela por dia)
         const inicioDiaBrtUtc = new Date(Date.now() - 3 * 60 * 60 * 1000);
@@ -457,7 +459,7 @@ serve(async (req) => {
               .join("\n\n");
             const cabecalho = `🚨 Itens VENCIDOS não tratados — ${cfg.tipo_tarefa}`;
             const linhaCoord = coordNome ? `Coordenação: ${coordNome}\n\n` : "";
-            const corpoTexto = `${cabecalho}\n\n${linhaCoord}${linhas}\n\nTotal: ${itensVenc.length} item(ns) pendente(s)`;
+            const corpoTexto = `${cabecalho}\n\n${linhaCoord}${linhas}\n\nTotal: ${itensVenc.length} item(ns) pendente(s)\n\n${linhaPainelAlertasTexto(itensVenc.length === 1 ? itensVenc[0].id : null)}`;
             const tag = `[${cfg.id.slice(0,8)}|posvenc|${hojeYmd}]`;
             const refsVenc = itensVenc.slice(0, 40).map((i) => ({ id: i.id, titulo: i.titulo, origem: i.origem }));
             const refUnicoVenc = itensVenc.length === 1 ? itensVenc[0].id : null;
