@@ -1,6 +1,7 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -623,7 +624,16 @@ export function PrazoDialog({
             <Label className="text-sm">
               Título do prazo<span className="text-destructive">*</span>
             </Label>
-            <ModeloTituloPicker
+            <div className="flex items-center gap-1.5">
+              {prazo?.id && (
+                <EtiquetaPicker
+                  entidade="prazo"
+                  entidadeId={prazo.id}
+                  coordenacaoId={coordenacaoId}
+                  compact
+                />
+              )}
+              <ModeloTituloPicker
               tipo="prazo"
               coordenacaoId={coordenacaoId}
               onSelect={(m) => {
