@@ -4692,8 +4692,22 @@ const AnaliseDjen = () => {
                                           <span className="hidden sm:inline">Ver processo</span>
                                         </Link>
                                       )}
-                                      
-                                       {/* Ações de vínculo/importação */}
+
+                                       {/* Etiquetas da publicação */}
+                                       <div
+                                         className="flex-shrink-0"
+                                         onClick={(e) => e.stopPropagation()}
+                                       >
+                                         <EtiquetaPicker
+                                           entidade="publicacao"
+                                           entidadeId={pub.id}
+                                           coordenacaoId={(pub as any).coordenacao_id ?? undefined}
+                                           coordenacaoNome={pub.coordenacao_nome ?? undefined}
+                                           compact
+                                         />
+                                       </div>
+
+                                        {/* Ações de vínculo/importação */}
                                        {(pub.processo_id || importedProcessos[pub.id]) ? (
                                          <Button
                                            variant="outline"
