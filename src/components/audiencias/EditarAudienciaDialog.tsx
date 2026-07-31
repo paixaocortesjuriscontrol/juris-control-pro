@@ -19,6 +19,7 @@ import { ReagendarAudienciaDialog } from "./ReagendarAudienciaDialog";
 import { HistoricoReagendamentosAudiencia } from "./HistoricoReagendamentosAudiencia";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
 
 interface Props {
@@ -234,7 +235,16 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
               <Label htmlFor="titulo_audiencia" className="text-sm font-medium">
                 Título da audiência
               </Label>
-              <ModeloTituloPicker
+              <div className="flex items-center gap-1.5">
+                {audiencia?.id && (
+                  <EtiquetaPicker
+                    entidade="audiencia"
+                    entidadeId={audiencia.id}
+                    coordenacaoId={(audiencia as any)?.coordenacao_id ?? null}
+                    compact
+                  />
+                )}
+                <ModeloTituloPicker
                 tipo="audiencia"
                 coordenacaoId={(audiencia as any)?.coordenacao_id ?? null}
                 onSelect={(m) => {
