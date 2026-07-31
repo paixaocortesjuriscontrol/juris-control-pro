@@ -115,6 +115,25 @@ function fixVicePresidencia(s: string): string {
     .replace(/Vice[\s\-]*Presid[eê]ncia/gi, "Vice-Presidência");
 }
 function toSentenceCase(s: string): string {
+// Opções exatas exibidas na tela (Decisão - Análise do Quarteirizado).
+// A planilha deve respeitar exatamente esse texto, incluindo "C. TST".
+const OPCOES_QUARTEIRIZADO = [
+  "Desistir - Falha Processual",
+  "Desistir - Fatos e Provas",
+  "Desistir - Jurisprudência consolidada",
+  "Desistir - Mídia Negativa",
+  "Desistir Súmula 266 C. TST",
+  "Prosseguir",
+];
+function canonQuarteirizado(s: string): string | null {
+  const n = normalizeText(s).replace(/[\s.]+/g, " ").replace(/\s*-\s*/g, " - ").trim();
+  for (const opt of OPCOES_QUARTEIRIZADO) {
+    const on = normalizeText(opt).replace(/[\s.]+/g, " ").replace(/\s*-\s*/g, " - ").trim();
+    if (n === on) return opt;
+  }
+  return null;
+}
+function toSentenceCase(s: string): string {
   const t = String(s ?? "").trim();
   if (!t) return "";
   const lower = t.toLowerCase();
