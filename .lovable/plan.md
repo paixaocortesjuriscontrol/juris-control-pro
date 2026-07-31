@@ -1,31 +1,23 @@
-## Objetivo
+# Corrigir divergência: card "Pronto sem pendência" x Gerar Carga Benner
 
-No fluxo "Criando item a partir da publicação selecionada" (Análise DJEN), permitir clicar em qualquer linha do card verde "Itens criados a partir desta publicação" e abrir o formulário do item já preenchido para edição, sem sair da tela.
+## O problema (confirmado no código)
 
-## Comportamento
+A tela usa dois conjuntos de filtros diferentes:
 
-- Cada linha do card verde vira um botão (cursor pointer, hover destacado, acessível por teclado).
-- Ao clicar: o formulário de criação atualmente aberto é fechado e, no mesmo lugar, abre o formulário de **edição** do item clicado, com os dados carregados.
-- Ícone/ação visual de "editar" à direita da linha.
-- Ao salvar ou fechar a edição, volta ao estado anterior (card verde visível + botão "+ Adicionar"), com a lista de itens atualizada.
+- A **lista e os cards** usam `listFilters`, que além dos filtros normais aplica as restrições calculadas no cliente: os IDs "pronto para enviar **sem pendência**" (`prontoSemPendenciaIds`), o filtro "mais de um responsável" e, para não-admin, o vínculo ao usuário logado no card "A fazer".
+- O botão **Gerar Carga Benner** (`handleGerarCarga`) busca os IDs com `debouncedFilters`, que **não** contém nenhuma dessas restrições.
 
-## Alterações técnicas
+Resultado: ao clicar no card "Pronto sem pendência" (542) e depois em Gerar Carga Benner, o sistema carrega um conjunto maior (649 no seu exemplo) e, por isso, aparecem as 190 rejeições/pendências que o card justamente havia excluído.
 
-1. `src/components/shared/ItensCriadosPublicacaoCard.tsx`
-   - Nova prop opcional `onSelecionarItem?: (item: ItemCriado) => void`.
-   - Quando fornecida, cada linha é renderizada como `<button>` com hover/focus e ícone `Pencil`; sem a prop, comportamento atual (somente leitura) é mantido.
+## Correção
 
-2. `src/pages/AnaliseDjen.tsx`
-   - Novo estado `itemEmEdicao: { tipo, id } | null`.
-   - Handler `abrirEdicaoItem(item)`: fecha os forms de criação (`criarTarefaDialogOpen`, `novoEventoOpen`, `novoPrazoOpen`, `novaAudienciaOpen`) e seta `itemEmEdicao`.
-   - Carregamento do registro por tipo (mesmo padrão de `EdicaoItemPanel`):
-     - `tarefa`/`prazo` → `tarefas` por id;
-     - `evento` → `eventos_agenda` por id;
-     - `audiencia` → `audiencias_detectadas` por id.
-   - Renderização inline do form de edição conforme o tipo, reaproveitando os componentes já usados na página, no modo `inline`:
-     - `PrazoDialog` (prazo), `EventoDialog` (evento), `NovaTarefaDialog` (tarefa, com `tarefaParaEditar`), `EditarAudienciaDialog` (audiência).
-   - `onOpenChange(false)` → limpa `itemEmEdicao` e invalida as queries relevantes (`itens-existentes-publicacao`, `agenda-unificada`, `tarefas`) antes de voltar ao card.
-   - O wrapper permanece aberto enquanto houver `itemEmEdicao` (incluir na condição `wrapperAberto`), e `fecharTudo` também limpa esse estado.
-   - Passar `onSelecionarItem={abrirEdicaoItem}` para `ItensCriadosPublicacaoCard`.
+1. Em `src/pages/DistribuicaoTst.tsx`, `handleGerarCarga` passa a buscar os IDs com `listFilters` (o mesmo objeto usado pela listagem), garantindo paridade exata com o card ativo e com o contador exibido.
+2. Bloquear a geração enquanto o cálculo de "sem pendência" ainda está em andamento (`prontoSemPendenciaLoading`), evitando abrir a carga com lista incompleta; o botão exibe estado de carregamento.
+3. Passar também os mesmos filtros efetivos para o componente `CargaBennerFromDb` (prop `filters`), que hoje recebe apenas um subconjunto (aba, processo, dossiê, datas etc.) — os IDs continuam sendo a fonte principal, mas os filtros ficam coerentes.
+4. Mostrar no cabeçalho da tela Carga Benner a quantidade de registros recebidos da lista, para conferência imediata contra o card clicado.
 
-Sem mudanças de banco de dados ou Edge Functions.
+## Detalhes técnicos
+
+- `handleGerarCarga`: trocar `fetchAllDistribuicaoTstIds(debouncedFilters)` por `fetchAllDistribuicaoTstIds(listFilters)`; manter a prioridade da seleção manual (`selectedIds`).
+- Guarda: se `filtroSemPendencia && prontoSemPendenciaLoading`, exibir aviso ("aguarde o cálculo de pendências") e não abrir a carga.
+- Nenhuma mudança de regra de pendência (`getPendencias`) nem no layout/rejeições da carga — apenas o conjunto de entrada passa a ser o correto.
