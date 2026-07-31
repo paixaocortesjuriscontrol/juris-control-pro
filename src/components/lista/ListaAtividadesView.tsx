@@ -261,9 +261,10 @@ export default function ListaAtividadesView({
         ...filters,
         search: debouncedSearch,
         page,
+        etiquetas: [...etiquetasFiltro].sort(),
       },
     ],
-    [filters, debouncedSearch, page],
+    [filters, debouncedSearch, page, etiquetasFiltro],
   );
 
   const { data: result, isLoading: queryLoading } = useQuery({
