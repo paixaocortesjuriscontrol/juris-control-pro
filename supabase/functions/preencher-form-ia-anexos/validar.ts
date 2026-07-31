@@ -99,6 +99,82 @@ function ehSantanderRecorrente(recorrentes: string[] | null | undefined): boolea
   return recorrentes.some((r) => /santander/i.test(r));
 }
 
+/** Indício textual de que a evidência se refere a uma sessão de julgamento no TST. */
+const RE_EVIDENCIA_TST =
+  /(tst|sess[ãa]o\s+de\s+julgamento|pauta\s+de\s+julgamento|inclu[ií]do?\s+em\s+pauta|certid[ãa]o\s+de\s+pauta|sbdi|sdi\b|sdc\b|[óo]rg[ãa]o\s+especial|tribunal\s+pleno|\d\s*[ªa]\s*turma)/i;
+
+/**
+ * Trava da seção Julgamento (K/L/M/N).
+ * Limpa data/horário/tipo de julgamento quando:
+ *   1. tem_data_julgamento = "N";
+ *   2. não há evidência literal citando sessão/pauta do TST;
+ *   3. a data é anterior à data de distribuição no TST (Judit).
+ */
+function travarSecaoJulgamento(
+  dist: Record<string, any>,
+  benner: Record<string, any>,
+  evidencias: Record<string, { trecho?: string; documento_id?: string | null }>,
+  judit: DadosJudit | null
+): string[] {
+  const alertas: string[] = [];
+  const CAMPOS = ["data_julgamento", "horario_julgamento", "tipo_julgamento"];
+
+  const limpar = (motivo: string) => {
+    let removeu = false;
+    for (const target of [dist, benner]) {
+      for (const c of CAMPOS) {
+        if (target[c] !== undefined && target[c] !== null && target[c] !== "") {
+          delete target[c];
+          removeu = true;
+        }
+      }
+    }
+    if (removeu) alertas.push(motivo);
+  };
+
+  const temData = String(dist.tem_data_julgamento || benner.tem_data_julgamento || "")
+    .trim()
+    .toUpperCase();
+
+  // 1. K = "N" → nunca gravar L/M/N
+  if (temData === "N") {
+    limpar(
+      "Seção Julgamento: 'Tem data de julgamento?' = N. Data/horário/tipo de julgamento descartados."
+    );
+    return alertas;
+  }
+
+  const dataJulg = dist.data_julgamento || benner.data_julgamento;
+  if (!dataJulg) return alertas;
+
+  // 2. Evidência precisa citar sessão/pauta do TST
+  const trecho = String(evidencias?.data_julgamento?.trecho || "");
+  if (!trecho || !RE_EVIDENCIA_TST.test(trecho)) {
+    limpar(
+      "Seção Julgamento: sem evidência literal de sessão/pauta no TST (possível andamento de 1ª instância ou TRT). Data/horário/tipo descartados."
+    );
+    dist.tem_data_julgamento = "N";
+    return alertas;
+  }
+
+  // 3. Data anterior à distribuição no TST é impossível
+  const distribIso = normalizarData(judit?.data_distribuicao ?? null);
+  const julgIso = normalizarData(dataJulg);
+  if (distribIso && julgIso && julgIso < distribIso) {
+    limpar(
+      "Seção Julgamento: data de julgamento anterior à distribuição no TST. Data/horário/tipo descartados."
+    );
+    dist.tem_data_julgamento = "N";
+  }
+
+  return alertas;
+}
+
+function ehSantanderRecorrenteLegacy(recorrentes: string[] | null | undefined): boolean {
+  if (!recorrentes || recorrentes.length === 0) return false;
+  return recorrentes.some((r) => /santander/i.test(r));
+}
+
 function unirRecorrentes(recorrentes: string[] | null | undefined): string | null {
   if (!recorrentes || recorrentes.length === 0) return null;
   return recorrentes.filter((r) => r && r.trim()).join(", ");
