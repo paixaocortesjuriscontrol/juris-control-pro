@@ -507,6 +507,7 @@ export function PrazoDialog({
         queryClient.invalidateQueries({ queryKey: ["processos-paginados"] }),
         queryClient.invalidateQueries({ queryKey: ["pastas"] }),
       ]);
+      await invalidarItensAgenda(queryClient);
 
       if (secondaryClickedRef.current) {
         try { await secondarySave?.onAfterSuccess(); }

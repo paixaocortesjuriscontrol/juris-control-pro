@@ -327,12 +327,8 @@ export function AudienciaFormSimplificado({
         );
       }
 
-      await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
-      await queryClient.invalidateQueries({ queryKey: ["audiencias-processo"] });
       await anexosRef.current?.uploadPendentes(audienciaParaEditar.id, dadosAudiencia.processo_id || null);
-      if (invalidateKey) {
-        await queryClient.invalidateQueries({ queryKey: invalidateKey });
-      }
+      await invalidarItensAgenda(queryClient, invalidateKey ? [invalidateKey] : []);
       toast.success("Audiência atualizada com sucesso!");
     } else {
       const criada: any = await criarAudiencia.mutateAsync(payload);
