@@ -182,14 +182,15 @@ export default function MinhasMensagensRecebidas({
    * conteúdo) enviadas por canais diferentes (WhatsApp + e-mail) em um único card.
    */
   const lista = useMemo(() => {
-    const grupos = new Map<string, Mensagem & { ids: string[]; canais: string[] }>();
+    const grupos = new Map<string, Mensagem & { ids: string[]; canais: string[]; pessoas: string[] }>();
     for (const m of listaBruta) {
-      const pessoa = (nomeDestinatario(m.destinatario) || m.destinatario || "").toLowerCase();
+      const pessoa = nomeDestinatario(m.destinatario) || m.destinatario || "";
       const minuto = new Date(m.enviado_em).toISOString().slice(0, 16);
-      const chave = `${pessoa}|${minuto}|${m.tipo_alerta || ""}|${limparConteudo(m.conteudo)}`;
+      const chave = `${minuto}|${m.tipo_alerta || ""}|${limparConteudo(m.conteudo)}`;
       const existente = grupos.get(chave);
       if (existente) {
         existente.ids.push(m.id);
+        if (pessoa && !existente.pessoas.includes(pessoa)) existente.pessoas.push(pessoa);
         if (!existente.canais.includes((m.canal || "").toLowerCase())) {
           existente.canais.push((m.canal || "").toLowerCase());
         }
@@ -201,7 +202,12 @@ export default function MinhasMensagensRecebidas({
           existente.itens_referencias = m.itens_referencias;
         }
       } else {
-        grupos.set(chave, { ...m, ids: [m.id], canais: [(m.canal || "").toLowerCase()] });
+        grupos.set(chave, {
+          ...m,
+          ids: [m.id],
+          canais: [(m.canal || "").toLowerCase()],
+          pessoas: pessoa ? [pessoa] : [],
+        });
       }
     }
     return Array.from(grupos.values());
@@ -317,7 +323,11 @@ export default function MinhasMensagensRecebidas({
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(m.enviado_em), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                     </span>
-                    <span className="text-xs text-muted-foreground truncate">{nomeDestinatario(m.destinatario)}</span>
+                    <span className="text-xs text-muted-foreground line-clamp-2" title={m.pessoas.join(", ")}>
+                      {m.pessoas.length > 1
+                        ? `${m.pessoas.length} destinatários: ${m.pessoas.join(", ")}`
+                        : m.pessoas[0] || nomeDestinatario(m.destinatario)}
+                    </span>
                     {!lida && <Badge variant="destructive" className="text-[10px]">Nova</Badge>}
                   </div>
                   <p className="text-sm whitespace-pre-wrap break-words">
