@@ -56,6 +56,22 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { parseDateSafe } from "@/utils/date";
 
+/** Formata datas com segurança: nunca lança "Invalid time value". */
+function fmtSafe(
+  value: string | Date | null | undefined,
+  pattern: string,
+  opts?: Parameters<typeof format>[2],
+  fallback = "—",
+): string {
+  const d = parseDateSafe(value as any);
+  if (!d) return fallback;
+  try {
+    return format(d, pattern, opts);
+  } catch {
+    return fallback;
+  }
+}
+
 interface NotificacoesProps {
   embedded?: boolean;
   /** Filtros externos (Painel de Controle) — quando embedded, substituem os filtros internos */
