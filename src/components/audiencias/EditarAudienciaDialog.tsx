@@ -19,6 +19,7 @@ import { ReagendarAudienciaDialog } from "./ReagendarAudienciaDialog";
 import { HistoricoReagendamentosAudiencia } from "./HistoricoReagendamentosAudiencia";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
 
 interface Props {
   audiencia: AudienciaDetectada | null;
