@@ -373,8 +373,8 @@ export default function ListaAtividadesView({
       if (filters.responsavelId !== "all") {
         q = q.eq("responsavel_id", filters.responsavelId);
       }
-      if (filters.etiquetaIds && filters.etiquetaIds.length > 0) {
-        const ids = await fetchIdsPorEtiquetas("tarefa", filters.etiquetaIds);
+      if (etiquetasFiltro.length > 0) {
+        const ids = await fetchIdsPorEtiquetas("tarefa", etiquetasFiltro);
         if (ids.length === 0) return { rows: [] as Prazo[], count: 0 };
         q = q.in("id", ids);
       }
