@@ -763,7 +763,7 @@ const Processos = () => {
             </Button>
 
             <EtiquetaFilter
-              modulo="processo"
+              modulo="processos"
               coordenacaoId={coordenacaoFilter !== "all" ? coordenacaoFilter : undefined}
               value={etiquetasFiltro}
               onChange={setEtiquetasFiltro}
