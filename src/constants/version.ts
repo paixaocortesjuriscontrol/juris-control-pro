@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "4.3.2";
+export const APP_VERSION = "4.3.3";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -18,4 +18,5 @@ export const VERSION_HISTORY = [
   { version: "4.3.0", date: "2026-07-28", notes: "Correção das permissões de comentários em prazos/tarefas e audiências" },
   { version: "4.3.1", date: "2026-07-28", notes: "Painel da Equipe compacto e melhorias na visão de itens por membro" },
   { version: "4.3.2", date: "2026-07-29", notes: "Contador de mensagens não lidas ao lado da versão e no botão Alertas" },
+  { version: "4.3.3", date: "2026-07-31", notes: "Etiquetas por coordenação em Clientes, Processos, Itens e Publicações" },
 ];
