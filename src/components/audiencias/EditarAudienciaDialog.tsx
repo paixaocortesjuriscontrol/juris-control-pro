@@ -242,7 +242,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                   const p = resolverPadroes(m);
                   for (const [k, v] of Object.entries(p)) {
                     if (k === "titulo") continue;
-                    if (!String((formData as any)[k] ?? "").trim()) handleChange(k as any, v);
+                    if (!String((formData as any)[k] ?? "").trim()) handleChange(k, String(v));
                   }
                 }}
               />
