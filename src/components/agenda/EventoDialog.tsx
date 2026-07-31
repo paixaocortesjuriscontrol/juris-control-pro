@@ -1,6 +1,7 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
@@ -551,7 +552,15 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               <Label htmlFor="titulo" className="text-sm">
                 Título do evento <span className="text-destructive">*</span>
               </Label>
-              <div className="mt-1 flex justify-end">
+              <div className="mt-1 flex justify-end items-center gap-1.5">
+                {evento?.id && (
+                  <EtiquetaPicker
+                    entidade="evento"
+                    entidadeId={evento.id}
+                    coordenacaoId={coordenacaoId}
+                    compact
+                  />
+                )}
                 <ModeloTituloPicker
                   tipo="evento"
                   coordenacaoId={coordenacaoId}
