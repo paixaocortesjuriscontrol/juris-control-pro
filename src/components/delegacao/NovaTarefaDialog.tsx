@@ -1,6 +1,7 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
@@ -918,6 +919,13 @@ export function NovaTarefaDialog({
                           form.setValue("titulo", m.titulo, { shouldDirty: true });
                           if (m.descricao && !form.getValues("descricao")) {
                             form.setValue("descricao", m.descricao, { shouldDirty: true });
+                          }
+                          const p = resolverPadroes(m);
+                          for (const [k, v] of Object.entries(p)) {
+                            const atual = form.getValues(k as any);
+                            if (atual === undefined || String(atual ?? "").trim() === "") {
+                              form.setValue(k as any, v, { shouldDirty: true });
+                            }
                           }
                         }}
                       />

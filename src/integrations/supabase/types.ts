@@ -5323,6 +5323,7 @@ export type Database = {
           descricao: string | null
           id: string
           nome: string
+          padroes: Json
           prioridade: string | null
           tipo: string
           titulo: string
@@ -5336,6 +5337,7 @@ export type Database = {
           descricao?: string | null
           id?: string
           nome: string
+          padroes?: Json
           prioridade?: string | null
           tipo: string
           titulo: string
@@ -5349,6 +5351,7 @@ export type Database = {
           descricao?: string | null
           id?: string
           nome?: string
+          padroes?: Json
           prioridade?: string | null
           tipo?: string
           titulo?: string

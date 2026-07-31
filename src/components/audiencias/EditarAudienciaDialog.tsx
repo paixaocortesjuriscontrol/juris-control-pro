@@ -19,6 +19,7 @@ import { ReagendarAudienciaDialog } from "./ReagendarAudienciaDialog";
 import { HistoricoReagendamentosAudiencia } from "./HistoricoReagendamentosAudiencia";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
 
 interface Props {
   audiencia: AudienciaDetectada | null;
@@ -236,7 +237,14 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
               <ModeloTituloPicker
                 tipo="audiencia"
                 coordenacaoId={(audiencia as any)?.coordenacao_id ?? null}
-                onSelect={(m) => handleChange("titulo", m.titulo)}
+                onSelect={(m) => {
+                  handleChange("titulo", m.titulo);
+                  const p = resolverPadroes(m);
+                  for (const [k, v] of Object.entries(p)) {
+                    if (k === "titulo") continue;
+                    if (!String((formData as any)[k] ?? "").trim()) handleChange(k, String(v));
+                  }
+                }}
               />
             </div>
             <Input
