@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { botaoPainelAlertasHtml, linhaPainelAlertasTexto } from "../_shared/app-links.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -314,7 +315,7 @@ serve(async (req) => {
         ];
         if (coordNome) linhas.push(`Coordenação: ${coordNome}`);
         for (const [k, v] of Object.entries(detalhes)) linhas.push(`${k}: ${v}`);
-        linhas.push(``, `Acesse o sistema para conferir.`);
+        linhas.push(``, linhaPainelAlertasTexto(item.entidade_id));
         const corpo = linhas.join("\n");
 
         // HTML rico
@@ -341,7 +342,7 @@ serve(async (req) => {
   <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 8px 8px">
     ${rows}
   </table>
-  <p style="color:#666;font-size:12px;margin-top:12px">Acesse o JurisControl para conferir os detalhes.</p>
+  ${botaoPainelAlertasHtml(item.entidade_id)}
 </div>`;
 
         // In-app: cria notificação para cada responsável

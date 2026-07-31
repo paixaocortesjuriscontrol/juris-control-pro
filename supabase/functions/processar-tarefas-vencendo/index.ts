@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { botaoPainelAlertasHtml } from "../_shared/app-links.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -121,9 +122,7 @@ serve(async (req) => {
                   ${processoNumero ? `<p style="margin: 0 0 8px 0; font-size: 14px; color: #6b7280;"><strong>Processo:</strong> ${processoNumero}</p>` : ''}
                   ${tarefa.descricao ? `<p style="margin: 16px 0; font-size: 14px; color: #374151;">${tarefa.descricao}</p>` : ''}
                   <hr style="margin: 16px 0; border: none; border-top: 1px solid #e5e7eb;" />
-                  <p style="margin: 0; font-size: 12px; color: #9ca3af;">
-                    Acesse o sistema para visualizar e concluir esta tarefa.
-                  </p>
+                  ${botaoPainelAlertasHtml(tarefa.id)}
                 </div>
               </div>
             `;

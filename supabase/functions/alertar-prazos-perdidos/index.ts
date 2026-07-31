@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { linhaPainelAlertasTexto } from "../_shared/app-links.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,9 +19,9 @@ function ymdBRT(): string {
 
 async function enviarEmail(to: string, subject: string, texto: string) {
   if (!RESEND_API_KEY) return { ok: false, erro: "RESEND_API_KEY não configurada" };
-  const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111;white-space:pre-wrap">${
-    texto.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-  }</div>`;
+  const escapado = texto.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const comLinks = escapado.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#2563EB">$1</a>');
+  const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111;white-space:pre-wrap">${comLinks}</div>`;
   const resp = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
@@ -231,7 +232,7 @@ serve(async (req) => {
       if (c.evento_prazo_perdido === false) continue;
 
       const linhas = itens.slice(0, 30).map((i) => formatarItem(i)).join("\n\n");
-      const corpo = `Olá ${profile.nome ?? ""},\n\nVocê tem ${itens.length} pendência(s) com prazo vencido:\n\n${linhas}${itens.length > 30 ? `\n... e mais ${itens.length - 30}` : ""}\n\nAcesse o sistema para tratar.`;
+      const corpo = `Olá ${profile.nome ?? ""},\n\nVocê tem ${itens.length} pendência(s) com prazo vencido:\n\n${linhas}${itens.length > 30 ? `\n... e mais ${itens.length - 30}` : ""}\n\n${linhaPainelAlertasTexto(null)}`;
       const assunto = `⚠️ Você tem ${itens.length} item(ns) com prazo perdido`;
 
       if (c.canal_email && profile.email) {

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@2.0.0";
+import { botaoPainelAlertasHtml } from "../_shared/app-links.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -267,6 +268,7 @@ serve(async (req) => {
                 ${secProcesso.length ? renderSection("Processo", secProcesso) : ""}
                 ${renderSection("Pessoas", secPessoas)}
                 ${secDescricao}
+                ${botaoPainelAlertasHtml(evento_id)}
                 <div style="margin-top:28px;padding-top:16px;border-top:1px solid #E5E7EB;color:#9CA3AF;font-size:12px;text-align:center;">
                   Enviado automaticamente pelo Juris Control Pro.<br>
                   Para desativar notificações por email, acesse suas configurações.
