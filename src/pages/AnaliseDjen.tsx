@@ -4542,6 +4542,14 @@ const AnaliseDjen = () => {
                                   <span className="text-[10px] md:text-xs text-muted-foreground flex-shrink-0">
                                     {formatDateShort(pub.data_publicacao)}
                                   </span>
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <EtiquetaPicker
+                                      entidade="publicacao"
+                                      entidadeId={pub.id}
+                                      coordenacaoId={(pub as any).coordenacao_id ?? undefined}
+                                      compact
+                                    />
+                                  </div>
                                   
                                   {/* Badge da Coordenação - sempre visível quando há nome */}
                                   {pub.coordenacao_nome && (
