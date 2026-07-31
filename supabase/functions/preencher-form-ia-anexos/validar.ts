@@ -315,15 +315,14 @@ function calcularPendentes(
   for (const [campo, c] of Object.entries(confianca || {})) {
     if (c === "baixa") set.add(campo);
   }
-  // Coerência K↔L: se há data de julgamento, marca tem_data_julgamento.
-  // Após a unificação, os campos vivem em `distribuicao_tst`; o bloco
-  // `dados_benner` é apenas fallback para respostas legadas da IA.
+  // Coerência K↔L: se sobrou data de julgamento APÓS a trava da seção Julgamento
+  // (ver travarSecaoJulgamento), marca tem_data_julgamento = "S".
   const dataJulg = dist.data_julgamento || benner.data_julgamento;
   const temData = dist.tem_data_julgamento || benner.tem_data_julgamento;
   if (dataJulg && !temData) {
     dist.tem_data_julgamento = "S";
   }
-  if (!dataJulg && temData === "S") {
+  if (!dataJulg && String(temData).toUpperCase() === "S") {
     set.add("data_julgamento");
   }
   return [...set].sort();
@@ -353,6 +352,9 @@ export function validarEHidratar(
       distLimpo[k] = v;
     }
   }
+
+  // 3.1 Trava da seção Julgamento (K/L/M/N) — depende da Judit e das evidências.
+  alertas.push(...travarSecaoJulgamento(distLimpo, bennerLimpo, evidencias, judit));
 
   // 4. Calcula pendentes
   const pendentes = calcularPendentes(
