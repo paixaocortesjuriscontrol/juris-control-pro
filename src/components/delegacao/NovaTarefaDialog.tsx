@@ -1,6 +1,7 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
@@ -912,7 +913,16 @@ export function NovaTarefaDialog({
                   <FormItem>
                     <div className="flex items-center justify-between gap-2">
                       <FormLabel>Título</FormLabel>
-                      <ModeloTituloPicker
+                      <div className="flex items-center gap-1.5">
+                        {tarefaParaEditar?.id && (
+                          <EtiquetaPicker
+                            entidade="tarefa"
+                            entidadeId={tarefaParaEditar.id}
+                            coordenacaoId={coordenacaoId}
+                            compact
+                          />
+                        )}
+                        <ModeloTituloPicker
                         tipo="tarefa"
                         coordenacaoId={coordenacaoId}
                         onSelect={(m) => {
@@ -928,7 +938,8 @@ export function NovaTarefaDialog({
                             }
                           }
                         }}
-                      />
+                        />
+                      </div>
                     </div>
                     <FormControl>
                       <AutoResizeTextarea
