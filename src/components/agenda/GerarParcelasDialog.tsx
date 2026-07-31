@@ -566,8 +566,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
       await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
       await queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
       await queryClient.invalidateQueries({ queryKey: ["parcelas-evento"] });
-      await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-      
+      await invalidarItensAgenda(queryClient);
+
       onOpenChange(false);
     } catch (error) {
       console.error("Erro ao salvar parcelamento:", error);
@@ -592,7 +592,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
       if (error) throw error;
       await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
       await queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
-      await queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite-v1"] });
+      await invalidarItensAgenda(queryClient);
       toast.success(status === "concluido" ? "Parcelamento concluído" : status === "cancelado" ? "Parcelamento cancelado" : "Parcelamento reaberto");
       onOpenChange(false);
     } catch (error: any) {
