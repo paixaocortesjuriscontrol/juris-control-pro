@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { botaoPainelAlertasHtml } from "../_shared/app-links.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -311,6 +312,7 @@ serve(async (req) => {
               ${renderSection("Pessoas", secPessoas)}
               ${secProcesso.length ? renderSection("Processo", secProcesso) : ""}
               ${secDescricao}
+              ${botaoPainelAlertasHtml(tarefa_id)}
               <div style="margin-top:28px;padding-top:16px;border-top:1px solid #E5E7EB;color:#9CA3AF;font-size:12px;text-align:center;">
                 Este alerta foi enviado automaticamente pelo Juris Control Pro.
               </div>
