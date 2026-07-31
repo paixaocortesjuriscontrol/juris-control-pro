@@ -170,11 +170,6 @@ function travarSecaoJulgamento(
   return alertas;
 }
 
-function ehSantanderRecorrenteLegacy(recorrentes: string[] | null | undefined): boolean {
-  if (!recorrentes || recorrentes.length === 0) return false;
-  return recorrentes.some((r) => /santander/i.test(r));
-}
-
 function unirRecorrentes(recorrentes: string[] | null | undefined): string | null {
   if (!recorrentes || recorrentes.length === 0) return null;
   return recorrentes.filter((r) => r && r.trim()).join(", ");
