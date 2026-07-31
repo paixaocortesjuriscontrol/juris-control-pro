@@ -208,6 +208,13 @@ export default function Clientes() {
             </Button>
           </div>
 
+          <EtiquetaFilter
+            modulo="clientes"
+            value={etiquetasFiltro}
+            onChange={setEtiquetasFiltro}
+            className="mb-4"
+          />
+
           {/* Clients Table */}
           <Card>
             <CardContent className="p-0">
@@ -230,6 +237,7 @@ export default function Clientes() {
                       <TableHead>CPF/CNPJ</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Telefone</TableHead>
+                      <TableHead>Etiquetas</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -245,6 +253,14 @@ export default function Clientes() {
                         <TableCell>{cliente.cpf_cnpj || "-"}</TableCell>
                         <TableCell>{cliente.email || "-"}</TableCell>
                         <TableCell>{cliente.telefone || "-"}</TableCell>
+                        <TableCell>
+                          <EtiquetaPicker
+                            entidade="cliente"
+                            entidadeId={cliente.id}
+                            etiquetaIds={etiquetasPorCliente?.get(cliente.id) || []}
+                            compact
+                          />
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
                             <Button
