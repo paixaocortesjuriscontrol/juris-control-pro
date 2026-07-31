@@ -99,6 +99,77 @@ function ehSantanderRecorrente(recorrentes: string[] | null | undefined): boolea
   return recorrentes.some((r) => /santander/i.test(r));
 }
 
+/** Indício textual de que a evidência se refere a uma sessão de julgamento no TST. */
+const RE_EVIDENCIA_TST =
+  /(tst|sess[ãa]o\s+de\s+julgamento|pauta\s+de\s+julgamento|inclu[ií]do?\s+em\s+pauta|certid[ãa]o\s+de\s+pauta|sbdi|sdi\b|sdc\b|[óo]rg[ãa]o\s+especial|tribunal\s+pleno|\d\s*[ªa]\s*turma)/i;
+
+/**
+ * Trava da seção Julgamento (K/L/M/N).
+ * Limpa data/horário/tipo de julgamento quando:
+ *   1. tem_data_julgamento = "N";
+ *   2. não há evidência literal citando sessão/pauta do TST;
+ *   3. a data é anterior à data de distribuição no TST (Judit).
+ */
+function travarSecaoJulgamento(
+  dist: Record<string, any>,
+  benner: Record<string, any>,
+  evidencias: Record<string, { trecho?: string; documento_id?: string | null }>,
+  judit: DadosJudit | null
+): string[] {
+  const alertas: string[] = [];
+  const CAMPOS = ["data_julgamento", "horario_julgamento", "tipo_julgamento"];
+
+  const limpar = (motivo: string) => {
+    let removeu = false;
+    for (const target of [dist, benner]) {
+      for (const c of CAMPOS) {
+        if (target[c] !== undefined && target[c] !== null && target[c] !== "") {
+          delete target[c];
+          removeu = true;
+        }
+      }
+    }
+    if (removeu) alertas.push(motivo);
+  };
+
+  const temData = String(dist.tem_data_julgamento || benner.tem_data_julgamento || "")
+    .trim()
+    .toUpperCase();
+
+  // 1. K = "N" → nunca gravar L/M/N
+  if (temData === "N") {
+    limpar(
+      "Seção Julgamento: 'Tem data de julgamento?' = N. Data/horário/tipo de julgamento descartados."
+    );
+    return alertas;
+  }
+
+  const dataJulg = dist.data_julgamento || benner.data_julgamento;
+  if (!dataJulg) return alertas;
+
+  // 2. Evidência precisa citar sessão/pauta do TST
+  const trecho = String(evidencias?.data_julgamento?.trecho || "");
+  if (!trecho || !RE_EVIDENCIA_TST.test(trecho)) {
+    limpar(
+      "Seção Julgamento: sem evidência literal de sessão/pauta no TST (possível andamento de 1ª instância ou TRT). Data/horário/tipo descartados."
+    );
+    dist.tem_data_julgamento = "N";
+    return alertas;
+  }
+
+  // 3. Data anterior à distribuição no TST é impossível
+  const distribIso = normalizarData(judit?.data_distribuicao ?? null);
+  const julgIso = normalizarData(dataJulg);
+  if (distribIso && julgIso && julgIso < distribIso) {
+    limpar(
+      "Seção Julgamento: data de julgamento anterior à distribuição no TST. Data/horário/tipo descartados."
+    );
+    dist.tem_data_julgamento = "N";
+  }
+
+  return alertas;
+}
+
 function unirRecorrentes(recorrentes: string[] | null | undefined): string | null {
   if (!recorrentes || recorrentes.length === 0) return null;
   return recorrentes.filter((r) => r && r.trim()).join(", ");
@@ -244,15 +315,14 @@ function calcularPendentes(
   for (const [campo, c] of Object.entries(confianca || {})) {
     if (c === "baixa") set.add(campo);
   }
-  // Coerência K↔L: se há data de julgamento, marca tem_data_julgamento.
-  // Após a unificação, os campos vivem em `distribuicao_tst`; o bloco
-  // `dados_benner` é apenas fallback para respostas legadas da IA.
+  // Coerência K↔L: se sobrou data de julgamento APÓS a trava da seção Julgamento
+  // (ver travarSecaoJulgamento), marca tem_data_julgamento = "S".
   const dataJulg = dist.data_julgamento || benner.data_julgamento;
   const temData = dist.tem_data_julgamento || benner.tem_data_julgamento;
   if (dataJulg && !temData) {
     dist.tem_data_julgamento = "S";
   }
-  if (!dataJulg && temData === "S") {
+  if (!dataJulg && String(temData).toUpperCase() === "S") {
     set.add("data_julgamento");
   }
   return [...set].sort();
@@ -282,6 +352,9 @@ export function validarEHidratar(
       distLimpo[k] = v;
     }
   }
+
+  // 3.1 Trava da seção Julgamento (K/L/M/N) — depende da Judit e das evidências.
+  alertas.push(...travarSecaoJulgamento(distLimpo, bennerLimpo, evidencias, judit));
 
   // 4. Calcula pendentes
   const pendentes = calcularPendentes(

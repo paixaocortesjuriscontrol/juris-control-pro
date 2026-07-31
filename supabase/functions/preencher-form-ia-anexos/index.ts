@@ -99,13 +99,33 @@ CAMPOS QUE VOCÊ DEVE EXTRAIR (e SOMENTE quando houver evidência clara):
   - provas_digitais: "S" se o recurso/acórdão menciona "prova digital", "documento eletrônico",
     "WhatsApp", "e-mail como prova", "gravação", "ata notarial digital", "blockchain"
     como objeto de discussão probatória. "N" se claramente não há.
-  - tem_data_julgamento: "S" se há sessão marcada/realizada; "N" caso contrário.
-  - data_julgamento: DD/MM/AAAA — pegar a data MAIS RECENTE entre certidão de pauta,
-    intimação de julgamento e acórdão. Adiamento vence pauta antiga.
+  ▸ SEÇÃO JULGAMENTO (K/L/M/N) — REGRAS ESTRITAS
+    ESCOPO: SOMENTE sessão de julgamento no TST (Turma, SDI, SBDI-1/2, SDC, Órgão Especial,
+    Tribunal Pleno). É PROIBIDO usar qualquer sessão, pauta, audiência, acórdão ou andamento
+    de 1ª instância (Vara do Trabalho) ou de TRT (2ª instância) — inclusive o acórdão
+    recorrido, que é o objeto do recurso e NUNCA é a data de julgamento no TST.
+
+  - tem_data_julgamento: "S" somente se houver PUBLICAÇÃO DE PAUTA, CERTIDÃO DE PAUTA,
+    INTIMAÇÃO DE SESSÃO ou ACÓRDÃO DO TST citável. "N" em qualquer outro caso
+    (processo em gabinete, conclusos ao relator, aguardando pauta, sem pauta designada).
+  - data_julgamento / horario_julgamento / tipo_julgamento: preencher SOMENTE quando
+    tem_data_julgamento = "S". Se K = "N", OMITA L, M e N do retorno — nunca devolva
+    data com K = "N".
+  - data_julgamento: DD/MM/AAAA — quando houver mais de uma sessão do TST, use a MAIS
+    RECENTE (adiamento vence pauta antiga).
   - horario_julgamento: HH:MM (24h). "às 9h" → "09:00".
   - tipo_julgamento: "Virtual" | "Telepresencial" | "Híbrido" | "Presencial".
     Mapear: "plenário virtual"/"julgamento virtual"→Virtual; "telepresencial"/"videoconferência"→Telepresencial;
     "híbrido"/"misto"→Híbrido; "presencial"/"sessão presencial"→Presencial.
+  - A evidência de data_julgamento deve conter, no trecho literal, indício de que é sessão
+    do TST (ex.: "Turma do TST", "sessão de julgamento", "pauta de julgamento", nº do órgão
+    julgador do TST). Sem esse indício, OMITA os quatro campos.
+  - Andamento processual genérico com data/hora (ex.: "03/07/2025 12:39 - Juntada de
+    petição", "distribuído", "expedida intimação") NÃO é data de julgamento.
+  - Se a Judit informar tem_data_julgamento = "N" ou não informar órgão/pauta no TST,
+    a Judit prevalece: OMITA L/M/N e registre em "_alertas"
+    "documento sugere julgamento mas Judit não indica pauta no TST".
+  - Datas anteriores à data_distribuicao no TST não podem ser data_julgamento.
   - processo_baixado: "S" se há "baixa definitiva", "remetidos os autos à origem",
     "trânsito em julgado e baixa". "N" caso contrário.
   - data_transito_julgado: DD/MM/AAAA, só se houver certidão explícita.

@@ -203,7 +203,18 @@ Devolva EXCLUSIVAMENTE via tool call "preencher_formulario".
 Use APENAS as chaves definidas no schema do tool (campos do formulário Distribuição TST e Dados Benner).
 O prompt customizado do advogado abaixo é obrigatório e deve orientar a INTERPRETAÇÃO das peças.
 Se o prompt customizado disser para aguardar o comando "Analise", considere que esse comando JÁ FOI DADO nesta chamada.
-Mapeie a resposta solicitada pelo prompt para as chaves do schema; não devolva texto livre fora do tool call.`;
+Mapeie a resposta solicitada pelo prompt para as chaves do schema; não devolva texto livre fora do tool call.
+
+SEÇÃO JULGAMENTO (tem_data_julgamento / data_julgamento / horario_julgamento / tipo_julgamento) — REGRAS ESTRITAS:
+• ESCOPO: SOMENTE sessão de julgamento no TST (Turma, SDI, SBDI-1/2, SDC, Órgão Especial, Tribunal Pleno).
+  É PROIBIDO usar sessão, pauta, audiência, acórdão ou andamento de 1ª instância (Vara do Trabalho) ou de
+  TRT (2ª instância) — inclusive o acórdão recorrido, que NUNCA é a data de julgamento no TST.
+• tem_data_julgamento = "S" somente com PUBLICAÇÃO/CERTIDÃO DE PAUTA, INTIMAÇÃO DE SESSÃO ou ACÓRDÃO DO TST
+  citável. "N" em qualquer outro caso (em gabinete, conclusos ao relator, aguardando pauta).
+• Preencha data/horário/tipo de julgamento SOMENTE quando tem_data_julgamento = "S". Se "N", OMITA os três.
+• Andamento genérico com data/hora ("03/07/2025 12:39 - Juntada de petição", "distribuído", "expedida
+  intimação") NÃO é data de julgamento.
+• Datas anteriores à distribuição no TST não podem ser data de julgamento.`;
 
     const userPrompt = [
       `PROMPT CUSTOMIZADO DO ADVOGADO ("${promptRow.titulo}"):`,
@@ -260,6 +271,28 @@ Mapeie a resposta solicitada pelo prompt para as chaves do schema; não devolva 
     const distribuicaoTst = compactEmptyObjects(parsed?.distribuicao_tst) || {};
     const dadosBenner = compactEmptyObjects(parsed?.dados_benner) || {};
 
+    // Trava da seção Julgamento: com tem_data_julgamento = "N" nunca gravamos L/M/N.
+    const alertasJulgamento: string[] = [];
+    const temDataJulg = String(
+      distribuicaoTst.tem_data_julgamento || dadosBenner.tem_data_julgamento || ""
+    ).trim().toUpperCase();
+    if (temDataJulg === "N") {
+      let removeu = false;
+      for (const target of [distribuicaoTst, dadosBenner]) {
+        for (const c of ["data_julgamento", "horario_julgamento", "tipo_julgamento"]) {
+          if (target[c] !== undefined && target[c] !== null && target[c] !== "") {
+            delete target[c];
+            removeu = true;
+          }
+        }
+      }
+      if (removeu) {
+        alertasJulgamento.push(
+          "Seção Julgamento: 'Tem data de julgamento?' = N. Data/horário/tipo de julgamento descartados."
+        );
+      }
+    }
+
     return json({
       processo_id: pid,
       prompt_id: promptId,
@@ -268,7 +301,10 @@ Mapeie a resposta solicitada pelo prompt para as chaves do schema; não devolva 
       distribuicao_tst: distribuicaoTst,
       dados_benner: dadosBenner,
       resumo: parsed?.resumo || null,
-      alertas: Array.isArray(parsed?.alertas) ? parsed.alertas : [],
+      alertas: [
+        ...(Array.isArray(parsed?.alertas) ? parsed.alertas : []),
+        ...alertasJulgamento,
+      ],
       docs_analisados: docIds.length,
       paginas_analisadas: paginas.length,
       tokens: aiJson?.usage || null,
