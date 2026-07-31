@@ -164,7 +164,7 @@ export default function MinhasMensagensRecebidas({
       .replace(/\[[0-9a-f]{6,8}\|[^\]]*\]/gi, "")
       .trim();
 
-  const lista = useMemo(() => {
+  const listaBruta = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     return mensagens.filter((m) => {
       if (filtroLeitura === "nao_lidas" && lidos.has(m.id)) return false;
@@ -176,6 +176,36 @@ export default function MinhasMensagensRecebidas({
       );
     });
   }, [mensagens, busca, filtroLeitura, lidos]);
+
+  /**
+   * Agrupa mensagens idênticas (mesmo destinatário, mesmo minuto de envio e mesmo
+   * conteúdo) enviadas por canais diferentes (WhatsApp + e-mail) em um único card.
+   */
+  const lista = useMemo(() => {
+    const grupos = new Map<string, Mensagem & { ids: string[]; canais: string[] }>();
+    for (const m of listaBruta) {
+      const pessoa = (nomeDestinatario(m.destinatario) || m.destinatario || "").toLowerCase();
+      const minuto = new Date(m.enviado_em).toISOString().slice(0, 16);
+      const chave = `${pessoa}|${minuto}|${m.tipo_alerta || ""}|${limparConteudo(m.conteudo)}`;
+      const existente = grupos.get(chave);
+      if (existente) {
+        existente.ids.push(m.id);
+        if (!existente.canais.includes((m.canal || "").toLowerCase())) {
+          existente.canais.push((m.canal || "").toLowerCase());
+        }
+        if (!existente.referencia_id && m.referencia_id) existente.referencia_id = m.referencia_id;
+        if (
+          (!existente.itens_referencias || existente.itens_referencias.length === 0) &&
+          m.itens_referencias
+        ) {
+          existente.itens_referencias = m.itens_referencias;
+        }
+      } else {
+        grupos.set(chave, { ...m, ids: [m.id], canais: [(m.canal || "").toLowerCase()] });
+      }
+    }
+    return Array.from(grupos.values());
+  }, [listaBruta, nomePorContato]);
 
   const naoLidas = mensagens.filter((m) => !lidos.has(m.id)).length;
 
@@ -254,8 +284,9 @@ export default function MinhasMensagensRecebidas({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
           {lista.map((m) => {
-            const lida = lidos.has(m.id);
-            const isWhats = (m.canal || "").toLowerCase().includes("whats");
+            const lida = m.ids.every((id) => lidos.has(id));
+            const temWhats = m.canais.some((c) => c.includes("whats"));
+            const temEmail = m.canais.some((c) => !c.includes("whats"));
             const refs = Array.isArray(m.itens_referencias) ? m.itens_referencias.filter((r) => r?.id) : [];
             const refUnico = m.referencia_id || (refs.length === 1 ? refs[0].id : null);
             const podeAbrir = !!refUnico && !!onAbrirItem;
@@ -271,15 +302,12 @@ export default function MinhasMensagensRecebidas({
                 onClick={() => {
                   if (!podeAbrir) return;
                   onAbrirItem!(refUnico!);
-                  if (!lida) marcarLida([m.id]);
+                  if (!lida) marcarLida(m.ids);
                 }}
               >
-                <div className="mt-0.5">
-                  {isWhats ? (
-                    <MessageCircle className="h-4 w-4 text-emerald-600" />
-                  ) : (
-                    <Mail className="h-4 w-4 text-blue-600" />
-                  )}
+                <div className="mt-0.5 flex flex-col gap-1">
+                  {temWhats && <MessageCircle className="h-4 w-4 text-emerald-600" />}
+                  {temEmail && <Mail className="h-4 w-4 text-blue-600" />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -315,7 +343,7 @@ export default function MinhasMensagensRecebidas({
                             onClick={(e) => {
                               e.stopPropagation();
                               onAbrirItem!(r.id);
-                              if (!lida) marcarLida([m.id]);
+                              if (!lida) marcarLida(m.ids);
                             }}
                           >
                             <span className="truncate max-w-[260px]">{r.titulo || r.id}</span>
@@ -331,7 +359,7 @@ export default function MinhasMensagensRecebidas({
                     variant="ghost"
                     onClick={(e) => {
                       e.stopPropagation();
-                      marcarLida([m.id]);
+                      marcarLida(m.ids);
                     }}
                   >
                     <Check className="h-4 w-4 mr-1" /> Lida
