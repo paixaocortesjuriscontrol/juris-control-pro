@@ -540,15 +540,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
 
               const labels = Array.from(root.querySelectorAll<HTMLElement>("label"));
               let marcados = 0;
-              for (const p of pend) {
-                const alvo = norm(p.label);
-                const lbl = labels.find((l) => norm(l.textContent || "").startsWith(alvo));
-                if (!lbl) continue;
-                // Container do campo: procura ancestral com classe utilitária
-                // "space-y-2" (padrão adotado no formulário para o wrapper de
-                // cada input). Faz fallback para o pai imediato.
-                const container = (lbl.closest(".space-y-2") as HTMLElement | null) || lbl.parentElement;
-                if (!container) continue;
+              const naoMarcados: string[] = [];
+              const marcar = (container: HTMLElement) => {
                 container.setAttribute("data-pendencia-highlight", "true");
                 container.classList.add(
                   "ring-2",
@@ -558,6 +551,36 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                   "dark:bg-red-950/20",
                 );
                 marcados++;
+              };
+              for (const p of pend) {
+                // Pendências por matéria (JSONB) têm chave própria e são
+                // marcadas diretamente na célula correspondente.
+                if (p.key.includes(".")) {
+                  const cell = root.querySelector<HTMLElement>(
+                    `[data-pend-key="${p.key.replace(/"/g, '\\"')}"]`,
+                  );
+                  if (cell) {
+                    marcar(cell);
+                  } else {
+                    naoMarcados.push(p.label);
+                  }
+                  continue;
+                }
+                const alvo = norm(p.label);
+                const lbl = labels.find((l) => norm(l.textContent || "").startsWith(alvo));
+                if (!lbl) {
+                  naoMarcados.push(p.label);
+                  continue;
+                }
+                // Container do campo: procura ancestral com classe utilitária
+                // "space-y-2" (padrão adotado no formulário para o wrapper de
+                // cada input). Faz fallback para o pai imediato.
+                const container = (lbl.closest(".space-y-2") as HTMLElement | null) || lbl.parentElement;
+                if (!container) {
+                  naoMarcados.push(p.label);
+                  continue;
+                }
+                marcar(container);
               }
 
               // Rola o primeiro campo pendente para o topo da viewport.
@@ -566,6 +589,13 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
 
               toast.warning(
                 `${pend.length} pendência${pend.length > 1 ? "s" : ""} encontrada${pend.length > 1 ? "s" : ""}${marcados < pend.length ? ` (${marcados} destacada${marcados === 1 ? "" : "s"} no formulário)` : ""}.`,
+                {
+                  duration: 12000,
+                  description:
+                    naoMarcados.length > 0
+                      ? `Não localizadas no formulário: ${naoMarcados.join(" | ")}`
+                      : pend.map((p) => p.label).join(" | "),
+                },
               );
             }}
           >

@@ -26,6 +26,12 @@ interface Props {
   onChange: (next: MateriaAnaliseItem[]) => void;
   /** Label opcional do bloco (ex.: "Análise por matéria do Reclamante"). */
   title?: string;
+  /**
+   * Nome da coluna JSONB (ex.: "materias_analise_reclamante"). Usado para
+   * gerar `data-pend-key` em cada célula, permitindo que "Verificar
+   * Pendências" destaque as lacunas por matéria.
+   */
+  fieldKey?: string;
 }
 
 const APARELHAMENTO_OPTS = ["BEM APARELHADA", "MAL APARELHADA"];
@@ -67,8 +73,10 @@ export function reconcileMateriasAnalise(
   });
 }
 
-export function MateriasAnaliseList({ materias, value, onChange, title }: Props) {
+export function MateriasAnaliseList({ materias, value, onChange, title, fieldKey }: Props) {
   const rows = useMemo(() => reconcileMateriasAnalise(materias, value), [materias, value]);
+  const pendKey = (col: string, materia: string) =>
+    fieldKey ? `${fieldKey}.${col}.${String(materia).trim()}` : undefined;
 
   if (rows.length === 0) return null;
 
@@ -118,7 +126,7 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
           <div className="col-span-12 md:col-span-4 text-sm break-words pr-2">
             {row.materia}
           </div>
-          <div className="col-span-4 md:col-span-3">
+          <div className="col-span-4 md:col-span-3" data-pend-key={pendKey("aparelhamento", row.materia)}>
             <Select
               value={row.aparelhamento || "__none__"}
               onValueChange={(v) => update(idx, { aparelhamento: v === "__none__" ? null : v })}
@@ -134,7 +142,7 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
               </SelectContent>
             </Select>
           </div>
-          <div className="col-span-4 md:col-span-2">
+          <div className="col-span-4 md:col-span-2" data-pend-key={pendKey("chance_turma", row.materia)}>
             <Select
               value={row.chance_turma || "__none__"}
               onValueChange={(v) => update(idx, { chance_turma: v === "__none__" ? null : v })}
@@ -150,7 +158,7 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
               </SelectContent>
             </Select>
           </div>
-          <div className="col-span-4 md:col-span-2">
+          <div className="col-span-4 md:col-span-2" data-pend-key={pendKey("chance_relator", row.materia)}>
             <Select
               value={row.chance_relator || "__none__"}
               onValueChange={(v) => update(idx, { chance_relator: v === "__none__" ? null : v })}
@@ -166,7 +174,7 @@ export function MateriasAnaliseList({ materias, value, onChange, title }: Props)
               </SelectContent>
             </Select>
           </div>
-          <div className="col-span-4 md:col-span-1">
+          <div className="col-span-4 md:col-span-1" data-pend-key={pendKey("chance_exito", row.materia)}>
             <div className="flex items-center gap-1">
               <Select
                 value={row.chance_exito || "__none__"}

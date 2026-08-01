@@ -1619,6 +1619,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           </div>
           <MateriasAnaliseList
             title="Análise por matéria (Reclamante)"
+            fieldKey="materias_analise_reclamante"
             materias={form.materias_recurso_reclamante || null}
             value={(bennerExtra.materias_analise_reclamante as MateriaAnaliseItem[] | null) || null}
             onChange={(next) => setExtra("materias_analise_reclamante", next)}
@@ -1678,6 +1679,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           </div>
           <MateriasAnaliseList
             title="Análise por matéria (Banco)"
+            fieldKey="materias_analise_banco"
             materias={form.materias_recurso_banco || null}
             value={(bennerExtra.materias_analise_banco as MateriaAnaliseItem[] | null) || null}
             onChange={(next) => setExtra("materias_analise_banco", next)}
