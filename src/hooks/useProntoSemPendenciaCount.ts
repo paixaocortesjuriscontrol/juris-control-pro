@@ -25,6 +25,7 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
   const [count, setCount] = useState<number>(0);
   const [ids, setIds] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [reloadTick, setReloadTick] = useState(0);
   const runIdRef = useRef(0);
   const filtersKey = JSON.stringify(filters);
 
@@ -58,6 +59,7 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
             "tem_data_julgamento",
             "materias_analise_reclamante",
             "materias_analise_banco",
+            "materias_analise_terceiro",
             ...COLUNAS_SELECT_PENDENCIAS,
           ]),
         ).join(", ");
@@ -106,7 +108,7 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersKey]);
+  }, [filtersKey, reloadTick]);
 
-  return { count, ids, loading };
+  return { count, ids, loading, refetch: () => setReloadTick((tick) => tick + 1) };
 }
