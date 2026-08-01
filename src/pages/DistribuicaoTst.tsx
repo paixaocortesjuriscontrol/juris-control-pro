@@ -323,7 +323,12 @@ export default function DistribuicaoTst() {
 
   // Para não-admins, o filtro "A fazer" sempre amarra ao usuário logado,
   // independentemente do select de responsáveis.
-  const { count: prontoSemPendenciaCount, ids: prontoSemPendenciaIds, loading: prontoSemPendenciaLoading } =
+  const {
+    count: prontoSemPendenciaCount,
+    ids: prontoSemPendenciaIds,
+    loading: prontoSemPendenciaLoading,
+    refetch: refetchProntoSemPendencia,
+  } =
     useProntoSemPendenciaCount(debouncedFilters);
 
   const listFilters = useMemo(() => {
@@ -1425,6 +1430,7 @@ export default function DistribuicaoTst() {
             onSaveDistribuicao={async (d, id) => {
               const targetId = id || editando?.id || undefined;
               const result = await saveDado(d, targetId);
+              if (result) refetchProntoSemPendencia();
               const savedId = typeof result === "string" ? result : (targetId || null);
               if (savedId) { setStickyId(savedId); setHighlightUntil(Date.now() + 8000); }
               return result;
@@ -1476,6 +1482,7 @@ export default function DistribuicaoTst() {
               try { fetchDados(); } catch {}
               try { refetchStats(); } catch {}
               try { refetchResponsavelCounts(); } catch {}
+              try { refetchProntoSemPendencia(); } catch {}
             }}
           />
         </div>
