@@ -168,11 +168,27 @@ export type Pendencia = { key: string; label: string; quadrinho: string };
 function pendenciasMateriasAnalise(
   row: any,
   campoJsonb: string,
+  campoMaterias: string,
   rotuloBloco: string,
   quadrinho: string,
 ): Pendencia[] {
-  const lista = row?.[campoJsonb];
-  if (!Array.isArray(lista) || lista.length === 0) return [];
+  const listaPersistida = Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : [];
+  const materiasSelecionadas = String(row?.[campoMaterias] || "")
+    .split(/;|\n/)
+    .map((materia) => materia.trim())
+    .filter(Boolean);
+  const porMateria = new Map<string, any>();
+  for (const item of listaPersistida) {
+    if (!item || typeof item !== "object" || !item.materia) continue;
+    porMateria.set(String(item.materia).trim().toLocaleLowerCase("pt-BR"), item);
+  }
+  const lista = materiasSelecionadas.length > 0
+    ? materiasSelecionadas.map((materia) => ({
+        ...(porMateria.get(materia.toLocaleLowerCase("pt-BR")) || {}),
+        materia,
+      }))
+    : listaPersistida;
+  if (lista.length === 0) return [];
   const out: Pendencia[] = [];
   for (const item of lista) {
     if (!item || typeof item !== "object" || !item.materia) continue;
@@ -217,13 +233,13 @@ export function getPendencias(row: any): Pendencia[] {
   // Só cobrar sub-itens quando a parte figura como recorrente (mesma regra dos
   // campos de tipo/matéria/êxito do bloco correspondente).
   if (recorrenteEnvolveReclamante(row)) {
-    out.push(...pendenciasMateriasAnalise(row, "materias_analise_reclamante", "Análise Reclamante", "III. Recurso do Reclamante"));
+    out.push(...pendenciasMateriasAnalise(row, "materias_analise_reclamante", "materias_recurso_reclamante", "Análise Reclamante", "III. Recurso do Reclamante"));
   }
   if (recorrenteEnvolveBanco(row)) {
-    out.push(...pendenciasMateriasAnalise(row, "materias_analise_banco", "Análise Banco", "IV. Recurso do Banco"));
+    out.push(...pendenciasMateriasAnalise(row, "materias_analise_banco", "materias_recurso_banco", "Análise Banco", "IV. Recurso do Banco"));
   }
   if (recorrenteEhTerceiro(row)) {
-    out.push(...pendenciasMateriasAnalise(row, "materias_analise_terceiro", "Análise Terceiro", "V. Recurso Terceiro"));
+    out.push(...pendenciasMateriasAnalise(row, "materias_analise_terceiro", "materias_recurso_terceiro", "Análise Terceiro", "V. Recurso Terceiro"));
   }
   return out;
 }
