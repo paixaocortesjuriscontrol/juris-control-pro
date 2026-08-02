@@ -5196,7 +5196,7 @@ export default function ImportarProcessos() {
           orgao: getFromRow(row, ["Foro", "foro"]) || null,
           orgaoJulgador: getFromRow(row, ["Vara", "vara"]) || null,
           sistema: null,
-          area: "trabalhista", // Default trabalhista para Astrea
+          area: "trabalhista", // ajustado abaixo para "caso" quando Tipo = Caso
           fase: null,
           dataDistribuicao: getFromRow(row, ["Data de distribuição", "Data de Distribuição", "Data distribuição"]) || null,
           classeCNJ: getFromRow(row, ["Ação", "Acao", "acao"]) || null,
@@ -5245,12 +5245,25 @@ export default function ImportarProcessos() {
         const isEmptyRow = !rowHasAnyValue;
         const hasInvalidNumero = !numeroTrimmed || numeroTrimmed.length < 5;
 
-        // Ignorar linhas do tipo "Caso" (não são processos judiciais)
-        const tipo = (processo as any).astreaData?.tipo || "";
-        if (tipo.toLowerCase() === "caso") {
-          processo.status = "invalido";
-          processo.erroImport = "Tipo 'Caso' não é processo judicial";
-          processo.erros = [{ campo: "Tipo", mensagem: "Casos não são importados como processos" }];
+        // Linhas do tipo "Caso" são importadas na categoria "Caso"
+        const tipo = String((processo as any).astreaData?.tipo || "");
+        const isCaso = tipo.trim().toLowerCase() === "caso";
+
+        if (isCaso) {
+          processo.area = "caso";
+          processo.erros = [];
+          if (isEmptyRow) {
+            processo.status = "invalido";
+            processo.erroImport = "Linha vazia na planilha";
+            processo.erros = [{ campo: "numero", mensagem: "Linha vazia na planilha" }];
+          } else {
+            // Casos podem não ter número CNJ: gerar identificador a partir do título
+            if (hasInvalidNumero) {
+              const base = String(titulo || "").trim() || `Linha ${index + 2}`;
+              processo.numero = `CASO ${base}`.slice(0, 120);
+            }
+            processo.status = "valido";
+          }
         } else if (isEmptyRow || hasInvalidNumero) {
           const motivo = isEmptyRow
             ? "Linha vazia na planilha"
