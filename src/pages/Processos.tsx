@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2, Repeat, ClipboardList, Star, Lock } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2, Repeat, ClipboardList, Star, Lock, Briefcase } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -329,7 +329,8 @@ const Processos = () => {
     resetPage
   } = useProcessosPaginados({
     search: debouncedSearch,
-    area: areaFilter,
+    // "Caso" no filtro de tipos equivale à área "caso"
+    area: tipoProcessoFilter === "caso" ? "caso" : areaFilter,
     status: statusFilter,
     coordenacao_id: coordenacaoFilter,
     // Para não-admins com "Todas" selecionado, restringir às coordenações do usuário
@@ -349,7 +350,7 @@ const Processos = () => {
     periodoInicio: filtrosAplicados.periodoInicio,
     periodoFim: filtrosAplicados.periodoFim,
     clienteIds: clienteIds,
-    tipoProcesso: tipoProcessoFilter,
+    tipoProcesso: tipoProcessoFilter === "caso" ? "all" : tipoProcessoFilter,
     testemunhaNome: filtrosAplicados.testemunhaNome,
     comTestemunha: filtrosAplicados.comTestemunha,
     enabled: coordenacaoCarregada, // Não buscar enquanto está carregando a coordenação
@@ -582,6 +583,12 @@ const Processos = () => {
                   <div className="flex items-center gap-2">
                     <Building2 className="w-4 h-4" />
                     Administrativo
+                  </div>
+                </SelectItem>
+                <SelectItem value="caso">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-4 h-4" />
+                    Caso
                   </div>
                 </SelectItem>
               </SelectContent>
@@ -902,7 +909,7 @@ const Processos = () => {
             )}
             {areaFilter !== "all" && (
               <Badge variant="secondary" className="cursor-pointer" onClick={() => setAreaFilter("all")}>
-                {areaFilter === "civil" ? "Cível" : areaFilter === "trabalhista" ? "Trabalhista" : "Empresarial"} ×
+                {areaFilter === "civil" ? "Cível" : areaFilter === "trabalhista" ? "Trabalhista" : areaFilter === "caso" ? "Caso" : "Empresarial"} ×
               </Badge>
             )}
             {statusFilter !== "all" && (
