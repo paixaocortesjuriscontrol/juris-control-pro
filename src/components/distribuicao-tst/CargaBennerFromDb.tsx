@@ -557,11 +557,12 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           }
           return out.join("\n");
         };
-        const filtrarOutraMateria = (arr: any[]) => (Array.isArray(arr) ? arr : []).filter((it: any) => {
-          if (!it || !it.materia) return false;
-          const n = String(it.materia).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-          return n !== "outra materia";
-        });
+        // "Outra Matéria" nunca vai para a planilha de carga — mesmo quando é a
+        // única matéria selecionada (nesse caso as colunas ficam vazias).
+        const filtrarOutraMateria = (arr: any[]) =>
+          (Array.isArray(arr) ? arr : []).filter(
+            (it: any) => it && it.materia && !isOutraMateria(it.materia),
+          );
         const materiasPorParte: Record<string, any[]> = {
           reclamante: filtrarOutraMateria((d as any).materias_analise_reclamante),
           banco: filtrarOutraMateria((d as any).materias_analise_banco),
