@@ -8,6 +8,8 @@
  * quanto o `DistribuicaoTst` mapeado (chaves equivalentes coexistem).
  */
 
+import { aplicarRegraOutraMateria } from "./outraMateria";
+
 export type CampoObrigatorio = {
   /** Chave em `dados_benner` (snake_case) usada na consulta SQL. */
   key: string;
