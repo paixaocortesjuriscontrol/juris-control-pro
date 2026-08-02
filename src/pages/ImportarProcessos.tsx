@@ -5346,11 +5346,14 @@ export default function ImportarProcessos() {
       .select("id, numero, coordenacao_id, advogado_responsavel_id, cliente_id, pasta_id, assunto, descricao, vara, tribunal, instancia, classe, data_distribuicao, valor_causa, valor_condenacao, valor_provisionado, polo_ativo, polo_passivo, resultado, andamento_atual, observacoes_processo")
       .in("numero", numerosProcessos);
     
+    // Chave por número + coordenação: o mesmo número pode existir em outra coordenação (duplicado permitido)
+    const coordKey = (numero: string, coordenacaoId: string | null | undefined) =>
+      `${numero}||${coordenacaoId || ""}`;
     const processosExistentesMap = new Map<string, any>();
     (processosExistentes || []).forEach(p => {
-      processosExistentesMap.set(p.numero, p);
+      processosExistentesMap.set(coordKey(p.numero, p.coordenacao_id), p);
     });
-    console.log(`[Astrea Import] ${processosExistentesMap.size} processos já existem no banco`);
+    console.log(`[Astrea Import] ${processosExistentesMap.size} processos já existem no banco (mesma coordenação)`);
     
     // 3. Pré-carregar pastas existentes
     const nomesPastas = validProcessos.map(p => {
@@ -5406,8 +5409,9 @@ export default function ImportarProcessos() {
       }
     }
     
-    // 5. Garantir área existe (uma única vez)
-    const areaSlug = await ensureAreaExists("trabalhista");
+    // 5. Garantir áreas existem (uma única vez)
+    const areaTrabalhista = await ensureAreaExists("trabalhista");
+    const areaCaso = await ensureAreaExists("caso");
     
     // 6. Obter usuário uma única vez
     const { data: { user } } = await supabase.auth.getUser();
@@ -5446,8 +5450,10 @@ export default function ImportarProcessos() {
           const astreaData = (processo as any).astreaData || {};
           const numeroTrimmed = processo.numero.trim();
 
-          // Verificar se processo existe usando cache pré-carregado
-          const existingProcesso = processosExistentesMap.get(numeroTrimmed);
+          // Verificar se processo existe NA MESMA coordenação (em outra coordenação, importa duplicado)
+          const existingProcesso = processosExistentesMap.get(
+            coordKey(numeroTrimmed, selectedCoordenacao || null)
+          );
 
           // Determinar cliente usando cache local
           let clienteIdToUse: string | null = null;
@@ -5535,7 +5541,7 @@ export default function ImportarProcessos() {
 
             const processoData: any = {
               numero: numeroTrimmed,
-              area: areaSlug,
+              area: processo.area === "caso" ? areaCaso : areaTrabalhista,
               status: mapStatusToEnum(processo.situacao),
               assunto: processo.assunto,
               descricao: processo.descricao,
