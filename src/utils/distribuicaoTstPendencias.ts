@@ -8,6 +8,8 @@
  * quanto o `DistribuicaoTst` mapeado (chaves equivalentes coexistem).
  */
 
+import { aplicarRegraOutraMateria } from "./outraMateria";
+
 export type CampoObrigatorio = {
   /** Chave em `dados_benner` (snake_case) usada na consulta SQL. */
   key: string;
@@ -172,11 +174,16 @@ function pendenciasMateriasAnalise(
   rotuloBloco: string,
   quadrinho: string,
 ): Pendencia[] {
-  const listaPersistida = Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : [];
-  const materiasSelecionadas = String(row?.[campoMaterias] || "")
-    .split(/;|\n/)
-    .map((materia) => materia.trim())
-    .filter(Boolean);
+  const listaPersistidaBruta = Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : [];
+  // "Outra Matéria" só é cobrada quando é a ÚNICA matéria selecionada.
+  const listaPersistida = aplicarRegraOutraMateria(listaPersistidaBruta, (i: any) => i?.materia);
+  const materiasSelecionadas = aplicarRegraOutraMateria(
+    String(row?.[campoMaterias] || "")
+      .split(/;|\n/)
+      .map((materia) => materia.trim())
+      .filter(Boolean),
+    (n) => n,
+  );
   const porMateria = new Map<string, any>();
   for (const item of listaPersistida) {
     if (!item || typeof item !== "object" || !item.materia) continue;
