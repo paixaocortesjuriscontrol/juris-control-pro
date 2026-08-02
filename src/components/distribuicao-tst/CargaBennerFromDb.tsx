@@ -12,6 +12,7 @@ import {
 import { useCriarRemessa } from "@/hooks/useRemessasBenner";
 import { useNavigate } from "react-router-dom";
 import { deriveRecorrenteFromRecursos, splitRecursoValues } from "@/utils/recorrenteFromRecursos";
+import { isOutraMateria } from "@/utils/outraMateria";
 import { applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
 import { getPendencias } from "@/utils/distribuicaoTstPendencias";
 
