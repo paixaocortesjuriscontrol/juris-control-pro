@@ -5196,7 +5196,7 @@ export default function ImportarProcessos() {
           orgao: getFromRow(row, ["Foro", "foro"]) || null,
           orgaoJulgador: getFromRow(row, ["Vara", "vara"]) || null,
           sistema: null,
-          area: "trabalhista", // Default trabalhista para Astrea
+          area: "trabalhista", // ajustado abaixo para "caso" quando Tipo = Caso
           fase: null,
           dataDistribuicao: getFromRow(row, ["Data de distribuição", "Data de Distribuição", "Data distribuição"]) || null,
           classeCNJ: getFromRow(row, ["Ação", "Acao", "acao"]) || null,
@@ -5245,12 +5245,25 @@ export default function ImportarProcessos() {
         const isEmptyRow = !rowHasAnyValue;
         const hasInvalidNumero = !numeroTrimmed || numeroTrimmed.length < 5;
 
-        // Ignorar linhas do tipo "Caso" (não são processos judiciais)
-        const tipo = (processo as any).astreaData?.tipo || "";
-        if (tipo.toLowerCase() === "caso") {
-          processo.status = "invalido";
-          processo.erroImport = "Tipo 'Caso' não é processo judicial";
-          processo.erros = [{ campo: "Tipo", mensagem: "Casos não são importados como processos" }];
+        // Linhas do tipo "Caso" são importadas na categoria "Caso"
+        const tipo = String((processo as any).astreaData?.tipo || "");
+        const isCaso = tipo.trim().toLowerCase() === "caso";
+
+        if (isCaso) {
+          processo.area = "caso";
+          processo.erros = [];
+          if (isEmptyRow) {
+            processo.status = "invalido";
+            processo.erroImport = "Linha vazia na planilha";
+            processo.erros = [{ campo: "numero", mensagem: "Linha vazia na planilha" }];
+          } else {
+            // Casos podem não ter número CNJ: gerar identificador a partir do título
+            if (hasInvalidNumero) {
+              const base = String(titulo || "").trim() || `Linha ${index + 2}`;
+              processo.numero = `CASO ${base}`.slice(0, 120);
+            }
+            processo.status = "valido";
+          }
         } else if (isEmptyRow || hasInvalidNumero) {
           const motivo = isEmptyRow
             ? "Linha vazia na planilha"
@@ -5333,11 +5346,14 @@ export default function ImportarProcessos() {
       .select("id, numero, coordenacao_id, advogado_responsavel_id, cliente_id, pasta_id, assunto, descricao, vara, tribunal, instancia, classe, data_distribuicao, valor_causa, valor_condenacao, valor_provisionado, polo_ativo, polo_passivo, resultado, andamento_atual, observacoes_processo")
       .in("numero", numerosProcessos);
     
+    // Chave por número + coordenação: o mesmo número pode existir em outra coordenação (duplicado permitido)
+    const coordKey = (numero: string, coordenacaoId: string | null | undefined) =>
+      `${numero}||${coordenacaoId || ""}`;
     const processosExistentesMap = new Map<string, any>();
     (processosExistentes || []).forEach(p => {
-      processosExistentesMap.set(p.numero, p);
+      processosExistentesMap.set(coordKey(p.numero, p.coordenacao_id), p);
     });
-    console.log(`[Astrea Import] ${processosExistentesMap.size} processos já existem no banco`);
+    console.log(`[Astrea Import] ${processosExistentesMap.size} processos já existem no banco (mesma coordenação)`);
     
     // 3. Pré-carregar pastas existentes
     const nomesPastas = validProcessos.map(p => {
@@ -5393,8 +5409,9 @@ export default function ImportarProcessos() {
       }
     }
     
-    // 5. Garantir área existe (uma única vez)
-    const areaSlug = await ensureAreaExists("trabalhista");
+    // 5. Garantir áreas existem (uma única vez)
+    const areaTrabalhista = await ensureAreaExists("trabalhista");
+    const areaCaso = await ensureAreaExists("caso");
     
     // 6. Obter usuário uma única vez
     const { data: { user } } = await supabase.auth.getUser();
@@ -5433,8 +5450,10 @@ export default function ImportarProcessos() {
           const astreaData = (processo as any).astreaData || {};
           const numeroTrimmed = processo.numero.trim();
 
-          // Verificar se processo existe usando cache pré-carregado
-          const existingProcesso = processosExistentesMap.get(numeroTrimmed);
+          // Verificar se processo existe NA MESMA coordenação (em outra coordenação, importa duplicado)
+          const existingProcesso = processosExistentesMap.get(
+            coordKey(numeroTrimmed, selectedCoordenacao || null)
+          );
 
           // Determinar cliente usando cache local
           let clienteIdToUse: string | null = null;
@@ -5522,7 +5541,7 @@ export default function ImportarProcessos() {
 
             const processoData: any = {
               numero: numeroTrimmed,
-              area: areaSlug,
+              area: processo.area === "caso" ? areaCaso : areaTrabalhista,
               status: mapStatusToEnum(processo.situacao),
               assunto: processo.assunto,
               descricao: processo.descricao,

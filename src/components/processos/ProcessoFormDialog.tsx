@@ -50,7 +50,7 @@ const formSchema = z.object({
   tipo_processo: z.enum(["judicial", "administrativo"]),
   numero: z.string().min(5, "Número do processo deve ter no mínimo 5 caracteres"),
   assunto: z.string().optional(),
-  area: z.enum(["civil", "trabalhista", "empresarial"]),
+  area: z.enum(["civil", "trabalhista", "empresarial", "caso"]),
   status: z.enum(["ativo", "pendente", "urgente", "encerrado", "arquivado"]),
   descricao: z.string().optional(),
   tribunal: z.string().optional(),
@@ -1328,6 +1328,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                             <SelectItem value="civil">Cível</SelectItem>
                             <SelectItem value="trabalhista">Trabalhista</SelectItem>
                             <SelectItem value="empresarial">Empresarial</SelectItem>
+                            <SelectItem value="caso">Caso</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />

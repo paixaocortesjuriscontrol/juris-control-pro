@@ -34,13 +34,14 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-type AreaType = "civil" | "trabalhista" | "empresarial";
+type AreaType = "civil" | "trabalhista" | "empresarial" | "caso";
 type StatusType = "pending" | "active" | "closed" | "urgent";
 
 const areaLabels: Record<AreaType, string> = {
   civil: "Cível",
   trabalhista: "Trabalhista",
   empresarial: "Empresarial",
+  caso: "Caso",
 };
 
 const statusLabels: Record<StatusType, string> = {
@@ -595,6 +596,7 @@ const Processos = () => {
                 <SelectItem value="civil">Cível</SelectItem>
                 <SelectItem value="trabalhista">Trabalhista</SelectItem>
                 <SelectItem value="empresarial">Empresarial</SelectItem>
+                <SelectItem value="caso">Caso</SelectItem>
               </SelectContent>
             </Select>
 
