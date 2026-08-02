@@ -1034,7 +1034,8 @@ export default function Notificacoes({
       />
 
 
-      {/* Cards de resumo por tipo */}
+      {/* Cards de resumo por tipo (somente administradores) */}
+      {isAdmin && (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-13 gap-3 mb-6">
         {!embedded && (
           <Card 
@@ -1275,6 +1276,7 @@ export default function Notificacoes({
           </CardContent>
         </Card>
       </div>
+      )}
 
       {/* Área de conteúdo */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
