@@ -1328,6 +1328,8 @@ export default function ImportarTarefas() {
     };
     const prepared: Prepared[] = [];
     const skipped: TarefaAstreaImport[] = [];
+    const dupPlanilha: TarefaAstreaImport[] = [];
+    const seenKeys = new Set<string>();
 
     for (let i = 0; i < toImport.length; i++) {
       if (astreaCancelledRef.current) break;
@@ -1364,6 +1366,19 @@ export default function ImportarTarefas() {
           if (id && id !== responsavelId && !envolvidosIds.includes(id)) envolvidosIds.push(id);
         }
       }
+      // Deduplicação dentro da própria planilha (título + data + processo + responsável + tipo)
+      const chaveNegocio = [
+        (t.titulo || "").trim().toLowerCase(),
+        t.data || "",
+        processoId || "",
+        responsavelId || "",
+        mapAstreaTipoToTarefa(t.tipo) || "",
+      ].join("|");
+      if (seenKeys.has(chaveNegocio)) {
+        dupPlanilha.push(t);
+        continue;
+      }
+      seenKeys.add(chaveNegocio);
       prepared.push({ t, processoId, responsavelId, envolvidosIds });
       if (i % 25 === 0) setAstreaImportProgress(Math.round((i / toImport.length) * 30));
     }
@@ -1372,6 +1387,11 @@ export default function ImportarTarefas() {
     skipped.forEach(s => {
       const idx = updatedTarefas.findIndex(ut => ut.identificador === s.identificador);
       if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Já existe no sistema" };
+      errorCount++;
+    });
+    dupPlanilha.forEach(s => {
+      const idx = updatedTarefas.findIndex(ut => ut.identificador === s.identificador);
+      if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Duplicada na planilha (linha repetida)" };
       errorCount++;
     });
     setTarefasAstrea([...updatedTarefas]);
@@ -1410,19 +1430,43 @@ export default function ImportarTarefas() {
         };
       });
 
-      const { data: inserted, error } = await supabase
+      let inserted: any[] | null = null;
+      const rowErrors = new Map<string, string>();
+
+      const bulk = await supabase
         .from("tarefas")
         .insert(rows as any)
         .select("id, identificador_projuris");
 
-      if (error || !inserted) {
-        // Mark whole batch as erro
-        slice.forEach(({ t }) => {
-          const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
-          if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: error?.message || "Erro no lote" };
+      if (bulk.error || !bulk.data) {
+        // Uma linha ruim não pode invalidar o lote inteiro: reprocessa linha por linha
+        const okRows: any[] = [];
+        for (let k = 0; k < rows.length; k++) {
+          if (astreaCancelledRef.current) break;
+          const one = await supabase
+            .from("tarefas")
+            .insert([rows[k]] as any)
+            .select("id, identificador_projuris");
+          if (one.error || !one.data?.length) {
+            rowErrors.set(rows[k].identificador_projuris, one.error?.message || "Erro ao inserir");
+          } else {
+            okRows.push(one.data[0]);
+          }
+        }
+        inserted = okRows;
+      } else {
+        inserted = bulk.data as any[];
+      }
+
+      if (rowErrors.size > 0) {
+        rowErrors.forEach((msg, ident) => {
+          const idx = updatedTarefas.findIndex(ut => ut.identificador === ident);
+          if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: msg };
           errorCount++;
         });
-      } else {
+      }
+
+      {
         const idByIdent = new Map<string, string>();
         inserted.forEach((r: any) => idByIdent.set(r.identificador_projuris, r.id));
 
@@ -1434,9 +1478,11 @@ export default function ImportarTarefas() {
         slice.forEach(({ t, processoId, responsavelId, envolvidosIds }) => {
           const tarefaId = idByIdent.get(t.identificador);
           if (!tarefaId) {
-            const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
-            if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Inserido mas id não retornado" };
-            errorCount++;
+            if (!rowErrors.has(t.identificador)) {
+              const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
+              if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Inserido mas id não retornado" };
+              errorCount++;
+            }
             return;
           }
           const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
