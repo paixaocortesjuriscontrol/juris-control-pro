@@ -584,6 +584,12 @@ const Processos = () => {
                     Administrativo
                   </div>
                 </SelectItem>
+                <SelectItem value="caso">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="w-4 h-4" />
+                    Caso
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
             
@@ -902,7 +908,7 @@ const Processos = () => {
             )}
             {areaFilter !== "all" && (
               <Badge variant="secondary" className="cursor-pointer" onClick={() => setAreaFilter("all")}>
-                {areaFilter === "civil" ? "Cível" : areaFilter === "trabalhista" ? "Trabalhista" : "Empresarial"} ×
+                {areaFilter === "civil" ? "Cível" : areaFilter === "trabalhista" ? "Trabalhista" : areaFilter === "caso" ? "Caso" : "Empresarial"} ×
               </Badge>
             )}
             {statusFilter !== "all" && (
