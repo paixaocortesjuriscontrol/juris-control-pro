@@ -12,19 +12,13 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMateriasBenner } from "@/hooks/useMateriasBenner";
 
+import { OUTRA_MATERIA_LABEL, isOutraMateria } from "@/utils/outraMateria";
+
 const SEPARATOR = "; ";
 
-/** Rótulo especial: matéria não cadastrada no Santander. Serve apenas para
- *  marcar o campo como preenchido (removendo a pendência) e habilitar o
- *  preenchimento da observação. NÃO deve ser exportada na planilha de carga. */
-export const OUTRA_MATERIA_LABEL = "Outra Matéria";
-
-export function isOutraMateria(nome: string | null | undefined): boolean {
-  return (
-    (nome || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() ===
-    "outra materia"
-  );
-}
+// Rótulo/helper centralizados em `src/utils/outraMateria.ts` — reexportados
+// aqui para manter compatibilidade com os imports existentes.
+export { OUTRA_MATERIA_LABEL, isOutraMateria };
 
 function normalize(s: string): string {
   return (s || "")
