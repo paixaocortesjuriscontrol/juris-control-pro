@@ -7,9 +7,9 @@
 
 ## O que será feito
 
-1. **Pendências**: em `pendenciasMateriasAnalise`, descartar "Outra Matéria" (comparação sem acento/caixa, mesma função `isOutraMateria`) tanto das matérias selecionadas quanto da lista persistida no JSONB. Assim:
-   - "Outra Matéria" + outra matéria → cobra apenas a(s) matéria(s) reais.
-   - Somente "Outra Matéria" selecionada → nenhuma pendência de análise por matéria (segue valendo como marcador).
+1. **Pendências**: em `pendenciasMateriasAnalise`, o tratamento de "Outra Matéria" (comparação sem acento/caixa, mesma função `isOutraMateria`) passa a depender de haver ou não outra matéria selecionada:
+   - "Outra Matéria" + pelo menos uma matéria real → "Outra Matéria" é descartada e só as matérias reais são cobradas.
+   - Somente "Outra Matéria" selecionada → ela **gera pendência** (Aparelhamento, Chance Turma, Chance Relator e Êxito), e a linha correspondente aparece na tabela de Análise por Matéria para ser preenchida.
 2. **Carga Benner**: revisar os dois geradores para que "Outra Matéria" nunca chegue a nenhuma coluna, inclusive quando é a única selecionada — nesse caso a parte continua emitindo a linha, mas com as colunas de matérias vazias (nenhum texto "Outra Matéria").
 3. Conferir os relatórios de pendências/Excel da Distribuição TST para que não listem "Outra Matéria" como item a preencher.
 
