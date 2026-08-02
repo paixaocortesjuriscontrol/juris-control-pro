@@ -492,7 +492,14 @@ export default function DistribuicaoTst() {
 
   
 
-  const hasFilters = filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroParteRecorrente || filtroNomeParte || filtroDataInicio || filtroDataFim || filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" || filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" || filtroEmAnalise !== "todos" || filtroProblemaJudit !== "todos" || filtroAcordo !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" || filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagId !== "todas";
+  const hasFilters = Boolean(
+    filtroProcesso || filtroDossie || filtroTurma || filtroRelator || filtroParte || filtroParteRecorrente || filtroNomeParte || filtroDataInicio || filtroDataFim ||
+    filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" ||
+    filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" ||
+    filtroEmAnalise !== "todos" || filtroProblemaJudit !== "todos" || filtroAcordo !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" ||
+    filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagId !== "todas" ||
+    filtroSemPendencia || filtroSemTurma || filtroMultiResp || filtroResponsavelIds.length > 0
+  );
 
   const clearFilters = () => {
     setFiltroAba("todas");
@@ -510,6 +517,9 @@ export default function DistribuicaoTst() {
     setFiltroProvasDigitais("todos");
     setFiltroSituacaoCarga("todas");
     setFiltroTagId("todas");
+    setFiltroSubidaMassa("todos");
+    setFiltroAcordo("todos");
+    setFiltroSemPendencia(false);
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
