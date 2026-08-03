@@ -1389,19 +1389,15 @@ export default function ImportarTarefas() {
       processoId: string | null;
       responsavelId: string | null;
       envolvidosIds: string[];
+      jaExiste: boolean;
     };
     const prepared: Prepared[] = [];
-    const skipped: TarefaAstreaImport[] = [];
     const dupPlanilha: TarefaAstreaImport[] = [];
     const seenKeys = new Set<string>();
 
     for (let i = 0; i < toImport.length; i++) {
       if (astreaCancelledRef.current) break;
       const t = toImport[i];
-      if (existingSet.has(t.identificador)) {
-        skipped.push(t);
-        continue;
-      }
       const processoId = await findOrCreateProcessoId(
         t.numeroProcesso,
         astreaCoordenacao,
@@ -1430,29 +1426,27 @@ export default function ImportarTarefas() {
           if (id && id !== responsavelId && !envolvidosIds.includes(id)) envolvidosIds.push(id);
         }
       }
-      // Deduplicação dentro da própria planilha (título + data + processo + responsável + tipo)
+      // Deduplicação dentro da própria planilha (linhas realmente idênticas)
       const chaveNegocio = [
         (t.titulo || "").trim().toLowerCase(),
         t.data || "",
+        t.hora || "",
         processoId || "",
         responsavelId || "",
         mapAstreaTipoToTarefa(t.tipo) || "",
+        t.dataConclusao || "",
+        t.dataCriacao || "",
+        (t.observacao || "").trim().toLowerCase(),
       ].join("|");
       if (seenKeys.has(chaveNegocio)) {
         dupPlanilha.push(t);
         continue;
       }
       seenKeys.add(chaveNegocio);
-      prepared.push({ t, processoId, responsavelId, envolvidosIds });
+      prepared.push({ t, processoId, responsavelId, envolvidosIds, jaExiste: existingSet.has(t.identificador) });
       if (i % 25 === 0) setAstreaImportProgress(Math.round((i / toImport.length) * 30));
     }
 
-    // Mark skipped (duplicates) on UI
-    skipped.forEach(s => {
-      const idx = updatedTarefas.findIndex(ut => ut.identificador === s.identificador);
-      if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Já existe no sistema" };
-      errorCount++;
-    });
     dupPlanilha.forEach(s => {
       const idx = updatedTarefas.findIndex(ut => ut.identificador === s.identificador);
       if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Duplicada na planilha (linha repetida)" };
