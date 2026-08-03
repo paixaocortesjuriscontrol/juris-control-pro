@@ -5637,10 +5637,15 @@ export default function ImportarProcessos() {
               }
             }
 
+            const respIdNovo = resolverResponsavelId(astreaData.responsavel) || selectedMembro || null;
+            const encerramentoIsoNovo = parseDateTimeLocal(astreaData.dataEncerramento);
+
             const processoData: any = {
               numero: numeroTrimmed,
               area: processo.area === "caso" ? areaCaso : areaTrabalhista,
-              status: mapStatusToEnum(processo.situacao),
+              status: encerramentoIsoNovo ? "encerrado" : mapStatusToEnum(processo.situacao),
+              data_encerramento: encerramentoIsoNovo ? encerramentoIsoNovo.slice(0, 10) : null,
+              data_hora_encerramento: encerramentoIsoNovo,
               assunto: processo.assunto,
               descricao: processo.descricao,
               vara: processo.orgaoJulgador,
@@ -5655,7 +5660,7 @@ export default function ImportarProcessos() {
               polo_passivo: processo.partePassiva,
               cliente_id: clienteIdToUse,
               coordenacao_id: selectedCoordenacao || null,
-              advogado_responsavel_id: selectedMembro || null,
+              advogado_responsavel_id: respIdNovo,
               pasta_id: pastaId,
               monitorar_andamentos: astreaBuscarAndamentos,
               resultado: astreaData.resultadoProcesso,
@@ -5681,12 +5686,12 @@ export default function ImportarProcessos() {
             }
 
             // Vincular responsável se selecionado
-            if (selectedMembro && insertedProcesso) {
+            if (respIdNovo && insertedProcesso) {
               await supabase
                 .from("processos_responsaveis")
                 .insert({
                   processo_id: insertedProcesso.id,
-                  usuario_id: selectedMembro,
+                  usuario_id: respIdNovo,
                   papel: "responsavel",
                 })
                 .select()
