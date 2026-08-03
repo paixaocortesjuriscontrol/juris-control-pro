@@ -96,6 +96,7 @@ import AtualizarEquipe from "./pages/admin-tst/AtualizarEquipe";
 import AtualizarSituacaoEnvio from "./pages/admin-tst/AtualizarSituacaoEnvio";
 import RespostaSantander from "./pages/admin-tst/RespostaSantander";
 import BennerSim from "./pages/admin-tst/BennerSim";
+import AuditoriaDistribuicaoTst from "./pages/admin-tst/AuditoriaDistribuicaoTst";
 import AdminTstOutroEscritorio from "./pages/AdminTstOutroEscritorio";
 import AdminTstBasePcaDistribuicoes from "./pages/AdminTstBasePcaDistribuicoes";
 import BuscaPublicacao from "./pages/BuscaPublicacao";
@@ -223,6 +224,7 @@ function App() {
               <Route path="/admin-tst/outro-escritorio" element={<AdminRoute><AdminTstOutroEscritorio /></AdminRoute>} />
               <Route path="/admin-tst/busca-publicacao" element={<AdminRoute><BuscaPublicacao /></AdminRoute>} />
               <Route path="/admin-tst/base-pca-distribuicoes" element={<AdminRoute><AdminTstBasePcaDistribuicoes /></AdminRoute>} />
+              <Route path="/admin-tst/auditoria-distribuicao" element={<AdminRoute><AuditoriaDistribuicaoTst /></AdminRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, Search, Save } from "lucide-react";
+import { ArrowLeft, Loader2, Search, Save, History } from "lucide-react";
 import { AlertCircle } from "lucide-react";
 import { getPendencias } from "@/utils/distribuicaoTstPendencias";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,6 +22,7 @@ import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { dedupeJuditAttachments } from "@/lib/juditAnexosDedup";
+import { HistoricoDistribuicaoTstDialog } from "@/components/auditoria/HistoricoDistribuicaoTstDialog";
 
 interface Props {
   /** Registro a editar. Quando ausente, é "novo registro" e a aba Dados Benner fica desabilitada até salvar. */
@@ -53,6 +54,7 @@ const normalizeDado = (value?: DistribuicaoTst | null): DistribuicaoTst | null =
  */
 export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose, onAfterJuditSync }: Props) {
   const [currentDado, setCurrentDado] = useState<DistribuicaoTst | null>(() => normalizeDado(dado));
+  const [historicoAberto, setHistoricoAberto] = useState(false);
   const processoNumero = currentDado?.processo_numero || "";
   const [processoIdUnico, setProcessoIdUnico] = useState<string | null>((currentDado as any)?.processo_id || null);
   const { user } = useAuth();
@@ -755,6 +757,17 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
             )}
           </TabsList>
+          {isAdmin && currentDado?.id && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setHistoricoAberto(true)}
+              title="Ver histórico de alterações deste processo (auditoria)"
+            >
+              <History className="w-4 h-4 mr-2" /> Histórico
+            </Button>
+          )}
         </div>
 
         {processoNumero && (
@@ -900,6 +913,14 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       </Tabs>
         </div>
       </div>
+
+      <HistoricoDistribuicaoTstDialog
+        open={historicoAberto}
+        onOpenChange={setHistoricoAberto}
+        dadosBennerId={(currentDado as any)?.id || null}
+        processo={processoNumero}
+        dossie={currentDado?.dossie || null}
+      />
     </div>
   );
 }

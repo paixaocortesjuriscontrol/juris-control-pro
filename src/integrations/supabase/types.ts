@@ -879,6 +879,57 @@ export type Database = {
           },
         ]
       }
+      auditoria_distribuicao_tst: {
+        Row: {
+          acao: string
+          campos_alterados: Json | null
+          coordenacao_id: string | null
+          created_at: string
+          dados_antes: Json | null
+          dados_benner_id: string | null
+          dados_depois: Json | null
+          dossie: string | null
+          equipe: string | null
+          id: string
+          origem: string | null
+          processo: string | null
+          processo_digits: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          acao: string
+          campos_alterados?: Json | null
+          coordenacao_id?: string | null
+          created_at?: string
+          dados_antes?: Json | null
+          dados_benner_id?: string | null
+          dados_depois?: Json | null
+          dossie?: string | null
+          equipe?: string | null
+          id?: string
+          origem?: string | null
+          processo?: string | null
+          processo_digits?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          acao?: string
+          campos_alterados?: Json | null
+          coordenacao_id?: string | null
+          created_at?: string
+          dados_antes?: Json | null
+          dados_benner_id?: string | null
+          dados_depois?: Json | null
+          dossie?: string | null
+          equipe?: string | null
+          id?: string
+          origem?: string | null
+          processo?: string | null
+          processo_digits?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
       auditoria_tarefas: {
         Row: {
           acao: string
@@ -9945,6 +9996,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      limpar_auditoria_distribuicao_tst_antiga: { Args: never; Returns: number }
       limpar_execucoes_antigas: { Args: never; Returns: undefined }
       marcar_publicacoes_lidas_por_dedup: {
         Args: {
