@@ -5273,7 +5273,10 @@ export default function ImportarProcessos() {
           resultadoProcesso: getFromRow(row, ["Resultado do processo", "Resultado do Processo"]) || null,
           etiquetas: getFromRow(row, ["Etiquetas", "etiquetas"]) || null,
           dataCriacao: getFromRow(row, ["Data de Criação", "Data de Criacao"]) || null,
-          dataEncerramento: getFromRow(row, ["Data de Encerramento", "Data Encerramento"]) || null,
+          dataEncerramento: getFromRow(row, [
+            "Data de Encerramento", "Data de encerramento", "data de encerramento",
+            "Data Encerramento", "Data encerramento", "dataEncerramento",
+          ]) || null,
           dataUltimoHistorico: getFromRow(row, ["Data do último histórico", "Data do Ultimo Historico"]) || null,
           descricaoUltimoHistorico: getFromRow(row, ["Descrição do último histórico", "Descricao do ultimo historico"]) || null,
           instanciaOriginal: getFromRow(row, ["Instância Original", "Instancia Original"]) || null,
