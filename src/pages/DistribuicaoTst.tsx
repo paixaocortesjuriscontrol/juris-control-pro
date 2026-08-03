@@ -1754,12 +1754,12 @@ export default function DistribuicaoTst() {
         )}
 
         {/* Totais por responsável — visível apenas para administradores. */}
-        {mostrarCards && isAdmin && responsavelCounts.filter(c => c.count > 0).length > 0 && (
+        {mostrarCards && isAdmin && responsavelCountsCompleto.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             <span className="text-[11px] font-medium text-muted-foreground self-center mr-1">
               Por responsável:
             </span>
-            {responsavelCounts.filter(c => c.count > 0).map((c) => {
+            {responsavelCountsCompleto.map((c) => {
               const isSemResp = c.id === "00000000-0000-0000-0000-000000000000";
               const filterValue = isSemResp ? "__sem_responsavel__" : c.id;
               const active = filtroResponsavelIds.includes(filterValue);
