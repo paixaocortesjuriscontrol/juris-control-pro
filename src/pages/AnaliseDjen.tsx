@@ -2001,6 +2001,24 @@ const AnaliseDjen = () => {
       ultimos = principais.slice(-n);
     }
 
+    // Regra EDITAL: em publicações que começam com um EDITAL (ex.: "EDITAL DE
+    // CANCELAMENTO", "EDITAL DE INTIMAÇÃO", "EDITAL DE PAUTA"), a informação
+    // essencial está no INÍCIO do texto. Nesses casos, preserva o começo
+    // original junto com o trecho final.
+    const inicioTexto = normalizado.slice(0, 300);
+    const ehEdital = /EDITAL\s+DE\s+[A-ZÁÉÍÓÚÂÊÔÃÕÇ]/i.test(inicioTexto) || /^\s*EDITAL\b/i.test(inicioTexto);
+    if (ehEdital) {
+      const cabecalho: string[] = [];
+      for (const p of principais) {
+        if (ultimos.includes(p)) break;
+        cabecalho.push(p);
+        if (cabecalho.join("\n\n").length >= 1200) break;
+      }
+      if (cabecalho.length > 0) {
+        return [...cabecalho, ...ultimos.filter(p => !cabecalho.includes(p)), ...trailing].join("\n\n").trim();
+      }
+    }
+
     return [...ultimos, ...trailing].join("\n\n").trim();
   };
 
