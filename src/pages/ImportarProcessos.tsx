@@ -2742,6 +2742,21 @@ export default function ImportarProcessos() {
       const parsed: ProcessoImport[] = Array.from({ length: totalDataRows }).map((_, index) => {
         const rowArr = aoa[index + 1] || [];
 
+        // Fallback difuso: encontra qualquer coluna de data de encerramento
+        const getEncerramentoFuzzy = (rowObj: Record<string, any>) => {
+          for (const [k, v] of Object.entries(rowObj)) {
+            if (v === null || v === undefined || v === "") continue;
+            const nk = normalizeHeaderKey(k);
+            if (/encerr|finaliz|baixa/.test(nk) && /data|em$|dia/.test(nk)) return v;
+          }
+          for (const [k, v] of Object.entries(rowObj)) {
+            if (v === null || v === undefined || v === "") continue;
+            const nk = normalizeHeaderKey(k);
+            if (/encerr|finaliz/.test(nk)) return v;
+          }
+          return null;
+        };
+
         // Monta objeto por cabeçalho, mantendo null quando faltar coluna
         const row: Record<string, any> = {};
         headerRow.forEach((header, colIndex) => {
