@@ -14,6 +14,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Plus, Pencil, Trash2, Save, X, Gavel, DollarSign } from "lucide-react";
 import { usePedidosProcesso, PedidoProcesso } from "@/hooks/usePedidosProcesso";
+import { PedidosCatalogoPicker } from "./PedidosCatalogoPicker";
 import { format } from "date-fns";
 
 interface PedidosEditableTableProps {
