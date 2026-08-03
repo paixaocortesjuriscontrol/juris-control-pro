@@ -232,7 +232,7 @@ const parseDateTimeLocal = (value: any): string | null => {
   if (typeof value === "string") {
     const t = value.trim();
     if (!t) return null;
-    const br = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2}|\d{4})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    const br = t.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2}|\d{4})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
     if (br) {
       const parsedYear = Number(br[3]);
       return build(
@@ -252,7 +252,7 @@ const parseDateTimeLocal = (value: any): string | null => {
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
       .toLowerCase()
-      .match(/^(\d{1,2})\s+de\s+([a-z.]+)\s+de\s+(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+      .match(/(\d{1,2})\s+de\s+([a-z.]+)\s+de\s+(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
     if (textual) {
       const monthKey = textual[2].replace(/\./g, "").slice(0, 3);
       const months: Record<string, number> = {
@@ -5338,7 +5338,13 @@ export default function ImportarProcessos() {
           })() ?? null,
           situacaoPlanilha: getFromRow(row, [
             "Situação", "Situacao", "situacao", "Status", "status", "Fase", "fase",
-          ]) || null,
+          ]) ?? (() => {
+            for (const [k, v] of Object.entries(row)) {
+              if (v === null || v === undefined || v === "") continue;
+              if (/situacao|status|fase/.test(normalizeHeaderKey(k))) return v;
+            }
+            return null;
+          })(),
           dataUltimoHistorico: getFromRow(row, ["Data do último histórico", "Data do Ultimo Historico"]) || null,
           descricaoUltimoHistorico: getFromRow(row, ["Descrição do último histórico", "Descricao do ultimo historico"]) || null,
           instanciaOriginal: getFromRow(row, ["Instância Original", "Instancia Original"]) || null,
