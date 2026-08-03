@@ -2,6 +2,10 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+/** Faixa válida para campos de data em todo o sistema. */
+const DATA_MIN = "1900-01-01";
+const DATA_MAX = "2100-12-31";
+
 /**
  * Converte um texto colado em `yyyy-MM-dd` (valor aceito por input[type=date]).
  * Aceita dd/MM/yyyy, dd-MM-yyyy, ddMMyyyy, yyyy-MM-dd e yyyy/MM/dd.
@@ -46,7 +50,24 @@ function setValorNativo(el: HTMLInputElement, valor: string) {
 }
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, onPaste, onCopy, ...props }, ref) => {
+  ({ className, type, onPaste, onCopy, onChange, min, max, ...props }, ref) => {
+    // Limites de segurança para datas: evita anos inválidos (ex.: 20206)
+    const ehData = type === "date" || type === "datetime-local";
+    const minData = min ?? (type === "date" ? DATA_MIN : `${DATA_MIN}T00:00`);
+    const maxData = max ?? (type === "date" ? DATA_MAX : `${DATA_MAX}T23:59`);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (ehData) {
+        const v = e.target.value;
+        // Bloqueia valores fora da faixa (ano com 5 dígitos, ano 0000 etc.)
+        if (v) {
+          const ano = Number(v.slice(0, 4));
+          if (!Number.isFinite(ano) || ano < 1900 || ano > 2100) return;
+        }
+      }
+      onChange?.(e);
+    };
+
     // Campos de data/hora nativos não aceitam colar nem copiar texto.
     // Habilitamos ambos, convertendo formatos comuns (dd/mm/aaaa, ddmmaaaa etc).
     const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
@@ -64,6 +85,13 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
         valor = data ? `${data}T${hora}` : null;
       }
       if (!valor) return;
+      if (ehData) {
+        const ano = Number(valor.slice(0, 4));
+        if (!Number.isFinite(ano) || ano < 1900 || ano > 2100) {
+          e.preventDefault();
+          return;
+        }
+      }
       e.preventDefault();
       setValorNativo(e.currentTarget, valor);
     };
@@ -86,11 +114,14 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
     return (
       <input
         type={type}
+        min={ehData ? minData : min}
+        max={ehData ? maxData : max}
         className={cn(
           "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
           className,
         )}
         ref={ref}
+        onChange={handleChange}
         onPaste={handlePaste}
         onCopy={handleCopy}
         {...props}
