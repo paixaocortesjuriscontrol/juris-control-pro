@@ -776,6 +776,20 @@ const Processos = () => {
               <span className="hidden sm:inline">Segredo de Justiça</span>
             </Button>
 
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={cn(
+                "h-9 gap-2 touch-manipulation select-none",
+                statusFilter === "encerrado" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-destructive"
+              )}
+              onClick={() => setStatusFilter(prev => (prev === "encerrado" ? "all" : "encerrado"))}
+            >
+              <span className="hidden sm:inline">Encerrados</span>
+              <span className="sm:hidden">Encerr.</span>
+            </Button>
+
             <EtiquetaFilter
               modulo="processos"
               coordenacaoId={coordenacaoFilter !== "all" ? coordenacaoFilter : undefined}
