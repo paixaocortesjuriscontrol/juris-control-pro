@@ -142,17 +142,41 @@ export function DistribuirAutomaticoDialog({ open, onOpenChange, filters, totalC
             <Shuffle className="w-5 h-5" /> Distribuição automática
           </DialogTitle>
           <DialogDescription>
-            Os processos que batem com os filtros atuais serão divididos igualmente
+            {usarSelecao
+              ? "Apenas os processos marcados na tela serão divididos igualmente (round-robin) entre os advogados selecionados."
+              : "Os processos que batem com os filtros atuais serão divididos igualmente"}
             (round-robin) entre os advogados selecionados.
-            {totalCount > 0 && (
+            {!usarSelecao && totalCount > 0 && (
               <span className="block mt-1 font-medium text-foreground">
                 {totalCount} processo(s) no filtro atual.
+              </span>
+            )}
+            {usarSelecao && (
+              <span className="block mt-1 font-medium text-foreground">
+                {selectedIds.length} processo(s) selecionado(s).
               </span>
             )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {podeRestringir && (
+            <div className="flex items-start gap-2 rounded-md border p-2">
+              <Checkbox
+                id="somente-selecionados"
+                checked={somenteSelecionados}
+                onCheckedChange={(v) => setSomenteSelecionados(!!v)}
+              />
+              <div className="space-y-1">
+                <Label htmlFor="somente-selecionados" className="cursor-pointer">
+                  Distribuir somente os {selectedIds.length} selecionados
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Desmarque para distribuir todos os processos do filtro atual ({totalCount}).
+                </p>
+              </div>
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Advogados *</Label>
             <ResponsaveisSelector
