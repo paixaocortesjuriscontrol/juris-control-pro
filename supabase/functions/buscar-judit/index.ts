@@ -835,6 +835,51 @@ serve(async (req) => {
     }
 
     // 3) Se crawler não trouxe nada, usa cache como rd
+    // 2c) Retentativa dirigida ao TST: quando o cliente pediu TST e nenhuma
+    // página devolvida é do TST, a Judit costuma ter respondido do cache dela
+    // (cached: true) apenas com as instâncias do TRT — e o trânsito em julgado
+    // fica registrado só no TST. Refaz o crawler com cache_ttl_in_days=0 para
+    // forçar recrawl e agrega as páginas novas ao conjunto analisado.
+    let retentativaTst = false;
+    let retentativaTstTrouxeTst = false;
+    if (tribunalHint === "TST") {
+      const paginasAtuais: any[] = Array.isArray(rawCollector.crawler?.page_data)
+        ? rawCollector.crawler.page_data
+        : [];
+      const jaTemTst =
+        paginasAtuais.some((it: any) => isTstRd(it?.response_data)) ||
+        (rawCollector.cache_lookup && isTstRd(rawCollector.cache_lookup));
+      if (!jaTemTst && cacheTtlDays !== 0) {
+        retentativaTst = true;
+        console.log(`[buscar-judit] retentativa TST (recrawl ttl=0) cnj=${cnj}`);
+        const reqIdTst = await juditCriarRequestComOpcoes(apiKey, cnj, false, 0);
+        if (reqIdTst) {
+          const envTst = await juditPollar(apiKey, reqIdTst);
+          const pagesTst: any[] = Array.isArray(envTst?.page_data) ? envTst.page_data : [];
+          if (pagesTst.length) {
+            const vistos = new Set(
+              paginasAtuais.map((it: any) => String(it?.response_id || "")),
+            );
+            const novas = pagesTst.filter(
+              (it: any) => !vistos.has(String(it?.response_id || "")),
+            );
+            rawCollector.crawler = {
+              ...(rawCollector.crawler || {}),
+              request_id_retentativa_tst: reqIdTst,
+              page_data: [...paginasAtuais, ...novas],
+            };
+            retentativaTstTrouxeTst = pagesTst.some((it: any) => isTstRd(it?.response_data));
+            const selTst = selecionarTst(rawCollector.crawler.page_data);
+            if (selTst?.foiTst) {
+              rdSelecionada = selTst.rd;
+              foiTst = true;
+              respondidoDoCache = false;
+            }
+          }
+        }
+      }
+    }
+
     if (!rdSelecionada && cached) {
       rdSelecionada = cached;
       foiTst = String(cached?.tribunal_acronym || "").toUpperCase() === "TST";
