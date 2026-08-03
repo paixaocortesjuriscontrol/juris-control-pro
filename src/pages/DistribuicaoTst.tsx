@@ -1294,6 +1294,7 @@ export default function DistribuicaoTst() {
               updateFields.data_transito_julgado = null;
             } else if (ehTransito) {
               updateFields.transito_julgado = true;
+              if (dataTransitoDet) updateFields.data_transito_julgado = dataTransitoDet;
             }
             if (juditData.data_distribuicao) {
               updateFields.data_distribuicao_real = juditData.data_distribuicao;
