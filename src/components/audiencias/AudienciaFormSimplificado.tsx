@@ -494,13 +494,13 @@ export function AudienciaFormSimplificado({
       {showProcessoField && (
         <div className="space-y-1.5">
           <Label className="text-sm">Processo</Label>
-          <div className="flex gap-2">
+          <div className="flex gap-2 min-w-0">
             <Input
               value={processoNumero}
               onChange={(e) => setProcessoNumero(e.target.value)}
               onBlur={(e) => setProcessoNumero(formatProcessoNumero(e.target.value))}
               placeholder="0000000-00.0000.0.00.0000"
-              className="h-10"
+              className="h-10 flex-1 min-w-0 font-mono"
             />
             <Button
               type="button"
