@@ -552,12 +552,33 @@ function stepText(s: any): string {
     .join(" \n ");
 }
 function stepMatchTransito(s: any): MotivoTransito | null {
-  if (String(s?.code || "").trim() === "848") return "movimento_848";
+  // A Judit devolve o código CNJ da movimentação em `step_type` (não em `code`).
+  const codigo = String(
+    s?.code ?? s?.movement_code ?? s?.step_type ?? s?.type ?? ""
+  ).trim();
+  if (codigo === "848") return "movimento_848";
   const t = stepText(s);
   if (!t) return null;
+  // Cobre "TRÂNSITO EM JULGADO", "TRANSITADO EM JULGADO", "TRANSITOU EM JULGADO"
+  // e "CERTIDÃO DE TRÂNSITO EM JULGADO".
+  if (/trans(?:it(?:o|ou|ad[oa]s?)|[íi]t[oa])\s+em\s+julgado/i.test(t)) return "texto_transito";
   if (/tr[âa]nsito\s+em\s+julgado/i.test(t)) return "texto_transito";
   if (/remetid[oa]s?\s+os\s+autos.*tribunal\s+regional\s+do\s+trabalho/i.test(t)) return "remessa_trt";
   return null;
+}
+
+/**
+ * Extrai a data escrita no próprio texto do movimento
+ * (ex.: "TRANSITADO EM JULGADO EM 15.05.2026" → "2026-05-15").
+ * O `step_date` costuma ser a data de captura/registro, não a data real do trânsito.
+ */
+function dataTransitoNoTexto(texto: string): string | null {
+  const m = texto.match(/(\d{2})[./-](\d{2})[./-](\d{4})/);
+  if (!m) return null;
+  const [, d, mo, y] = m;
+  const dia = Number(d), mes = Number(mo), ano = Number(y);
+  if (mes < 1 || mes > 12 || dia < 1 || dia > 31 || ano < 1980 || ano > 2100) return null;
+  return `${y}-${mo}-${d}`;
 }
 function stepIsReativacao(s: any): boolean {
   const t = stepText(s);
