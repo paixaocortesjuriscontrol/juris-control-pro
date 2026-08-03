@@ -38,7 +38,7 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true, adminOrCoordOnly: true },
   { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true, adminOrCoordOnly: true },
-  { icon: Tag, label: "Etiquetas", path: "/etiquetas", highlight: true, adminOrCoordOnly: true },
+  { icon: Tag, label: "Etiquetas", path: "/etiquetas", highlight: true },
   // Demais itens
   { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400", restrictedCoordenacoes: ["Dr. Renata com termos do João", "Coordenação Dra. Renata Santander"] },
   { icon: Mail, label: "Remessas Benner", path: "/remessas-benner", color: "text-sky-400", adminOnly: true },
