@@ -207,6 +207,51 @@ const parseDate = (dateValue: any): string | null => {
 };
 
 const parseNumber = (value: any): number | null => {
+  return parseNumberInternal(value);
+};
+
+/** Converte data/hora da planilha (serial Excel ou texto DD/MM/YYYY HH:mm[:ss]) em ISO com fuso local. */
+const parseDateTimeLocal = (value: any): string | null => {
+  if (value === null || value === undefined || value === "") return null;
+
+  const build = (y: number, mo: number, d: number, h = 0, mi = 0, s = 0) => {
+    const dt = new Date(y, mo - 1, d, h, mi, s);
+    return isNaN(dt.getTime()) ? null : dt.toISOString();
+  };
+
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? null : value.toISOString();
+  }
+
+  if (typeof value === "number") {
+    const p = XLSX.SSF.parse_date_code(value);
+    if (!p) return null;
+    return build(p.y, p.m, p.d, p.H || 0, p.M || 0, Math.floor(p.S || 0));
+  }
+
+  if (typeof value === "string") {
+    const t = value.trim();
+    if (!t) return null;
+    const br = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (br) {
+      return build(
+        Number(br[3]), Number(br[2]), Number(br[1]),
+        Number(br[4] || 0), Number(br[5] || 0), Number(br[6] || 0)
+      );
+    }
+    const iso = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (iso) {
+      return build(
+        Number(iso[1]), Number(iso[2]), Number(iso[3]),
+        Number(iso[4] || 0), Number(iso[5] || 0), Number(iso[6] || 0)
+      );
+    }
+  }
+
+  return null;
+};
+
+const parseNumberInternal = (value: any): number | null => {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number") return value;
   if (typeof value === "string") {
@@ -5228,7 +5273,10 @@ export default function ImportarProcessos() {
           resultadoProcesso: getFromRow(row, ["Resultado do processo", "Resultado do Processo"]) || null,
           etiquetas: getFromRow(row, ["Etiquetas", "etiquetas"]) || null,
           dataCriacao: getFromRow(row, ["Data de Criação", "Data de Criacao"]) || null,
-          dataEncerramento: getFromRow(row, ["Data de Encerramento", "Data Encerramento"]) || null,
+          dataEncerramento: getFromRow(row, [
+            "Data de Encerramento", "Data de encerramento", "data de encerramento",
+            "Data Encerramento", "Data encerramento", "dataEncerramento",
+          ]) || null,
           dataUltimoHistorico: getFromRow(row, ["Data do último histórico", "Data do Ultimo Historico"]) || null,
           descricaoUltimoHistorico: getFromRow(row, ["Descrição do último histórico", "Descricao do ultimo historico"]) || null,
           instanciaOriginal: getFromRow(row, ["Instância Original", "Instancia Original"]) || null,
@@ -5412,6 +5460,32 @@ export default function ImportarProcessos() {
     // 5. Garantir áreas existem (uma única vez)
     const areaTrabalhista = await ensureAreaExists("trabalhista");
     const areaCaso = await ensureAreaExists("caso");
+
+    // 5.1 Pré-carregar perfis para resolver a coluna "Responsável" da planilha
+    const normNome = (v: string) =>
+      String(v || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toUpperCase();
+    const perfisMap = new Map<string, string>();
+    {
+      const { data: perfis } = await supabase.from("profiles").select("id, nome");
+      for (const p of (perfis as any[]) || []) {
+        if (p?.nome) perfisMap.set(normNome(p.nome), p.id);
+      }
+    }
+    const resolverResponsavelId = (nome: string | null | undefined): string | null => {
+      const key = normNome(nome || "");
+      if (!key) return null;
+      if (perfisMap.has(key)) return perfisMap.get(key)!;
+      // fallback: primeiro perfil cujo nome comece pelo nome da planilha (ou vice-versa)
+      for (const [k, id] of perfisMap) {
+        if (k.startsWith(key) || key.startsWith(k)) return id;
+      }
+      return null;
+    };
     
     // 6. Obter usuário uma única vez
     const { data: { user } } = await supabase.auth.getUser();
@@ -5469,6 +5543,20 @@ export default function ImportarProcessos() {
           if (existingProcesso) {
             // SMART MERGE: Processo já existe - atualizar apenas campos vazios
             const updateData: Record<string, any> = {};
+
+            // Responsável (coluna "Responsável" da planilha) — sempre atualiza quando encontrado
+            const respIdPlanilha = resolverResponsavelId(astreaData.responsavel);
+            if (respIdPlanilha) updateData.advogado_responsavel_id = respIdPlanilha;
+            if (astreaData.responsavel) updateData.advogado_externo = astreaData.responsavel;
+
+            // Data de encerramento — grava data + hora e marca como encerrado
+            const encerramentoIso = parseDateTimeLocal(astreaData.dataEncerramento);
+            if (encerramentoIso) {
+              updateData.data_hora_encerramento = encerramentoIso;
+              updateData.data_encerramento = encerramentoIso.slice(0, 10);
+              updateData.status = "encerrado";
+              updateData.motivo_encerramento = "Encerrado conforme planilha Astrea";
+            }
             
             if (!existingProcesso.assunto && processo.assunto) updateData.assunto = processo.assunto;
             if (!existingProcesso.descricao && processo.descricao) updateData.descricao = processo.descricao;
@@ -5506,11 +5594,22 @@ export default function ImportarProcessos() {
                 return { index: globalIndex, result: "error" };
               }
             }
+
+            if (respIdPlanilha) {
+              await supabase
+                .from("processos_responsaveis")
+                .upsert(
+                  { processo_id: existingProcesso.id, usuario_id: respIdPlanilha, papel: "responsavel" },
+                  { onConflict: "processo_id,usuario_id" }
+                );
+            }
             
             updatedProcessos[globalIndex] = { 
               ...processo, 
               status: "sucesso", 
-              erroImport: "Atualizado (campos vazios preenchidos)" 
+              erroImport: encerramentoIso
+                ? "Atualizado (encerrado conforme planilha)"
+                : "Atualizado (campos vazios preenchidos)"
             };
             return { index: globalIndex, result: "updated" };
           } else {
@@ -5539,10 +5638,16 @@ export default function ImportarProcessos() {
               }
             }
 
+            const respIdNovo = resolverResponsavelId(astreaData.responsavel) || selectedMembro || null;
+            const encerramentoIsoNovo = parseDateTimeLocal(astreaData.dataEncerramento);
+
             const processoData: any = {
               numero: numeroTrimmed,
               area: processo.area === "caso" ? areaCaso : areaTrabalhista,
-              status: mapStatusToEnum(processo.situacao),
+              status: encerramentoIsoNovo ? "encerrado" : mapStatusToEnum(processo.situacao),
+              data_encerramento: encerramentoIsoNovo ? encerramentoIsoNovo.slice(0, 10) : null,
+              data_hora_encerramento: encerramentoIsoNovo,
+              motivo_encerramento: encerramentoIsoNovo ? "Encerrado conforme planilha Astrea" : null,
               assunto: processo.assunto,
               descricao: processo.descricao,
               vara: processo.orgaoJulgador,
@@ -5557,7 +5662,7 @@ export default function ImportarProcessos() {
               polo_passivo: processo.partePassiva,
               cliente_id: clienteIdToUse,
               coordenacao_id: selectedCoordenacao || null,
-              advogado_responsavel_id: selectedMembro || null,
+              advogado_responsavel_id: respIdNovo,
               pasta_id: pastaId,
               monitorar_andamentos: astreaBuscarAndamentos,
               resultado: astreaData.resultadoProcesso,
@@ -5583,12 +5688,12 @@ export default function ImportarProcessos() {
             }
 
             // Vincular responsável se selecionado
-            if (selectedMembro && insertedProcesso) {
+            if (respIdNovo && insertedProcesso) {
               await supabase
                 .from("processos_responsaveis")
                 .insert({
                   processo_id: insertedProcesso.id,
-                  usuario_id: selectedMembro,
+                  usuario_id: respIdNovo,
                   papel: "responsavel",
                 })
                 .select()
