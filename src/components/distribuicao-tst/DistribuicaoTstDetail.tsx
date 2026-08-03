@@ -54,6 +54,7 @@ const normalizeDado = (value?: DistribuicaoTst | null): DistribuicaoTst | null =
  */
 export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose, onAfterJuditSync }: Props) {
   const [currentDado, setCurrentDado] = useState<DistribuicaoTst | null>(() => normalizeDado(dado));
+  const [historicoAberto, setHistoricoAberto] = useState(false);
   const processoNumero = currentDado?.processo_numero || "";
   const [processoIdUnico, setProcessoIdUnico] = useState<string | null>((currentDado as any)?.processo_id || null);
   const { user } = useAuth();
