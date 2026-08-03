@@ -277,6 +277,21 @@ export function PrazoDialog({
 
   const processoIdEfetivo = defaultProcessoId || resolvedProcessoId || prazo?.processo_id || null;
 
+  // Processo vinculado (para exibir no formulário quando não há publicação)
+  const { data: processoVinculado } = useQuery({
+    queryKey: ["prazo-dialog-processo", processoIdEfetivo],
+    enabled: !!open && !!processoIdEfetivo,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("processos")
+        .select("id, numero, reclamante, reclamados, autor, requerido")
+        .eq("id", processoIdEfetivo as string)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+  });
+
   // data base = data da publicação (se houver) ou hoje
   const dataBase = useMemo<Date>(() => {
     const disp = parseDataPublicacaoLocal(publicacaoEfetiva?.data_disponibilizacao);
@@ -617,6 +632,27 @@ export function PrazoDialog({
 
         {hasPublicacao && !hidePublicacaoCollapsible && (
           <PublicacaoVinculadaCollapsible publicacao={publicacaoEfetiva as any} />
+        )}
+
+        {!hasPublicacao && processoVinculado && (
+          <div className="rounded-md border border-border bg-muted/40 p-3">
+            <div className="flex items-start gap-2">
+              <FileText className="mt-0.5 h-4 w-4 text-muted-foreground" />
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-xs font-medium text-muted-foreground">Processo vinculado</p>
+                <p className="text-sm font-semibold text-foreground break-all">
+                  {processoVinculado.numero ? aplicarMascaraCnj(String(processoVinculado.numero)) : "—"}
+                </p>
+                {(processoVinculado.reclamante || processoVinculado.autor || processoVinculado.reclamados || processoVinculado.requerido) && (
+                  <p className="text-xs text-muted-foreground break-words">
+                    {[processoVinculado.reclamante || processoVinculado.autor, processoVinculado.reclamados || processoVinculado.requerido]
+                      .filter(Boolean)
+                      .join(" X ")}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         <div className="space-y-1.5">
