@@ -2707,7 +2707,17 @@ export default function ImportarProcessos() {
         blankrows: true,
       }) as any[][];
 
-      const headerRow = (aoa[0] || []).map((h) => String(h ?? "").trim());
+      // Detecta a linha de cabeçalho (planilhas Astrea podem ter linhas de título acima)
+      let headerIndex = 0;
+      for (let r = 0; r < Math.min(aoa.length, 15); r++) {
+        const cells = (aoa[r] || []).map((c) => String(c ?? "").toLowerCase());
+        const naoVazias = cells.filter((c) => c.trim() !== "").length;
+        if (naoVazias >= 3 && cells.some((c) => c.includes("processo") || c.includes("pasta") || c.includes("encerramento"))) {
+          headerIndex = r;
+          break;
+        }
+      }
+      const headerRow = (aoa[headerIndex] || []).map((h) => String(h ?? "").trim());
 
       const normalizeHeaderKey = (value: string) =>
         value
@@ -3292,16 +3302,19 @@ export default function ImportarProcessos() {
         return null;
       };
 
-      const totalDataRows = expectedRows || Math.max(0, aoa.length - 1);
+      const totalDataRows = Math.max(0, aoa.length - (headerIndex + 1));
 
       const parsed: ProcessoImport[] = Array.from({ length: totalDataRows }).map((_, index) => {
-        const rowArr = aoa[index + 1] || [];
+        const rowArr = aoa[index + headerIndex + 1] || [];
 
         const row: Record<string, any> = {};
         headerRow.forEach((header, colIndex) => {
           if (!header) return;
           row[header] = rowArr[colIndex] ?? null;
         });
+
+        // Coluna X (índice 23) = Data de Encerramento na planilha Astrea
+        const encerramentoColX = rowArr[23] ?? null;
 
         const rowHasAnyValue = rowArr.some((v) => {
           if (v === null || v === undefined) return false;
@@ -5279,7 +5292,7 @@ export default function ImportarProcessos() {
             "Data de Encerramento", "Data de encerramento", "data de encerramento",
             "Data Encerramento", "Data encerramento", "dataEncerramento",
             "Encerrado em", "Data de baixa", "Data de finalização", "Data de finalizacao",
-          ]) ?? (() => {
+          ]) ?? encerramentoColX ?? (() => {
             for (const [k, v] of Object.entries(row)) {
               if (v === null || v === undefined || v === "") continue;
               const nk = normalizeHeaderKey(k);
