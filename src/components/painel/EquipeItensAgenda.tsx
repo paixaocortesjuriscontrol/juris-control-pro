@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
-import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo } from "lucide-react";
+import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -109,41 +110,12 @@ function getPessoas(item: ItemAgendaUnificado, extra?: PessoasPorPapel): PessoaI
 const getInitials = (name: string) =>
   name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
+const ITENS_POR_PAGINA = 50;
+
 export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps) {
   const [selectedMembro, setSelectedMembro] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-
-  const processoIds = useMemo(
-    () => Array.from(new Set(itens.map((i) => i.processo_id).filter(Boolean))) as string[],
-    [itens]
-  );
-
-  const { data: processoInfo = {} } = useQuery({
-    queryKey: ["equipe-processos-info", processoIds.length, processoIds.slice(0, 50).join(",")],
-    enabled: processoIds.length > 0,
-    staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const map: Record<string, { polo_ativo?: string | null; cliente?: string | null }> = {};
-      for (let i = 0; i < processoIds.length; i += 200) {
-        const chunk = processoIds.slice(i, i + 200);
-        const { data, error } = await supabase
-          .from("processos")
-          .select("id, polo_ativo, cliente:clientes!processos_cliente_id_fkey(nome)")
-          .in("id", chunk);
-        if (error) throw error;
-        (data || []).forEach((p: any) => {
-          map[p.id] = { polo_ativo: p.polo_ativo, cliente: p.cliente?.nome ?? null };
-        });
-      }
-      return map;
-    },
-  });
-
-  const getReclamante = (item: ItemAgendaUnificado) =>
-    (item.processo_id ? processoInfo[item.processo_id]?.polo_ativo : null) || item.partes_ativas || "-";
-
-  const getCliente = (item: ItemAgendaUnificado) =>
-    (item.processo_id ? processoInfo[item.processo_id]?.cliente : null) || "-";
+  const [pagina, setPagina] = useState(1);
 
   const pessoaLookupIds = useMemo(() => {
     const tarefas = new Set<string>();
@@ -295,6 +267,46 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
     );
   }, [membroAtual, itens, search]);
 
+  const totalPaginas = Math.max(1, Math.ceil(listaItens.length / ITENS_POR_PAGINA));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const itensPagina = useMemo(
+    () => listaItens.slice((paginaAtual - 1) * ITENS_POR_PAGINA, paginaAtual * ITENS_POR_PAGINA),
+    [listaItens, paginaAtual]
+  );
+
+  useEffect(() => {
+    setPagina(1);
+  }, [selectedMembro, search, itens.length]);
+
+  const processoIds = useMemo(
+    () => Array.from(new Set(itensPagina.map((i) => i.processo_id).filter(Boolean))) as string[],
+    [itensPagina]
+  );
+
+  const { data: processoInfo = {} } = useQuery({
+    queryKey: ["equipe-processos-info", processoIds.join(",")],
+    enabled: processoIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const map: Record<string, { polo_ativo?: string | null; cliente?: string | null }> = {};
+      const { data, error } = await supabase
+        .from("processos")
+        .select("id, polo_ativo, cliente:clientes!processos_cliente_id_fkey(nome)")
+        .in("id", processoIds);
+      if (error) throw error;
+      (data || []).forEach((p: any) => {
+        map[p.id] = { polo_ativo: p.polo_ativo, cliente: p.cliente?.nome ?? null };
+      });
+      return map;
+    },
+  });
+
+  const getReclamante = (item: ItemAgendaUnificado) =>
+    (item.processo_id ? processoInfo[item.processo_id]?.polo_ativo : null) || item.partes_ativas || "-";
+
+  const getCliente = (item: ItemAgendaUnificado) =>
+    (item.processo_id ? processoInfo[item.processo_id]?.cliente : null) || "-";
+
   const statusBadge = (item: ItemAgendaUnificado) => {
     if (isItemCancelado(item)) {
       return (
@@ -409,7 +421,7 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
             </TableRow>
           </TableHeader>
           <TableBody>
-            {listaItens.map((item) => {
+            {itensPagina.map((item) => {
               const d = getRefDate(item);
               const key = getPessoaLookupKey(item);
               const pessoasPorPapel = getPessoasPorPapel(item, key ? pessoasExtras[key] : undefined);
@@ -486,6 +498,36 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
           </TableBody>
         </Table>
       </Card>
+
+      {listaItens.length > 0 && (
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-xs text-muted-foreground">
+            Mostrando {(paginaAtual - 1) * ITENS_POR_PAGINA + 1}–
+            {Math.min(paginaAtual * ITENS_POR_PAGINA, listaItens.length)} de {listaItens.length} item(ns)
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={paginaAtual <= 1}
+              onClick={() => setPagina((p) => Math.max(1, p - 1))}
+            >
+              <ChevronLeft className="w-4 h-4" /> Anterior
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Página {paginaAtual} de {totalPaginas}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={paginaAtual >= totalPaginas}
+              onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+            >
+              Próxima <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
