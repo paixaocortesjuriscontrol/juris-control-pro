@@ -1159,6 +1159,24 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     </Select>
                   </FormField>
                   {form.status === "encerrado" && (
+                    <FormField label="Encerrado em (data e hora)">
+                      <Input
+                        readOnly
+                        className={cn(inputCls, "bg-muted/40")}
+                        value={
+                          form.data_hora_encerramento
+                            ? new Date(form.data_hora_encerramento).toLocaleString("pt-BR", {
+                                day: "2-digit", month: "2-digit", year: "numeric",
+                                hour: "2-digit", minute: "2-digit",
+                              })
+                            : form.data_encerramento
+                              ? new Date(String(form.data_encerramento) + "T00:00:00").toLocaleDateString("pt-BR")
+                              : "—"
+                        }
+                      />
+                    </FormField>
+                  )}
+                  {form.status === "encerrado" && (
                     <FormField label="Motivo do Encerramento *" className="md:col-span-2">
                       <Textarea
                         rows={2}
