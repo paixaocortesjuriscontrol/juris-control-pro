@@ -392,6 +392,22 @@ export default function DistribuicaoTst() {
   const countsFilters = { ...debouncedFilters, responsavelIds: undefined };
   const { counts: responsavelCounts, refetch: refetchResponsavelCounts } = useResponsaveisCounts(countsFilters);
 
+  // Todos os membros da coordenação TST — devem aparecer sempre nos cards,
+  // mesmo com zero processos atribuídos.
+  const { profiles: membrosCoordenacaoTst } = useProfilesBasic(COORDENACAO_TST_ID);
+  const responsavelCountsCompleto = useMemo(() => {
+    const byId = new Map(responsavelCounts.map((c) => [c.id, c]));
+    const extras = membrosCoordenacaoTst
+      .filter((p) => !byId.has(p.id))
+      .map((p) => ({ id: p.id, nome: p.nome, count: 0, pronto: 0 }));
+    const semResp = responsavelCounts.filter((c) => c.id === SEM_RESPONSAVEL_UUID);
+    const reais = responsavelCounts.filter((c) => c.id !== SEM_RESPONSAVEL_UUID);
+    return [
+      ...semResp,
+      ...[...reais, ...extras].sort((a, b) => b.count - a.count || a.nome.localeCompare(b.nome)),
+    ];
+  }, [responsavelCounts, membrosCoordenacaoTst]);
+
   // Auto-seleciona o usuário logado como responsável ao abrir a tela
   // (apenas se ele estiver na lista de responsáveis). Roda uma única vez.
   useEffect(() => {
