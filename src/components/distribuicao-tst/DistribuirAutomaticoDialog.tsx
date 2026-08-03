@@ -24,21 +24,30 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   filters: DistribuicaoTstFilters;
   totalCount: number;
+  /** IDs marcados na tela (checkboxes). Permite distribuir só a seleção. */
+  selectedIds?: string[];
+  /** Somente administradores podem restringir à seleção. */
+  isAdmin?: boolean;
   onSuccess: () => void | Promise<void>;
 }
 
-export function DistribuirAutomaticoDialog({ open, onOpenChange, filters, totalCount, onSuccess }: Props) {
+export function DistribuirAutomaticoDialog({ open, onOpenChange, filters, totalCount, selectedIds = [], isAdmin = false, onSuccess }: Props) {
   const [advogadoIds, setAdvogadoIds] = useState<string[]>([]);
   const [substituir, setSubstituir] = useState(true);
   const [embaralhar, setEmbaralhar] = useState(true);
+  const [somenteSelecionados, setSomenteSelecionados] = useState(true);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+
+  const podeRestringir = isAdmin && selectedIds.length > 0;
+  const usarSelecao = podeRestringir && somenteSelecionados;
 
   useEffect(() => {
     if (!open) {
       setAdvogadoIds([]);
       setSubstituir(true);
       setEmbaralhar(true);
+      setSomenteSelecionados(true);
       setProgress({ done: 0, total: 0 });
     }
   }, [open]);
@@ -50,10 +59,15 @@ export function DistribuirAutomaticoDialog({ open, onOpenChange, filters, totalC
     }
     setRunning(true);
     try {
-      toast.info("Carregando processos do filtro...");
-      let ids = await fetchAllDistribuicaoTstIds(filters);
+      let ids: string[];
+      if (usarSelecao) {
+        ids = [...selectedIds];
+      } else {
+        toast.info("Carregando processos do filtro...");
+        ids = await fetchAllDistribuicaoTstIds(filters);
+      }
       if (ids.length === 0) {
-        toast.warning("Nenhum processo encontrado com os filtros atuais");
+        toast.warning(usarSelecao ? "Nenhum processo selecionado" : "Nenhum processo encontrado com os filtros atuais");
         setRunning(false);
         return;
       }
