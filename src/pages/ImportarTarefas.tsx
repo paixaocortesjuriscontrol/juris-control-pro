@@ -436,6 +436,25 @@ export default function ImportarTarefas() {
     const existingId = findProcessoId(numeroProcesso);
     if (existingId) return existingId;
     
+    // Fallback: consulta direta no banco (cache pode estar desatualizado)
+    const digits = numeroProcesso.replace(/[^0-9]/g, "");
+    if (digits.length >= 15) {
+      const formatado = digits.length === 20
+        ? `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`
+        : null;
+      const variantes = Array.from(new Set([numeroProcesso, formatado, digits].filter(Boolean) as string[]));
+      const { data: found } = await supabase
+        .from("processos")
+        .select("id, numero")
+        .in("numero", variantes)
+        .limit(1);
+      const foundId = found?.[0]?.id;
+      if (foundId) {
+        createdProcessosCache.current.set(digits, foundId);
+        return foundId;
+      }
+    }
+
     if (cadastrar && coordenacaoId) {
       const newId = await createNewProcesso(numeroProcesso, coordenacaoId, extras);
       if (newId) {
