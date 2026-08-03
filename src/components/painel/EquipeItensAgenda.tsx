@@ -117,38 +117,6 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
   const [search, setSearch] = useState("");
   const [pagina, setPagina] = useState(1);
 
-  const processoIds = useMemo(
-    () => Array.from(new Set(itens.map((i) => i.processo_id).filter(Boolean))) as string[],
-    [itens]
-  );
-
-  const { data: processoInfo = {} } = useQuery({
-    queryKey: ["equipe-processos-info", processoIds.length, processoIds.slice(0, 50).join(",")],
-    enabled: processoIds.length > 0,
-    staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const map: Record<string, { polo_ativo?: string | null; cliente?: string | null }> = {};
-      for (let i = 0; i < processoIds.length; i += 200) {
-        const chunk = processoIds.slice(i, i + 200);
-        const { data, error } = await supabase
-          .from("processos")
-          .select("id, polo_ativo, cliente:clientes!processos_cliente_id_fkey(nome)")
-          .in("id", chunk);
-        if (error) throw error;
-        (data || []).forEach((p: any) => {
-          map[p.id] = { polo_ativo: p.polo_ativo, cliente: p.cliente?.nome ?? null };
-        });
-      }
-      return map;
-    },
-  });
-
-  const getReclamante = (item: ItemAgendaUnificado) =>
-    (item.processo_id ? processoInfo[item.processo_id]?.polo_ativo : null) || item.partes_ativas || "-";
-
-  const getCliente = (item: ItemAgendaUnificado) =>
-    (item.processo_id ? processoInfo[item.processo_id]?.cliente : null) || "-";
-
   const pessoaLookupIds = useMemo(() => {
     const tarefas = new Set<string>();
     const eventos = new Set<string>();
