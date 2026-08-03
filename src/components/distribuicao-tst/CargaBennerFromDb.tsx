@@ -608,7 +608,9 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         const labelParte: Record<string, string> = {
           reclamante: "Reclamante",
           banco: "Reclamada",
-          terceiro: "Terceiro",
+          // Regra da planilha Carga Benner: a coluna "Recorrente" nunca exibe
+          // "Terceiro" — sempre "Outra".
+          terceiro: "Outra",
         };
         const tipoRecursoDaParte = (p: "reclamante" | "banco" | "terceiro"): string => {
           const raw = p === "reclamante"
@@ -628,7 +630,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
             // Sobrescreve o Recorrente (AA) e o Tipo de Recurso (C) para
             // refletir apenas a parte desta linha, garantindo que as
             // matérias das colunas AB..AH batam com o Recorrente exibido.
-            rowClone[LAYOUT_COLS[26]] = labelParte[parte];
+            rowClone[LAYOUT_COLS[26]] = normalizeRecorrenteBenner(labelParte[parte]);
             rowClone[LAYOUT_COLS[2]] = tipoRecursoDaParte(parte);
           }
           preencherMateriasCols(rowClone, materiasDaLinha);
@@ -756,7 +758,9 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         const rowNum = i + 3;
         let cellsXml = "";
         for (let c = 0; c < maxCol; c++) {
-          const val = String(row[LAYOUT_COLS[c]] ?? "");
+          const raw = String(row[LAYOUT_COLS[c]] ?? "");
+          // Rede de segurança: coluna AA (Recorrente) nunca leva "Terceiro".
+          const val = c === 26 ? normalizeRecorrenteBenner(raw) : raw;
           if (!val) continue;
           const ref = colToLetter(c) + rowNum;
           const idx = getStringIndex(val);
