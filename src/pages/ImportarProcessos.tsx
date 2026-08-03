@@ -5555,6 +5555,7 @@ export default function ImportarProcessos() {
               updateData.data_hora_encerramento = encerramentoIso;
               updateData.data_encerramento = encerramentoIso.slice(0, 10);
               updateData.status = "encerrado";
+              updateData.motivo_encerramento = "Encerrado conforme planilha Astrea";
             }
             
             if (!existingProcesso.assunto && processo.assunto) updateData.assunto = processo.assunto;
