@@ -144,6 +144,33 @@ const LARGE_ID_FILTER_CHUNK = 200;
  *   - "ambos"       (equivalente a Reclamante + Reclamado)
  */
 export function applyParteRecorrenteFilter(query: any, option: string | undefined | null) {
+  return applyParteRecorrenteFilterImpl(query, option);
+}
+
+/**
+ * Data efetiva da distribuição = data_distribuicao_real quando preenchida,
+ * senão data_distribuicao_planilha. Mantém os cards e a lista coerentes.
+ */
+export function applyDataEfetivaGte(query: any, valor: string) {
+  return query.or(
+    `data_distribuicao_real.gte.${valor},and(data_distribuicao_real.is.null,data_distribuicao_planilha.gte.${valor})`
+  );
+}
+export function applyDataEfetivaLte(query: any, valor: string) {
+  return query.or(
+    `data_distribuicao_real.lte.${valor},and(data_distribuicao_real.is.null,data_distribuicao_planilha.lte.${valor})`
+  );
+}
+export function applyDataEfetivaLt(query: any, valor: string) {
+  return query.or(
+    `data_distribuicao_real.lt.${valor},and(data_distribuicao_real.is.null,data_distribuicao_planilha.lt.${valor})`
+  );
+}
+export function applyDataEfetivaNull(query: any) {
+  return query.is("data_distribuicao_real", null).is("data_distribuicao_planilha", null);
+}
+
+function applyParteRecorrenteFilterImpl(query: any, option: string | undefined | null) {
   if (!option) return query;
   const RECLAMANTE = "%reclamante%";
   const RECLAMADO = "%reclamad%";
@@ -499,15 +526,15 @@ export async function fetchAllDistribuicaoTstIds(
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
     }
     if (filters.mesAno === "sem-data") {
-      query = query.is("data_distribuicao_real", null);
+      query = applyDataEfetivaNull(query);
     } else if (filters.mesAno && filters.mesAno !== "todos") {
       const start = `${filters.mesAno}-01`;
       const [y, m] = filters.mesAno.split("-").map(Number);
       const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
-      query = query.gte("data_distribuicao_real", start).lt("data_distribuicao_real", nextMonth);
+      query = applyDataEfetivaLt(applyDataEfetivaGte(query, start), nextMonth);
     }
-    if (filters.dataInicio) query = query.gte("data_distribuicao_real", filters.dataInicio);
-    if (filters.dataFim) query = query.lte("data_distribuicao_real", filters.dataFim);
+    if (filters.dataInicio) query = applyDataEfetivaGte(query, filters.dataInicio);
+    if (filters.dataFim) query = applyDataEfetivaLte(query, filters.dataFim);
     if (filters.semTurma) query = query.or("turma.is.null,turma.eq.");
     if (filters.status && filters.status !== "todos") query = query.eq("status", filters.status);
     if (filters.emAnalise === "sim") query = query.eq("em_analise", true);
@@ -724,15 +751,15 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
     }
     if (filters.mesAno === "sem-data") {
-      query = query.is("data_distribuicao_real", null);
+      query = applyDataEfetivaNull(query);
     } else if (filters.mesAno && filters.mesAno !== "todos") {
       const start = `${filters.mesAno}-01`;
       const [y, m] = filters.mesAno.split("-").map(Number);
       const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
-      query = query.gte("data_distribuicao_real", start).lt("data_distribuicao_real", nextMonth);
+      query = applyDataEfetivaLt(applyDataEfetivaGte(query, start), nextMonth);
     }
-    if (filters.dataInicio) query = query.gte("data_distribuicao_real", filters.dataInicio);
-    if (filters.dataFim) query = query.lte("data_distribuicao_real", filters.dataFim);
+    if (filters.dataInicio) query = applyDataEfetivaGte(query, filters.dataInicio);
+    if (filters.dataFim) query = applyDataEfetivaLte(query, filters.dataFim);
     if (filters.semTurma) query = query.or("turma.is.null,turma.eq.");
     if (filters.status && filters.status !== "todos") query = query.eq("status", filters.status);
     if (filters.emAnalise === "sim") query = query.eq("em_analise", true);
@@ -1165,8 +1192,8 @@ export async function fetchMesesDataRealFiltered(
       const escaped = f.nomeParte.replace(/[,()]/g, " ").trim();
       query = query.or(`reclamante.ilike.%${escaped}%,reclamada.ilike.%${escaped}%`);
     }
-    if (f.dataInicio) query = query.gte("data_distribuicao_real", f.dataInicio);
-    if (f.dataFim) query = query.lte("data_distribuicao_real", f.dataFim);
+    if (f.dataInicio) query = applyDataEfetivaGte(query, f.dataInicio);
+    if (f.dataFim) query = applyDataEfetivaLte(query, f.dataFim);
     if (f.semTurma) query = query.or("turma.is.null,turma.eq.");
     if (f.status && f.status !== "todos") query = query.eq("status", f.status);
     if (f.emAnalise === "sim") query = query.eq("em_analise", true);

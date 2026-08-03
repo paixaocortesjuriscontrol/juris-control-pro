@@ -77,6 +77,7 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
     "turma",
     "problema_judit",
     "data_distribuicao_real",
+    "data_distribuicao_planilha",
     "status",
     "equipe",
     "tem_responsavel",
@@ -101,7 +102,8 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
     const processo = String(row.processo || "").trim();
     const dossie = String(row.dossie || "").trim();
     const situacao = String(row.situacao_processo || "").trim().toLowerCase();
-    const dataReal = String(row.data_distribuicao_real || "");
+    // Data efetiva: real quando preenchida, senão a da planilha
+    const dataEfetiva = String(row.data_distribuicao_real || row.data_distribuicao_planilha || "");
     const equipe = String(row.equipe || "").trim();
 
     if (processo) processosUnicos.add(processo.toLowerCase());
@@ -119,8 +121,8 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
     if (row.transito_julgado !== true && situacao !== "ativo") stats.outrosSituacao += 1;
     if (!String(row.turma || "").trim()) stats.semTurma += 1;
     if (row.problema_judit === true) stats.problemaJudit += 1;
-    if (dataReal && dataReal <= "2025-12-31") stats.ate2025 += 1;
-    if (dataReal && dataReal >= "2026-01-01") stats.de2026 += 1;
+    if (dataEfetiva && dataEfetiva <= "2025-12-31") stats.ate2025 += 1;
+    if (dataEfetiva && dataEfetiva >= "2026-01-01") stats.de2026 += 1;
     if (String(row.status || "") === "pronto_envio") stats.prontoEnvio += 1;
     if (row.tem_responsavel !== true) stats.semResponsavel += 1;
     if (equipe) stats.comEquipe += 1;
