@@ -246,19 +246,27 @@ export default function ImportarTarefas() {
   const { data: processosMap, refetch: refetchProcessos } = useQuery({
     queryKey: ["processos-map-import"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("processos")
-        .select("id, numero")
-        .order("numero");
-      if (error) throw error;
       const map = new Map<string, string>();
-      (data || []).forEach(p => {
-        const normalized = p.numero.replace(/[^0-9]/g, "");
-        map.set(normalized, p.id);
-        map.set(p.numero, p.id);
-      });
+      // PostgREST limita a 1000 linhas por requisição: paginar para carregar TODOS
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from("processos")
+          .select("id, numero")
+          .order("numero")
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        (data || []).forEach(p => {
+          if (!p.numero) return;
+          const normalized = p.numero.replace(/[^0-9]/g, "");
+          if (normalized && !map.has(normalized)) map.set(normalized, p.id);
+          if (!map.has(p.numero)) map.set(p.numero, p.id);
+        });
+        if (!data || data.length < PAGE) break;
+      }
       return map;
     },
+    staleTime: 60000,
   });
 
   useEffect(() => {
