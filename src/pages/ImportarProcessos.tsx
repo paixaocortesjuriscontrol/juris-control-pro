@@ -5206,7 +5206,7 @@ export default function ImportarProcessos() {
         });
 
         // Lê X pelo endereço absoluto da célula, sem depender do início de !ref.
-        const sheetRowIndex = index + headerIndex + 1;
+        const sheetRowIndex = (range?.s.r || 0) + index + headerIndex + 1;
         const encerramentoCellX = sheet[XLSX.utils.encode_cell({ r: sheetRowIndex, c: 23 })];
         const encerramentoColX = encerramentoCellX?.v ?? encerramentoCellX?.w ?? rowArr[23] ?? null;
 
@@ -5462,17 +5462,38 @@ export default function ImportarProcessos() {
     
     // 2. Pré-carregar processos existentes (apenas os números que vamos importar)
     const numerosProcessos = validProcessos.map(p => p.numero.trim());
-    const { data: processosExistentes } = await supabase
-      .from("processos")
-      .select("id, numero, coordenacao_id, advogado_responsavel_id, cliente_id, pasta_id, assunto, descricao, vara, tribunal, instancia, classe, data_distribuicao, valor_causa, valor_condenacao, valor_provisionado, polo_ativo, polo_passivo, resultado, andamento_atual, observacoes_processo")
-      .in("numero", numerosProcessos);
+    // O PostgREST limita cada resposta a 1.000 linhas. A planilha Astrea costuma
+    // superar esse volume; uma consulta única deixava os registros após o limite
+    // fora do mapa e a importação tentava inseri-los novamente em vez de atualizá-los.
+    const processosExistentes: any[] = [];
+    const numerosUnicos = [...new Set(numerosProcessos)];
+    const PRELOAD_BATCH_SIZE = 200;
+    for (let i = 0; i < numerosUnicos.length; i += PRELOAD_BATCH_SIZE) {
+      const loteNumeros = numerosUnicos.slice(i, i + PRELOAD_BATCH_SIZE);
+      const { data: loteExistentes, error: preloadError } = await supabase
+        .from("processos")
+        .select("id, numero, coordenacao_id, advogado_responsavel_id, cliente_id, pasta_id, assunto, descricao, vara, tribunal, instancia, classe, data_distribuicao, valor_causa, valor_condenacao, valor_provisionado, polo_ativo, polo_passivo, resultado, andamento_atual, observacoes_processo, status, data_encerramento, data_hora_encerramento")
+        .in("numero", loteNumeros);
+
+      if (preloadError) {
+        setAstreaImporting(false);
+        endImport();
+        toast({
+          title: "Erro ao localizar processos existentes",
+          description: translateDatabaseError(preloadError.message),
+          variant: "destructive",
+        });
+        return;
+      }
+      processosExistentes.push(...(loteExistentes || []));
+    }
     
     // Chave por número + coordenação: o mesmo número pode existir em outra coordenação (duplicado permitido)
     const coordKey = (numero: string, coordenacaoId: string | null | undefined) =>
       `${numero}||${coordenacaoId || ""}`;
     const processosExistentesMap = new Map<string, any>();
     const processosExistentesPorNumero = new Map<string, any>();
-    (processosExistentes || []).forEach(p => {
+    processosExistentes.forEach(p => {
       processosExistentesMap.set(coordKey(p.numero, p.coordenacao_id), p);
       if (!processosExistentesPorNumero.has(p.numero)) {
         processosExistentesPorNumero.set(p.numero, p);
