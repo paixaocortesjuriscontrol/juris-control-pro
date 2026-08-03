@@ -5573,9 +5573,15 @@ export default function ImportarProcessos() {
 
             // Data de encerramento — grava data + hora e marca como encerrado
             const encerramentoIso = parseDateTimeLocal(astreaData.dataEncerramento);
+            const situacaoEncerrada = /encerrad|finalizad|baixad|arquivad/i.test(
+              String(astreaData.situacaoPlanilha || "")
+            );
             if (encerramentoIso) {
               updateData.data_hora_encerramento = encerramentoIso;
               updateData.data_encerramento = encerramentoIso.slice(0, 10);
+              updateData.status = "encerrado";
+              updateData.motivo_encerramento = "Encerrado conforme planilha Astrea";
+            } else if (situacaoEncerrada) {
               updateData.status = "encerrado";
               updateData.motivo_encerramento = "Encerrado conforme planilha Astrea";
             }
@@ -5662,14 +5668,17 @@ export default function ImportarProcessos() {
 
             const respIdNovo = resolverResponsavelId(astreaData.responsavel) || selectedMembro || null;
             const encerramentoIsoNovo = parseDateTimeLocal(astreaData.dataEncerramento);
+            const situacaoEncerradaNovo = /encerrad|finalizad|baixad|arquivad/i.test(
+              String(astreaData.situacaoPlanilha || "")
+            );
 
             const processoData: any = {
               numero: numeroTrimmed,
               area: processo.area === "caso" ? areaCaso : areaTrabalhista,
-              status: encerramentoIsoNovo ? "encerrado" : mapStatusToEnum(processo.situacao),
+              status: encerramentoIsoNovo || situacaoEncerradaNovo ? "encerrado" : mapStatusToEnum(processo.situacao),
               data_encerramento: encerramentoIsoNovo ? encerramentoIsoNovo.slice(0, 10) : null,
               data_hora_encerramento: encerramentoIsoNovo,
-              motivo_encerramento: encerramentoIsoNovo ? "Encerrado conforme planilha Astrea" : null,
+              motivo_encerramento: encerramentoIsoNovo || situacaoEncerradaNovo ? "Encerrado conforme planilha Astrea" : null,
               assunto: processo.assunto,
               descricao: processo.descricao,
               vara: processo.orgaoJulgador,
