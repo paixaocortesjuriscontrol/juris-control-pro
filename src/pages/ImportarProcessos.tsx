@@ -5292,6 +5292,10 @@ export default function ImportarProcessos() {
           dataEncerramento: getFromRow(row, [
             "Data de Encerramento", "Data de encerramento", "data de encerramento",
             "Data Encerramento", "Data encerramento", "dataEncerramento",
+            "Encerrado em", "Data de baixa", "Data de finalização", "Data de finalizacao",
+          ]) ?? getEncerramentoFuzzy(row) ?? null,
+          situacaoPlanilha: getFromRow(row, [
+            "Situação", "Situacao", "situacao", "Status", "status", "Fase", "fase",
           ]) || null,
           dataUltimoHistorico: getFromRow(row, ["Data do último histórico", "Data do Ultimo Historico"]) || null,
           descricaoUltimoHistorico: getFromRow(row, ["Descrição do último histórico", "Descricao do ultimo historico"]) || null,
