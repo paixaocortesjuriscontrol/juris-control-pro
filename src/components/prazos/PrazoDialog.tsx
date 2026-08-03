@@ -284,7 +284,7 @@ export function PrazoDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("processos")
-        .select("id, numero, titulo, cliente, parte_contraria")
+        .select("id, numero, reclamante, reclamados, autor, requerido")
         .eq("id", processoIdEfetivo as string)
         .maybeSingle();
       if (error) throw error;
