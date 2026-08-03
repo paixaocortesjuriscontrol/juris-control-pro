@@ -5398,8 +5398,12 @@ export default function ImportarProcessos() {
     const coordKey = (numero: string, coordenacaoId: string | null | undefined) =>
       `${numero}||${coordenacaoId || ""}`;
     const processosExistentesMap = new Map<string, any>();
+    const processosExistentesPorNumero = new Map<string, any>();
     (processosExistentes || []).forEach(p => {
       processosExistentesMap.set(coordKey(p.numero, p.coordenacao_id), p);
+      if (!processosExistentesPorNumero.has(p.numero)) {
+        processosExistentesPorNumero.set(p.numero, p);
+      }
     });
     console.log(`[Astrea Import] ${processosExistentesMap.size} processos já existem no banco (mesma coordenação)`);
     
@@ -5525,9 +5529,11 @@ export default function ImportarProcessos() {
           const numeroTrimmed = processo.numero.trim();
 
           // Verificar se processo existe NA MESMA coordenação (em outra coordenação, importa duplicado)
-          const existingProcesso = processosExistentesMap.get(
-            coordKey(numeroTrimmed, selectedCoordenacao || null)
-          );
+          // Prioriza o registro da mesma coordenação; se não houver, atualiza o registro
+          // existente com o mesmo número (não rejeita mais como duplicado)
+          const existingProcesso =
+            processosExistentesMap.get(coordKey(numeroTrimmed, selectedCoordenacao || null)) ||
+            processosExistentesPorNumero.get(numeroTrimmed);
 
           // Determinar cliente usando cache local
           let clienteIdToUse: string | null = null;
