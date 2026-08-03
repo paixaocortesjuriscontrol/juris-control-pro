@@ -1101,14 +1101,26 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         // veio nula (sem steps para analisar).
         const transitoDet = (data as any)?.transito_julgado_detectado;
         const dataTransitoDet = (data as any)?.data_transito_julgado_detectada || null;
+        // `data_transito_julgado` vive no estado bennerExtra (bloco
+        // "Fechamento"). Escrever só em `next` não persistia nada — por isso a
+        // data detectada pela Judit era descartada. Espelhamos no patch Benner.
+        const aplicarExtraTransito = (patch: Record<string, any>) => {
+          juditBennerPatch = { ...(juditBennerPatch || {}), ...patch };
+          setBennerExtra((prev) => ({ ...prev, ...patch }));
+          for (const k of Object.keys(patch)) bennerDirtyRef.current.add(k);
+        };
         if (transitoDet === true) {
           next.transito_julgado = true;
-          if (dataTransitoDet) next.data_transito_julgado = dataTransitoDet;
+          if (dataTransitoDet) {
+            next.data_transito_julgado = dataTransitoDet;
+            aplicarExtraTransito({ data_transito_julgado: dataTransitoDet });
+          }
           filled.add("transito_julgado");
           if (dataTransitoDet) filled.add("data_transito_julgado");
         } else if (transitoDet === false) {
           next.transito_julgado = false;
           next.data_transito_julgado = null;
+          aplicarExtraTransito({ data_transito_julgado: null });
           filled.delete("transito_julgado");
           filled.delete("data_transito_julgado");
         } else {
@@ -1117,6 +1129,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           if (juditAtivo) {
             next.transito_julgado = false;
             next.data_transito_julgado = null;
+            aplicarExtraTransito({ data_transito_julgado: null });
             filled.delete("transito_julgado");
           } else if (ehTransito && next.transito_julgado !== true) {
             next.transito_julgado = true;
