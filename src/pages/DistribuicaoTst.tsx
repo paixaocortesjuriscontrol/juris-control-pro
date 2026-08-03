@@ -9,6 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3 } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
+import { useProfilesBasic } from "@/hooks/useDistribuicaoResponsaveis";
+
+/** Coordenação responsável pela Distribuição TST */
+export const COORDENACAO_TST_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
+/** Pseudo-id usado pela RPC para agrupar processos sem responsável */
+const SEM_RESPONSAVEL_UUID = "00000000-0000-0000-0000-000000000000";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
@@ -391,6 +397,22 @@ export default function DistribuicaoTst() {
   // Totais por responsável (todos os registros que batem com os filtros, ignorando o filtro de responsável)
   const countsFilters = { ...debouncedFilters, responsavelIds: undefined };
   const { counts: responsavelCounts, refetch: refetchResponsavelCounts } = useResponsaveisCounts(countsFilters);
+
+  // Todos os membros da coordenação TST — devem aparecer sempre nos cards,
+  // mesmo com zero processos atribuídos.
+  const { profiles: membrosCoordenacaoTst } = useProfilesBasic(COORDENACAO_TST_ID);
+  const responsavelCountsCompleto = useMemo(() => {
+    const byId = new Map(responsavelCounts.map((c) => [c.id, c]));
+    const extras = membrosCoordenacaoTst
+      .filter((p) => !byId.has(p.id))
+      .map((p) => ({ id: p.id, nome: p.nome, count: 0, pronto: 0 }));
+    const semResp = responsavelCounts.filter((c) => c.id === SEM_RESPONSAVEL_UUID);
+    const reais = responsavelCounts.filter((c) => c.id !== SEM_RESPONSAVEL_UUID);
+    return [
+      ...semResp,
+      ...[...reais, ...extras].sort((a, b) => b.count - a.count || a.nome.localeCompare(b.nome)),
+    ];
+  }, [responsavelCounts, membrosCoordenacaoTst]);
 
   // Auto-seleciona o usuário logado como responsável ao abrir a tela
   // (apenas se ele estiver na lista de responsáveis). Roda uma única vez.
@@ -1732,12 +1754,12 @@ export default function DistribuicaoTst() {
         )}
 
         {/* Totais por responsável — visível apenas para administradores. */}
-        {mostrarCards && isAdmin && responsavelCounts.filter(c => c.count > 0).length > 0 && (
+        {mostrarCards && isAdmin && responsavelCountsCompleto.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             <span className="text-[11px] font-medium text-muted-foreground self-center mr-1">
               Por responsável:
             </span>
-            {responsavelCounts.filter(c => c.count > 0).map((c) => {
+            {responsavelCountsCompleto.map((c) => {
               const isSemResp = c.id === "00000000-0000-0000-0000-000000000000";
               const filterValue = isSemResp ? "__sem_responsavel__" : c.id;
               const active = filtroResponsavelIds.includes(filterValue);
