@@ -158,11 +158,13 @@ serve(async (req) => {
     let processoAssunto: string | null = null;
     let clienteNome: string | null = null;
     let coordenacaoNome: string | null = null;
+    let reclamanteNome: string | null = null;
+    let reclamadaNome: string | null = null;
 
     if (tarefa.processo_id) {
       const { data: processo } = await supabase
         .from('processos')
-        .select('numero, assunto, coordenacao_id, cliente_id')
+        .select('numero, assunto, coordenacao_id, cliente_id, reclamante, reclamados, polo_ativo, polo_passivo')
         .eq('id', tarefa.processo_id)
         .maybeSingle();
 
@@ -170,6 +172,8 @@ serve(async (req) => {
         coordenacaoId = processo.coordenacao_id;
         processoNumero = processo.numero ?? null;
         processoAssunto = (processo as any).assunto ?? null;
+        reclamanteNome = (processo as any).reclamante ?? (processo as any).polo_ativo ?? null;
+        reclamadaNome = (processo as any).reclamados ?? (processo as any).polo_passivo ?? null;
         if ((processo as any).cliente_id) {
           const { data: cli } = await supabase
             .from("clientes")
