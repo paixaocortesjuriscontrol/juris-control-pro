@@ -5518,13 +5518,25 @@ export default function ImportarProcessos() {
         if (p?.nome) perfisMap.set(normNome(p.nome), p.id);
       }
     }
-    const resolverResponsavelId = (nome: string | null | undefined): string | null => {
-      const key = normNome(nome || "");
+    const resolverUmResponsavel = (nome: string): string | null => {
+      const key = normNome(nome);
       if (!key) return null;
       if (perfisMap.has(key)) return perfisMap.get(key)!;
       // fallback: primeiro perfil cujo nome comece pelo nome da planilha (ou vice-versa)
       for (const [k, id] of perfisMap) {
         if (k.startsWith(key) || key.startsWith(k)) return id;
+      }
+      return null;
+    };
+
+    // Aceita múltiplos nomes na mesma célula ("A; B", "A / B", "A, B")
+    const resolverResponsavelId = (nome: string | null | undefined): string | null => {
+      const bruto = String(nome || "").trim();
+      if (!bruto) return null;
+      const partes = bruto.split(/[;/|]|,\s|\se\s/).map((n) => n.trim()).filter(Boolean);
+      for (const parte of partes.length ? partes : [bruto]) {
+        const id = resolverUmResponsavel(parte);
+        if (id) return id;
       }
       return null;
     };
