@@ -831,6 +831,7 @@ export function ProcessoDetalhesCompletos({
       label: "Visão geral",
       items: [
         { id: "resumo", label: "Visão Geral", icon: Home },
+        { id: "auditoria", label: "Auditoria", icon: ShieldCheck, iconColor: "text-slate-500" },
       ],
     },
     {
