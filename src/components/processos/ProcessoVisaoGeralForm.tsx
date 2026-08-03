@@ -1163,16 +1163,18 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       <Input
                         readOnly
                         className={cn(inputCls, "bg-muted/40")}
-                        value={
-                          form.data_hora_encerramento
-                            ? new Date(form.data_hora_encerramento).toLocaleString("pt-BR", {
+                        value={(() => {
+                          const dh = (processo as any)?.data_hora_encerramento;
+                          const d = (processo as any)?.data_encerramento;
+                          if (dh) {
+                            return new Date(dh).toLocaleString("pt-BR", {
                                 day: "2-digit", month: "2-digit", year: "numeric",
                                 hour: "2-digit", minute: "2-digit",
-                              })
-                            : form.data_encerramento
-                              ? new Date(String(form.data_encerramento) + "T00:00:00").toLocaleDateString("pt-BR")
-                              : "—"
-                        }
+                              });
+                          }
+                          if (d) return new Date(String(d) + "T00:00:00").toLocaleDateString("pt-BR");
+                          return "—";
+                        })()}
                       />
                     </FormField>
                   )}
