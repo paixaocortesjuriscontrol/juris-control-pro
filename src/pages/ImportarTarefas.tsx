@@ -174,6 +174,18 @@ const getRowValue = (row: Record<string, any>, possibleNames: string[]): string 
   return "";
 };
 
+const processoCacheKey = (coordenacaoId: string, numero: string) =>
+  `${coordenacaoId}::${numero.replace(/[^0-9]/g, "")}`;
+
+const shortStableHash = (value: string): string => {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+};
+
 // ==================== MAIN COMPONENT ====================
 
 export default function ImportarTarefas() {
@@ -252,15 +264,15 @@ export default function ImportarTarefas() {
       for (let from = 0; ; from += PAGE) {
         const { data, error } = await supabase
           .from("processos")
-          .select("id, numero")
+          .select("id, numero, coordenacao_id")
           .order("numero")
           .range(from, from + PAGE - 1);
         if (error) throw error;
         (data || []).forEach(p => {
           if (!p.numero) return;
           const normalized = p.numero.replace(/[^0-9]/g, "");
-          if (normalized && !map.has(normalized)) map.set(normalized, p.id);
-          if (!map.has(p.numero)) map.set(p.numero, p.id);
+          const coord = p.coordenacao_id || "sem-coordenacao";
+          if (normalized) map.set(`${coord}::${normalized}`, p.id);
         });
         if (!data || data.length < PAGE) break;
       }
@@ -346,15 +358,16 @@ export default function ImportarTarefas() {
     return null;
   };
 
-  const findProcessoId = (numeroProcesso: string | null): string | null => {
-    if (!numeroProcesso || !processosMap) return null;
+  const findProcessoId = (numeroProcesso: string | null, coordenacaoId: string): string | null => {
+    if (!numeroProcesso || !coordenacaoId || !processosMap) return null;
     
     const normalized = numeroProcesso.replace(/[^0-9]/g, "");
     
-    const cachedId = createdProcessosCache.current.get(normalized);
+    const key = processoCacheKey(coordenacaoId, numeroProcesso);
+    const cachedId = createdProcessosCache.current.get(key);
     if (cachedId) return cachedId;
     
-    return processosMap.get(normalized) || processosMap.get(numeroProcesso) || null;
+    return processosMap.get(key) || null;
   };
 
   const createNewProcesso = async (
@@ -376,7 +389,8 @@ export default function ImportarTarefas() {
     
     const normalized = numeroProcesso.replace(/[^0-9]/g, "");
     
-    const cachedId = createdProcessosCache.current.get(normalized);
+    const key = processoCacheKey(coordenacaoId, numeroProcesso);
+    const cachedId = createdProcessosCache.current.get(key);
     if (cachedId) return cachedId;
 
     try {
@@ -403,7 +417,7 @@ export default function ImportarTarefas() {
       }
 
       if (newProcesso?.id) {
-        createdProcessosCache.current.set(normalized, newProcesso.id);
+        createdProcessosCache.current.set(key, newProcesso.id);
         return newProcesso.id;
       }
 
@@ -433,7 +447,7 @@ export default function ImportarTarefas() {
   ): Promise<string | null> => {
     if (!numeroProcesso) return null;
     
-    const existingId = findProcessoId(numeroProcesso);
+    const existingId = findProcessoId(numeroProcesso, coordenacaoId);
     if (existingId) return existingId;
     
     // Fallback: consulta direta no banco (cache pode estar desatualizado)
@@ -446,11 +460,12 @@ export default function ImportarTarefas() {
       const { data: found } = await supabase
         .from("processos")
         .select("id, numero")
+        .eq("coordenacao_id", coordenacaoId)
         .in("numero", variantes)
         .limit(1);
       const foundId = found?.[0]?.id;
       if (foundId) {
-        createdProcessosCache.current.set(digits, foundId);
+        createdProcessosCache.current.set(processoCacheKey(coordenacaoId, numeroProcesso), foundId);
         return foundId;
       }
     }
@@ -737,9 +752,11 @@ export default function ImportarTarefas() {
       const toCreate: typeof processosList = [];
       for (const [norm, t] of processosList) {
         if (cancelledRef.current) break;
-        const existingId = processosMap?.get(norm) || processosMap?.get(t.numeroProcesso!);
+        const existingId = selectedCoordenacao
+          ? processosMap?.get(processoCacheKey(selectedCoordenacao, t.numeroProcesso!))
+          : null;
         if (existingId) {
-          createdProcessosCache.current.set(norm, existingId);
+          createdProcessosCache.current.set(processoCacheKey(selectedCoordenacao, t.numeroProcesso!), existingId);
         } else if (cadastrarNovosProcessos && selectedCoordenacao) {
           toCreate.push([norm, t]);
         }
@@ -769,7 +786,7 @@ export default function ImportarTarefas() {
         if (!error && inserted) {
           (inserted as any[]).forEach(row => {
             const norm = row.numero.replace(/[^0-9]/g, "");
-            createdProcessosCache.current.set(norm, row.id);
+            createdProcessosCache.current.set(processoCacheKey(selectedCoordenacao, row.numero), row.id);
             novosProcessosLocal.push(row.numero);
             counters.novosProcessos++;
           });
@@ -877,7 +894,9 @@ export default function ImportarTarefas() {
       const resolveProcesso = (numero: string | null): string | null => {
         if (!numero) return null;
         const norm = numero.replace(/[^0-9]/g, "");
-        return createdProcessosCache.current.get(norm) || processosMap?.get(norm) || processosMap?.get(numero) || null;
+        if (!selectedCoordenacao) return null;
+        const key = processoCacheKey(selectedCoordenacao, numero);
+        return createdProcessosCache.current.get(key) || processosMap?.get(key) || null;
       };
 
       for (const t of toImport) {
@@ -1216,6 +1235,7 @@ export default function ImportarTarefas() {
 
       setAstreaParseProgress(60);
 
+      const legacyIdentifiers = new Set<string>();
       const parsed: TarefaAstreaImport[] = rows.map((row: any, index): TarefaAstreaImport => {
         const data = getRowValue(row, ["Data"]);
         const hora = getRowValue(row, ["Hora"]);
@@ -1244,7 +1264,14 @@ export default function ImportarTarefas() {
         const dataConclusao = getRowValue(row, ["Data de conclusão", "Data de conclusao"]);
 
         // Generate unique identifier based on data+hora+titulo+processo
-        const identificador = `astrea-${data}-${hora}-${titulo}-${numeroProcesso}`.replace(/[^a-zA-Z0-9-]/g, "_").substring(0, 100);
+        const legacyIdentifier = `astrea-${data}-${hora}-${titulo}-${numeroProcesso}`.replace(/[^a-zA-Z0-9-]/g, "_").substring(0, 100);
+        // Mantém compatibilidade com importações anteriores. Apenas colisões reais
+        // ganham um sufixo estável, preservando atividades distintas do mesmo dia.
+        const collisionSuffix = shortStableHash(`${dataCriacao}|${dataConclusao}|${observacao}|${index}`);
+        const identificador = legacyIdentifiers.has(legacyIdentifier)
+          ? `${legacyIdentifier.slice(0, 90)}-${collisionSuffix}`
+          : legacyIdentifier;
+        legacyIdentifiers.add(legacyIdentifier);
 
         const tarefa: TarefaAstreaImport = {
           identificador,
