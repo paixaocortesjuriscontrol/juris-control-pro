@@ -4,6 +4,36 @@ import { ProcessoTstTab } from "./ProcessoTstTab";
 import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
 import { ProcessoJuditTab } from "./ProcessoJuditTab";
 import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPublicacaoVinculada";
+import { AudienciaResponsaveisResumo } from "@/components/audiencias/AudienciaResponsaveisResumo";
+
+const SITUACAO_AUDIENCIA_LABELS: Record<string, string> = {
+  pendente: "Pendente",
+  em_execucao: "Em execução",
+  a_confirmar: "A confirmar",
+  revisao: "Em revisão",
+  verificado: "Verificado",
+  cumprido: "Cumprido",
+  concluido: "Concluído",
+  concluido_sem_sucesso: "Concluído sem sucesso",
+  atrasado: "Atrasado",
+  cancelado: "Cancelado",
+};
+
+function SituacaoAudienciaBadge({ status }: { status?: string | null }) {
+  const key = (status || "pendente").toLowerCase();
+  const label = SITUACAO_AUDIENCIA_LABELS[key] || status || "Pendente";
+  const variant: "default" | "secondary" | "destructive" | "outline" =
+    ["cumprido", "concluido", "verificado"].includes(key)
+      ? "default"
+      : ["cancelado", "atrasado", "concluido_sem_sucesso"].includes(key)
+        ? "destructive"
+        : "secondary";
+  return (
+    <Badge variant={variant} className="text-[10px] shrink-0 whitespace-nowrap">
+      {label}
+    </Badge>
+  );
+}
 import { ProcessoAnexosJuditTab } from "./ProcessoAnexosJuditTab";
 import { AnaliseJuditTab } from "@/components/distribuicao-tst/AnaliseJuditTab";
 import { ProcessoPartesTab } from "./ProcessoPartesTab";
