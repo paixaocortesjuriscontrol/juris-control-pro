@@ -283,8 +283,10 @@ serve(async (req) => {
     if (has(tarefa.orgao_julgador)) secProcesso.push(renderRow("Órgão Julgador", escapeHtml(tarefa.orgao_julgador)));
     if (has(tarefa.instancia)) secProcesso.push(renderRow("Instância", escapeHtml(tarefa.instancia)));
     if (has(tarefa.situacao_processo)) secProcesso.push(renderRow("Situação do Processo", escapeHtml(tarefa.situacao_processo)));
-    if (has(tarefa.partes_ativas)) secProcesso.push(renderRow("Partes Ativas", escapeHtml(tarefa.partes_ativas)));
-    if (has(tarefa.partes_passivas)) secProcesso.push(renderRow("Partes Passivas", escapeHtml(tarefa.partes_passivas)));
+    const reclamanteFinal = reclamanteNome ?? (has(tarefa.partes_ativas) ? tarefa.partes_ativas : null);
+    const reclamadaFinal = reclamadaNome ?? (has(tarefa.partes_passivas) ? tarefa.partes_passivas : null);
+    if (has(reclamanteFinal)) secProcesso.push(renderRow("Reclamante", escapeHtml(reclamanteFinal)));
+    if (has(reclamadaFinal)) secProcesso.push(renderRow("Reclamada", escapeHtml(reclamadaFinal)));
     if (has(tarefa.outras_partes)) secProcesso.push(renderRow("Outras Partes", escapeHtml(tarefa.outras_partes)));
     if (has(tarefa.envolvimento_clientes)) secProcesso.push(renderRow("Clientes Envolvidos", escapeHtml(tarefa.envolvimento_clientes)));
     if (has(tarefa.envolvimento_contrarios)) secProcesso.push(renderRow("Contrários", escapeHtml(tarefa.envolvimento_contrarios)));
