@@ -299,6 +299,17 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
     );
   }, [membroAtual, itens, search]);
 
+  const totalPaginas = Math.max(1, Math.ceil(listaItens.length / ITENS_POR_PAGINA));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const itensPagina = useMemo(
+    () => listaItens.slice((paginaAtual - 1) * ITENS_POR_PAGINA, paginaAtual * ITENS_POR_PAGINA),
+    [listaItens, paginaAtual]
+  );
+
+  useEffect(() => {
+    setPagina(1);
+  }, [selectedMembro, search, itens.length]);
+
   const statusBadge = (item: ItemAgendaUnificado) => {
     if (isItemCancelado(item)) {
       return (
