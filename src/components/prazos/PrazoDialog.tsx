@@ -634,6 +634,27 @@ export function PrazoDialog({
           <PublicacaoVinculadaCollapsible publicacao={publicacaoEfetiva as any} />
         )}
 
+        {!hasPublicacao && processoVinculado && (
+          <div className="rounded-md border border-border bg-muted/40 p-3">
+            <div className="flex items-start gap-2">
+              <FileText className="mt-0.5 h-4 w-4 text-muted-foreground" />
+              <div className="min-w-0 space-y-0.5">
+                <p className="text-xs font-medium text-muted-foreground">Processo vinculado</p>
+                <p className="text-sm font-semibold text-foreground break-all">
+                  {processoVinculado.numero ? aplicarMascaraCnj(String(processoVinculado.numero)) : "—"}
+                </p>
+                {(processoVinculado.reclamante || processoVinculado.autor || processoVinculado.reclamados || processoVinculado.requerido) && (
+                  <p className="text-xs text-muted-foreground break-words">
+                    {[processoVinculado.reclamante || processoVinculado.autor, processoVinculado.reclamados || processoVinculado.requerido]
+                      .filter(Boolean)
+                      .join(" X ")}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <Label className="text-sm">
