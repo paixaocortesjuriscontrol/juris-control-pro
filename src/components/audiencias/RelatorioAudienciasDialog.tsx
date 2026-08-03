@@ -57,9 +57,64 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
       const { data, error } = await q.limit(20000);
       if (error) throw error;
 
-      const dataFiltrada = (data ?? []).filter((a: any) => {
+      // ===== Audiências registradas como TAREFAS (tipo_tarefa = "Audiência") =====
+      // Importações (Astrea/Projuris) gravam audiências na tabela `tarefas`.
+      // O calendário já as exibe como audiência, então o relatório precisa contá-las.
+      let qt = supabase
+        .from("tarefas")
+        .select("id, status, criado_por, responsavel_id, data_vencimento, coordenacao_id")
+        .ilike("tipo_tarefa", "audi%")
+        .not("data_vencimento", "is", null);
+      if (ano !== "todos" && mes !== "todos") {
+        const ini = `${ano}-${String(mes).padStart(2, "0")}-01`;
+        const fimD = new Date(Date.UTC(ano as number, mes as number, 1));
+        const fim = fimD.toISOString().slice(0, 10);
+        qt = qt.gte("data_vencimento", ini).lt("data_vencimento", fim);
+      } else if (ano !== "todos") {
+        qt = qt.gte("data_vencimento", `${ano}-01-01`).lt("data_vencimento", `${(ano as number) + 1}-01-01`);
+      }
+      if (coordenacaoFiltro) qt = qt.eq("coordenacao_id", coordenacaoFiltro);
+      const { data: tarefasAud, error: errT } = await qt.limit(20000);
+      if (errT) throw errT;
+
+      const tarefaIds = (tarefasAud ?? []).map((t: any) => t.id);
+      const respPorTarefa = new Map<string, Set<string>>();
+      for (let i = 0; i < tarefaIds.length; i += 500) {
+        const slice = tarefaIds.slice(i, i + 500);
+        const [{ data: resp }, { data: env }] = await Promise.all([
+          supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", slice),
+          supabase.from("tarefa_envolvidos").select("tarefa_id, usuario_id").in("tarefa_id", slice),
+        ]);
+        for (const r of [...(resp ?? []), ...(env ?? [])] as any[]) {
+          if (!r.usuario_id) continue;
+          if (!respPorTarefa.has(r.tarefa_id)) respPorTarefa.set(r.tarefa_id, new Set());
+          respPorTarefa.get(r.tarefa_id)!.add(r.usuario_id);
+        }
+      }
+
+      const mapStatusTarefa = (s?: string | null) => {
+        const v = (s ?? "pendente").toString().toLowerCase();
+        if (v === "cumprido" || v === "concluido" || v === "concluído") return "tratado";
+        return v;
+      };
+
+      const tarefasComoAudiencias = (tarefasAud ?? []).map((t: any) => ({
+        id: t.id,
+        status: mapStatusTarefa(t.status),
+        criado_por: t.criado_por,
+        data_audiencia: t.data_vencimento,
+        audiencia_envolvidos: [
+          ...Array.from(respPorTarefa.get(t.id) ?? []).map((u) => ({ usuario_id: u })),
+          ...(t.responsavel_id ? [{ usuario_id: t.responsavel_id }] : []),
+        ],
+        audiencias_advogados: [],
+      }));
+
+      const registros = [...((data ?? []) as any[]), ...tarefasComoAudiencias];
+
+      const dataFiltrada = registros.filter((a: any) => {
         if (mes === "todos" || !a.data_audiencia) return true;
-        const m = new Date(a.data_audiencia).getUTCMonth() + 1;
+        const m = Number(String(a.data_audiencia).slice(5, 7));
         return m === (mes as number);
       });
 
