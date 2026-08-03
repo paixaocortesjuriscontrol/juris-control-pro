@@ -758,7 +758,9 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         const rowNum = i + 3;
         let cellsXml = "";
         for (let c = 0; c < maxCol; c++) {
-          const val = String(row[LAYOUT_COLS[c]] ?? "");
+          const raw = String(row[LAYOUT_COLS[c]] ?? "");
+          // Rede de segurança: coluna AA (Recorrente) nunca leva "Terceiro".
+          const val = c === 26 ? normalizeRecorrenteBenner(raw) : raw;
           if (!val) continue;
           const ref = colToLetter(c) + rowNum;
           const idx = getStringIndex(val);
