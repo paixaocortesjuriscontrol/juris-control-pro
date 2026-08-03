@@ -99,15 +99,20 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
           total,
         };
       }).sort((a, b) => b.total - a.total);
-      return { situacoes: situacoesArr, rows };
+
+      // Totais reais (contagem única por audiência — não soma linhas por usuário,
+      // pois uma audiência com vários responsáveis aparece em várias linhas)
+      const totaisSitu: Record<string, number> = {};
+      for (const a of dataFiltrada) {
+        const situ = (a.status ?? "pendente").toString();
+        totaisSitu[situ] = (totaisSitu[situ] ?? 0) + 1;
+      }
+      return { situacoes: situacoesArr, rows, totaisSitu, totalAudiencias: dataFiltrada.length };
     },
   });
 
-  const totaisPorSitu = useMemo(() => {
-    const tot: Record<string, number> = {};
-    for (const r of data?.rows ?? []) for (const s of data?.situacoes ?? []) tot[s] = (tot[s] ?? 0) + (r.contagens[s] ?? 0);
-    return tot;
-  }, [data]);
+  const totaisPorSitu = useMemo(() => data?.totaisSitu ?? {}, [data]);
+  const totalGeralAudiencias = data?.totalAudiencias ?? 0;
 
   async function exportar() {
     if (!data) return;
@@ -185,9 +190,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
 
     // Rodapé TOTAL
     const totalRowNum = 4 + data.rows.length;
-    const totalGeral = data.rows.reduce((a, r) => a + r.total, 0);
+    const totalGeral = data.totalAudiencias;
     const totalRow = ws.getRow(totalRowNum);
-    totalRow.values = ["TOTAL", ...data.situacoes.map((s) => totaisPorSitu[s] ?? 0), totalGeral];
+    totalRow.values = ["TOTAL (audiências únicas)", ...data.situacoes.map((s) => totaisPorSitu[s] ?? 0), totalGeral];
     totalRow.height = 24;
     totalRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
       cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
@@ -283,9 +288,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
                   </tr>
                 ))}
                 <tr className="border-t bg-muted/50 font-semibold">
-                  <td className="px-3 py-2">TOTAL</td>
+                  <td className="px-3 py-2">TOTAL (audiências únicas)</td>
                   {data.situacoes.map((s) => <td key={s} className="text-right px-3 py-2">{totaisPorSitu[s] ?? 0}</td>)}
-                  <td className="text-right px-3 py-2">{data.rows.reduce((a, r) => a + r.total, 0)}</td>
+                  <td className="text-right px-3 py-2">{totalGeralAudiencias}</td>
                 </tr>
               </tbody>
             </table>
