@@ -4,6 +4,36 @@ import { ProcessoTstTab } from "./ProcessoTstTab";
 import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
 import { ProcessoJuditTab } from "./ProcessoJuditTab";
 import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPublicacaoVinculada";
+import { AudienciaResponsaveisResumo } from "@/components/audiencias/AudienciaResponsaveisResumo";
+
+const SITUACAO_AUDIENCIA_LABELS: Record<string, string> = {
+  pendente: "Pendente",
+  em_execucao: "Em execução",
+  a_confirmar: "A confirmar",
+  revisao: "Em revisão",
+  verificado: "Verificado",
+  cumprido: "Cumprido",
+  concluido: "Concluído",
+  concluido_sem_sucesso: "Concluído sem sucesso",
+  atrasado: "Atrasado",
+  cancelado: "Cancelado",
+};
+
+function SituacaoAudienciaBadge({ status }: { status?: string | null }) {
+  const key = (status || "pendente").toLowerCase();
+  const label = SITUACAO_AUDIENCIA_LABELS[key] || status || "Pendente";
+  const variant: "default" | "secondary" | "destructive" | "outline" =
+    ["cumprido", "concluido", "verificado"].includes(key)
+      ? "default"
+      : ["cancelado", "atrasado", "concluido_sem_sucesso"].includes(key)
+        ? "destructive"
+        : "secondary";
+  return (
+    <Badge variant={variant} className="text-[10px] shrink-0 whitespace-nowrap">
+      {label}
+    </Badge>
+  );
+}
 import { ProcessoAnexosJuditTab } from "./ProcessoAnexosJuditTab";
 import { AnaliseJuditTab } from "@/components/distribuicao-tst/AnaliseJuditTab";
 import { ProcessoPartesTab } from "./ProcessoPartesTab";
@@ -1137,17 +1167,13 @@ export function ProcessoDetalhesCompletos({
                                           {aud.modalidade}
                                         </Badge>
                                       )}
-                                      {aud.status && (
-                                        <Badge variant="outline" className="text-[10px] capitalize">
-                                          {aud.status}
-                                        </Badge>
-                                      )}
                                     </div>
                                     <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
                                       {aud.created_at && <span>Registrada em {formatDate(aud.created_at)}</span>}
                                       {aud.origem && <span className="capitalize">Origem: {aud.origem}</span>}
                                     </div>
                                   </div>
+                                  <SituacaoAudienciaBadge status={aud.status} />
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2 text-xs">
                                   <div>
@@ -1155,34 +1181,25 @@ export function ProcessoDetalhesCompletos({
                                     <p className="font-medium text-foreground">{aud.data_audiencia ? formatDate(aud.data_audiencia) : '—'}</p>
                                   </div>
                                   <div>
-                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Tipo</p>
-                                    <p className="font-medium text-foreground truncate">{aud.tipo_audiencia || '—'}</p>
-                                  </div>
-                                  <div>
                                     <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Hora</p>
-                                    <p className="font-medium text-foreground">{aud.hora || '—'}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Hora Local</p>
-                                    <p className="font-medium text-foreground">{aud.hora_local || '—'}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Hora Brasília</p>
-                                    <p className="font-medium text-foreground">{aud.hora_brasilia || '—'}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Modalidade</p>
-                                    <p className="font-medium text-foreground capitalize">{aud.modalidade || '—'}</p>
+                                    <p className="font-medium text-foreground">
+                                      {[aud.hora, aud.hora_fim].filter(Boolean).join(' às ') || aud.hora_brasilia || aud.hora_local || '—'}
+                                    </p>
                                   </div>
                                   <div className="col-span-2">
                                     <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Vara / Câmara</p>
                                     <p className="font-medium text-foreground truncate">{aud.vara_camara || '—'}</p>
                                   </div>
-                                  <div className="col-span-2">
-                                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Comarca</p>
-                                    <p className="font-medium text-foreground truncate">{aud.comarca || '—'}</p>
-                                  </div>
+                                  {(aud.comarca || aud.forum || aud.local_audiencia) && (
+                                    <div className="col-span-2">
+                                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Local</p>
+                                      <p className="font-medium text-foreground truncate">
+                                        {[aud.local_audiencia, aud.forum, aud.comarca].filter(Boolean).join(' • ')}
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
+                                <AudienciaResponsaveisResumo audienciaId={aud.id} className="mt-3 pt-3 border-t" />
                                 <div
                                   onClick={(e) => e.stopPropagation()}
                                   onKeyDown={(e) => e.stopPropagation()}
