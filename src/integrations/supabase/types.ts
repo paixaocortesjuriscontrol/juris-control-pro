@@ -6470,6 +6470,7 @@ export type Database = {
           data_encerramento_cobranca: string | null
           data_fatal: string | null
           data_fato_gerador: string | null
+          data_hora_encerramento: string | null
           data_lavratura: string | null
           data_recebimento: string | null
           data_situacao: string | null
@@ -6675,6 +6676,7 @@ export type Database = {
           data_encerramento_cobranca?: string | null
           data_fatal?: string | null
           data_fato_gerador?: string | null
+          data_hora_encerramento?: string | null
           data_lavratura?: string | null
           data_recebimento?: string | null
           data_situacao?: string | null
@@ -6880,6 +6882,7 @@ export type Database = {
           data_encerramento_cobranca?: string | null
           data_fatal?: string | null
           data_fato_gerador?: string | null
+          data_hora_encerramento?: string | null
           data_lavratura?: string | null
           data_recebimento?: string | null
           data_situacao?: string | null
