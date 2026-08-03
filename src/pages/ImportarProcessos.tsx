@@ -5543,6 +5543,19 @@ export default function ImportarProcessos() {
           if (existingProcesso) {
             // SMART MERGE: Processo já existe - atualizar apenas campos vazios
             const updateData: Record<string, any> = {};
+
+            // Responsável (coluna "Responsável" da planilha) — sempre atualiza quando encontrado
+            const respIdPlanilha = resolverResponsavelId(astreaData.responsavel);
+            if (respIdPlanilha) updateData.advogado_responsavel_id = respIdPlanilha;
+            if (astreaData.responsavel) updateData.advogado_externo = astreaData.responsavel;
+
+            // Data de encerramento — grava data + hora e marca como encerrado
+            const encerramentoIso = parseDateTimeLocal(astreaData.dataEncerramento);
+            if (encerramentoIso) {
+              updateData.data_hora_encerramento = encerramentoIso;
+              updateData.data_encerramento = encerramentoIso.slice(0, 10);
+              updateData.status = "encerrado";
+            }
             
             if (!existingProcesso.assunto && processo.assunto) updateData.assunto = processo.assunto;
             if (!existingProcesso.descricao && processo.descricao) updateData.descricao = processo.descricao;
@@ -5580,11 +5593,22 @@ export default function ImportarProcessos() {
                 return { index: globalIndex, result: "error" };
               }
             }
+
+            if (respIdPlanilha) {
+              await supabase
+                .from("processos_responsaveis")
+                .upsert(
+                  { processo_id: existingProcesso.id, usuario_id: respIdPlanilha, papel: "responsavel" },
+                  { onConflict: "processo_id,usuario_id" }
+                );
+            }
             
             updatedProcessos[globalIndex] = { 
               ...processo, 
               status: "sucesso", 
-              erroImport: "Atualizado (campos vazios preenchidos)" 
+              erroImport: encerramentoIso
+                ? "Atualizado (encerrado conforme planilha)"
+                : "Atualizado (campos vazios preenchidos)"
             };
             return { index: globalIndex, result: "updated" };
           } else {
