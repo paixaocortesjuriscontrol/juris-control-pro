@@ -7,6 +7,7 @@ import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPubli
 import { ProcessoAnexosJuditTab } from "./ProcessoAnexosJuditTab";
 import { AnaliseJuditTab } from "@/components/distribuicao-tst/AnaliseJuditTab";
 import { ProcessoPartesTab } from "./ProcessoPartesTab";
+import { ProcessoAuditoriaTab } from "./ProcessoAuditoriaTab";
 import { PrazoSectionEditable } from "./PrazoSectionEditable";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { BaixarAutosButton } from "./BaixarAutosButton";
@@ -55,6 +56,7 @@ import {
   User,
   Eye,
   Home,
+  ShieldCheck,
   Bell,
   BellOff,
   Info,
@@ -831,6 +833,7 @@ export function ProcessoDetalhesCompletos({
       label: "Visão geral",
       items: [
         { id: "resumo", label: "Visão Geral", icon: Home },
+        { id: "auditoria", label: "Auditoria", icon: ShieldCheck, iconColor: "text-slate-500" },
       ],
     },
     {
@@ -1876,6 +1879,11 @@ export function ProcessoDetalhesCompletos({
               {/* Partes do processo (mesma listagem da Distribuição TST) */}
               {activeSection === "partes" && processo?.id && (
                 <ProcessoPartesTab processoId={processo.id} />
+              )}
+
+              {/* Auditoria — histórico completo de ações do processo e itens vinculados */}
+              {activeSection === "auditoria" && (
+                <ProcessoAuditoriaTab processoId={processo?.id} processoNumero={processo?.numero} />
               )}
 
               {/* Comentários Section */}
