@@ -280,7 +280,14 @@ export function ProcessoExpandableRow({
             <div>
               <div className="text-[11px] text-muted-foreground leading-tight">Número do processo</div>
               <div className="text-sm text-foreground truncate flex items-center gap-1">
-                <span className="font-mono">{processo.numero}</span>
+                <span className={cn("font-mono", processo.status === "encerrado" && "text-destructive font-semibold")}>
+                  {processo.numero}
+                </span>
+                {processo.status === "encerrado" && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-destructive text-destructive">
+                    Encerrado
+                  </Badge>
+                )}
                 <span className="text-muted-foreground text-xs">(CNJ)</span>
                 {temRedistribuicaoRecente && (
                   <Tooltip>
