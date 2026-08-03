@@ -2,7 +2,7 @@ import JSZip from "jszip";
 import { format } from "date-fns";
 import { DadoBenner } from "@/hooks/useDadosBenner";
 import * as XLSX from "xlsx";
-import { deriveRecorrenteFromRecursos, splitRecursoValues } from "@/utils/recorrenteFromRecursos";
+import { deriveRecorrenteFromRecursos, normalizeRecorrenteBenner, splitRecursoValues } from "@/utils/recorrenteFromRecursos";
 import { isOutraMateria } from "@/utils/outraMateria";
 
 const DOSSIE_INVALIDO_PATTERNS = [
@@ -257,7 +257,11 @@ function getValuesFromDado(d: DadoBenner): string[] {
     d.ganhamos ? "X" : "",
     d.perdemos ? "X" : "",
     d.processo_baixado ? toSN(d.processo_baixado) : "",
-    deriveRecorrenteFromRecursos((d as any).tipo_recurso_reclamante, (d as any).tipo_recurso_banco),
+    normalizeRecorrenteBenner(
+      deriveRecorrenteFromRecursos((d as any).tipo_recurso_reclamante, (d as any).tipo_recurso_banco) ||
+        (d as any).parte_recorrente ||
+        (d as any).recorrente
+    ),
     turmaFav,
     turmaDesf,
     relFav,

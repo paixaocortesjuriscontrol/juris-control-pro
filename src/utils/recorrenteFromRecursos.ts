@@ -5,6 +5,16 @@ export function splitRecursoValues(value: unknown): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Na planilha Carga Benner a coluna "Recorrente" nunca pode exibir "Terceiro".
+ * Regra: sempre trocar Terceiro/Terceiros por "Outra" (somente nesta coluna).
+ */
+export function normalizeRecorrenteBenner(value: unknown): string {
+  const texto = String(value ?? "");
+  if (!texto.trim()) return "";
+  return texto.replace(/terceiros?/gi, "Outra");
+}
+
 export function deriveRecorrenteFromRecursos(
   tipoRecursoReclamante: unknown,
   tipoRecursoBanco: unknown

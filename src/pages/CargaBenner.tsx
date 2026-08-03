@@ -15,7 +15,7 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { deriveRecorrenteFromRecursos } from "@/utils/recorrenteFromRecursos";
+import { deriveRecorrenteFromRecursos, normalizeRecorrenteBenner } from "@/utils/recorrenteFromRecursos";
 
 // --- Types ---
 interface ParsedSheet {
@@ -555,7 +555,9 @@ export default function CargaBenner() {
         outRow[LAYOUT_COLS[24]] = ""; // Perdemos
         const colZDistVal = normalizeText(String(row["__col25"] ?? "").trim());
         outRow[LAYOUT_COLS[25]] = colZDistVal.includes("sim") ? "S" : colZDistVal.includes("nao") || colZDistVal.includes("não") ? "N" : ""; // Processo baixado
-        outRow[LAYOUT_COLS[26]] = deriveRecorrenteFromRecursos(colLVal, colPVal); // Recorrente
+        outRow[LAYOUT_COLS[26]] = normalizeRecorrenteBenner(
+          deriveRecorrenteFromRecursos(colLVal, colPVal) || String(row["__col26"] ?? "")
+        ); // Recorrente
         // Turma favorável/desfavorável → split into two columns
         const turmaFav = deriveFavoravel(turmaClassRaw);
         outRow[LAYOUT_COLS[27]] = turmaFav === "Favorável" ? "X" : ""; // AB - Favorável (turma)
