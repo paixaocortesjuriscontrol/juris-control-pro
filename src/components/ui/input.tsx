@@ -2,6 +2,10 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+/** Faixa válida para campos de data em todo o sistema. */
+const DATA_MIN = "1900-01-01";
+const DATA_MAX = "2100-12-31";
+
 /**
  * Converte um texto colado em `yyyy-MM-dd` (valor aceito por input[type=date]).
  * Aceita dd/MM/yyyy, dd-MM-yyyy, ddMMyyyy, yyyy-MM-dd e yyyy/MM/dd.
