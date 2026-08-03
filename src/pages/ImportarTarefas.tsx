@@ -1485,6 +1485,7 @@ export default function ImportarTarefas() {
           prioridade: prio,
           responsavel_id: responsavelId,
           processo_id: processoId,
+          coordenacao_id: astreaCoordenacao || null,
           observacoes: observacoes || null,
           criado_por: user?.id || null,
           origem: "astrea",
@@ -1603,11 +1604,13 @@ export default function ImportarTarefas() {
     }
 
     setAstreaImporting(false);
-    queryClient.invalidateQueries({ queryKey: ["prazos"] });
-    queryClient.invalidateQueries({ queryKey: ["tarefas"] });
-    queryClient.invalidateQueries({ queryKey: ["profiles-import"] });
-    queryClient.invalidateQueries({ queryKey: ["processos"] });
-    queryClient.invalidateQueries({ queryKey: ["processos-map-import"] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["prazos"] }),
+      queryClient.invalidateQueries({ queryKey: ["tarefas"] }),
+      queryClient.invalidateQueries({ queryKey: ["profiles-import"] }),
+      queryClient.invalidateQueries({ queryKey: ["processos"] }),
+      queryClient.invalidateQueries({ queryKey: ["processos-map-import"] }),
+    ]);
 
     if (astreaUsuariosCriados.length > 0) {
       refetchProfiles();
