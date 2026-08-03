@@ -913,6 +913,14 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       </Tabs>
         </div>
       </div>
+
+      <HistoricoDistribuicaoTstDialog
+        open={historicoAberto}
+        onOpenChange={setHistoricoAberto}
+        dadosBennerId={(currentDado as any)?.id || null}
+        processo={processoNumero}
+        dossie={currentDado?.dossie || null}
+      />
     </div>
   );
 }
