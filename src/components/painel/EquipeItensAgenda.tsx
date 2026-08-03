@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,12 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
-import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo } from "lucide-react";
+import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -109,9 +110,12 @@ function getPessoas(item: ItemAgendaUnificado, extra?: PessoasPorPapel): PessoaI
 const getInitials = (name: string) =>
   name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
 
+const ITENS_POR_PAGINA = 50;
+
 export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps) {
   const [selectedMembro, setSelectedMembro] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [pagina, setPagina] = useState(1);
 
   const processoIds = useMemo(
     () => Array.from(new Set(itens.map((i) => i.processo_id).filter(Boolean))) as string[],
