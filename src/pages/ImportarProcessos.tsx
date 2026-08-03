@@ -5214,8 +5214,15 @@ export default function ImportarProcessos() {
         // Extrair outros envolvidos (para polos ativo/passivo)
         const outrosEnvolvidos = getFromRow(row, ["Outros envolvidos", "Outros Envolvidos"]) || "";
         
-        // Extrair responsável
-        const responsavel = getFromRow(row, ["Responsável", "Responsavel", "responsavel"]) || "";
+        // Extrair responsável — coluna AG (índice 32) na planilha Astrea
+        const responsavel = String(
+          getFromRow(row, [
+            "Responsável", "Responsavel", "responsavel",
+            "Responsáveis", "Responsaveis",
+            "Advogado responsável", "Advogado Responsável", "Advogado responsavel",
+            "Usuário responsável", "Usuario responsavel",
+          ]) ?? rowArr[32] ?? ""
+        ).trim();
 
         // Determinar polo ativo e passivo baseado no papel do cliente e outros envolvidos
         const papelCliente = getFromRow(row, ["Papel do cliente", "Papel Cliente"]) || "";
