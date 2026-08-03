@@ -1238,10 +1238,15 @@ export default function DistribuicaoTst() {
             nomesPorPersonType(/RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID/i) ||
             "";
 
-          // Trânsito em julgado: situação contém "trânsito" OU processo_baixado === "S"
+          // Trânsito em julgado — MESMA lógica do botão individual (buildJuditPatch):
+          // precedência para a detecção por movimentação da Edge Function; heurística
+          // de situação/baixa só como fallback, e sempre reavaliando para false.
           const situacaoStr = (juditData.situacao_processo || "").toString();
           const baixadoStr = (juditData.processo_baixado || "").toString().toUpperCase();
-          const ehTransito = /tr[âa]nsito/i.test(situacaoStr) || baixadoStr === "S";
+          const juditAtivo = /ativ|active|em\s*curso|em\s*tramita|andamento/i.test(situacaoStr) || baixadoStr === "N";
+          const ehTransito = !juditAtivo && (/arquivad|baixad|tr[âa]nsito/i.test(situacaoStr) || baixadoStr === "S");
+          const transitoDet = juditData?.transito_julgado_detectado;
+          const dataTransitoDet = juditData?.data_transito_julgado_detectada || null;
 
           // Atualiza apenas a linha selecionada. Mesmo processo pode ter mais
           // de um dossiê/origem na base; nunca atualizar por `processo` aqui.
@@ -1278,7 +1283,18 @@ export default function DistribuicaoTst() {
             if (reclamanteJudit) updateFields.reclamante = reclamanteJudit;
             if (reclamadaJudit) updateFields.reclamada = reclamadaJudit;
             if (juditData.situacao_processo) updateFields.situacao_processo = juditData.situacao_processo;
-            if (ehTransito) updateFields.transito_julgado = true;
+            if (transitoDet === true) {
+              updateFields.transito_julgado = true;
+              if (dataTransitoDet) updateFields.data_transito_julgado = dataTransitoDet;
+            } else if (transitoDet === false) {
+              updateFields.transito_julgado = false;
+              updateFields.data_transito_julgado = null;
+            } else if (juditAtivo) {
+              updateFields.transito_julgado = false;
+              updateFields.data_transito_julgado = null;
+            } else if (ehTransito) {
+              updateFields.transito_julgado = true;
+            }
             if (juditData.data_distribuicao) {
               updateFields.data_distribuicao_real = juditData.data_distribuicao;
               updateFields.data_distribuicao = juditData.data_distribuicao;
