@@ -49,6 +49,7 @@ serve(async (req) => {
       observacao?: string | null;
       cliente?: string | null;
       reclamante?: string | null;
+      reclamada?: string | null;
     };
     const porUsuario = new Map<string, Item[]>();
     const push = (uids: Iterable<string>, item: Item) => {
@@ -80,6 +81,7 @@ serve(async (req) => {
       const linhas: string[] = [`• [${i.tipo}] ${i.titulo} — venceu em ${String(i.data ?? "").slice(0, 10).split("-").reverse().join("/")}`];
       if (clean(i.processo)) linhas.push(`   Processo: ${i.processo}`);
       if (clean(i.reclamante)) linhas.push(`   Reclamante: ${i.reclamante}`);
+      if (clean(i.reclamada)) linhas.push(`   Reclamada: ${i.reclamada}`);
       if (clean(i.cliente)) linhas.push(`   Cliente: ${i.cliente}`);
       if (i.responsaveis?.length) linhas.push(`   Responsáveis: ${i.responsaveis.join(", ")}`);
       if (i.envolvidos?.length) linhas.push(`   Envolvidos: ${i.envolvidos.join(", ")}`);
@@ -90,7 +92,7 @@ serve(async (req) => {
     // 1) Tarefas: COALESCE(data_fatal, data_vencimento) < hoje
     const { data: tarefas } = await supabase
       .from("tarefas")
-      .select("id, titulo, data_fatal, data_vencimento, status, observacoes, descricao, partes_ativas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos(numero, polo_ativo, reclamante, cliente:clientes!processos_cliente_id_fkey(nome))")
+      .select("id, titulo, data_fatal, data_vencimento, status, observacoes, descricao, partes_ativas, partes_passivas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome))")
       .or(`and(data_fatal.lt.${hoje}),and(data_fatal.is.null,data_vencimento.lt.${hoje})`)
       .not("status", "in", "(concluida,cancelada,arquivada,tratada)")
       .limit(1000);
@@ -114,13 +116,14 @@ serve(async (req) => {
         observacao: t.observacoes ?? t.descricao ?? null,
         cliente: t.processo?.cliente?.nome ?? null,
         reclamante: t.processo?.reclamante ?? t.processo?.polo_ativo ?? t.partes_ativas ?? null,
+            reclamada: t.processo?.reclamados ?? t.processo?.polo_passivo ?? t.partes_passivas ?? null,
       });
     }
 
     // 2) Eventos: data_inicio < hoje
     const { data: eventos } = await supabase
       .from("eventos_agenda")
-      .select("id, titulo, data_inicio, descricao, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(numero, polo_ativo, reclamante, cliente:clientes!processos_cliente_id_fkey(nome))")
+      .select("id, titulo, data_inicio, descricao, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome))")
       .lt("data_inicio", `${hoje}T00:00:00Z`)
       .not("status", "in", "(concluido,cancelado,tratado)")
       .limit(1000);
@@ -144,6 +147,7 @@ serve(async (req) => {
         observacao: e.descricao ?? null,
         cliente: e.processo?.cliente?.nome ?? null,
         reclamante: e.processo?.reclamante ?? e.processo?.polo_ativo ?? null,
+              reclamada: e.processo?.reclamados ?? e.processo?.polo_passivo ?? null,
       });
     }
 
@@ -179,7 +183,7 @@ serve(async (req) => {
     // 4) Parcelas: data_vencimento < hoje e não pagas
     const { data: parcelas } = await supabase
       .from("parcelas_evento")
-      .select("id, numero, valor, data_vencimento, observacoes, status, pago_em, evento:eventos_agenda(id, titulo, status, descricao, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(numero, polo_ativo, reclamante, cliente:clientes!processos_cliente_id_fkey(nome)))")
+      .select("id, numero, valor, data_vencimento, observacoes, status, pago_em, evento:eventos_agenda(id, titulo, status, descricao, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome)))")
       .lt("data_vencimento", hoje)
       .is("pago_em", null)
       .not("status", "in", "(pago,paga,cancelado,cancelada)")
@@ -207,6 +211,7 @@ serve(async (req) => {
         observacao: p.observacoes ?? ev.descricao ?? null,
         cliente: ev.processo?.cliente?.nome ?? null,
         reclamante: ev.processo?.reclamante ?? ev.processo?.polo_ativo ?? null,
+              reclamada: ev.processo?.reclamados ?? ev.processo?.polo_passivo ?? null,
       });
     }
 
