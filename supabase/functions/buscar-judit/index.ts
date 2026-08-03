@@ -545,7 +545,18 @@ function extrairSituacao(rd: any): string | null {
 //      devolvendo autos após julgamento final).
 // Se houver step POSTERIOR de reativação (redistribuição, novo recurso,
 // inclusão em pauta), o processo volta a Ativo e não marca trânsito.
-type MotivoTransito = "movimento_848" | "texto_transito" | "remessa_trt";
+// Sinais FORTES (certidão real) sempre têm prioridade. Sinais FRACOS (remessa
+// de volta à instância de origem, arquivamento definitivo) só são usados quando
+// nenhuma certidão existe na resposta da Judit E o processo aparece arquivado/
+// baixado — casos em que o trânsito ficou registrado só na instância superior
+// (ex.: TST) que a Judit não devolveu.
+type MotivoTransito =
+  | "movimento_848"
+  | "texto_transito"
+  | "remessa_trt"
+  | "remessa_origem"
+  | "arquivamento_definitivo";
+const MOTIVOS_FORTES = new Set<MotivoTransito>(["movimento_848", "texto_transito"]);
 function stepText(s: any): string {
   return [s?.title, s?.content, s?.description]
     .filter((x) => typeof x === "string")
@@ -564,6 +575,15 @@ function stepMatchTransito(s: any): MotivoTransito | null {
   if (/trans(?:it(?:o|ou|ad[oa]s?)|[íi]t[oa])\s+em\s+julgado/i.test(t)) return "texto_transito";
   if (/tr[âa]nsito\s+em\s+julgado/i.test(t)) return "texto_transito";
   if (/remetid[oa]s?\s+os\s+autos.*tribunal\s+regional\s+do\s+trabalho/i.test(t)) return "remessa_trt";
+  // Contrapartida da remessa vinda da instância superior: o TST devolve os autos
+  // ("remetidos ... órgão jurisdicional competente") e a origem os recebe
+  // ("recebidos os autos para prosseguir"). Sinal fraco.
+  if (/remetid[oa]s?\s+os\s+autos.*[óo]rg[ãa]o\s+jurisdicional\s+competente/i.test(t)) return "remessa_origem";
+  if (/recebid[oa]s?\s+os\s+autos\s+para\s+prosseguir/i.test(t)) return "remessa_origem";
+  // Arquivamento definitivo / baixa definitiva: sinal fraco de trânsito.
+  if (/arquivad[oa]s?\s+os\s+autos\s+definitivamente/i.test(t)) return "arquivamento_definitivo";
+  if (/arquivamento\s+definitivo/i.test(t)) return "arquivamento_definitivo";
+  if (/baixa\s+definitiva/i.test(t)) return "arquivamento_definitivo";
   return null;
 }
 
@@ -591,14 +611,24 @@ function stepIsReativacao(s: any): boolean {
       /(interpost|protocol|distribu)/i.test(t)
   );
 }
+/** O processo está arquivado/baixado em alguma das instâncias devolvidas? */
+function rdsIndicamEncerramento(rds: any[]): boolean {
+  return rds.some((rd) => {
+    const alvo = `${rd?.status ?? ""} ${rd?.phase ?? ""}`.toUpperCase();
+    return /ARQUIVAD|BAIXAD|FINALIZAD|ENCERRAD/.test(alvo);
+  });
+}
+
 function detectarTransitoJulgado(rds: any[]): {
   transitado: boolean | null;
   data: string | null;
   motivo: MotivoTransito | null;
 } {
-  let melhor: { ts: number; data: string | null; motivo: MotivoTransito } | null = null;
-  let houveReativacaoPosterior = false;
+  type Candidato = { ts: number; data: string | null; motivo: MotivoTransito; reativado: boolean };
+  let melhorForte: Candidato | null = null;
+  let melhorFraco: Candidato | null = null;
   let algumStepAnalisado = false;
+  const aceitaFracos = rdsIndicamEncerramento(rds);
   for (const rd of rds) {
     const steps = Array.isArray(rd?.steps) ? rd.steps : [];
     if (!steps.length) continue;
@@ -610,45 +640,57 @@ function detectarTransitoJulgado(rds: any[]): {
       }))
       .sort((a: any, b: any) => a.ts - b.ts);
     algumStepAnalisado = true;
-    let idxTransito = -1;
-    let motivoDetectado: MotivoTransito | null = null;
+    // Primeira ocorrência de cada nível de sinal nesta instância.
+    let idxForte = -1;
+    let motivoForte: MotivoTransito | null = null;
+    let idxFraco = -1;
+    let motivoFraco: MotivoTransito | null = null;
     for (let i = 0; i < ordenados.length; i++) {
       const motivo = stepMatchTransito(ordenados[i].s);
-      if (motivo) {
-        idxTransito = i;
-        motivoDetectado = motivo;
-        break; // primeira ocorrência = data do trânsito real
+      if (!motivo) continue;
+      if (MOTIVOS_FORTES.has(motivo)) {
+        if (idxForte < 0) { idxForte = i; motivoForte = motivo; }
+      } else if (idxFraco < 0) {
+        idxFraco = i; motivoFraco = motivo;
       }
+      if (idxForte >= 0) break; // certidão encontrada: não precisa de sinal fraco
     }
-    if (idxTransito < 0 || !motivoDetectado) continue;
-    // Reativação posterior?
-    for (let j = idxTransito + 1; j < ordenados.length; j++) {
-      if (stepIsReativacao(ordenados[j].s)) {
-        houveReativacaoPosterior = true;
-        break;
+    const houveReativacaoApos = (idx: number) => {
+      for (let j = idx + 1; j < ordenados.length; j++) {
+        if (stepIsReativacao(ordenados[j].s)) return true;
       }
-    }
-    const step = ordenados[idxTransito].s;
-    const ts = ordenados[idxTransito].ts;
-    const dataIso = (() => {
-      // Prioriza a data mencionada no texto da certidão.
-      const noTexto = dataTransitoNoTexto(stepText(step));
-      if (noTexto) return noTexto;
-      const d = step?.step_date || step?.date || step?.movement_date;
-      if (!d) return null;
-      try {
-        return new Date(d).toISOString().slice(0, 10);
-      } catch {
-        return null;
-      }
-    })();
-    if (!melhor || ts < melhor.ts) {
-      melhor = { ts, data: dataIso, motivo: motivoDetectado };
+      return false;
+    };
+    const montar = (idx: number, motivo: MotivoTransito): Candidato => {
+      const step = ordenados[idx].s;
+      const ts = ordenados[idx].ts;
+      const dataIso = (() => {
+        // Prioriza a data mencionada no texto da certidão.
+        const noTexto = dataTransitoNoTexto(stepText(step));
+        if (noTexto) return noTexto;
+        const d = step?.step_date || step?.date || step?.movement_date;
+        if (!d) return null;
+        try {
+          return new Date(d).toISOString().slice(0, 10);
+        } catch {
+          return null;
+        }
+      })();
+      return { ts, data: dataIso, motivo, reativado: houveReativacaoApos(idx) };
+    };
+    if (idxForte >= 0 && motivoForte) {
+      const c = montar(idxForte, motivoForte);
+      if (!melhorForte || c.ts < melhorForte.ts) melhorForte = c;
+    } else if (aceitaFracos && idxFraco >= 0 && motivoFraco) {
+      const c = montar(idxFraco, motivoFraco);
+      // Para sinais fracos preferimos o mais RECENTE (última remessa/arquivamento).
+      if (!melhorFraco || c.ts > melhorFraco.ts) melhorFraco = c;
     }
   }
   if (!algumStepAnalisado) return { transitado: null, data: null, motivo: null };
+  const melhor = melhorForte ?? melhorFraco;
   if (!melhor) return { transitado: false, data: null, motivo: null };
-  if (houveReativacaoPosterior) return { transitado: false, data: null, motivo: null };
+  if (melhor.reativado) return { transitado: false, data: null, motivo: null };
   return { transitado: true, data: melhor.data, motivo: melhor.motivo };
 }
 
