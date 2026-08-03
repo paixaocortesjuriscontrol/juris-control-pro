@@ -380,6 +380,8 @@ serve(async (req) => {
         if (dv) linhas.push(`📅 Prevista: ${dv}${has(tarefa.hora_prevista) ? " " + fmtHora(tarefa.hora_prevista) : ""}`);
         if (df) linhas.push(`⏰ Fatal: ${df}${has(tarefa.hora_fatal) ? " " + fmtHora(tarefa.hora_fatal) : ""}`);
         if (processoNumero) linhas.push(`📁 Processo: ${processoNumero}`);
+        if (has(reclamanteFinal)) linhas.push(`⚖️ Reclamante: ${reclamanteFinal}`);
+        if (has(reclamadaFinal)) linhas.push(`🏛️ Reclamada: ${reclamadaFinal}`);
         if (clienteNome) linhas.push(`👤 Cliente: ${clienteNome}`);
         if (coordenacaoNome) linhas.push(`🏢 Coordenação: ${coordenacaoNome}`);
         if (responsaveisNomes.length) linhas.push(`👥 Responsáveis: ${responsaveisNomes.join(", ")}`);
