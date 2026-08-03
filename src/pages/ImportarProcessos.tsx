@@ -5647,6 +5647,7 @@ export default function ImportarProcessos() {
               status: encerramentoIsoNovo ? "encerrado" : mapStatusToEnum(processo.situacao),
               data_encerramento: encerramentoIsoNovo ? encerramentoIsoNovo.slice(0, 10) : null,
               data_hora_encerramento: encerramentoIsoNovo,
+              motivo_encerramento: encerramentoIsoNovo ? "Encerrado conforme planilha Astrea" : null,
               assunto: processo.assunto,
               descricao: processo.descricao,
               vara: processo.orgaoJulgador,
