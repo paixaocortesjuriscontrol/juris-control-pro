@@ -5160,6 +5160,8 @@ export default function ImportarProcessos() {
         return null;
       };
 
+      console.log("[Astrea Import] Cabeçalhos detectados:", headerRow);
+
       const totalDataRows = expectedRows || Math.max(0, aoa.length - 1);
 
       const parsed: ProcessoImport[] = Array.from({ length: totalDataRows }).map((_, index) => {
