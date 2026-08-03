@@ -277,6 +277,21 @@ export function PrazoDialog({
 
   const processoIdEfetivo = defaultProcessoId || resolvedProcessoId || prazo?.processo_id || null;
 
+  // Processo vinculado (para exibir no formulário quando não há publicação)
+  const { data: processoVinculado } = useQuery({
+    queryKey: ["prazo-dialog-processo", processoIdEfetivo],
+    enabled: !!open && !!processoIdEfetivo,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("processos")
+        .select("id, numero, titulo, cliente, parte_contraria")
+        .eq("id", processoIdEfetivo as string)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+  });
+
   // data base = data da publicação (se houver) ou hoje
   const dataBase = useMemo<Date>(() => {
     const disp = parseDataPublicacaoLocal(publicacaoEfetiva?.data_disponibilizacao);
