@@ -1881,6 +1881,11 @@ export function ProcessoDetalhesCompletos({
                 <ProcessoPartesTab processoId={processo.id} />
               )}
 
+              {/* Auditoria — histórico completo de ações do processo e itens vinculados */}
+              {activeSection === "auditoria" && (
+                <ProcessoAuditoriaTab processoId={processo?.id} processoNumero={processo?.numero} />
+              )}
+
               {/* Comentários Section */}
               {activeSection === "comentarios" && (
                 <div className="space-y-3">
