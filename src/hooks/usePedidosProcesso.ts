@@ -83,6 +83,46 @@ export function usePedidosProcesso(processoId: string | undefined) {
     },
   });
 
+  const addPedidosEmLote = useMutation({
+    mutationFn: async (nomes: string[]) => {
+      if (!processoId || nomes.length === 0) return;
+      const rows = nomes.map((nome) => ({
+        processo_id: processoId,
+        pedido: nome,
+        sentenca: false,
+        acordao: false,
+        tst: false,
+      }));
+      const { error } = await supabase.from("pedidos_processo").insert(rows);
+      if (error) throw error;
+      return nomes.length;
+    },
+    onSuccess: async (count) => {
+      await queryClient.invalidateQueries({ queryKey: ["pedidos-processo", processoId] });
+      toast.success(`${count ?? 0} pedido(s) adicionado(s)`);
+    },
+    onError: (error: any) => {
+      toast.error(`Erro ao adicionar pedidos: ${error.message}`);
+    },
+  });
+
+  const _updatePedidoLegacy = useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<PedidoProcesso> & { id: string }) => {
+      const { error } = await supabase
+        .from("pedidos_processo")
+        .update(updates)
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pedidos-processo", processoId] });
+    },
+    onError: (error: any) => {
+      console.error(error);
+    },
+  });
+
   const deletePedido = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -106,6 +146,7 @@ export function usePedidosProcesso(processoId: string | undefined) {
     isLoading,
     totalValor,
     addPedido,
+    addPedidosEmLote,
     updatePedido,
     deletePedido,
   };
