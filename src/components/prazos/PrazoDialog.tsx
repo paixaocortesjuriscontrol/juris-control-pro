@@ -33,7 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
 import { ItemAnexos, type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
-import { CalendarIcon, Loader2, FileText, Tag, AlertTriangle } from "lucide-react";
+import { CalendarIcon, Loader2, FileText, Tag, AlertTriangle, Search, X } from "lucide-react";
 import { format, parseISO, addDays, addWeeks, addMonths, addYears } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -275,7 +275,51 @@ export function PrazoDialog({
     return () => { cancelled = true; };
   }, [open, prazo, defaultProcessoId, publicacao?.id, user?.id]);
 
-  const processoIdEfetivo = defaultProcessoId || resolvedProcessoId || prazo?.processo_id || null;
+  const [processoManualId, setProcessoManualId] = useState<string | null>(null);
+  const [processoBuscaNumero, setProcessoBuscaNumero] = useState("");
+  const [buscandoProcesso, setBuscandoProcesso] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setProcessoManualId(null);
+      setProcessoBuscaNumero("");
+    }
+  }, [open]);
+
+  const processoIdEfetivo =
+    defaultProcessoId || resolvedProcessoId || prazo?.processo_id || processoManualId || null;
+
+  // Permite vincular/desvincular processo manualmente (sem publicação e sem processo de origem)
+  const podeVincularProcessoManual = !publicacao && !defaultProcessoId;
+
+  const buscarProcessoManual = async () => {
+    const numero = processoBuscaNumero.trim();
+    if (!numero) return;
+    setBuscandoProcesso(true);
+    try {
+      const digits = numero.replace(/\D/g, "");
+      const candidatos = Array.from(new Set([aplicarMascaraCnj(numero), numero, digits].filter(Boolean)));
+      const orExpr = candidatos.map((c) => `numero.ilike.%${c}%`).join(",");
+      const { data, error } = await supabase
+        .from("processos")
+        .select("id, numero")
+        .or(orExpr)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        toast.error("Processo não encontrado");
+        return;
+      }
+      setProcessoManualId(data.id);
+      setProcessoBuscaNumero("");
+      toast.success("Processo vinculado");
+    } catch (err: any) {
+      toast.error("Erro ao buscar processo: " + (err?.message || err));
+    } finally {
+      setBuscandoProcesso(false);
+    }
+  };
 
   // Processo vinculado (para exibir no formulário quando não há publicação)
   const { data: processoVinculado } = useQuery({
@@ -651,7 +695,57 @@ export function PrazoDialog({
                   </p>
                 )}
               </div>
+              {podeVincularProcessoManual && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="ml-auto h-7 w-7 shrink-0"
+                  title="Desvincular processo"
+                  onClick={() => {
+                    setProcessoManualId(null);
+                    setResolvedProcessoId("");
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
             </div>
+          </div>
+        )}
+
+        {podeVincularProcessoManual && !processoIdEfetivo && (
+          <div className="space-y-1.5">
+            <Label className="text-sm">Processo (opcional)</Label>
+            <div className="flex gap-2 min-w-0">
+              <Input
+                value={processoBuscaNumero}
+                onChange={(e) => setProcessoBuscaNumero(e.target.value)}
+                onBlur={(e) => setProcessoBuscaNumero(aplicarMascaraCnj(e.target.value))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    buscarProcessoManual();
+                  }
+                }}
+                placeholder="0000000-00.0000.0.00.0000"
+                className="h-10 flex-1 min-w-0 font-mono"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-10 w-10 shrink-0"
+                onClick={buscarProcessoManual}
+                disabled={buscandoProcesso}
+                title="Buscar e vincular processo"
+              >
+                {buscandoProcesso ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Deixe em branco para criar o prazo sem processo vinculado.
+            </p>
           </div>
         )}
 
