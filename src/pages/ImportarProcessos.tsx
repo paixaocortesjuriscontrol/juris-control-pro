@@ -5460,6 +5460,32 @@ export default function ImportarProcessos() {
     // 5. Garantir áreas existem (uma única vez)
     const areaTrabalhista = await ensureAreaExists("trabalhista");
     const areaCaso = await ensureAreaExists("caso");
+
+    // 5.1 Pré-carregar perfis para resolver a coluna "Responsável" da planilha
+    const normNome = (v: string) =>
+      String(v || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toUpperCase();
+    const perfisMap = new Map<string, string>();
+    {
+      const { data: perfis } = await supabase.from("profiles").select("id, nome");
+      for (const p of (perfis as any[]) || []) {
+        if (p?.nome) perfisMap.set(normNome(p.nome), p.id);
+      }
+    }
+    const resolverResponsavelId = (nome: string | null | undefined): string | null => {
+      const key = normNome(nome || "");
+      if (!key) return null;
+      if (perfisMap.has(key)) return perfisMap.get(key)!;
+      // fallback: primeiro perfil cujo nome comece pelo nome da planilha (ou vice-versa)
+      for (const [k, id] of perfisMap) {
+        if (k.startsWith(key) || key.startsWith(k)) return id;
+      }
+      return null;
+    };
     
     // 6. Obter usuário uma única vez
     const { data: { user } } = await supabase.auth.getUser();
