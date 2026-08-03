@@ -1223,7 +1223,17 @@ export default function ImportarTarefas() {
         const responsavel = getRowValue(row, ["Responsável", "Responsavel"]);
         const titulo = getRowValue(row, ["Título", "Titulo"]);
         const tituloProcesso = getRowValue(row, ["Título do processo/caso/atendimento", "Titulo do processo/caso/atendimento"]);
-        const numeroProcesso = getRowValue(row, ["Número do processo", "Numero do processo"]);
+        const numeroProcesso = getRowValue(row, [
+          "Número do processo",
+          "Numero do processo",
+          "Número do processo/caso",
+          "Numero do processo/caso",
+          "Número do processo/caso/atendimento",
+          "Numero do processo/caso/atendimento",
+          "Processo",
+          "Nº do processo",
+          "N° do processo",
+        ]);
         const juizo = getRowValue(row, ["Juízo", "Juizo"]);
         const observacao = getRowValue(row, ["Observação da atividade", "Observacao da atividade"]);
         const etiquetas = getRowValue(row, ["Etiquetas"]);
