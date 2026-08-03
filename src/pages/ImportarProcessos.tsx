@@ -3303,22 +3303,6 @@ export default function ImportarProcessos() {
           row[header] = rowArr[colIndex] ?? null;
         });
 
-        // Fallback difuso: encontra qualquer coluna de "data de encerramento"
-        // (cabeçalhos variam: "Data de encerramento", "Encerrado em", "Data de baixa"...)
-        const getEncerramentoFuzzy = (rowObj: Record<string, any>) => {
-          for (const [k, v] of Object.entries(rowObj)) {
-            if (v === null || v === undefined || v === "") continue;
-            const nk = normalizeHeaderKey(k);
-            if (/encerr|finaliz|baixa/.test(nk) && /data|em$|dia/.test(nk)) return v;
-          }
-          for (const [k, v] of Object.entries(rowObj)) {
-            if (v === null || v === undefined || v === "") continue;
-            const nk = normalizeHeaderKey(k);
-            if (/encerr|finaliz/.test(nk)) return v;
-          }
-          return null;
-        };
-
         const rowHasAnyValue = rowArr.some((v) => {
           if (v === null || v === undefined) return false;
           if (typeof v === "string") return v.trim() !== "";
