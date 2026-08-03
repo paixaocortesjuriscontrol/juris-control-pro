@@ -24,21 +24,30 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   filters: DistribuicaoTstFilters;
   totalCount: number;
+  /** IDs marcados na tela (checkboxes). Permite distribuir só a seleção. */
+  selectedIds?: string[];
+  /** Somente administradores podem restringir à seleção. */
+  isAdmin?: boolean;
   onSuccess: () => void | Promise<void>;
 }
 
-export function DistribuirAutomaticoDialog({ open, onOpenChange, filters, totalCount, onSuccess }: Props) {
+export function DistribuirAutomaticoDialog({ open, onOpenChange, filters, totalCount, selectedIds = [], isAdmin = false, onSuccess }: Props) {
   const [advogadoIds, setAdvogadoIds] = useState<string[]>([]);
   const [substituir, setSubstituir] = useState(true);
   const [embaralhar, setEmbaralhar] = useState(true);
+  const [somenteSelecionados, setSomenteSelecionados] = useState(true);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
+
+  const podeRestringir = isAdmin && selectedIds.length > 0;
+  const usarSelecao = podeRestringir && somenteSelecionados;
 
   useEffect(() => {
     if (!open) {
       setAdvogadoIds([]);
       setSubstituir(true);
       setEmbaralhar(true);
+      setSomenteSelecionados(true);
       setProgress({ done: 0, total: 0 });
     }
   }, [open]);
@@ -50,10 +59,15 @@ export function DistribuirAutomaticoDialog({ open, onOpenChange, filters, totalC
     }
     setRunning(true);
     try {
-      toast.info("Carregando processos do filtro...");
-      let ids = await fetchAllDistribuicaoTstIds(filters);
+      let ids: string[];
+      if (usarSelecao) {
+        ids = [...selectedIds];
+      } else {
+        toast.info("Carregando processos do filtro...");
+        ids = await fetchAllDistribuicaoTstIds(filters);
+      }
       if (ids.length === 0) {
-        toast.warning("Nenhum processo encontrado com os filtros atuais");
+        toast.warning(usarSelecao ? "Nenhum processo selecionado" : "Nenhum processo encontrado com os filtros atuais");
         setRunning(false);
         return;
       }
@@ -128,17 +142,41 @@ export function DistribuirAutomaticoDialog({ open, onOpenChange, filters, totalC
             <Shuffle className="w-5 h-5" /> Distribuição automática
           </DialogTitle>
           <DialogDescription>
-            Os processos que batem com os filtros atuais serão divididos igualmente
+            {usarSelecao
+              ? "Apenas os processos marcados na tela serão divididos igualmente (round-robin) entre os advogados selecionados."
+              : "Os processos que batem com os filtros atuais serão divididos igualmente"}
             (round-robin) entre os advogados selecionados.
-            {totalCount > 0 && (
+            {!usarSelecao && totalCount > 0 && (
               <span className="block mt-1 font-medium text-foreground">
                 {totalCount} processo(s) no filtro atual.
+              </span>
+            )}
+            {usarSelecao && (
+              <span className="block mt-1 font-medium text-foreground">
+                {selectedIds.length} processo(s) selecionado(s).
               </span>
             )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {podeRestringir && (
+            <div className="flex items-start gap-2 rounded-md border p-2">
+              <Checkbox
+                id="somente-selecionados"
+                checked={somenteSelecionados}
+                onCheckedChange={(v) => setSomenteSelecionados(!!v)}
+              />
+              <div className="space-y-1">
+                <Label htmlFor="somente-selecionados" className="cursor-pointer">
+                  Distribuir somente os {selectedIds.length} selecionados
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Desmarque para distribuir todos os processos do filtro atual ({totalCount}).
+                </p>
+              </div>
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Advogados *</Label>
             <ResponsaveisSelector
