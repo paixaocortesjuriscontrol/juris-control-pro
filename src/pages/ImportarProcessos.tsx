@@ -37,7 +37,7 @@ import {
   downloadBradescoTemplate 
 } from "@/utils/generateTemplates";
 import { Switch } from "@/components/ui/switch";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 interface ValidationError {
   campo: string;
@@ -232,10 +232,11 @@ const parseDateTimeLocal = (value: any): string | null => {
   if (typeof value === "string") {
     const t = value.trim();
     if (!t) return null;
-    const br = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    const br = t.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2}|\d{4})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
     if (br) {
+      const parsedYear = Number(br[3]);
       return build(
-        Number(br[3]), Number(br[2]), Number(br[1]),
+        parsedYear < 100 ? 2000 + parsedYear : parsedYear, Number(br[2]), Number(br[1]),
         Number(br[4] || 0), Number(br[5] || 0), Number(br[6] || 0)
       );
     }
@@ -245,6 +246,26 @@ const parseDateTimeLocal = (value: any): string | null => {
         Number(iso[1]), Number(iso[2]), Number(iso[3]),
         Number(iso[4] || 0), Number(iso[5] || 0), Number(iso[6] || 0)
       );
+    }
+
+    const textual = t
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .match(/^(\d{1,2})\s+de\s+([a-z.]+)\s+de\s+(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (textual) {
+      const monthKey = textual[2].replace(/\./g, "").slice(0, 3);
+      const months: Record<string, number> = {
+        jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
+        jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12,
+      };
+      const month = months[monthKey];
+      if (month) {
+        return build(
+          Number(textual[3]), month, Number(textual[1]),
+          Number(textual[4] || 0), Number(textual[5] || 0), Number(textual[6] || 0)
+        );
+      }
     }
   }
 
@@ -353,6 +374,7 @@ export default function ImportarProcessos() {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { startImport, endImport } = useImport();
 
   // AbortController for cancelling imports on unmount
@@ -5183,8 +5205,10 @@ export default function ImportarProcessos() {
           row[header] = rowArr[colIndex] ?? null;
         });
 
-        // Coluna X (índice 23) = Data de Encerramento na planilha Astrea
-        const encerramentoColX = rowArr[23] ?? null;
+        // Lê X pelo endereço absoluto da célula, sem depender do início de !ref.
+        const sheetRowIndex = index + headerIndex + 1;
+        const encerramentoCellX = sheet[XLSX.utils.encode_cell({ r: sheetRowIndex, c: 23 })];
+        const encerramentoColX = encerramentoCellX?.v ?? encerramentoCellX?.w ?? rowArr[23] ?? null;
 
         const rowHasAnyValue = rowArr.some((v) => {
           if (v === null || v === undefined) return false;
@@ -5371,6 +5395,11 @@ export default function ImportarProcessos() {
 
       const validCount = parsed.filter((p) => p.status === "valido").length;
       const invalidCount = parsed.filter((p) => p.status === "invalido").length;
+      const encerradosDetectados = parsed.filter((p) => {
+        const dataAstrea = (p as any).astreaData || {};
+        return Boolean(parseDateTimeLocal(dataAstrea.dataEncerramento)) ||
+          /encerrad|finalizad|baixad|arquivad/i.test(String(dataAstrea.situacaoPlanilha || ""));
+      }).length;
 
       if (parsed.length === 0) {
         toast({
@@ -5381,7 +5410,7 @@ export default function ImportarProcessos() {
       } else {
         toast({
           title: "Planilha Astrea carregada",
-          description: `${parsed.length} linha(s) lida(s): ${validCount} importável(is), ${invalidCount} rejeitada(s).`,
+          description: `${parsed.length} linha(s): ${validCount} importável(is), ${invalidCount} rejeitada(s), ${encerradosDetectados} encerrada(s) detectada(s).`,
           variant: invalidCount > 0 ? "destructive" : "default",
         });
       }
@@ -5646,13 +5675,23 @@ export default function ImportarProcessos() {
             }
             
             if (Object.keys(updateData).length > 0) {
-              const { error } = await supabase
+              const { data: savedProcesso, error } = await supabase
                 .from("processos")
                 .update(updateData)
-                .eq("id", existingProcesso.id);
+                .eq("id", existingProcesso.id)
+                .select("id, status, data_encerramento, data_hora_encerramento")
+                .maybeSingle();
 
               if (error) {
                 updatedProcessos[globalIndex] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+                return { index: globalIndex, result: "error" };
+              }
+              if (!savedProcesso) {
+                updatedProcessos[globalIndex] = { ...processo, status: "erro", erroImport: "O banco não confirmou a atualização deste processo." };
+                return { index: globalIndex, result: "error" };
+              }
+              if ((encerramentoIso || situacaoEncerrada) && savedProcesso.status !== "encerrado") {
+                updatedProcessos[globalIndex] = { ...processo, status: "erro", erroImport: "A situação Encerrado não foi persistida no banco." };
                 return { index: globalIndex, result: "error" };
               }
             }
@@ -5798,6 +5837,7 @@ export default function ImportarProcessos() {
     }
 
     setAstreaImporting(false);
+    await queryClient.invalidateQueries({ queryKey: ["processos-paginados"] });
     endImport();
 
     const totalProcessed = successCountLocal + updateCountLocal + errorCountLocal + rejectedCountLocal;
