@@ -67,6 +67,46 @@ async function buscarDetalhesEntidade(supabase: any, entidade: string, id: strin
     if (!t) return null;
     return t.length > 400 ? `${t.slice(0, 400)}…` : t;
   };
+  // Reclamante / Reclamada(s) do processo — usado em TODOS os tipos de item
+  const partesProcesso = async (
+    processoId?: string | null,
+    numero?: string | null,
+  ): Promise<{ reclamante?: string; reclamada?: string }> => {
+    try {
+      let proc: any = null;
+      if (processoId) {
+        const { data } = await supabase.from("processos")
+          .select("id, reclamante, reclamados, polo_ativo, polo_passivo")
+          .eq("id", processoId).maybeSingle();
+        proc = data;
+      } else if (numero) {
+        const { data } = await supabase.from("processos")
+          .select("id, reclamante, reclamados, polo_ativo, polo_passivo")
+          .eq("numero", numero).limit(1).maybeSingle();
+        proc = data;
+      }
+      if (!proc) return {};
+      let reclamante = String(proc.reclamante ?? proc.polo_ativo ?? "").trim();
+      let reclamada = String(proc.reclamados ?? proc.polo_passivo ?? "").trim();
+      if (!reclamante || !reclamada) {
+        const { data: partes } = await supabase.from("processos_partes")
+          .select("nome, polo").eq("processo_id", proc.id);
+        const nomes = (polo: string) => (partes ?? [])
+          .filter((p: any) => String(p.polo ?? "").toLowerCase().includes(polo) && p.nome)
+          .map((p: any) => p.nome).join(", ");
+        if (!reclamante) reclamante = nomes("ativo");
+        if (!reclamada) reclamada = nomes("passivo");
+      }
+      return {
+        ...(reclamante ? { reclamante } : {}),
+        ...(reclamada ? { reclamada } : {}),
+      };
+    } catch { return {}; }
+  };
+  const aplicarPartes = (p: { reclamante?: string; reclamada?: string }) => {
+    if (p.reclamante) det["Reclamante"] = p.reclamante;
+    if (p.reclamada) det["Reclamada"] = p.reclamada;
+  };
   try {
     if (entidade === "tarefa") {
       const { data } = await supabase.from("tarefas")
@@ -82,8 +122,11 @@ async function buscarDetalhesEntidade(supabase: any, entidade: string, id: strin
         const numero = await numeroProcesso(data.processo_id);
         if (numero) det["Processo"] = numero;
         if (data.identificador_projuris) det["Identificador"] = data.identificador_projuris;
-        if (data.partes_ativas) det["Polo ativo"] = data.partes_ativas;
-        if (data.partes_passivas) det["Polo passivo"] = data.partes_passivas;
+        const partes = await partesProcesso(data.processo_id, numero);
+        det["Reclamante"] = partes.reclamante ?? String(data.partes_ativas ?? "").trim();
+        det["Reclamada"] = partes.reclamada ?? String(data.partes_passivas ?? "").trim();
+        if (!det["Reclamante"]) delete det["Reclamante"];
+        if (!det["Reclamada"]) delete det["Reclamada"];
         if (data.link_local) det["Local / Link"] = data.link_local;
         const desc = resumo(data.descricao);
         if (desc) det["Descrição"] = desc;
@@ -103,7 +146,10 @@ async function buscarDetalhesEntidade(supabase: any, entidade: string, id: strin
         if (data.vara_camara) det["Vara/Câmara"] = data.vara_camara;
         if (data.comarca) det["Comarca"] = data.comarca;
         if (data.processo_numero) det["Processo"] = data.processo_numero;
-        if (data.polo_ativo) det["Polo ativo"] = data.polo_ativo;
+        const partesA = await partesProcesso(null, data.processo_numero);
+        const recteA = partesA.reclamante ?? String(data.polo_ativo ?? "").trim();
+        if (recteA) det["Reclamante"] = recteA;
+        if (partesA.reclamada) det["Reclamada"] = partesA.reclamada;
         if (data.cliente) det["Cliente"] = data.cliente;
         if (data.terceirizado) det["Terceirizado"] = data.terceirizado;
         const obs = resumo(data.observacoes);
@@ -121,6 +167,7 @@ async function buscarDetalhesEntidade(supabase: any, entidade: string, id: strin
         if (data.local) det["Local"] = data.local;
         const numero = await numeroProcesso(data.processo_id);
         if (numero) det["Processo"] = numero;
+        aplicarPartes(await partesProcesso(data.processo_id));
         const desc = resumo(data.descricao);
         if (desc) det["Descrição"] = desc;
       }
@@ -138,6 +185,7 @@ async function buscarDetalhesEntidade(supabase: any, entidade: string, id: strin
           if (ev?.titulo) det["Parcelamento"] = ev.titulo;
           const numero = await numeroProcesso(ev?.processo_id);
           if (numero) det["Processo"] = numero;
+          aplicarPartes(await partesProcesso(ev?.processo_id));
         }
         const obs = resumo(data.observacoes);
         if (obs) det["Observações"] = obs;

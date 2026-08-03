@@ -147,6 +147,7 @@ serve(async (req) => {
       observacao?: string | null;
       cliente?: string | null;
       reclamante?: string | null;
+      reclamada?: string | null;
     };
 
     const clean = (v?: string | null) => {
@@ -159,6 +160,7 @@ serve(async (req) => {
       const linhas: string[] = [`• ${i.titulo}${h}${prefixoData ? ` ${prefixoData}` : ""}`];
       if (clean(i.processo)) linhas.push(`   Processo: ${i.processo}`);
       if (clean(i.reclamante)) linhas.push(`   Reclamante: ${i.reclamante}`);
+      if (clean(i.reclamada)) linhas.push(`   Reclamada: ${i.reclamada}`);
       if (clean(i.cliente)) linhas.push(`   Cliente: ${i.cliente}`);
       if (i.responsaveis?.length) linhas.push(`   Responsáveis: ${i.responsaveis.join(", ")}`);
       if (i.envolvidos?.length) linhas.push(`   Envolvidos: ${i.envolvidos.join(", ")}`);
@@ -191,7 +193,7 @@ serve(async (req) => {
         // 1) Tarefas (data_vencimento é date — comparação direta em BRT)
         const { data: tarefas } = await supabase
           .from("tarefas")
-          .select("id, titulo, data_vencimento, hora_prevista, observacoes, descricao, partes_ativas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos!inner(numero, coordenacao_id, polo_ativo, reclamante, cliente:clientes!processos_cliente_id_fkey(nome))")
+          .select("id, titulo, data_vencimento, hora_prevista, observacoes, descricao, partes_ativas, partes_passivas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos!inner(numero, coordenacao_id, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome))")
           .eq("tipo_tarefa", cfg.tipo_tarefa)
           .eq("processo.coordenacao_id", cfg.coordenacao_id)
           .eq("data_vencimento", alvo)
@@ -213,6 +215,7 @@ serve(async (req) => {
             observacao: t.observacoes ?? t.descricao ?? null,
             cliente: t.processo?.cliente?.nome ?? null,
             reclamante: t.processo?.reclamante ?? t.processo?.polo_ativo ?? t.partes_ativas ?? null,
+            reclamada: t.processo?.reclamados ?? t.processo?.polo_passivo ?? t.partes_passivas ?? null,
           });
         }
 
@@ -249,7 +252,7 @@ serve(async (req) => {
         if (cfg.tipo_tarefa === "OUTROS" || cfg.tipo_tarefa === "EVENTO") {
           const { data: eventos } = await supabase
             .from("eventos_agenda")
-            .select("id, titulo, data_inicio, descricao, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos!inner(numero, coordenacao_id, polo_ativo, reclamante, cliente:clientes!processos_cliente_id_fkey(nome))")
+            .select("id, titulo, data_inicio, descricao, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos!inner(numero, coordenacao_id, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome))")
             .eq("processo.coordenacao_id", cfg.coordenacao_id)
             .gte("data_inicio", alvoIni)
             .lte("data_inicio", alvoFim)
@@ -274,6 +277,7 @@ serve(async (req) => {
               observacao: e.descricao ?? null,
               cliente: e.processo?.cliente?.nome ?? null,
               reclamante: e.processo?.reclamante ?? e.processo?.polo_ativo ?? null,
+              reclamada: e.processo?.reclamados ?? e.processo?.polo_passivo ?? null,
             });
           }
         }
@@ -282,7 +286,7 @@ serve(async (req) => {
         if (cfg.tipo_tarefa === "PARCELAMENTO" || cfg.tipo_tarefa === "PARCELA") {
           const { data: parcelas } = await supabase
             .from("parcelas_evento")
-            .select("id, numero, valor, data_vencimento, observacoes, status, pago_em, evento:eventos_agenda!inner(id, titulo, status, descricao, criado_por, coordenacao_id, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(numero, polo_ativo, reclamante, cliente:clientes!processos_cliente_id_fkey(nome)))")
+            .select("id, numero, valor, data_vencimento, observacoes, status, pago_em, evento:eventos_agenda!inner(id, titulo, status, descricao, criado_por, coordenacao_id, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome)))")
             .eq("evento.coordenacao_id", cfg.coordenacao_id)
             .eq("data_vencimento", alvo)
             .is("pago_em", null)
@@ -314,6 +318,7 @@ serve(async (req) => {
               observacao: p.observacoes ?? ev.descricao ?? null,
               cliente: ev.processo?.cliente?.nome ?? null,
               reclamante: ev.processo?.reclamante ?? ev.processo?.polo_ativo ?? null,
+              reclamada: ev.processo?.reclamados ?? ev.processo?.polo_passivo ?? null,
             });
           }
         }
@@ -424,7 +429,7 @@ serve(async (req) => {
           // Tarefas vencidas (data_vencimento < hoje) e ainda não concluídas/tratadas
           const { data: tarefasVenc } = await supabase
             .from("tarefas")
-            .select("id, titulo, data_vencimento, data_cumprimento, observacoes, descricao, partes_ativas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos!inner(numero, coordenacao_id, polo_ativo, reclamante, cliente:clientes!processos_cliente_id_fkey(nome))")
+            .select("id, titulo, data_vencimento, data_cumprimento, observacoes, descricao, partes_ativas, partes_passivas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos!inner(numero, coordenacao_id, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome))")
             .eq("tipo_tarefa", cfg.tipo_tarefa)
             .eq("processo.coordenacao_id", cfg.coordenacao_id)
             .lt("data_vencimento", hojeYmd)
@@ -446,6 +451,7 @@ serve(async (req) => {
               observacao: t.observacoes ?? t.descricao ?? null,
               cliente: t.processo?.cliente?.nome ?? null,
               reclamante: t.processo?.reclamante ?? t.processo?.polo_ativo ?? t.partes_ativas ?? null,
+            reclamada: t.processo?.reclamados ?? t.processo?.polo_passivo ?? t.partes_passivas ?? null,
             });
           }
 
