@@ -258,13 +258,20 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
   const listaItens = useMemo(() => {
     const base = membroAtual ? membroAtual.itens : itens;
     const q = search.trim().toLowerCase();
-    if (!q) return base;
-    return base.filter(
-      (i) =>
-        i.titulo?.toLowerCase().includes(q) ||
-        i.descricao?.toLowerCase().includes(q) ||
-        i.processo?.numero?.toLowerCase().includes(q)
-    );
+    const filtrada = !q
+      ? base
+      : base.filter(
+          (i) =>
+            i.titulo?.toLowerCase().includes(q) ||
+            i.descricao?.toLowerCase().includes(q) ||
+            i.processo?.numero?.toLowerCase().includes(q)
+        );
+    // Ordena por data crescente: atrasados e de hoje no topo, futuros depois
+    const ts = (i: any) => {
+      const t = new Date(i?.data_inicio).getTime();
+      return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+    };
+    return [...filtrada].sort((a, b) => ts(a) - ts(b));
   }, [membroAtual, itens, search]);
 
   const totalPaginas = Math.max(1, Math.ceil(listaItens.length / ITENS_POR_PAGINA));
