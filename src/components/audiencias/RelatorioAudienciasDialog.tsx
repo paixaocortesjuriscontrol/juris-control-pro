@@ -190,9 +190,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
 
     // Rodapé TOTAL
     const totalRowNum = 4 + data.rows.length;
-    const totalGeral = data.rows.reduce((a, r) => a + r.total, 0);
+    const totalGeral = data.totalAudiencias;
     const totalRow = ws.getRow(totalRowNum);
-    totalRow.values = ["TOTAL", ...data.situacoes.map((s) => totaisPorSitu[s] ?? 0), totalGeral];
+    totalRow.values = ["TOTAL (audiências únicas)", ...data.situacoes.map((s) => totaisPorSitu[s] ?? 0), totalGeral];
     totalRow.height = 24;
     totalRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
       cell.font = { name: "Calibri", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
