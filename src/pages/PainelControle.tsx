@@ -1727,14 +1727,14 @@ export default function PainelControle() {
             <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5 md:gap-2">
               {/* Data Atual */}
               <div className="flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg px-2 py-1.5">
-                <div className="text-center">
+                <p className="text-xl md:text-2xl font-bold leading-none">
+                  {format(nowBrt, "dd")}
+                </p>
+                <div className="leading-tight">
                   <p className="text-[10px] md:text-xs font-semibold uppercase tracking-wider opacity-80">
                     {format(nowBrt, "MMM", { locale: ptBR })}
                   </p>
-                  <p className="text-xl md:text-2xl font-bold leading-none">
-                    {format(nowBrt, "dd")}
-                  </p>
-                  <p className="text-[10px] md:text-xs opacity-80 capitalize hidden md:block">
+                  <p className="text-[10px] md:text-xs opacity-80 capitalize">
                     {format(nowBrt, "EEEE", { locale: ptBR })}
                   </p>
                 </div>
