@@ -1168,6 +1168,11 @@ export function ProcessoDetalhesCompletos({
                                         </Badge>
                                       )}
                                     </div>
+                                    {aud.titulo && (
+                                      <p className="text-sm font-medium text-foreground break-words">
+                                        {aud.titulo}
+                                      </p>
+                                    )}
                                     <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
                                       {aud.created_at && <span>Registrada em {formatDate(aud.created_at)}</span>}
                                       {aud.origem && <span className="capitalize">Origem: {aud.origem}</span>}
