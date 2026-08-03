@@ -7,6 +7,7 @@ import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPubli
 import { ProcessoAnexosJuditTab } from "./ProcessoAnexosJuditTab";
 import { AnaliseJuditTab } from "@/components/distribuicao-tst/AnaliseJuditTab";
 import { ProcessoPartesTab } from "./ProcessoPartesTab";
+import { ProcessoAuditoriaTab } from "./ProcessoAuditoriaTab";
 import { PrazoSectionEditable } from "./PrazoSectionEditable";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { BaixarAutosButton } from "./BaixarAutosButton";
@@ -55,6 +56,7 @@ import {
   User,
   Eye,
   Home,
+  ShieldCheck,
   Bell,
   BellOff,
   Info,
