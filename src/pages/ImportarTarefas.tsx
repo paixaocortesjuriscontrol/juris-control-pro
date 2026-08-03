@@ -246,19 +246,27 @@ export default function ImportarTarefas() {
   const { data: processosMap, refetch: refetchProcessos } = useQuery({
     queryKey: ["processos-map-import"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("processos")
-        .select("id, numero")
-        .order("numero");
-      if (error) throw error;
       const map = new Map<string, string>();
-      (data || []).forEach(p => {
-        const normalized = p.numero.replace(/[^0-9]/g, "");
-        map.set(normalized, p.id);
-        map.set(p.numero, p.id);
-      });
+      // PostgREST limita a 1000 linhas por requisição: paginar para carregar TODOS
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from("processos")
+          .select("id, numero")
+          .order("numero")
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        (data || []).forEach(p => {
+          if (!p.numero) return;
+          const normalized = p.numero.replace(/[^0-9]/g, "");
+          if (normalized && !map.has(normalized)) map.set(normalized, p.id);
+          if (!map.has(p.numero)) map.set(p.numero, p.id);
+        });
+        if (!data || data.length < PAGE) break;
+      }
       return map;
     },
+    staleTime: 60000,
   });
 
   useEffect(() => {
@@ -428,6 +436,25 @@ export default function ImportarTarefas() {
     const existingId = findProcessoId(numeroProcesso);
     if (existingId) return existingId;
     
+    // Fallback: consulta direta no banco (cache pode estar desatualizado)
+    const digits = numeroProcesso.replace(/[^0-9]/g, "");
+    if (digits.length >= 15) {
+      const formatado = digits.length === 20
+        ? `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`
+        : null;
+      const variantes = Array.from(new Set([numeroProcesso, formatado, digits].filter(Boolean) as string[]));
+      const { data: found } = await supabase
+        .from("processos")
+        .select("id, numero")
+        .in("numero", variantes)
+        .limit(1);
+      const foundId = found?.[0]?.id;
+      if (foundId) {
+        createdProcessosCache.current.set(digits, foundId);
+        return foundId;
+      }
+    }
+
     if (cadastrar && coordenacaoId) {
       const newId = await createNewProcesso(numeroProcesso, coordenacaoId, extras);
       if (newId) {
@@ -1196,7 +1223,17 @@ export default function ImportarTarefas() {
         const responsavel = getRowValue(row, ["Responsável", "Responsavel"]);
         const titulo = getRowValue(row, ["Título", "Titulo"]);
         const tituloProcesso = getRowValue(row, ["Título do processo/caso/atendimento", "Titulo do processo/caso/atendimento"]);
-        const numeroProcesso = getRowValue(row, ["Número do processo", "Numero do processo"]);
+        const numeroProcesso = getRowValue(row, [
+          "Número do processo",
+          "Numero do processo",
+          "Número do processo/caso",
+          "Numero do processo/caso",
+          "Número do processo/caso/atendimento",
+          "Numero do processo/caso/atendimento",
+          "Processo",
+          "Nº do processo",
+          "N° do processo",
+        ]);
         const juizo = getRowValue(row, ["Juízo", "Juizo"]);
         const observacao = getRowValue(row, ["Observação da atividade", "Observacao da atividade"]);
         const etiquetas = getRowValue(row, ["Etiquetas"]);
