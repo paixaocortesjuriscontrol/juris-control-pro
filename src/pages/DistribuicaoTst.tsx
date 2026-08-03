@@ -1872,12 +1872,16 @@ export default function DistribuicaoTst() {
               <Button
                 size="sm"
                 onClick={() => setAutoDistOpen(true)}
-                disabled={totalCount === 0}
+                disabled={totalCount === 0 && selectedIds.size === 0}
                 className="h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                title="Divide automaticamente todos os processos do filtro atual entre os advogados selecionados (round-robin)."
+                title={isAdmin && selectedIds.size > 0
+                  ? "Divide os processos selecionados (ou todos do filtro) entre os advogados escolhidos (round-robin)."
+                  : "Divide automaticamente todos os processos do filtro atual entre os advogados selecionados (round-robin)."}
               >
-                <Shuffle className="w-3 h-3 mr-1" /> Distribuir automaticamente
-                {totalCount > 0 ? ` (${totalCount})` : ""}
+                <Shuffle className="w-3 h-3 mr-1" />
+                {isAdmin && selectedIds.size > 0
+                  ? `Distribuir selecionados (${selectedIds.size})`
+                  : `Distribuir automaticamente${totalCount > 0 ? ` (${totalCount})` : ""}`}
               </Button>
             )}
             {isAdminOrCoordinator && (
