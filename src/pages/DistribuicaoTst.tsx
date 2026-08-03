@@ -2839,6 +2839,8 @@ export default function DistribuicaoTst() {
         onOpenChange={setAutoDistOpen}
         filters={debouncedFilters}
         totalCount={totalCount}
+        selectedIds={Array.from(selectedIds)}
+        isAdmin={isAdmin}
         onSuccess={async () => { setSelectedIds(new Set()); await Promise.resolve(handleRefresh()); }}
       />
       <AlertDialog open={!!deleteTargetId} onOpenChange={(o) => { if (!o) setDeleteTargetId(null); }}>
