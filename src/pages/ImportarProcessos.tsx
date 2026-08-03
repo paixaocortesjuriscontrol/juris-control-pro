@@ -207,6 +207,51 @@ const parseDate = (dateValue: any): string | null => {
 };
 
 const parseNumber = (value: any): number | null => {
+  return parseNumberInternal(value);
+};
+
+/** Converte data/hora da planilha (serial Excel ou texto DD/MM/YYYY HH:mm[:ss]) em ISO com fuso local. */
+const parseDateTimeLocal = (value: any): string | null => {
+  if (value === null || value === undefined || value === "") return null;
+
+  const build = (y: number, mo: number, d: number, h = 0, mi = 0, s = 0) => {
+    const dt = new Date(y, mo - 1, d, h, mi, s);
+    return isNaN(dt.getTime()) ? null : dt.toISOString();
+  };
+
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? null : value.toISOString();
+  }
+
+  if (typeof value === "number") {
+    const p = XLSX.SSF.parse_date_code(value);
+    if (!p) return null;
+    return build(p.y, p.m, p.d, p.H || 0, p.M || 0, Math.floor(p.S || 0));
+  }
+
+  if (typeof value === "string") {
+    const t = value.trim();
+    if (!t) return null;
+    const br = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (br) {
+      return build(
+        Number(br[3]), Number(br[2]), Number(br[1]),
+        Number(br[4] || 0), Number(br[5] || 0), Number(br[6] || 0)
+      );
+    }
+    const iso = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[\sT]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    if (iso) {
+      return build(
+        Number(iso[1]), Number(iso[2]), Number(iso[3]),
+        Number(iso[4] || 0), Number(iso[5] || 0), Number(iso[6] || 0)
+      );
+    }
+  }
+
+  return null;
+};
+
+const parseNumberInternal = (value: any): number | null => {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value === "number") return value;
   if (typeof value === "string") {
