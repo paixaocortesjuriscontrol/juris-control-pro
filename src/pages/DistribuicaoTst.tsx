@@ -9,6 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3 } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
+import { useProfilesBasic } from "@/hooks/useDistribuicaoResponsaveis";
+
+/** Coordenação responsável pela Distribuição TST */
+export const COORDENACAO_TST_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
+/** Pseudo-id usado pela RPC para agrupar processos sem responsável */
+const SEM_RESPONSAVEL_UUID = "00000000-0000-0000-0000-000000000000";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
