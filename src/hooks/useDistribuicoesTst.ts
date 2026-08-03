@@ -144,6 +144,33 @@ const LARGE_ID_FILTER_CHUNK = 200;
  *   - "ambos"       (equivalente a Reclamante + Reclamado)
  */
 export function applyParteRecorrenteFilter(query: any, option: string | undefined | null) {
+  return applyParteRecorrenteFilterImpl(query, option);
+}
+
+/**
+ * Data efetiva da distribuição = data_distribuicao_real quando preenchida,
+ * senão data_distribuicao_planilha. Mantém os cards e a lista coerentes.
+ */
+export function applyDataEfetivaGte(query: any, valor: string) {
+  return query.or(
+    `data_distribuicao_real.gte.${valor},and(data_distribuicao_real.is.null,data_distribuicao_planilha.gte.${valor})`
+  );
+}
+export function applyDataEfetivaLte(query: any, valor: string) {
+  return query.or(
+    `data_distribuicao_real.lte.${valor},and(data_distribuicao_real.is.null,data_distribuicao_planilha.lte.${valor})`
+  );
+}
+export function applyDataEfetivaLt(query: any, valor: string) {
+  return query.or(
+    `data_distribuicao_real.lt.${valor},and(data_distribuicao_real.is.null,data_distribuicao_planilha.lt.${valor})`
+  );
+}
+export function applyDataEfetivaNull(query: any) {
+  return query.is("data_distribuicao_real", null).is("data_distribuicao_planilha", null);
+}
+
+function applyParteRecorrenteFilterImpl(query: any, option: string | undefined | null) {
   if (!option) return query;
   const RECLAMANTE = "%reclamante%";
   const RECLAMADO = "%reclamad%";
