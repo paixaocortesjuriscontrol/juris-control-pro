@@ -99,15 +99,20 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
           total,
         };
       }).sort((a, b) => b.total - a.total);
-      return { situacoes: situacoesArr, rows };
+
+      // Totais reais (contagem única por audiência — não soma linhas por usuário,
+      // pois uma audiência com vários responsáveis aparece em várias linhas)
+      const totaisSitu: Record<string, number> = {};
+      for (const a of dataFiltrada) {
+        const situ = (a.status ?? "pendente").toString();
+        totaisSitu[situ] = (totaisSitu[situ] ?? 0) + 1;
+      }
+      return { situacoes: situacoesArr, rows, totaisSitu, totalAudiencias: dataFiltrada.length };
     },
   });
 
-  const totaisPorSitu = useMemo(() => {
-    const tot: Record<string, number> = {};
-    for (const r of data?.rows ?? []) for (const s of data?.situacoes ?? []) tot[s] = (tot[s] ?? 0) + (r.contagens[s] ?? 0);
-    return tot;
-  }, [data]);
+  const totaisPorSitu = useMemo(() => data?.totaisSitu ?? {}, [data]);
+  const totalGeralAudiencias = data?.totalAudiencias ?? 0;
 
   async function exportar() {
     if (!data) return;
