@@ -278,6 +278,35 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
     setPagina(1);
   }, [selectedMembro, search, itens.length]);
 
+  const processoIds = useMemo(
+    () => Array.from(new Set(itensPagina.map((i) => i.processo_id).filter(Boolean))) as string[],
+    [itensPagina]
+  );
+
+  const { data: processoInfo = {} } = useQuery({
+    queryKey: ["equipe-processos-info", processoIds.join(",")],
+    enabled: processoIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const map: Record<string, { polo_ativo?: string | null; cliente?: string | null }> = {};
+      const { data, error } = await supabase
+        .from("processos")
+        .select("id, polo_ativo, cliente:clientes!processos_cliente_id_fkey(nome)")
+        .in("id", processoIds);
+      if (error) throw error;
+      (data || []).forEach((p: any) => {
+        map[p.id] = { polo_ativo: p.polo_ativo, cliente: p.cliente?.nome ?? null };
+      });
+      return map;
+    },
+  });
+
+  const getReclamante = (item: ItemAgendaUnificado) =>
+    (item.processo_id ? processoInfo[item.processo_id]?.polo_ativo : null) || item.partes_ativas || "-";
+
+  const getCliente = (item: ItemAgendaUnificado) =>
+    (item.processo_id ? processoInfo[item.processo_id]?.cliente : null) || "-";
+
   const statusBadge = (item: ItemAgendaUnificado) => {
     if (isItemCancelado(item)) {
       return (
