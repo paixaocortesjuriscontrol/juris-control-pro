@@ -5160,6 +5160,8 @@ export default function ImportarProcessos() {
         return null;
       };
 
+      console.log("[Astrea Import] Cabeçalhos detectados:", headerRow);
+
       const totalDataRows = expectedRows || Math.max(0, aoa.length - 1);
 
       const parsed: ProcessoImport[] = Array.from({ length: totalDataRows }).map((_, index) => {
@@ -5276,6 +5278,22 @@ export default function ImportarProcessos() {
           dataEncerramento: getFromRow(row, [
             "Data de Encerramento", "Data de encerramento", "data de encerramento",
             "Data Encerramento", "Data encerramento", "dataEncerramento",
+            "Encerrado em", "Data de baixa", "Data de finalização", "Data de finalizacao",
+          ]) ?? (() => {
+            for (const [k, v] of Object.entries(row)) {
+              if (v === null || v === undefined || v === "") continue;
+              const nk = normalizeHeaderKey(k);
+              if (/encerr|finaliz|baixa/.test(nk) && /data|em$|dia/.test(nk)) return v;
+            }
+            for (const [k, v] of Object.entries(row)) {
+              if (v === null || v === undefined || v === "") continue;
+              const nk = normalizeHeaderKey(k);
+              if (/encerr|finaliz/.test(nk)) return v;
+            }
+            return null;
+          })() ?? null,
+          situacaoPlanilha: getFromRow(row, [
+            "Situação", "Situacao", "situacao", "Status", "status", "Fase", "fase",
           ]) || null,
           dataUltimoHistorico: getFromRow(row, ["Data do último histórico", "Data do Ultimo Historico"]) || null,
           descricaoUltimoHistorico: getFromRow(row, ["Descrição do último histórico", "Descricao do ultimo historico"]) || null,
@@ -5557,9 +5575,15 @@ export default function ImportarProcessos() {
 
             // Data de encerramento — grava data + hora e marca como encerrado
             const encerramentoIso = parseDateTimeLocal(astreaData.dataEncerramento);
+            const situacaoEncerrada = /encerrad|finalizad|baixad|arquivad/i.test(
+              String(astreaData.situacaoPlanilha || "")
+            );
             if (encerramentoIso) {
               updateData.data_hora_encerramento = encerramentoIso;
               updateData.data_encerramento = encerramentoIso.slice(0, 10);
+              updateData.status = "encerrado";
+              updateData.motivo_encerramento = "Encerrado conforme planilha Astrea";
+            } else if (situacaoEncerrada) {
               updateData.status = "encerrado";
               updateData.motivo_encerramento = "Encerrado conforme planilha Astrea";
             }
@@ -5646,14 +5670,17 @@ export default function ImportarProcessos() {
 
             const respIdNovo = resolverResponsavelId(astreaData.responsavel) || selectedMembro || null;
             const encerramentoIsoNovo = parseDateTimeLocal(astreaData.dataEncerramento);
+            const situacaoEncerradaNovo = /encerrad|finalizad|baixad|arquivad/i.test(
+              String(astreaData.situacaoPlanilha || "")
+            );
 
             const processoData: any = {
               numero: numeroTrimmed,
               area: processo.area === "caso" ? areaCaso : areaTrabalhista,
-              status: encerramentoIsoNovo ? "encerrado" : mapStatusToEnum(processo.situacao),
+              status: encerramentoIsoNovo || situacaoEncerradaNovo ? "encerrado" : mapStatusToEnum(processo.situacao),
               data_encerramento: encerramentoIsoNovo ? encerramentoIsoNovo.slice(0, 10) : null,
               data_hora_encerramento: encerramentoIsoNovo,
-              motivo_encerramento: encerramentoIsoNovo ? "Encerrado conforme planilha Astrea" : null,
+              motivo_encerramento: encerramentoIsoNovo || situacaoEncerradaNovo ? "Encerrado conforme planilha Astrea" : null,
               assunto: processo.assunto,
               descricao: processo.descricao,
               vara: processo.orgaoJulgador,
