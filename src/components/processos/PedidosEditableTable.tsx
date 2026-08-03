@@ -14,6 +14,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Plus, Pencil, Trash2, Save, X, Gavel, DollarSign } from "lucide-react";
 import { usePedidosProcesso, PedidoProcesso } from "@/hooks/usePedidosProcesso";
+import { PedidosCatalogoPicker } from "./PedidosCatalogoPicker";
 import { format } from "date-fns";
 
 interface PedidosEditableTableProps {
@@ -287,12 +288,13 @@ const CurrencyInput = ({
 };
 
 export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) {
-  const { pedidos, isLoading, totalValor, addPedido, updatePedido, deletePedido } = usePedidosProcesso(processoId);
+  const { pedidos, isLoading, totalValor, addPedido, addPedidosEmLote, updatePedido, deletePedido } = usePedidosProcesso(processoId);
   const [isEditingInline, setIsEditingInline] = useState(false);
   const [editData, setEditData] = useState<Record<string, PedidoFormData>>({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [newPedido, setNewPedido] = useState<PedidoFormData>(emptyPedido);
   const [isSaving, setIsSaving] = useState(false);
+  const [showManualForm, setShowManualForm] = useState(false);
 
   // Scroll horizontal por arrasto (robusto no Android quando o scroll vertical do layout captura o gesto)
   const cardScrollerRef = useRef<HTMLDivElement | null>(null);
@@ -690,16 +692,43 @@ export function PedidosEditableTable({ processoId }: PedidosEditableTableProps) 
 
       {showAddForm && (
         <div className="border-b bg-background px-3 py-3">
-          <div className="mb-2 text-sm font-medium">Novo Pedido</div>
-          <PedidoFormFields data={newPedido} setData={setNewPedido} />
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => { setShowAddForm(false); setNewPedido(emptyPedido); }}>
-              Cancelar
-            </Button>
-            <Button onClick={handleAdd} disabled={!newPedido.pedido.trim() || addPedido.isPending}>
-              <Save className="w-4 h-4 mr-1" /> Salvar
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-medium">Novo Pedido</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => setShowManualForm((v) => !v)}
+            >
+              {showManualForm ? "Ocultar formulário detalhado" : "Formulário detalhado"}
             </Button>
           </div>
+
+          <PedidosCatalogoPicker
+            existentes={pedidos.map((p) => p.pedido)}
+            isSaving={addPedidosEmLote.isPending}
+            onAdicionar={async (nomes) => {
+              await addPedidosEmLote.mutateAsync(nomes);
+            }}
+            onUsarNoFormulario={(nome) => {
+              setNewPedido((prev) => ({ ...prev, pedido: nome }));
+              setShowManualForm(true);
+            }}
+          />
+
+          {showManualForm && (
+            <>
+              <PedidoFormFields data={newPedido} setData={setNewPedido} />
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => { setShowAddForm(false); setShowManualForm(false); setNewPedido(emptyPedido); }}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleAdd} disabled={!newPedido.pedido.trim() || addPedido.isPending}>
+                  <Save className="w-4 h-4 mr-1" /> Salvar
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
