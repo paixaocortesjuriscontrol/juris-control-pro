@@ -1459,7 +1459,7 @@ export default function ImportarTarefas() {
     for (let i = 0; i < prepared.length; i += BATCH) {
       if (astreaCancelledRef.current) { toast({ title: "Importação cancelada" }); break; }
       const slice = prepared.slice(i, i + BATCH);
-      const rows = slice.map(({ t, processoId, responsavelId }) => {
+      const buildRow = ({ t, processoId, responsavelId }: Prepared) => {
         const dataVencimento = parseDate(t.data);
         const statusFinal = mapStatus(t.statusOrigem);
         const prio = mapPrio(t.prioridadeOrigem);
@@ -1487,15 +1487,19 @@ export default function ImportarTarefas() {
           data_cumprimento: statusFinal === "cumprido" ? dataConclusao : null,
           data_criacao_projuris: dataCriacao ? dataCriacao.slice(0, 10) : null,
         };
-      });
+      };
+      const rows = slice.filter(s => !s.jaExiste).map(buildRow);
+      const updateRows = slice.filter(s => s.jaExiste).map(buildRow);
 
       let inserted: any[] | null = null;
       const rowErrors = new Map<string, string>();
 
-      const bulk = await supabase
-        .from("tarefas")
-        .insert(rows as any)
-        .select("id, identificador_projuris");
+      const bulk = rows.length
+        ? await supabase
+            .from("tarefas")
+            .insert(rows as any)
+            .select("id, identificador_projuris")
+        : { error: null, data: [] as any[] };
 
       if (bulk.error || !bulk.data) {
         // Uma linha ruim não pode invalidar o lote inteiro: reprocessa linha por linha
@@ -1515,6 +1519,30 @@ export default function ImportarTarefas() {
         inserted = okRows;
       } else {
         inserted = bulk.data as any[];
+      }
+
+      // Linhas já importadas antes: atualiza (corrige coordenação, processo e responsável)
+      const updatedIds: string[] = [];
+      for (const row of updateRows) {
+        if (astreaCancelledRef.current) break;
+        const { identificador_projuris, ...fields } = row as any;
+        const upd = await (supabase.from("tarefas") as any)
+          .update(fields)
+          .eq("identificador_projuris", identificador_projuris)
+          .select("id, identificador_projuris");
+        if (upd.error || !upd.data?.length) {
+          rowErrors.set(identificador_projuris, upd.error?.message || "Erro ao atualizar");
+        } else {
+          inserted.push(upd.data[0]);
+          upd.data.forEach((r: any) => updatedIds.push(r.id));
+        }
+      }
+      if (updatedIds.length) {
+        for (let j = 0; j < updatedIds.length; j += 200) {
+          const chunk = updatedIds.slice(j, j + 200);
+          await supabase.from("tarefa_responsaveis").delete().in("tarefa_id", chunk);
+          await supabase.from("tarefa_envolvidos").delete().in("tarefa_id", chunk);
+        }
       }
 
       if (rowErrors.size > 0) {
