@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useModelosTitulo, type ModeloTitulo, type TipoModelo } from "@/hooks/useModelosTitulo";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 
 interface Props {
   tipo: TipoModelo;
@@ -19,7 +20,15 @@ export function ModeloTituloPicker({ tipo, coordenacaoId, onSelect, className }:
   const [open, setOpen] = useState(false);
   // Busca TODOS os modelos do tipo (o usuário só enxerga o que tem acesso).
   // Nunca filtramos pela coordenação na query para o botão não sumir ao trocar de coordenação.
-  const { data: modelos = [] } = useModelosTitulo({ tipo });
+  const { data: todosModelos = [] } = useModelosTitulo({ tipo });
+  const { isAdmin, coordenacoes: minhasCoordenacoes } = useCoordenacoesDoUsuario();
+
+  // Só exibe modelos das coordenações às quais o usuário logado pertence (admin vê todas).
+  const modelos = useMemo(() => {
+    if (isAdmin) return todosModelos;
+    const permitidas = new Set(minhasCoordenacoes.map((c) => c.id));
+    return todosModelos.filter((m) => permitidas.has(m.coordenacao_id));
+  }, [todosModelos, isAdmin, minhasCoordenacoes]);
 
   const { data: coordenacoes = [] } = useQuery({
     queryKey: ["coordenacoes-nomes-modelos"],
