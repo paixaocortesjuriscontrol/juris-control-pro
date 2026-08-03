@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "4.3.3";
+export const APP_VERSION = "4.3.4";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -19,4 +19,5 @@ export const VERSION_HISTORY = [
   { version: "4.3.1", date: "2026-07-28", notes: "Painel da Equipe compacto e melhorias na visão de itens por membro" },
   { version: "4.3.2", date: "2026-07-29", notes: "Contador de mensagens não lidas ao lado da versão e no botão Alertas" },
   { version: "4.3.3", date: "2026-07-31", notes: "Etiquetas por coordenação em Clientes, Processos, Itens e Publicações" },
+  { version: "4.3.4", date: "2026-08-03", notes: "Auditoria da Distribuição TST e normalização de Recorrente (Terceiro → Outra) na Carga Benner" },
 ];
