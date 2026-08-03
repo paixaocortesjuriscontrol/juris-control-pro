@@ -421,7 +421,7 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
             </TableRow>
           </TableHeader>
           <TableBody>
-            {listaItens.map((item) => {
+            {itensPagina.map((item) => {
               const d = getRefDate(item);
               const key = getPessoaLookupKey(item);
               const pessoasPorPapel = getPessoasPorPapel(item, key ? pessoasExtras[key] : undefined);
@@ -498,6 +498,36 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
           </TableBody>
         </Table>
       </Card>
+
+      {listaItens.length > 0 && (
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <p className="text-xs text-muted-foreground">
+            Mostrando {(paginaAtual - 1) * ITENS_POR_PAGINA + 1}–
+            {Math.min(paginaAtual * ITENS_POR_PAGINA, listaItens.length)} de {listaItens.length} item(ns)
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={paginaAtual <= 1}
+              onClick={() => setPagina((p) => Math.max(1, p - 1))}
+            >
+              <ChevronLeft className="w-4 h-4" /> Anterior
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              Página {paginaAtual} de {totalPaginas}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={paginaAtual >= totalPaginas}
+              onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+            >
+              Próxima <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
