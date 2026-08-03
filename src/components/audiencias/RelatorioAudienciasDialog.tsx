@@ -288,9 +288,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
                   </tr>
                 ))}
                 <tr className="border-t bg-muted/50 font-semibold">
-                  <td className="px-3 py-2">TOTAL</td>
+                  <td className="px-3 py-2">TOTAL (audiências únicas)</td>
                   {data.situacoes.map((s) => <td key={s} className="text-right px-3 py-2">{totaisPorSitu[s] ?? 0}</td>)}
-                  <td className="text-right px-3 py-2">{data.rows.reduce((a, r) => a + r.total, 0)}</td>
+                  <td className="text-right px-3 py-2">{totalGeralAudiencias}</td>
                 </tr>
               </tbody>
             </table>
