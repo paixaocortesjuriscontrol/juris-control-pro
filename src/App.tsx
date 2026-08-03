@@ -204,7 +204,7 @@ function App() {
               <Route path="/distribuicao-tst/arquivados" element={<AdminRoute><DistribuicaoTstArquivados /></AdminRoute>} />
               <Route path="/prompts-ia-tst" element={<ProtectedRoute><PromptIaTst /></ProtectedRoute>} />
               <Route path="/prompt-ia-publicacoes" element={<ProtectedRoute><PromptIaPublicacoes /></ProtectedRoute>} />
-              <Route path="/etiquetas" element={<AdminOrCoordRoute><Etiquetas /></AdminOrCoordRoute>} />
+              <Route path="/etiquetas" element={<Etiquetas />} />
               <Route path="/materias-benner" element={<ProtectedRoute><MateriasBenner /></ProtectedRoute>} />
               <Route path="/pautas-tst" element={<ProtectedRoute><PautasTst /></ProtectedRoute>} />
               <Route path="/classificacao-tst" element={<ProtectedRoute><ClassificacaoTst /></ProtectedRoute>} />
