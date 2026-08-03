@@ -278,16 +278,20 @@ export function PrazoDialog({
   const [processoManualId, setProcessoManualId] = useState<string | null>(null);
   const [processoBuscaNumero, setProcessoBuscaNumero] = useState("");
   const [buscandoProcesso, setBuscandoProcesso] = useState(false);
+  const [processoRemovido, setProcessoRemovido] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setProcessoManualId(null);
       setProcessoBuscaNumero("");
+      setProcessoRemovido(false);
     }
   }, [open]);
 
   const processoIdEfetivo =
-    defaultProcessoId || resolvedProcessoId || prazo?.processo_id || processoManualId || null;
+    defaultProcessoId ||
+    (processoRemovido ? processoManualId : resolvedProcessoId || prazo?.processo_id || processoManualId) ||
+    null;
 
   // Permite vincular/desvincular processo manualmente (sem publicação e sem processo de origem)
   const podeVincularProcessoManual = !publicacao && !defaultProcessoId;
@@ -312,6 +316,7 @@ export function PrazoDialog({
         return;
       }
       setProcessoManualId(data.id);
+      setProcessoRemovido(false);
       setProcessoBuscaNumero("");
       toast.success("Processo vinculado");
     } catch (err: any) {
@@ -705,6 +710,7 @@ export function PrazoDialog({
                   onClick={() => {
                     setProcessoManualId(null);
                     setResolvedProcessoId("");
+                    setProcessoRemovido(true);
                   }}
                 >
                   <X className="h-4 w-4" />
