@@ -1237,6 +1237,8 @@ serve(async (req) => {
         origem_disponivel: !origemAusente,
         litisconsorcio_ativo_tst: litisconsorcio,
         requer_revisao_polo: requerRevisaoPolo,
+        retentativa_tst: retentativaTst,
+        retentativa_tst_trouxe_tst: retentativaTstTrouxeTst,
       },
       requer_revisao_polo: requerRevisaoPolo,
       attachments: comAnexos
