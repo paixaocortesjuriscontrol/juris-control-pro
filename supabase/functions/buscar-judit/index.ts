@@ -631,6 +631,9 @@ function detectarTransitoJulgado(rds: any[]): {
     const step = ordenados[idxTransito].s;
     const ts = ordenados[idxTransito].ts;
     const dataIso = (() => {
+      // Prioriza a data mencionada no texto da certidão.
+      const noTexto = dataTransitoNoTexto(stepText(step));
+      if (noTexto) return noTexto;
       const d = step?.step_date || step?.date || step?.movement_date;
       if (!d) return null;
       try {
