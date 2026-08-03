@@ -269,7 +269,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
 
           {/* Dados Principais */}
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-1">
               <Label htmlFor="data_audiencia">Data</Label>
               <Input
                 id="data_audiencia"
@@ -278,10 +278,11 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 onChange={(e) => handleChange("data_audiencia", e.target.value)}
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 md:col-span-2">
               <Label htmlFor="processo_numero">Número do Processo</Label>
               <Input
                 id="processo_numero"
+                className="font-mono w-full min-w-0"
                 placeholder="0000000-00.0000.0.00.0000"
                 value={formData.processo_numero}
                 onChange={(e) => handleChange("processo_numero", e.target.value)}
@@ -321,8 +322,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
           </div>
 
           {/* Tribunal, Local e Modalidade */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="space-y-2">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2 min-w-0">
               <Label htmlFor="modalidade">Modalidade</Label>
               <Select 
                 value={formData.modalidade || ""} 
@@ -337,7 +338,17 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
+              <Label htmlFor="tipo_audiencia">Tipo de Audiência</Label>
+              <Input
+                id="tipo_audiencia"
+                className="w-full min-w-0"
+                placeholder="Ex: Inicial Presencial"
+                value={formData.tipo_audiencia}
+                onChange={(e) => handleChange("tipo_audiencia", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2 min-w-0">
               <Label htmlFor="vara_camara">Órgão / Turma</Label>
               <Input
                 id="vara_camara"
@@ -346,22 +357,13 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 onChange={(e) => handleChange("vara_camara", e.target.value)}
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 min-w-0">
               <Label htmlFor="comarca">Comarca</Label>
               <Input
                 id="comarca"
                 placeholder="Ex: Brasília"
                 value={formData.comarca}
                 onChange={(e) => handleChange("comarca", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="tipo_audiencia">Tipo de Audiência</Label>
-              <Input
-                id="tipo_audiencia"
-                placeholder="Ex: Inicial Presencial"
-                value={formData.tipo_audiencia}
-                onChange={(e) => handleChange("tipo_audiencia", e.target.value)}
               />
             </div>
           </div>
@@ -622,7 +624,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
         {reagendarPortal}
         <DialogHeader>
           <div className="flex items-center justify-between gap-3">
