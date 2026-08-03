@@ -106,23 +106,6 @@ export function usePedidosProcesso(processoId: string | undefined) {
     },
   });
 
-  const _updatePedidoLegacy = useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<PedidoProcesso> & { id: string }) => {
-      const { error } = await supabase
-        .from("pedidos_processo")
-        .update(updates)
-        .eq("id", id);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["pedidos-processo", processoId] });
-    },
-    onError: (error: any) => {
-      console.error(error);
-    },
-  });
-
   const deletePedido = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
