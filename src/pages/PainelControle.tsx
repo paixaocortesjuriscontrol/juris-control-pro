@@ -1720,18 +1720,18 @@ export default function PainelControle() {
           {!mostrarTotalizadores ? null : isLoading ? (
             <div className="flex gap-2">
               {[...Array(6)].map((_, i) => (
-                <Skeleton key={i} className="h-14 md:h-20 flex-1 rounded-lg" />
+                <Skeleton key={i} className="h-12 md:h-14 flex-1 rounded-lg" />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-3">
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5 md:gap-2">
               {/* Data Atual */}
-              <div className="flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg px-3 py-2">
+              <div className="flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg px-2 py-1.5">
                 <div className="text-center">
                   <p className="text-[10px] md:text-xs font-semibold uppercase tracking-wider opacity-80">
                     {format(nowBrt, "MMM", { locale: ptBR })}
                   </p>
-                  <p className="text-2xl md:text-4xl font-bold leading-none">
+                  <p className="text-xl md:text-2xl font-bold leading-none">
                     {format(nowBrt, "dd")}
                   </p>
                   <p className="text-[10px] md:text-xs opacity-80 capitalize hidden md:block">
@@ -1753,13 +1753,13 @@ export default function PainelControle() {
                   painelFiltros.classificacoes.includes("tarefa") && "ring-2 ring-blue-500",
                 )}
               >
-                <CardContent className="p-3 md:pt-4">
-                  <div className="flex items-center justify-between">
+                <CardContent className="p-2 md:px-3 md:py-2">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 truncate">Tarefas</p>
-                      <p className="text-xl md:text-3xl font-bold text-blue-700 dark:text-blue-300">{contagensPorClassificacao.tarefa}</p>
+                      <p className="text-[11px] md:text-xs font-medium leading-tight text-blue-600 dark:text-blue-400 truncate">Tarefas</p>
+                      <p className="text-lg md:text-2xl font-bold leading-tight text-blue-700 dark:text-blue-300">{contagensPorClassificacao.tarefa}</p>
                     </div>
-                    <ClipboardList className="w-6 h-6 md:w-10 md:h-10 text-blue-500/50 flex-shrink-0" />
+                    <ClipboardList className="w-5 h-5 md:w-7 md:h-7 text-blue-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
@@ -1777,13 +1777,13 @@ export default function PainelControle() {
                   painelFiltros.classificacoes.includes("evento") && "ring-2 ring-green-500",
                 )}
               >
-                <CardContent className="p-3 md:pt-4">
-                  <div className="flex items-center justify-between">
+                <CardContent className="p-2 md:px-3 md:py-2">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm font-medium text-green-700 dark:text-green-400 truncate">Eventos</p>
-                      <p className="text-xl md:text-3xl font-bold text-green-700 dark:text-green-300">{contagensPorClassificacao.evento}</p>
+                      <p className="text-[11px] md:text-xs font-medium leading-tight text-green-700 dark:text-green-400 truncate">Eventos</p>
+                      <p className="text-lg md:text-2xl font-bold leading-tight text-green-700 dark:text-green-300">{contagensPorClassificacao.evento}</p>
                     </div>
-                    <CalendarPlus className="w-6 h-6 md:w-10 md:h-10 text-green-500/50 flex-shrink-0" />
+                    <CalendarPlus className="w-5 h-5 md:w-7 md:h-7 text-green-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
@@ -1801,13 +1801,13 @@ export default function PainelControle() {
                   painelFiltros.classificacoes.includes("prazo") && "ring-2 ring-red-500",
                 )}
               >
-                <CardContent className="p-3 md:pt-4">
-                  <div className="flex items-center justify-between">
+                <CardContent className="p-2 md:px-3 md:py-2">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm font-medium text-red-600 dark:text-red-400 truncate">Prazos</p>
-                      <p className="text-xl md:text-3xl font-bold text-red-700 dark:text-red-300">{contagensPorClassificacao.prazo}</p>
+                      <p className="text-[11px] md:text-xs font-medium leading-tight text-red-600 dark:text-red-400 truncate">Prazos</p>
+                      <p className="text-lg md:text-2xl font-bold leading-tight text-red-700 dark:text-red-300">{contagensPorClassificacao.prazo}</p>
                     </div>
-                    <Clock className="w-6 h-6 md:w-10 md:h-10 text-red-500/50 flex-shrink-0" />
+                    <Clock className="w-5 h-5 md:w-7 md:h-7 text-red-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
@@ -1825,13 +1825,13 @@ export default function PainelControle() {
                   painelFiltros.classificacoes.includes("audiencia") && "ring-2 ring-yellow-500",
                 )}
               >
-                <CardContent className="p-3 md:pt-4">
-                  <div className="flex items-center justify-between">
+                <CardContent className="p-2 md:px-3 md:py-2">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm font-medium text-yellow-700 dark:text-yellow-400 truncate">Audiências</p>
-                      <p className="text-xl md:text-3xl font-bold text-yellow-700 dark:text-yellow-300">{contagensPorClassificacao.audiencia}</p>
+                      <p className="text-[11px] md:text-xs font-medium leading-tight text-yellow-700 dark:text-yellow-400 truncate">Audiências</p>
+                      <p className="text-lg md:text-2xl font-bold leading-tight text-yellow-700 dark:text-yellow-300">{contagensPorClassificacao.audiencia}</p>
                     </div>
-                    <Gavel className="w-6 h-6 md:w-10 md:h-10 text-yellow-500/50 flex-shrink-0" />
+                    <Gavel className="w-5 h-5 md:w-7 md:h-7 text-yellow-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
@@ -1849,13 +1849,13 @@ export default function PainelControle() {
                   painelFiltros.classificacoes.includes("parcelamento") && "ring-2 ring-emerald-500",
                 )}
               >
-                <CardContent className="p-3 md:pt-4">
-                  <div className="flex items-center justify-between">
+                <CardContent className="p-2 md:px-3 md:py-2">
+                  <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-xs md:text-sm font-medium text-emerald-600 dark:text-emerald-400 truncate">Parcelamentos</p>
-                      <p className="text-xl md:text-3xl font-bold text-emerald-700 dark:text-emerald-300">{contagensPorClassificacao.parcelamento}</p>
+                      <p className="text-[11px] md:text-xs font-medium leading-tight text-emerald-600 dark:text-emerald-400 truncate">Parcelamentos</p>
+                      <p className="text-lg md:text-2xl font-bold leading-tight text-emerald-700 dark:text-emerald-300">{contagensPorClassificacao.parcelamento}</p>
                     </div>
-                    <Coins className="w-6 h-6 md:w-10 md:h-10 text-emerald-500/50 flex-shrink-0" />
+                    <Coins className="w-5 h-5 md:w-7 md:h-7 text-emerald-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
