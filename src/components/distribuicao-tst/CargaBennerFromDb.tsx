@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useCriarRemessa } from "@/hooks/useRemessasBenner";
 import { useNavigate } from "react-router-dom";
-import { deriveRecorrenteFromRecursos, splitRecursoValues } from "@/utils/recorrenteFromRecursos";
+import { deriveRecorrenteFromRecursos, normalizeRecorrenteBenner, splitRecursoValues } from "@/utils/recorrenteFromRecursos";
 import { isOutraMateria } from "@/utils/outraMateria";
 import { applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
 import { getPendencias } from "@/utils/distribuicaoTstPendencias";
@@ -534,9 +534,11 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         outRow[LAYOUT_COLS[23]] = d.ganhamos ? "X" : "";
         outRow[LAYOUT_COLS[24]] = d.perdemos ? "X" : "";
         outRow[LAYOUT_COLS[25]] = d.processo_baixado ? toSN(String(d.processo_baixado)) : "";
-        outRow[LAYOUT_COLS[26]] = deriveRecorrenteFromRecursos(
-          (d as any).tipo_recurso_reclamante,
-          (d as any).tipo_recurso_banco
+        outRow[LAYOUT_COLS[26]] = normalizeRecorrenteBenner(
+          deriveRecorrenteFromRecursos(
+            (d as any).tipo_recurso_reclamante,
+            (d as any).tipo_recurso_banco
+          ) || (d as any).parte_recorrente || (d as any).recorrente
         );
         outRow["__numProcesso"] = numProcesso;
         outRow["__dadoBennerId"] = d.id || null;
