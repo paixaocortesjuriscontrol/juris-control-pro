@@ -241,9 +241,18 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
         dataAudienciaISO = `${dadosAudiencia.data_audiencia}T${hora}:00-03:00`;
       }
 
-      const { data: audienciaCriada, error } = await supabase
+      // ID gerado no cliente: não dependemos do retorno da linha (que pode ser
+      // bloqueado pelas políticas de leitura e gerar "Cannot coerce the result
+      // to a single JSON object").
+      const novaAudienciaId =
+        typeof crypto !== 'undefined' && 'randomUUID' in crypto
+          ? crypto.randomUUID()
+          : undefined;
+
+      const { error } = await supabase
         .from('audiencias_detectadas')
         .insert({
+          ...(novaAudienciaId ? { id: novaAudienciaId } : {}),
           ...dadosAudiencia,
           processo_id: dadosAudiencia.processo_id || null,
           data_audiencia: dataAudienciaISO,
@@ -256,11 +265,11 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
           equipe: dadosAudiencia.equipe || null,
           nucleo_origem: dadosAudiencia.nucleo_origem || null,
           dossie: dadosAudiencia.dossie || null,
-        })
-        .select()
-        .single();
+        });
 
       if (error) throw error;
+
+      const audienciaCriada = { id: novaAudienciaId } as { id?: string };
 
       // Inserir advogados responsáveis na tabela de junção
       if (advogados_ids && advogados_ids.length > 0 && audienciaCriada) {
