@@ -33,7 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
 import { ItemAnexos, type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
-import { CalendarIcon, Loader2, FileText, Tag, AlertTriangle, Search, X } from "lucide-react";
+import { CalendarIcon, Loader2, FileText, Tag, AlertTriangle, Search, X, ExternalLink } from "lucide-react";
 import { format, parseISO, addDays, addWeeks, addMonths, addYears } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
