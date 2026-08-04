@@ -32,3 +32,11 @@ síncrono com TTL=0. Frontend (`DistribuicaoTstForm`, `ProcessoVisaoGeralForm`,
 `DistribuicaoTstDetail`) só envia `force_refresh: true` quando o usuário
 clica explicitamente em "Forçar atualização" — chamadas normais aproveitam
 o cache e retornam em <2s.
+
+Latência (ago/2026): o clique normal NUNCA espera crawler longo.
+`POLL_TIMEOUT_MS`=25s, orçamento total 30s, e a "retentativa TST"
+(recrawl ttl=0) só roda com `force_refresh: true`. O cache da Judit e o
+app-cache (`judit_logs`) são aceitos mesmo quando a instância é TRT e a tela
+pediu TST — a resposta traz `_judit_meta.instancia_tst=false` e a UI avisa
+para usar "Forçar atualização" se precisar do TST. Antes disso cada clique
+gastava 62s (1 crawler) ou 124s (crawler + retentativa).
