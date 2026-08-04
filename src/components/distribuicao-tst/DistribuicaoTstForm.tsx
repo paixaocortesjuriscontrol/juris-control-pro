@@ -913,8 +913,18 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         return;
       }
 
-      if ((data as any)?._judit_meta?.respondido_do_cache === true) {
-        toast.success("Judit (cache) — atualizando em segundo plano");
+      {
+        const m = (data as any)?._judit_meta;
+        const tribSel = String(m?.tribunal_selecionado || "").toUpperCase();
+        const naoTst = m?.instancia_tst === false || (tribSel && tribSel !== "TST");
+        if (naoTst && !forceRefresh) {
+          toast.info(
+            `Judit respondeu com dados de ${tribSel || "outra instância"} (resposta rápida). Se precisar do TST atualizado, clique em "Forçar atualização".`,
+            { duration: 7000 },
+          );
+        } else if (m?.respondido_do_cache === true) {
+          toast.success("Judit (cache) — resposta instantânea");
+        }
       }
 
       if (comAnexosArg) {
