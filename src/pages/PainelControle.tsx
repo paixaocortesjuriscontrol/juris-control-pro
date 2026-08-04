@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
+import { ExportarAtividadesDialog } from "@/components/painel/ExportarAtividadesDialog";
 import { Download } from "lucide-react";
 import {
   DropdownMenu,
