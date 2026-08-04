@@ -53,7 +53,7 @@ export function MainLayout({ children, title, subtitle, headerActions, className
   return (
     <div className="min-h-screen bg-background">
       <Sidebar />
-      <div className={`min-w-0 overflow-x-hidden transition-all duration-300 ${isMobile ? 'ml-0' : collapsed ? 'lg:ml-20' : 'lg:ml-64'} ${className || ''}`}>
+      <div className={`min-w-0 transition-all duration-300 ${isMobile ? 'ml-0' : collapsed ? 'lg:ml-20' : 'lg:ml-64'} ${className || ''}`}>
         <Header title={title} subtitle={subtitle} headerActions={headerActions} />
         <main data-page-scroll-container className="min-w-0 p-4 md:p-6 lg:max-h-[calc(100vh-64px)] lg:overflow-y-auto">
           {children}
