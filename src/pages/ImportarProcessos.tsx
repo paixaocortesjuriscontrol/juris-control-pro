@@ -1448,8 +1448,175 @@ export default function ImportarProcessos() {
     let successCount = 0;
     let errorCount = 0;
 
-    // Helper to build insert payload for a processo
-    const buildInsertPayload = (p: ProcessoImport) => ({
+    // ===== Escrita em lotes, escopo por coordenação =====
+    const coordId = selectedCoordenacao || null;
+    const BATCH_SIZE = 200;
+    const CHUNK_SIZE = 300;
+
+    const updated = updatedProcessos;
+    const validIndices = updated
+      .map((p, idx) => (p.status === "valido" ? idx : -1))
+      .filter((idx) => idx >= 0);
+
+    // 1) Duplicados dentro da própria planilha (mesmo número na mesma coordenação)
+    const seenInSpreadsheet = new Map<string, number>();
+    const uniqueValidIndices: number[] = [];
+    for (const idx of validIndices) {
+      const num = updated[idx].numero.trim();
+      if (seenInSpreadsheet.has(num)) {
+        updated[idx] = {
+          ...updated[idx],
+          status: "erro",
+          erroImport: `Duplicado na planilha (linha ${updated[seenInSpreadsheet.get(num)!].linhaOriginal})`,
+        };
+        errorCount++;
+      } else {
+        seenInSpreadsheet.set(num, idx);
+        uniqueValidIndices.push(idx);
+      }
+    }
+
+    // 2) Processos já existentes NA COORDENAÇÃO selecionada (o mesmo número pode
+    //    existir em outras coordenações — regra igual à importação Astrea).
+    const allNumeros = uniqueValidIndices.map((idx) => updated[idx].numero.trim());
+    const existingMap = new Map<string, string>(); // numero -> id (mesma coordenação)
+    for (let i = 0; i < allNumeros.length; i += CHUNK_SIZE) {
+      if (projurisCancelledRef.current) break;
+      const chunk = allNumeros.slice(i, i + CHUNK_SIZE);
+      let query = supabase.from("processos").select("id, numero").in("numero", chunk);
+      query = coordId ? query.eq("coordenacao_id", coordId) : query.is("coordenacao_id", null);
+      const { data: existingRows } = await query;
+      for (const row of existingRows || []) {
+        if (!existingMap.has(row.numero)) existingMap.set(row.numero, row.id);
+      }
+    }
+
+    const toInsertIndices: number[] = [];
+    const toUpdateIndices: number[] = [];
+    for (const idx of uniqueValidIndices) {
+      if (existingMap.has(updated[idx].numero.trim())) toUpdateIndices.push(idx);
+      else toInsertIndices.push(idx);
+    }
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // 3) Pastas e responsáveis únicos (sem repetir)
+    const normNomeResp = (v: string) =>
+      String(v || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toUpperCase();
+
+    const nomePastaDe = (p: ProcessoImport) =>
+      `${p.parteAtiva?.trim() || "Sem Parte Ativa"} x ${p.partePassiva?.trim() || "Sem Parte Passiva"}`;
+
+    const allIndices = [...toInsertIndices, ...toUpdateIndices];
+    const allNomesPasta = new Set<string>();
+    const nomesResponsaveis = new Map<string, string>(); // normalizado -> nome original
+    for (const idx of allIndices) {
+      const p = updated[idx];
+      allNomesPasta.add(nomePastaDe(p));
+      const bruto = p.responsavel?.trim();
+      if (bruto) {
+        const key = normNomeResp(bruto);
+        if (!nomesResponsaveis.has(key)) nomesResponsaveis.set(key, bruto.toUpperCase());
+      }
+    }
+
+    // Pastas existentes em lote
+    const pastaCache = new Map<string, string>();
+    const nomesPastaArray = Array.from(allNomesPasta);
+    for (let i = 0; i < nomesPastaArray.length; i += CHUNK_SIZE) {
+      const chunk = nomesPastaArray.slice(i, i + CHUNK_SIZE);
+      const { data: pastasExistentes } = await supabase
+        .from("pastas")
+        .select("id, nome")
+        .in("nome", chunk);
+      for (const pasta of pastasExistentes || []) pastaCache.set(pasta.nome, pasta.id);
+    }
+
+    const pastasFaltantes = nomesPastaArray.filter((nome) => !pastaCache.has(nome));
+    if (pastasFaltantes.length > 0 && user) {
+      for (let i = 0; i < pastasFaltantes.length; i += BATCH_SIZE) {
+        if (projurisCancelledRef.current) break;
+        const batch = pastasFaltantes.slice(i, i + BATCH_SIZE).map((nome) => ({
+          nome,
+          descricao: "Pasta criada automaticamente para padronização",
+          cliente_id: selectedCliente || null,
+          coordenacao_id: coordId,
+          criado_por: user.id,
+        }));
+        const { data: criadas } = await supabase.from("pastas").insert(batch).select("id, nome");
+        for (const pasta of criadas || []) pastaCache.set(pasta.nome, pasta.id);
+      }
+      // Recarrega pendentes (casos de conflito com pastas já existentes)
+      const aindaFaltantes = nomesPastaArray.filter((nome) => !pastaCache.has(nome));
+      for (let i = 0; i < aindaFaltantes.length; i += CHUNK_SIZE) {
+        const chunk = aindaFaltantes.slice(i, i + CHUNK_SIZE);
+        const { data: pastasExistentes } = await supabase
+          .from("pastas")
+          .select("id, nome")
+          .in("nome", chunk);
+        for (const pasta of pastasExistentes || []) pastaCache.set(pasta.nome, pasta.id);
+      }
+    }
+
+    // Responsáveis: um único cadastro por nome; se não existir na coordenação, cadastra
+    const responsavelCache = new Map<string, string>(); // normalizado -> profile id
+    const nomesRespArray = Array.from(nomesResponsaveis.entries());
+    if (nomesRespArray.length > 0) {
+      // Perfis já vinculados à coordenação selecionada
+      if (coordId) {
+        const { data: membros } = await supabase
+          .from("membros_coordenacao")
+          .select("usuario_id, profiles:usuario_id(id, nome)")
+          .eq("coordenacao_id", coordId);
+        for (const m of (membros as any[]) || []) {
+          const nome = m?.profiles?.nome;
+          if (nome) responsavelCache.set(normNomeResp(nome), m.profiles.id);
+        }
+      } else {
+        const { data: perfis } = await supabase.from("profiles").select("id, nome");
+        for (const p of (perfis as any[]) || []) {
+          if (p?.nome) responsavelCache.set(normNomeResp(p.nome), p.id);
+        }
+      }
+
+      const faltantes = nomesRespArray.filter(([key]) => !responsavelCache.has(key));
+      if (faltantes.length > 0 && coordId) {
+        for (let i = 0; i < faltantes.length; i += 100) {
+          if (projurisCancelledRef.current) break;
+          const batch = faltantes.slice(i, i + 100).map(([, nome]) => ({
+            nome,
+            coordenacao_id: coordId,
+            cargo: "advogado",
+          }));
+          const { data: loteResult, error: loteError } = await supabase.functions.invoke(
+            "cadastrar-perfis-lote",
+            { body: { perfis: batch } }
+          );
+          if (!loteError && loteResult?.resultados) {
+            for (const [nome, id] of Object.entries(loteResult.resultados)) {
+              responsavelCache.set(normNomeResp(nome as string), id as string);
+            }
+          }
+        }
+      }
+    }
+
+    const resolverResponsavelId = (nome: string | null | undefined): string | null => {
+      const key = normNomeResp(nome || "");
+      if (!key) return null;
+      if (responsavelCache.has(key)) return responsavelCache.get(key)!;
+      for (const [k, id] of responsavelCache) {
+        if (k.startsWith(key) || key.startsWith(k)) return id;
+      }
+      return null;
+    };
+
+    const buildPayload = (p: ProcessoImport) => ({
       numero: p.numero.trim(),
       assunto: p.assunto,
       descricao: p.descricao,
@@ -1464,9 +1631,10 @@ export default function ImportarProcessos() {
       valor_causa: parseNumber(p.valorAcao),
       polo_ativo: p.parteAtiva,
       polo_passivo: p.partePassiva,
-      coordenacao_id: selectedCoordenacao || null,
-      advogado_responsavel_id: selectedMembro || null,
+      coordenacao_id: coordId,
+      advogado_responsavel_id: resolverResponsavelId(p.responsavel) || selectedMembro || null,
       cliente_id: selectedCliente || null,
+      pasta_id: pastaCache.get(nomePastaDe(p)) || null,
       monitorar_andamentos: false,
       identificador_projuris: p.identificadorProjuris || null,
       pasta_fisica: p.pastaFisica || null,
@@ -1487,669 +1655,116 @@ export default function ImportarProcessos() {
       responsaveis_projuris: p.responsavel || null,
     });
 
-    // ======== FAST PATH: bulk insert when buscarAndamentos is disabled ========
-    if (!projurisBuscarAndamentos) {
-      const BATCH_SIZE = 200;
-      const CHUNK_SIZE = 500; // For querying existing in chunks (Supabase limit)
-      
-      const validIndices = updatedProcessos
-        .map((p, idx) => (p.status === "valido" ? idx : -1))
-        .filter((idx) => idx >= 0);
+    const processoIdsGravados: { id: string; numero: string }[] = [];
+    let processed = 0;
+    const totalToProcess = allIndices.length || 1;
 
-      // 1) Detect duplicates WITHIN the spreadsheet itself
-      const seenInSpreadsheet = new Map<string, number>(); // numero -> first index
-      const duplicatesInSpreadsheet: number[] = [];
-      for (const idx of validIndices) {
-        const num = updatedProcessos[idx].numero.trim();
-        if (seenInSpreadsheet.has(num)) {
-          duplicatesInSpreadsheet.push(idx);
-          updatedProcessos[idx] = { 
-            ...updatedProcessos[idx], 
-            status: "erro", 
-            erroImport: `Duplicado na planilha (linha ${updatedProcessos[seenInSpreadsheet.get(num)!].linhaOriginal})` 
-          };
-          errorCount++;
-        } else {
-          seenInSpreadsheet.set(num, idx);
-        }
-      }
-      
-      // Filter out spreadsheet duplicates from valid indices
-      const uniqueValidIndices = validIndices.filter(idx => !duplicatesInSpreadsheet.includes(idx));
+    // 4) INSERT em lotes (novos na coordenação)
+    for (let i = 0; i < toInsertIndices.length; i += BATCH_SIZE) {
+      if (projurisCancelledRef.current) break;
+      const batchIndices = toInsertIndices.slice(i, i + BATCH_SIZE);
+      const payload = batchIndices.map((idx) => buildPayload(updated[idx]));
+      const { data: inseridos, error } = await supabase
+        .from("processos")
+        .insert(payload)
+        .select("id, numero");
 
-      // 2) Fetch existing process numbers in CHUNKS to avoid query limits
-      const allNumeros = uniqueValidIndices.map((idx) => updatedProcessos[idx].numero.trim());
-      const existingMap = new Map<string, string>();
-      
-      for (let i = 0; i < allNumeros.length; i += CHUNK_SIZE) {
-        const chunk = allNumeros.slice(i, i + CHUNK_SIZE);
-        const { data: existingRows } = await supabase
-          .from("processos")
-          .select("id, numero")
-          .in("numero", chunk);
-        for (const row of existingRows || []) {
-          existingMap.set(row.numero, row.id);
-        }
-      }
-
-      // Separate indices for insert vs update
-      const toInsertIndices: number[] = [];
-      const toUpdateIndices: number[] = [];
-      for (const idx of uniqueValidIndices) {
-        const num = updatedProcessos[idx].numero.trim();
-        if (existingMap.has(num)) {
-          toUpdateIndices.push(idx);
-        } else {
-          toInsertIndices.push(idx);
-        }
-      }
-
-      // 3) Pre-create pastas and responsaveis for all processes - OPTIMIZED BATCH
-      const { data: { user } } = await supabase.auth.getUser();
-      const pastaCache = new Map<string, string>();
-      const responsavelCache = new Map<string, string>();
-      
-      // Collect all unique pasta names and responsaveis names needed
-      const allNomesPasta = new Set<string>();
-      const allNomesResponsaveis = new Set<string>();
-      
-      for (const idx of [...toInsertIndices, ...toUpdateIndices]) {
-        const processo = updatedProcessos[idx];
-        const parteAtivaTrimmed = processo.parteAtiva?.trim() || "Sem Parte Ativa";
-        const partePassivaTrimmed = processo.partePassiva?.trim() || "Sem Parte Passiva";
-        const nomePasta = `${parteAtivaTrimmed} x ${partePassivaTrimmed}`;
-        allNomesPasta.add(nomePasta);
-        
-        if (processo.responsavel?.trim()) {
-          allNomesResponsaveis.add(processo.responsavel.trim().toUpperCase());
-        }
-      }
-      
-      // BATCH: Load all existing pastas at once
-      const nomesPastaArray = Array.from(allNomesPasta);
-      for (let i = 0; i < nomesPastaArray.length; i += CHUNK_SIZE) {
-        const chunk = nomesPastaArray.slice(i, i + CHUNK_SIZE);
-        const { data: pastasExistentes } = await supabase
-          .from("pastas")
-          .select("id, nome")
-          .in("nome", chunk);
-        for (const pasta of pastasExistentes || []) {
-          pastaCache.set(pasta.nome, pasta.id);
-        }
-      }
-      
-      // BATCH: Load all existing profiles at once
-      const nomesResponsaveisArray = Array.from(allNomesResponsaveis);
-      for (let i = 0; i < nomesResponsaveisArray.length; i += CHUNK_SIZE) {
-        const chunk = nomesResponsaveisArray.slice(i, i + CHUNK_SIZE);
-        const orConditions = chunk.map(nome => `nome.ilike.${nome}`).join(",");
-        const { data: profilesExistentes } = await supabase.from("profiles").select("id, nome").or(orConditions);
-        for (const profile of profilesExistentes || []) {
-          if (profile.nome) {
-            responsavelCache.set(profile.nome.toUpperCase(), profile.id);
-          }
-        }
-      }
-      
-      // Create missing pastas in BATCH using INSERT with ON CONFLICT (via upsert-like behavior)
-      const pastasFaltantes = nomesPastaArray.filter(nome => !pastaCache.has(nome));
-      if (pastasFaltantes.length > 0 && user) {
-        // Insert all at once - duplicates will fail silently due to unique constraint
-        const pastasToInsert = pastasFaltantes.map(nomePasta => ({
-          nome: nomePasta,
-          descricao: `Pasta criada automaticamente para padronização`,
-          cliente_id: selectedCliente || null,
-          coordenacao_id: selectedCoordenacao || null,
-          criado_por: user.id,
-        }));
-        
-        // Insert in batches to avoid payload limits
-        for (let i = 0; i < pastasToInsert.length; i += BATCH_SIZE) {
+      if (error) {
+        for (const idx of batchIndices) {
           if (projurisCancelledRef.current) break;
-          const batch = pastasToInsert.slice(i, i + BATCH_SIZE);
-          await supabase.from("pastas").insert(batch).select(); // ignore errors (duplicates)
-        }
-        
-        // Reload pastas cache after creation
-        for (let i = 0; i < nomesPastaArray.length; i += CHUNK_SIZE) {
-          const chunk = nomesPastaArray.slice(i, i + CHUNK_SIZE);
-          const { data: pastasExistentes } = await supabase
-            .from("pastas")
-            .select("id, nome")
-            .in("nome", chunk);
-          for (const pasta of pastasExistentes || []) {
-            pastaCache.set(pasta.nome, pasta.id);
-          }
-        }
-      }
-      
-      // Create missing responsaveis using batch Edge Function
-      const responsaveisFaltantes = nomesResponsaveisArray.filter(nome => !responsavelCache.has(nome));
-      if (responsaveisFaltantes.length > 0 && selectedCoordenacao) {
-        // Call batch Edge Function
-        const perfisToCreate = responsaveisFaltantes.map(nome => ({
-          nome,
-          coordenacao_id: selectedCoordenacao,
-          cargo: "advogado",
-        }));
-        
-        // Process in batches of 100 (Edge Function limit)
-        for (let i = 0; i < perfisToCreate.length; i += 100) {
-          if (projurisCancelledRef.current) break;
-          const batch = perfisToCreate.slice(i, i + 100);
-          
-          const { data: loteResult, error: loteError } = await supabase.functions.invoke("cadastrar-perfis-lote", {
-            body: { perfis: batch },
-          });
-          
-          if (!loteError && loteResult?.resultados) {
-            // Merge results into cache
-            for (const [nome, id] of Object.entries(loteResult.resultados)) {
-              responsavelCache.set(nome as string, id as string);
-            }
-          }
-        }
-      }
-      
-      // Build full payload for all processes (insert + update)
-      const allIndices = [...toInsertIndices, ...toUpdateIndices];
-      const processoExtras = new Map<number, { pastaId: string | null; responsavelId: string | null }>();
-      
-      for (const idx of allIndices) {
-        const processo = updatedProcessos[idx];
-        const parteAtivaTrimmed = processo.parteAtiva?.trim() || "Sem Parte Ativa";
-        const partePassivaTrimmed = processo.partePassiva?.trim() || "Sem Parte Passiva";
-        const nomePasta = `${parteAtivaTrimmed} x ${partePassivaTrimmed}`;
-        
-        const pastaId = pastaCache.get(nomePasta) || null;
-        let responsavelId = selectedMembro || null;
-        
-        if (processo.responsavel?.trim()) {
-          const nomeResp = processo.responsavel.trim().toUpperCase();
-          const cachedResp = responsavelCache.get(nomeResp);
-          if (cachedResp) {
-            responsavelId = cachedResp;
-          }
-        }
-        
-        processoExtras.set(idx, { pastaId, responsavelId });
-      }
-
-      // Build UPSERT payload
-      const buildUpsertPayload = (p: ProcessoImport, idx: number) => {
-        const extras = processoExtras.get(idx);
-        return {
-          numero: p.numero.trim(),
-          assunto: p.assunto,
-          descricao: p.descricao,
-          area: mapAreaToEnum(p.area),
-          status: mapStatusToEnum(p.situacao),
-          situacao_original: getSituacaoOriginal(p.situacao),
-          tribunal: p.orgao,
-          vara: p.orgaoJulgador,
-          comarca: p.cidade,
-          classe: p.classeCNJ,
-          data_distribuicao: parseDate(p.dataDistribuicao),
-          valor_causa: parseNumber(p.valorAcao),
-          polo_ativo: p.parteAtiva,
-          polo_passivo: p.partePassiva,
-          coordenacao_id: selectedCoordenacao || null,
-          advogado_responsavel_id: extras?.responsavelId || selectedMembro || null,
-          cliente_id: selectedCliente || null,
-          pasta_id: extras?.pastaId || null,
-          monitorar_andamentos: false,
-          identificador_projuris: p.identificadorProjuris || null,
-          pasta_fisica: p.pastaFisica || null,
-          pasta_cliente: p.pastaCliente || null,
-          justica: p.justica || null,
-          instancia: p.instancia || null,
-          fase: p.fase || null,
-          data_citacao: parseDate(p.dataCitacao),
-          data_recebimento: parseDate(p.dataRecebimento),
-          data_arquivamento: parseDate(p.dataArquivamento),
-          valor_provisionado: parseNumber(p.valorProvisionado),
-          probabilidade: p.probabilidade || null,
-          risco: p.risco || null,
-          transitado_julgado: p.transitadoJulgado || false,
-          resultado: p.resultado || null,
-          valor_condenacao: parseNumber(p.valorCondenacao),
-          uf: p.estado || null,
-          responsaveis_projuris: p.responsavel || null,
-        };
-      };
-
-      // 4) UPSERT all processes in batches (insert or update by numero)
-      let processed = 0;
-      const totalToProcess = allIndices.length;
-
-      for (let i = 0; i < allIndices.length; i += BATCH_SIZE) {
-        if (projurisCancelledRef.current) break;
-
-        const batchIndices = allIndices.slice(i, i + BATCH_SIZE);
-        const upsertPayload = batchIndices.map((idx) => buildUpsertPayload(updatedProcessos[idx], idx));
-
-        // Use upsert with onConflict to handle both insert and update
-        const { error } = await supabase
-          .from("processos")
-          .upsert(upsertPayload, { 
-            onConflict: "numero",
-            ignoreDuplicates: false // We want to update on conflict
-          });
-        
-        if (error) {
-          // If batch fails, try one-by-one to identify problematic records
-          for (const idx of batchIndices) {
-            if (projurisCancelledRef.current) break;
-            
-            const singlePayload = buildUpsertPayload(updatedProcessos[idx], idx);
-            const { error: singleError } = await supabase
-              .from("processos")
-              .upsert([singlePayload], { onConflict: "numero" });
-            
-            if (singleError) {
-              const translatedError = translateDatabaseError(singleError.message);
-              updatedProcessos[idx] = { ...updatedProcessos[idx], status: "erro", erroImport: translatedError };
-              errorCount++;
-            } else {
-              const wasUpdate = existingMap.has(updatedProcessos[idx].numero.trim());
-              updatedProcessos[idx] = { 
-                ...updatedProcessos[idx], 
-                status: "sucesso", 
-                erroImport: wasUpdate ? "Atualizado" : undefined 
-              };
-              successCount++;
-            }
-          }
-        } else {
-          // Batch succeeded
-          for (const idx of batchIndices) {
-            const wasUpdate = existingMap.has(updatedProcessos[idx].numero.trim());
-            updatedProcessos[idx] = { 
-              ...updatedProcessos[idx], 
-              status: "sucesso",
-              erroImport: wasUpdate ? "Atualizado" : undefined
+          const { data: single, error: singleError } = await supabase
+            .from("processos")
+            .insert([buildPayload(updated[idx])])
+            .select("id, numero")
+            .maybeSingle();
+          if (singleError) {
+            updated[idx] = {
+              ...updated[idx],
+              status: "erro",
+              erroImport: translateDatabaseError(singleError.message),
             };
+            errorCount++;
+          } else {
+            if (single) processoIdsGravados.push(single);
+            updated[idx] = { ...updated[idx], status: "sucesso", erroImport: undefined };
             successCount++;
           }
         }
-
-        processed += batchIndices.length;
-        setProjurisProgress((processed / totalToProcess) * 100);
-        setProjurisProcessos([...updatedProcessos]);
-        // Yield to UI
-        await new Promise((r) => setTimeout(r, 0));
+      } else {
+        for (const row of inseridos || []) processoIdsGravados.push(row);
+        for (const idx of batchIndices) {
+          updated[idx] = { ...updated[idx], status: "sucesso", erroImport: undefined };
+          successCount++;
+        }
       }
 
-      if (projurisCancelledRef.current) return;
-
-      setProjurisImporting(false);
-      endImport();
-      toast({
-        title: "Importação Projuris concluída",
-        description: `${successCount} processo(s) importado(s). ${errorCount} erro(s).`,
-        variant: errorCount > 0 ? "destructive" : "default",
-      });
-      return;
+      processed += batchIndices.length;
+      setProjurisProgress((processed / totalToProcess) * 100);
+      setProjurisProcessos([...updated]);
+      await new Promise((r) => setTimeout(r, 0));
     }
 
-    // ======== SLOW PATH: one-by-one with API + andamentos ========
-    for (let i = 0; i < updatedProcessos.length; i++) {
+    // 5) UPDATE em lotes (já existiam na coordenação)
+    const UPDATE_CONCURRENCY = 10;
+    for (let i = 0; i < toUpdateIndices.length; i += UPDATE_CONCURRENCY) {
       if (projurisCancelledRef.current) break;
-
-      const processo = updatedProcessos[i];
-
-      // Skip invalid processos
-      if (processo.status === "invalido") {
-        continue;
-      }
-
-      try {
-        // Check if process already exists
-        const { data: existingProcesso } = await supabase
-          .from("processos")
-          .select("id, pasta_id")
-          .eq("numero", processo.numero.trim())
-          .maybeSingle();
-
-        let processoId: string;
-        let isUpdate = false;
-
-        // Build pasta name from "Parte Ativa x Parte Passiva"
-        const parteAtiva = processo.parteAtiva?.trim() || "Sem Parte Ativa";
-        const partePassiva = processo.partePassiva?.trim() || "Sem Parte Passiva";
-        const nomePasta = `${parteAtiva} x ${partePassiva}`;
-
-        // Helper to find or create responsavel via Edge Function
-        const findOrCreateResponsavel = async (nomeResponsavel: string): Promise<string | null> => {
-          if (!nomeResponsavel?.trim()) return null;
-          
-          const nomeTrimmed = nomeResponsavel.trim().toUpperCase();
-          
-          // Try to find by name (case-insensitive)
-          const { data: existingProfile } = await supabase
-            .from("profiles")
-            .select("id")
-            .ilike("nome", nomeTrimmed)
-            .maybeSingle();
-          
-          if (existingProfile) {
-            return existingProfile.id;
-          }
-          
-          // Create new profile via Edge Function
-          if (selectedCoordenacao) {
-            const { data: novoProfile, error: profileError } = await supabase.functions.invoke("cadastrar-perfil", {
-              body: {
-                nome: nomeTrimmed,
-                coordenacao_id: selectedCoordenacao,
-                cargo: "advogado",
-              },
-            });
-            
-            if (!profileError && novoProfile?.profile?.id) {
-              return novoProfile.profile.id;
-            }
-            console.warn(`Falha ao criar perfil ${nomeTrimmed}:`, profileError);
-          }
-          
-          return null;
-        };
-
-        // Helper to create or find pasta
-        const findOrCreatePasta = async (coordenacaoId: string | null): Promise<string | null> => {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return null;
-          
-          // Check if pasta with this name already exists
-          const { data: pastaExistente } = await supabase
-            .from("pastas")
-            .select("id")
-            .eq("nome", nomePasta)
-            .maybeSingle();
-          
-          if (pastaExistente) {
-            return pastaExistente.id;
-          }
-          
-          // Create new pasta
-          const { data: novaPasta, error: pastaError } = await supabase
-            .from("pastas")
-            .insert({
-              nome: nomePasta,
-              descricao: `Pasta criada automaticamente para padronização - ${processo.numero}`,
-              cliente_id: selectedCliente || null,
-              coordenacao_id: coordenacaoId || selectedCoordenacao || null,
-              criado_por: user.id,
-            })
-            .select("id")
-            .single();
-          
-          if (!pastaError && novaPasta) {
-            return novaPasta.id;
-          }
-          console.warn(`Falha ao criar pasta ${nomePasta}:`, pastaError?.message);
-          return null;
-        };
-
-        if (existingProcesso) {
-          // Fetch current process data for smart merge
-          const { data: currentProcesso } = await supabase
-            .from("processos")
-            .select("*")
-            .eq("id", existingProcesso.id)
-            .single();
-
-          // Smart merge: update only empty fields, preserve responsáveis/coordenação
-          const updateData: Record<string, any> = {};
-          
-          // Only update if currently empty AND user selected / spreadsheet has data
-          if (selectedCoordenacao && !currentProcesso?.coordenacao_id) updateData.coordenacao_id = selectedCoordenacao;
-          if (selectedCliente && !currentProcesso?.cliente_id) updateData.cliente_id = selectedCliente;
-          
-          // Find or create responsavel from spreadsheet if not already set
-          if (!currentProcesso?.advogado_responsavel_id && processo.responsavel) {
-            const responsavelId = await findOrCreateResponsavel(processo.responsavel);
-            if (responsavelId) {
-              updateData.advogado_responsavel_id = responsavelId;
-            }
-          } else if (selectedMembro && !currentProcesso?.advogado_responsavel_id) {
-            updateData.advogado_responsavel_id = selectedMembro;
-          }
-          
-          // Update pasta_id - always create pasta with "Parte Ativa x Parte Passiva" pattern
-          const pastaId = await findOrCreatePasta(currentProcesso?.coordenacao_id);
-          if (pastaId) {
-            updateData.pasta_id = pastaId;
-          }
-          
-          // Merge spreadsheet data into empty fields
-          if (!currentProcesso?.assunto && processo.assunto) updateData.assunto = processo.assunto;
-          if (!currentProcesso?.descricao && processo.descricao) updateData.descricao = processo.descricao;
-          if (!currentProcesso?.tribunal && processo.orgao) updateData.tribunal = processo.orgao;
-          if (!currentProcesso?.vara && processo.orgaoJulgador) updateData.vara = processo.orgaoJulgador;
-          if (!currentProcesso?.comarca && processo.cidade) updateData.comarca = processo.cidade;
-          if (!currentProcesso?.classe && processo.classeCNJ) updateData.classe = processo.classeCNJ;
-          if (!currentProcesso?.data_distribuicao && parseDate(processo.dataDistribuicao)) updateData.data_distribuicao = parseDate(processo.dataDistribuicao);
-          if (!currentProcesso?.valor_causa && parseNumber(processo.valorAcao)) updateData.valor_causa = parseNumber(processo.valorAcao);
-          if (!currentProcesso?.polo_ativo && processo.parteAtiva) updateData.polo_ativo = processo.parteAtiva;
-          if (!currentProcesso?.polo_passivo && processo.partePassiva) updateData.polo_passivo = processo.partePassiva;
-          if (!currentProcesso?.justica && processo.justica) updateData.justica = processo.justica;
-          if (!currentProcesso?.instancia && processo.instancia) updateData.instancia = processo.instancia;
-          if (!currentProcesso?.fase && processo.fase) updateData.fase = processo.fase;
-          if (!currentProcesso?.uf && processo.estado) updateData.uf = processo.estado;
-          // Projuris-specific fields
-          if (!currentProcesso?.identificador_projuris && processo.identificadorProjuris) updateData.identificador_projuris = processo.identificadorProjuris;
-          if (!currentProcesso?.pasta_fisica && processo.pastaFisica) updateData.pasta_fisica = processo.pastaFisica;
-          if (!currentProcesso?.pasta_cliente && processo.pastaCliente) updateData.pasta_cliente = processo.pastaCliente;
-          if (!currentProcesso?.data_citacao && parseDate(processo.dataCitacao)) updateData.data_citacao = parseDate(processo.dataCitacao);
-          if (!currentProcesso?.data_recebimento && parseDate(processo.dataRecebimento)) updateData.data_recebimento = parseDate(processo.dataRecebimento);
-          if (!currentProcesso?.data_arquivamento && parseDate(processo.dataArquivamento)) updateData.data_arquivamento = parseDate(processo.dataArquivamento);
-          if (!currentProcesso?.valor_provisionado && parseNumber(processo.valorProvisionado)) updateData.valor_provisionado = parseNumber(processo.valorProvisionado);
-          if (!currentProcesso?.probabilidade && processo.probabilidade) updateData.probabilidade = processo.probabilidade;
-          if (!currentProcesso?.risco && processo.risco) updateData.risco = processo.risco;
-          if (!currentProcesso?.resultado && processo.resultado) updateData.resultado = processo.resultado;
-          if (!currentProcesso?.valor_condenacao && parseNumber(processo.valorCondenacao)) updateData.valor_condenacao = parseNumber(processo.valorCondenacao);
-          if (!currentProcesso?.responsaveis_projuris && processo.responsavel) updateData.responsaveis_projuris = processo.responsavel;
-          // Update area only if current is default
-          if (processo.area && currentProcesso?.area === "civil") {
-            const newArea = mapAreaToEnum(processo.area);
-            if (newArea !== "civil") updateData.area = newArea;
-          }
-
-          if (Object.keys(updateData).length > 0) {
-            await supabase.from("processos").update(updateData).eq("id", existingProcesso.id);
-          }
-
-          processoId = existingProcesso.id;
-          isUpdate = true;
-        } else {
-          // Create pasta for new process
-          const pastaId = await findOrCreatePasta(selectedCoordenacao);
-          
-          // Find or create responsavel for new process
-          let responsavelId = selectedMembro || null;
-          if (processo.responsavel) {
-            const foundResponsavel = await findOrCreateResponsavel(processo.responsavel);
-            if (foundResponsavel) {
-              responsavelId = foundResponsavel;
-            }
-          }
-
-          // Insert new process with all Projuris fields
-          const { data: insertedProcesso, error } = await supabase
-            .from("processos")
-            .insert({
-              numero: processo.numero.trim(),
-              assunto: processo.assunto,
-              descricao: processo.descricao,
-              area: mapAreaToEnum(processo.area),
-              status: mapStatusToEnum(processo.situacao),
-              tribunal: processo.orgao,
-              vara: processo.orgaoJulgador,
-              comarca: processo.cidade,
-              classe: processo.classeCNJ,
-              data_distribuicao: parseDate(processo.dataDistribuicao),
-              valor_causa: parseNumber(processo.valorAcao),
-              polo_ativo: processo.parteAtiva,
-              polo_passivo: processo.partePassiva,
-              coordenacao_id: selectedCoordenacao || null,
-              advogado_responsavel_id: responsavelId,
-              cliente_id: selectedCliente || null,
-              pasta_id: pastaId,
-              monitorar_andamentos: projurisBuscarAndamentos,
-              // Projuris-specific fields
-              identificador_projuris: processo.identificadorProjuris || null,
-              pasta_fisica: processo.pastaFisica || null,
-              pasta_cliente: processo.pastaCliente || null,
-              justica: processo.justica || null,
-              instancia: processo.instancia || null,
-              fase: processo.fase || null,
-              data_citacao: parseDate(processo.dataCitacao),
-              data_recebimento: parseDate(processo.dataRecebimento),
-              data_arquivamento: parseDate(processo.dataArquivamento),
-              valor_provisionado: parseNumber(processo.valorProvisionado),
-              probabilidade: processo.probabilidade || null,
-              risco: processo.risco || null,
-              transitado_julgado: processo.transitadoJulgado || false,
-              resultado: processo.resultado || null,
-              valor_condenacao: parseNumber(processo.valorCondenacao),
-              uf: processo.estado || null,
-              responsaveis_projuris: processo.responsavel || null,
-            })
-            .select("id")
-            .single();
-
+      const batchIndices = toUpdateIndices.slice(i, i + UPDATE_CONCURRENCY);
+      await Promise.all(
+        batchIndices.map(async (idx) => {
+          const p = updated[idx];
+          const id = existingMap.get(p.numero.trim())!;
+          const { numero, ...rest } = buildPayload(p);
+          const { error } = await supabase.from("processos").update(rest).eq("id", id);
           if (error) {
-            updatedProcessos[i] = { ...processo, status: "erro", erroImport: translateDatabaseError(error.message) };
+            updated[idx] = {
+              ...p,
+              status: "erro",
+              erroImport: translateDatabaseError(error.message),
+            };
             errorCount++;
-            continue;
+          } else {
+            processoIdsGravados.push({ id, numero: p.numero.trim() });
+            updated[idx] = { ...p, status: "sucesso", erroImport: "Atualizado" };
+            successCount++;
           }
+        })
+      );
 
-          processoId = insertedProcesso.id;
-        }
+      processed += batchIndices.length;
+      setProjurisProgress((processed / totalToProcess) * 100);
+      setProjurisProcessos([...updated]);
+      await new Promise((r) => setTimeout(r, 0));
+    }
 
-        // Fetch additional data from API for new processes (somente se a opção estiver habilitada)
-        if (!isUpdate && projurisBuscarAndamentos) {
-          const { data: apiData } = await supabase.functions.invoke("consultar-processo", {
-            body: { numeroProcesso: processo.numero.trim() },
-          });
-
-          if (apiData?.found && apiData?.processo) {
-            const processoApi = apiData.processo;
-
-            // Extract parties if not already set
-            let poloAtivo = processo.parteAtiva;
-            let poloPassivo = processo.partePassiva;
-
-            if ((!poloAtivo || !poloPassivo) && processoApi.partes && processoApi.partes.length > 0) {
-              const partesAtivas = processoApi.partes
-                .filter(
-                  (p: any) =>
-                    p.tipo === "POLO_ATIVO" ||
-                    p.tipoParte === "AUTOR" ||
-                    p.tipoParte === "REQUERENTE" ||
-                    p.tipoParte === "RECLAMANTE"
-                )
-                .map((p: any) => p.nome)
-                .filter(Boolean);
-
-              const partesPassivas = processoApi.partes
-                .filter(
-                  (p: any) =>
-                    p.tipo === "POLO_PASSIVO" ||
-                    p.tipoParte === "REU" ||
-                    p.tipoParte === "REQUERIDO" ||
-                    p.tipoParte === "RECLAMADO"
-                )
-                .map((p: any) => p.nome)
-                .filter(Boolean);
-
-              if (!poloAtivo && partesAtivas.length > 0) {
-                poloAtivo = partesAtivas.join(", ");
-              }
-              if (!poloPassivo && partesPassivas.length > 0) {
-                poloPassivo = partesPassivas.join(", ");
-              }
+    // 6) Andamentos (opcional) em paralelo controlado
+    if (projurisBuscarAndamentos && !projurisCancelledRef.current && processoIdsGravados.length > 0) {
+      const ANDAMENTOS_CONCURRENCY = 5;
+      for (let i = 0; i < processoIdsGravados.length; i += ANDAMENTOS_CONCURRENCY) {
+        if (projurisCancelledRef.current) break;
+        const batch = processoIdsGravados.slice(i, i + ANDAMENTOS_CONCURRENCY);
+        await Promise.all(
+          batch.map(async ({ id, numero }) => {
+            try {
+              const res = await buscarAndamentosExternos(id, numero);
+              if (!res.success) console.warn(`Andamentos ${numero}:`, res.error);
+            } catch (err) {
+              console.warn(`Andamentos ${numero}:`, err);
             }
-
-            // Update with API data for empty fields
-            const updateData: Record<string, any> = {};
-
-            if (!processo.orgao && (processoApi.tribunal || apiData.tribunal)) {
-              updateData.tribunal = processoApi.tribunal || apiData.tribunal;
-            }
-            if (!processo.orgaoJulgador && processoApi.orgaoJulgador) {
-              updateData.vara = processoApi.orgaoJulgador;
-            }
-            if (!processo.classeCNJ && processoApi.classe) {
-              updateData.classe = processoApi.classe;
-            }
-            if (!processo.assunto && processoApi.assunto) {
-              updateData.assunto = processoApi.assunto;
-            }
-            if (!processo.parteAtiva && poloAtivo) {
-              updateData.polo_ativo = poloAtivo;
-            }
-            if (!processo.partePassiva && poloPassivo) {
-              updateData.polo_passivo = poloPassivo;
-            }
-            if (!parseDate(processo.dataDistribuicao) && processoApi.dataAjuizamento) {
-              updateData.data_distribuicao = new Date(
-                processoApi.dataAjuizamento.replace(/(\d{4})(\d{2})(\d{2}).*/, "$1-$2-$3")
-              )
-                .toISOString()
-                .split("T")[0];
-            }
-
-            // Update area based on tribunal if not set
-            if (!processo.area) {
-              const tribunalLower = (processoApi.tribunal || apiData.tribunal || "").toLowerCase();
-              if (
-                tribunalLower.includes("trt") ||
-                tribunalLower.includes("tst") ||
-                tribunalLower.includes("trabalho")
-              ) {
-                updateData.area = "trabalhista";
-              }
-            }
-
-            if (Object.keys(updateData).length > 0) {
-              await supabase.from("processos").update(updateData).eq("id", processoId);
-            }
-          }
-        }
-
-        // Buscar e inserir andamentos (somente se a opção estiver habilitada - only in slow path)
-        if (projurisBuscarAndamentos) {
-          const andamentosRes = await buscarAndamentosExternos(processoId, processo.numero.trim());
-          if (!andamentosRes.success) {
-            console.warn(`Falha ao buscar andamentos do processo ${processo.numero}:`, andamentosRes.error);
-          }
-        }
-
-        updatedProcessos[i] = {
-          ...processo,
-          status: "sucesso",
-          erroImport: isUpdate ? "Atualizado (já existia)" : undefined,
-        };
-        successCount++;
-      } catch (err: any) {
-        updatedProcessos[i] = { ...processo, status: "erro", erroImport: err.message };
-        errorCount++;
+          })
+        );
+        await new Promise((r) => setTimeout(r, 0));
       }
-
-      setProjurisProgress(((i + 1) / updatedProcessos.length) * 100);
-      setProjurisProcessos([...updatedProcessos]);
     }
 
     if (projurisCancelledRef.current) return;
 
+    setProjurisProgress(100);
+    setProjurisProcessos([...updated]);
     setProjurisImporting(false);
     endImport();
-
     toast({
       title: "Importação Projuris concluída",
-      description: `${successCount} processo(s) importado(s). ${errorCount} erro(s) de importação.`,
+      description: `${successCount} processo(s) gravado(s) (${toUpdateIndices.length} atualizado[s]). ${errorCount} erro(s).`,
       variant: errorCount > 0 ? "destructive" : "default",
     });
   };

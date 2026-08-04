@@ -748,12 +748,40 @@ export default function ImportarTarefas() {
         detail: `${processosList.length} processo(s) únicos na planilha`,
       });
 
+      // Busca em lotes os processos já existentes NA COORDENAÇÃO selecionada
+      // (o mesmo número pode existir em outra coordenação — regra igual ao Astrea)
+      if (selectedCoordenacao && processosList.length > 0) {
+        const variantesPorNorm = new Map<string, string[]>();
+        for (const [norm, t] of processosList) {
+          const bruto = t.numeroProcesso!;
+          const digits = bruto.replace(/[^0-9]/g, "");
+          variantesPorNorm.set(norm, Array.from(new Set([bruto, digits].filter(Boolean))));
+        }
+        const todasVariantes = Array.from(new Set(Array.from(variantesPorNorm.values()).flat()));
+        for (let i = 0; i < todasVariantes.length; i += 300) {
+          if (cancelledRef.current) break;
+          const chunk = todasVariantes.slice(i, i + 300);
+          const { data: achados } = await supabase
+            .from("processos")
+            .select("id, numero")
+            .eq("coordenacao_id", selectedCoordenacao)
+            .in("numero", chunk);
+          for (const row of (achados as any[]) || []) {
+            const norm = String(row.numero || "").replace(/[^0-9]/g, "");
+            if (norm) {
+              createdProcessosCache.current.set(`${selectedCoordenacao}::${norm}`, row.id);
+            }
+          }
+        }
+      }
+
       // Pre-fill cache with existing matches from processosMap
       const toCreate: typeof processosList = [];
       for (const [norm, t] of processosList) {
         if (cancelledRef.current) break;
+        const cacheKey = selectedCoordenacao ? processoCacheKey(selectedCoordenacao, t.numeroProcesso!) : "";
         const existingId = selectedCoordenacao
-          ? processosMap?.get(processoCacheKey(selectedCoordenacao, t.numeroProcesso!))
+          ? createdProcessosCache.current.get(cacheKey) || processosMap?.get(cacheKey) || null
           : null;
         if (existingId) {
           createdProcessosCache.current.set(processoCacheKey(selectedCoordenacao, t.numeroProcesso!), existingId);
@@ -823,16 +851,27 @@ export default function ImportarTarefas() {
       setNovosProcessosCriados([...novosProcessosLocal]);
 
       // ============ PHASE 2: RESPONSAVEIS ============
-      const uniqueNomes = new Set<string>();
+      const normNome = (v: string) =>
+        String(v || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toUpperCase();
+
+      // Nomes únicos (sem repetir), preservando o nome original da planilha
+      const nomesUnicos = new Map<string, string>();
       if (vincularResponsaveis) {
         for (const t of toImport) {
           if (!t.responsaveis) continue;
           for (const nome of t.responsaveis.split(/[,;]/).map(n => n.trim()).filter(Boolean)) {
-            uniqueNomes.add(nome);
+            const key = normNome(nome);
+            if (key && !nomesUnicos.has(key)) nomesUnicos.set(key, nome);
           }
         }
       }
-      const nomesArr = Array.from(uniqueNomes);
+      const nomesArr = Array.from(nomesUnicos.keys());
+      const respMap = new Map<string, string>(); // nome normalizado -> profile id
 
       updateState({
         phase: "responsaveis",
@@ -843,37 +882,72 @@ export default function ImportarTarefas() {
         detail: `${nomesArr.length} responsável(eis) únicos`,
       });
 
-      // Resolve cache for known profiles
-      const nomesToCreate: string[] = [];
-      for (const nome of nomesArr) {
-        const nomeLower = nome.toLowerCase();
-        const profile = profiles.find(p =>
-          p.nome.toLowerCase().includes(nomeLower) || nomeLower.includes(p.nome.toLowerCase())
-        );
-        if (profile) {
-          createdUsersCache.current.set(nomeLower, profile.id);
-        } else if (cadastrarNovosUsuarios && selectedCoordenacao) {
-          nomesToCreate.push(nome);
+      // Perfis já vinculados À COORDENAÇÃO selecionada (o mesmo nome pode existir
+      // em outra coordenação; nesse caso cadastramos/vinculamos nesta)
+      if (nomesArr.length > 0 && selectedCoordenacao) {
+        const { data: membros } = await supabase
+          .from("membros_coordenacao")
+          .select("usuario_id, profiles:usuario_id(id, nome)")
+          .eq("coordenacao_id", selectedCoordenacao);
+        for (const m of (membros as any[]) || []) {
+          const nome = m?.profiles?.nome;
+          if (nome) respMap.set(normNome(nome), m.profiles.id);
         }
       }
 
+      const nomesToCreate = nomesArr.filter(key => !respMap.has(key));
       let createdUserCount = 0;
-      await runPool(nomesToCreate, 6, async (nome) => {
-        const id = await createNewProfile(nome, selectedCoordenacao);
-        if (id) {
-          novosUsuariosLocal.push(nome);
-          counters.novosUsuarios++;
+      if (nomesToCreate.length > 0 && cadastrarNovosUsuarios && selectedCoordenacao) {
+        // Cadastro em lote (100 por chamada) — cria o perfil ou apenas vincula à coordenação
+        for (let i = 0; i < nomesToCreate.length; i += 100) {
+          if (cancelledRef.current) break;
+          const lote = nomesToCreate.slice(i, i + 100);
+          const { data: loteResult, error: loteError } = await supabase.functions.invoke(
+            "cadastrar-perfis-lote",
+            {
+              body: {
+                perfis: lote.map(key => ({
+                  nome: nomesUnicos.get(key)!,
+                  coordenacao_id: selectedCoordenacao,
+                  cargo: "Membro",
+                })),
+              },
+            }
+          );
+          if (!loteError && loteResult?.resultados) {
+            for (const [nome, id] of Object.entries(loteResult.resultados)) {
+              const key = normNome(nome as string);
+              if (!respMap.has(key)) {
+                novosUsuariosLocal.push(nome as string);
+                counters.novosUsuarios++;
+              }
+              respMap.set(key, id as string);
+            }
+          } else if (loteError) {
+            // Fallback individual
+            for (const key of lote) {
+              const id = await createNewProfile(nomesUnicos.get(key)!, selectedCoordenacao);
+              if (id) {
+                respMap.set(key, id);
+                novosUsuariosLocal.push(nomesUnicos.get(key)!);
+                counters.novosUsuarios++;
+              }
+            }
+          }
+          createdUserCount += lote.length;
+          updateState({
+            phase: "responsaveis",
+            phaseLabel: "Resolvendo responsáveis",
+            phaseCurrent: nomesArr.length - nomesToCreate.length + createdUserCount,
+            phaseTotal: nomesArr.length,
+            overall: W.processos + W.responsaveis * (createdUserCount / Math.max(1, nomesToCreate.length)),
+            detail: `${counters.novosUsuarios} novo(s) usuário(s) criado(s)`,
+          });
         }
-        createdUserCount++;
-        updateState({
-          phase: "responsaveis",
-          phaseLabel: "Resolvendo responsáveis",
-          phaseCurrent: nomesArr.length - nomesToCreate.length + createdUserCount,
-          phaseTotal: nomesArr.length,
-          overall: W.processos + W.responsaveis * (createdUserCount / Math.max(1, nomesToCreate.length)),
-          detail: `${counters.novosUsuarios} novo(s) usuário(s) criado(s)`,
-        });
-      });
+      }
+
+      // Espelha no cache compartilhado
+      for (const [key, id] of respMap) createdUsersCache.current.set(key.toLowerCase(), id);
       setNovosUsuariosCriados([...novosUsuariosLocal]);
 
       if (cancelledRef.current) throw new Error("__cancelled__");
@@ -885,7 +959,7 @@ export default function ImportarTarefas() {
       const resolveResponsavel = (responsaveisStr: string | null): string | null => {
         if (!responsaveisStr || !vincularResponsaveis) return null;
         for (const nome of responsaveisStr.split(/[,;]/).map(n => n.trim()).filter(Boolean)) {
-          const id = createdUsersCache.current.get(nome.toLowerCase());
+          const id = respMap.get(normNome(nome));
           if (id) return id;
         }
         return null;
