@@ -33,7 +33,7 @@ export function ModeloTituloPicker({ tipo, coordenacaoId, onSelect, className }:
   const { data: coordenacoes = [] } = useQuery({
     queryKey: ["coordenacoes-nomes-modelos"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("coordenacoes").select("id, nome");
+      const { data, error } = await supabase.from("coordenacoes").select("id, nome").order("nome");
       if (error) throw error;
       return data ?? [];
     },
