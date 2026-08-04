@@ -28,9 +28,14 @@ const POLL_INTERVAL_MS = 1000;
 // em 2–4s quando o processo já está no cache interno deles.
 const POLL_FAST_INTERVAL_MS = 400;
 const POLL_FAST_ATTEMPTS = 5;
-// Crawler do TST normalmente leva 8–25s; o cap antigo de 20s estava cortando
-// antes da Judit completar.
-const POLL_TIMEOUT_MS = 60_000;
+// Crawler do TST normalmente leva 8–25s. Esperar 60s fazia o clique da
+// advogada travar por mais de um minuto (e até ~124s quando havia retentativa
+// TST em sequência). 25s cobre a grande maioria dos casos; o que não completar
+// nesse tempo cai no melhor dado disponível (cache/fallback).
+const POLL_TIMEOUT_MS = 25_000;
+// Teto total por requisição — se estourar, respondemos com o que já temos em
+// vez de enfileirar outra rodada de crawler.
+const REQUEST_BUDGET_MS = 30_000;
 // Cache padrão de 3 dias — buscas repetidas no mesmo processo voltam quase
 // instantâneas. Quando precisa ignorar o cache, passar `force_refresh: true`
 // no body (envia cache_ttl_in_days=0).
@@ -145,11 +150,13 @@ async function juditAppCache(cnj: string, tribunalHint: string | null = null): P
       // pareciam “não preencher”: a função respondia rápido, mas com dados que
       // não eram da instância TST. Só aceitamos app-cache se a própria resposta
       // já foi normalizada como TST/crawler_tst.
-      if (tribunalHint === "TST") {
-        const rawTribunal = String(raw?.tribunal || "").toUpperCase();
-        const fonte = String(raw?._judit_meta?.fonte || "").toLowerCase();
-        if (rawTribunal !== "TST" && fonte !== "crawler_tst") continue;
-      }
+      // Antes descartávamos qualquer resposta que não fosse TST quando a tela
+      // pedia TST — isso fazia cada clique pagar 60–124s de crawler em
+      // processos que só têm TRT. Agora aceitamos e marcamos a instância; a
+      // busca dirigida ao TST fica no "Forçar atualização".
+      const rawTribunal = String(raw?.tribunal || "").toUpperCase();
+      const fonte = String(raw?._judit_meta?.fonte || "").toLowerCase();
+      const ehTst = rawTribunal === "TST" || fonte === "crawler_tst";
       // Rejeita respostas anteriores que vieram sem nenhum dado útil — senão
       // o app-cache trava o processo em "tudo null" para sempre.
       const temAlgo = !!(
@@ -159,6 +166,9 @@ async function juditAppCache(cnj: string, tribunalHint: string | null = null): P
         (Array.isArray(raw?.parties_detail) && raw.parties_detail.length > 0)
       );
       if (!temAlgo) continue;
+      if (tribunalHint === "TST" && !ehTst) {
+        raw._instancia_tst = false;
+      }
       return raw;
     }
     return null;
