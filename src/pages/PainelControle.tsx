@@ -1728,7 +1728,17 @@ export default function PainelControle() {
           ) : (
             <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5 md:gap-2">
               {/* Data Atual */}
-              <div className="flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg px-2 py-1">
+              <button
+                type="button"
+                title="Ver todas as atividades de hoje"
+                onClick={() => {
+                  setSelectedItem(null);
+                  setNovoItemTipo(null);
+                  setViewMode("agenda");
+                  setDiaLateralKey(format(nowBrt, "yyyy-MM-dd"));
+                }}
+                className="flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg px-2 py-1 transition-opacity hover:opacity-90 cursor-pointer"
+              >
                 <p className="text-lg md:text-xl font-bold leading-none">
                   {format(nowBrt, "dd")}
                 </p>
@@ -1737,7 +1747,7 @@ export default function PainelControle() {
                   <span className="mx-1 opacity-60">·</span>
                   <span className="capitalize font-normal">{format(nowBrt, "EEEE", { locale: ptBR })}</span>
                 </p>
-              </div>
+              </button>
 
               <Card
                 onClick={() =>
