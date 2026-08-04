@@ -672,11 +672,15 @@ export default function DistribuicaoTst() {
     fetchTabsData();
   };
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setSelectedIds(new Set());
-    fetchDados();
-    fetchTabsData();
-    refetchStats();
+    await Promise.all([
+      Promise.resolve(fetchDados()),
+      Promise.resolve(fetchTabsData()),
+      Promise.resolve(refetchStats()),
+      Promise.resolve(refetchResponsavelCounts()),
+      Promise.resolve(refetchProntoSemPendencia()),
+    ]);
   };
 
   const handleArquivarDuplicados = async () => {
