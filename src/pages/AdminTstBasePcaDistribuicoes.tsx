@@ -333,9 +333,9 @@ export default function AdminTstBasePcaDistribuicoes() {
         resumo: `TAG "${tagNome}" ${replaceExisting ? "substituída por" : "aplicada a"} ${foundIds.length} processo(s)`,
         itens: [
           ...foundIds.map((id) => ({
-            dadosBennerId: id,
             acao: "atualizado",
             detalhe: `TAG "${tagNome}" aplicada`,
+            campos: { dados_benner_id: id },
           })),
           ...notFound.map((l) => ({
             processo: l.processo || null,
