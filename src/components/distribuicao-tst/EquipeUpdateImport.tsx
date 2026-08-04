@@ -5,6 +5,7 @@ import { Users, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { iniciarAuditoriaLote, finalizarAuditoriaLote, ItemAuditoriaLote } from "@/lib/auditoriaLoteAdminTst";
 
 const PREFIX = "Jurídico Trabalhista - ";
 
@@ -37,6 +38,10 @@ export function EquipeUpdateImport({ onUpdated }: Props) {
     setImporting(true);
     setProgress(0);
     setStatusText("Lendo planilha…");
+    const auditId = await iniciarAuditoriaLote({
+      tipo: "atualizar_equipe",
+      arquivoNome: file.name,
+    });
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
@@ -70,12 +75,18 @@ export function EquipeUpdateImport({ onUpdated }: Props) {
 
       if (equipePorDossie.size === 0) {
         toast.warning("Nenhum dossiê/equipe encontrado na planilha (Col B = Dossiê / Col C = Equipe)");
+        await finalizarAuditoriaLote(auditId, {
+          status: "concluida",
+          resumo: "Nenhum dossiê/equipe encontrado na planilha.",
+        });
         setImporting(false);
         if (fileRef.current) fileRef.current.value = "";
         return;
       }
 
       let updated = 0;
+      const itensAudit: ItemAuditoriaLote[] = [];
+      const dossiePorId = new Map<string, string>();
       const dossies = [...equipePorDossie.keys()];
       const idsPorEquipe = new Map<string, string[]>();
       for (let i = 0; i < dossies.length; i += 500) {
@@ -88,6 +99,7 @@ export function EquipeUpdateImport({ onUpdated }: Props) {
         for (const row of (data as any[]) || []) {
           const equipe = equipePorDossie.get(row.dossie);
           if (!equipe) continue;
+          dossiePorId.set(row.id, row.dossie);
           if (!idsPorEquipe.has(equipe)) idsPorEquipe.set(equipe, []);
           idsPorEquipe.get(equipe)!.push(row.id);
         }
@@ -105,11 +117,28 @@ export function EquipeUpdateImport({ onUpdated }: Props) {
             .update({ equipe } as any)
             .in("id", batch)
             .select("id");
-          if (!error && data) updated += (data as any[]).length;
+          if (!error && data) {
+            updated += (data as any[]).length;
+            for (const row of data as any[]) {
+              itensAudit.push({
+                dossie: dossiePorId.get(row.id) ?? null,
+                acao: "atualizado",
+                detalhe: `Equipe: ${equipe}`,
+              });
+            }
+          }
         }
       }
 
       setProgress(100);
+      await finalizarAuditoriaLote(auditId, {
+        status: "concluida",
+        totalLinhas: equipePorDossie.size,
+        atualizados: updated,
+        ignorados: Math.max(equipePorDossie.size - updated, 0),
+        resumo: `${updated} registros atualizados com a equipe da planilha (${equipePorDossie.size} dossiês lidos).`,
+        itens: itensAudit,
+      });
       if (updated > 0) {
         toast.success(`${updated} registros atualizados com a equipe da planilha.`);
         onUpdated();
@@ -118,6 +147,7 @@ export function EquipeUpdateImport({ onUpdated }: Props) {
       }
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || String(err)));
+      await finalizarAuditoriaLote(auditId, { status: "erro", erro: err?.message || String(err) });
     } finally {
       setImporting(false);
       setProgress(0);

@@ -48,6 +48,7 @@ const groups: { title: string; description: string; tools: Tool[] }[] = [
       { label: "Verificar Outro Escritório", path: "/admin-tst/outro-escritorio", icon: Building2, description: "Importar planilha de migração, verificar processos na base e marcar como Outro Escritório." },
       { label: "Base PCA - TST - Distribuições", path: "/admin-tst/base-pca-distribuicoes", icon: TagIcon, description: "Upload da planilha, localizar Dossiê/Processo na base e aplicar uma TAG em lote." },
       { label: "Auditoria da Distribuição TST", path: "/admin-tst/auditoria-distribuicao", icon: History, description: "Histórico completo de criações, alterações e exclusões: quem alterou, quando, de qual valor para qual valor.", adminOnly: true },
+      { label: "Auditoria de Importações em Lote", path: "/admin-tst/auditoria-lotes", icon: ClipboardList, description: "Histórico de tudo que foi gravado em lote pelas ferramentas do Admin. TST, separado por tipo de operação: data/hora, usuário, arquivo e processos afetados.", adminOnly: true },
       { label: "Classificação TST", path: "/classificacao-tst", icon: ShieldCheck, description: "Classificar processos do TST." },
       { label: "Pautas TST", path: "/pautas-tst", icon: Scale, description: "Gerenciar pautas de julgamento do TST." },
     ],
