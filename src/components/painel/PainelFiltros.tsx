@@ -74,6 +74,13 @@ interface PainelFiltrosProps {
 
 export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
   const [open, setOpen] = useState(false);
+  // Rascunho local: só aplica ao clicar em "Filtrar"
+  const [draft, setDraft] = useState<PainelFiltrosState>(filtros);
+
+  const handleOpenChange = (v: boolean) => {
+    if (v) setDraft(filtros);
+    setOpen(v);
+  };
 
   const activeCount = [
     filtros.souResponsavel || filtros.estouEnvolvido,
@@ -86,21 +93,21 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
   ].filter(Boolean).length;
 
   const toggleSituacao = (val: string) => {
-    const next = filtros.situacoes.includes(val)
-      ? filtros.situacoes.filter((s) => s !== val)
-      : [...filtros.situacoes, val];
-    onChange({ ...filtros, situacoes: next });
+    const next = draft.situacoes.includes(val)
+      ? draft.situacoes.filter((s) => s !== val)
+      : [...draft.situacoes, val];
+    setDraft({ ...draft, situacoes: next });
   };
 
   const toggleClassificacao = (val: string) => {
-    const next = filtros.classificacoes.includes(val)
-      ? filtros.classificacoes.filter((c) => c !== val)
-      : [...filtros.classificacoes, val];
-    onChange({ ...filtros, classificacoes: next });
+    const next = draft.classificacoes.includes(val)
+      ? draft.classificacoes.filter((c) => c !== val)
+      : [...draft.classificacoes, val];
+    setDraft({ ...draft, classificacoes: next });
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
