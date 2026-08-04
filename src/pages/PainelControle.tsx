@@ -1365,9 +1365,9 @@ export default function PainelControle() {
             </Button>
             {/* Filtro de coordenação para admin no modo escritório - desktop inline */}
             {isAdmin && tabMode === "escritorio" && (
-              <div className="hidden md:block">
+              <div className="block min-w-0">
                 <Select value={adminCoordFilter} onValueChange={setAdminCoordFilter}>
-                  <SelectTrigger className="h-7 w-52 text-xs">
+                  <SelectTrigger className="h-7 w-full max-w-[13rem] text-xs">
                     <SelectValue placeholder="Coordenação" />
                   </SelectTrigger>
                   <SelectContent>
