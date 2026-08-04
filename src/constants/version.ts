@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "4.3.6";
+export const APP_VERSION = "4.3.7";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -22,4 +22,5 @@ export const VERSION_HISTORY = [
   { version: "4.3.4", date: "2026-08-03", notes: "Auditoria da Distribuição TST e normalização de Recorrente (Terceiro → Outra) na Carga Benner" },
   { version: "4.3.5", date: "2026-08-04", notes: "Cards compactos no Painel de Controle, correção do salvamento de audiências e alertas de prazos perdidos ignorando itens encerrados" },
   { version: "4.3.6", date: "2026-08-04", notes: "Lista lateral de atividades do dia no calendário do Painel de Controle (estilo Astrea)" },
+  { version: "4.3.7", date: "2026-08-04", notes: "Exportação por período/tipos, filtros com botão Filtrar e digitação livre de datas" },
 ];
