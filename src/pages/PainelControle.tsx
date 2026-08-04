@@ -1720,24 +1720,21 @@ export default function PainelControle() {
           {!mostrarTotalizadores ? null : isLoading ? (
             <div className="flex gap-2">
               {[...Array(6)].map((_, i) => (
-                <Skeleton key={i} className="h-12 md:h-14 flex-1 rounded-lg" />
+                <Skeleton key={i} className="h-9 md:h-10 flex-1 rounded-lg" />
               ))}
             </div>
           ) : (
             <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5 md:gap-2">
               {/* Data Atual */}
-              <div className="flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg px-2 py-1.5">
-                <p className="text-xl md:text-2xl font-bold leading-none">
+              <div className="flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-lg px-2 py-1">
+                <p className="text-lg md:text-xl font-bold leading-none">
                   {format(nowBrt, "dd")}
                 </p>
-                <div className="leading-tight">
-                  <p className="text-[10px] md:text-xs font-semibold uppercase tracking-wider opacity-80">
-                    {format(nowBrt, "MMM", { locale: ptBR })}
-                  </p>
-                  <p className="text-[10px] md:text-xs opacity-80 capitalize">
-                    {format(nowBrt, "EEEE", { locale: ptBR })}
-                  </p>
-                </div>
+                <p className="text-[10px] md:text-xs font-semibold opacity-80 truncate">
+                  <span className="uppercase tracking-wider">{format(nowBrt, "MMM", { locale: ptBR })}</span>
+                  <span className="mx-1 opacity-60">·</span>
+                  <span className="capitalize font-normal">{format(nowBrt, "EEEE", { locale: ptBR })}</span>
+                </p>
               </div>
 
               <Card
