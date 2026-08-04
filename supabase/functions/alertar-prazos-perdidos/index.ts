@@ -1,6 +1,13 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { linhaPainelAlertasTexto } from "../_shared/app-links.ts";
+import {
+  ENCERRADAS_AUDIENCIA,
+  ENCERRADAS_EVENTO,
+  ENCERRADAS_TAREFA,
+  estaEncerrado,
+  pgIn,
+} from "../_shared/situacoes-encerradas.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,9 +101,10 @@ serve(async (req) => {
       .from("tarefas")
       .select("id, titulo, data_fatal, data_vencimento, status, observacoes, descricao, partes_ativas, partes_passivas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome))")
       .or(`and(data_fatal.lt.${hoje}),and(data_fatal.is.null,data_vencimento.lt.${hoje})`)
-      .not("status", "in", "(concluida,cancelada,arquivada,tratada)")
+      .not("status", "in", pgIn(ENCERRADAS_TAREFA))
       .limit(1000);
     for (const t of (tarefas ?? []) as any[]) {
+      if (estaEncerrado(t.status, ENCERRADAS_TAREFA)) continue;
       const ids = new Set<string>();
       const respIds = new Set<string>();
       const envIds = new Set<string>();
@@ -125,9 +133,10 @@ serve(async (req) => {
       .from("eventos_agenda")
       .select("id, titulo, data_inicio, descricao, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome))")
       .lt("data_inicio", `${hoje}T00:00:00Z`)
-      .not("status", "in", "(concluido,cancelado,tratado)")
+      .not("status", "in", pgIn(ENCERRADAS_EVENTO))
       .limit(1000);
     for (const e of (eventos ?? []) as any[]) {
+      if (estaEncerrado(e.status, ENCERRADAS_EVENTO)) continue;
       const ids = new Set<string>();
       const respIds = new Set<string>();
       const envIds = new Set<string>();
@@ -156,9 +165,10 @@ serve(async (req) => {
       .from("audiencias_detectadas")
       .select("id, processo_numero, cliente, polo_ativo, observacoes, data_audiencia, status, criado_por, audiencias_advogados(advogado_id), audiencia_envolvidos(usuario_id)")
       .lt("data_audiencia", `${hoje}T00:00:00Z`)
-      .not("status", "in", "(tratado,ignorado,cancelado,realizada)")
+      .not("status", "in", pgIn(ENCERRADAS_AUDIENCIA))
       .limit(1000);
     for (const a of (audiencias ?? []) as any[]) {
+      if (estaEncerrado(a.status, ENCERRADAS_AUDIENCIA)) continue;
       const ids = new Set<string>();
       const respIds = new Set<string>();
       const envIds = new Set<string>();
@@ -191,7 +201,7 @@ serve(async (req) => {
     for (const p of (parcelas ?? []) as any[]) {
       const ev = p.evento ?? {};
       // Ignora parcelas cujo evento (parcelamento) foi cancelado/concluído
-      if (["cancelado", "cancelada", "concluido", "tratado"].includes(String(ev.status ?? "").toLowerCase())) continue;
+      if (estaEncerrado(ev.status, ENCERRADAS_EVENTO)) continue;
       const ids = new Set<string>();
       const respIds = new Set<string>();
       const envIds = new Set<string>();
