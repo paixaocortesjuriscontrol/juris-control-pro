@@ -151,6 +151,7 @@ export default function PainelControle() {
   const [tarefaEditando, setTarefaEditando] = useState<any | null>(null);
   const [prazoEditando, setPrazoEditando] = useState<any | null>(null);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
+  const [diaLateralKey, setDiaLateralKey] = useState<string | null>(null);
   const [somenteHoje, setSomenteHoje] = useState(false);
 
   const lastViewParamRef = useRef<string | null>(searchParams.get("view"));
@@ -2098,75 +2099,17 @@ export default function PainelControle() {
                                 </div>
                               )})}
                               {extras > 0 && (
-                                <Popover
-                                  open={openPopoverKey === key}
-                                  onOpenChange={(open) =>
-                                    setOpenPopoverKey(open ? key : null)
-                                  }
+                                <button
+                                  className="text-[9px] md:text-[10px] text-primary font-semibold px-0.5 md:px-1 hover:underline cursor-pointer w-full text-left"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedItem(null);
+                                    setNovoItemTipo(null);
+                                    setDiaLateralKey(key);
+                                  }}
                                 >
-                                  <PopoverTrigger asChild>
-                                    <button
-                                      className="text-[9px] md:text-[10px] text-primary font-semibold px-0.5 md:px-1 hover:underline cursor-pointer w-full text-left"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setOpenPopoverKey(
-                                          openPopoverKey === key ? null : key
-                                        );
-                                      }}
-                                    >
-                                      +{extras} mais
-                                    </button>
-                                  </PopoverTrigger>
-                                  <PopoverContent
-                                    className="w-72 p-0"
-                                    side="right"
-                                    align="start"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <div className="px-3 py-2 border-b border-border">
-                                      <p className="text-xs font-semibold text-foreground">
-                                        {format(dia, "dd 'de' MMMM", { locale: ptBR })}
-                                      </p>
-                                      <p className="text-[10px] text-muted-foreground">
-                                        +{extras} item(s) não exibido(s)
-                                      </p>
-                                    </div>
-                                    <ScrollArea className="h-64">
-                                      <div className="space-y-1 p-2">
-                                        {itens.slice(MAX_VISIBLE).map((item) => {
-                                          const isConcluido = isItemTratado(item);
-                                           const isCancelado = isItemCancelado(item);
-                                          return (
-                                          <div
-                                            key={item.id}
-                                            className={cn(
-                                              "text-[10px] leading-tight px-2 py-1.5 rounded cursor-pointer font-medium flex items-center gap-1.5",
-                                               isCancelado
-                                                 ? "bg-black text-white border border-black"
-                                                 : isConcluido
-                                                ? "bg-green-500 text-white opacity-75"
-                                                : cn("text-white", TIPO_CORES[item.tipo] || "bg-muted")
-                                            )}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setOpenPopoverKey(null);
-                                              handleItemClick(item);
-                                            }}
-                                          >
-                                            {isConcluido ? (
-                                              <TratadoCheck tratado size={12} className="text-current dark:text-current" />
-                                            ) : (
-                                              <FileText className="w-3 h-3 flex-shrink-0 opacity-90" />
-                                            )}
-                                             <span className={cn("truncate", (isConcluido || isCancelado) && "line-through")}>
-                                              {item.titulo || TIPO_LABELS[item.tipo]}
-                                            </span>
-                                          </div>
-                                        )})}
-                                      </div>
-                                    </ScrollArea>
-                                  </PopoverContent>
-                                </Popover>
+                                  +{extras} mais
+                                </button>
                               )}
                             </div>
                           </div>
