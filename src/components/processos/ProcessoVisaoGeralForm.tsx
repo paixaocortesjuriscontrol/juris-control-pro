@@ -166,7 +166,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
   const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
   const { user } = useAuth();
-  const { isAdmin: isUserAdmin } = useUserRole();
+  const { isAdmin: isUserAdmin, isAdminOrCoordinator: podeUsarAnexosJudit } = useUserRole();
   const { data: membrosCoordenacoes = [] } = useQuery({
     queryKey: ["membros-coordenacoes-processo-adicionar", user?.id],
     queryFn: async () => {
@@ -900,7 +900,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
             ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando… ${juditElapsed}s`)
             : "Judit"}
         </Button>
-        <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none px-1" title="Inclui a lista de anexos do processo (consulta Judit mais cara).">
+        {podeUsarAnexosJudit && (
+<label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none px-1" title="Inclui a lista de anexos do processo (consulta Judit mais cara).">
           <Checkbox
             checked={comAnexosJudit}
             onCheckedChange={(v) => setComAnexosJudit(v === true)}
@@ -908,6 +909,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           />
           Com anexos
         </label>
+)}
         {onNavigate && (
           <Button size="sm" variant="outline" onClick={() => onNavigate("anexos-judit")} className="gap-1">
             <Paperclip className="w-4 h-4 text-emerald-600" />
@@ -1005,7 +1007,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     ? (juditElapsed < 3 ? "Judit…" : `${juditElapsed}s`)
                     : "Judit"}
                 </Button>
-                <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none" title="Inclui a lista de anexos do processo (consulta Judit mais cara).">
+                {podeUsarAnexosJudit && (
+<label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none" title="Inclui a lista de anexos do processo (consulta Judit mais cara).">
                   <Checkbox
                     checked={comAnexosJudit}
                     onCheckedChange={(v) => setComAnexosJudit(v === true)}
@@ -1013,6 +1016,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   />
                   Com anexos
                 </label>
+)}
                 <Button size="sm" onClick={() => handleSave()} disabled={saving || juditBusy}>
                   {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
                   Salvar
@@ -1038,7 +1042,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   ? (juditElapsed < 3 ? "Consultando Judit…" : `Aguardando crawler… ${juditElapsed}s`)
                   : "Judit"}
               </Button>
-              <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none px-1" title="Inclui a lista de anexos do processo (consulta Judit mais cara).">
+              {podeUsarAnexosJudit && (
+<label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none px-1" title="Inclui a lista de anexos do processo (consulta Judit mais cara).">
                 <Checkbox
                   checked={comAnexosJudit}
                   onCheckedChange={(v) => setComAnexosJudit(v === true)}
@@ -1046,6 +1051,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 />
                 Com anexos
               </label>
+)}
               {onNavigate && (
                 <Button
                   size="sm"
