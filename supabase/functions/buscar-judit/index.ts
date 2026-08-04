@@ -760,6 +760,7 @@ serve(async (req) => {
           elapsed_ms: Date.now() - t0,
         };
         bodyCached.attachments = null;
+        delete bodyCached._instancia_tst;
         console.log(`[buscar-judit] app-cache instant response cnj=${cnj}`);
         return json(bodyCached, 200);
       }
