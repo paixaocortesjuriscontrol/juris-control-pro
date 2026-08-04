@@ -272,7 +272,7 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
       const audienciaCriada = { id: novaAudienciaId } as { id?: string };
 
       // Inserir advogados responsáveis na tabela de junção
-      if (advogados_ids && advogados_ids.length > 0 && audienciaCriada) {
+      if (advogados_ids && advogados_ids.length > 0 && audienciaCriada.id) {
         const advogadosInsert = advogados_ids.map(advogadoId => ({
           audiencia_id: audienciaCriada.id,
           advogado_id: advogadoId,
@@ -302,7 +302,7 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
       }
 
       // Inserir envolvidos (apenas acompanham)
-      if (envolvidos_ids && envolvidos_ids.length > 0 && audienciaCriada) {
+      if (envolvidos_ids && envolvidos_ids.length > 0 && audienciaCriada.id) {
         await supabase.from('audiencia_envolvidos').insert(
           envolvidos_ids.map((uid) => ({
             audiencia_id: audienciaCriada.id,
@@ -311,16 +311,14 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
         );
       }
 
-      if (error) throw error;
-
       // Buscar configurações de alertas
       const { data: config } = await supabase
         .from('config_alertas_audiencias')
         .select('*')
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (config && audienciaCriada) {
+      if (config && audienciaCriada.id) {
         // Criar lembretes automáticos baseados na configuração global
         const minutosSet = new Set<number>((config.lembretes_minutos || []).filter((n: any) => Number.isFinite(n) && n > 0));
 
@@ -350,7 +348,7 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
               .from('profiles')
               .select('telefone, nome')
               .eq('id', user.id)
-              .single();
+              .maybeSingle();
 
             const telefones: string[] = [];
             if (perfil?.telefone) {
