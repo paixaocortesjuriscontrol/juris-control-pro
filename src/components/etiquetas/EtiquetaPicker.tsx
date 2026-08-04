@@ -69,15 +69,14 @@ export function EtiquetaPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <span className="inline-flex items-center gap-1.5 align-middle">
-          {aplicadas.length > 0 && <EtiquetaBadges etiquetas={aplicadas} />}
+      <span className="inline-flex items-center gap-1.5 align-middle">
+        {aplicadas.length > 0 && <EtiquetaBadges etiquetas={aplicadas} />}
+        <PopoverTrigger asChild>
           <Button
             type="button"
             variant="outline"
             size="sm"
             className="h-7 gap-1.5 px-2 text-xs"
-            onClick={(e) => e.stopPropagation()}
             title="Aplicar etiqueta"
           >
             <Tag className="h-3.5 w-3.5" />
@@ -87,11 +86,12 @@ export function EtiquetaPicker({
                 ? "Etiqueta"
                 : "Adicionar etiqueta"}
           </Button>
-        </span>
-      </PopoverTrigger>
+        </PopoverTrigger>
+      </span>
       <PopoverContent
         className="w-80 p-2"
         align="start"
+        onOpenAutoFocus={(e) => e.preventDefault()}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-2 mb-1">
