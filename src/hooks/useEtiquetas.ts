@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useUserRole } from "@/hooks/useUserRole";
 
 /** Módulos onde uma etiqueta pode aparecer (modelo Astrea). */
 export const ETIQUETA_MODULOS = [
@@ -71,15 +72,19 @@ export const ETIQUETA_COLOR_PALETTE = [
  * ao usuário (a RLS já limita às coordenações das quais ele é membro).
  */
 export function useEtiquetas(coordenacaoId?: string | null, modulo?: EtiquetaModulo) {
+  // Administrador pode usar qualquer etiqueta, de qualquer coordenação.
+  const { role } = useUserRole();
+  const isAdmin = role === "admin";
+  const filtroCoordenacao = isAdmin ? null : coordenacaoId;
   return useQuery({
-    queryKey: ["etiquetas", coordenacaoId ?? "todas"],
+    queryKey: ["etiquetas", filtroCoordenacao ?? "todas"],
     queryFn: async () => {
       let q = supabase
         .from("etiquetas")
         .select("*")
         .eq("ativo", true)
         .order("nome", { ascending: true });
-      if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
+      if (filtroCoordenacao) q = q.eq("coordenacao_id", filtroCoordenacao);
       const { data, error } = await q;
       if (error) throw error;
       return ((data as any[]) || []) as Etiqueta[];
