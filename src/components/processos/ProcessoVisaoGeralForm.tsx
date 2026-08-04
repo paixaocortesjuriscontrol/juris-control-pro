@@ -166,7 +166,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
   const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
   const { user } = useAuth();
-  const { isAdmin: isUserAdmin } = useUserRole();
+  const { isAdmin: isUserAdmin, isAdminOrCoordinator: podeUsarAnexosJudit } = useUserRole();
   const { data: membrosCoordenacoes = [] } = useQuery({
     queryKey: ["membros-coordenacoes-processo-adicionar", user?.id],
     queryFn: async () => {
