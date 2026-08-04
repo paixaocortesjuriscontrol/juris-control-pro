@@ -311,11 +311,17 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         return;
       }
 
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from("processos")
         .update(payload as any)
-        .eq("id", processo.id);
+        .eq("id", processo.id)
+        .select("id");
       if (error) throw error;
+      // Se nenhuma linha voltou, o banco recusou a gravação (permissão) —
+      // não podemos exibir "salvo com sucesso" nesse caso.
+      if (!updated || updated.length === 0) {
+        throw new Error("Nenhuma alteração foi gravada (sem permissão para editar este processo).");
+      }
 
       {
         await supabase
