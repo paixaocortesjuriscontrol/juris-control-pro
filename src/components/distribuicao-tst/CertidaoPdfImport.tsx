@@ -4,6 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { FileUp, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { iniciarAuditoriaLote, finalizarAuditoriaLote } from "@/lib/auditoriaLoteAdminTst";
 
 interface Props {
   onImported?: () => void;
