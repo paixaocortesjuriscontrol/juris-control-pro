@@ -2048,8 +2048,12 @@ export default function PainelControle() {
                               !ehMesAtual && "bg-muted/10",
                               ehHoje && "bg-primary/5"
                             )}
-                            onClick={limparFiltrosPainel}
-                            title="Clique para limpar filtros"
+                             onClick={() => {
+                               setSelectedItem(null);
+                               setNovoItemTipo(null);
+                               setDiaLateralKey(key);
+                             }}
+                             title="Clique para ver todas as atividades do dia"
                           >
                             {/* Número do dia */}
                             <div className="flex justify-start mb-0.5 md:mb-1">
