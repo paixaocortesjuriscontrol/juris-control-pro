@@ -1517,7 +1517,7 @@ export default function PainelControle() {
         </div>
       }
     >
-      <div className="flex flex-col -m-4 md:-m-6 md:h-[calc(100vh-64px)]">
+    <div className="flex flex-col min-w-0 max-w-full overflow-x-hidden -m-4 md:-m-6 md:h-[calc(100vh-64px)]">
         {/* Header */}
         <div className="px-4 md:px-6 py-3 md:py-4 bg-card border-b border-border flex-shrink-0 space-y-2">
           {relatorioAudOpen && (
@@ -2015,7 +2015,7 @@ export default function PainelControle() {
           {/* Calendário Mensal */}
           <div
             className={cn(
-              "flex-col border-r border-border bg-card flex-1 lg:flex",
+              "flex-col border-r border-border bg-card flex-1 min-w-0 lg:flex",
               (selectedItem || novoItemTipo) ? "hidden lg:flex" : "flex"
             )}
           >
