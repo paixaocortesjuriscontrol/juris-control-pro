@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { iniciarAuditoriaLote, finalizarAuditoriaLote, ItemAuditoriaLote } from "@/lib/auditoriaLoteAdminTst";
 
 /**
  * Importação da planilha "Resposta Santander".
@@ -261,6 +262,12 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
 
     let criados = 0;
     let atualizados = 0;
+    const auditId = await iniciarAuditoriaLote({
+      tipo: "resposta_santander",
+      arquivoNome: file.name,
+      coordenacaoId: RENATA_COORDENACAO_ID,
+    });
+    const itensAudit: ItemAuditoriaLote[] = [];
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true });
@@ -389,6 +396,10 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
 
       if (all.length === 0) {
         toast.error("Nenhuma linha válida encontrada (verifique a coluna Processo)");
+        await finalizarAuditoriaLote(auditId, {
+          status: "erro",
+          erro: "Nenhuma linha válida encontrada (coluna Processo).",
+        });
         setImporting(false);
         return;
       }
@@ -462,6 +473,12 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
             benner_atualizado: true,
             fontes_importacao: ["Resposta Santander"],
           });
+          itensAudit.push({
+            processo: r.processo_raw,
+            dossie: __dossie || null,
+            acao: "criado",
+            detalhe: `Cadastrado (Benner=SIM) · aba ${r.aba_origem}`,
+          });
         } else {
           for (const ex of existentes) {
             const updatePayload: any = { ...attrs, benner_atualizado: true };
@@ -469,6 +486,12 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
             if (!ex.aba_origem) updatePayload.aba_origem = r.aba_origem;
             if (!ex.coordenacao_id) updatePayload.coordenacao_id = RENATA_COORDENACAO_ID;
             toUpdate.push({ id: ex.id, payload: updatePayload });
+            itensAudit.push({
+              processo: r.processo_raw,
+              dossie: __dossie || ex.dossie || null,
+              acao: "atualizado",
+              detalhe: `Campos: ${Object.keys(updatePayload).join(", ")}`,
+            });
           }
         }
       }
@@ -521,6 +544,14 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
       if (criados > 0) parts.push(`${criados} processos criados`);
       if (atualizados > 0) parts.push(`${atualizados} atualizados (Benner=SIM)`);
       toast.success(parts.length ? parts.join(" · ") : "Nada a atualizar");
+      await finalizarAuditoriaLote(auditId, {
+        status: "concluida",
+        totalLinhas: rows.length,
+        criados,
+        atualizados,
+        resumo: parts.length ? parts.join(" · ") : "Nada a atualizar",
+        itens: itensAudit,
+      });
       onUpdated();
       setTimeout(() => {
         setOpen(false);
@@ -536,12 +567,26 @@ export function RespostaSantanderImport({ onUpdated }: Props) {
             ? `Cancelado · parcial salvo: ${parts.join(" · ")}`
             : "Importação cancelada (nada foi salvo ainda)",
         );
+        await finalizarAuditoriaLote(auditId, {
+          status: "cancelada",
+          criados,
+          atualizados,
+          resumo: parts.length ? `Cancelado · parcial salvo: ${parts.join(" · ")}` : "Cancelado antes de salvar",
+          itens: itensAudit,
+        });
         onUpdated();
         setOpen(false);
         reset();
       } else {
         console.error(err);
         toast.error("Erro: " + (err?.message || String(err)));
+        await finalizarAuditoriaLote(auditId, {
+          status: "erro",
+          erro: err?.message || String(err),
+          criados,
+          atualizados,
+          itens: itensAudit,
+        });
         setImporting(false);
       }
     }

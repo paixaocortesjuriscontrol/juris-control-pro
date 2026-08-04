@@ -4,6 +4,7 @@ import { Progress } from "@/components/ui/progress";
 import { FileUp, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { iniciarAuditoriaLote, finalizarAuditoriaLote } from "@/lib/auditoriaLoteAdminTst";
 
 interface Props {
   onImported?: () => void;
@@ -53,6 +54,11 @@ export function CertidaoPdfImport({ onImported }: Props) {
     if (!file) return;
     setRunning(true);
     setStatusText("Lendo PDF...");
+    const auditId = await iniciarAuditoriaLote({
+      tipo: "importar_certidao_pdf",
+      arquivoNome: file.name,
+      coordenacaoId: RENATA_COORDENACAO_ID,
+    });
     try {
       const { data: auth } = await supabase.auth.getUser();
       const user = auth?.user;
@@ -89,6 +95,10 @@ export function CertidaoPdfImport({ onImported }: Props) {
 
       if (map.size === 0) {
         toast.warning("Nenhum processo encontrado no PDF.");
+        await finalizarAuditoriaLote(auditId, {
+          status: "concluida",
+          resumo: "Nenhum processo encontrado no PDF.",
+        });
         reset();
         return;
       }
@@ -116,6 +126,13 @@ export function CertidaoPdfImport({ onImported }: Props) {
 
       if (novos.length === 0) {
         toast.info("Todos os processos já estão cadastrados.");
+        await finalizarAuditoriaLote(auditId, {
+          status: "concluida",
+          totalLinhas: numeros.length,
+          ignorados: existentes.size,
+          resumo: "Todos os processos do PDF já estavam cadastrados.",
+          itens: numeros.map((p) => ({ processo: p, acao: "ignorado", detalhe: "Já cadastrado" })),
+        });
         reset();
         onImported?.();
         return;
@@ -166,10 +183,26 @@ export function CertidaoPdfImport({ onImported }: Props) {
       }
 
       toast.success(`${inseridos} processos cadastrados a partir da certidão. ${existentes.size} já existiam.`);
+      await finalizarAuditoriaLote(auditId, {
+        status: "concluida",
+        totalLinhas: numeros.length,
+        criados: inseridos,
+        ignorados: existentes.size,
+        resumo: `${inseridos} processos cadastrados · ${existentes.size} já existiam`,
+        itens: [
+          ...novos.map((p) => ({
+            processo: p,
+            acao: "criado",
+            detalhe: `Data de distribuição: ${map.get(p) || "—"}`,
+          })),
+          ...[...existentes].map((p) => ({ processo: p, acao: "ignorado", detalhe: "Já cadastrado" })),
+        ],
+      });
       onImported?.();
     } catch (err: any) {
       console.error("Erro ao importar certidão PDF:", err);
       toast.error("Erro ao processar PDF: " + (err?.message || String(err)));
+      await finalizarAuditoriaLote(auditId, { status: "erro", erro: err?.message || String(err) });
     } finally {
       reset();
     }

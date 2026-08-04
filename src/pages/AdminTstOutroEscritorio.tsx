@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Upload, Loader2, Download, FileSpreadsheet } from "lucide-react";
 import * as XLSX from "xlsx";
+import { iniciarAuditoriaLote, finalizarAuditoriaLote } from "@/lib/auditoriaLoteAdminTst";
 import { supabase } from "@/integrations/supabase/client";
 import { loadResponsaveisMap } from "@/hooks/useDistribuicaoResponsaveis";
 import { toast } from "sonner";
@@ -71,6 +72,11 @@ export default function AdminTstOutroEscritorio() {
     setProgress(0);
     setProgressLabel("Lendo planilha...");
 
+    const auditId = await iniciarAuditoriaLote({
+      tipo: "outro_escritorio",
+      arquivoNome: file.name,
+      detalhes: { marcar_flag: marcarFlag },
+    });
     try {
       const buf = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buf), { type: "array", cellDates: false });
@@ -94,6 +100,10 @@ export default function AdminTstOutroEscritorio() {
 
       if (linhas.length === 0) {
         toast.warning("Nenhuma linha válida encontrada na planilha.");
+        await finalizarAuditoriaLote(auditId, {
+          status: "concluida",
+          resumo: "Nenhuma linha válida encontrada na planilha.",
+        });
         setLoading(false);
         return;
       }
@@ -214,9 +224,25 @@ export default function AdminTstOutroEscritorio() {
       setProgress(100);
       setProgressLabel("Concluído");
       toast.success(`${encontrados} encontrados de ${resultRows.length} linhas.`);
+      await finalizarAuditoriaLote(auditId, {
+        status: "concluida",
+        totalLinhas: resultRows.length,
+        atualizados: marcados,
+        ignorados: resultRows.length - encontrados,
+        resumo: `${encontrados} encontrados de ${resultRows.length} linhas${marcarFlag ? ` · ${marcados} marcados como Outro Escritório` : " · sem marcação"}`,
+        itens: resultRows.map((r) => ({
+          processo: r.processo,
+          dossie: r.dossie,
+          acao: r.encontrado ? (marcarFlag ? "atualizado" : "encontrado") : "ignorado",
+          detalhe: r.encontrado
+            ? `${marcarFlag ? "Marcado como Outro Escritório · " : ""}Equipe: ${r.equipe || "—"} · Responsável: ${r.responsavel || "—"}`
+            : "Não encontrado na base",
+        })),
+      });
     } catch (err: any) {
       console.error(err);
       toast.error("Erro ao processar: " + (err?.message || String(err)));
+      await finalizarAuditoriaLote(auditId, { status: "erro", erro: err?.message || String(err) });
     } finally {
       setLoading(false);
       if (fileRef.current) fileRef.current.value = "";

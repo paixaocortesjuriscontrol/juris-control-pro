@@ -930,6 +930,87 @@ export type Database = {
         }
         Relationships: []
       }
+      auditoria_lotes_admin_tst: {
+        Row: {
+          arquivo_nome: string | null
+          coordenacao_id: string | null
+          created_at: string
+          detalhes: Json
+          duracao_ms: number | null
+          erro_mensagem: string | null
+          ferramenta: string | null
+          finalizado_em: string | null
+          id: string
+          iniciado_em: string
+          itens: Json
+          resumo: string | null
+          rota: string | null
+          status: string
+          tipo_operacao: string
+          total_atualizados: number
+          total_criados: number
+          total_erros: number
+          total_ignorados: number
+          total_linhas: number
+          updated_at: string
+          usuario_email: string | null
+          usuario_id: string | null
+          usuario_nome: string | null
+        }
+        Insert: {
+          arquivo_nome?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          detalhes?: Json
+          duracao_ms?: number | null
+          erro_mensagem?: string | null
+          ferramenta?: string | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          itens?: Json
+          resumo?: string | null
+          rota?: string | null
+          status?: string
+          tipo_operacao: string
+          total_atualizados?: number
+          total_criados?: number
+          total_erros?: number
+          total_ignorados?: number
+          total_linhas?: number
+          updated_at?: string
+          usuario_email?: string | null
+          usuario_id?: string | null
+          usuario_nome?: string | null
+        }
+        Update: {
+          arquivo_nome?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          detalhes?: Json
+          duracao_ms?: number | null
+          erro_mensagem?: string | null
+          ferramenta?: string | null
+          finalizado_em?: string | null
+          id?: string
+          iniciado_em?: string
+          itens?: Json
+          resumo?: string | null
+          rota?: string | null
+          status?: string
+          tipo_operacao?: string
+          total_atualizados?: number
+          total_criados?: number
+          total_erros?: number
+          total_ignorados?: number
+          total_linhas?: number
+          updated_at?: string
+          usuario_email?: string | null
+          usuario_id?: string | null
+          usuario_nome?: string | null
+        }
+        Relationships: []
+      }
       auditoria_tarefas: {
         Row: {
           acao: string

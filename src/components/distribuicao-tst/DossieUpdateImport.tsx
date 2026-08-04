@@ -5,6 +5,7 @@ import { Upload, Loader2, X, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { iniciarAuditoriaLote, finalizarAuditoriaLote, ItemAuditoriaLote } from "@/lib/auditoriaLoteAdminTst";
 
 function norm(val: unknown): string {
   return String(val ?? "").trim();
@@ -42,6 +43,11 @@ export function DossieUpdateImport({ onUpdated }: Props) {
     setStatusText("Lendo planilha…");
     setLog([]);
     setCounts({ ok: 0, notfound: 0, error: 0, total: 0 });
+    const auditId = await iniciarAuditoriaLote({
+      tipo: "atualizar_dossies",
+      arquivoNome: file.name,
+    });
+    const itensAudit: ItemAuditoriaLote[] = [];
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
@@ -64,6 +70,10 @@ export function DossieUpdateImport({ onUpdated }: Props) {
 
       if (headerIdx === -1 || colDossie === -1 || colProcesso === -1) {
         toast.error("Não encontrei as colunas 'Nº Do Dossiê' e 'Número' na planilha");
+        await finalizarAuditoriaLote(auditId, {
+          status: "erro",
+          erro: "Colunas 'Nº Do Dossiê' e 'Número' não encontradas na planilha.",
+        });
         setImporting(false);
         if (fileRef.current) fileRef.current.value = "";
         return;
@@ -82,6 +92,10 @@ export function DossieUpdateImport({ onUpdated }: Props) {
 
       if (dossieMap.size === 0) {
         toast.warning("Nenhum registro válido encontrado na planilha");
+        await finalizarAuditoriaLote(auditId, {
+          status: "concluida",
+          resumo: "Nenhum registro válido encontrado na planilha.",
+        });
         setImporting(false);
         if (fileRef.current) fileRef.current.value = "";
         return;
@@ -113,6 +127,9 @@ export function DossieUpdateImport({ onUpdated }: Props) {
           .map((p) => ({ processo: p, dossie: dossieMap.get(p) || "", status: "notfound" as const }));
         notfound += notFoundEntries.length;
         processed += notFoundEntries.length;
+        notFoundEntries.forEach((e) =>
+          itensAudit.push({ processo: e.processo, dossie: e.dossie, acao: "ignorado", detalhe: "Processo não encontrado na base" })
+        );
 
         const updates: { row: any; newDossie: string }[] = [];
         for (const row of foundRows) {
@@ -138,9 +155,16 @@ export function DossieUpdateImport({ onUpdated }: Props) {
             if (upErr) {
               error += 1;
               batchLog.unshift({ processo: row.processo, dossie: newDossie, status: "error", msg: upErr.message });
+              itensAudit.push({ processo: row.processo, dossie: newDossie, acao: "erro", detalhe: upErr.message });
             } else {
               ok += 1;
               batchLog.unshift({ processo: row.processo, dossie: newDossie, status: "ok" });
+              itensAudit.push({
+                processo: row.processo,
+                dossie: newDossie,
+                acao: "atualizado",
+                detalhe: `Dossiê: ${row.dossie || "—"} → ${newDossie}`,
+              });
             }
             processed += 1;
           }
@@ -153,6 +177,15 @@ export function DossieUpdateImport({ onUpdated }: Props) {
       }
 
       setProgress(cancelRef.current ? progress : 100);
+      await finalizarAuditoriaLote(auditId, {
+        status: cancelRef.current ? "cancelada" : "concluida",
+        totalLinhas: total,
+        atualizados: ok,
+        ignorados: notfound,
+        erros: error,
+        resumo: `${ok} dossiês atualizados · ${notfound} não encontrados · ${error} erros`,
+        itens: itensAudit,
+      });
       if (cancelRef.current) {
         toast.warning(`Cancelado. ${ok} atualizados, ${notfound} não encontrados, ${error} erros.`);
       } else if (ok > 0) {
@@ -163,6 +196,11 @@ export function DossieUpdateImport({ onUpdated }: Props) {
       }
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || String(err)));
+      await finalizarAuditoriaLote(auditId, {
+        status: "erro",
+        erro: err?.message || String(err),
+        itens: itensAudit,
+      });
     } finally {
       setImporting(false);
       cancelRef.current = false;

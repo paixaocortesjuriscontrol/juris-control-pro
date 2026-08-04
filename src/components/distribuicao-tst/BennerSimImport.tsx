@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 import { useProfilesBasic } from "@/hooks/useDistribuicaoResponsaveis";
+import { iniciarAuditoriaLote, finalizarAuditoriaLote, ItemAuditoriaLote } from "@/lib/auditoriaLoteAdminTst";
 
 const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
 
@@ -114,6 +115,13 @@ export function BennerSimImport({ onUpdated }: Props) {
     setProgress(0);
     setStatusText("Lendo planilha…");
 
+    const auditId = await iniciarAuditoriaLote({
+      tipo: "benner_sim",
+      arquivoNome: file.name,
+      coordenacaoId: RENATA_COORDENACAO_ID,
+      detalhes: { responsavel: responsavelNome },
+    });
+    const itensAudit: ItemAuditoriaLote[] = [];
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: true });
@@ -158,6 +166,10 @@ export function BennerSimImport({ onUpdated }: Props) {
 
       if (all.length === 0) {
         toast.error("Nenhuma linha válida encontrada (verifique colunas: DATA DA DISTRIBUIÇÃO, NÚMERO DO PROCESSO, DOSSIÊ, RECLAMANTE)");
+        await finalizarAuditoriaLote(auditId, {
+          status: "erro",
+          erro: "Nenhuma linha válida encontrada na planilha.",
+        });
         setImporting(false);
         return;
       }
@@ -217,6 +229,12 @@ export function BennerSimImport({ onUpdated }: Props) {
             .single();
           if (insErr) { console.error("Erro insert:", insErr); continue; }
           criados++;
+          itensAudit.push({
+            processo: r.processo,
+            dossie: r.dossie || null,
+            acao: "criado",
+            detalhe: `Cadastrado com Benner=SIM · aba ${r.aba_origem}`,
+          });
           if (ins?.id) idsParaVincular.push(ins.id);
         } else {
           for (const ex of existentes) {
@@ -230,6 +248,12 @@ export function BennerSimImport({ onUpdated }: Props) {
               .eq("id", ex.id);
             if (upErr) { console.error("Erro update:", upErr); continue; }
             atualizados++;
+            itensAudit.push({
+              processo: r.processo,
+              dossie: updatePayload.dossie ?? ex.dossie ?? null,
+              acao: "atualizado",
+              detalhe: `Benner=SIM${updatePayload.dossie ? ` · dossiê preenchido: ${updatePayload.dossie}` : ""}`,
+            });
             idsParaVincular.push(ex.id);
           }
         }
@@ -264,11 +288,25 @@ export function BennerSimImport({ onUpdated }: Props) {
       if (dossiesPreenchidos > 0) parts.push(`${dossiesPreenchidos} dossiês preenchidos`);
       if (vinculosResp > 0) parts.push(`${vinculosResp} vinculados a ${responsavelNome}`);
       toast.success(parts.length ? parts.join(" · ") : "Nada a atualizar");
+      await finalizarAuditoriaLote(auditId, {
+        status: "concluida",
+        totalLinhas: rows.length,
+        criados,
+        atualizados,
+        resumo: parts.length ? parts.join(" · ") : "Nada a atualizar",
+        itens: itensAudit,
+        detalhes: { responsavel: responsavelNome, dossies_preenchidos: dossiesPreenchidos, vinculos_responsavel: vinculosResp },
+      });
       onUpdated();
       setTimeout(() => { setOpen(false); reset(); }, 1500);
     } catch (err: any) {
       console.error(err);
       toast.error("Erro: " + (err?.message || String(err)));
+      await finalizarAuditoriaLote(auditId, {
+        status: "erro",
+        erro: err?.message || String(err),
+        itens: itensAudit,
+      });
       setImporting(false);
     }
   };

@@ -5,6 +5,7 @@ import { Upload, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { iniciarAuditoriaLote, finalizarAuditoriaLote, ItemAuditoriaLote } from "@/lib/auditoriaLoteAdminTst";
 
 const ROMAN_TO_CODE: Record<string, string> = {
   I: "CARGA_I",
@@ -43,6 +44,11 @@ export function SituacaoEnvioUpdateImport({ onUpdated }: Props) {
     setImporting(true);
     setProgress(0);
     setStatusText("Lendo planilha…");
+    const auditId = await iniciarAuditoriaLote({
+      tipo: "atualizar_situacao_envio",
+      arquivoNome: file.name,
+    });
+    let auditFinalizada = false;
     try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
@@ -68,6 +74,11 @@ export function SituacaoEnvioUpdateImport({ onUpdated }: Props) {
       }
       if (headerIdx === -1) {
         toast.error("Não encontrei as colunas 'Processo' e 'Tipo Carga'");
+        await finalizarAuditoriaLote(auditId, {
+          status: "erro",
+          erro: "Colunas 'Processo' e 'Tipo Carga' não encontradas.",
+        });
+        auditFinalizada = true;
         return;
       }
 
@@ -77,10 +88,16 @@ export function SituacaoEnvioUpdateImport({ onUpdated }: Props) {
         .select("id, codigo");
       if (sitErr || !sits) {
         toast.error("Erro ao carregar situações: " + (sitErr?.message ?? ""));
+        await finalizarAuditoriaLote(auditId, { status: "erro", erro: sitErr?.message ?? "Falha ao carregar situações" });
+        auditFinalizada = true;
         return;
       }
       const codeToId = new Map<string, string>();
-      for (const s of sits as any[]) codeToId.set(s.codigo, s.id);
+      const idToCode = new Map<string, string>();
+      for (const s of sits as any[]) {
+        codeToId.set(s.codigo, s.id);
+        idToCode.set(s.id, s.codigo);
+      }
 
       // Build rows: processo -> { situacao_id, dossie }
       const rows: { processo: string; dossie: string | null; sid: string }[] = [];
@@ -101,6 +118,12 @@ export function SituacaoEnvioUpdateImport({ onUpdated }: Props) {
 
       if (rows.length === 0) {
         toast.warning("Nenhum registro válido encontrado");
+        await finalizarAuditoriaLote(auditId, {
+          status: "concluida",
+          ignorados: semCodigo,
+          resumo: "Nenhum registro válido encontrado na planilha.",
+        });
+        auditFinalizada = true;
         return;
       }
 
@@ -128,6 +151,7 @@ export function SituacaoEnvioUpdateImport({ onUpdated }: Props) {
       }
 
       let updated = 0;
+      const itensAudit: ItemAuditoriaLote[] = [];
       const totalGroups = bySit.size;
       let gIdx = 0;
       for (const [sid, procs] of bySit) {
@@ -142,6 +166,12 @@ export function SituacaoEnvioUpdateImport({ onUpdated }: Props) {
             .update({ situacao_envio_carga_id: sid } as any, { count: "exact" })
             .in("processo", batch);
           if (!error) updated += count ?? batch.length;
+          if (!error) {
+            const codigo = idToCode.get(sid) || sid;
+            batch.forEach((p) =>
+              itensAudit.push({ processo: p, acao: "atualizado", detalhe: `Situação de envio: ${codigo}` })
+            );
+          }
         }
       }
 
@@ -177,10 +207,30 @@ export function SituacaoEnvioUpdateImport({ onUpdated }: Props) {
             .select("id");
           if (!error) inserted += (data as any[])?.length ?? batch.length;
           else console.error("Insert error:", error);
+          if (!error) {
+            batch.forEach((b: any) =>
+              itensAudit.push({
+                processo: b.processo,
+                dossie: b.dossie,
+                acao: "criado",
+                detalhe: `Cadastrado como BENNER=SIM · Situação: ${idToCode.get(b.situacao_envio_carga_id) || ""}`,
+              })
+            );
+          }
         }
       }
 
       setProgress(100);
+      await finalizarAuditoriaLote(auditId, {
+        status: "concluida",
+        totalLinhas: rows.length + semCodigo,
+        atualizados: updated,
+        criados: inserted,
+        ignorados: semCodigo,
+        resumo: `${updated} atualizados · ${inserted} cadastrados (BENNER=SIM)${semCodigo > 0 ? ` · ${semCodigo} ignorados (situação não mapeada)` : ""}`,
+        itens: itensAudit,
+      });
+      auditFinalizada = true;
       toast.success(
         `${updated} atualizados · ${inserted} cadastrados (BENNER=SIM)` +
           (semCodigo > 0 ? ` · ${semCodigo} ignorados (situação não mapeada)` : "")
@@ -188,7 +238,12 @@ export function SituacaoEnvioUpdateImport({ onUpdated }: Props) {
       onUpdated();
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || String(err)));
+      await finalizarAuditoriaLote(auditId, { status: "erro", erro: err?.message || String(err) });
+      auditFinalizada = true;
     } finally {
+      if (!auditFinalizada) {
+        await finalizarAuditoriaLote(auditId, { status: "cancelada", resumo: "Execução encerrada sem conclusão." });
+      }
       setImporting(false);
       setProgress(0);
       setStatusText("");

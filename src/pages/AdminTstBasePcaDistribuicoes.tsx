@@ -8,6 +8,7 @@ import { Upload, Loader2, Download, Tag as TagIcon, Plus, Check } from "lucide-r
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { iniciarAuditoriaLote, finalizarAuditoriaLote } from "@/lib/auditoriaLoteAdminTst";
 import {
   useProcessoTagsCatalogo,
   useCriarTag,
@@ -269,6 +270,19 @@ export default function AdminTstBasePcaDistribuicoes() {
     setApplying(true);
     setProgress(0);
     setProgressLabel("Aplicando TAG...");
+    const tagNome = catalogo.find((t: any) => t.id === tagId)?.nome || tagId;
+    const auditId = await iniciarAuditoriaLote({
+      tipo: "base_pca_distribuicoes",
+      arquivoNome: fileName || undefined,
+      detalhes: {
+        tag_id: tagId,
+        tag_nome: tagNome,
+        substituir_existentes: replaceExisting,
+        modo_correspondencia: matchMode,
+        linhas_planilha: linhas.length,
+        nao_encontrados: notFound.length,
+      },
+    });
     try {
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id;
@@ -311,8 +325,29 @@ export default function AdminTstBasePcaDistribuicoes() {
           ? `TAG substituída por ${foundIds.length} processo(s)`
           : `TAG aplicada a ${foundIds.length} processo(s)`,
       );
+      await finalizarAuditoriaLote(auditId, {
+        status: "concluida",
+        totalLinhas: linhas.length,
+        atualizados: foundIds.length,
+        ignorados: notFound.length,
+        resumo: `TAG "${tagNome}" ${replaceExisting ? "substituída por" : "aplicada a"} ${foundIds.length} processo(s)`,
+        itens: [
+          ...foundIds.map((id) => ({
+            acao: "atualizado",
+            detalhe: `TAG "${tagNome}" aplicada`,
+            campos: { dados_benner_id: id },
+          })),
+          ...notFound.map((l) => ({
+            processo: l.processo || null,
+            dossie: l.dossie || null,
+            acao: "ignorado",
+            detalhe: "Não encontrado na base",
+          })),
+        ],
+      });
     } catch (err: any) {
       toast.error("Erro ao aplicar TAG: " + (err?.message || ""));
+      await finalizarAuditoriaLote(auditId, { status: "erro", erro: err?.message || String(err) });
     } finally {
       setApplying(false);
     }
