@@ -48,7 +48,6 @@ import {
   Loader2,
   ListChecks,
   MessageSquare,
-  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
