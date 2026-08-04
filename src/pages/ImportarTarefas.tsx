@@ -748,12 +748,40 @@ export default function ImportarTarefas() {
         detail: `${processosList.length} processo(s) únicos na planilha`,
       });
 
+      // Busca em lotes os processos já existentes NA COORDENAÇÃO selecionada
+      // (o mesmo número pode existir em outra coordenação — regra igual ao Astrea)
+      if (selectedCoordenacao && processosList.length > 0) {
+        const variantesPorNorm = new Map<string, string[]>();
+        for (const [norm, t] of processosList) {
+          const bruto = t.numeroProcesso!;
+          const digits = bruto.replace(/[^0-9]/g, "");
+          variantesPorNorm.set(norm, Array.from(new Set([bruto, digits].filter(Boolean))));
+        }
+        const todasVariantes = Array.from(new Set(Array.from(variantesPorNorm.values()).flat()));
+        for (let i = 0; i < todasVariantes.length; i += 300) {
+          if (cancelledRef.current) break;
+          const chunk = todasVariantes.slice(i, i + 300);
+          const { data: achados } = await supabase
+            .from("processos")
+            .select("id, numero")
+            .eq("coordenacao_id", selectedCoordenacao)
+            .in("numero", chunk);
+          for (const row of (achados as any[]) || []) {
+            const norm = String(row.numero || "").replace(/[^0-9]/g, "");
+            if (norm) {
+              createdProcessosCache.current.set(`${selectedCoordenacao}::${norm}`, row.id);
+            }
+          }
+        }
+      }
+
       // Pre-fill cache with existing matches from processosMap
       const toCreate: typeof processosList = [];
       for (const [norm, t] of processosList) {
         if (cancelledRef.current) break;
+        const cacheKey = selectedCoordenacao ? processoCacheKey(selectedCoordenacao, t.numeroProcesso!) : "";
         const existingId = selectedCoordenacao
-          ? processosMap?.get(processoCacheKey(selectedCoordenacao, t.numeroProcesso!))
+          ? createdProcessosCache.current.get(cacheKey) || processosMap?.get(cacheKey) || null
           : null;
         if (existingId) {
           createdProcessosCache.current.set(processoCacheKey(selectedCoordenacao, t.numeroProcesso!), existingId);
