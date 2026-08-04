@@ -3,8 +3,8 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /** Faixa válida para campos de data em todo o sistema. */
-const DATA_MIN = "1900-01-01";
-const DATA_MAX = "2100-12-31";
+const ANO_MIN = 1900;
+const ANO_MAX = 2100;
 
 /**
  * Converte um texto colado em `yyyy-MM-dd` (valor aceito por input[type=date]).
@@ -64,7 +64,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
     const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
       if (ehData && e.target.value) {
         const ano = Number(e.target.value.slice(0, 4));
-        if (!Number.isFinite(ano) || ano < 1900 || ano > 2100) {
+        if (!Number.isFinite(ano) || ano < ANO_MIN || ano > ANO_MAX) {
           setValorNativo(e.currentTarget, "");
         }
       }
@@ -90,7 +90,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
       if (!valor) return;
       if (ehData) {
         const ano = Number(valor.slice(0, 4));
-        if (!Number.isFinite(ano) || ano < 1900 || ano > 2100) {
+        if (!Number.isFinite(ano) || ano < ANO_MIN || ano > ANO_MAX) {
           e.preventDefault();
           return;
         }
