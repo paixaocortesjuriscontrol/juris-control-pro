@@ -33,7 +33,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
 import { ItemAnexos, type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
-import { CalendarIcon, Loader2, FileText, Tag, AlertTriangle, Search, X } from "lucide-react";
+import { CalendarIcon, Loader2, FileText, Tag, AlertTriangle, Search, X, ExternalLink } from "lucide-react";
 import { format, parseISO, addDays, addWeeks, addMonths, addYears } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -689,9 +689,24 @@ export function PrazoDialog({
               <FileText className="mt-0.5 h-4 w-4 text-muted-foreground" />
               <div className="min-w-0 space-y-0.5">
                 <p className="text-xs font-medium text-muted-foreground">Processo vinculado</p>
-                <p className="text-sm font-semibold text-foreground break-all">
-                  {processoVinculado.numero ? aplicarMascaraCnj(String(processoVinculado.numero)) : "—"}
-                </p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className="text-sm font-semibold text-foreground break-all">
+                    {processoVinculado.numero ? aplicarMascaraCnj(String(processoVinculado.numero)) : "—"}
+                  </p>
+                  {processoVinculado.id && (
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-6 px-1 text-xs"
+                      title="Abrir em Processos e Casos"
+                      onClick={() => window.open(`/processos/${processoVinculado.id}`, "_blank", "noopener")}
+                    >
+                      <ExternalLink className="mr-1 h-3 w-3" />
+                      Ver processo
+                    </Button>
+                  )}
+                </div>
                 {(processoVinculado.reclamante || processoVinculado.autor || processoVinculado.reclamados || processoVinculado.requerido) && (
                   <p className="text-xs text-muted-foreground break-words">
                     {[processoVinculado.reclamante || processoVinculado.autor, processoVinculado.reclamados || processoVinculado.requerido]
