@@ -1046,6 +1046,43 @@ export default function PainelControle() {
       return da.localeCompare(db);
     });
 
+    // Buscar partes (reclamante/reclamada) e cliente dos processos vinculados
+    const processoIds = Array.from(
+      new Set(
+        itensExport
+          .map((it: any) => it.processo?.id ?? it.processo_id)
+          .filter(Boolean)
+          .map(String),
+      ),
+    );
+    const partesById = new Map<string, { ativo: string; passivo: string; clienteId: string | null }>();
+    const clienteNomeById = new Map<string, string>();
+    if (processoIds.length > 0) {
+      for (let i = 0; i < processoIds.length; i += 200) {
+        const { data: procs } = await supabase
+          .from("processos")
+          .select("id, polo_ativo, polo_passivo, cliente_id")
+          .in("id", processoIds.slice(i, i + 200));
+        (procs || []).forEach((p: any) =>
+          partesById.set(String(p.id), {
+            ativo: p.polo_ativo ?? "",
+            passivo: p.polo_passivo ?? "",
+            clienteId: p.cliente_id ?? null,
+          }),
+        );
+      }
+      const clienteIds = Array.from(
+        new Set(Array.from(partesById.values()).map((p) => p.clienteId).filter(Boolean) as string[]),
+      );
+      for (let i = 0; i < clienteIds.length; i += 200) {
+        const { data: cls } = await supabase
+          .from("clientes")
+          .select("id, nome")
+          .in("id", clienteIds.slice(i, i + 200));
+        (cls || []).forEach((c: any) => c?.id && clienteNomeById.set(String(c.id), c.nome ?? ""));
+      }
+    }
+
     const rows = itensOrdenados.map((it) => {
       const rawId = String(it.id);
       let key = "";
@@ -1081,6 +1118,9 @@ export default function PainelControle() {
         Responsáveis: responsaveisArr.join(", "),
         Envolvidos: envolvidosArr.join(", "),
         Processo: it.processo?.numero ?? "",
+        Reclamante: partes?.ativo ?? "",
+        Reclamada: partes?.passivo ?? "",
+        Cliente: partes?.clienteId ? clienteNomeById.get(String(partes.clienteId)) ?? "" : "",
         Coordenação:
           coordNomeById.get((it as any).coordenacao_id ?? it.processo?.coordenacao_id ?? "") ?? "",
       };
