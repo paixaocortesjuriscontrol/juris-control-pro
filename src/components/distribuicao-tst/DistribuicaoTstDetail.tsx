@@ -17,6 +17,7 @@ import { AnexosJuditTab } from "./AnexosJuditTab";
 import { AnalisarComIATab } from "./AnalisarComIATab";
 import { CentralizadoresTab } from "./CentralizadoresTab";
 import { PartesProcessoTab } from "./PartesProcessoTab";
+import { AuditoriaTab } from "./AuditoriaTab";
 import { DistribuicaoTst, DistribuicaoTstInsert, bennerToDistribuicao } from "@/hooks/useDistribuicoesTst";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -809,6 +810,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             {podeVerLogJudit && (
               <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
             )}
+            {isAdmin && (
+              <TabsTrigger value="auditoria" disabled={bennerDisabled}>Auditoria</TabsTrigger>
+            )}
           </TabsList>
           {isAdmin && currentDado?.id && (
             <Button
@@ -900,6 +904,16 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         <TabsContent value="analise-judit" className="mt-4">
           <AnaliseJuditTab processoNumero={processoNumero} />
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="auditoria" className="mt-4">
+            <AuditoriaTab
+              dadosBennerId={(bennerDado as any)?.id || (currentDado as any)?.id || null}
+              processo={processoNumero}
+              dossie={currentDado?.dossie || null}
+            />
+          </TabsContent>
+        )}
 
         {isAdminOrCoordinator && (
           <TabsContent value="centralizadores" className="mt-4">
