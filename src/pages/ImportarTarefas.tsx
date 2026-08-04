@@ -22,6 +22,26 @@ import { ImportProgress, type ImportProgressState } from "@/components/tarefas/I
 
 // ==================== INTERFACES ====================
 
+// Normaliza nomes de cabeçalho (remove acentos, pontuação e espaços extras)
+function normalizeHeader(value: any): string {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Reindexa a linha por cabeçalho normalizado
+function buildRowLookup(row: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const key of Object.keys(row || {})) {
+    out[normalizeHeader(key)] = row[key];
+  }
+  return out;
+}
+
 interface TarefaImport {
   identificador: string;
   tipo: string | null;
