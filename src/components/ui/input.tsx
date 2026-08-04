@@ -3,9 +3,6 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /** Faixa válida para campos de data em todo o sistema. */
-const ANO_MIN = 1900;
-const ANO_MAX = 2100;
-
 /**
  * Converte um texto colado em `yyyy-MM-dd` (valor aceito por input[type=date]).
  * Aceita dd/MM/yyyy, dd-MM-yyyy, ddMMyyyy, yyyy-MM-dd e yyyy/MM/dd.
@@ -62,12 +59,6 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
     };
 
     const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-      if (ehData && e.target.value) {
-        const ano = Number(e.target.value.slice(0, 4));
-        if (!Number.isFinite(ano) || ano < ANO_MIN || ano > ANO_MAX) {
-          setValorNativo(e.currentTarget, "");
-        }
-      }
       onBlur?.(e);
     };
 
@@ -88,13 +79,6 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
         valor = data ? `${data}T${hora}` : null;
       }
       if (!valor) return;
-      if (ehData) {
-        const ano = Number(valor.slice(0, 4));
-        if (!Number.isFinite(ano) || ano < ANO_MIN || ano > ANO_MAX) {
-          e.preventDefault();
-          return;
-        }
-      }
       e.preventDefault();
       setValorNativo(e.currentTarget, valor);
     };
