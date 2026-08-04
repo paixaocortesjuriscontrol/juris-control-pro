@@ -395,7 +395,14 @@ export default function DistribuicaoTst() {
   const { data: tagsMap } = useTagsForDados(visibleDadoIds);
 
   // Totais por responsável (todos os registros que batem com os filtros, ignorando o filtro de responsável)
-  const countsFilters = { ...debouncedFilters, responsavelIds: undefined };
+  // Usa os MESMOS filtros da lista (inclui restrições por etiqueta,
+  // "mais de um responsável" e "pronto sem pendência"), apenas ignorando o
+  // filtro de responsável para que todos os advogados apareçam nos cards.
+  const countsFilters = useMemo(
+    () => ({ ...listFilters, responsavelIds: undefined }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [JSON.stringify(listFilters)]
+  );
   const { counts: responsavelCounts, refetch: refetchResponsavelCounts } = useResponsaveisCounts(countsFilters);
 
   // Todos os membros da coordenação TST — devem aparecer sempre nos cards,
