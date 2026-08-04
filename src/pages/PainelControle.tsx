@@ -1365,9 +1365,9 @@ export default function PainelControle() {
             </Button>
             {/* Filtro de coordenação para admin no modo escritório - desktop inline */}
             {isAdmin && tabMode === "escritorio" && (
-              <div className="hidden md:block">
+              <div className="block min-w-0">
                 <Select value={adminCoordFilter} onValueChange={setAdminCoordFilter}>
-                  <SelectTrigger className="h-7 w-52 text-xs">
+                  <SelectTrigger className="h-7 w-full max-w-[13rem] text-xs">
                     <SelectValue placeholder="Coordenação" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1379,8 +1379,8 @@ export default function PainelControle() {
                 </Select>
               </div>
             )}
-            <div className="ml-auto flex items-center gap-1.5">
-              <div className="hidden md:flex gap-1 mr-1">
+            <div className="md:ml-auto flex items-center gap-1.5 flex-wrap min-w-0">
+              <div className="flex flex-wrap gap-1 mr-1">
                 <Button
                   size="sm"
                   variant={viewMode === "agenda" ? "default" : "outline"}

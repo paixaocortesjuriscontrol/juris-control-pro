@@ -74,6 +74,13 @@ interface PainelFiltrosProps {
 
 export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
   const [open, setOpen] = useState(false);
+  // Rascunho local: só aplica ao clicar em "Filtrar"
+  const [draft, setDraft] = useState<PainelFiltrosState>(filtros);
+
+  const handleOpenChange = (v: boolean) => {
+    if (v) setDraft(filtros);
+    setOpen(v);
+  };
 
   const activeCount = [
     filtros.souResponsavel || filtros.estouEnvolvido,
@@ -86,21 +93,21 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
   ].filter(Boolean).length;
 
   const toggleSituacao = (val: string) => {
-    const next = filtros.situacoes.includes(val)
-      ? filtros.situacoes.filter((s) => s !== val)
-      : [...filtros.situacoes, val];
-    onChange({ ...filtros, situacoes: next });
+    const next = draft.situacoes.includes(val)
+      ? draft.situacoes.filter((s) => s !== val)
+      : [...draft.situacoes, val];
+    setDraft({ ...draft, situacoes: next });
   };
 
   const toggleClassificacao = (val: string) => {
-    const next = filtros.classificacoes.includes(val)
-      ? filtros.classificacoes.filter((c) => c !== val)
-      : [...filtros.classificacoes, val];
-    onChange({ ...filtros, classificacoes: next });
+    const next = draft.classificacoes.includes(val)
+      ? draft.classificacoes.filter((c) => c !== val)
+      : [...draft.classificacoes, val];
+    setDraft({ ...draft, classificacoes: next });
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -119,30 +126,34 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-0" align="end">
-        <div className="p-3 space-y-4 max-h-[70vh] overflow-y-auto">
+      <PopoverContent
+        className="w-[min(92vw,26rem)] p-0"
+        align="end"
+        collisionPadding={12}
+      >
+        <div className="p-4 space-y-4 max-h-[65vh] overflow-y-auto">
           {/* Período (data prevista/fatal conforme selecionado) */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Período
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="min-w-0">
                 <Label className="text-[10px] text-muted-foreground">Início</Label>
                 <Input
                   type="date"
-                  value={filtros.periodoInicio}
-                  onChange={(e) => onChange({ ...filtros, periodoInicio: e.target.value })}
-                  className="h-8 text-xs"
+                  value={draft.periodoInicio}
+                  onChange={(e) => setDraft({ ...draft, periodoInicio: e.target.value })}
+                  className="h-9 w-full text-sm px-2"
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <Label className="text-[10px] text-muted-foreground">Fim</Label>
                 <Input
                   type="date"
-                  value={filtros.periodoFim}
-                  onChange={(e) => onChange({ ...filtros, periodoFim: e.target.value })}
-                  className="h-8 text-xs"
+                  value={draft.periodoFim}
+                  onChange={(e) => setDraft({ ...draft, periodoFim: e.target.value })}
+                  className="h-9 w-full text-sm px-2"
                 />
               </div>
             </div>
@@ -154,8 +165,8 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
               Responsáveis
             </p>
             <PeoplePicker
-              selectedIds={filtros.responsavelIds}
-              onChange={(ids) => onChange({ ...filtros, responsavelIds: ids })}
+              selectedIds={draft.responsavelIds}
+              onChange={(ids) => setDraft({ ...draft, responsavelIds: ids })}
               placeholder="Filtrar por responsável"
               emptyLabel="Todos os responsáveis"
             />
@@ -169,19 +180,15 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
             <div className="space-y-1.5">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <Checkbox
-                  checked={filtros.souResponsavel}
-                  onCheckedChange={(v) =>
-                    onChange({ ...filtros, souResponsavel: !!v })
-                  }
+                  checked={draft.souResponsavel}
+                  onCheckedChange={(v) => setDraft({ ...draft, souResponsavel: !!v })}
                 />
                 Sou Responsável
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <Checkbox
-                  checked={filtros.estouEnvolvido}
-                  onCheckedChange={(v) =>
-                    onChange({ ...filtros, estouEnvolvido: !!v })
-                  }
+                  checked={draft.estouEnvolvido}
+                  onCheckedChange={(v) => setDraft({ ...draft, estouEnvolvido: !!v })}
                 />
                 Estou Envolvido
               </label>
@@ -196,18 +203,18 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
             <div className="space-y-1.5">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <Checkbox
-                  checked={filtros.dataPrevista}
+                  checked={draft.dataPrevista}
                   onCheckedChange={(v) =>
-                    onChange({ ...filtros, dataPrevista: !!v, dataFatal: !v ? true : filtros.dataFatal })
+                    setDraft({ ...draft, dataPrevista: !!v, dataFatal: !v ? true : draft.dataFatal })
                   }
                 />
                 Data prevista
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <Checkbox
-                  checked={filtros.dataFatal}
+                  checked={draft.dataFatal}
                   onCheckedChange={(v) =>
-                    onChange({ ...filtros, dataFatal: !!v, dataPrevista: !v ? true : filtros.dataPrevista })
+                    setDraft({ ...draft, dataFatal: !!v, dataPrevista: !v ? true : draft.dataPrevista })
                   }
                 />
                 Data fatal
@@ -226,8 +233,8 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
                   <input
                     type="radio"
                     name="painel-status-group"
-                    checked={filtros.statusGroup === s.value}
-                    onChange={() => onChange({ ...filtros, statusGroup: s.value })}
+                    checked={draft.statusGroup === s.value}
+                    onChange={() => setDraft({ ...draft, statusGroup: s.value })}
                     className="accent-primary"
                   />
                   {s.label}
@@ -245,7 +252,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
               {SITUACOES.map((s) => (
                 <label key={s.value} className="flex items-center gap-2 text-sm cursor-pointer">
                   <Checkbox
-                    checked={filtros.situacoes.includes(s.value)}
+                    checked={draft.situacoes.includes(s.value)}
                     onCheckedChange={() => toggleSituacao(s.value)}
                   />
                   {s.label}
@@ -263,7 +270,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
               {CLASSIFICACOES.map((c) => (
                 <label key={c.value} className="flex items-center gap-2 text-sm cursor-pointer">
                   <Checkbox
-                    checked={filtros.classificacoes.includes(c.value)}
+                    checked={draft.classificacoes.includes(c.value)}
                     onCheckedChange={() => toggleClassificacao(c.value)}
                   />
                   {c.label}
@@ -272,17 +279,31 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
             </div>
           </div>
 
-          {/* Limpar filtros */}
-          {activeCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full text-xs"
-              onClick={() => onChange(PAINEL_FILTROS_DEFAULT)}
-            >
-              Limpar filtros
-            </Button>
-          )}
+        </div>
+
+        {/* Ações */}
+        <div className="flex items-center justify-between gap-2 border-t border-border p-3 bg-muted/30">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onClick={() => {
+              setDraft(PAINEL_FILTROS_DEFAULT);
+              onChange(PAINEL_FILTROS_DEFAULT);
+            }}
+          >
+            Limpar filtros
+          </Button>
+          <Button
+            size="sm"
+            className="text-xs px-4"
+            onClick={() => {
+              onChange(draft);
+              setOpen(false);
+            }}
+          >
+            Filtrar
+          </Button>
         </div>
       </PopoverContent>
     </Popover>

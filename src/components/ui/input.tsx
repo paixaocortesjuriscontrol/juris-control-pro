@@ -50,22 +50,26 @@ function setValorNativo(el: HTMLInputElement, valor: string) {
 }
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, onPaste, onCopy, onChange, min, max, ...props }, ref) => {
+  ({ className, type, onPaste, onCopy, onChange, onBlur, min, max, ...props }, ref) => {
     // Limites de segurança para datas: evita anos inválidos (ex.: 20206)
     const ehData = type === "date" || type === "datetime-local";
     const minData = min ?? (type === "date" ? DATA_MIN : `${DATA_MIN}T00:00`);
     const maxData = max ?? (type === "date" ? DATA_MAX : `${DATA_MAX}T23:59`);
 
+    // Enquanto o usuário digita (ex.: 01/01/2000 → anos parciais "0002"),
+    // não bloqueamos o valor: a validação da faixa acontece no blur.
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (ehData) {
-        const v = e.target.value;
-        // Bloqueia valores fora da faixa (ano com 5 dígitos, ano 0000 etc.)
-        if (v) {
-          const ano = Number(v.slice(0, 4));
-          if (!Number.isFinite(ano) || ano < 1900 || ano > 2100) return;
+      onChange?.(e);
+    };
+
+    const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+      if (ehData && e.target.value) {
+        const ano = Number(e.target.value.slice(0, 4));
+        if (!Number.isFinite(ano) || ano < 1900 || ano > 2100) {
+          setValorNativo(e.currentTarget, "");
         }
       }
-      onChange?.(e);
+      onBlur?.(e);
     };
 
     // Campos de data/hora nativos não aceitam colar nem copiar texto.
@@ -122,6 +126,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
         )}
         ref={ref}
         onChange={handleChange}
+        onBlur={handleBlur}
         onPaste={handlePaste}
         onCopy={handleCopy}
         {...props}
