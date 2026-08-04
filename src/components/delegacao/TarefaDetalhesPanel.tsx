@@ -64,6 +64,7 @@ export function TarefaDetalhesPanel({
   onUpdate,
 }: TarefaDetalhesPanelProps) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [comentario, setComentario] = useState("");
