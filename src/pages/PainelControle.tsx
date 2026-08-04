@@ -1753,13 +1753,13 @@ export default function PainelControle() {
                   painelFiltros.classificacoes.includes("tarefa") && "ring-2 ring-blue-500",
                 )}
               >
-                <CardContent className="p-2 md:px-3 md:py-2">
+                <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-[11px] md:text-xs font-medium leading-tight text-blue-600 dark:text-blue-400 truncate">Tarefas</p>
-                      <p className="text-lg md:text-2xl font-bold leading-tight text-blue-700 dark:text-blue-300">{contagensPorClassificacao.tarefa}</p>
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <p className="text-lg md:text-xl font-bold leading-none text-blue-700 dark:text-blue-300">{contagensPorClassificacao.tarefa}</p>
+                      <p className="text-[11px] md:text-xs font-medium leading-none text-blue-600 dark:text-blue-400 truncate">Tarefas</p>
                     </div>
-                    <ClipboardList className="w-5 h-5 md:w-7 md:h-7 text-blue-500/50 flex-shrink-0" />
+                    <ClipboardList className="w-4 h-4 md:w-5 md:h-5 text-blue-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
@@ -1777,13 +1777,13 @@ export default function PainelControle() {
                   painelFiltros.classificacoes.includes("evento") && "ring-2 ring-green-500",
                 )}
               >
-                <CardContent className="p-2 md:px-3 md:py-2">
+                <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-[11px] md:text-xs font-medium leading-tight text-green-700 dark:text-green-400 truncate">Eventos</p>
-                      <p className="text-lg md:text-2xl font-bold leading-tight text-green-700 dark:text-green-300">{contagensPorClassificacao.evento}</p>
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <p className="text-lg md:text-xl font-bold leading-none text-green-700 dark:text-green-300">{contagensPorClassificacao.evento}</p>
+                      <p className="text-[11px] md:text-xs font-medium leading-none text-green-700 dark:text-green-400 truncate">Eventos</p>
                     </div>
-                    <CalendarPlus className="w-5 h-5 md:w-7 md:h-7 text-green-500/50 flex-shrink-0" />
+                    <CalendarPlus className="w-4 h-4 md:w-5 md:h-5 text-green-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
@@ -1801,13 +1801,13 @@ export default function PainelControle() {
                   painelFiltros.classificacoes.includes("prazo") && "ring-2 ring-red-500",
                 )}
               >
-                <CardContent className="p-2 md:px-3 md:py-2">
+                <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-[11px] md:text-xs font-medium leading-tight text-red-600 dark:text-red-400 truncate">Prazos</p>
-                      <p className="text-lg md:text-2xl font-bold leading-tight text-red-700 dark:text-red-300">{contagensPorClassificacao.prazo}</p>
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <p className="text-lg md:text-xl font-bold leading-none text-red-700 dark:text-red-300">{contagensPorClassificacao.prazo}</p>
+                      <p className="text-[11px] md:text-xs font-medium leading-none text-red-600 dark:text-red-400 truncate">Prazos</p>
                     </div>
-                    <Clock className="w-5 h-5 md:w-7 md:h-7 text-red-500/50 flex-shrink-0" />
+                    <Clock className="w-4 h-4 md:w-5 md:h-5 text-red-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
@@ -1825,13 +1825,13 @@ export default function PainelControle() {
                   painelFiltros.classificacoes.includes("audiencia") && "ring-2 ring-yellow-500",
                 )}
               >
-                <CardContent className="p-2 md:px-3 md:py-2">
+                <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-[11px] md:text-xs font-medium leading-tight text-yellow-700 dark:text-yellow-400 truncate">Audiências</p>
-                      <p className="text-lg md:text-2xl font-bold leading-tight text-yellow-700 dark:text-yellow-300">{contagensPorClassificacao.audiencia}</p>
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <p className="text-lg md:text-xl font-bold leading-none text-yellow-700 dark:text-yellow-300">{contagensPorClassificacao.audiencia}</p>
+                      <p className="text-[11px] md:text-xs font-medium leading-none text-yellow-700 dark:text-yellow-400 truncate">Audiências</p>
                     </div>
-                    <Gavel className="w-5 h-5 md:w-7 md:h-7 text-yellow-500/50 flex-shrink-0" />
+                    <Gavel className="w-4 h-4 md:w-5 md:h-5 text-yellow-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
@@ -1849,13 +1849,13 @@ export default function PainelControle() {
                   painelFiltros.classificacoes.includes("parcelamento") && "ring-2 ring-emerald-500",
                 )}
               >
-                <CardContent className="p-2 md:px-3 md:py-2">
+                <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-[11px] md:text-xs font-medium leading-tight text-emerald-600 dark:text-emerald-400 truncate">Parcelamentos</p>
-                      <p className="text-lg md:text-2xl font-bold leading-tight text-emerald-700 dark:text-emerald-300">{contagensPorClassificacao.parcelamento}</p>
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <p className="text-lg md:text-xl font-bold leading-none text-emerald-700 dark:text-emerald-300">{contagensPorClassificacao.parcelamento}</p>
+                      <p className="text-[11px] md:text-xs font-medium leading-none text-emerald-600 dark:text-emerald-400 truncate">Parcelamentos</p>
                     </div>
-                    <Coins className="w-5 h-5 md:w-7 md:h-7 text-emerald-500/50 flex-shrink-0" />
+                    <Coins className="w-4 h-4 md:w-5 md:h-5 text-emerald-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
