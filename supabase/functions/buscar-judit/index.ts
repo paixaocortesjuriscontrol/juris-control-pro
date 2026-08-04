@@ -856,7 +856,11 @@ serve(async (req) => {
     // forçar recrawl e agrega as páginas novas ao conjunto analisado.
     let retentativaTst = false;
     let retentativaTstTrouxeTst = false;
-    if (tribunalHint === "TST") {
+    // Só roda no mesmo clique quando o usuário pediu atualização forçada e
+    // ainda há orçamento de tempo. No fluxo normal a retentativa é dispensada
+    // (o usuário pode clicar em "Forçar atualização" se precisar do TST).
+    const orcamentoRestante = REQUEST_BUDGET_MS - (Date.now() - t0);
+    if (tribunalHint === "TST" && forceRefresh && orcamentoRestante > 5_000) {
       const paginasAtuais: any[] = Array.isArray(rawCollector.crawler?.page_data)
         ? rawCollector.crawler.page_data
         : [];
@@ -1242,6 +1246,7 @@ serve(async (req) => {
           : (foiTst ? "crawler_tst" : (rdSelecionada ? "fallback_outra_instancia" : "vazio")),
         tribunal_selecionado: rdSelecionada?.tribunal_acronym || null,
         instance_selecionada: rdSelecionada?.instance || null,
+        instancia_tst: foiTst,
         com_anexos: comAnexos,
         force_refresh: forceRefresh,
         cache_ttl_days: cacheTtlDays,
