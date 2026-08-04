@@ -542,6 +542,18 @@ export function TarefaDetalhesDialog({
                       >
                         <Copy className="w-3 h-3" />
                       </Button>
+                      {tarefa.processo.id && (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-6 px-1 text-xs"
+                          title="Abrir em Processos e Casos"
+                          onClick={() => window.open(`/processos/${tarefa.processo.id}`, "_blank", "noopener")}
+                        >
+                          <ExternalLink className="mr-1 h-3 w-3" />
+                          Ver processo
+                        </Button>
+                      )}
                     </div>
                     {tarefa.processo.polo_ativo && (
                       <p className="text-xs text-muted-foreground mt-1">
