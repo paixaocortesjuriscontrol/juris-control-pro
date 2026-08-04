@@ -548,7 +548,10 @@ export function TarefaDetalhesDialog({
                           size="sm"
                           className="h-6 px-1 text-xs"
                           title="Abrir em Processos e Casos"
-                          onClick={() => window.open(`/processos/${tarefa.processo.id}`, "_blank", "noopener")}
+                          onClick={() => {
+                            onOpenChange(false);
+                            navigate(`/processos/${tarefa.processo.id}`);
+                          }}
                         >
                           <ExternalLink className="mr-1 h-3 w-3" />
                           Ver processo
