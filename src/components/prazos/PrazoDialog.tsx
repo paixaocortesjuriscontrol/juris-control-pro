@@ -306,16 +306,28 @@ export function PrazoDialog({
       const orExpr = candidatos.map((c) => `numero.ilike.%${c}%`).join(",");
       const { data, error } = await supabase
         .from("processos")
-        .select("id, numero")
+        .select("id, numero, coordenacao_id")
         .or(orExpr)
-        .limit(1)
-        .maybeSingle();
+        .limit(50);
       if (error) throw error;
-      if (!data) {
+      const encontrados = data || [];
+      if (encontrados.length === 0) {
         toast.error("Processo não encontrado");
         return;
       }
-      setProcessoManualId(data.id);
+      // O mesmo número pode estar cadastrado em várias coordenações:
+      // priorizar o processo da(s) coordenação(ões) do usuário logado.
+      let escolhido = encontrados[0];
+      if (encontrados.length > 1 && user?.id) {
+        const { data: membros } = await supabase
+          .from("membros_coordenacao")
+          .select("coordenacao_id")
+          .eq("usuario_id", user.id);
+        const minhas = new Set((membros || []).map((m: any) => m.coordenacao_id));
+        const preferido = encontrados.find((p: any) => p.coordenacao_id && minhas.has(p.coordenacao_id));
+        if (preferido) escolhido = preferido;
+      }
+      setProcessoManualId(escolhido.id);
       setProcessoRemovido(false);
       setProcessoBuscaNumero("");
       toast.success("Processo vinculado");
