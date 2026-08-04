@@ -2121,6 +2121,21 @@ export default function PainelControle() {
             </div>
           </div>
 
+          {!selectedItem && !novoItemTipo && diaLateralKey && (
+            <aside className="flex flex-1 lg:flex-none lg:w-[420px] xl:w-[460px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0 overflow-hidden">
+              <DiaAgendaLateral
+                dia={new Date(`${diaLateralKey}T12:00:00`)}
+                itens={itensPorDia.get(diaLateralKey) || []}
+                userId={user?.id}
+                onSelectItem={(item) => {
+                  setDiaLateralKey(null);
+                  handleItemClick(item);
+                }}
+                onClose={() => setDiaLateralKey(null)}
+              />
+            </aside>
+          )}
+
           {selectedItem && (
             <aside className="flex flex-1 lg:flex-none lg:w-[640px] xl:w-[720px] flex-shrink-0 border-l border-border bg-background flex-col min-h-0 overflow-hidden">
               <EdicaoItemPanel
