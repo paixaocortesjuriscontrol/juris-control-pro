@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, Search, Save, History } from "lucide-react";
 import { AlertCircle } from "lucide-react";
-import { getPendencias } from "@/utils/distribuicaoTstPendencias";
+import { getPendenciasEAvisos } from "@/utils/distribuicaoTstPendencias";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
