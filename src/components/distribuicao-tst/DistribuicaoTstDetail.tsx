@@ -3,7 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, Search, Save, History } from "lucide-react";
 import { AlertCircle } from "lucide-react";
-import { getPendencias } from "@/utils/distribuicaoTstPendencias";
+import { getPendenciasEAvisos } from "@/utils/distribuicaoTstPendencias";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -525,8 +525,54 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                 cejusc: cejusc,
               };
 
-              const pend = getPendencias(row);
+              const todos = getPendenciasEAvisos(row);
+              const pend = todos.filter((p) => !p.aviso);
+              const avisos = todos.filter((p) => p.aviso);
+
+              const norm0 = (s: string) =>
+                s.replace(/\s+/g, " ").replace(/\*/g, "").trim().toLowerCase();
+
+              // Avisos ("Outra Matéria" única): destaca em AMARELO e não conta
+              // como pendência.
+              const marcarAviso = (container: HTMLElement) => {
+                container.setAttribute("data-pendencia-highlight", "true");
+                container.classList.add(
+                  "ring-2",
+                  "ring-amber-500",
+                  "rounded-md",
+                  "bg-amber-50",
+                  "dark:bg-amber-950/20",
+                );
+              };
+              for (const a of avisos) {
+                if (a.key.includes(".")) {
+                  const cell = root.querySelector<HTMLElement>(
+                    `[data-pend-key="${a.key.replace(/"/g, '\\"')}"]`,
+                  );
+                  if (cell) marcarAviso(cell);
+                  continue;
+                }
+                const lbl = Array.from(root.querySelectorAll<HTMLElement>("label")).find((l) =>
+                  norm0(l.textContent || "").startsWith(norm0(a.label)),
+                );
+                const container =
+                  (lbl?.closest(".space-y-2") as HTMLElement | null) || lbl?.parentElement;
+                if (container) marcarAviso(container);
+              }
+
               if (pend.length === 0) {
+                if (avisos.length > 0) {
+                  const primeiroAviso = root.querySelector<HTMLElement>(
+                    "[data-pendencia-highlight='true']",
+                  );
+                  if (primeiroAviso)
+                    primeiroAviso.scrollIntoView({ behavior: "smooth", block: "center" });
+                  toast.warning("Verificar (não conta como pendência)", {
+                    duration: 12000,
+                    description: avisos.map((a) => a.label).join(" | "),
+                  });
+                  return;
+                }
                 toast.success("Nenhuma pendência: todos os campos obrigatórios estão preenchidos.");
                 return;
               }
@@ -596,7 +642,14 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                   description:
                     naoMarcados.length > 0
                       ? `Não localizadas no formulário: ${naoMarcados.join(" | ")}`
-                      : pend.map((p) => p.label).join(" | "),
+                      : [
+                          pend.map((p) => p.label).join(" | "),
+                          avisos.length > 0
+                            ? `Verificar (sem pendência): ${avisos.map((a) => a.label).join(" | ")}`
+                            : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" — "),
                 },
               );
             }}

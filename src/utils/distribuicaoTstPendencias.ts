@@ -8,7 +8,7 @@
  * quanto o `DistribuicaoTst` mapeado (chaves equivalentes coexistem).
  */
 
-import { aplicarRegraOutraMateria } from "./outraMateria";
+import { aplicarRegraOutraMateria, isOutraMateria } from "./outraMateria";
 
 export type CampoObrigatorio = {
   /** Chave em `dados_benner` (snake_case) usada na consulta SQL. */
@@ -163,7 +163,17 @@ function getValor(row: any, c: CampoObrigatorio): any {
   return null;
 }
 
-export type Pendencia = { key: string; label: string; quadrinho: string };
+export type Pendencia = {
+  key: string;
+  label: string;
+  quadrinho: string;
+  /**
+   * Quando `true`, o item é apenas um AVISO ("Verificar", em amarelo): aparece
+   * no botão "Verificar Pendências" mas NÃO conta como pendência e não bloqueia
+   * o envio. Hoje é usado quando "Outra Matéria" é a única matéria selecionada.
+   */
+  aviso?: boolean;
+};
 
 /** Verifica pendências na lista de "Análise por matéria" (JSONB). Cada matéria
  *  selecionada exige aparelhamento, chance_turma, chance_relator e chance_exito. */
@@ -197,19 +207,27 @@ function pendenciasMateriasAnalise(
     : listaPersistida;
   if (lista.length === 0) return [];
   const out: Pendencia[] = [];
+  // "Outra Matéria" como única matéria do recurso: os sub-itens da análise
+  // viram apenas AVISO (amarelo), nunca pendência.
+  const somenteOutraMateria =
+    lista.length > 0 && lista.every((i: any) => isOutraMateria(i?.materia));
   for (const item of lista) {
     if (!item || typeof item !== "object" || !item.materia) continue;
     const m = String(item.materia).trim();
-    if (isEmpty(item.aparelhamento)) out.push({ key: `${campoJsonb}.aparelhamento.${m}`, label: `${rotuloBloco} • "${m}": Aparelhamento`, quadrinho });
-    if (isEmpty(item.chance_turma)) out.push({ key: `${campoJsonb}.chance_turma.${m}`, label: `${rotuloBloco} • "${m}": Chance Turma`, quadrinho });
-    if (isEmpty(item.chance_relator)) out.push({ key: `${campoJsonb}.chance_relator.${m}`, label: `${rotuloBloco} • "${m}": Chance Relator`, quadrinho });
-    if (isEmpty(item.chance_exito)) out.push({ key: `${campoJsonb}.chance_exito.${m}`, label: `${rotuloBloco} • "${m}": Êxito`, quadrinho });
+    const aviso = somenteOutraMateria || undefined;
+    if (isEmpty(item.aparelhamento)) out.push({ key: `${campoJsonb}.aparelhamento.${m}`, label: `${rotuloBloco} • "${m}": Aparelhamento`, quadrinho, aviso });
+    if (isEmpty(item.chance_turma)) out.push({ key: `${campoJsonb}.chance_turma.${m}`, label: `${rotuloBloco} • "${m}": Chance Turma`, quadrinho, aviso });
+    if (isEmpty(item.chance_relator)) out.push({ key: `${campoJsonb}.chance_relator.${m}`, label: `${rotuloBloco} • "${m}": Chance Relator`, quadrinho, aviso });
+    if (isEmpty(item.chance_exito)) out.push({ key: `${campoJsonb}.chance_exito.${m}`, label: `${rotuloBloco} • "${m}": Êxito`, quadrinho, aviso });
   }
   return out;
 }
 
-/** Retorna a lista de campos obrigatórios em aberto para `row`. */
-export function getPendencias(row: any): Pendencia[] {
+/**
+ * Lista completa de itens em aberto, incluindo os apenas informativos
+ * (`aviso: true`). Use em telas que queiram destacar "Verificar" em amarelo.
+ */
+export function getPendenciasEAvisos(row: any): Pendencia[] {
   if (!row) return [];
   // Situações em que o processo não exige preenchimento: Acordo, CEJUSC,
   // Processo em outro escritório, Segredo de Justiça, Trânsito em Julgado
@@ -249,6 +267,16 @@ export function getPendencias(row: any): Pendencia[] {
     out.push(...pendenciasMateriasAnalise(row, "materias_analise_terceiro", "materias_recurso_terceiro", "Análise Terceiro", "V. Recurso Terceiro"));
   }
   return out;
+}
+
+/** Retorna a lista de campos obrigatórios em aberto (sem os avisos). */
+export function getPendencias(row: any): Pendencia[] {
+  return getPendenciasEAvisos(row).filter((p) => !p.aviso);
+}
+
+/** Apenas os avisos ("Verificar", amarelo) — não contam como pendência. */
+export function getAvisos(row: any): Pendencia[] {
+  return getPendenciasEAvisos(row).filter((p) => p.aviso);
 }
 
 /** Versão resumida em string única para Excel/UI compacta. */
