@@ -5,6 +5,7 @@ import { Upload, Loader2, XCircle, Clock, CheckCircle2, AlertTriangle } from "lu
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { iniciarAuditoriaLote, finalizarAuditoriaLote } from "@/lib/auditoriaLoteAdminTst";
 
 function norm(val: unknown): string {
   return String(val ?? "").trim();
@@ -192,6 +193,11 @@ export function DistribuicaoTstImport({ onImported }: Props) {
     startTimeRef.current = Date.now();
     setStatusText("Lendo planilha...");
 
+    const auditId = await iniciarAuditoriaLote({
+      tipo: "importar_distribuicao",
+      arquivoNome: file.name,
+    });
+    let auditFinalizada = false;
     try {
       // === STEP 0: Auth ===
       const { data: { user } } = await supabase.auth.getUser();
@@ -235,6 +241,11 @@ export function DistribuicaoTstImport({ onImported }: Props) {
 
       if (allRows.length === 0) {
         toast.warning("Nenhum registro válido encontrado na planilha");
+        await finalizarAuditoriaLote(auditId, {
+          status: "concluida",
+          resumo: "Nenhum registro válido encontrado na planilha.",
+        });
+        auditFinalizada = true;
         resetState();
         return;
       }
@@ -770,6 +781,30 @@ export function DistribuicaoTstImport({ onImported }: Props) {
         if (respRestaurados > 0) parts.push(`${respRestaurados} responsáveis preservados`);
         if (totalErrors > 0) parts.push(`${totalErrors} erros`);
         toast.success(parts.join(", ") + "!");
+        await finalizarAuditoriaLote(auditId, {
+          status: "concluida",
+          totalLinhas: allRows.length,
+          criados: totalUpserted,
+          atualizados: updatedProcessos,
+          erros: totalErrors,
+          resumo: parts.join(", "),
+          itens: recordsToInsert.map((r: any) => ({
+            processo: r.processo ?? null,
+            dossie: r.dossie ?? null,
+            acao: "criado",
+            detalhe: `Aba: ${r.aba_origem ?? "—"}${r.ic_duplicado ? " · duplicado" : ""}`,
+          })),
+          detalhes: {
+            processos_novos: newProcessos,
+            processos_atualizados: updatedProcessos,
+            preservados_judit: preservedJudit,
+            duplicados: dupRows.length,
+            responsaveis_atualizados: respAtualizados,
+            responsaveis_preservados: respRestaurados,
+            responsaveis_nao_encontrados: [...responsavelNaoEncontrados],
+          },
+        });
+        auditFinalizada = true;
         if (responsavelNaoEncontrados.size > 0) {
           const lista = [...responsavelNaoEncontrados].slice(0, 10).join(", ");
           toast.warning(
@@ -783,10 +818,25 @@ export function DistribuicaoTstImport({ onImported }: Props) {
           `Nenhum registro importado. ${totalErrors} com erro. ${firstError ? `Causa: ${firstError}` : "Verifique o console (F12)."}`,
           { duration: 20000 }
         );
+        await finalizarAuditoriaLote(auditId, {
+          status: "erro",
+          totalLinhas: allRows.length,
+          erros: totalErrors,
+          erro: firstError || "Nenhum registro importado.",
+        });
+        auditFinalizada = true;
       }
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || String(err)));
+      await finalizarAuditoriaLote(auditId, { status: "erro", erro: err?.message || String(err) });
+      auditFinalizada = true;
     } finally {
+      if (!auditFinalizada) {
+        await finalizarAuditoriaLote(auditId, {
+          status: "cancelada",
+          resumo: "Importação interrompida antes da conclusão.",
+        });
+      }
       setTimeout(resetState, 2000);
     }
   };
