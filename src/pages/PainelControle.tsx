@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
+import { ExportarAtividadesDialog } from "@/components/painel/ExportarAtividadesDialog";
 import { Download } from "lucide-react";
 import {
   DropdownMenu,
@@ -924,6 +925,180 @@ export default function PainelControle() {
     return "tarefa";
   };
 
+  // ===== Exportação (Excel) com período e tipos selecionáveis =====
+  const [exportOpen, setExportOpen] = useState(false);
+
+  const exportarAtividades = async (inicio: string, fim: string, tipos: string[]) => {
+    const XLSX = await import("xlsx");
+
+    const dataRefItem = (it: any) => {
+      const prev = String(it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10);
+      const fatal = String(it.data_fatal ?? "").slice(0, 10);
+      return { prev, fatal };
+    };
+
+    const itensExport = itensPainelFiltrados.filter((it: any) => {
+      if (tipos.length > 0 && !tipos.includes(classificarItem(it))) return false;
+      if (inicio || fim) {
+        const { prev, fatal } = dataRefItem(it);
+        const dentro = (d: string) =>
+          !!d && (!inicio || d >= inicio) && (!fim || d <= fim);
+        if (!dentro(prev) && !dentro(fatal)) return false;
+      }
+      return true;
+    });
+
+    // Coletar IDs por origem para buscar responsáveis/envolvidos (N:N)
+    const tarefaIds: string[] = [];
+    const eventoIds: string[] = [];
+    const audienciaIds: string[] = [];
+    for (const it of itensExport) {
+      const rawId = String(it.id);
+      if (rawId.startsWith("audiencia-det-")) {
+        audienciaIds.push(rawId.replace("audiencia-det-", ""));
+      } else if (rawId.startsWith("prazo-tst-")) {
+        // sem N:N — ignorar
+      } else if (it.origem === "tarefa") {
+        tarefaIds.push(rawId);
+      } else if (it.origem === "evento") {
+        eventoIds.push(rawId.split("::")[0]);
+      }
+    }
+
+    const [tarefaResp, tarefaEnv, eventoResp, eventoEnv, audAdv, audEnv] = await Promise.all([
+      tarefaIds.length
+        ? supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", tarefaIds)
+        : Promise.resolve({ data: [] as any[] }),
+      tarefaIds.length
+        ? supabase.from("tarefa_envolvidos").select("tarefa_id, usuario_id").in("tarefa_id", tarefaIds)
+        : Promise.resolve({ data: [] as any[] }),
+      eventoIds.length
+        ? supabase.from("evento_responsaveis").select("evento_id, usuario_id").in("evento_id", eventoIds)
+        : Promise.resolve({ data: [] as any[] }),
+      eventoIds.length
+        ? supabase.from("evento_envolvidos").select("evento_id, usuario_id").in("evento_id", eventoIds)
+        : Promise.resolve({ data: [] as any[] }),
+      audienciaIds.length
+        ? supabase.from("audiencias_advogados").select("audiencia_id, advogado_id").in("audiencia_id", audienciaIds)
+        : Promise.resolve({ data: [] as any[] }),
+      audienciaIds.length
+        ? supabase.from("audiencia_envolvidos").select("audiencia_id, usuario_id").in("audiencia_id", audienciaIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const allProfileIds = new Set<string>();
+    ((tarefaResp.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
+    ((tarefaEnv.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
+    ((eventoResp.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
+    ((eventoEnv.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
+    ((audAdv.data as any[]) || []).forEach((r) => r.advogado_id && allProfileIds.add(r.advogado_id));
+    ((audEnv.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
+    const nomeById = new Map<string, string>();
+    if (allProfileIds.size > 0) {
+      const { data: profs } = await supabase
+        .from("profiles")
+        .select("id, nome")
+        .in("id", Array.from(allProfileIds));
+      (profs || []).forEach((p: any) => p?.id && nomeById.set(p.id, p.nome));
+    }
+
+    const pushNome = (map: Map<string, string[]>, key: string, nome?: string | null) => {
+      if (!nome) return;
+      const arr = map.get(key) ?? [];
+      if (!arr.includes(nome)) arr.push(nome);
+      map.set(key, arr);
+    };
+    const respMap = new Map<string, string[]>();
+    const envMap = new Map<string, string[]>();
+    ((tarefaResp.data as any[]) || []).forEach((r) => pushNome(respMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id)));
+    ((tarefaEnv.data as any[]) || []).forEach((r) => pushNome(envMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id)));
+    ((eventoResp.data as any[]) || []).forEach((r) => pushNome(respMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id)));
+    ((eventoEnv.data as any[]) || []).forEach((r) => pushNome(envMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id)));
+    ((audAdv.data as any[]) || []).forEach((r) => pushNome(respMap, `a:${r.audiencia_id}`, nomeById.get(r.advogado_id)));
+    ((audEnv.data as any[]) || []).forEach((r) => pushNome(envMap, `a:${r.audiencia_id}`, nomeById.get(r.usuario_id)));
+
+    const extractHora = (iso?: string | null) => {
+      if (!iso) return "";
+      const m = String(iso).match(/T(\d{2}:\d{2})/);
+      return m ? m[1] : "";
+    };
+
+    const coordIdsSet = new Set<string>();
+    for (const it of itensExport) {
+      const cid = (it as any).coordenacao_id ?? it.processo?.coordenacao_id;
+      if (cid) coordIdsSet.add(cid);
+    }
+    const coordNomeById = new Map<string, string>();
+    if (coordIdsSet.size > 0) {
+      const { data: coords } = await supabase
+        .from("coordenacoes")
+        .select("id, nome")
+        .in("id", Array.from(coordIdsSet));
+      (coords || []).forEach((c: any) => c?.id && coordNomeById.set(c.id, c.nome));
+    }
+
+    const itensOrdenados = [...itensExport].sort((a, b) => {
+      const da = String(a.data_vencimento ?? a.data_inicio ?? "").slice(0, 10);
+      const db = String(b.data_vencimento ?? b.data_inicio ?? "").slice(0, 10);
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return da.localeCompare(db);
+    });
+
+    const rows = itensOrdenados.map((it) => {
+      const rawId = String(it.id);
+      let key = "";
+      let horario = "";
+      if (rawId.startsWith("audiencia-det-")) {
+        key = `a:${rawId.replace("audiencia-det-", "")}`;
+        horario = it.dia_inteiro ? "" : extractHora(it.data_inicio);
+      } else if (it.origem === "tarefa") {
+        key = `t:${rawId}`;
+        horario = (it.hora_fatal ?? "").slice(0, 5);
+      } else if (it.origem === "evento") {
+        key = `e:${rawId.split("::")[0]}`;
+        horario = it.dia_inteiro ? "" : extractHora(it.data_inicio);
+      }
+      const responsaveisArr = respMap.get(key) ?? [];
+      if (responsaveisArr.length === 0 && it.responsavel?.nome) {
+        responsaveisArr.push(it.responsavel.nome);
+      }
+      const envolvidosArr = envMap.get(key) ?? [];
+      const fmtDate = (v?: string | null) => {
+        const s = (v ?? "").slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+        const [y, m, d] = s.split("-");
+        return `${d}/${m}/${y}`;
+      };
+      return {
+        Classificação: TIPO_LABELS[it.tipo as string] ?? it.tipo_tarefa ?? it.tipo,
+        Título: it.titulo,
+        Status: it.status,
+        "Data prevista": fmtDate(it.data_vencimento ?? it.data_inicio),
+        Horário: horario,
+        "Data fatal": fmtDate(it.data_fatal),
+        Responsáveis: responsaveisArr.join(", "),
+        Envolvidos: envolvidosArr.join(", "),
+        Processo: it.processo?.numero ?? "",
+        Coordenação:
+          coordNomeById.get((it as any).coordenacao_id ?? it.processo?.coordenacao_id ?? "") ?? "",
+      };
+    });
+
+    if (rows.length === 0) {
+      toast.error("Nenhuma atividade encontrada para o período e tipos selecionados.");
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Atividades");
+    const stamp = format(new Date(), "yyyy-MM-dd_HHmm");
+    XLSX.writeFile(wb, `atividades_${stamp}.xlsx`);
+    toast.success(`${rows.length} atividade(s) exportada(s).`);
+  };
+
   // ===== Contagens por classificação, usando a MESMA base do calendário =====
   // Aplica todos os filtros do painel EXCETO o de classificação, de modo que
   // ao clicar num card, o calendário mostra exatamente aqueles itens.
@@ -1471,197 +1646,17 @@ export default function PainelControle() {
                 size="sm"
                 variant="outline"
                 className="h-7 px-2 text-xs gap-1"
-                onClick={async () => {
-                  const XLSX = await import("xlsx");
-                  // Coletar IDs por origem para buscar responsáveis/envolvidos (N:N)
-                  const tarefaIds: string[] = [];
-                  const eventoIds: string[] = [];
-                  const audienciaIds: string[] = [];
-                  for (const it of itensPainelFiltrados) {
-                    const rawId = String(it.id);
-                    if (rawId.startsWith("audiencia-det-")) {
-                      audienciaIds.push(rawId.replace("audiencia-det-", ""));
-                    } else if (rawId.startsWith("prazo-tst-")) {
-                      // sem N:N — ignorar
-                    } else if (it.origem === "tarefa") {
-                      tarefaIds.push(rawId);
-                    } else if (it.origem === "evento") {
-                      eventoIds.push(rawId.split("::")[0]);
-                    }
-                  }
-
-                  const [
-                    tarefaResp,
-                    tarefaEnv,
-                    eventoResp,
-                    eventoEnv,
-                    audAdv,
-                    audEnv,
-                  ] = await Promise.all([
-                    tarefaIds.length
-                      ? supabase
-                          .from("tarefa_responsaveis")
-                          .select("tarefa_id, usuario_id")
-                          .in("tarefa_id", tarefaIds)
-                      : Promise.resolve({ data: [] as any[] }),
-                    tarefaIds.length
-                      ? supabase
-                          .from("tarefa_envolvidos")
-                          .select("tarefa_id, usuario_id")
-                          .in("tarefa_id", tarefaIds)
-                      : Promise.resolve({ data: [] as any[] }),
-                    eventoIds.length
-                      ? supabase
-                          .from("evento_responsaveis")
-                          .select("evento_id, usuario_id")
-                          .in("evento_id", eventoIds)
-                      : Promise.resolve({ data: [] as any[] }),
-                    eventoIds.length
-                      ? supabase
-                          .from("evento_envolvidos")
-                          .select("evento_id, usuario_id")
-                          .in("evento_id", eventoIds)
-                      : Promise.resolve({ data: [] as any[] }),
-                    audienciaIds.length
-                      ? supabase
-                          .from("audiencias_advogados")
-                          .select("audiencia_id, advogado_id")
-                          .in("audiencia_id", audienciaIds)
-                      : Promise.resolve({ data: [] as any[] }),
-                    audienciaIds.length
-                      ? supabase
-                          .from("audiencia_envolvidos")
-                          .select("audiencia_id, usuario_id")
-                          .in("audiencia_id", audienciaIds)
-                      : Promise.resolve({ data: [] as any[] }),
-                  ]);
-
-                  // Carregar nomes dos profiles envolvidos em uma única query
-                  const allProfileIds = new Set<string>();
-                  ((tarefaResp.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
-                  ((tarefaEnv.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
-                  ((eventoResp.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
-                  ((eventoEnv.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
-                  ((audAdv.data as any[]) || []).forEach((r) => r.advogado_id && allProfileIds.add(r.advogado_id));
-                  ((audEnv.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
-                  const nomeById = new Map<string, string>();
-                  if (allProfileIds.size > 0) {
-                    const { data: profs } = await supabase
-                      .from("profiles")
-                      .select("id, nome")
-                      .in("id", Array.from(allProfileIds));
-                    (profs || []).forEach((p: any) => p?.id && nomeById.set(p.id, p.nome));
-                  }
-
-                  const pushNome = (map: Map<string, string[]>, key: string, nome?: string | null) => {
-                    if (!nome) return;
-                    const arr = map.get(key) ?? [];
-                    if (!arr.includes(nome)) arr.push(nome);
-                    map.set(key, arr);
-                  };
-                  const respMap = new Map<string, string[]>();
-                  const envMap = new Map<string, string[]>();
-                  ((tarefaResp.data as any[]) || []).forEach((r) =>
-                    pushNome(respMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id))
-                  );
-                  ((tarefaEnv.data as any[]) || []).forEach((r) =>
-                    pushNome(envMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id))
-                  );
-                  ((eventoResp.data as any[]) || []).forEach((r) =>
-                    pushNome(respMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id))
-                  );
-                  ((eventoEnv.data as any[]) || []).forEach((r) =>
-                    pushNome(envMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id))
-                  );
-                  ((audAdv.data as any[]) || []).forEach((r) =>
-                    pushNome(respMap, `a:${r.audiencia_id}`, nomeById.get(r.advogado_id))
-                  );
-                  ((audEnv.data as any[]) || []).forEach((r) =>
-                    pushNome(envMap, `a:${r.audiencia_id}`, nomeById.get(r.usuario_id))
-                  );
-
-                  const extractHora = (iso?: string | null) => {
-                    if (!iso) return "";
-                    const m = String(iso).match(/T(\d{2}:\d{2})/);
-                    return m ? m[1] : "";
-                  };
-
-                  // Carrega nomes das coordenações usadas nos itens
-                  const coordIdsSet = new Set<string>();
-                  for (const it of itensPainelFiltrados) {
-                    const cid = (it as any).coordenacao_id ?? it.processo?.coordenacao_id;
-                    if (cid) coordIdsSet.add(cid);
-                  }
-                  const coordNomeById = new Map<string, string>();
-                  if (coordIdsSet.size > 0) {
-                    const { data: coords } = await supabase
-                      .from("coordenacoes")
-                      .select("id, nome")
-                      .in("id", Array.from(coordIdsSet));
-                    (coords || []).forEach((c: any) => c?.id && coordNomeById.set(c.id, c.nome));
-                  }
-
-                  const itensOrdenados = [...itensPainelFiltrados].sort((a, b) => {
-                    const da = String(a.data_vencimento ?? a.data_inicio ?? "").slice(0, 10);
-                    const db = String(b.data_vencimento ?? b.data_inicio ?? "").slice(0, 10);
-                    if (!da && !db) return 0;
-                    if (!da) return 1;
-                    if (!db) return -1;
-                    return da.localeCompare(db);
-                  });
-                  const rows = itensOrdenados.map((it) => {
-                    const rawId = String(it.id);
-                    let key = "";
-                    let horario = "";
-                    if (rawId.startsWith("audiencia-det-")) {
-                      key = `a:${rawId.replace("audiencia-det-", "")}`;
-                      horario = it.dia_inteiro ? "" : extractHora(it.data_inicio);
-                    } else if (it.origem === "tarefa") {
-                      key = `t:${rawId}`;
-                      horario = (it.hora_fatal ?? "").slice(0, 5);
-                    } else if (it.origem === "evento") {
-                      key = `e:${rawId.split("::")[0]}`;
-                      horario = it.dia_inteiro ? "" : extractHora(it.data_inicio);
-                    }
-                    const responsaveisArr = respMap.get(key) ?? [];
-                    // fallback para o responsável 1:1 quando não há N:N cadastrado
-                    if (responsaveisArr.length === 0 && it.responsavel?.nome) {
-                      responsaveisArr.push(it.responsavel.nome);
-                    }
-                    const envolvidosArr = envMap.get(key) ?? [];
-                    const fmtDate = (v?: string | null) => {
-                      const s = (v ?? "").slice(0, 10);
-                      if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
-                      const [y, m, d] = s.split("-");
-                      return `${d}/${m}/${y}`;
-                    };
-                    return {
-                      Classificação: TIPO_LABELS[it.tipo as string] ?? it.tipo_tarefa ?? it.tipo,
-                      Título: it.titulo,
-                      Status: it.status,
-                      "Data prevista": fmtDate(it.data_vencimento ?? it.data_inicio),
-                      Horário: horario,
-                      "Data fatal": fmtDate(it.data_fatal),
-                      Responsáveis: responsaveisArr.join(", "),
-                      Envolvidos: envolvidosArr.join(", "),
-                      Processo: it.processo?.numero ?? "",
-                      Coordenação:
-                        coordNomeById.get(
-                          (it as any).coordenacao_id ?? it.processo?.coordenacao_id ?? ""
-                        ) ?? "",
-                    };
-                  });
-                  const ws = XLSX.utils.json_to_sheet(rows);
-                  const wb = XLSX.utils.book_new();
-                  XLSX.utils.book_append_sheet(wb, ws, "Atividades");
-                  const stamp = format(new Date(), "yyyy-MM-dd_HHmm");
-                  XLSX.writeFile(wb, `atividades_${stamp}.xlsx`);
-                }}
-                title="Exportar atividades filtradas para Excel"
+                onClick={() => setExportOpen(true)}
+                title="Exportar atividades por período e tipo"
               >
                 <Download className="w-3.5 h-3.5" />
                 Exportar
               </Button>
+              <ExportarAtividadesDialog
+                open={exportOpen}
+                onOpenChange={setExportOpen}
+                onExportar={exportarAtividades}
+              />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" className="h-7 px-3 text-xs gap-1">
