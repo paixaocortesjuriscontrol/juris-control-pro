@@ -271,6 +271,9 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
 
       const audienciaCriada = { id: novaAudienciaId } as { id?: string };
 
+      // Etapas complementares (responsáveis, envolvidos, lembretes, avisos):
+      // nunca devem invalidar a audiência já gravada.
+      try {
       // Inserir advogados responsáveis na tabela de junção
       if (advogados_ids && advogados_ids.length > 0 && audienciaCriada.id) {
         const advogadosInsert = advogados_ids.map(advogadoId => ({
@@ -379,6 +382,10 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
             // Não bloqueia o fluxo principal
           }
         }
+      }
+
+      } catch (posErr) {
+        console.error('[criarAudiencia] etapas complementares falharam:', posErr);
       }
 
       return audienciaCriada;
