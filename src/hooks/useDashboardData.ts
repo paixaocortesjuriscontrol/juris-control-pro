@@ -201,7 +201,7 @@ export function useCoordenacoes() {
         nome,
         area,
         coordenador:profiles!coordenacoes_coordenador_id_fkey(id, nome, email, telefone)
-      `);
+      `).order("nome");
 
       if (!isAdmin && coordenacoesIds) {
         coordQuery = coordQuery.in("id", coordenacoesIds);

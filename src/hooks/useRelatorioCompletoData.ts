@@ -120,7 +120,8 @@ export function useRelatorioCompletoData(enabled = true) {
           nome,
           area,
           coordenador:profiles!coordenacoes_coordenador_id_fkey(nome)
-        `);
+        `)
+        .order("nome");
       if (coordenacoesError) throw coordenacoesError;
 
       const { data: statsData, error: statsError } = await supabase.rpc("get_coordenacao_stats");
