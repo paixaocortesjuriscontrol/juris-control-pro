@@ -752,6 +752,9 @@ serve(async (req) => {
           fonte: "app_cache_instant",
           respondido_do_cache: true,
           app_cache: true,
+          instancia_tst: appCached?._instancia_tst === false
+            ? false
+            : (String(appCached?.tribunal || "").toUpperCase() === "TST" || undefined),
           com_anexos: false,
           force_refresh: false,
           elapsed_ms: Date.now() - t0,
@@ -806,9 +809,10 @@ serve(async (req) => {
       !comAnexos &&
       !forceRefresh &&
       (Array.isArray(cached?.parties) && cached.parties.length > 0) &&
-      (tribunalHint === "TST"
-        ? isTstRd(cached)
-        : (isTstRd(cached) || cachedTemSinal));
+      // Aceita cache de qualquer instância desde que haja dado útil, inclusive
+      // quando a tela pediu TST. Sem isso, todo processo que ainda só tem TRT
+      // pagava 60–124s de crawler a cada clique.
+      (isTstRd(cached) || cachedTemSinal);
 
     if (cacheUsavel) {
       rdSelecionada = cached;
