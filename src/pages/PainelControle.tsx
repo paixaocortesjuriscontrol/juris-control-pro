@@ -1517,7 +1517,7 @@ export default function PainelControle() {
         </div>
       }
     >
-    <div className="flex flex-col min-w-0 max-w-full overflow-x-hidden -m-4 md:-m-6 md:h-[calc(100vh-64px)]">
+    <div className="flex flex-col min-w-0 -m-4 md:-m-6 md:h-[calc(100vh-64px)]">
         {/* Header */}
         <div className="px-4 md:px-6 py-3 md:py-4 bg-card border-b border-border flex-shrink-0 space-y-2">
           {relatorioAudOpen && (
@@ -1532,7 +1532,7 @@ export default function PainelControle() {
               <Button
                 size="sm"
                 variant={tabMode === "pessoal" ? "default" : "outline"}
-                className="h-7 px-3 text-xs"
+                className="h-7 px-2 text-[11px]"
                 onClick={() => setTabMode("pessoal")}
               >
                 Pessoal
@@ -1540,7 +1540,7 @@ export default function PainelControle() {
               <Button
                 size="sm"
                 variant={tabMode === "escritorio" ? "default" : "outline"}
-                className="h-7 px-3 text-xs"
+                className="h-7 px-2 text-[11px]"
                 onClick={() => setTabMode("escritorio")}
               >
                 Escritório
@@ -1549,7 +1549,7 @@ export default function PainelControle() {
             <Button
               size="sm"
               variant={somenteHoje ? "default" : "outline"}
-              className="h-7 px-3 text-xs"
+              className="h-7 px-2 text-[11px]"
               onClick={() => setSomenteHoje((v) => !v)}
               title="Exibir apenas itens de hoje"
             >
@@ -1600,7 +1600,7 @@ export default function PainelControle() {
                 <Button
                   size="sm"
                   variant={viewMode === "agenda" ? "default" : "outline"}
-                  className="h-7 px-3 text-xs"
+                  className="h-7 px-2 text-[11px]"
                   onClick={() => setViewMode("agenda")}
                   title="Visão em agenda"
                 >
@@ -1609,7 +1609,7 @@ export default function PainelControle() {
                 <Button
                   size="sm"
                   variant={viewMode === "lista" ? "default" : "outline"}
-                  className="h-7 px-3 text-xs"
+                  className="h-7 px-2 text-[11px]"
                   onClick={() => setViewMode("lista")}
                   title="Visão em lista"
                 >
@@ -1618,7 +1618,7 @@ export default function PainelControle() {
                 <Button
                   size="sm"
                   variant={viewMode === "kanban" ? "default" : "outline"}
-                  className="h-7 px-3 text-xs"
+                  className="h-7 px-2 text-[11px]"
                   onClick={() => setViewMode("kanban")}
                   title="Visão em Kanban (obedece os filtros)"
                 >
@@ -1627,7 +1627,7 @@ export default function PainelControle() {
                 <Button
                   size="sm"
                   variant={viewMode === "equipe" ? "default" : "outline"}
-                  className="h-7 px-3 text-xs"
+                  className="h-7 px-2 text-[11px]"
                   onClick={() => setViewMode("equipe")}
                   title="Painel da Equipe (obedece os filtros)"
                 >
@@ -1636,7 +1636,7 @@ export default function PainelControle() {
                 <Button
                   size="sm"
                   variant={viewMode === "notificacoes" ? "default" : "destructive"}
-                  className="h-7 px-3 text-xs"
+                  className="h-7 px-2 text-[11px]"
                   onClick={() => setViewMode("notificacoes")}
                   title="Central de notificações (mantém menu e filtros)"
                 >
@@ -1657,7 +1657,7 @@ export default function PainelControle() {
                       key={f.key}
                       size="sm"
                       variant={active ? "default" : "outline"}
-                      className="h-7 px-3 text-xs"
+                      className="h-7 px-2 text-[11px]"
                       onClick={() =>
                         setPainelFiltros((s) => ({
                           ...s,
@@ -1673,7 +1673,7 @@ export default function PainelControle() {
                 <Button
                   size="sm"
                   variant={painelFiltros.classificacoes.length === 0 ? "default" : "outline"}
-                  className="h-7 px-3 text-xs"
+                  className="h-7 px-2 text-[11px]"
                   onClick={() =>
                     setPainelFiltros((s) => ({ ...s, classificacoes: [] }))
                   }
@@ -2173,7 +2173,7 @@ export default function PainelControle() {
           </div>
 
           {!selectedItem && !novoItemTipo && diaLateralKey && (
-            <aside className="flex flex-1 lg:flex-none lg:w-[420px] xl:w-[460px] min-w-0 lg:max-w-[55%] border-l border-border bg-background flex-col min-h-0 overflow-hidden">
+            <aside className="flex flex-none w-full lg:w-[420px] xl:w-[460px] border-l border-border bg-background flex-col min-h-0 overflow-hidden">
               <DiaAgendaLateral
                 dia={new Date(`${diaLateralKey}T12:00:00`)}
                 itens={itensPorDia.get(diaLateralKey) || []}
@@ -2188,7 +2188,7 @@ export default function PainelControle() {
           )}
 
           {selectedItem && (
-            <aside className="flex flex-1 lg:flex-none lg:w-[640px] xl:w-[720px] min-w-0 lg:max-w-[55%] border-l border-border bg-background flex-col min-h-0 overflow-hidden">
+            <aside className="flex flex-none w-full lg:w-[640px] xl:w-[720px] border-l border-border bg-background flex-col min-h-0 overflow-hidden">
               <EdicaoItemPanel
                 key={selectedItem.id}
                 item={selectedItem}
@@ -2201,7 +2201,7 @@ export default function PainelControle() {
           )}
 
           {!selectedItem && novoItemTipo && (
-            <aside className="flex flex-1 lg:flex-none lg:w-[640px] xl:w-[720px] min-w-0 lg:max-w-[55%] border-l border-border bg-background flex-col min-h-0 overflow-hidden">
+            <aside className="flex flex-none w-full lg:w-[640px] xl:w-[720px] border-l border-border bg-background flex-col min-h-0 overflow-hidden">
               <NovoItemPanel
                 tipo={novoItemTipo}
                 onClose={() => setNovoItemTipo(null)}
