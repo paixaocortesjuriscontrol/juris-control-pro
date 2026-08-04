@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -344,7 +345,10 @@ export function TarefaDetalhesPanel({
                       size="sm"
                       className="h-6 px-1 text-xs"
                       title="Abrir em Processos e Casos"
-                      onClick={() => window.open(`/processos/${tarefa.processo.id}`, "_blank", "noopener")}
+                      onClick={() => {
+                        onClose();
+                        navigate(`/processos/${tarefa.processo.id}`);
+                      }}
                     >
                       <ExternalLink className="mr-1 h-3 w-3" />
                       Ver processo
