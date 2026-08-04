@@ -565,61 +565,80 @@ export default function ImportarTarefas() {
         if (!sheetName) throw new Error("Planilha sem abas");
         
         const sheet = workbook.Sheets[sheetName];
-        rows = XLSX.utils.sheet_to_json(sheet, { defval: null, range: 2 });
+        // Detecta automaticamente a linha de cabeçalho (Projuris varia: linha 1 ou linha 3)
+        const matrix: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, blankrows: false }) as any[][];
+        let headerRow = -1;
+        for (let i = 0; i < Math.min(matrix.length, 15); i++) {
+          const cells = (matrix[i] || []).map((c) => normalizeHeader(c));
+          if (cells.some((c) => c.startsWith("identificador")) && cells.filter(Boolean).length >= 3) {
+            headerRow = i;
+            break;
+          }
+        }
+        if (headerRow === -1) throw new Error("Não foi possível localizar a linha de cabeçalho da planilha");
+        rows = XLSX.utils.sheet_to_json(sheet, { defval: null, range: headerRow });
       }
 
       setParseProgress(60);
 
-      const parsed: TarefaImport[] = rows.map((row, index): TarefaImport => {
-        const identificador = String(row["Identificador da tarefa"] || "").trim();
-        const titulo = String(row["Título"] || row["Titulo"] || "").trim();
-        const situacao = String(row["Situação"] || row["Situacao"] || "").trim() || null;
-        const dataFatal = row["Data fatal"] || null;
+      const parsed: TarefaImport[] = rows.map((rawRow, index): TarefaImport => {
+        const row = buildRowLookup(rawRow);
+        const pick = (...keys: string[]) => {
+          for (const k of keys) {
+            const v = row[normalizeHeader(k)];
+            if (v !== null && v !== undefined && String(v).trim() !== "") return v;
+          }
+          return null;
+        };
+        const identificador = String(pick("Identificador da tarefa", "Identificador") || "").trim();
+        const titulo = String(pick("Título", "Titulo", "Descrição", "Descricao", "Descrição da tarefa") || "").trim();
+        const situacao = String(pick("Situação", "Situacao") || "").trim() || null;
+        const dataFatal = pick("Data fatal", "Data Fatal");
         
         const tarefa: TarefaImport = {
           identificador,
-          tipo: row["Tipo de tarefa"] || null,
+          tipo: pick("Tipo de tarefa", "Tipo de Tarefa", "Tipo de Atividade"),
           titulo,
-          dataCriacao: row["Data de criação"] || row["Data de criacao"] || null,
-          horaCriacao: row["Hora de criação"] || row["Hora de criacao"] || null,
-          dataBase: row["Data base"] || null,
-          dataPrevista: row["Data prevista"] || null,
-          horaPrevista: row["Hora prevista"] || null,
+          dataCriacao: pick("Data de criação", "Data de criacao", "Data da Inclusão", "Data da Inclusao"),
+          horaCriacao: pick("Hora de criação", "Hora de criacao"),
+          dataBase: pick("Data base", "Data de Início do Compromisso", "Data de Inicio do Compromisso"),
+          dataPrevista: pick("Data prevista", "Data de Conclusão Prevista", "Data de Conclusao Prevista", "Data de Término do Compromisso", "Data de Termino do Compromisso"),
+          horaPrevista: pick("Hora prevista", "Horário do Compromisso", "Horario do Compromisso"),
           dataFatal,
-          horaFatal: row["Hora fatal"] || null,
-          dataConclusao: row["Data da conclusão"] || row["Data da conclusao"] || null,
-          horaConclusao: row["Hora da conclusão"] || row["Hora da conclusao"] || null,
+          horaFatal: pick("Hora fatal", "Hora Fatal"),
+          dataConclusao: pick("Data da conclusão", "Data da conclusao", "Data de Conclusão", "Data de Conclusao"),
+          horaConclusao: pick("Hora da conclusão", "Hora da conclusao", "Hora da Conclusão"),
           situacao,
-          linkLocal: row["Link/Local"] || null,
-          descricao: row["Descrição da tarefa"] || row["Descricao da tarefa"] || null,
-          responsaveis: row["Responsáveis da tarefa"] || row["Responsaveis da tarefa"] || null,
-          gruposTrabalho: row["Grupos de trabalho"] || null,
-          criadaPor: row["Criada por"] || null,
-          concluidaPor: row["Concluída por"] || row["Concluida por"] || null,
-          marcadores: row["Marcadores"] || null,
-          comentarios: row["Comentários"] || row["Comentarios"] || null,
-          identificadorTimesheet: row["Identificador do timesheet"] || null,
-          totalHorasTimesheet: row["Total de horas do timesheet"] || null,
-          quadroKanban: row["Quadro Kanban"] || null,
-          modulo: row["Módulo"] || row["Modulo"] || null,
-          identificadorModulo: row["Identificador do módulo"] || row["Identificador do modulo"] || null,
-          numeroProcesso: row["Número do processo"] || row["Numero do processo"] || null,
-          assunto: row["Assunto"] || null,
-          situacaoProcesso: row["Situação do processo"] || row["Situacao do processo"] || null,
-          instancia: row["Instância"] || row["Instancia"] || null,
-          vara: row["Vara"] || null,
-          fase: row["Fase"] || null,
-          descricaoUltimoAndamento: row["Descrição do último andamento"] || row["Descricao do ultimo andamento"] || null,
-          partesAtivas: row["Envolvidos do processo (partes ativas)"] || null,
-          partesPassivas: row["Envolvidos do processo (partes passivas)"] || null,
-          outrasPartes: row["Envolvidos do processo (outras partes)"] || null,
-          envolvimentoClientes: row["Envolvidos do atendimento (clientes)"] || null,
-          envolvimentoContrarios: row["Envolvidos do atendimento (contrários)"] || row["Envolvidos do atendimento (contrarios)"] || null,
-          pastaFisica: row["Pasta física"] || row["Pasta fisica"] || null,
-          pastaCliente: row["Pasta do cliente"] || null,
-          orgao: row["Órgão"] || row["Orgao"] || null,
-          orgaoJulgador: row["Órgão julgador"] || row["Orgao julgador"] || null,
-          marcadoresVinculo: row["Marcadores do vínculo"] || row["Marcadores do vinculo"] || null,
+          linkLocal: pick("Link/Local"),
+          descricao: pick("Descrição da tarefa", "Descricao da tarefa", "Descrição", "Descricao"),
+          responsaveis: pick("Responsáveis da tarefa", "Responsaveis da tarefa", "Responsáveis", "Responsaveis"),
+          gruposTrabalho: pick("Grupos de trabalho", "Grupos de Trabalho"),
+          criadaPor: pick("Criada por"),
+          concluidaPor: pick("Concluída por", "Concluida por"),
+          marcadores: pick("Marcadores"),
+          comentarios: pick("Comentários", "Comentarios"),
+          identificadorTimesheet: pick("Identificador do timesheet", "Identificador do Apontamento"),
+          totalHorasTimesheet: pick("Total de horas do timesheet"),
+          quadroKanban: pick("Quadro Kanban"),
+          modulo: pick("Módulo", "Modulo", "Vínculo", "Vinculo"),
+          identificadorModulo: pick("Identificador do módulo", "Identificador do modulo", "Identificador do Módulo Vinculado", "Identificador do Modulo Vinculado"),
+          numeroProcesso: pick("Número do processo", "Numero do processo", "Processo Vinculado"),
+          assunto: pick("Assunto"),
+          situacaoProcesso: pick("Situação do processo", "Situacao do processo"),
+          instancia: pick("Instância", "Instancia"),
+          vara: pick("Vara"),
+          fase: pick("Fase"),
+          descricaoUltimoAndamento: pick("Descrição do último andamento", "Descricao do ultimo andamento"),
+          partesAtivas: pick("Envolvidos do processo (partes ativas)", "Parte Ativa"),
+          partesPassivas: pick("Envolvidos do processo (partes passivas)", "Parte Passiva"),
+          outrasPartes: pick("Envolvidos do processo (outras partes)"),
+          envolvimentoClientes: pick("Envolvidos do atendimento (clientes)", "Cliente - Atendimento", "Cliente"),
+          envolvimentoContrarios: pick("Envolvidos do atendimento (contrários)", "Envolvidos do atendimento (contrarios)", "Contrário - Atendimento", "Contrario - Atendimento"),
+          pastaFisica: pick("Pasta física", "Pasta fisica"),
+          pastaCliente: pick("Pasta do cliente"),
+          orgao: pick("Órgão", "Orgao"),
+          orgaoJulgador: pick("Órgão julgador", "Orgao julgador"),
+          marcadoresVinculo: pick("Marcadores do vínculo", "Marcadores do vinculo"),
           status: "pendente",
           erros: [],
           linhaOriginal: index + 2,
@@ -630,7 +649,7 @@ export default function ImportarTarefas() {
 
         tarefa.status = "valido";
         return tarefa;
-      }).filter(t => t.identificador && t.identificador !== "Identificador da tarefa");
+      }).filter(t => t.identificador && !normalizeHeader(t.identificador).startsWith("identificador"));
 
       setParseProgress(100);
       setTarefas(parsed);
