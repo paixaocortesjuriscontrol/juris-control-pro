@@ -5,6 +5,7 @@ import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   Dialog,
@@ -133,6 +134,7 @@ export function PrazoDialog({
 }: PrazoDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const createPrazo = useCreatePrazo();
   const updatePrazo = useUpdatePrazo();
   const secondaryClickedRef = useRef(false);
@@ -712,7 +714,10 @@ export function PrazoDialog({
                       size="sm"
                       className="h-6 px-1 text-xs"
                       title="Abrir em Processos e Casos"
-                      onClick={() => window.open(`/processos/${processoVinculado.id}`, "_blank", "noopener")}
+                      onClick={() => {
+                        onOpenChange(false);
+                        navigate(`/processos/${processoVinculado.id}`);
+                      }}
                     >
                       <ExternalLink className="mr-1 h-3 w-3" />
                       Ver processo
