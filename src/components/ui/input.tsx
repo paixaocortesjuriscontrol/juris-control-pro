@@ -50,7 +50,7 @@ function setValorNativo(el: HTMLInputElement, valor: string) {
 }
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, onPaste, onCopy, onChange, min, max, ...props }, ref) => {
+  ({ className, type, onPaste, onCopy, onChange, onBlur, min, max, ...props }, ref) => {
     // Limites de segurança para datas: evita anos inválidos (ex.: 20206)
     const ehData = type === "date" || type === "datetime-local";
     const minData = min ?? (type === "date" ? DATA_MIN : `${DATA_MIN}T00:00`);
@@ -69,7 +69,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
           setValorNativo(e.currentTarget, "");
         }
       }
-      props.onBlur?.(e);
+      onBlur?.(e);
     };
 
     // Campos de data/hora nativos não aceitam colar nem copiar texto.

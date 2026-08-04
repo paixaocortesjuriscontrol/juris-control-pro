@@ -1379,8 +1379,8 @@ export default function PainelControle() {
                 </Select>
               </div>
             )}
-            <div className="ml-auto flex items-center gap-1.5">
-              <div className="hidden md:flex gap-1 mr-1">
+            <div className="md:ml-auto flex items-center gap-1.5 flex-wrap min-w-0">
+              <div className="flex flex-wrap gap-1 mr-1">
                 <Button
                   size="sm"
                   variant={viewMode === "agenda" ? "default" : "outline"}
