@@ -48,9 +48,7 @@ function setValorNativo(el: HTMLInputElement, valor: string) {
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
   ({ className, type, onPaste, onCopy, onChange, onBlur, min, max, ...props }, ref) => {
-    // Não aplicamos min/max nativo em datas: o navegador interfere na digitação
-    // do ano (auto-corrige/embaralha). A faixa é validada apenas no blur.
-    const ehData = type === "date" || type === "datetime-local";
+    // Sem limites nativos nem clamp em datas: digitação totalmente livre.
 
     // Enquanto o usuário digita (ex.: 01/01/2000 → anos parciais "0002"),
     // não bloqueamos o valor: a validação da faixa acontece no blur.
