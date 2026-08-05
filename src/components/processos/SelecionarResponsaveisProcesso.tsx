@@ -78,9 +78,11 @@ export function SelecionarResponsaveisProcesso({
 
   const coordenacoes = coordenacoesDoUsuario;
 
-  // Fetch todos os membros de coordenação
+  // Fetch todos os membros de coordenação.
+  // Importante: nomes vêm de `profiles_basic` (visível a todos os perfis),
+  // pois `profiles` é restrito por RLS e deixava o nome vazio ("Usuário").
   const { data: todosMembros = [] } = useQuery({
-    queryKey: ["membros-coordenacao-todos"],
+    queryKey: ["membros-coordenacao-todos-basic"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("membros_coordenacao")
@@ -88,12 +90,24 @@ export function SelecionarResponsaveisProcesso({
           id,
           coordenacao_id,
           usuario_id,
-          usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome),
           coordenacao:coordenacoes!membros_coordenacao_coordenacao_id_fkey(id, nome)
         `)
         .order("usuario_id");
       if (error) throw error;
-      return data || [];
+      const rows = data || [];
+      const ids = [...new Set(rows.map((r: any) => r.usuario_id).filter(Boolean))];
+      const nomes = new Map<string, string>();
+      if (ids.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles_basic" as any)
+          .select("id, nome")
+          .in("id", ids);
+        ((profs as any[]) || []).forEach((p: any) => nomes.set(p.id, p.nome));
+      }
+      return rows.map((r: any) => ({
+        ...r,
+        usuario: { id: r.usuario_id, nome: nomes.get(r.usuario_id) || "Usuário" },
+      }));
     },
   });
 
@@ -109,13 +123,25 @@ export function SelecionarResponsaveisProcesso({
           usuario_id,
           coordenacao_id,
           papel,
-          usuario:profiles!processos_responsaveis_usuario_id_fkey(id, nome),
           coordenacao:coordenacoes!processos_responsaveis_coordenacao_id_fkey(id, nome)
         `)
         .eq("processo_id", processoId)
         .eq("ativo", true);
       if (error) throw error;
-      return data || [];
+      const rows = data || [];
+      const ids = [...new Set(rows.map((r: any) => r.usuario_id).filter(Boolean))];
+      const nomes = new Map<string, string>();
+      if (ids.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles_basic" as any)
+          .select("id, nome")
+          .in("id", ids);
+        ((profs as any[]) || []).forEach((p: any) => nomes.set(p.id, p.nome));
+      }
+      return rows.map((r: any) => ({
+        ...r,
+        usuario: { id: r.usuario_id, nome: nomes.get(r.usuario_id) || "Usuário" },
+      }));
     },
     enabled: !!processoId,
   });
@@ -127,11 +153,21 @@ export function SelecionarResponsaveisProcesso({
       if (!processoId) return null;
       const { data, error } = await supabase
         .from("processos")
-        .select("advogado_responsavel_id, coordenacao_id, advogado:profiles!processos_advogado_responsavel_id_fkey(id, nome)")
+        .select("advogado_responsavel_id, coordenacao_id")
         .eq("id", processoId)
         .maybeSingle();
       if (error) throw error;
-      return data as any;
+      if (!data) return null;
+      let advogado: { id: string; nome: string } | null = null;
+      if (data.advogado_responsavel_id) {
+        const { data: prof } = await supabase
+          .from("profiles_basic" as any)
+          .select("id, nome")
+          .eq("id", data.advogado_responsavel_id)
+          .maybeSingle();
+        if (prof) advogado = { id: (prof as any).id, nome: (prof as any).nome };
+      }
+      return { ...data, advogado } as any;
     },
     enabled: !!processoId,
   });
