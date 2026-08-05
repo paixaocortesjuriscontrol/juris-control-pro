@@ -564,10 +564,10 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             </div>
             <ScrollAreaOrDiv embedded={embedded}>
               <form onSubmit={handleSubmit} className="space-y-5 pb-6" id="evento-form-content">
-            {situacao !== situacaoInicial && situacaoExigeComentario(situacao) && (
+            {situacao !== situacaoInicial && (
               <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
                 <Label className="text-xs font-semibold">
-                  Comentário obrigatório da mudança de situação
+                  Comentário da mudança de situação (opcional)
                 </Label>
                 <Textarea
                   value={comentarioSituacao}
