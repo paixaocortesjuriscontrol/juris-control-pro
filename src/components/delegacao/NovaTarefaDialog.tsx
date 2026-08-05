@@ -2,7 +2,7 @@ import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
-import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
+import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
@@ -936,6 +936,15 @@ export function NovaTarefaDialog({
                             if (atual === undefined || String(atual ?? "").trim() === "") {
                               form.setValue(k as any, v, { shouldDirty: true });
                             }
+                          }
+                          // Prazo pré-programado no modelo → data prevista a partir
+                          // da data base (data da publicação, se houver, ou hoje)
+                          const prazoCalculado = resolverPrazoModelo(
+                            m,
+                            publicacao?.data_disponibilizacao || publicacao?.data_publicacao || null,
+                          );
+                          if (prazoCalculado && !String(form.getValues("data_vencimento") ?? "").trim()) {
+                            form.setValue("data_vencimento" as any, prazoCalculado, { shouldDirty: true });
                           }
                         }}
                         />
