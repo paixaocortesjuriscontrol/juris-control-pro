@@ -1,5 +1,5 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
-import { situacoesDisponiveis } from "@/constants/situacoesItem";
+import { situacoesDisponiveis, situacaoExigeComentario } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
@@ -151,6 +151,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const [processoId, setProcessoId] = useState("");
   const [processoSearch, setProcessoSearch] = useState("");
   const [situacao, setSituacao] = useState<string>("pendente");
+  const [situacaoInicial, setSituacaoInicial] = useState<string>("pendente");
+  const [comentarioSituacao, setComentarioSituacao] = useState("");
   const { podeCancelar } = usePodeCancelarItens();
 
   // Recorrência
@@ -179,6 +181,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
     setEnvolvidosIds([]);
     setMostrarEnvolvidos(false);
     setSituacao("pendente");
+    setSituacaoInicial("pendente");
+    setComentarioSituacao("");
     setRecorrenciaTipo("nenhuma");
     setRecorrenciaIntervalo(1);
     setRecorrenciaFim("");
