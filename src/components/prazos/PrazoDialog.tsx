@@ -714,6 +714,20 @@ export function PrazoDialog({
           </div>
         </div>
 
+        {situacao !== situacaoInicial && situacaoExigeComentario(situacao) && (
+          <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+            <Label className="text-xs font-semibold">
+              Comentário obrigatório da mudança de situação
+            </Label>
+            <Textarea
+              value={comentarioSituacao}
+              onChange={(e) => setComentarioSituacao(e.target.value)}
+              placeholder="Explique o motivo da mudança de situação..."
+              className="min-h-[64px] text-sm"
+            />
+          </div>
+        )}
+
         {hasPublicacao && !hidePublicacaoCollapsible && (
           <PublicacaoVinculadaCollapsible publicacao={publicacaoEfetiva as any} />
         )}
