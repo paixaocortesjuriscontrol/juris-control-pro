@@ -134,7 +134,26 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">;
 
+function isLegacyRequiredStatusCommentToast(props: Toast): boolean {
+  const content = `${String(props.title ?? "")} ${String(props.description ?? "")}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  return content.includes("informe um comentario justificando a mudanca de situacao");
+}
+
 function toast({ ...props }: Toast) {
+  // Comentários de mudança de situação são opcionais em todos os tipos de item.
+  // Impede que chamadas legadas ainda carregadas no navegador exibam o aviso antigo.
+  if (isLegacyRequiredStatusCommentToast(props)) {
+    return {
+      id: "ignored-legacy-status-comment-toast",
+      dismiss: () => undefined,
+      update: () => undefined,
+    };
+  }
+
   const id = genId();
 
   const update = (props: ToasterToast) =>
