@@ -267,6 +267,20 @@ const AnaliseDjen = () => {
   // Item do card verde aberto para edição inline.
   const [itemEmEdicao, setItemEmEdicao] = useState<{ tipo: ItemCriado["tipo"]; id: string } | null>(null);
 
+  // ---------------------------------------------------------------------------
+  // Pilha de ações da sessão para o botão "Desfazer último".
+  // Cobre marcação de leitura, descarte em lote e criação de item a partir da
+  // publicação. A pilha é apenas em memória (vale para a sessão da tela).
+  // ---------------------------------------------------------------------------
+  type AcaoSessao =
+    | { tipo: "leitura"; label: string; alvos: { id: string; tabela: string }[] }
+    | { tipo: "descarte"; label: string; ids: string[] }
+    | { tipo: "item"; label: string; itemTipo: ItemCriado["tipo"]; id: string };
+  const [acoesSessao, setAcoesSessao] = useState<(AcaoSessao & { at: number })[]>([]);
+  const [desfazendoAcao, setDesfazendoAcao] = useState(false);
+  const registrarAcaoSessao = (a: AcaoSessao) =>
+    setAcoesSessao((prev) => [...prev, { ...a, at: Date.now() }]);
+
   // Resolve o processo existente na base via número da publicação para pré-preencher os formulários
   const resolverProcessoDaPublicacao = async (pub: PublicacaoUnificada) => {
     setAdicionarProcessoId(undefined);
