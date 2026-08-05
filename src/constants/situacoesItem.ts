@@ -29,19 +29,12 @@ const EXTRAS_PRAZO_TAREFA: SituacaoOption[] = [
 ];
 
 /**
- * Situações que exigem um comentário justificando a mudança.
- * O comentário é gravado no histórico do item.
+ * Comentário na mudança de situação é SEMPRE opcional.
+ * Nenhuma situação (de tarefa, prazo, evento, audiência ou parcelamento)
+ * pode exigir comentário para salvar. Mantido apenas por compatibilidade.
  */
-const SITUACOES_COM_COMENTARIO = new Set([
-  "concluido_sem_sucesso",
-  "cancelado",
-  "reagendado",
-  "revisao",
-  "minutado_revisao",
-]);
-
-export function situacaoExigeComentario(valor?: string | null): boolean {
-  return !!valor && SITUACOES_COM_COMENTARIO.has(valor);
+export function situacaoExigeComentario(_valor?: string | null): boolean {
+  return false;
 }
 
 export function situacoesBase(tipo: TipoSituacaoItem): SituacaoOption[] {
