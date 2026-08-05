@@ -323,9 +323,9 @@ serve(async (req) => {
 
         const { data: membros } = await supabase
           .from("membros_coordenacao")
-          .select("user_id")
+          .select("usuario_id")
           .eq("coordenacao_id", linha.coordenacaoId);
-        const memberIds = (membros || []).map((m: any) => m.user_id).filter(Boolean);
+        const memberIds = (membros || []).map((m: any) => m.usuario_id).filter(Boolean);
         if (memberIds.length > 0) {
           const { data: roles } = await supabase
             .from("user_roles")
