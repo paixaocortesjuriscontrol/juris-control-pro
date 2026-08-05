@@ -203,7 +203,7 @@ export function PendenciasProcessoCard({
                   onClick={() => navigateCard("audiencias")}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-foreground">{aud.tipo_audiencia || "Audiência"}</span>
+                    <span className="font-semibold text-foreground">{aud.titulo || aud.tipo_audiencia || "Audiência"}</span>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {days && (
                         <Badge className={cn(
