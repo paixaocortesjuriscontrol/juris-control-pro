@@ -382,6 +382,8 @@ export function PrazoDialog({
     setDataFatal(undefined);
     setCoordenacaoId(unicaCoordenacaoId || "");
     setSituacao("pendente");
+    setSituacaoInicial("pendente");
+    setComentarioSituacao("");
     setRecorrenciaTipo("nenhuma");
     setRecorrenciaIntervalo(1);
     setRecorrenciaOcorrencias("");
