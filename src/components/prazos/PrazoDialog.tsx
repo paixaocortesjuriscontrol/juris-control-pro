@@ -723,6 +723,9 @@ export function PrazoDialog({
                       Ver processo
                     </Button>
                   )}
+                  {processoVinculado.id && (
+                    <ProcessoResumoInline processoId={String(processoVinculado.id)} />
+                  )}
                 </div>
                 {(processoVinculado.reclamante || processoVinculado.autor || processoVinculado.reclamados || processoVinculado.requerido) && (
                   <p className="text-xs text-muted-foreground break-words">
