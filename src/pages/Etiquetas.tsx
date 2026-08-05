@@ -30,6 +30,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tag, Plus, MoreVertical, Loader2, Check, X } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { ColorPalettePicker } from "@/components/distribuicao-tst/ColorPalettePicker";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
@@ -38,6 +40,7 @@ import {
   useCriarEtiqueta,
   useAtualizarEtiqueta,
   useExcluirEtiqueta,
+  useAplicarEtiquetaClienteBase,
   ETIQUETA_MODULOS,
   ETIQUETA_COLOR_PALETTE,
   type Etiqueta,
@@ -45,6 +48,22 @@ import {
 } from "@/hooks/useEtiquetas";
 
 const TODOS_MODULOS = ETIQUETA_MODULOS.map((m) => m.value) as EtiquetaModulo[];
+const SEM_CLIENTE = "__sem_cliente__";
+
+function useClientesLista() {
+  return useQuery({
+    queryKey: ["clientes", "etiquetas-lista"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("id, nome")
+        .order("nome", { ascending: true });
+      if (error) throw error;
+      return ((data as any[]) || []) as { id: string; nome: string }[];
+    },
+    staleTime: 300_000,
+  });
+}
 
 /**
  * Página "Etiquetas" — gestão por coordenação, no modelo Astrea:
@@ -69,18 +88,27 @@ export default function EtiquetasPage() {
   const criar = useCriarEtiqueta();
   const atualizar = useAtualizarEtiqueta();
   const excluir = useExcluirEtiqueta();
+  const aplicarBase = useAplicarEtiquetaClienteBase();
+  const { data: clientes = [] } = useClientesLista();
+  const clienteNomeById = useMemo(
+    () => new Map(clientes.map((c) => [c.id, c.nome])),
+    [clientes],
+  );
 
   const [busca, setBusca] = useState("");
   const [criando, setCriando] = useState(false);
   const [novoNome, setNovoNome] = useState("");
   const [novaCor, setNovaCor] = useState(ETIQUETA_COLOR_PALETTE[10]);
   const [novosModulos, setNovosModulos] = useState<EtiquetaModulo[]>(TODOS_MODULOS);
+  const [novoCliente, setNovoCliente] = useState<string>(SEM_CLIENTE);
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [editNome, setEditNome] = useState("");
   const [editCor, setEditCor] = useState("");
   const [editModulos, setEditModulos] = useState<EtiquetaModulo[]>([]);
+  const [editCliente, setEditCliente] = useState<string>(SEM_CLIENTE);
   const [excluindo, setExcluindo] = useState<Etiqueta | null>(null);
+  const [aplicando, setAplicando] = useState<{ etiqueta: Etiqueta; total: number } | null>(null);
 
   const lista = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -101,9 +129,11 @@ export default function EtiquetasPage() {
       nome: novoNome,
       cor: novaCor,
       modulos: novosModulos,
+      cliente_id: novoCliente === SEM_CLIENTE ? null : novoCliente,
     });
     setNovoNome("");
     setNovosModulos(TODOS_MODULOS);
+    setNovoCliente(SEM_CLIENTE);
     setCriando(false);
   };
 
@@ -112,6 +142,7 @@ export default function EtiquetasPage() {
     setEditNome(e.nome);
     setEditCor(e.cor);
     setEditModulos((e.modulos || []) as EtiquetaModulo[]);
+    setEditCliente(e.cliente_id ?? SEM_CLIENTE);
   };
 
   const salvarEdicao = async () => {
@@ -121,8 +152,14 @@ export default function EtiquetasPage() {
       nome: editNome,
       cor: editCor,
       modulos: editModulos,
+      cliente_id: editCliente === SEM_CLIENTE ? null : editCliente,
     });
     setEditandoId(null);
+  };
+
+  const iniciarAplicacaoBase = async (e: Etiqueta) => {
+    const res = await aplicarBase.mutateAsync({ etiquetaId: e.id, dryRun: true });
+    setAplicando({ etiqueta: e, total: Number(res?.total ?? 0) });
   };
 
   return (
@@ -175,6 +212,26 @@ export default function EtiquetasPage() {
                   <Label className="text-xs">Cor</Label>
                   <ColorPalettePicker value={novaCor} onChange={setNovaCor} size="md" />
                 </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Cliente vinculado (opcional)</Label>
+                <Select value={novoCliente} onValueChange={setNovoCliente}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Sem cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SEM_CLIENTE}>Sem cliente</SelectItem>
+                    {clientes.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Com cliente vinculado, a etiqueta é aplicada automaticamente aos processos desse
+                  cliente quando chegam novas publicações.
+                </p>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Aparece nos módulos</Label>
@@ -234,6 +291,22 @@ export default function EtiquetasPage() {
                       </div>
                     </div>
                     <div className="space-y-1">
+                      <Label className="text-xs">Cliente vinculado (opcional)</Label>
+                      <Select value={editCliente} onValueChange={setEditCliente}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Sem cliente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={SEM_CLIENTE}>Sem cliente</SelectItem>
+                          {clientes.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
                       <Label className="text-xs">Aparece nos módulos</Label>
                       <div className="grid gap-1 sm:grid-cols-2">
                         {ETIQUETA_MODULOS.map((m) => (
@@ -272,6 +345,11 @@ export default function EtiquetasPage() {
                       {e.nome}
                     </Badge>
                     <div className="flex-1 flex flex-wrap gap-1">
+                      {e.cliente_id && (
+                        <span className="text-[10px] text-muted-foreground border rounded px-1 py-0.5">
+                          Cliente: {clienteNomeById.get(e.cliente_id) ?? "—"}
+                        </span>
+                      )}
                       {ETIQUETA_MODULOS.filter((m) => (e.modulos || []).includes(m.value)).map(
                         (m) => (
                           <span
@@ -291,6 +369,11 @@ export default function EtiquetasPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => iniciarEdicao(e)}>Editar</DropdownMenuItem>
+                        {e.cliente_id && (
+                          <DropdownMenuItem onClick={() => iniciarAplicacaoBase(e)}>
+                            Aplicar na base (processos do cliente)
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           className="text-destructive"
                           onClick={() => setExcluindo(e)}
@@ -325,6 +408,38 @@ export default function EtiquetasPage() {
               }}
             >
               Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!aplicando} onOpenChange={(o) => !o && setAplicando(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Aplicar etiqueta na base</AlertDialogTitle>
+            <AlertDialogDescription>
+              {aplicando?.total ?? 0} processo(s) desta coordenação pertencem ao cliente
+              {" "}
+              {aplicando?.etiqueta.cliente_id
+                ? clienteNomeById.get(aplicando.etiqueta.cliente_id) ?? ""
+                : ""}
+              . A etiqueta "{aplicando?.etiqueta.nome}" será aplicada a todos eles.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!aplicando?.total || aplicarBase.isPending}
+              onClick={async () => {
+                if (aplicando)
+                  await aplicarBase.mutateAsync({
+                    etiquetaId: aplicando.etiqueta.id,
+                    dryRun: false,
+                  });
+                setAplicando(null);
+              }}
+            >
+              Aplicar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

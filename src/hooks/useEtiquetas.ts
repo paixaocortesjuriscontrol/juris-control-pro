@@ -46,6 +46,8 @@ export interface Etiqueta {
   modulos: EtiquetaModulo[];
   ativo: boolean;
   ordem: number;
+  /** Cliente vinculado — habilita a aplicação automática/retroativa por cliente. */
+  cliente_id?: string | null;
 }
 
 export const ETIQUETA_COLOR_PALETTE = [
@@ -153,6 +155,7 @@ export interface EtiquetaInput {
   nome: string;
   cor: string;
   modulos: EtiquetaModulo[];
+  cliente_id?: string | null;
 }
 
 export function useCriarEtiqueta() {
@@ -170,6 +173,7 @@ export function useCriarEtiqueta() {
           nome,
           cor: input.cor,
           modulos: input.modulos.length ? input.modulos : ETIQUETA_MODULOS.map((m) => m.value),
+          cliente_id: input.cliente_id ?? null,
           created_by: userData.user?.id,
         } as any)
         .select("*")
@@ -192,7 +196,14 @@ export function useAtualizarEtiqueta() {
     mutationFn: async ({
       id,
       ...patch
-    }: { id: string; nome?: string; cor?: string; modulos?: EtiquetaModulo[]; ativo?: boolean }) => {
+    }: {
+      id: string;
+      nome?: string;
+      cor?: string;
+      modulos?: EtiquetaModulo[];
+      ativo?: boolean;
+      cliente_id?: string | null;
+    }) => {
       const payload: any = { ...patch };
       if (payload.nome !== undefined) {
         payload.nome = String(payload.nome).trim();
@@ -300,6 +311,36 @@ export function useRemoverTodasEtiquetasDoItem() {
 
 /** Etiquetas de um único item (usado nos formulários). */
 export function useEtiquetasDoItem(entidade: EtiquetaEntidade, entidadeId?: string | null) {
+  return useQueryEtiquetasDoItem(entidade, entidadeId);
+}
+
+/**
+ * Aplica retroativamente uma etiqueta de cliente a todos os processos da
+ * coordenação cujo cliente corresponde. `dryRun` apenas conta.
+ */
+export function useAplicarEtiquetaClienteBase() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ etiquetaId, dryRun }: { etiquetaId: string; dryRun: boolean }) => {
+      const { data, error } = await supabase.rpc("aplicar_etiqueta_cliente_base" as any, {
+        _etiqueta_id: etiquetaId,
+        _dry_run: dryRun,
+      } as any);
+      if (error) throw error;
+      return (data as any) as { total: number; aplicados: number; dry_run: boolean };
+    },
+    onSuccess: async (res) => {
+      if (!res?.dry_run) {
+        await qc.invalidateQueries({ queryKey: ["etiquetas-itens"] });
+        toast.success(`${res?.aplicados ?? 0} processo(s) etiquetado(s)`);
+      }
+    },
+    onError: (err: any) =>
+      toast.error("Erro ao aplicar etiqueta na base: " + (err?.message || "")),
+  });
+}
+
+function useQueryEtiquetasDoItem(entidade: EtiquetaEntidade, entidadeId?: string | null) {
   return useQuery({
     queryKey: ["etiquetas-itens", entidade, entidadeId ?? ""],
     enabled: !!entidadeId,
