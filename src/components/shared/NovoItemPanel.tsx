@@ -18,7 +18,7 @@ interface NovoItemPanelProps {
   /** Registro existente para edição (tarefa/evento/prazo/parcelamento). */
   itemParaEditar?: any | null;
   /** Processo pré-selecionado (usado quando aberto dentro do Detalhe do Processo). */
-  processoPreSelecionado?: { id: string; numero: string } | null;
+  processoPreSelecionado?: { id: string; numero: string; coordenacao_id?: string | null } | null;
   /** Publicação DJEN vinculada, para exibir card verde retrátil. */
   publicacao?: any | null;
   /**
@@ -135,6 +135,7 @@ export function NovoItemPanel({
                 hideTitleHeader
                 defaultProcessoId={processoPreSelecionado?.id}
                 defaultProcessoNumero={processoPreSelecionado?.numero}
+                defaultCoordenacaoId={processoPreSelecionado?.coordenacao_id || undefined}
                 publicacaoId={publicacao?.id}
                 onSuccess={() => { void onSuccess(); }}
                 onCancel={onClose}
