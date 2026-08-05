@@ -52,6 +52,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { PublicacaoVinculadaCollapsible } from "@/components/shared/PublicacaoVinculadaCollapsible";
 import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInline";
+import { usePodeAlterarDatas } from "@/hooks/usePodeAlterarDatas";
 
 function ScrollAreaOrDiv({ embedded, children }: { embedded?: boolean; children: React.ReactNode }) {
   if (embedded) return <div className="px-6">{children}</div>;
@@ -123,6 +124,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const anexosRef = useRef<ItemAnexosHandle>(null);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const { user } = useAuth();
+  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas();
+  const travarDatas = datasBloqueadas && isEditing;
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
 
   const [titulo, setTitulo] = useState("");
@@ -643,6 +646,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   value={dataInicio}
                   onChange={(e) => setDataInicio(e.target.value)}
                   required
+                  disabled={travarDatas}
+                  title={travarDatas ? motivoBloqueio : undefined}
                   className="flex-1"
                 />
                 {!diaInteiro && (
@@ -674,6 +679,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   type="date"
                   value={dataFim}
                   onChange={(e) => setDataFim(e.target.value)}
+                  disabled={travarDatas}
+                  title={travarDatas ? motivoBloqueio : undefined}
                   className="flex-1"
                 />
               </div>
@@ -933,6 +940,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                         setRecorrenciaFim(e.target.value);
                         setRecorrenciaOcorrencias("");
                       }}
+                      disabled={travarDatas}
                       className="mt-1"
                     />
                   </div>

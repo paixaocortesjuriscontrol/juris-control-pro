@@ -54,6 +54,7 @@ import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInline";
+import { usePodeAlterarDatas } from "@/hooks/usePodeAlterarDatas";
 
 type Unidade = "uteis" | "corridos";
 
@@ -142,6 +143,9 @@ export function PrazoDialog({
   const tertiaryClickedRef = useRef(false);
   const anexosRef = useRef<ItemAnexosHandle>(null);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
+  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas();
+  // Estagiário/assistente/secretaria não podem ALTERAR datas de itens existentes.
+  const travarDatas = datasBloqueadas && !!prazo;
 
   // Quando editando um prazo existente, carregar publicação vinculada (se houver)
   // para mostrar no card esquerdo do dialog.
@@ -912,6 +916,8 @@ export function PrazoDialog({
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={travarDatas}
+                  title={travarDatas ? motivoBloqueio : undefined}
                   className={cn(
                     "h-10 w-full justify-start text-left font-normal",
                     !dataLimite && "text-muted-foreground"
@@ -1011,6 +1017,7 @@ export function PrazoDialog({
                   setRecorrenciaFim(e.target.value);
                   setRecorrenciaOcorrencias("");
                 }}
+                disabled={travarDatas}
                 className="mt-1 h-10"
               />
             </div>
@@ -1028,6 +1035,8 @@ export function PrazoDialog({
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={travarDatas}
+                  title={travarDatas ? motivoBloqueio : undefined}
                   className={cn(
                     "h-10 w-full justify-start text-left font-normal",
                     !dataFatal && "text-muted-foreground"
