@@ -19,6 +19,31 @@ const EXTRAS_AUDIENCIA: SituacaoOption[] = [
   { value: "ignorado", label: "🚫 Ignorado" },
 ];
 
+/** Legendas de cumprimento de prazos/tarefas (coordenação Dra. Beatriz Costa) */
+const EXTRAS_PRAZO_TAREFA: SituacaoOption[] = [
+  { value: "minutado_revisao", label: "📝 Minutado - Revisão" },
+  { value: "protocolado", label: "📤 Protocolado" },
+  { value: "baixado", label: "📥 Baixado" },
+  { value: "reagendado", label: "🔄 Reagendado" },
+  { value: "tratado", label: "✔️ Tratado" },
+];
+
+/**
+ * Situações que exigem um comentário justificando a mudança.
+ * O comentário é gravado no histórico do item.
+ */
+const SITUACOES_COM_COMENTARIO = new Set([
+  "concluido_sem_sucesso",
+  "cancelado",
+  "reagendado",
+  "revisao",
+  "minutado_revisao",
+]);
+
+export function situacaoExigeComentario(valor?: string | null): boolean {
+  return !!valor && SITUACOES_COM_COMENTARIO.has(valor);
+}
+
 export function situacoesBase(tipo: TipoSituacaoItem): SituacaoOption[] {
   const sucesso = valorConcluidoSucesso(tipo);
   const lista: SituacaoOption[] = [
@@ -32,6 +57,7 @@ export function situacoesBase(tipo: TipoSituacaoItem): SituacaoOption[] {
     { value: "cancelado", label: "❌ Cancelado", restrita: true },
   ];
   if (tipo === "audiencia") lista.push(...EXTRAS_AUDIENCIA);
+  if (tipo === "tarefa" || tipo === "prazo") lista.push(...EXTRAS_PRAZO_TAREFA);
   return lista;
 }
 
