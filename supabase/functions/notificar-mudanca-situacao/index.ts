@@ -67,6 +67,10 @@ async function buscarDetalhesEntidade(supabase: any, entidade: string, id: strin
     if (!t) return null;
     return t.length > 400 ? `${t.slice(0, 400)}…` : t;
   };
+  // Evita repetir a mesma informação em "Título" e "Tipo"
+  const norm = (v?: string | null) =>
+    String(v ?? "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const mesmoTexto = (a?: string | null, b?: string | null) => !!norm(a) && norm(a) === norm(b);
   // Reclamante / Reclamada(s) do processo — usado em TODOS os tipos de item
   const partesProcesso = async (
     processoId?: string | null,
@@ -114,7 +118,7 @@ async function buscarDetalhesEntidade(supabase: any, entidade: string, id: strin
         .eq("id", id).maybeSingle();
       if (data) {
         if (data.titulo) det["Título"] = data.titulo;
-        if (data.tipo_tarefa) det["Tipo"] = data.tipo_tarefa;
+        if (data.tipo_tarefa && !mesmoTexto(data.tipo_tarefa, data.titulo)) det["Tipo"] = data.tipo_tarefa;
         if (data.prioridade) det["Prioridade"] = data.prioridade;
         if (data.data_vencimento) det["Vencimento"] = fmtData(data.data_vencimento);
         if (data.data_fatal) det["Data fatal"] = fmtData(data.data_fatal) + (data.hora_fatal ? ` ${String(data.hora_fatal).slice(0, 5)}` : "");
@@ -139,7 +143,7 @@ async function buscarDetalhesEntidade(supabase: any, entidade: string, id: strin
         .eq("id", id).maybeSingle();
       if (data) {
         if (data.titulo) det["Título"] = data.titulo;
-        if (data.tipo_audiencia) det["Tipo"] = data.tipo_audiencia;
+        if (data.tipo_audiencia && !mesmoTexto(data.tipo_audiencia, data.titulo)) det["Tipo"] = data.tipo_audiencia;
         if (data.modalidade) det["Modalidade"] = data.modalidade;
         if (data.data_audiencia) det["Data"] = fmtData(data.data_audiencia) + (data.hora ? ` ${data.hora}` : "");
         if (data.local_audiencia || data.forum) det["Local"] = data.local_audiencia || data.forum;
@@ -161,7 +165,7 @@ async function buscarDetalhesEntidade(supabase: any, entidade: string, id: strin
         .eq("id", id).maybeSingle();
       if (data) {
         if (data.titulo) det["Título"] = data.titulo;
-        if (data.tipo) det["Tipo"] = data.tipo;
+        if (data.tipo && !mesmoTexto(data.tipo, data.titulo)) det["Tipo"] = data.tipo;
         if (data.data_inicio) det["Início"] = fmtBRT(data.data_inicio);
         if (data.data_fim) det["Fim"] = fmtBRT(data.data_fim);
         if (data.local) det["Local"] = data.local;
