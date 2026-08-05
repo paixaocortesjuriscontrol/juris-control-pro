@@ -21,6 +21,7 @@ import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
+import { usePodeAlterarDatas } from "@/hooks/usePodeAlterarDatas";
 
 interface Props {
   audiencia: AudienciaDetectada | null;
