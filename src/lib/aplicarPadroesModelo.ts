@@ -42,9 +42,46 @@ function addDiasUteis(base: Date, n: number) {
   while (restantes > 0) {
     d.setDate(d.getDate() + 1);
     const dow = d.getDay();
-    if (dow !== 0 && dow !== 6) restantes--;
+    if (dow !== 0 && dow !== 6 && !emSuspensaoClt(d)) restantes--;
   }
   return d;
+}
+
+/**
+ * Art. 775-A da CLT: os prazos ficam suspensos entre 20 de dezembro e
+ * 20 de janeiro (inclusive). Dias nesse intervalo não contam como úteis.
+ */
+function emSuspensaoClt(d: Date): boolean {
+  const mes = d.getMonth() + 1;
+  const dia = d.getDate();
+  return (mes === 12 && dia >= 20) || (mes === 1 && dia <= 20);
+}
+
+/**
+ * Resolve o prazo pré-programado do modelo ("Prazo (dias)" + unidade) a partir
+ * de uma data base (data da publicação ou hoje). Devolve yyyy-MM-dd ou "".
+ */
+export function resolverPrazoModelo(
+  modelo: ModeloTitulo,
+  dataBase?: Date | string | null,
+): string {
+  const padroes = (modelo.padroes ?? {}) as Record<string, any>;
+  const dias = Number(padroes.prazo_dias);
+  if (!Number.isFinite(dias) || dias <= 0) return "";
+  const unidade = String(padroes.prazo_unidade || "uteis");
+  let base: Date;
+  if (dataBase instanceof Date) base = new Date(dataBase);
+  else if (typeof dataBase === "string" && dataBase.trim()) {
+    const [y, m, d] = dataBase.slice(0, 10).split("-").map(Number);
+    base = y && m && d ? new Date(y, m - 1, d) : new Date();
+  } else base = new Date();
+  base.setHours(12, 0, 0, 0);
+  if (unidade === "corridos") {
+    const d = new Date(base);
+    d.setDate(d.getDate() + dias);
+    return toISO(d);
+  }
+  return toISO(addDiasUteis(base, dias));
 }
 
 /** Resolve uma expressão relativa de data para yyyy-MM-dd (fuso local do usuário). */
