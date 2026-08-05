@@ -539,6 +539,15 @@ export function PrazoDialog({
 
       if (tarefaId) {
         await anexosRef.current?.uploadPendentes(tarefaId, processoIdParaSalvar);
+        // Comentário obrigatório da mudança de situação → histórico do item
+        if (situacaoMudou && comentarioSituacao.trim() && user?.id) {
+          const { error: comErr } = await supabase.from("comentarios_tarefas").insert({
+            tarefa_id: tarefaId,
+            autor_id: user.id,
+            conteudo: `[Situação: ${situacaoInicial} → ${situacao}] ${comentarioSituacao.trim()}`,
+          });
+          if (comErr) console.error("Falha ao gravar comentário da situação:", comErr);
+        }
         // Atualizar coordenação do processo, se alterada
         const processoId = processoIdParaSalvar;
         if (processoId && coordenacaoId) {
