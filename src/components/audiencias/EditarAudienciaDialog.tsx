@@ -1,4 +1,4 @@
-import { situacoesDisponiveis, situacaoExigeComentario } from "@/constants/situacoesItem";
+import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { useState, useEffect } from "react";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";

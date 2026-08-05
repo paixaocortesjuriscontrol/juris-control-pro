@@ -1,5 +1,5 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
-import { situacoesDisponiveis, situacaoExigeComentario } from "@/constants/situacoesItem";
+import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
