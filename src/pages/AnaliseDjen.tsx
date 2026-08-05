@@ -3587,14 +3587,48 @@ const AnaliseDjen = () => {
               [selectedPublicacao.id]: { ...selectedPublicacao, lida: true },
             }));
             try {
-              const tabela = selectedPublicacao.tipo_origem === "processo"
-                ? "publicacoes_djen_processos"
-                : selectedPublicacao.tipo_origem === "termo"
-                  ? "publicacoes_djen"
-                  : null;
+              // Marca como lida a publicação clicada E todas as irmãs do mesmo
+              // grupo deduplicado (mesmo id_djen / processo+dia+conteúdo) na
+              // coordenação — sem isso a publicação reaparece em "Não lidas".
+              const origem = selectedPublicacao.tipo_origem;
+              const args: any = {
+                p_ids_termos: origem === "termo" ? [selectedPublicacao.id] : null,
+                p_ids_processos: origem === "processo" ? [selectedPublicacao.id] : null,
+                p_ids_descartadas: origem === "descartada" ? [selectedPublicacao.id] : null,
+              };
+              let relacionadas: { publicacao_id: string; tabela_origem: string }[] = [];
+              if (origem === "termo" || origem === "processo" || origem === "descartada") {
+                const { data: rel, error: relErr } = await (supabase as any).rpc(
+                  "get_publicacoes_relacionadas_por_dedup",
+                  args,
+                );
+                if (relErr) console.error("[salvar-e-ler] dedup:", relErr);
+                relacionadas = (rel as any[]) || [];
+              }
+              if (relacionadas.length === 0) {
+                relacionadas = [{ publicacao_id: selectedPublicacao.id, tabela_origem: origem === "processo" ? "processo" : origem === "descartada" ? "descartada" : "termo" }];
+              }
 
-              if (tabela) {
-                await (supabase as any).from(tabela).update({ lida: true }).eq("id", selectedPublicacao.id);
+              const tabelaDe = (t: string) =>
+                t === "processo"
+                  ? "publicacoes_djen_processos"
+                  : t === "descartada"
+                    ? "publicacoes_djen_descartadas"
+                    : "publicacoes_djen";
+              const porTabela = new Map<string, string[]>();
+              for (const r of relacionadas) {
+                const tb = tabelaDe(r.tabela_origem);
+                porTabela.set(tb, [...(porTabela.get(tb) || []), r.publicacao_id]);
+              }
+              for (const [tb, ids] of porTabela) {
+                const { error: upErr } = await (supabase as any)
+                  .from(tb)
+                  .update({ lida: true })
+                  .in("id", ids);
+                if (upErr) {
+                  console.error("[salvar-e-ler] update lida:", upErr);
+                  toast.error("Não foi possível marcar como lida: " + upErr.message);
+                }
               }
 
               if (user?.id && selectedPublicacao.tipo_origem !== "datajud") {
@@ -3603,14 +3637,16 @@ const AnaliseDjen = () => {
                   .select("nome")
                   .eq("id", user.id)
                   .maybeSingle();
-                await (supabase as any)
+                const leituras = relacionadas.map((r) => ({
+                  publicacao_id: r.publicacao_id,
+                  tabela_origem: r.tabela_origem,
+                  usuario_id: user.id,
+                  usuario_nome: profile?.nome || user.email || "Desconhecido",
+                }));
+                const { error: leiErr } = await (supabase as any)
                   .from("publicacoes_djen_leituras")
-                  .upsert({
-                    publicacao_id: selectedPublicacao.id,
-                    tabela_origem: selectedPublicacao.tipo_origem === "processo" ? "processo" : selectedPublicacao.tipo_origem === "descartada" ? "descartada" : "termo",
-                    usuario_id: user.id,
-                    usuario_nome: profile?.nome || user.email || "Desconhecido",
-                  }, { onConflict: "publicacao_id,tabela_origem,usuario_id" });
+                  .upsert(leituras, { onConflict: "publicacao_id,tabela_origem,usuario_id" });
+                if (leiErr) console.error("[salvar-e-ler] leituras:", leiErr);
               }
 
               await Promise.all([
