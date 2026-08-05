@@ -1,5 +1,5 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
-import { situacoesDisponiveis } from "@/constants/situacoesItem";
+import { situacoesDisponiveis, situacaoExigeComentario } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
@@ -246,6 +246,8 @@ export function PrazoDialog({
   const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   const [situacao, setSituacao] = useState<string>("pendente");
+  const [situacaoInicial, setSituacaoInicial] = useState<string>("pendente");
+  const [comentarioSituacao, setComentarioSituacao] = useState("");
   const { podeCancelar } = usePodeCancelarItens();
   // Processo resolvido a partir da publicação (quando não há defaultProcessoId)
   const [resolvedProcessoId, setResolvedProcessoId] = useState<string>("");
@@ -380,6 +382,8 @@ export function PrazoDialog({
     setDataFatal(undefined);
     setCoordenacaoId(unicaCoordenacaoId || "");
     setSituacao("pendente");
+    setSituacaoInicial("pendente");
+    setComentarioSituacao("");
     setRecorrenciaTipo("nenhuma");
     setRecorrenciaIntervalo(1);
     setRecorrenciaOcorrencias("");
@@ -399,6 +403,8 @@ export function PrazoDialog({
       setDataFatal((prazo as any).data_fatal ? parseISO((prazo as any).data_fatal) : undefined);
       setCoordenacaoId(((prazo as any).coordenacao_id as string) || "");
       setSituacao(((prazo as any).status as any) || "pendente");
+      setSituacaoInicial(((prazo as any).status as any) || "pendente");
+      setComentarioSituacao("");
       setRecorrenciaTipo(((prazo as any).recorrencia_tipo as string) || "nenhuma");
       setRecorrenciaIntervalo(((prazo as any).recorrencia_intervalo as number) || 1);
       setRecorrenciaFim(((prazo as any).recorrencia_fim ? String((prazo as any).recorrencia_fim).slice(0, 10) : ""));
@@ -460,6 +466,11 @@ export function PrazoDialog({
     }
     if (precisaSelecionar && !coordenacaoId) {
       toast.error("Selecione a coordenação");
+      return;
+    }
+    const situacaoMudou = situacao !== situacaoInicial;
+    if (situacaoMudou && situacaoExigeComentario(situacao) && comentarioSituacao.trim().length < 3) {
+      toast.error("Informe um comentário justificando a mudança de situação");
       return;
     }
 
@@ -528,6 +539,15 @@ export function PrazoDialog({
 
       if (tarefaId) {
         await anexosRef.current?.uploadPendentes(tarefaId, processoIdParaSalvar);
+        // Comentário obrigatório da mudança de situação → histórico do item
+        if (situacaoMudou && comentarioSituacao.trim() && user?.id) {
+          const { error: comErr } = await supabase.from("comentarios_tarefas").insert({
+            tarefa_id: tarefaId,
+            autor_id: user.id,
+            conteudo: `[Situação: ${situacaoInicial} → ${situacao}] ${comentarioSituacao.trim()}`,
+          });
+          if (comErr) console.error("Falha ao gravar comentário da situação:", comErr);
+        }
         // Atualizar coordenação do processo, se alterada
         const processoId = processoIdParaSalvar;
         if (processoId && coordenacaoId) {
@@ -693,6 +713,20 @@ export function PrazoDialog({
           )}
           </div>
         </div>
+
+        {situacao !== situacaoInicial && situacaoExigeComentario(situacao) && (
+          <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+            <Label className="text-xs font-semibold">
+              Comentário obrigatório da mudança de situação
+            </Label>
+            <Textarea
+              value={comentarioSituacao}
+              onChange={(e) => setComentarioSituacao(e.target.value)}
+              placeholder="Explique o motivo da mudança de situação..."
+              className="min-h-[64px] text-sm"
+            />
+          </div>
+        )}
 
         {hasPublicacao && !hidePublicacaoCollapsible && (
           <PublicacaoVinculadaCollapsible publicacao={publicacaoEfetiva as any} />
