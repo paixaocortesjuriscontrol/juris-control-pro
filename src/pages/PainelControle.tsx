@@ -1084,6 +1084,46 @@ export default function PainelControle() {
     }
 
     const rows = itensOrdenados.map((it) => {
+      return it;
+    });
+
+    // Etiquetas aplicadas nos itens e nos processos vinculados
+    const etiquetaIdsAlvo = new Set<string>();
+    for (const it of itensOrdenados) {
+      const rawId = String(it.id).replace("audiencia-det-", "").split("::")[0];
+      if (/^[0-9a-f-]{36}$/i.test(rawId)) etiquetaIdsAlvo.add(rawId);
+    }
+    processoIds.forEach((p) => etiquetaIdsAlvo.add(p));
+    const etiquetasPorEntidade = new Map<string, string[]>();
+    if (etiquetaIdsAlvo.size > 0) {
+      const alvos = Array.from(etiquetaIdsAlvo);
+      const vinculos: any[] = [];
+      for (let i = 0; i < alvos.length; i += 300) {
+        const { data } = await supabase
+          .from("etiquetas_itens")
+          .select("entidade_id, etiqueta_id")
+          .in("entidade_id", alvos.slice(i, i + 300));
+        vinculos.push(...((data as any[]) || []));
+      }
+      const etqIds = Array.from(new Set(vinculos.map((v) => String(v.etiqueta_id))));
+      const etqNome = new Map<string, string>();
+      for (let i = 0; i < etqIds.length; i += 300) {
+        const { data } = await supabase
+          .from("etiquetas")
+          .select("id, nome")
+          .in("id", etqIds.slice(i, i + 300));
+        (data as any[] | null)?.forEach((e) => etqNome.set(String(e.id), e.nome ?? ""));
+      }
+      for (const v of vinculos) {
+        const nome = etqNome.get(String(v.etiqueta_id));
+        if (!nome) continue;
+        const arr = etiquetasPorEntidade.get(String(v.entidade_id)) ?? [];
+        if (!arr.includes(nome)) arr.push(nome);
+        etiquetasPorEntidade.set(String(v.entidade_id), arr);
+      }
+    }
+
+    const rowsFinal = itensOrdenados.map((it) => {
       const rawId = String(it.id);
       let key = "";
       let horario = "";
@@ -1103,6 +1143,14 @@ export default function PainelControle() {
       }
       const envolvidosArr = envMap.get(key) ?? [];
       const partes = partesById.get(String(it.processo?.id ?? it.processo_id ?? ""));
+      const idLimpo = rawId.replace("audiencia-det-", "").split("::")[0];
+      const procId = String(it.processo?.id ?? it.processo_id ?? "");
+      const etiquetasArr = Array.from(
+        new Set([
+          ...(etiquetasPorEntidade.get(idLimpo) ?? []),
+          ...(procId ? etiquetasPorEntidade.get(procId) ?? [] : []),
+        ]),
+      );
       const fmtDate = (v?: string | null) => {
         const s = (v ?? "").slice(0, 10);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
@@ -1122,22 +1170,23 @@ export default function PainelControle() {
         Reclamante: partes?.ativo ?? "",
         Reclamada: partes?.passivo ?? "",
         Cliente: partes?.clienteId ? clienteNomeById.get(String(partes.clienteId)) ?? "" : "",
+        Etiquetas: etiquetasArr.join(", "),
         Coordenação:
           coordNomeById.get((it as any).coordenacao_id ?? it.processo?.coordenacao_id ?? "") ?? "",
       };
     });
 
-    if (rows.length === 0) {
+    if (rowsFinal.length === 0) {
       toast.error("Nenhuma atividade encontrada para o período e tipos selecionados.");
       return;
     }
 
-    const ws = XLSX.utils.json_to_sheet(rows);
+    const ws = XLSX.utils.json_to_sheet(rowsFinal);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Atividades");
     const stamp = format(new Date(), "yyyy-MM-dd_HHmm");
     XLSX.writeFile(wb, `atividades_${stamp}.xlsx`);
-    toast.success(`${rows.length} atividade(s) exportada(s).`);
+    toast.success(`${rowsFinal.length} atividade(s) exportada(s).`);
   };
 
   // ===== Contagens por classificação, usando a MESMA base do calendário =====
