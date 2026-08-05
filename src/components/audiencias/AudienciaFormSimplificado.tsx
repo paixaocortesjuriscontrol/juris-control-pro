@@ -34,6 +34,8 @@ import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPubli
 type Props = {
   defaultProcessoNumero?: string;
   defaultProcessoId?: string;
+  /** Coordenação herdada do contexto (ex.: pasta do processo). */
+  defaultCoordenacaoId?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
   hideTitleHeader?: boolean;
@@ -80,6 +82,7 @@ const empty = {
 export function AudienciaFormSimplificado({
   defaultProcessoNumero,
   defaultProcessoId,
+  defaultCoordenacaoId,
   onSuccess,
   onCancel,
   hideTitleHeader,
@@ -134,7 +137,9 @@ export function AudienciaFormSimplificado({
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
-  const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  const [coordenacaoId, setCoordenacaoId] = useState<string>(
+    audienciaParaEditar?.coordenacao_id ?? defaultCoordenacaoId ?? ""
+  );
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null);
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
@@ -196,6 +201,11 @@ export function AudienciaFormSimplificado({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unicaCoordenacaoId]);
 
+  // Coordenação herdada do processo/pasta (evita bloqueio "Selecione a coordenação")
+  useEffect(() => {
+    if (defaultCoordenacaoId) setCoordenacaoId((prev) => prev || defaultCoordenacaoId);
+  }, [defaultCoordenacaoId]);
+
   const set = (field: keyof typeof empty, v: any) =>
     setForm((p) => ({ ...p, [field]: v }));
 
@@ -210,7 +220,7 @@ export function AudienciaFormSimplificado({
       const orExpr = candidatos.map((c) => `numero.ilike.%${c}%`).join(",");
       const { data } = await supabase
         .from("processos")
-        .select("id, numero, vara, comarca")
+        .select("id, numero, vara, comarca, coordenacao_id")
         .or(orExpr)
         .limit(1)
         .maybeSingle();
@@ -220,6 +230,9 @@ export function AudienciaFormSimplificado({
       }
       setProcessoNumero(formatProcessoNumero(data.numero ?? numero));
       setProcessoId(data.id);
+      if ((data as any).coordenacao_id) {
+        setCoordenacaoId((prev) => prev || (data as any).coordenacao_id);
+      }
       if (withToast) toast.success("Processo encontrado");
     } finally {
       setBuscando(false);
@@ -227,15 +240,36 @@ export function AudienciaFormSimplificado({
   };
 
   useEffect(() => {
+    // Quando já temos o id do processo (aberto dentro da pasta), NÃO buscamos por
+    // número: o mesmo número pode existir em outra coordenação e o vínculo iria
+    // para a pasta errada. Apenas herdamos a coordenação do processo informado.
+    if (defaultProcessoId && !autoBuscaRef.current) {
+      autoBuscaRef.current = true;
+      (async () => {
+        const { data } = await supabase
+          .from("processos")
+          .select("id, numero, coordenacao_id")
+          .eq("id", defaultProcessoId)
+          .maybeSingle();
+        if (!data) return;
+        setProcessoId(data.id);
+        setProcessoNumero(formatProcessoNumero(data.numero ?? defaultProcessoNumero ?? ""));
+        if ((data as any).coordenacao_id) {
+          setCoordenacaoId((prev) => prev || (data as any).coordenacao_id);
+        }
+      })();
+      return;
+    }
     if (defaultProcessoNumero && !autoBuscaRef.current) {
       autoBuscaRef.current = true;
       buscarProcesso(defaultProcessoNumero, false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultProcessoNumero]);
+  }, [defaultProcessoNumero, defaultProcessoId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
     if (!form.titulo.trim()) {
       toast.error("Informe o título da audiência");
       return;
@@ -245,11 +279,15 @@ export function AudienciaFormSimplificado({
       return;
     }
     if (!isEditing && responsaveisIds.length === 0) {
-      toast.error("Selecione ao menos um responsável");
+      toast.error("Selecione ao menos um responsável", {
+        description: "Campo obrigatório: 'Responsáveis', no final do formulário.",
+      });
       return;
     }
     if (precisaSelecionar && !coordenacaoId) {
-      toast.error("Selecione a coordenação");
+      toast.error("Selecione a coordenação", {
+        description: "Campo obrigatório: 'Coordenação', no início do formulário.",
+      });
       return;
     }
 
@@ -384,6 +422,12 @@ export function AudienciaFormSimplificado({
       onSuccess?.();
     } else {
       toast.success("Audiência salva. Você pode cadastrar outro item para esta publicação.");
+    }
+    } catch (err: any) {
+      console.error("[AudienciaFormSimplificado] falha ao salvar:", err);
+      toast.error("Não foi possível salvar a audiência", {
+        description: err?.message || String(err),
+      });
     }
   };
 
