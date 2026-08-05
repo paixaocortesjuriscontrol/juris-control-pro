@@ -311,6 +311,36 @@ export function useRemoverTodasEtiquetasDoItem() {
 
 /** Etiquetas de um único item (usado nos formulários). */
 export function useEtiquetasDoItem(entidade: EtiquetaEntidade, entidadeId?: string | null) {
+  return useQueryEtiquetasDoItem(entidade, entidadeId);
+}
+
+/**
+ * Aplica retroativamente uma etiqueta de cliente a todos os processos da
+ * coordenação cujo cliente corresponde. `dryRun` apenas conta.
+ */
+export function useAplicarEtiquetaClienteBase() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ etiquetaId, dryRun }: { etiquetaId: string; dryRun: boolean }) => {
+      const { data, error } = await supabase.rpc("aplicar_etiqueta_cliente_base" as any, {
+        _etiqueta_id: etiquetaId,
+        _dry_run: dryRun,
+      } as any);
+      if (error) throw error;
+      return (data as any) as { total: number; aplicados: number; dry_run: boolean };
+    },
+    onSuccess: async (res) => {
+      if (!res?.dry_run) {
+        await qc.invalidateQueries({ queryKey: ["etiquetas-itens"] });
+        toast.success(`${res?.aplicados ?? 0} processo(s) etiquetado(s)`);
+      }
+    },
+    onError: (err: any) =>
+      toast.error("Erro ao aplicar etiqueta na base: " + (err?.message || "")),
+  });
+}
+
+function useQueryEtiquetasDoItem(entidade: EtiquetaEntidade, entidadeId?: string | null) {
   return useQuery({
     queryKey: ["etiquetas-itens", entidade, entidadeId ?? ""],
     enabled: !!entidadeId,
