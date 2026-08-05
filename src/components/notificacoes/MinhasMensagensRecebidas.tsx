@@ -234,6 +234,33 @@ export default function MinhasMensagensRecebidas({
     ]);
   };
 
+  /** Marca como lidas TODAS as mensagens do usuário nos últimos 30 dias (mesmo escopo do contador do menu) */
+  const marcarTodasDoUsuario = async () => {
+    if (!user?.id) return;
+    const desde = new Date();
+    desde.setDate(desde.getDate() - 30);
+    const { data } = await supabase
+      .from("historico_alertas_enviados")
+      .select("id, destinatario")
+      .gte("enviado_em", desde.toISOString())
+      .order("enviado_em", { ascending: false })
+      .limit(500);
+    const meus = ((data || []) as { id: string; destinatario: string | null }[])
+      .filter((m) => {
+        if (todosDestinatarios) return true;
+        const dest = (m.destinatario || "").toLowerCase();
+        return (
+          (!!email && dest === email) ||
+          (!!telefone && onlyDigits(dest).endsWith(telefone.slice(-8)))
+        );
+      })
+      .map((m) => m.id);
+    const ids = Array.from(new Set([...meus, ...mensagens.map((m) => m.id)])).filter(
+      (id) => !lidos.has(id),
+    );
+    await marcarLida(ids);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -277,13 +304,7 @@ export default function MinhasMensagensRecebidas({
             size="sm"
             variant="outline"
             disabled={naoLidas === 0}
-            onClick={() =>
-              marcarLida(
-                mensagens
-                  .flatMap((m) => m.ids)
-                  .filter((id) => !lidos.has(id)),
-              )
-            }
+            onClick={marcarTodasDoUsuario}
           >
             <Check className="h-4 w-4 mr-1" /> Marcar todas
           </Button>
