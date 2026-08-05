@@ -255,6 +255,9 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
           ...(novaAudienciaId ? { id: novaAudienciaId } : {}),
           ...dadosAudiencia,
           processo_id: dadosAudiencia.processo_id || null,
+          // O título digitado pelo usuário também alimenta tipo_audiencia para
+          // que o item apareça nas pendências exatamente como foi criado.
+          tipo_audiencia: dadosAudiencia.tipo_audiencia || dadosAudiencia.titulo || null,
           data_audiencia: dataAudienciaISO,
           publicacao_id: dadosAudiencia.publicacao_id || null,
           conteudo_publicacao: dadosAudiencia.conteudo_publicacao || null,
