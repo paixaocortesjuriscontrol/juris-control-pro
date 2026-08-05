@@ -9345,6 +9345,14 @@ export type Database = {
         Returns: undefined
       }
       analyze_publicacoes_djen: { Args: never; Returns: undefined }
+      aplicar_etiqueta_cliente_base: {
+        Args: { _dry_run?: boolean; _etiqueta_id: string }
+        Returns: Json
+      }
+      aplicar_etiquetas_cliente_processo: {
+        Args: { _processo_id: string; _publicacao_id?: string }
+        Returns: number
+      }
       apply_data_planilha_fix: { Args: { items: Json }; Returns: number }
       arquivar_dados_benner: {
         Args: { _id: string; _motivo?: string }
@@ -9427,6 +9435,12 @@ export type Database = {
           p_processo_numero: string
         }
         Returns: string
+      }
+      coordenadores_da_coordenacao: {
+        Args: { _coordenacao_id: string }
+        Returns: {
+          usuario_id: string
+        }[]
       }
       count_djen_publicacoes_deduplicadas_hoje: {
         Args: never
