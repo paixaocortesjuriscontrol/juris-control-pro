@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "4.3.7";
+export const APP_VERSION = "4.3.8";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -23,4 +23,5 @@ export const VERSION_HISTORY = [
   { version: "4.3.5", date: "2026-08-04", notes: "Cards compactos no Painel de Controle, correção do salvamento de audiências e alertas de prazos perdidos ignorando itens encerrados" },
   { version: "4.3.6", date: "2026-08-04", notes: "Lista lateral de atividades do dia no calendário do Painel de Controle (estilo Astrea)" },
   { version: "4.3.7", date: "2026-08-04", notes: "Exportação por período/tipos, filtros com botão Filtrar e digitação livre de datas" },
+  { version: "4.3.8", date: "2026-08-05", notes: "Alerta por e-mail quando uma execução do DJEN Termos encontra mais publicações que a execução anterior do dia (BRT)" },
 ];
