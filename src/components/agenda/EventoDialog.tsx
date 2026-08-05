@@ -2,7 +2,7 @@ import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis, situacaoExigeComentario } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
-import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
+import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -609,6 +609,16 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                     if (p.dia_inteiro === "true") setDiaInteiro(true);
                     if (p.local) setLocal((prev) => prev || p.local);
                     if (p.modalidade) setModalidade((prev) => prev || p.modalidade);
+                    // Prazo pré-programado no modelo → data do evento a partir da
+                    // data base (data da publicação, se houver, ou hoje)
+                    const prazoCalculado = resolverPrazoModelo(
+                      m,
+                      (publicacao as any)?.data_disponibilizacao || (publicacao as any)?.data_publicacao || null,
+                    );
+                    if (prazoCalculado) {
+                      setDataInicio((prev) => (p.data_inicio ? prev : prazoCalculado));
+                      setDataFim((prev) => (p.data_fim ? prev : prazoCalculado));
+                    }
                   }}
                 />
               </div>
