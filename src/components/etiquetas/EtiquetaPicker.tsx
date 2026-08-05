@@ -68,8 +68,13 @@ export function EtiquetaPicker({
   if (readOnly || !entidadeId) return <EtiquetaBadges etiquetas={aplicadas} />;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <span className="inline-flex items-center gap-1.5 align-middle">
+    <Popover open={open} onOpenChange={setOpen} modal>
+      <span
+        className="inline-flex items-center gap-1.5 align-middle"
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
         {aplicadas.length > 0 && <EtiquetaBadges etiquetas={aplicadas} />}
         <PopoverTrigger asChild>
           <Button
@@ -91,6 +96,7 @@ export function EtiquetaPicker({
       <PopoverContent
         className="w-80 p-2"
         align="start"
+        onPointerDownOutside={(e) => e.stopPropagation()}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onClick={(e) => e.stopPropagation()}
       >
