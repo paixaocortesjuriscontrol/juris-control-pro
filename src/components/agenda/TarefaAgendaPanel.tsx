@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
+import { usePodeAlterarDatas } from "@/hooks/usePodeAlterarDatas";
 import { format, parseISO, differenceInDays, startOfDay, isAfter } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -1131,6 +1132,8 @@ export function TarefaAgendaPanel({
                         type="date"
                         value={editForm.data_vencimento}
                         onChange={(e) => setEditForm(f => ({ ...f, data_vencimento: e.target.value }))}
+                        disabled={datasBloqueadas}
+                        title={datasBloqueadas ? motivoBloqueio : undefined}
                         className="h-9"
                       />
                     </div>
@@ -1140,6 +1143,8 @@ export function TarefaAgendaPanel({
                         type="date"
                         value={editForm.data_fatal}
                         onChange={(e) => setEditForm(f => ({ ...f, data_fatal: e.target.value }))}
+                        disabled={datasBloqueadas}
+                        title={datasBloqueadas ? motivoBloqueio : undefined}
                         className="h-9"
                       />
                     </div>
