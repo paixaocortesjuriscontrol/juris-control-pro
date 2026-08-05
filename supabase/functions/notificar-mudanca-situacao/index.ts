@@ -67,6 +67,10 @@ async function buscarDetalhesEntidade(supabase: any, entidade: string, id: strin
     if (!t) return null;
     return t.length > 400 ? `${t.slice(0, 400)}…` : t;
   };
+  // Evita repetir a mesma informação em "Título" e "Tipo"
+  const norm = (v?: string | null) =>
+    String(v ?? "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const mesmoTexto = (a?: string | null, b?: string | null) => !!norm(a) && norm(a) === norm(b);
   // Reclamante / Reclamada(s) do processo — usado em TODOS os tipos de item
   const partesProcesso = async (
     processoId?: string | null,
