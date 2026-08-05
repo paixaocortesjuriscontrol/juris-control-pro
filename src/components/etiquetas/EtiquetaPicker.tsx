@@ -1,5 +1,11 @@
 import { useMemo, useState } from "react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -68,7 +74,7 @@ export function EtiquetaPicker({
   if (readOnly || !entidadeId) return <EtiquetaBadges etiquetas={aplicadas} />;
 
   return (
-    <Popover open={open} onOpenChange={setOpen} modal>
+    <>
       <span
         className="inline-flex items-center gap-1.5 align-middle"
         onPointerDown={(e) => e.stopPropagation()}
@@ -76,39 +82,38 @@ export function EtiquetaPicker({
         onClick={(e) => e.stopPropagation()}
       >
         {aplicadas.length > 0 && <EtiquetaBadges etiquetas={aplicadas} />}
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7 gap-1.5 px-2 text-xs"
-            title="Aplicar etiqueta"
-          >
-            <Tag className="h-3.5 w-3.5" />
-            {aplicadas.length > 0
-              ? `Etiquetas (${aplicadas.length})`
-              : compact
-                ? "Etiqueta"
-                : "Adicionar etiqueta"}
-          </Button>
-        </PopoverTrigger>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1.5 px-2 text-xs"
+          title="Aplicar etiqueta"
+          onClick={(ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            setOpen(true);
+          }}
+        >
+          <Tag className="h-3.5 w-3.5" />
+          {aplicadas.length > 0
+            ? `Etiquetas (${aplicadas.length})`
+            : compact
+              ? "Etiqueta"
+              : "Adicionar etiqueta"}
+        </Button>
       </span>
-      <PopoverContent
-        className="w-80 p-2"
-        align="start"
-        onPointerDownOutside={(e) => e.stopPropagation()}
-        onOpenAutoFocus={(e) => e.preventDefault()}
+      <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent
+        className="max-w-sm p-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-2 mb-1">
-          <div>
-            <div className="text-xs font-semibold">Aplicar etiqueta</div>
-            {coordenacaoNome && (
-              <div className="text-[10px] text-muted-foreground truncate max-w-[210px]">
-                {coordenacaoNome}
-              </div>
-            )}
-          </div>
+        <DialogHeader>
+          <DialogTitle className="text-sm">Aplicar etiqueta</DialogTitle>
+          <DialogDescription className="text-[11px]">
+            {coordenacaoNome || "Selecione as etiquetas deste item"}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex items-start justify-end gap-2">
           {aplicadas.length > 0 && (
             <button
               type="button"
@@ -174,7 +179,8 @@ export function EtiquetaPicker({
             })}
           </div>
         )}
-      </PopoverContent>
-    </Popover>
+      </DialogContent>
+      </Dialog>
+    </>
   );
 }
