@@ -36,6 +36,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const { podeCancelar } = usePodeCancelarItens();
+  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas();
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
   const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);
   const [statusInicial, setStatusInicial] = useState<string>("pendente");
@@ -315,6 +316,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 type="date"
                 value={formData.data_audiencia}
                 onChange={(e) => handleChange("data_audiencia", e.target.value)}
+                disabled={datasBloqueadas}
+                title={datasBloqueadas ? motivoBloqueio : undefined}
               />
             </div>
             <div className="space-y-2 md:col-span-2">
@@ -557,7 +560,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="button" variant="outline" onClick={() => setReagendarModo("reagendar")} disabled={!audiencia}>
+            <Button type="button" variant="outline" onClick={() => setReagendarModo("reagendar")} disabled={!audiencia || datasBloqueadas} title={datasBloqueadas ? motivoBloqueio : undefined}>
               <CalendarClock className="h-4 w-4 mr-2" />
               Reagendar
             </Button>
