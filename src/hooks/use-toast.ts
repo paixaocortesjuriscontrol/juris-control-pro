@@ -150,7 +150,7 @@ function toast({ ...props }: Toast) {
     return {
       id: "ignored-legacy-status-comment-toast",
       dismiss: () => undefined,
-      update: () => undefined,
+      update: (_props: ToasterToast) => undefined,
     };
   }
 
