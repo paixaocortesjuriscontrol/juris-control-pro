@@ -1,4 +1,4 @@
-import { situacoesDisponiveis, situacaoExigeComentario } from "@/constants/situacoesItem";
+import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { useState, useEffect } from "react";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -147,10 +147,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
     if (!audiencia) return;
 
     const situacaoMudou = formData.status !== statusInicial;
-    if (situacaoMudou && situacaoExigeComentario(formData.status) && comentarioSituacao.trim().length < 3) {
-      toast.error("Informe um comentário justificando a mudança de situação");
-      return;
-    }
+
 
     setIsLoading(true);
     try {
@@ -256,10 +253,10 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const formId = `editar-audiencia-form-${audiencia?.id ?? 'new'}`;
   const formBody = (
     <form id={formId} onSubmit={handleSubmit} className="space-y-4">
-          {formData.status !== statusInicial && situacaoExigeComentario(formData.status) && (
+          {formData.status !== statusInicial && (
             <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
               <Label className="text-xs font-semibold">
-                Comentário obrigatório da mudança de situação
+                Comentário da mudança de situação (opcional)
               </Label>
               <Textarea
                 value={comentarioSituacao}

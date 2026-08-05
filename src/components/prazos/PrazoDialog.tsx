@@ -1,5 +1,5 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
-import { situacoesDisponiveis, situacaoExigeComentario } from "@/constants/situacoesItem";
+import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
@@ -473,10 +473,7 @@ export function PrazoDialog({
       return;
     }
     const situacaoMudou = situacao !== situacaoInicial;
-    if (situacaoMudou && situacaoExigeComentario(situacao) && comentarioSituacao.trim().length < 3) {
-      toast.error("Informe um comentário justificando a mudança de situação");
-      return;
-    }
+
 
     let processoIdParaSalvar = processoIdEfetivo;
     if (publicacao && user?.id) {
@@ -718,10 +715,10 @@ export function PrazoDialog({
           </div>
         </div>
 
-        {situacao !== situacaoInicial && situacaoExigeComentario(situacao) && (
+        {situacao !== situacaoInicial && (
           <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
             <Label className="text-xs font-semibold">
-              Comentário obrigatório da mudança de situação
+              Comentário da mudança de situação (opcional)
             </Label>
             <Textarea
               value={comentarioSituacao}
