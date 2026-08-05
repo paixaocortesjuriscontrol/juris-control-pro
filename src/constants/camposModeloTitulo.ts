@@ -31,6 +31,8 @@ export const CAMPOS_MODELO: Record<TipoModelo, CampoModelo[]> = {
     { key: "observacoes", label: "Observações", kind: "textarea" },
   ],
   tarefa: [
+    { key: "prazo_dias", label: "Prazo (dias)", kind: "number" },
+    { key: "prazo_unidade", label: "Unidade do prazo", kind: "select", options: UNIDADE },
     { key: "data_vencimento", label: "Data prevista", kind: "date" },
     { key: "hora_prevista", label: "Hora prevista", kind: "time" },
     { key: "data_fatal", label: "Data fatal", kind: "date" },
@@ -39,6 +41,8 @@ export const CAMPOS_MODELO: Record<TipoModelo, CampoModelo[]> = {
     { key: "descricao", label: "Descrição", kind: "textarea" },
   ],
   evento: [
+    { key: "prazo_dias", label: "Prazo (dias)", kind: "number" },
+    { key: "prazo_unidade", label: "Unidade do prazo", kind: "select", options: UNIDADE },
     { key: "data_inicio", label: "Data de início", kind: "date" },
     { key: "hora_inicio", label: "Hora de início", kind: "time" },
     { key: "data_fim", label: "Data de término", kind: "date" },
@@ -49,6 +53,8 @@ export const CAMPOS_MODELO: Record<TipoModelo, CampoModelo[]> = {
     { key: "observacoes", label: "Observações", kind: "textarea" },
   ],
   audiencia: [
+    { key: "prazo_dias", label: "Prazo (dias)", kind: "number" },
+    { key: "prazo_unidade", label: "Unidade do prazo", kind: "select", options: UNIDADE },
     { key: "data_audiencia", label: "Data da audiência", kind: "date" },
     { key: "hora", label: "Hora de início", kind: "time" },
     { key: "hora_fim", label: "Hora de término", kind: "time" },
