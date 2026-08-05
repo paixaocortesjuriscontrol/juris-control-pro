@@ -3615,6 +3615,12 @@ const AnaliseDjen = () => {
                 ...prev,
                 { id: info.id, titulo: info.titulo, tipo, createdAt: Date.now() },
               ]);
+              registrarAcaoSessao({
+                tipo: "item",
+                label: `Criar ${tipo} "${info.titulo}"`,
+                itemTipo: tipo,
+                id: info.id,
+              });
             };
           const markPubComoLida = async () => {
             if (!selectedPublicacao) return;
@@ -3691,6 +3697,11 @@ const AnaliseDjen = () => {
                 queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas-stats-header"] }),
                 queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
               ]);
+              registrarAcaoSessao({
+                tipo: "leitura",
+                label: `Marcar ${relacionadas.length} publicação(ões) como lida(s)`,
+                alvos: relacionadas.map((r) => ({ id: r.publicacao_id, tabela: r.tabela_origem })),
+              });
             } catch (err) {
               console.error("Erro ao marcar publicação como lida (Salvar e ler):", err);
             }
