@@ -124,6 +124,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const anexosRef = useRef<ItemAnexosHandle>(null);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const { user } = useAuth();
+  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas();
+  const travarDatas = datasBloqueadas && isEditing;
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
 
   const [titulo, setTitulo] = useState("");
