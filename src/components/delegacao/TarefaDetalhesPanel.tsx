@@ -357,6 +357,9 @@ export function TarefaDetalhesPanel({
                     </Button>
                   )}
                 </div>
+                {tarefa.processo.id && (
+                  <ProcessoResumoInline processoId={String(tarefa.processo.id)} />
+                )}
                 {tarefa.processo.polo_ativo && (
                   <p className="text-xs text-muted-foreground mt-1">
                     {tarefa.processo.polo_ativo}
