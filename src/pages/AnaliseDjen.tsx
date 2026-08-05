@@ -3009,6 +3009,11 @@ const AnaliseDjen = () => {
     }
     const items = Array.from(selectedIds.entries()).map(([id, tipo]) => ({ id, tipo_origem: tipo }));
     await marcarComoLida.mutateAsync(items);
+    registrarAcaoSessao({
+      tipo: "leitura",
+      label: `Marcar ${items.length} publicação(ões) como lida(s)`,
+      alvos: items.map((i) => ({ id: i.id, tabela: String(i.tipo_origem) })),
+    });
     setSelectedIds(new Map<string, TipoOrigemPublicacao>());
   };
 
@@ -3060,6 +3065,7 @@ const AnaliseDjen = () => {
     try {
       let sucesso = 0;
       const falhas: { id: string; processo: string | null; erro: string }[] = [];
+      const descartadosOk: string[] = [];
       for (const p of paraDescartar) {
         try {
           await descartarManualmente.mutateAsync({
@@ -3068,11 +3074,19 @@ const AnaliseDjen = () => {
             silent: true,
           });
           sucesso += 1;
+          descartadosOk.push(p.id);
         } catch (e: any) {
           falhas.push({ id: p.id, processo: p.processo_numero ?? null, erro: e?.message || String(e) });
         }
       }
       await invalidarListasDescarte();
+      if (descartadosOk.length > 0) {
+        registrarAcaoSessao({
+          tipo: "descarte",
+          label: `Descartar ${descartadosOk.length} publicação(ões)`,
+          ids: descartadosOk,
+        });
+      }
       if (falhas.length > 0) {
         console.error('[descartar-selecionadas] falhas:', falhas);
         toast.error(
