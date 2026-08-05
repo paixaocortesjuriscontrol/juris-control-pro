@@ -259,6 +259,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setRecorrenciaIntervalo((evento as any).recorrencia_intervalo || 1);
       setRecorrenciaFim(((evento as any).recorrencia_fim || "").slice(0, 10));
       setSituacao(((evento as any).status as any) || "pendente");
+      setSituacaoInicial(((evento as any).status as any) || "pendente");
+      setComentarioSituacao("");
       setCoordenacaoId(((evento as any).coordenacao_id as string) || unicaCoordenacaoId || "");
 
       const min = alertasEvento && alertasEvento.length > 0 ? alertasEvento[0] : 0;
@@ -330,6 +332,11 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
     if (!titulo.trim()) return;
     if (precisaSelecionar && !coordenacaoId) {
       toast.error("Selecione a coordenação");
+      return;
+    }
+    const situacaoMudou = situacao !== situacaoInicial;
+    if (situacaoMudou && situacaoExigeComentario(situacao) && comentarioSituacao.trim().length < 3) {
+      toast.error("Informe um comentário justificando a mudança de situação");
       return;
     }
 
@@ -417,6 +424,14 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
         await updateEvento.mutateAsync({ id: evento.id, ...payload });
         await persistirRelacionamentos(evento.id);
         await anexosRef.current?.uploadPendentes(evento.id, processoIdParaSalvar);
+        if (situacaoMudou && comentarioSituacao.trim() && user?.id) {
+          const { error: comErr } = await supabase.from("comentarios_eventos").insert({
+            evento_id: evento.id,
+            autor_id: user.id,
+            conteudo: `[Situação: ${situacaoInicial} → ${situacao}] ${comentarioSituacao.trim()}`,
+          });
+          if (comErr) console.error("Falha ao gravar comentário da situação:", comErr);
+        }
         await registrarAuditoriaTarefa({
           acao: 'atualizar', sucesso: true,
           dadosEntrada: payload, dadosSaida: { id: evento.id },
