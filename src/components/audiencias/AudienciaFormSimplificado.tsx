@@ -293,6 +293,21 @@ export function AudienciaFormSimplificado({
 
     let processoIdParaSalvar = processoId;
     let processoNumeroParaSalvar = processoNumero;
+    // Garante que o processo vinculado realmente existe (evita erro de chave
+    // estrangeira que fazia o "Salvar" falhar sem salvar nada).
+    if (processoIdParaSalvar) {
+      const { data: procExiste } = await supabase
+        .from("processos")
+        .select("id, numero")
+        .eq("id", processoIdParaSalvar)
+        .maybeSingle();
+      if (!procExiste) {
+        processoIdParaSalvar = undefined;
+        toast.warning("Processo vinculado não encontrado", {
+          description: "A audiência será salva sem o vínculo com o processo.",
+        });
+      }
+    }
     if (resolveProcessoBeforeSubmit) {
       try {
         const proc = await resolveProcessoBeforeSubmit();
@@ -332,7 +347,10 @@ export function AudienciaFormSimplificado({
       envolvidos_ids: envolvidosIds,
       coordenacao_id: coordenacaoId || undefined,
       // Vínculo com a publicação DJEN que originou a audiência
-      origem: publicacaoId ? "publicacao" : undefined,
+      // IMPORTANTE: a origem deve permanecer "manual" (regra de segurança da
+      // tabela só aceita "manual" ou "detectado"); o vínculo com a publicação
+      // é registrado em publicacao_id e nas tabelas de junção.
+      origem: undefined,
       publicacao_id: publicacaoId && publicacaoTipoOrigem === "termo" ? publicacaoId : undefined,
       conteudo_publicacao: publicacaoConteudo || undefined,
     };
