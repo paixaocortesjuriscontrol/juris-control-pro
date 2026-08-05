@@ -5,7 +5,7 @@ Sempre que uma execução do **DJEN Termos** encontrar publicações a mais do q
 ## Regras
 
 - Escopo: apenas execuções do motor **Termos** (`djen_paralela_servidor` no servidor e `djen_paralela` local). Pautas, STF, Kurier e Processos ficam fora.
-- Comparação: cada execução concluída é comparada com a execução de Termos imediatamente anterior do mesmo dia (BRT), coordenação por coordenação.
+- Comparação: cada execução concluída é comparada com a execução de Termos imediatamente anterior **do mesmo dia**, coordenação por coordenação. Todo o recorte do dia e todos os horários exibidos usam o fuso **BRT (America/Sao_Paulo, UTC-3)** — janela do dia de `ymd 03:00 UTC` até `ymd+1 03:00 UTC`, igual ao card da tela.
 - Diferença = publicações vistas pela 1ª vez naquela execução (mesma lógica do "+N" já exibido no card "Execuções do dia por coordenação" da tela Análise DJEN).
 - Coordenação com diferença 0 não entra no e-mail. Nenhuma coordenação com diferença, nenhum e-mail.
 - Primeira execução do dia não gera alerta (não há execução anterior para comparar).
