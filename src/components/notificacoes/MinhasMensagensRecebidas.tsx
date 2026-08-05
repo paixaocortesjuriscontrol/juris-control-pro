@@ -227,8 +227,11 @@ export default function MinhasMensagensRecebidas({
       toast.error("Não foi possível marcar como lida");
       return;
     }
-    await queryClient.invalidateQueries({ queryKey: ["minhas-mensagens-leituras", user.id] });
-    await queryClient.invalidateQueries({ queryKey: ["mensagens-nao-lidas"] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["minhas-mensagens-leituras", user.id], refetchType: "all" }),
+      queryClient.invalidateQueries({ queryKey: ["mensagens-nao-lidas"], refetchType: "all" }),
+      queryClient.invalidateQueries({ queryKey: ["alertas-recebidos"], refetchType: "all" }),
+    ]);
   };
 
   return (
@@ -274,7 +277,13 @@ export default function MinhasMensagensRecebidas({
             size="sm"
             variant="outline"
             disabled={naoLidas === 0}
-            onClick={() => marcarLida(mensagens.filter((m) => !lidos.has(m.id)).map((m) => m.id))}
+            onClick={() =>
+              marcarLida(
+                mensagens
+                  .flatMap((m) => m.ids)
+                  .filter((id) => !lidos.has(id)),
+              )
+            }
           >
             <Check className="h-4 w-4 mr-1" /> Marcar todas
           </Button>
