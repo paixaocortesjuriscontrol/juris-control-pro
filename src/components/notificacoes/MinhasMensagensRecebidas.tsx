@@ -227,8 +227,38 @@ export default function MinhasMensagensRecebidas({
       toast.error("Não foi possível marcar como lida");
       return;
     }
-    await queryClient.invalidateQueries({ queryKey: ["minhas-mensagens-leituras", user.id] });
-    await queryClient.invalidateQueries({ queryKey: ["mensagens-nao-lidas"] });
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["minhas-mensagens-leituras", user.id], refetchType: "all" }),
+      queryClient.invalidateQueries({ queryKey: ["mensagens-nao-lidas"], refetchType: "all" }),
+      queryClient.invalidateQueries({ queryKey: ["alertas-recebidos"], refetchType: "all" }),
+    ]);
+  };
+
+  /** Marca como lidas TODAS as mensagens do usuário nos últimos 30 dias (mesmo escopo do contador do menu) */
+  const marcarTodasDoUsuario = async () => {
+    if (!user?.id) return;
+    const desde = new Date();
+    desde.setDate(desde.getDate() - 30);
+    const { data } = await supabase
+      .from("historico_alertas_enviados")
+      .select("id, destinatario")
+      .gte("enviado_em", desde.toISOString())
+      .order("enviado_em", { ascending: false })
+      .limit(500);
+    const meus = ((data || []) as { id: string; destinatario: string | null }[])
+      .filter((m) => {
+        if (todosDestinatarios) return true;
+        const dest = (m.destinatario || "").toLowerCase();
+        return (
+          (!!email && dest === email) ||
+          (!!telefone && onlyDigits(dest).endsWith(telefone.slice(-8)))
+        );
+      })
+      .map((m) => m.id);
+    const ids = Array.from(new Set([...meus, ...mensagens.map((m) => m.id)])).filter(
+      (id) => !lidos.has(id),
+    );
+    await marcarLida(ids);
   };
 
   return (
@@ -274,7 +304,7 @@ export default function MinhasMensagensRecebidas({
             size="sm"
             variant="outline"
             disabled={naoLidas === 0}
-            onClick={() => marcarLida(mensagens.filter((m) => !lidos.has(m.id)).map((m) => m.id))}
+            onClick={marcarTodasDoUsuario}
           >
             <Check className="h-4 w-4 mr-1" /> Marcar todas
           </Button>
