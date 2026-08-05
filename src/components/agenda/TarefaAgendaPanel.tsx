@@ -187,6 +187,7 @@ export function TarefaAgendaPanel({
   
   const [comentario, setComentario] = useState("");
   const { podeCancelar } = usePodeCancelarItens();
+  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas();
   const [sendingComment, setSendingComment] = useState(false);
   const [comentariosOpen, setComentariosOpen] = useState(true);
   const [detalhesOpen, setDetalhesOpen] = useState(true);
