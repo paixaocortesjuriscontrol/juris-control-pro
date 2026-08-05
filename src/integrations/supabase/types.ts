@@ -4147,6 +4147,7 @@ export type Database = {
       etiquetas: {
         Row: {
           ativo: boolean
+          cliente_id: string | null
           coordenacao_id: string
           cor: string
           created_at: string
@@ -4159,6 +4160,7 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          cliente_id?: string | null
           coordenacao_id: string
           cor?: string
           created_at?: string
@@ -4171,6 +4173,7 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          cliente_id?: string | null
           coordenacao_id?: string
           cor?: string
           created_at?: string
@@ -4182,6 +4185,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "etiquetas_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "etiquetas_coordenacao_id_fkey"
             columns: ["coordenacao_id"]
@@ -10215,6 +10225,11 @@ export type Database = {
         | "revisao"
         | "verificado"
         | "concluido_sem_sucesso"
+        | "protocolado"
+        | "baixado"
+        | "minutado_revisao"
+        | "reagendado"
+        | "tratado"
       tipo_item_prompt_ia: "prazo" | "tarefa" | "evento" | "audiencia"
     }
     CompositeTypes: {
@@ -10378,6 +10393,11 @@ export const Constants = {
         "revisao",
         "verificado",
         "concluido_sem_sucesso",
+        "protocolado",
+        "baixado",
+        "minutado_revisao",
+        "reagendado",
+        "tratado",
       ],
       tipo_item_prompt_ia: ["prazo", "tarefa", "evento", "audiencia"],
     },
