@@ -83,10 +83,6 @@ export function EtiquetaPicker({
             size="sm"
             className="h-7 gap-1.5 px-2 text-xs"
             title="Aplicar etiqueta"
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpen((v) => !v);
-            }}
           >
             <Tag className="h-3.5 w-3.5" />
             {aplicadas.length > 0
