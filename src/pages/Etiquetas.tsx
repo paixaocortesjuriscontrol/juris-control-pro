@@ -214,6 +214,26 @@ export default function EtiquetasPage() {
                 </div>
               </div>
               <div className="space-y-1">
+                <Label className="text-xs">Cliente vinculado (opcional)</Label>
+                <Select value={novoCliente} onValueChange={setNovoCliente}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue placeholder="Sem cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SEM_CLIENTE}>Sem cliente</SelectItem>
+                    {clientes.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Com cliente vinculado, a etiqueta é aplicada automaticamente aos processos desse
+                  cliente quando chegam novas publicações.
+                </p>
+              </div>
+              <div className="space-y-1">
                 <Label className="text-xs">Aparece nos módulos</Label>
                 <div className="grid gap-1 sm:grid-cols-2">
                   {ETIQUETA_MODULOS.map((m) => (
