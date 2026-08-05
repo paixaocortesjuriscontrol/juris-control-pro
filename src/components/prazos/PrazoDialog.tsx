@@ -468,6 +468,11 @@ export function PrazoDialog({
       toast.error("Selecione a coordenação");
       return;
     }
+    const situacaoMudou = situacao !== situacaoInicial;
+    if (situacaoMudou && situacaoExigeComentario(situacao) && comentarioSituacao.trim().length < 3) {
+      toast.error("Informe um comentário justificando a mudança de situação");
+      return;
+    }
 
     let processoIdParaSalvar = processoIdEfetivo;
     if (publicacao && user?.id) {
