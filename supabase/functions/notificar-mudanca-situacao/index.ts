@@ -287,9 +287,9 @@ serve(async (req) => {
             // 2) membros da coordenação com role 'coordenador'
             const { data: membros } = await supabase
               .from("membros_coordenacao")
-              .select("user_id")
+              .select("usuario_id")
               .eq("coordenacao_id", item.coordenacao_id);
-            const memberIds = (membros ?? []).map((m: any) => m.user_id).filter(Boolean);
+            const memberIds = (membros ?? []).map((m: any) => m.usuario_id).filter(Boolean);
             if (memberIds.length > 0) {
               const { data: roles } = await supabase
                 .from("user_roles")
@@ -400,11 +400,13 @@ serve(async (req) => {
           if (cfg && (isComentario ? cfg.evento_comentario === false : cfg.evento_mudanca_situacao === false)) return null;
           return {
             usuario_id: uid,
-            tipo: isComentario ? "comentario" : "mudanca_situacao",
+            // A tabela `notificacoes` só aceita: info | warning | success | djen
+            tipo: "info",
             titulo: assunto,
             mensagem: corpo,
             lida: false,
             dados: {
+              evento: isComentario ? "comentario" : "mudanca_situacao",
               entidade: item.entidade,
               entidade_id: item.entidade_id,
               ...(isComentario ? { conteudo: conteudoComentario } : {}),
