@@ -203,6 +203,48 @@ export type Database = {
           },
         ]
       }
+      alertas_diferenca_execucoes_djen: {
+        Row: {
+          coordenacao_id: string | null
+          created_at: string
+          destinatarios: number
+          dia_ymd: string | null
+          diferenca: number
+          enviado_em: string
+          execucao_id: string
+          fonte: string
+          id: string
+          total_anterior: number
+          total_atual: number
+        }
+        Insert: {
+          coordenacao_id?: string | null
+          created_at?: string
+          destinatarios?: number
+          dia_ymd?: string | null
+          diferenca?: number
+          enviado_em?: string
+          execucao_id: string
+          fonte?: string
+          id?: string
+          total_anterior?: number
+          total_atual?: number
+        }
+        Update: {
+          coordenacao_id?: string | null
+          created_at?: string
+          destinatarios?: number
+          dia_ymd?: string | null
+          diferenca?: number
+          enviado_em?: string
+          execucao_id?: string
+          fonte?: string
+          id?: string
+          total_anterior?: number
+          total_atual?: number
+        }
+        Relationships: []
+      }
       alertas_evento: {
         Row: {
           created_at: string
