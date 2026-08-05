@@ -291,6 +291,22 @@ export default function EtiquetasPage() {
                       </div>
                     </div>
                     <div className="space-y-1">
+                      <Label className="text-xs">Cliente vinculado (opcional)</Label>
+                      <Select value={editCliente} onValueChange={setEditCliente}>
+                        <SelectTrigger className="h-9">
+                          <SelectValue placeholder="Sem cliente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={SEM_CLIENTE}>Sem cliente</SelectItem>
+                          {clientes.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
                       <Label className="text-xs">Aparece nos módulos</Label>
                       <div className="grid gap-1 sm:grid-cols-2">
                         {ETIQUETA_MODULOS.map((m) => (
@@ -329,6 +345,11 @@ export default function EtiquetasPage() {
                       {e.nome}
                     </Badge>
                     <div className="flex-1 flex flex-wrap gap-1">
+                      {e.cliente_id && (
+                        <span className="text-[10px] text-muted-foreground border rounded px-1 py-0.5">
+                          Cliente: {clienteNomeById.get(e.cliente_id) ?? "—"}
+                        </span>
+                      )}
                       {ETIQUETA_MODULOS.filter((m) => (e.modulos || []).includes(m.value)).map(
                         (m) => (
                           <span
@@ -348,6 +369,11 @@ export default function EtiquetasPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => iniciarEdicao(e)}>Editar</DropdownMenuItem>
+                        {e.cliente_id && (
+                          <DropdownMenuItem onClick={() => iniciarAplicacaoBase(e)}>
+                            Aplicar na base (processos do cliente)
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           className="text-destructive"
                           onClick={() => setExcluindo(e)}
