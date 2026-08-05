@@ -51,6 +51,7 @@ import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao
 import { useAuth } from "@/contexts/AuthContext";
 import { PublicacaoVinculadaCollapsible } from "@/components/shared/PublicacaoVinculadaCollapsible";
 import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
+import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInline";
 
 function ScrollAreaOrDiv({ embedded, children }: { embedded?: boolean; children: React.ReactNode }) {
   if (embedded) return <div className="px-6">{children}</div>;
@@ -765,16 +766,19 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                 Vincular processo (opcional)
               </Label>
               {processoSelecionado ? (
-                <div className="flex items-center justify-between p-2 bg-muted/50 rounded">
-                  <div className="text-sm">
-                    <span className="font-medium">{processoSelecionado.numero}</span>
-                    <span className="text-muted-foreground ml-2">
-                      {processoSelecionado.polo_ativo} x {processoSelecionado.polo_passivo}
-                    </span>
+                <div className="p-2 bg-muted/50 rounded space-y-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="text-sm min-w-0">
+                      <span className="font-medium">{processoSelecionado.numero}</span>
+                      <span className="text-muted-foreground ml-2">
+                        {processoSelecionado.polo_ativo} x {processoSelecionado.polo_passivo}
+                      </span>
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setProcessoId("")}>
+                      <X className="w-4 h-4" />
+                    </Button>
                   </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setProcessoId("")}>
-                    <X className="w-4 h-4" />
-                  </Button>
+                  <ProcessoResumoInline processoId={String(processoSelecionado.id)} />
                 </div>
               ) : (
                 <>

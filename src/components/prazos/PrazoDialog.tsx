@@ -53,6 +53,7 @@ import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
+import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInline";
 
 type Unidade = "uteis" | "corridos";
 
@@ -722,6 +723,9 @@ export function PrazoDialog({
                       <ExternalLink className="mr-1 h-3 w-3" />
                       Ver processo
                     </Button>
+                  )}
+                  {processoVinculado.id && (
+                    <ProcessoResumoInline processoId={String(processoVinculado.id)} />
                   )}
                 </div>
                 {(processoVinculado.reclamante || processoVinculado.autor || processoVinculado.reclamados || processoVinculado.requerido) && (

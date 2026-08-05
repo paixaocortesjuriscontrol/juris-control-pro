@@ -60,6 +60,7 @@ import {
   Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInline";
 
 interface TarefaDetalhesDialogProps {
   tarefa: any;
@@ -558,6 +559,9 @@ export function TarefaDetalhesDialog({
                         </Button>
                       )}
                     </div>
+                    {tarefa.processo.id && (
+                      <ProcessoResumoInline processoId={String(tarefa.processo.id)} />
+                    )}
                     {tarefa.processo.polo_ativo && (
                       <p className="text-xs text-muted-foreground mt-1">
                         {tarefa.processo.polo_ativo}
