@@ -1,4 +1,4 @@
-import { situacoesDisponiveis } from "@/constants/situacoesItem";
+import { situacoesDisponiveis, situacaoExigeComentario } from "@/constants/situacoesItem";
 import { useState, useEffect } from "react";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -37,6 +37,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const { podeCancelar } = usePodeCancelarItens();
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
   const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);
+  const [statusInicial, setStatusInicial] = useState<string>("pendente");
+  const [comentarioSituacao, setComentarioSituacao] = useState("");
   const [formData, setFormData] = useState({
     titulo: "",
     data_audiencia: "",
