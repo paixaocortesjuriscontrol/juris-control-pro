@@ -1,5 +1,5 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
-import { situacoesDisponiveis } from "@/constants/situacoesItem";
+import { situacoesDisponiveis, situacaoExigeComentario } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
@@ -246,6 +246,8 @@ export function PrazoDialog({
   const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   const [situacao, setSituacao] = useState<string>("pendente");
+  const [situacaoInicial, setSituacaoInicial] = useState<string>("pendente");
+  const [comentarioSituacao, setComentarioSituacao] = useState("");
   const { podeCancelar } = usePodeCancelarItens();
   // Processo resolvido a partir da publicação (quando não há defaultProcessoId)
   const [resolvedProcessoId, setResolvedProcessoId] = useState<string>("");
@@ -399,6 +401,8 @@ export function PrazoDialog({
       setDataFatal((prazo as any).data_fatal ? parseISO((prazo as any).data_fatal) : undefined);
       setCoordenacaoId(((prazo as any).coordenacao_id as string) || "");
       setSituacao(((prazo as any).status as any) || "pendente");
+      setSituacaoInicial(((prazo as any).status as any) || "pendente");
+      setComentarioSituacao("");
       setRecorrenciaTipo(((prazo as any).recorrencia_tipo as string) || "nenhuma");
       setRecorrenciaIntervalo(((prazo as any).recorrencia_intervalo as number) || 1);
       setRecorrenciaFim(((prazo as any).recorrencia_fim ? String((prazo as any).recorrencia_fim).slice(0, 10) : ""));
