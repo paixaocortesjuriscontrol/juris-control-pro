@@ -147,10 +147,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
     if (!audiencia) return;
 
     const situacaoMudou = formData.status !== statusInicial;
-    if (situacaoMudou && situacaoExigeComentario(formData.status) && comentarioSituacao.trim().length < 3) {
-      toast.error("Informe um comentário justificando a mudança de situação");
-      return;
-    }
+
 
     setIsLoading(true);
     try {
