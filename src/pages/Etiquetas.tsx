@@ -412,6 +412,38 @@ export default function EtiquetasPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!aplicando} onOpenChange={(o) => !o && setAplicando(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Aplicar etiqueta na base</AlertDialogTitle>
+            <AlertDialogDescription>
+              {aplicando?.total ?? 0} processo(s) desta coordenação pertencem ao cliente
+              {" "}
+              {aplicando?.etiqueta.cliente_id
+                ? clienteNomeById.get(aplicando.etiqueta.cliente_id) ?? ""
+                : ""}
+              . A etiqueta "{aplicando?.etiqueta.nome}" será aplicada a todos eles.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!aplicando?.total || aplicarBase.isPending}
+              onClick={async () => {
+                if (aplicando)
+                  await aplicarBase.mutateAsync({
+                    etiquetaId: aplicando.etiqueta.id,
+                    dryRun: false,
+                  });
+                setAplicando(null);
+              }}
+            >
+              Aplicar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }
