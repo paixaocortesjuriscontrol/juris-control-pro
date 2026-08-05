@@ -60,6 +60,7 @@ import {
   Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInline";
 
 interface TarefaDetalhesDialogProps {
   tarefa: any;

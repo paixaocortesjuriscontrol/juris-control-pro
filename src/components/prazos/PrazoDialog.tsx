@@ -53,6 +53,7 @@ import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
+import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInline";
 
 type Unidade = "uteis" | "corridos";
 
