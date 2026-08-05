@@ -265,7 +265,7 @@ export function ProcessoDetalhesCompletos({
   const eventosDoProcesso = eventosAgenda.filter((evento: any) => (evento.tipo || "").toLowerCase() !== "parcelamento");
   const parcelamentosDoProcesso = eventosAgenda.filter((evento: any) => (evento.tipo || "").toLowerCase() === "parcelamento");
   const processoPreSelecionado = processo
-    ? { id: processo.id, numero: processo.numero || "" }
+    ? { id: processo.id, numero: processo.numero || "", coordenacao_id: (processo as any).coordenacao_id ?? null }
     : null;
   const abrirNovoItem = (tipo: NovoItemTipo, item: any | null = null) => {
     if (tipo === "audiencia") {
