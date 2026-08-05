@@ -46,6 +46,8 @@ export interface Etiqueta {
   modulos: EtiquetaModulo[];
   ativo: boolean;
   ordem: number;
+  /** Cliente vinculado — habilita a aplicação automática/retroativa por cliente. */
+  cliente_id?: string | null;
 }
 
 export const ETIQUETA_COLOR_PALETTE = [
@@ -153,6 +155,7 @@ export interface EtiquetaInput {
   nome: string;
   cor: string;
   modulos: EtiquetaModulo[];
+  cliente_id?: string | null;
 }
 
 export function useCriarEtiqueta() {
@@ -170,6 +173,7 @@ export function useCriarEtiqueta() {
           nome,
           cor: input.cor,
           modulos: input.modulos.length ? input.modulos : ETIQUETA_MODULOS.map((m) => m.value),
+          cliente_id: input.cliente_id ?? null,
           created_by: userData.user?.id,
         } as any)
         .select("*")
@@ -192,7 +196,14 @@ export function useAtualizarEtiqueta() {
     mutationFn: async ({
       id,
       ...patch
-    }: { id: string; nome?: string; cor?: string; modulos?: EtiquetaModulo[]; ativo?: boolean }) => {
+    }: {
+      id: string;
+      nome?: string;
+      cor?: string;
+      modulos?: EtiquetaModulo[];
+      ativo?: boolean;
+      cliente_id?: string | null;
+    }) => {
       const payload: any = { ...patch };
       if (payload.nome !== undefined) {
         payload.nome = String(payload.nome).trim();
