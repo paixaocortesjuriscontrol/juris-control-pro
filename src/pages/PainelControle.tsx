@@ -1083,10 +1083,6 @@ export default function PainelControle() {
       }
     }
 
-    const rows = itensOrdenados.map((it) => {
-      return it;
-    });
-
     // Etiquetas aplicadas nos itens e nos processos vinculados
     const etiquetaIdsAlvo = new Set<string>();
     for (const it of itensOrdenados) {
