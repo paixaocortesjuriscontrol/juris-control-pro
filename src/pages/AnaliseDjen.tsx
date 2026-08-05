@@ -3103,6 +3103,87 @@ const AnaliseDjen = () => {
     }
   };
 
+  // Reverte a última ação registrada na sessão (leitura, descarte ou item criado).
+  const tabelaPubDe = (t: string) =>
+    t === "processo"
+      ? "publicacoes_djen_processos"
+      : t === "descartada"
+        ? "publicacoes_djen_descartadas"
+        : "publicacoes_djen";
+  const desfazerUltimaAcaoSessao = async () => {
+    const acao = acoesSessao[acoesSessao.length - 1];
+    if (!acao) return;
+    const descricao =
+      acao.tipo === "leitura"
+        ? `${acao.label} — as publicações voltam para "Não lidas".`
+        : acao.tipo === "descarte"
+          ? `${acao.label} — as publicações voltam para a lista ativa.`
+          : `${acao.label} — o item criado será EXCLUÍDO.`;
+    if (!window.confirm(`Desfazer a última ação?\n\n${descricao}`)) return;
+    setDesfazendoAcao(true);
+    try {
+      if (acao.tipo === "leitura") {
+        const porTabela = new Map<string, string[]>();
+        for (const a of acao.alvos) {
+          const tb = tabelaPubDe(a.tabela);
+          porTabela.set(tb, [...(porTabela.get(tb) || []), a.id]);
+        }
+        for (const [tb, ids] of porTabela) {
+          const { error } = await (supabase as any).from(tb).update({ lida: false }).in("id", ids);
+          if (error) throw error;
+        }
+        if (user?.id) {
+          for (const a of acao.alvos) {
+            await (supabase as any)
+              .from("publicacoes_djen_leituras")
+              .delete()
+              .eq("publicacao_id", a.id)
+              .eq("usuario_id", user.id);
+          }
+        }
+        setPubsTratadasSessao((prev) => {
+          const next = { ...prev };
+          for (const a of acao.alvos) delete next[a.id];
+          return next;
+        });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
+          queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas-stats-header"] }),
+          queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
+        ]);
+      } else if (acao.tipo === "descarte") {
+        for (const id of acao.ids) {
+          const { error } = await (supabase as any).rpc("desfazer_descarte_individual", { p_id: id });
+          if (error) throw error;
+        }
+        await invalidarListasDescarte();
+      } else {
+        const tabela =
+          acao.itemTipo === "evento"
+            ? "eventos_agenda"
+            : acao.itemTipo === "audiencia"
+              ? "audiencias_detectadas"
+              : "tarefas";
+        const { error } = await (supabase as any).from(tabela).delete().eq("id", acao.id);
+        if (error) throw error;
+        setItensCriadosSessao((prev) => prev.filter((i) => i.id !== acao.id));
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["itens-existentes-publicacao"] }),
+          queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] }),
+          queryClient.invalidateQueries({ queryKey: ["tarefas"] }),
+          queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] }),
+        ]);
+      }
+      setAcoesSessao((prev) => prev.slice(0, -1));
+      toast.success("Ação desfeita.");
+    } catch (e: any) {
+      console.error("[desfazer-ultimo]", e);
+      toast.error(`Não foi possível desfazer: ${e?.message || e}`);
+    } finally {
+      setDesfazendoAcao(false);
+    }
+  };
+
   // Descarta apenas duplicadas dentro das selecionadas, mantendo 1 por grupo.
   // Ignora selecionadas que não têm par duplicado (não pergunta para forçar descarte).
   const handleDescartarDuplicadasSelecionadas = async () => {
