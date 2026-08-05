@@ -400,11 +400,13 @@ serve(async (req) => {
           if (cfg && (isComentario ? cfg.evento_comentario === false : cfg.evento_mudanca_situacao === false)) return null;
           return {
             usuario_id: uid,
-            tipo: isComentario ? "comentario" : "mudanca_situacao",
+            // A tabela `notificacoes` só aceita: info | warning | success | djen
+            tipo: "info",
             titulo: assunto,
             mensagem: corpo,
             lida: false,
             dados: {
+              evento: isComentario ? "comentario" : "mudanca_situacao",
               entidade: item.entidade,
               entidade_id: item.entidade_id,
               ...(isComentario ? { conteudo: conteudoComentario } : {}),
