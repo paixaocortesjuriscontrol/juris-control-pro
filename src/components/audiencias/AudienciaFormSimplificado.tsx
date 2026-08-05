@@ -423,6 +423,12 @@ export function AudienciaFormSimplificado({
     } else {
       toast.success("Audiência salva. Você pode cadastrar outro item para esta publicação.");
     }
+    } catch (err: any) {
+      console.error("[AudienciaFormSimplificado] falha ao salvar:", err);
+      toast.error("Não foi possível salvar a audiência", {
+        description: err?.message || String(err),
+      });
+    }
   };
 
   return (
