@@ -1,7 +1,7 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
-import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
+import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -508,11 +508,15 @@ export function AudienciaFormSimplificado({
               set("titulo", m.titulo);
               if (m.descricao && !form.observacoes) set("observacoes", m.descricao);
               const p = resolverPadroes(m);
+              const prazoCalculado = resolverPrazoModelo(m, null);
               setForm((prev) => {
                 const next: any = { ...prev };
                 for (const [k, v] of Object.entries(p)) {
                   if (k === "titulo") continue;
                   if (!String(next[k] ?? "").trim()) next[k] = v;
+                }
+                if (prazoCalculado && !String(next.data_audiencia ?? "").trim()) {
+                  next.data_audiencia = prazoCalculado;
                 }
                 return next;
               });

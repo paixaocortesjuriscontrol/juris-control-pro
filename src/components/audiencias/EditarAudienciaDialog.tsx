@@ -1,4 +1,4 @@
-import { situacoesDisponiveis } from "@/constants/situacoesItem";
+import { situacoesDisponiveis, situacaoExigeComentario } from "@/constants/situacoesItem";
 import { useState, useEffect } from "react";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -37,6 +37,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const { podeCancelar } = usePodeCancelarItens();
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
   const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);
+  const [statusInicial, setStatusInicial] = useState<string>("pendente");
+  const [comentarioSituacao, setComentarioSituacao] = useState("");
   const [formData, setFormData] = useState({
     titulo: "",
     data_audiencia: "",
@@ -120,6 +122,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
         nucleo_origem: audiencia.nucleo_origem || "",
         dossie: audiencia.dossie || "",
       });
+      setStatusInicial(audiencia.status || "pendente");
+      setComentarioSituacao("");
     }
   }, [audiencia]);
 
@@ -139,6 +143,12 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!audiencia) return;
+
+    const situacaoMudou = formData.status !== statusInicial;
+    if (situacaoMudou && situacaoExigeComentario(formData.status) && comentarioSituacao.trim().length < 3) {
+      toast.error("Informe um comentário justificando a mudança de situação");
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -190,6 +200,19 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
 
       if (error) throw error;
 
+      // Comentário obrigatório da mudança de situação → histórico do item
+      if (situacaoMudou && comentarioSituacao.trim()) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.id) {
+          const { error: comErr } = await supabase.from("comentarios_audiencias").insert({
+            audiencia_id: audiencia.id,
+            autor_id: user.id,
+            conteudo: `[Situação: ${statusInicial} → ${formData.status}] ${comentarioSituacao.trim()}`,
+          });
+          if (comErr) console.error("Falha ao gravar comentário da situação:", comErr);
+        }
+      }
+
       // Atualizar advogados vinculados
       // Primeiro remove todos os existentes
       await supabase
@@ -218,6 +241,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
         ['audiencia-advogados', audiencia.id],
       ].filter(Boolean) as unknown[][]);
       toast.success('Audiência atualizada com sucesso!');
+      setStatusInicial(formData.status);
+      setComentarioSituacao("");
       onOpenChange(false);
     } catch (error: any) {
       toast.error(`Erro ao atualizar: ${error.message}`);
@@ -229,6 +254,19 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const formId = `editar-audiencia-form-${audiencia?.id ?? 'new'}`;
   const formBody = (
     <form id={formId} onSubmit={handleSubmit} className="space-y-4">
+          {formData.status !== statusInicial && situacaoExigeComentario(formData.status) && (
+            <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+              <Label className="text-xs font-semibold">
+                Comentário obrigatório da mudança de situação
+              </Label>
+              <Textarea
+                value={comentarioSituacao}
+                onChange={(e) => setComentarioSituacao(e.target.value)}
+                placeholder="Explique o motivo da mudança de situação..."
+                className="min-h-[64px] text-sm"
+              />
+            </div>
+          )}
           {/* Título — sempre visível, igual ao cadastro */}
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">

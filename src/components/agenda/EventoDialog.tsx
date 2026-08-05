@@ -1,8 +1,8 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
-import { situacoesDisponiveis } from "@/constants/situacoesItem";
+import { situacoesDisponiveis, situacaoExigeComentario } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
-import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
+import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
@@ -151,6 +151,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const [processoId, setProcessoId] = useState("");
   const [processoSearch, setProcessoSearch] = useState("");
   const [situacao, setSituacao] = useState<string>("pendente");
+  const [situacaoInicial, setSituacaoInicial] = useState<string>("pendente");
+  const [comentarioSituacao, setComentarioSituacao] = useState("");
   const { podeCancelar } = usePodeCancelarItens();
 
   // Recorrência
@@ -179,6 +181,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
     setEnvolvidosIds([]);
     setMostrarEnvolvidos(false);
     setSituacao("pendente");
+    setSituacaoInicial("pendente");
+    setComentarioSituacao("");
     setRecorrenciaTipo("nenhuma");
     setRecorrenciaIntervalo(1);
     setRecorrenciaFim("");
@@ -255,6 +259,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setRecorrenciaIntervalo((evento as any).recorrencia_intervalo || 1);
       setRecorrenciaFim(((evento as any).recorrencia_fim || "").slice(0, 10));
       setSituacao(((evento as any).status as any) || "pendente");
+      setSituacaoInicial(((evento as any).status as any) || "pendente");
+      setComentarioSituacao("");
       setCoordenacaoId(((evento as any).coordenacao_id as string) || unicaCoordenacaoId || "");
 
       const min = alertasEvento && alertasEvento.length > 0 ? alertasEvento[0] : 0;
@@ -326,6 +332,11 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
     if (!titulo.trim()) return;
     if (precisaSelecionar && !coordenacaoId) {
       toast.error("Selecione a coordenação");
+      return;
+    }
+    const situacaoMudou = situacao !== situacaoInicial;
+    if (situacaoMudou && situacaoExigeComentario(situacao) && comentarioSituacao.trim().length < 3) {
+      toast.error("Informe um comentário justificando a mudança de situação");
       return;
     }
 
@@ -413,6 +424,14 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
         await updateEvento.mutateAsync({ id: evento.id, ...payload });
         await persistirRelacionamentos(evento.id);
         await anexosRef.current?.uploadPendentes(evento.id, processoIdParaSalvar);
+        if (situacaoMudou && comentarioSituacao.trim() && user?.id) {
+          const { error: comErr } = await supabase.from("comentarios_eventos").insert({
+            evento_id: evento.id,
+            autor_id: user.id,
+            conteudo: `[Situação: ${situacaoInicial} → ${situacao}] ${comentarioSituacao.trim()}`,
+          });
+          if (comErr) console.error("Falha ao gravar comentário da situação:", comErr);
+        }
         await registrarAuditoriaTarefa({
           acao: 'atualizar', sucesso: true,
           dadosEntrada: payload, dadosSaida: { id: evento.id },
@@ -545,6 +564,19 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             </div>
             <ScrollAreaOrDiv embedded={embedded}>
               <form onSubmit={handleSubmit} className="space-y-5 pb-6" id="evento-form-content">
+            {situacao !== situacaoInicial && situacaoExigeComentario(situacao) && (
+              <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+                <Label className="text-xs font-semibold">
+                  Comentário obrigatório da mudança de situação
+                </Label>
+                <Textarea
+                  value={comentarioSituacao}
+                  onChange={(e) => setComentarioSituacao(e.target.value)}
+                  placeholder="Explique o motivo da mudança de situação..."
+                  className="min-h-[64px] text-sm"
+                />
+              </div>
+            )}
             {hasPublicacao && !hidePublicacaoCollapsible && (
               <PublicacaoVinculadaCollapsible publicacao={publicacao as any} />
             )}
@@ -577,6 +609,16 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                     if (p.dia_inteiro === "true") setDiaInteiro(true);
                     if (p.local) setLocal((prev) => prev || p.local);
                     if (p.modalidade) setModalidade((prev) => prev || p.modalidade);
+                    // Prazo pré-programado no modelo → data do evento a partir da
+                    // data base (data da publicação, se houver, ou hoje)
+                    const prazoCalculado = resolverPrazoModelo(
+                      m,
+                      (publicacao as any)?.data_disponibilizacao || (publicacao as any)?.data_publicacao || null,
+                    );
+                    if (prazoCalculado) {
+                      setDataInicio((prev) => (p.data_inicio ? prev : prazoCalculado));
+                      setDataFim((prev) => (p.data_fim ? prev : prazoCalculado));
+                    }
                   }}
                 />
               </div>
