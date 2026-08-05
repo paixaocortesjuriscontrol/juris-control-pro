@@ -3,10 +3,18 @@ import { Toast, ToastClose, ToastDescription, ToastProvider, ToastTitle, ToastVi
 
 export function Toaster() {
   const { toasts } = useToast();
+  const visibleToasts = toasts.filter(({ title, description }) => {
+    const content = `${String(title ?? "")} ${String(description ?? "")}`
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+
+    return !content.includes("informe um comentario justificando a mudanca de situacao");
+  });
 
   return (
     <ToastProvider>
-      {toasts.map(function ({ id, title, description, action, ...props }) {
+      {visibleToasts.map(function ({ id, title, description, action, ...props }) {
         return (
           <Toast key={id} {...props}>
             <div className="grid gap-1">
