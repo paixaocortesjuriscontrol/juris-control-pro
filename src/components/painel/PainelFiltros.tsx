@@ -50,6 +50,11 @@ const SITUACOES = [
   { value: "concluido_sem_sucesso", label: "Concluído sem sucesso" },
   { value: "revisao", label: "Revisão" },
   { value: "verificado", label: "Verificado" },
+  { value: "minutado_revisao", label: "Minutado - Revisão" },
+  { value: "protocolado", label: "Protocolado" },
+  { value: "baixado", label: "Baixado" },
+  { value: "reagendado", label: "Reagendado" },
+  { value: "tratado", label: "Tratado" },
 ];
 
 const CLASSIFICACOES = [
