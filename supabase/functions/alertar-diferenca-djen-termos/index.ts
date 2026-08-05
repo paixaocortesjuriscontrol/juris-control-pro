@@ -312,7 +312,7 @@ serve(async (req) => {
           continue;
         }
 
-        // Coordenadores: titular + membros com role coordenador/assistente_coordenador
+        // Todos os membros da coordenação (titular + membros alocados)
         const destinoIds = new Set<string>();
         const { data: coordRow } = await supabase
           .from("coordenacoes")
@@ -325,21 +325,16 @@ serve(async (req) => {
           .from("membros_coordenacao")
           .select("usuario_id")
           .eq("coordenacao_id", linha.coordenacaoId);
-        const memberIds = (membros || []).map((m: any) => m.usuario_id).filter(Boolean);
-        if (memberIds.length > 0) {
-          const { data: roles } = await supabase
-            .from("user_roles")
-            .select("user_id")
-            .in("role", ["coordenador", "assistente_coordenador"])
-            .in("user_id", memberIds);
-          for (const r of roles || []) destinoIds.add((r as any).user_id);
+        for (const m of membros || []) {
+          if ((m as any).usuario_id) destinoIds.add((m as any).usuario_id as string);
         }
 
         let emails: string[] = [];
         if (destinoIds.size > 0) {
           const { data: perfis } = await supabase
             .from("profiles")
-            .select("id, email")
+            .select("id, email, ativo")
+            .eq("ativo", true)
             .in("id", Array.from(destinoIds));
           emails = (perfis || []).map((p: any) => p.email).filter(Boolean);
         }
