@@ -6535,6 +6535,7 @@ export type Database = {
           id: string
           nome: string
           ordem: number
+          publica: boolean
           updated_at: string
         }
         Insert: {
@@ -6545,6 +6546,7 @@ export type Database = {
           id?: string
           nome: string
           ordem?: number
+          publica?: boolean
           updated_at?: string
         }
         Update: {
@@ -6555,6 +6557,7 @@ export type Database = {
           id?: string
           nome?: string
           ordem?: number
+          publica?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -9370,6 +9373,13 @@ export type Database = {
         Returns: {
           cor: string
           id: string
+        }[]
+      }
+      atualizar_visibilidade_processo_tag: {
+        Args: { _publica: boolean; _tag_id: string }
+        Returns: {
+          id: string
+          publica: boolean
         }[]
       }
       backfill_djen_status_batch: {

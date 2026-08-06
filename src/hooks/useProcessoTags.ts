@@ -8,6 +8,8 @@ export interface ProcessoTag {
   cor: string;
   ordem: number;
   ativo: boolean;
+  /** Quando false, apenas administradores enxergam a TAG. */
+  publica?: boolean;
 }
 
 export function useProcessoTagsCatalogo() {
@@ -130,6 +132,31 @@ export function useRenomearTag() {
       toast.success("Tag renomeada");
     },
     onError: (err: any) => toast.error("Erro ao renomear tag: " + (err?.message || "")),
+  });
+}
+
+/** Marca/desmarca a TAG como pública (visível a todos). Somente admin. */
+export function useAtualizarVisibilidadeTag() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, publica }: { id: string; publica: boolean }) => {
+      const { data, error } = await supabase.rpc(
+        "atualizar_visibilidade_processo_tag" as any,
+        { _tag_id: id, _publica: publica } as any,
+      );
+      if (error) throw error;
+      const rows = (data as any[]) || [];
+      if (rows.length === 0) throw new Error("TAG não encontrada ou sem permissão");
+      return rows[0] as { id: string; publica: boolean };
+    },
+    onSuccess: async (row: any) => {
+      qc.setQueryData<ProcessoTag[]>(["processo-tags-catalogo"], (old) =>
+        (old || []).map((t) => (t.id === row.id ? { ...t, publica: row.publica } : t)),
+      );
+      await qc.invalidateQueries({ queryKey: ["processo-tags-catalogo"] });
+      toast.success(row.publica ? "TAG pública (todos podem ver)" : "TAG restrita ao administrador");
+    },
+    onError: (err: any) => toast.error("Erro ao alterar visibilidade: " + (err?.message || "")),
   });
 }
 

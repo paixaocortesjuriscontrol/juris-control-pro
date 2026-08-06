@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tag, Plus, Loader2, Check, X } from "lucide-react";
+import { Tag, Plus, Loader2, Check, X, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -10,8 +10,10 @@ import {
   useProcessoTagsCatalogo,
   useCriarTag,
   useAtualizarCorTag,
+  useAtualizarVisibilidadeTag,
   TAG_COLOR_PALETTE,
 } from "@/hooks/useProcessoTags";
+import { useUserRole } from "@/hooks/useUserRole";
 import { ColorPalettePicker } from "./ColorPalettePicker";
 import { fetchAllDistribuicaoTstIds, DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
 
@@ -56,6 +58,8 @@ export function BulkTagAction({ selectedIds, filters, totalFiltered }: Props) {
   const { data: catalogo = [], isLoading } = useProcessoTagsCatalogo();
   const criar = useCriarTag();
   const atualizarCor = useAtualizarCorTag();
+  const visibilidade = useAtualizarVisibilidadeTag();
+  const { isAdmin } = useUserRole();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [novoNome, setNovoNome] = useState("");
@@ -163,6 +167,24 @@ export function BulkTagAction({ selectedIds, filters, totalFiltered }: Props) {
                   <span className="flex-1 truncate" title={t.nome}>
                     {t.nome}
                   </span>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      className={
+                        "opacity-70 hover:opacity-100 " +
+                        (t.publica === false ? "text-amber-600" : "text-emerald-600")
+                      }
+                      onClick={() => visibilidade.mutate({ id: t.id, publica: t.publica === false })}
+                      disabled={visibilidade.isPending}
+                      title={
+                        t.publica === false
+                          ? "TAG restrita ao administrador — clique para tornar pública"
+                          : "TAG pública (todos veem) — clique para restringir ao administrador"
+                      }
+                    >
+                      {t.publica === false ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    </button>
+                  )}
                   <Button
                   size="sm"
                   variant="outline"
