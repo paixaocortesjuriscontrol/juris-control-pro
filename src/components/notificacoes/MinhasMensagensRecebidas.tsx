@@ -393,17 +393,28 @@ export default function MinhasMensagensRecebidas({
                     </DropdownMenu>
                   )}
                 </div>
-                {!lida && (
+                {!lida ? (
                   <Button
                     size="sm"
-                    variant="ghost"
+                    variant="outline"
+                    title="Marcar como lida"
+                    className="shrink-0"
                     onClick={(e) => {
                       e.stopPropagation();
                       marcarLida(m.ids);
                     }}
                   >
-                    <Check className="h-4 w-4 mr-1" /> Lida
+                    <Check className="h-4 w-4 sm:mr-1" />
+                    <span className="hidden sm:inline">Marcar como lida</span>
                   </Button>
+                ) : (
+                  <span
+                    className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground"
+                    title="Mensagem já lida"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Lida</span>
+                  </span>
                 )}
               </Card>
             );
