@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useUserRole } from "@/hooks/useUserRole";
 
 export interface ProcessoTag {
   id: string;
@@ -13,8 +14,9 @@ export interface ProcessoTag {
 }
 
 export function useProcessoTagsCatalogo() {
+  const { isAdmin } = useUserRole();
   return useQuery({
-    queryKey: ["processo-tags-catalogo"],
+    queryKey: ["processo-tags-catalogo", isAdmin ? "admin" : "user"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("processo_tags_catalogo" as any)
@@ -23,9 +25,11 @@ export function useProcessoTagsCatalogo() {
         .order("ordem", { ascending: true })
         .order("nome", { ascending: true });
       if (error) throw error;
-      return (data as any[] as ProcessoTag[]) || [];
+      const rows = (data as any[] as ProcessoTag[]) || [];
+      // Defesa em profundidade: além do RLS, esconde TAGs restritas de não-admin.
+      return isAdmin ? rows : rows.filter((t) => t.publica !== false);
     },
-    staleTime: 60_000,
+    staleTime: 10_000,
   });
 }
 
