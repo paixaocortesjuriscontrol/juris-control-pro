@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server, BarChart3, Radar, Settings, Upload, KeyRound, Sparkles, Coins, Scale } from "lucide-react";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server, BarChart3, Radar, Settings, Upload, KeyRound, Sparkles, Coins, Scale, LayoutDashboard } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
@@ -675,6 +675,7 @@ const Administracao = () => {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
+                { label: "Dashboard", path: "/dashboard", icon: LayoutDashboard, description: "Visão geral consolidada do escritório." },
                 { label: "Relatórios", path: "/relatorios", icon: BarChart3, description: "Indicadores e relatórios analíticos." },
                 { label: "Monitoração", path: "/monitoracao", icon: Radar, description: "Status dos monitoramentos e execuções." },
                 { label: "Configurações", path: "/configuracoes", icon: Settings, description: "Parâmetros e ajustes do sistema." },
