@@ -1259,12 +1259,20 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         if (existingId) {
           form.processo_id = existingId as string;
         } else {
+        // Coordenação responsável = coordenação do usuário que está cadastrando
+        // (o gatilho no banco também resolve, mas enviamos explicitamente para
+        // que a tela já reflita o valor correto).
+        const { data: coordAutor } = await supabase.rpc(
+          "get_user_coordenacao" as any,
+          { _user_id: sessionData.session.user.id }
+        );
         const { data: newProc, error } = await supabase
           .from("processos")
           .insert({
             numero: form.processo_numero.trim(),
             status: "ativo",
             area: "trabalhista",
+            coordenacao_id: (coordAutor as string | null) || null,
             // RLS: precisa de advogado_responsavel_id = auth.uid() para que o
             // RETURNING enxergue a linha recém-criada (caso contrário 403).
             advogado_responsavel_id: sessionData.session.user.id,
