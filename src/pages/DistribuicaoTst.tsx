@@ -2600,15 +2600,14 @@ export default function DistribuicaoTst() {
                                 </Badge>
                               )}
                             </div>
-                            {isAdminOrCoordinator && (
-                              <div className="mt-1">
-                                <ProcessoTagPicker
-                                  dadoId={d.id}
-                                  tagIds={tagsMap?.get(d.id) || []}
-                                  compact
-                                />
-                              </div>
-                            )}
+                            <div className="mt-1">
+                              <ProcessoTagPicker
+                                dadoId={d.id}
+                                tagIds={tagsMap?.get(d.id) || []}
+                                compact
+                                readOnly={!isAdminOrCoordinator}
+                              />
+                            </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
                         );
@@ -2679,15 +2678,14 @@ export default function DistribuicaoTst() {
                             </Badge>
                           )}
                         </div>
-                        {isAdminOrCoordinator && (
-                          <div className="mt-1">
-                            <ProcessoTagPicker
-                              dadoId={d.id}
-                              tagIds={tagsMap?.get(d.id) || []}
-                              compact
-                            />
-                          </div>
-                        )}
+                        <div className="mt-1">
+                          <ProcessoTagPicker
+                            dadoId={d.id}
+                            tagIds={tagsMap?.get(d.id) || []}
+                            compact
+                            readOnly={!isAdminOrCoordinator}
+                          />
+                        </div>
                         </div>
                       );
                     })()}
