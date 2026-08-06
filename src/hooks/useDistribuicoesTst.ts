@@ -425,7 +425,8 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
  * carregar TODOS os ids que batem com os filtros (sem paginação).
  */
 export async function fetchAllDistribuicaoTstIds(
-  filters: DistribuicaoTstFilters
+  filters: DistribuicaoTstFilters,
+  opts?: { matchListOrder?: boolean }
 ): Promise<string[]> {
   if (filters.idsAllowed && filters.idsAllowed.length === 0) return [];
 
@@ -433,7 +434,7 @@ export async function fetchAllDistribuicaoTstIds(
     const all = new Set<string>();
     for (let i = 0; i < filters.idsAllowed.length; i += LARGE_ID_FILTER_CHUNK) {
       const slice = filters.idsAllowed.slice(i, i + LARGE_ID_FILTER_CHUNK);
-      const ids = await fetchAllDistribuicaoTstIds({ ...filters, idsAllowed: slice });
+      const ids = await fetchAllDistribuicaoTstIds({ ...filters, idsAllowed: slice }, opts);
       ids.forEach((id) => all.add(id));
     }
     return Array.from(all);
@@ -467,8 +468,27 @@ export async function fetchAllDistribuicaoTstIds(
     let query = supabase
       .from("dados_benner" as any)
       .select(selectClause)
-      .not("aba_origem", "is", null)
-      .order("created_at", { ascending: false });
+      .not("aba_origem", "is", null);
+
+    if (opts?.matchListOrder) {
+      // Mesma ordenação usada pela listagem, para que "os N primeiros"
+      // correspondam ao que a tela exibe.
+      if (filters.duplicado === "sim") {
+        query = query.order("processo", { ascending: true, nullsFirst: false });
+      } else if (filters.emAnalise === "sim") {
+        query = query.order("em_analise_em", { ascending: true, nullsFirst: false });
+      } else if (!hasActiveFilters(filters)) {
+        query = query
+          .order("data_distribuicao_real", { ascending: false, nullsFirst: false })
+          .order("processo", { ascending: true, nullsFirst: false });
+      } else {
+        query = query
+          .order("updated_at", { ascending: false, nullsFirst: false })
+          .order("processo", { ascending: true, nullsFirst: false });
+      }
+    } else {
+      query = query.order("created_at", { ascending: false });
+    }
 
     if (hasResponsavelFilter) query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
     if (wantsUnassigned) query = query.eq("tem_responsavel", false);

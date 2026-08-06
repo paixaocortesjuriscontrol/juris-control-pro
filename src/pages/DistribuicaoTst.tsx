@@ -193,6 +193,8 @@ export default function DistribuicaoTst() {
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectAllLoading, setSelectAllLoading] = useState(false);
+  const [qtdSelecionar, setQtdSelecionar] = useState<string>("");
+  const [selecionarQtdLoading, setSelecionarQtdLoading] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   // ID do registro recém-editado/salvo. Mantém ele visível (sticky) na lista
@@ -2344,6 +2346,44 @@ export default function DistribuicaoTst() {
           </div>
           <div className="flex items-center gap-2">
             <p className="text-xs text-muted-foreground">{totalCount} registros encontrados</p>
+            {totalCount > 0 && (
+              <div className="flex items-center gap-1">
+                <Input
+                  type="number"
+                  min={1}
+                  max={totalCount}
+                  value={qtdSelecionar}
+                  placeholder={String(totalCount)}
+                  onChange={(e) => setQtdSelecionar(e.target.value)}
+                  className="h-6 w-20 text-xs px-2"
+                  title="Quantidade a selecionar (1 até o total filtrado)"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-6 text-xs px-2"
+                  disabled={selecionarQtdLoading || selectAllLoading}
+                  onClick={async () => {
+                    const raw = parseInt(qtdSelecionar || String(totalCount), 10);
+                    const n = Math.max(1, Math.min(Number.isFinite(raw) ? raw : totalCount, totalCount));
+                    setQtdSelecionar(String(n));
+                    try {
+                      setSelecionarQtdLoading(true);
+                      const allIds = await fetchAllDistribuicaoTstIds(listFilters, { matchListOrder: true });
+                      const escolhidos = allIds.slice(0, n);
+                      setSelectedIds(new Set(escolhidos));
+                      toast.success(`${escolhidos.length} processo(s) selecionado(s) de ${allIds.length} filtrados`);
+                    } catch (e: any) {
+                      toast.error("Erro ao selecionar quantidade: " + (e?.message || ""));
+                    } finally {
+                      setSelecionarQtdLoading(false);
+                    }
+                  }}
+                >
+                  {selecionarQtdLoading ? "Selecionando..." : "Selecionar"}
+                </Button>
+              </div>
+            )}
             {selectedIds.size > 0 && (
               <Button variant="ghost" size="sm" className="h-5 text-xs px-2" onClick={() => setSelectedIds(new Set())}>
                 {selectedIds.size} selecionado(s) — limpar
