@@ -2134,9 +2134,8 @@ export default function DistribuicaoTst() {
                   </SelectContent>
                 </Select>
               </div>
-              {/* VERMELHO — apenas admin/coordenador */}
-              {isAdminOrCoordinator && (
-                <div className="space-y-1">
+              {/* VERMELHO — visível a todos (RLS entrega só as TAGs públicas para não-admin) */}
+              <div className="space-y-1">
                   <Label className="text-[10px] font-semibold text-red-600">TAGs</Label>
                   <Select value={filtroTagId} onValueChange={setFiltroTagId}>
                     <SelectTrigger className="h-8 text-xs">
@@ -2157,8 +2156,7 @@ export default function DistribuicaoTst() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-              )}
+              </div>
               {/* LARANJA */}
               <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-orange-600">Em análise</Label>
