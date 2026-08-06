@@ -39,8 +39,9 @@ const CORES = {
 } as const;
 
 const MESES = 12;
+const ANO_INICIAL = 2022;
 
-function buildBuckets(): { key: string; label: string }[] {
+function buildBucketsUltimos12(): { key: string; label: string }[] {
   const base = startOfMonth(new Date());
   const list: { key: string; label: string }[] = [];
   for (let i = MESES - 1; i >= 0; i--) {
@@ -54,11 +55,29 @@ function buildBuckets(): { key: string; label: string }[] {
   return list;
 }
 
+function buildBucketsDoAno(ano: number): { key: string; label: string }[] {
+  const list: { key: string; label: string }[] = [];
+  for (let m = 0; m < 12; m++) {
+    const d = new Date(ano, m, 1);
+    const label = format(d, "LLLL", { locale: ptBR });
+    list.push({ key: format(d, "yyyy-MM"), label: label.charAt(0).toUpperCase() + label.slice(1) });
+  }
+  return list;
+}
+
+function buildBucketsPorAno(): { key: string; label: string }[] {
+  const atual = new Date().getFullYear();
+  const list: { key: string; label: string }[] = [];
+  for (let a = ANO_INICIAL; a <= atual; a++) list.push({ key: String(a), label: String(a) });
+  return list;
+}
+
 export default function Indicadores() {
   const { user } = useAuth();
   const { isAdmin, coordenacoes } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
   const [usuarioId, setUsuarioId] = useState<string>("todos");
+  const [ano, setAno] = useState<string>("ultimos12");
 
   // Papel do usuário: só admin/coordenador/assistente coordenador podem ver de outros
   const { data: roles } = useQuery({
@@ -120,8 +139,32 @@ export default function Indicadores() {
     },
   });
 
-  const buckets = useMemo(() => buildBuckets(), []);
-  const inicio = useMemo(() => startOfMonth(subMonths(new Date(), MESES - 1)).toISOString(), []);
+  const anosDisponiveis = useMemo(() => {
+    const atual = new Date().getFullYear();
+    const list: number[] = [];
+    for (let a = atual; a >= ANO_INICIAL; a--) list.push(a);
+    return list;
+  }, []);
+
+  const agrupamento: "mes" | "ano" = ano === "todos" ? "ano" : "mes";
+
+  const buckets = useMemo(() => {
+    if (ano === "ultimos12") return buildBucketsUltimos12();
+    if (ano === "todos") return buildBucketsPorAno();
+    return buildBucketsDoAno(Number(ano));
+  }, [ano]);
+
+  const { inicio, fim } = useMemo(() => {
+    if (ano === "ultimos12")
+      return { inicio: startOfMonth(subMonths(new Date(), MESES - 1)).toISOString(), fim: null as string | null };
+    if (ano === "todos")
+      return { inicio: new Date(Date.UTC(ANO_INICIAL, 0, 1)).toISOString(), fim: null as string | null };
+    const a = Number(ano);
+    return {
+      inicio: new Date(Date.UTC(a, 0, 1)).toISOString(),
+      fim: new Date(Date.UTC(a + 1, 0, 1)).toISOString() as string | null,
+    };
+  }, [ano]);
 
   const { data, isLoading } = useQuery({
     queryKey: [
@@ -130,6 +173,7 @@ export default function Indicadores() {
       podeVerOutros,
       coordenacaoId,
       usuarioId,
+      ano,
       coordenacoesDisponiveis.map((c) => c.id).join(","),
     ],
     enabled: !!user?.id,
@@ -151,6 +195,7 @@ export default function Indicadores() {
         .select("tipo_tarefa,updated_at,status,responsavel_id,coordenacao_id")
         .eq("status", "cumprido")
         .gte("updated_at", inicio);
+      if (fim) qTarefas = qTarefas.lt("updated_at", fim);
       if (alvoUsuario) qTarefas = qTarefas.eq("responsavel_id", alvoUsuario);
       if (coordIds) qTarefas = qTarefas.in("coordenacao_id", coordIds.length ? coordIds : ["-"]);
 
@@ -159,6 +204,7 @@ export default function Indicadores() {
         .select("updated_at,status,tratado_por,criado_por,coordenacao_id")
         .in("status", ["tratado", "concluido"])
         .gte("updated_at", inicio);
+      if (fim) qAud = qAud.lt("updated_at", fim);
       if (alvoUsuario) qAud = qAud.or(`tratado_por.eq.${alvoUsuario},criado_por.eq.${alvoUsuario}`);
       if (coordIds) qAud = qAud.in("coordenacao_id", coordIds.length ? coordIds : ["-"]);
 
@@ -167,6 +213,7 @@ export default function Indicadores() {
         .select("updated_at,concluido_em,status,criado_por,coordenacao_id")
         .in("status", ["concluido", "cumprido", "realizado"])
         .gte("updated_at", inicio);
+      if (fim) qEventos = qEventos.lt("updated_at", fim);
       if (alvoUsuario) qEventos = qEventos.eq("criado_por", alvoUsuario);
       if (coordIds) qEventos = qEventos.in("coordenacao_id", coordIds.length ? coordIds : ["-"]);
 
@@ -182,7 +229,7 @@ export default function Indicadores() {
 
       const add = (iso: string | null | undefined, campo: keyof typeof CORES) => {
         if (!iso) return;
-        const key = iso.slice(0, 7);
+        const key = agrupamento === "ano" ? iso.slice(0, 4) : iso.slice(0, 7);
         const item = mapa.get(key);
         if (!item) return;
         item[campo] += 1;
@@ -216,10 +263,32 @@ export default function Indicadores() {
   return (
     <MainLayout
       title="Indicadores"
-      subtitle="Produtividade por tipo de atividade nos últimos 12 meses"
+      subtitle={
+        ano === "ultimos12"
+          ? "Produtividade por tipo de atividade nos últimos 12 meses"
+          : ano === "todos"
+          ? "Produtividade por tipo de atividade, consolidada por ano"
+          : `Produtividade por tipo de atividade em ${ano}`
+      }
       headerActions={
-        podeVerOutros ? (
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={ano} onValueChange={setAno}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ultimos12">Últimos 12 meses</SelectItem>
+              <SelectItem value="todos">Todos os anos</SelectItem>
+              {anosDisponiveis.map((a) => (
+                <SelectItem key={a} value={String(a)}>
+                  {a}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {podeVerOutros ? (
+            <>
             <Select
               value={coordenacaoId}
               onValueChange={(v) => {
@@ -255,10 +324,11 @@ export default function Indicadores() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        ) : (
-          <span className="text-xs text-muted-foreground">Minhas atividades</span>
-        )
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">Minhas atividades</span>
+          )}
+        </div>
       }
     >
       <div className="space-y-4">
