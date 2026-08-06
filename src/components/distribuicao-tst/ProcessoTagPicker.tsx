@@ -4,17 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tag, Plus, Loader2, Pencil, XCircle, Check, X } from "lucide-react";
+import { Tag, Plus, Loader2, Pencil, XCircle, Check, X, Eye, EyeOff } from "lucide-react";
 import {
   useProcessoTagsCatalogo,
   useCriarTag,
   useToggleTagInDado,
   useAtualizarCorTag,
   useRenomearTag,
+  useAtualizarVisibilidadeTag,
   useRemoverTodasTagsDoDado,
   TAG_COLOR_PALETTE,
   ProcessoTag,
 } from "@/hooks/useProcessoTags";
+import { useUserRole } from "@/hooks/useUserRole";
 import { ColorPalettePicker } from "./ColorPalettePicker";
 
 interface Props {
@@ -31,6 +33,8 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
   const toggle = useToggleTagInDado();
   const atualizarCor = useAtualizarCorTag();
   const renomear = useRenomearTag();
+  const visibilidade = useAtualizarVisibilidadeTag();
+  const { isAdmin } = useUserRole();
   const removerTodas = useRemoverTodasTagsDoDado();
   const [novoNome, setNovoNome] = useState("");
   const [novaCor, setNovaCor] = useState<string>(TAG_COLOR_PALETTE[10]);
@@ -179,6 +183,30 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
                   ) : (
                     <>
                       <span className="flex-1 break-words">{t.nome}</span>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          className={
+                            "opacity-70 hover:opacity-100 " +
+                            (t.publica === false ? "text-amber-600" : "text-emerald-600")
+                          }
+                          onClick={() =>
+                            visibilidade.mutate({ id: t.id, publica: t.publica === false })
+                          }
+                          disabled={visibilidade.isPending}
+                          title={
+                            t.publica === false
+                              ? "TAG restrita ao administrador — clique para tornar pública"
+                              : "TAG pública (todos veem) — clique para restringir ao administrador"
+                          }
+                        >
+                          {t.publica === false ? (
+                            <EyeOff className="w-3 h-3" />
+                          ) : (
+                            <Eye className="w-3 h-3" />
+                          )}
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="text-muted-foreground hover:text-foreground opacity-60 hover:opacity-100"
