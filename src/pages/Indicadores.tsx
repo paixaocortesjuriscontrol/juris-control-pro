@@ -179,70 +179,30 @@ export default function Indicadores() {
     enabled: !!user?.id,
     staleTime: 60_000,
     queryFn: async () => {
-      // Usuário sem privilégio vê apenas as próprias atividades
-      const alvoUsuario = !podeVerOutros ? user!.id : usuarioId !== "todos" ? usuarioId : null;
-      const coordIds =
-        !podeVerOutros
-          ? null
-          : coordenacaoId !== "todas"
-          ? [coordenacaoId]
-          : isAdmin
-          ? null
-          : coordenacoesDisponiveis.map((c) => c.id);
-
-      let qTarefas = supabase
-        .from("tarefas")
-        .select("tipo_tarefa,updated_at,status,responsavel_id,coordenacao_id")
-        .eq("status", "cumprido")
-        .gte("updated_at", inicio);
-      if (fim) qTarefas = qTarefas.lt("updated_at", fim);
-      if (alvoUsuario) qTarefas = qTarefas.eq("responsavel_id", alvoUsuario);
-      if (coordIds) qTarefas = qTarefas.in("coordenacao_id", coordIds.length ? coordIds : ["-"]);
-
-      let qAud = supabase
-        .from("audiencias_detectadas")
-        .select("updated_at,status,tratado_por,criado_por,coordenacao_id")
-        .in("status", ["tratado", "concluido"])
-        .gte("updated_at", inicio);
-      if (fim) qAud = qAud.lt("updated_at", fim);
-      if (alvoUsuario) qAud = qAud.or(`tratado_por.eq.${alvoUsuario},criado_por.eq.${alvoUsuario}`);
-      if (coordIds) qAud = qAud.in("coordenacao_id", coordIds.length ? coordIds : ["-"]);
-
-      let qEventos = supabase
-        .from("eventos_agenda")
-        .select("updated_at,concluido_em,status,criado_por,coordenacao_id")
-        .in("status", ["concluido", "cumprido", "realizado"])
-        .gte("updated_at", inicio);
-      if (fim) qEventos = qEventos.lt("updated_at", fim);
-      if (alvoUsuario) qEventos = qEventos.eq("criado_por", alvoUsuario);
-      if (coordIds) qEventos = qEventos.in("coordenacao_id", coordIds.length ? coordIds : ["-"]);
-
-      const [tarefas, audiencias, eventos] = await Promise.all([qTarefas, qAud, qEventos]);
-      if (tarefas.error) throw tarefas.error;
-      if (audiencias.error) throw audiencias.error;
-      if (eventos.error) throw eventos.error;
+      // Agregação feita no servidor (evita o limite de 1000 linhas do PostgREST)
+      const { data: rows, error } = await supabase.rpc("get_indicadores_atividades" as any, {
+        p_inicio: inicio,
+        p_fim: fim,
+        p_coordenacao_id: podeVerOutros && coordenacaoId !== "todas" ? coordenacaoId : null,
+        p_usuario_id: podeVerOutros && usuarioId !== "todos" ? usuarioId : null,
+        p_agrupamento: agrupamento,
+      });
+      if (error) throw error;
 
       const mapa = new Map<string, Serie>();
       for (const b of buckets) {
         mapa.set(b.key, { mes: b.label, Prazos: 0, "Audiências": 0, Eventos: 0, Tarefas: 0, total: 0 });
       }
 
-      const add = (iso: string | null | undefined, campo: keyof typeof CORES) => {
-        if (!iso) return;
-        const key = agrupamento === "ano" ? iso.slice(0, 4) : iso.slice(0, 7);
-        const item = mapa.get(key);
-        if (!item) return;
-        item[campo] += 1;
-        item.total += 1;
-      };
-
-      for (const t of tarefas.data ?? []) {
-        const tipo = (t as any).tipo_tarefa as string | null;
-        add((t as any).updated_at, tipo === "PRAZO" ? "Prazos" : "Tarefas");
+      for (const r of (rows ?? []) as any[]) {
+        const item = mapa.get(r.periodo as string);
+        if (!item) continue;
+        item.Prazos = Number(r.prazos) || 0;
+        item["Audiências"] = Number(r.audiencias) || 0;
+        item.Eventos = Number(r.eventos) || 0;
+        item.Tarefas = Number(r.tarefas) || 0;
+        item.total = item.Prazos + item["Audiências"] + item.Eventos + item.Tarefas;
       }
-      for (const a of audiencias.data ?? []) add((a as any).updated_at, "Audiências");
-      for (const e of eventos.data ?? [])
-        add((e as any).concluido_em ?? (e as any).updated_at, "Eventos");
 
       return buckets.map((b) => mapa.get(b.key)!);
     },
