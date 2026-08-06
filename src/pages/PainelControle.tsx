@@ -1541,11 +1541,11 @@ export default function PainelControle() {
           >
             <SlidersHorizontal className={`w-4 h-4 ${mostrarFiltros ? "" : "opacity-50"}`} />
           </Button>
-          {isAdmin && (
-            <Button asChild variant="outline" size="sm">
-              <Link to="/dashboard">Dashboard</Link>
-            </Button>
-          )}
+          <Button asChild variant="outline" size="sm">
+            <Link to="/indicadores">
+              <BarChart3 className="w-4 h-4 mr-1" /> Indicadores
+            </Link>
+          </Button>
           {isAdminOrCoordinator && (
             <Button asChild variant="outline" size="sm">
               <Link to="/notificacoes">Config. Notificações</Link>

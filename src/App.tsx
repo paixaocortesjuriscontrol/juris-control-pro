@@ -49,6 +49,7 @@ import ManualSistema from "./pages/ManualSistema";
 import Pastas from "./pages/Pastas";
 import PastaDetalhes from "./pages/PastaDetalhes";
 import Notificacoes from "./pages/Notificacoes";
+import Indicadores from "./pages/Indicadores";
 import AnaliseTarefasProjuris from "./pages/AnaliseTarefasProjuris";
 import ImportarTarefas from "./pages/ImportarTarefas";
 import PainelEquipe from "./pages/PainelEquipe";
@@ -139,6 +140,7 @@ function App() {
               <Route path="/" element={<ProtectedRoute><Navigate to="/painel-controle" replace /></ProtectedRoute>} />
               <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+              <Route path="/indicadores" element={<ProtectedRoute><Indicadores /></ProtectedRoute>} />
               {/* Redirect central-delegacao to unified agenda */}
             <Route path="/central-delegacao" element={<Navigate to="/minha-agenda" replace />} />
             <Route path="/prazos" element={<Navigate to="/minha-agenda" replace />} />
