@@ -2877,7 +2877,7 @@ const AnaliseDjen = () => {
     setGerandoDocsTST(true);
     const toastId = toast.loading(`Classificando ${allPublicacoes.length} publicações...`);
     try {
-      type Categoria = "TEMAS_IRR" | "PAUTA" | "CEJUSC" | "DISTRIBUICOES" | "PRAZOS";
+      type Categoria = "TEMAS_IRR" | "PAUTA" | "CEJUSC" | "DISTRIBUICOES" | "INTIMACOES" | "PRAZOS";
       type ClassInfo = { id: string; categoria: Categoria; tema_irr?: string };
       type PubComClass = { pub: typeof allPublicacoes[0]; class_info: ClassInfo };
       const classificarLocal = (pub: typeof allPublicacoes[0]): ClassInfo => {
@@ -2937,6 +2937,10 @@ const AnaliseDjen = () => {
         if (!ehCejusc && !ehAcordao && lower.includes("pauta de julgamento")) {
           return { id: pub.id, categoria: "PAUTA" };
         }
+        // d. Intimações (pelo tipo de comunicação)
+        if (tipoCom.includes("intima")) {
+          return { id: pub.id, categoria: "INTIMACOES" };
+        }
         // c. Prazos gerais (default)
         return { id: pub.id, categoria: "PRAZOS" };
       };
@@ -2944,6 +2948,7 @@ const AnaliseDjen = () => {
       const pubsPauta: PubComClass[] = [];
       const pubsCejusc: PubComClass[] = [];
       const pubsDistribuicoes: PubComClass[] = [];
+      const pubsIntimacoes: PubComClass[] = [];
       const pubsPrazos: PubComClass[] = [];
       allPublicacoes.forEach(pub => {
         const ci = classificarLocal(pub);
@@ -2953,10 +2958,11 @@ const AnaliseDjen = () => {
           case "PAUTA": pubsPauta.push(item); break;
           case "CEJUSC": pubsCejusc.push(item); break;
           case "DISTRIBUICOES": pubsDistribuicoes.push(item); break;
+          case "INTIMACOES": pubsIntimacoes.push(item); break;
           default: pubsPrazos.push(item);
         }
       });
-      toast.loading(`Gerando documentos... (Temas IRR: ${pubsTemasIrr.length}, Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
+      toast.loading(`Gerando documentos... (Temas IRR: ${pubsTemasIrr.length}, Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Intimações: ${pubsIntimacoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
       const dataStr = format(new Date(), "dd.MM.yy");
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
       const buildTSTDocChildren = (pubs: PubComClass[], titulo: string, modo: "integral" | "resumo"): Paragraph[] => {
@@ -2994,8 +3000,9 @@ const AnaliseDjen = () => {
       if (pubsPauta.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPauta, `Pauta de Julgamento - ${dataStr}`, "integral")), `JURISCONTROL_PAUTA_${dataStr}.docx`); dg++; }
       if (pubsCejusc.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsCejusc, `CEJUSC - ${dataStr}`, "integral")), `JURISCONTROL_CEJUSC_${dataStr}.docx`); dg++; }
       if (pubsDistribuicoes.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsDistribuicoes, `Lista de Distribuição - ${dataStr}`, "resumo")), `JURISCONTROL_DISTRIBUICOES_${dataStr}.docx`); dg++; }
+      if (pubsIntimacoes.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsIntimacoes, `Intimações - ${dataStr}`, "integral")), `JURISCONTROL_INTIMACOES_${dataStr}.docx`); dg++; }
       if (pubsPrazos.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPrazos, `Prazos Gerais - ${dataStr}`, "resumo")), `JURISCONTROL_PRAZOS_${dataStr}.docx`); dg++; }
-      toast.success(`${dg} documento(s) gerado(s)! (Temas IRR: ${pubsTemasIrr.length}, Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
+      toast.success(`${dg} documento(s) gerado(s)! (Temas IRR: ${pubsTemasIrr.length}, Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Intimações: ${pubsIntimacoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
     } catch (error) {
       console.error("Erro ao gerar Docs TST:", error);
       toast.error(`Erro ao gerar Docs TST: ${error instanceof Error ? error.message : "Erro desconhecido"}`, { id: toastId });
