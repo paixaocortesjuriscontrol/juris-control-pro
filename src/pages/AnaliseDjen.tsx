@@ -1870,6 +1870,7 @@ const AnaliseDjen = () => {
 
   const [gerandoResumoSemIA, setGerandoResumoSemIA] = useState(false);
   const [gerandoDocResumoSemIA, setGerandoDocResumoSemIA] = useState(false);
+  const [gerandoDocResumoIntimacao, setGerandoDocResumoIntimacao] = useState(false);
   const [gerandoResumoSemRepeticao, setGerandoResumoSemRepeticao] = useState(false);
   const [gerandoDocResumoSemRepeticao, setGerandoDocResumoSemRepeticao] = useState(false);
 
