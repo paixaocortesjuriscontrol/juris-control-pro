@@ -9925,6 +9925,22 @@ export type Database = {
         }[]
       }
       get_ia_schema: { Args: never; Returns: Json }
+      get_indicadores_atividades: {
+        Args: {
+          p_agrupamento?: string
+          p_coordenacao_id?: string
+          p_fim?: string
+          p_inicio: string
+          p_usuario_id?: string
+        }
+        Returns: {
+          audiencias: number
+          eventos: number
+          periodo: string
+          prazos: number
+          tarefas: number
+        }[]
+      }
       get_leituras_publicacoes: {
         Args: { p_ids: string[] }
         Returns: {
