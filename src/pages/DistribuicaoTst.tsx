@@ -193,6 +193,8 @@ export default function DistribuicaoTst() {
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectAllLoading, setSelectAllLoading] = useState(false);
+  const [qtdSelecionar, setQtdSelecionar] = useState<string>("");
+  const [selecionarQtdLoading, setSelecionarQtdLoading] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   // ID do registro recém-editado/salvo. Mantém ele visível (sticky) na lista
