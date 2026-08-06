@@ -20,6 +20,7 @@ import {
   LabelList,
 } from "recharts";
 import { BarChart3, HelpCircle } from "lucide-react";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 
 type Serie = {
   mes: string;
@@ -55,38 +56,119 @@ function buildBuckets(): { key: string; label: string }[] {
 
 export default function Indicadores() {
   const { user } = useAuth();
-  const [escopo, setEscopo] = useState<"minhas" | "todas">("minhas");
+  const { isAdmin, coordenacoes } = useCoordenacoesDoUsuario();
+  const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
+  const [usuarioId, setUsuarioId] = useState<string>("todos");
+
+  // Papel do usuário: só admin/coordenador/assistente coordenador podem ver de outros
+  const { data: roles } = useQuery({
+    queryKey: ["indicadores-roles", user?.id],
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", user!.id);
+      return (data || []).map((r: any) => r.role as string);
+    },
+  });
+
+  const podeVerOutros =
+    isAdmin || (roles || []).some((r) => r === "admin" || r === "coordenador" || r === "assistente_coordenador");
+
+  // Coordenações disponíveis: admin = todas; coordenador = só as suas
+  const coordenacoesDisponiveis = coordenacoes;
+
+  // Usuários da coordenação escolhida (ou de todas as coordenações permitidas)
+  const { data: usuarios } = useQuery({
+    queryKey: [
+      "indicadores-usuarios",
+      coordenacaoId,
+      podeVerOutros,
+      coordenacoesDisponiveis.map((c) => c.id).join(","),
+    ],
+    enabled: podeVerOutros,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const ids =
+        coordenacaoId !== "todas" ? [coordenacaoId] : coordenacoesDisponiveis.map((c) => c.id);
+      if (ids.length === 0) return [] as { id: string; nome: string }[];
+
+      const { data: membros } = await supabase
+        .from("membros_coordenacao")
+        .select("usuario_id")
+        .in("coordenacao_id", ids);
+      const { data: coords } = await supabase
+        .from("coordenacoes")
+        .select("coordenador_id")
+        .in("id", ids);
+
+      const userIds = Array.from(
+        new Set([
+          ...(membros || []).map((m: any) => m.usuario_id),
+          ...(coords || []).map((c: any) => c.coordenador_id),
+        ].filter(Boolean))
+      );
+      if (userIds.length === 0) return [] as { id: string; nome: string }[];
+
+      const { data: profs } = await supabase
+        .from("profiles_basic" as any)
+        .select("id, nome")
+        .in("id", userIds);
+
+      return ((profs || []) as any[])
+        .map((p) => ({ id: p.id as string, nome: (p.nome as string) || "Sem nome" }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    },
+  });
 
   const buckets = useMemo(() => buildBuckets(), []);
   const inicio = useMemo(() => startOfMonth(subMonths(new Date(), MESES - 1)).toISOString(), []);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["indicadores-atividades-concluidas", user?.id, escopo],
+    queryKey: [
+      "indicadores-atividades-concluidas",
+      user?.id,
+      podeVerOutros,
+      coordenacaoId,
+      usuarioId,
+      coordenacoesDisponiveis.map((c) => c.id).join(","),
+    ],
     enabled: !!user?.id,
     staleTime: 60_000,
     queryFn: async () => {
-      const soMinhas = escopo === "minhas";
+      // Usuário sem privilégio vê apenas as próprias atividades
+      const alvoUsuario = !podeVerOutros ? user!.id : usuarioId !== "todos" ? usuarioId : null;
+      const coordIds =
+        !podeVerOutros
+          ? null
+          : coordenacaoId !== "todas"
+          ? [coordenacaoId]
+          : isAdmin
+          ? null
+          : coordenacoesDisponiveis.map((c) => c.id);
 
       let qTarefas = supabase
         .from("tarefas")
-        .select("tipo_tarefa,updated_at,data_vencimento,status,responsavel_id")
+        .select("tipo_tarefa,updated_at,status,responsavel_id,coordenacao_id")
         .eq("status", "cumprido")
         .gte("updated_at", inicio);
-      if (soMinhas) qTarefas = qTarefas.eq("responsavel_id", user!.id);
+      if (alvoUsuario) qTarefas = qTarefas.eq("responsavel_id", alvoUsuario);
+      if (coordIds) qTarefas = qTarefas.in("coordenacao_id", coordIds.length ? coordIds : ["-"]);
 
       let qAud = supabase
         .from("audiencias_detectadas")
-        .select("updated_at,data_audiencia,status,tratado_por,criado_por")
+        .select("updated_at,status,tratado_por,criado_por,coordenacao_id")
         .in("status", ["tratado", "concluido"])
         .gte("updated_at", inicio);
-      if (soMinhas) qAud = qAud.or(`tratado_por.eq.${user!.id},criado_por.eq.${user!.id}`);
+      if (alvoUsuario) qAud = qAud.or(`tratado_por.eq.${alvoUsuario},criado_por.eq.${alvoUsuario}`);
+      if (coordIds) qAud = qAud.in("coordenacao_id", coordIds.length ? coordIds : ["-"]);
 
       let qEventos = supabase
         .from("eventos_agenda")
-        .select("updated_at,concluido_em,data_inicio,status,criado_por")
+        .select("updated_at,concluido_em,status,criado_por,coordenacao_id")
         .in("status", ["concluido", "cumprido", "realizado"])
         .gte("updated_at", inicio);
-      if (soMinhas) qEventos = qEventos.eq("criado_por", user!.id);
+      if (alvoUsuario) qEventos = qEventos.eq("criado_por", alvoUsuario);
+      if (coordIds) qEventos = qEventos.in("coordenacao_id", coordIds.length ? coordIds : ["-"]);
 
       const [tarefas, audiencias, eventos] = await Promise.all([qTarefas, qAud, qEventos]);
       if (tarefas.error) throw tarefas.error;
@@ -136,15 +218,47 @@ export default function Indicadores() {
       title="Indicadores"
       subtitle="Produtividade por tipo de atividade nos últimos 12 meses"
       headerActions={
-        <Select value={escopo} onValueChange={(v) => setEscopo(v as "minhas" | "todas")}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="minhas">Minha responsabilidade</SelectItem>
-            <SelectItem value="todas">Todas que eu posso ver</SelectItem>
-          </SelectContent>
-        </Select>
+        podeVerOutros ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              value={coordenacaoId}
+              onValueChange={(v) => {
+                setCoordenacaoId(v);
+                setUsuarioId("todos");
+              }}
+            >
+              <SelectTrigger className="w-[240px]">
+                <SelectValue placeholder="Coordenação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">
+                  {isAdmin ? "Todas as coordenações" : "Todas as minhas coordenações"}
+                </SelectItem>
+                {coordenacoesDisponiveis.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={usuarioId} onValueChange={setUsuarioId}>
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder="Usuário" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os usuários</SelectItem>
+                {(usuarios ?? []).map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">Minhas atividades</span>
+        )
       }
     >
       <div className="space-y-4">
