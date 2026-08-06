@@ -324,10 +324,11 @@ export default function Indicadores() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        ) : (
-          <span className="text-xs text-muted-foreground">Minhas atividades</span>
-        )
+            </>
+          ) : (
+            <span className="text-xs text-muted-foreground">Minhas atividades</span>
+          )}
+        </div>
       }
     >
       <div className="space-y-4">
