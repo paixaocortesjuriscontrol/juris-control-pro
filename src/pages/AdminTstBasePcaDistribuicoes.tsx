@@ -23,6 +23,8 @@ interface LinhaPlanilha {
   dossie: string;
   processo: string;
   processoDigitos: string;
+  /** Demais campos da planilha já mapeados para colunas de dados_benner. */
+  campos?: Record<string, any>;
 }
 
 interface CandidateRow {
@@ -34,6 +36,172 @@ interface CandidateRow {
 
 const stripAspa = (v: unknown) => String(v ?? "").trim().replace(/^'/, "").trim();
 const soDigitos = (v: unknown) => String(v ?? "").replace(/\D/g, "");
+
+const normHeader = (v: unknown) =>
+  String(v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/gi, " ")
+    .trim()
+    .toLowerCase();
+
+const txt = (v: unknown) => {
+  const s = stripAspa(v).replace(/\s+/g, " ").trim();
+  return s ? s : null;
+};
+
+/** "Reclamada |  Reclamante |" -> "Reclamada, Reclamante" */
+const limparRecorrente = (v: unknown) => {
+  const s = txt(v);
+  if (!s) return null;
+  const partes = s
+    .split("|")
+    .map((p) => p.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  return partes.length ? partes.join(", ") : s;
+};
+
+const simNao = (v: unknown) => {
+  const s = normHeader(v);
+  if (!s) return null;
+  if (s.startsWith("sim") || s === "s" || s === "x" || s === "true") return "Sim";
+  if (s.startsWith("nao") || s === "n" || s === "false") return "Não";
+  return txt(v);
+};
+
+const parseDataPlanilha = (val: unknown): string | null => {
+  const raw = stripAspa(val);
+  if (!raw) return null;
+  const t = raw.split(/[\sT]/)[0];
+  const m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2}|\d{4})$/);
+  if (m) {
+    const dia = m[1].padStart(2, "0");
+    const mes = m[2].padStart(2, "0");
+    let ano = m[3];
+    if (ano.length === 2) ano = (Number(ano) >= 70 ? 1900 + Number(ano) : 2000 + Number(ano)).toString();
+    if (Number(mes) < 1 || Number(mes) > 12 || Number(dia) < 1 || Number(dia) > 31) return null;
+    if (Number(ano) < 1900 || Number(ano) > 2100) return null;
+    return `${ano}-${mes}-${dia}`;
+  }
+  const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return t;
+  const n = Number(raw);
+  if (!isNaN(n) && n > 30000 && n < 100000) {
+    const d = new Date(Math.round((n - 25569) * 86400 * 1000));
+    if (!isNaN(d.getTime())) {
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(
+        d.getUTCDate(),
+      ).padStart(2, "0")}`;
+    }
+  }
+  return null;
+};
+
+/** Extrai apenas HH:MM (planilha pode trazer "30/12/1899 09:00:00" ou fração de dia). */
+const parseHora = (val: unknown): string | null => {
+  const raw = stripAspa(val);
+  if (!raw) return null;
+  const m = raw.match(/(\d{1,2}):(\d{2})/);
+  if (m) return `${m[1].padStart(2, "0")}:${m[2]}`;
+  const n = Number(raw);
+  if (!isNaN(n) && n > 0 && n < 1) {
+    const total = Math.round(n * 24 * 60);
+    return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  }
+  return null;
+};
+
+/**
+ * Mapeia todas as colunas úteis da Base PCA para as colunas de dados_benner.
+ * `get(header)` devolve o valor bruto da coluna pelo nome (sem acento/caixa).
+ */
+function mapearCamposPlanilha(get: (header: string) => unknown): Record<string, any> {
+  const materiaFav = txt(get("recorrente pos turma objeto recurso favoravel"));
+  const materiaDesfav = txt(get("recorrente pos turma objeto recurso desfavoravel"));
+  const relatorFav = txt(get("posicionamento relator objeto recurso favoravel"));
+  const relatorDesfav = txt(get("posicionamento relator objeto recurso desfavoravel"));
+  const bemAparelhado = txt(get("recorrente recurso bem aparelhado"));
+  const malAparelhado = txt(get("recorrente recurso mal aparelhado"));
+  const comChance = txt(get("recorrente com chance de exito"));
+  const semChance = txt(get("recorrente sem chance de exito"));
+  const ganhamos = txt(get("resumo ganhamos"));
+  const perdemos = txt(get("resumo perdemos"));
+  const dataDist = parseDataPlanilha(get("data da distribuicao no tst stf"));
+
+  const materias = [comChance, semChance, materiaFav, materiaDesfav].filter(Boolean).join("; ") || null;
+
+  const notas = [
+    materiaFav && `Pos. Turma favorável: ${materiaFav}`,
+    materiaDesfav && `Pos. Turma desfavorável: ${materiaDesfav}`,
+    relatorFav && `Pos. Relator favorável: ${relatorFav}`,
+    relatorDesfav && `Pos. Relator desfavorável: ${relatorDesfav}`,
+    bemAparelhado && `Recurso bem aparelhado: ${bemAparelhado}`,
+    malAparelhado && `Recurso mal aparelhado: ${malAparelhado}`,
+    comChance && `Com chance de êxito: ${comChance}`,
+    semChance && `Sem chance de êxito: ${semChance}`,
+  ]
+    .filter(Boolean)
+    .join("\n") || null;
+
+  const observacoes = [
+    ganhamos && `Resumo (ganhamos): ${ganhamos}`,
+    perdemos && `Resumo (perdemos): ${perdemos}`,
+  ]
+    .filter(Boolean)
+    .join("\n") || null;
+
+  return {
+    centralizador: txt(get("centralizador")),
+    comarca: txt(get("comarca")),
+    juizo: txt(get("juizo")),
+    uf: txt(get("uf")),
+    objeto_padrao: txt(get("objeto padrao")),
+    assunto: txt(get("assunto")),
+    categoria: txt(get("categoria")),
+    subcategoria: txt(get("subcategoria")),
+    equipe: txt(get("equipe")),
+    tribunal: txt(get("tribunal")) || "TST",
+    tipo_recurso: txt(get("tipo de recurso")),
+    data_distribuicao_planilha: dataDist,
+    data_distribuicao: dataDist,
+    recorrente: limparRecorrente(get("recorrente")),
+    turma: txt(get("turma")),
+    relator: txt(get("relator")),
+    posicao_turma_favoravel: materiaFav ? true : null,
+    posicao_turma_desfavoravel: materiaDesfav ? true : null,
+    posicao_relator_favoravel: relatorFav ? true : null,
+    posicao_relator_desfavoravel: relatorDesfav ? true : null,
+    recurso_bem_aparelhado: bemAparelhado ? true : null,
+    recurso_mal_aparelhado: malAparelhado ? true : null,
+    chance_exito: comChance ? "Sim" : semChance ? "Não" : null,
+    chance_exito_reclamante: comChance ? "Sim" : semChance ? "Não" : null,
+    materias_recurso_reclamante: materias,
+    aparelhamento_reclamante: bemAparelhado ? "Bem aparelhado" : malAparelhado ? "Mal aparelhado" : null,
+    analise_quarteirizado: txt(get("analise do quarteirizado")),
+    decisao_quarteirizado: txt(get("retorno esclarecimentos dos quarteirizado")),
+    risco_midia: simNao(get("ha risco de midia negativa")),
+    midia_negativa: simNao(get("ha risco de midia negativa")),
+    provas_digitais: simNao(get("ha discussao sobre provas digitais")),
+    tem_data_julgamento: simNao(get("temos data de julgamento")),
+    data_julgamento: parseDataPlanilha(get("datajulgamento")),
+    horario_julgamento: parseHora(get("horajulgamento")),
+    tipo_julgamento: txt(get("julgamento")),
+    materia_honra: simNao(get("materia de honra")),
+    honra: simNao(get("materia de honra")),
+    entrega_memoriais: simNao(get("entrega de memoriais")),
+    sustentacao_oral: txt(get("sustentacao oral")),
+    resultado_sem_transcendencia: txt(get("resultado sem transcendencia")) ? true : null,
+    resultado_nao_conhecido: txt(get("resultado recurso nao conhecido")) ? true : null,
+    resultado_conhecido_provido: txt(get("resultado recurso conhecido e provido")) ? true : null,
+    resultado_conhecido_nao_provido: txt(get("resultado recurso conhecido e nao provido")) ? true : null,
+    resultado_outra: txt(get("resultado outra")),
+    ganhamos: ganhamos ? true : null,
+    perdemos: perdemos ? true : null,
+    processo_baixado: txt(get("processo baixado do tst")),
+    notas,
+    observacoes,
+  };
+}
 
 const SEARCH_CHUNK = 400;
 const APPLY_CHUNK = 200;
@@ -57,17 +225,22 @@ const buildRowKeys = (row: CandidateRow) => {
   return keys;
 };
 
-function findHeaderRow(rows: any[][]): { idx: number; colDossie: number; colProcesso: number } | null {
+function findHeaderRow(
+  rows: any[][],
+): { idx: number; colDossie: number; colProcesso: number; mapa: Record<string, number> } | null {
   for (let i = 0; i < Math.min(rows.length, 20); i++) {
     const r = rows[i] || [];
     let cd = -1;
     let cp = -1;
+    const mapa: Record<string, number> = {};
     for (let j = 0; j < r.length; j++) {
       const cell = String(r[j] ?? "").trim().toLowerCase();
+      const key = normHeader(r[j]);
+      if (key && mapa[key] === undefined) mapa[key] = j;
       if (cd === -1 && /^dossi[eê]$/.test(cell)) cd = j;
       if (cp === -1 && cell === "processo") cp = j;
     }
-    if (cd !== -1 && cp !== -1) return { idx: i, colDossie: cd, colProcesso: cp };
+    if (cd !== -1 && cp !== -1) return { idx: i, colDossie: cd, colProcesso: cp, mapa };
   }
   return null;
 }
@@ -127,7 +300,16 @@ export default function AdminTstBasePcaDistribuicoes() {
         const key = `${dossie}||${processo}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        items.push({ dossie, processo, processoDigitos: soDigitos(processo) });
+        const get = (h: string) => {
+          const col = header.mapa[normHeader(h)];
+          return col === undefined ? "" : r[col];
+        };
+        items.push({
+          dossie,
+          processo,
+          processoDigitos: soDigitos(processo),
+          campos: mapearCamposPlanilha(get),
+        });
       }
 
       setLinhas(items);
@@ -421,24 +603,37 @@ export default function AdminTstBasePcaDistribuicoes() {
 
       for (let i = 0; i < alvo.length; i += APPLY_CHUNK) {
         const slice = alvo.slice(i, i + APPLY_CHUNK);
-        const payload = slice.map((it) => ({
-          processo: it.processo,
-          dossie: it.dossie || null,
-          aba_origem: "Base PCA",
-          tribunal: "TST",
-          coordenacao_id: coordenacaoId,
-        }));
+        const payload = slice.map((it) => {
+          const campos = { ...(it.campos || {}) };
+          // Remove chaves nulas para não sobrescrever defaults do banco
+          for (const k of Object.keys(campos)) {
+            if (campos[k] === null || campos[k] === undefined || campos[k] === "") delete campos[k];
+          }
+          return {
+            ...campos,
+            processo: it.processo,
+            dossie: it.dossie || null,
+            aba_origem: "Base PCA",
+            tribunal: campos.tribunal || "TST",
+            coordenacao_id: coordenacaoId,
+          };
+        });
         const { data, error } = await (supabase.from("dados_benner") as any)
           .insert(payload)
-          .select("id, processo, dossie");
+          .select("id, processo, dossie, turma, relator, data_distribuicao_planilha");
         if (error) throw error;
-        for (const row of (data ?? []) as CandidateRow[]) {
+        for (const row of (data ?? []) as any[]) {
           novosIds.push(row.id);
           itensAudit.push({
             processo: row.processo || null,
             dossie: row.dossie || null,
             acao: "criado",
             detalhe: `Cadastrado pela Base PCA com TAG "${tagNome}"`,
+            campos: {
+              turma: row.turma || null,
+              relator: row.relator || null,
+              data_distribuicao_planilha: row.data_distribuicao_planilha || null,
+            },
           });
         }
         const lote = Math.floor(i / APPLY_CHUNK) + 1;
