@@ -807,8 +807,6 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       applyIfEmpty("valor_causa", d.valor_causa);
       applyIfEmpty("fase", d.fase || d.situacao_processo);
       applyIfEmpty("status", d.status_processo);
-      applyIfEmpty("juiz", d.juiz || d.relator);
-
       // Quando a Judit retornou tribunal, marcamos o processo como Judicial.
       if (data?.tribunal || data?.tribunal_acronimo) {
         apply("tipo_processo", "judicial");
