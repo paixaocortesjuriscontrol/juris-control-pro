@@ -806,8 +806,10 @@ export default function PainelControle() {
     return dias;
   }, [mesAtual]);
 
-  const itensPainelFiltrados = useMemo(() => {
-    return itensAgenda.filter((item) => {
+  // Predicado de filtros da tela. `ignorarPeriodo` é usado na exportação, que
+  // define seu próprio período (independente do mês exibido no calendário).
+  const passaFiltrosPainel = useCallback(
+    (item: any, ignorarPeriodo = false) => {
       // Classificação filter
       if (painelFiltros.classificacoes.length > 0) {
         const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
@@ -872,7 +874,7 @@ export default function PainelControle() {
       }
 
       // Período (data prevista/fatal conforme escolha em "Prazo")
-      if (painelFiltros.periodoInicio || painelFiltros.periodoFim) {
+      if (!ignorarPeriodo && (painelFiltros.periodoInicio || painelFiltros.periodoFim)) {
         let dateStr: string | undefined;
         if (item.origem === "tarefa") {
           if (painelFiltros.dataFatal && !painelFiltros.dataPrevista) {
@@ -890,7 +892,7 @@ export default function PainelControle() {
       }
 
       // Filtro "Somente Hoje"
-      if (somenteHoje) {
+      if (!ignorarPeriodo && somenteHoje) {
         let dateStr: string | undefined;
         if (item.origem === "tarefa") {
           if (painelFiltros.dataFatal && !painelFiltros.dataPrevista) {
@@ -911,8 +913,14 @@ export default function PainelControle() {
       }
 
       return true;
-    });
-  }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter]);
+    },
+    [painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter],
+  );
+
+  const itensPainelFiltrados = useMemo(
+    () => itensAgenda.filter((item) => passaFiltrosPainel(item)),
+    [itensAgenda, passaFiltrosPainel],
+  );
 
   // ===== Classificação de um item (mesma regra do filtro de classificação) =====
   const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" => {
