@@ -300,7 +300,16 @@ export default function AdminTstBasePcaDistribuicoes() {
         const key = `${dossie}||${processo}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        items.push({ dossie, processo, processoDigitos: soDigitos(processo) });
+        const get = (h: string) => {
+          const col = header.mapa[normHeader(h)];
+          return col === undefined ? "" : r[col];
+        };
+        items.push({
+          dossie,
+          processo,
+          processoDigitos: soDigitos(processo),
+          campos: mapearCamposPlanilha(get),
+        });
       }
 
       setLinhas(items);
