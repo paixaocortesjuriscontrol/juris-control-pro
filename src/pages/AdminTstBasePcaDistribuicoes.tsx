@@ -680,6 +680,73 @@ export default function AdminTstBasePcaDistribuicoes() {
             </div>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FilePlus2 className="w-4 h-4" /> 3. Cadastrar os não encontrados aplicando TAG
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Cria na Distribuição TST os processos da planilha que não existem na base
+              (Processo + Dossiê, aba de origem "Base PCA", tribunal TST e coordenação do usuário
+              logado) e já aplica a TAG escolhida. Linhas sem número de processo são ignoradas.
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <Stat
+                label="A cadastrar (não encontrados com processo)"
+                value={notFound.filter((n) => n.processo.trim()).length}
+                tone="rose"
+              />
+              <Stat label="Cadastrados nesta sessão" value={ultimoCadastro} tone="emerald" />
+            </div>
+
+            <div className="max-h-56 overflow-y-auto border rounded p-2 space-y-1">
+              {catalogo.map((t) => {
+                const active = tagCadastroId === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setTagCadastroId(t.id)}
+                    className={`w-full flex items-center gap-2 text-sm px-2 py-1.5 rounded text-left hover:bg-muted/50 ${
+                      active ? "bg-muted/60 ring-1 ring-primary/40" : ""
+                    }`}
+                  >
+                    <span
+                      className="inline-block w-3 h-3 rounded-full border border-border flex-shrink-0"
+                      style={{ backgroundColor: t.cor }}
+                    />
+                    <span className="flex-1 truncate">{t.nome}</span>
+                    {active && <Check className="w-3 h-3 text-primary" />}
+                  </button>
+                );
+              })}
+              {!loadingTags && catalogo.length === 0 && (
+                <p className="text-xs text-muted-foreground py-2 px-1">
+                  Crie uma TAG na seção anterior para usar aqui.
+                </p>
+              )}
+            </div>
+
+            <Button
+              onClick={cadastrarNaoEncontrados}
+              disabled={
+                busy || !tagCadastroId || notFound.filter((n) => n.processo.trim()).length === 0
+              }
+            >
+              {cadastrando ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <FilePlus2 className="w-4 h-4 mr-2" />
+              )}
+              Cadastrar não encontrados e aplicar TAG
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </MainLayout>
   );
