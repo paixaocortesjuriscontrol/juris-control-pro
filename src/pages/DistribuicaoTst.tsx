@@ -44,6 +44,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
+import { buildJuditPatch, persistirPartesJudit } from "@/lib/juditDistribuicaoTst";
+import { useTurmasTst, useRelatoresTst } from "@/hooks/useClassificacaoTst";
 import { useSituacoesEnvioCarga } from "@/hooks/useSituacoesEnvioCarga";
 import {
   useProcessoTagsCatalogo,
@@ -166,6 +168,9 @@ export default function DistribuicaoTst() {
   
   // Bulk Judit
   const [bulkJuditRunning, setBulkJuditRunning] = useState(false);
+  // Classificação TST carregada uma única vez (usada pelo Judit em lote).
+  const { data: turmasTstBulk = [] } = useTurmasTst();
+  const { data: relatoresTstBulk = [] } = useRelatoresTst();
   const [bulkJuditProgress, setBulkJuditProgress] = useState({ current: 0, total: 0 });
   const bulkAbortRef = useRef(false);
   // Bulk Judit sempre roda SEM anexos. Anexos só são consultados pelo
@@ -1228,7 +1233,6 @@ export default function DistribuicaoTst() {
 
           if (juditError || juditData?.error) continue;
 
-          const recorrenteJudit = getJuditPartesResumo(juditData, proc.parte_recorrente);
           const partiesDetail = Array.isArray(juditData?.parties_detail) ? juditData.parties_detail : [];
 
           // Bulk nunca traz anexos — anexos só via formulário individual.
@@ -1241,96 +1245,24 @@ export default function DistribuicaoTst() {
           // Usar polo ACTIVE/PASSIVE aqui inverte reclamante ↔ reclamada — bug
           // relatado pela advocacia com processos vindo com Santander como
           // "Reclamante" e o cliente como "Reclamada".
-          const nomesPorPersonType = (re: RegExp) =>
-            [...new Set(
-              partiesDetail
-                .filter((p: any) => !p?.is_advogado && re.test(String(p?.tipo_pessoa || "")))
-                .map((p: any) => String(p?.nome || "").trim())
-                .filter(Boolean)
-            )].join(" / ");
-          const reclamanteJudit =
-            (juditData?.reclamante && String(juditData.reclamante).trim()) ||
-            nomesPorPersonType(/RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE/i) ||
-            "";
-          const reclamadaJudit =
-            (juditData?.reclamada && String(juditData.reclamada).trim()) ||
-            nomesPorPersonType(/RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID/i) ||
-            "";
-
-          // Trânsito em julgado — MESMA lógica do botão individual (buildJuditPatch):
-          // precedência para a detecção por movimentação da Edge Function; heurística
-          // de situação/baixa só como fallback, e sempre reavaliando para false.
-          const situacaoStr = (juditData.situacao_processo || "").toString();
-          const baixadoStr = (juditData.processo_baixado || "").toString().toUpperCase();
-          const juditAtivo = /ativ|active|em\s*curso|em\s*tramita|andamento/i.test(situacaoStr) || baixadoStr === "N";
-          const ehTransito = !juditAtivo && (/arquivad|baixad|tr[âa]nsito/i.test(situacaoStr) || baixadoStr === "S");
-          const transitoDet = juditData?.transito_julgado_detectado;
-          const dataTransitoDet = juditData?.data_transito_julgado_detectada || null;
-
-          // Atualiza apenas a linha selecionada. Mesmo processo pode ter mais
-          // de um dossiê/origem na base; nunca atualizar por `processo` aqui.
-          const tribunaisAceitos = ["TST", "STF", "STJ"];
-          const tribunalMapeado = tribunaisAceitos.includes(juditData.tribunal) ? juditData.tribunal : null;
-
-          // Helper: turma é uma das 8 turmas oficiais do TST?
-          const isTurmaOficialTst = (t: string | null | undefined): boolean => {
-            if (!t) return false;
-            const norm = String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
-            return /^[1-8][ªa]?\s*turma$/.test(norm);
-          };
-          const turmaFinal = juditData.turma || proc.turma || "";
-          const erroJuditFlag = !isTurmaOficialTst(turmaFinal);
-
           const bennerId = (proc as any).id as string | undefined;
           if (!bennerId) continue;
 
+          // Atualiza apenas a linha selecionada. Mesmo processo pode ter mais
+          // de um dossiê/origem na base; nunca atualizar por `processo` aqui.
+          let updateOk = false;
           {
-            // Mesma regra do formulário individual: a Judit é fonte da verdade.
-            // Para os campos de Tipo de Recurso a Judit é fonte ÚNICA — quando
-            // ela não confirma um recurso, o valor antigo (possivelmente errado)
-            // é APAGADO (gravado como NULL). Para os demais campos, sobrescreve
-            // apenas quando a Judit retornou um valor.
-            const updateFields: any = {};
-            // Tipos de recurso: sempre sobrescreve (inclui null para apagar).
-            updateFields.tipo_recurso = juditData.tipo_recurso ?? null;
-            updateFields.tipo_recurso_reclamante = juditData.tipo_recurso_reclamante ?? null;
-            updateFields.tipo_recurso_banco = juditData.tipo_recurso_banco ?? null;
-            if (juditData.relator) updateFields.relator = juditData.relator;
-            if (juditData.turma) updateFields.turma = juditData.turma;
-            if (tribunalMapeado) updateFields.tribunal = tribunalMapeado;
-            if (recorrenteJudit) updateFields.recorrente = recorrenteJudit;
-            if (reclamanteJudit) updateFields.reclamante = reclamanteJudit;
-            if (reclamadaJudit) updateFields.reclamada = reclamadaJudit;
-            if (juditData.situacao_processo) updateFields.situacao_processo = juditData.situacao_processo;
-            if (transitoDet === true) {
-              updateFields.transito_julgado = true;
-              if (dataTransitoDet) updateFields.data_transito_julgado = dataTransitoDet;
-            } else if (transitoDet === false) {
-              updateFields.transito_julgado = false;
-              updateFields.data_transito_julgado = null;
-            } else if (juditAtivo) {
-              updateFields.transito_julgado = false;
-              updateFields.data_transito_julgado = null;
-            } else if (ehTransito) {
-              updateFields.transito_julgado = true;
-              if (dataTransitoDet) updateFields.data_transito_julgado = dataTransitoDet;
-            }
-            if (juditData.data_distribuicao) {
-              updateFields.data_distribuicao_real = juditData.data_distribuicao;
-              updateFields.data_distribuicao = juditData.data_distribuicao;
-            }
-            if (juditData.tem_data_julgamento) updateFields.tem_data_julgamento = juditData.tem_data_julgamento;
-            if (juditData.data_julgamento) updateFields.data_julgamento = juditData.data_julgamento;
-            if (juditData.horario_julgamento) updateFields.horario_julgamento = juditData.horario_julgamento;
-            if (juditData.tipo_julgamento) updateFields.tipo_julgamento = juditData.tipo_julgamento;
-            if (juditData.resultado_sem_transcendencia) updateFields.resultado_sem_transcendencia = true;
-            if (juditData.resultado_nao_conhecido) updateFields.resultado_nao_conhecido = true;
-            if (juditData.resultado_conhecido_provido) updateFields.resultado_conhecido_provido = true;
-            if (juditData.resultado_conhecido_nao_provido) updateFields.resultado_conhecido_nao_provido = true;
-            if (juditData.resultado_outra) updateFields.resultado_outra = juditData.resultado_outra;
-            if (juditData.processo_baixado) updateFields.processo_baixado = juditData.processo_baixado;
-            // Sempre reavalia o flag erro_judit com a turma final (mesmo que turma não tenha mudado)
-            updateFields.erro_judit = erroJuditFlag;
+            // REGRA ÚNICA: o patch é construído por `buildJuditPatch`, o mesmo
+            // usado pelo botão Judit do formulário (por contrato). Nada de
+            // lógica paralela aqui — normalização de tipo de recurso e parte
+            // recorrente, classificação de Turma/Relator, trânsito em julgado,
+            // `data_distribuicao_real` (nunca `data_distribuicao`) e ausência de
+            // campos de julgamento/`erro_judit` vêm todas de lá.
+            const { patch: updateFields } = buildJuditPatch(
+              juditData,
+              turmasTstBulk,
+              relatoresTstBulk,
+            );
 
             if (Object.keys(updateFields).length > 0) {
               const { data: upd, error: updErr } = await (supabase
@@ -1343,41 +1275,60 @@ export default function DistribuicaoTst() {
               } else if (!upd || (upd as any[]).length === 0) {
                 console.warn("[bulk-judit] update bloqueado por RLS", proc.processo_numero);
               } else {
+                updateOk = true;
                 successCount++;
               }
             }
           }
 
-          // Persiste partes detalhadas (CPF/CNPJ, advogados, etc.) na aba "Partes"
-          if (bennerId && partiesDetail.length > 0) {
-            await supabase
-              .from("partes_processo_benner")
-              .delete()
-              .eq("dados_benner_id", bennerId)
-              .eq("origem", "judit");
-
-            const partesRows = partiesDetail.map((p: any) => ({
-              dados_benner_id: bennerId,
-              nome: p.nome || "Sem nome",
-              documento: p.documento || null,
-              tipo_pessoa: p.tipo_pessoa || null,
-              polo: p.polo || null,
-              is_advogado: !!p.is_advogado,
-              origem: "judit",
-            }));
-            await supabase.from("partes_processo_benner").insert(partesRows);
+          // Persiste partes detalhadas (CPF/CNPJ, advogados, etc.) na aba
+          // "Partes" — mesma função usada pelo botão individual.
+          if (partiesDetail.length > 0) {
+            try {
+              await persistirPartesJudit(bennerId, juditData);
+            } catch (e) {
+              console.warn("[bulk-judit] Falha ao persistir partes:", e);
+            }
           }
 
-          // Marca o registro em dados_benner como judit_preenchido
-          const { data: authData2 } = await supabase.auth.getUser();
-          await supabase
-            .from("dados_benner" as any)
-            .update({
-              judit_preenchido: true,
-              judit_preenchido_em: new Date().toISOString(),
-              judit_preenchido_por: authData2?.user?.id || null,
-            } as any)
-            .eq("id", bennerId);
+          // Vincula o registro ao processo em "Processos e Casos", com o mesmo
+          // fallback via RPC usado pelo formulário (contorna RLS).
+          try {
+            const numeroLimpo = aplicarMascaraCnj(proc.processo_numero);
+            const { data: procRow } = await supabase
+              .from("processos")
+              .select("id")
+              .eq("numero", numeroLimpo)
+              .maybeSingle();
+            let processoId: string | null = procRow?.id ?? null;
+            if (!processoId) {
+              const { data: existingId } = await supabase.rpc(
+                "find_processo_id_by_numero" as any,
+                { _numero: numeroLimpo },
+              );
+              processoId = (existingId as string) || null;
+            }
+            if (processoId) {
+              await supabase
+                .from("dados_benner" as any)
+                .update({ processo_id: processoId } as any)
+                .eq("id", bennerId);
+            }
+          } catch (e) {
+            console.warn("[bulk-judit] Falha ao vincular processo:", e);
+          }
+
+          // Marca como judit_preenchido SOMENTE quando o update foi confirmado.
+          if (updateOk) {
+            await supabase
+              .from("dados_benner" as any)
+              .update({
+                judit_preenchido: true,
+                judit_preenchido_em: new Date().toISOString(),
+                judit_preenchido_por: bulkUserId,
+              } as any)
+              .eq("id", bennerId);
+          }
 
           // Throttle to avoid rate limits
           await new Promise(r => setTimeout(r, 800));
