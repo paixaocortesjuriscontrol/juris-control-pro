@@ -262,6 +262,23 @@ export interface DistribuicaoTstFilters {
   equipe?: "todos" | "sim" | "nao";
   /** Lista de ids permitidos (intersecção). Quando vazia, retorna 0 linhas. */
   idsAllowed?: string[] | null;
+  /**
+   * Filtro por TAG resolvido no banco (evita trafegar milhares de ids).
+   * "todas" = sem filtro. "__sem__" ainda não é suportado nativamente.
+   */
+  tagId?: string | null;
+}
+
+/** Parte do select necessária para filtrar por TAG via join no banco. */
+export function tagSelectPart(tagId?: string | null): string | null {
+  if (!tagId || tagId === "todas" || tagId === "__sem__") return null;
+  return "dados_benner_processo_tags!inner(tag_id)";
+}
+
+/** Aplica o filtro por TAG na query (usa o índice idx_dbpt_tag_dado). */
+export function applyTagFilter(query: any, tagId?: string | null) {
+  if (!tagSelectPart(tagId)) return query;
+  return query.eq("dados_benner_processo_tags.tag_id", tagId);
 }
 
 export function bennerToDistribuicao(b: any): DistribuicaoTst {
@@ -452,6 +469,7 @@ export async function fetchAllDistribuicaoTstIds(
   const selectClause = hasResponsavelFilter
     ? "id, dados_benner_responsaveis!inner(usuario_id)"
     : "id";
+  const selectWithTag = [selectClause, tagSelectPart(filters.tagId)].filter(Boolean).join(", ");
 
   // Para "Apenas duplicados", filtramos por IDs reais dos grupos cujo processo
   // aparece mais de uma vez, não pelo marcador `ic_duplicado`.
@@ -467,8 +485,9 @@ export async function fetchAllDistribuicaoTstIds(
   while (true) {
     let query = supabase
       .from("dados_benner" as any)
-      .select(selectClause)
+      .select(selectWithTag)
       .not("aba_origem", "is", null);
+    query = applyTagFilter(query, filters.tagId);
 
     if (opts?.matchListOrder) {
       // Mesma ordenação usada pela listagem, para que "os N primeiros"
@@ -632,6 +651,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.situacaoEnvioCargaId && filters.situacaoEnvioCargaId !== "todas") return true;
   if (filters.equipe && filters.equipe !== "todos") return true;
   if (filters.idsAllowed && filters.idsAllowed.length > 0) return true;
+  if (filters.tagId && filters.tagId !== "todas") return true;
   return false;
 }
 
@@ -664,6 +684,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     const selectClause = hasResponsavelFilter
       ? "*, dados_benner_responsaveis!inner(usuario_id)"
       : "*";
+    const selectWithTag = [selectClause, tagSelectPart(filters.tagId)].filter(Boolean).join(", ");
 
     // "Apenas duplicados": traz todos os IDs dos processos que têm pares reais,
     // ordenados por processo, para identificar e arquivar manualmente.
@@ -692,8 +713,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     const buildQuery = (chunkIds: string[] | null, withCount: boolean) => {
       let query: any = supabase
         .from("dados_benner" as any)
-        .select(selectClause, withCount ? { count: "exact" } : undefined)
+        .select(selectWithTag, withCount ? { count: "exact" } : undefined)
         .not("aba_origem", "is", null);
+      query = applyTagFilter(query, filters.tagId);
 
       if (filters.duplicado === "sim") {
         query = query.order("processo", { ascending: true, nullsFirst: false });
@@ -1145,6 +1167,7 @@ export async function fetchMesesDataRealFiltered(
   const selectClause = hasResponsavelFilter
     ? "id, data_distribuicao_real, dados_benner_responsaveis!inner(usuario_id)"
     : "id, data_distribuicao_real";
+  const selectWithTag = [selectClause, tagSelectPart(f.tagId)].filter(Boolean).join(", ");
 
   const counts = new Map<string, number>();
   const seen = new Set<string>();
@@ -1153,9 +1176,10 @@ export async function fetchMesesDataRealFiltered(
   while (true) {
     let query = supabase
       .from("dados_benner" as any)
-      .select(selectClause)
+      .select(selectWithTag)
       .not("aba_origem", "is", null)
       .order("id", { ascending: true });
+    query = applyTagFilter(query, f.tagId);
 
     if (hasResponsavelFilter) query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
     if (wantsUnassigned) query = query.eq("tem_responsavel", false);
