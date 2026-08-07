@@ -44,6 +44,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
+import { buildJuditPatch, persistirPartesJudit } from "@/lib/juditDistribuicaoTst";
+import { useTurmasTst, useRelatoresTst } from "@/hooks/useClassificacaoTst";
 import { useSituacoesEnvioCarga } from "@/hooks/useSituacoesEnvioCarga";
 import {
   useProcessoTagsCatalogo,
@@ -166,6 +168,9 @@ export default function DistribuicaoTst() {
   
   // Bulk Judit
   const [bulkJuditRunning, setBulkJuditRunning] = useState(false);
+  // Classificação TST carregada uma única vez (usada pelo Judit em lote).
+  const { data: turmasTstBulk = [] } = useTurmasTst();
+  const { data: relatoresTstBulk = [] } = useRelatoresTst();
   const [bulkJuditProgress, setBulkJuditProgress] = useState({ current: 0, total: 0 });
   const bulkAbortRef = useRef(false);
   // Bulk Judit sempre roda SEM anexos. Anexos só são consultados pelo
