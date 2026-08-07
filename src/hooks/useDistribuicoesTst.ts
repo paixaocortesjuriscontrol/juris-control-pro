@@ -262,6 +262,23 @@ export interface DistribuicaoTstFilters {
   equipe?: "todos" | "sim" | "nao";
   /** Lista de ids permitidos (intersecção). Quando vazia, retorna 0 linhas. */
   idsAllowed?: string[] | null;
+  /**
+   * Filtro por TAG resolvido no banco (evita trafegar milhares de ids).
+   * "todas" = sem filtro. "__sem__" ainda não é suportado nativamente.
+   */
+  tagId?: string | null;
+}
+
+/** Parte do select necessária para filtrar por TAG via join no banco. */
+export function tagSelectPart(tagId?: string | null): string | null {
+  if (!tagId || tagId === "todas" || tagId === "__sem__") return null;
+  return "dados_benner_processo_tags!inner(tag_id)";
+}
+
+/** Aplica o filtro por TAG na query (usa o índice idx_dbpt_tag_dado). */
+export function applyTagFilter(query: any, tagId?: string | null) {
+  if (!tagSelectPart(tagId)) return query;
+  return query.eq("dados_benner_processo_tags.tag_id", tagId);
 }
 
 export function bennerToDistribuicao(b: any): DistribuicaoTst {
