@@ -106,12 +106,15 @@ export function ItemHistorico({ tipo, tipoComentario, itemId, className }: Props
       const autorIds = Array.from(new Set(entradas.map((e) => e.autorId).filter(Boolean))) as string[];
       let autores: Record<string, { nome?: string; email?: string }> = {};
       if (autorIds.length > 0) {
-        const { data: perfis } = await (supabase as any)
-          .from("profiles")
-          .select("id, nome, email")
-          .in("id", autorIds);
+        const [{ data: perfisBasic }, { data: perfis }] = await Promise.all([
+          (supabase as any).from("profiles_basic").select("id, nome").in("id", autorIds),
+          (supabase as any).from("profiles").select("id, nome, email").in("id", autorIds),
+        ]);
+        (perfisBasic || []).forEach((p: any) => {
+          autores[p.id] = { nome: p.nome };
+        });
         (perfis || []).forEach((p: any) => {
-          autores[p.id] = { nome: p.nome, email: p.email };
+          autores[p.id] = { nome: p.nome || autores[p.id]?.nome, email: p.email };
         });
       }
 
