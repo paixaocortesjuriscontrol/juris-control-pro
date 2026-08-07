@@ -23,7 +23,12 @@ import {
 } from "@/components/distribuicao-tst/MateriasAnaliseList";
 import { MultiTipoRecurso } from "@/components/distribuicao-tst/MultiTipoRecurso";
 import { RelatorTurmaCombo } from "@/components/distribuicao-tst/RelatorTurmaCombo";
-import { persistirPartesJudit } from "@/lib/juditDistribuicaoTst";
+import {
+  persistirPartesJudit,
+  normalizarTipoRecurso,
+  normalizarParteRecorrente,
+  normalizarValorPorCampo,
+} from "@/lib/juditDistribuicaoTst";
 import {
   recorrenteEnvolveReclamante,
   recorrenteEnvolveBanco,
