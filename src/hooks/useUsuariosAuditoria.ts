@@ -13,11 +13,14 @@ export function useUsuariosAuditoria(ids: (string | null)[]) {
     queryKey: ["auditoria-usuarios", userIds.join(",")],
     enabled: userIds.length > 0,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("id, nome, email")
-        .in("id", userIds);
+      const [{ data: basic }, { data }] = await Promise.all([
+        supabase.from("profiles_basic").select("id, nome").in("id", userIds),
+        supabase.from("profiles").select("id, nome, email").in("id", userIds),
+      ]);
       const map: Record<string, { nome: string; email: string }> = {};
+      (basic || []).forEach((p: any) => {
+        map[p.id] = { nome: p.nome || p.id, email: "" };
+      });
       (data || []).forEach((p: any) => {
         map[p.id] = { nome: p.nome || p.email || p.id, email: p.email || "" };
       });
