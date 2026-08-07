@@ -691,15 +691,19 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       }
       if (!data && !forceRefresh) {
         try {
-          const { data: cached } = await supabase
+          const { data: cachedRows } = await supabase
             .from("judit_logs" as any)
             .select("raw_response, request_payload, created_at")
             .in("processo_numero", obterVariantesCnjBusca(numeroLimpo))
-            .eq("status", "sucesso")
             .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          const raw: any = (cached as any)?.raw_response;
+            .limit(10);
+          // Pega o log mais recente que realmente tenha payload. Se algum
+          // deles trouxer anexos e o usuário pediu com anexos, prioriza esse.
+          const comPayload = ((cachedRows as any[]) || []).filter((l) => l?.raw_response);
+          const comAtts = comPayload.find(
+            (l) => Array.isArray(l.raw_response?.attachments) && l.raw_response.attachments.length > 0,
+          );
+          const raw: any = (comAnexos && comAtts ? comAtts : comPayload[0])?.raw_response;
           const hadAtts = Array.isArray(raw?.attachments) && raw.attachments.length > 0;
           if (raw && (!comAnexos || hadAtts)) {
             data = raw;
@@ -713,6 +717,26 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           }
         } catch (e) {
           console.warn("[preencher] cache-lookup falhou:", (e as Error)?.message);
+        }
+      }
+      // 3) Último recurso sem custo: payload gravado em consultas_judit.
+      if (!data && !forceRefresh && processo?.id) {
+        try {
+          const { data: consulta } = await supabase
+            .from("consultas_judit")
+            .select("payload_resposta, requisitada_em")
+            .eq("processo_id", processo.id)
+            .order("requisitada_em", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const payload: any = (consulta as any)?.payload_resposta;
+          if (payload) {
+            data = payload;
+            fromCache = true;
+            toast.info("Reaproveitando consulta Judit registrada (sem nova cobrança).");
+          }
+        } catch (e) {
+          console.warn("[preencher] consultas_judit lookup falhou:", (e as Error)?.message);
         }
       }
       if (!data) {
@@ -741,6 +765,48 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       };
       apply("numero", numeroLimpo);
       for (const f of FIELDS) apply(f, (data as any)[f]);
+
+      // ---- Aliases / campos derivados da Judit -------------------------------
+      // Preenchem apenas quando o advogado ainda não digitou nada no campo.
+      const applyIfEmpty = (field: string, value: any) => {
+        const atual = next[field];
+        const vazio = atual === null || atual === undefined || String(atual).trim() === "";
+        if (vazio) apply(field, value);
+      };
+      const d: any = data || {};
+      const partesJudit = Array.isArray(d.parties_detail) ? d.parties_detail : [];
+      const nomesPorTipo = (re: RegExp) =>
+        [...new Set(
+          partesJudit
+            .filter((p: any) => !p?.is_advogado && re.test(String(p?.tipo_pessoa || "")))
+            .map((p: any) => String(p?.nome || "").trim())
+            .filter(Boolean),
+        )].join(" / ");
+      const reclamanteJ =
+        (d.reclamante && String(d.reclamante).trim()) ||
+        nomesPorTipo(/RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE/i) ||
+        "";
+      const reclamadaJ =
+        (d.reclamada && String(d.reclamada).trim()) ||
+        (d.reclamados && String(d.reclamados).trim()) ||
+        nomesPorTipo(/RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID/i) ||
+        "";
+      applyIfEmpty("reclamante", reclamanteJ);
+      applyIfEmpty("reclamados", reclamadaJ);
+      applyIfEmpty("polo_ativo", reclamanteJ);
+      applyIfEmpty("polo_passivo", reclamadaJ);
+      applyIfEmpty("tribunal", d.tribunal || d.tribunal_acronimo);
+      applyIfEmpty("classe", d.classe_capa || d.classe);
+      applyIfEmpty("orgao_julgador", d.orgao_julgador);
+      applyIfEmpty("assunto", d.assunto);
+      applyIfEmpty("comarca", d.comarca);
+      applyIfEmpty("vara", d.vara);
+      applyIfEmpty("uf", d.uf);
+      applyIfEmpty("instancia", d.instancia);
+      applyIfEmpty("data_distribuicao", d.data_distribuicao || d.distribution_date);
+      applyIfEmpty("valor_causa", d.valor_causa);
+      applyIfEmpty("fase", d.fase || d.situacao_processo);
+      applyIfEmpty("status", d.status_processo);
       // Quando a Judit retornou tribunal, marcamos o processo como Judicial.
       if (data?.tribunal || data?.tribunal_acronimo) {
         apply("tipo_processo", "judicial");
