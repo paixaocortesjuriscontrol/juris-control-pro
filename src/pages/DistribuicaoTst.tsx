@@ -48,7 +48,6 @@ import { useSituacoesEnvioCarga } from "@/hooks/useSituacoesEnvioCarga";
 import {
   useProcessoTagsCatalogo,
   useTagsForDados,
-  fetchDadoIdsByTag,
 } from "@/hooks/useProcessoTags";
 import { ProcessoTagPicker } from "@/components/distribuicao-tst/ProcessoTagPicker";
 import { BulkTagAction } from "@/components/distribuicao-tst/BulkTagAction";
