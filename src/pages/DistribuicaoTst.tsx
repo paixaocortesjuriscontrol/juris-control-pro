@@ -251,12 +251,8 @@ export default function DistribuicaoTst() {
   // ===== TAGs (admin/coord) =====
   const [filtroTagId, setFiltroTagId] = useState<string>("todas");
   const { data: tagsCatalogo = [] } = useProcessoTagsCatalogo();
-  // Quando uma TAG é escolhida, busca o conjunto de ids permitidos.
-  const { data: idsAllowedFromTag, isFetching: loadingIdsFromTag } = useQuery({
-    queryKey: ["tag-filter-ids", filtroTagId],
-    enabled: filtroTagId !== "todas" && filtroTagId !== "__sem__",
-    queryFn: () => fetchDadoIdsByTag(filtroTagId),
-  });
+  // O filtro por TAG é resolvido diretamente no banco (índice por tag_id),
+  // sem trafegar milhares de ids do navegador.
   // Novo filtro: apenas processos com mais de um responsável.
   const [filtroMultiResp, setFiltroMultiResp] = useState<boolean>(false);
 
@@ -265,13 +261,6 @@ export default function DistribuicaoTst() {
   // obrigatórios (vide spec da advogada) ainda em aberto.
   const [mostrarPendencias, setMostrarPendencias] = useState<boolean>(false);
   const [pendenciasRelRunning, setPendenciasRelRunning] = useState(false);
-
-  // IDs base por TAG (intersecção). undefined = sem restrição por TAG.
-  const idsAllowedFromTagFilter = filtroTagId === "todas" || filtroTagId === "__sem__"
-    ? undefined
-    : loadingIdsFromTag
-      ? [TAG_FILTER_PENDING_ID]
-      : (idsAllowedFromTag ?? []);
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -308,11 +297,11 @@ export default function DistribuicaoTst() {
         provasDigitais: filtroProvasDigitais !== "todos" ? (filtroProvasDigitais as any) : undefined,
         situacaoEnvioCargaId: filtroSituacaoCarga !== "todas" ? filtroSituacaoCarga : undefined,
         equipe: filtroEquipe !== "todos" ? (filtroEquipe as any) : undefined,
-      idsAllowed: idsAllowedFromTagFilter,
+        tagId: filtroTagId !== "todas" && filtroTagId !== "__sem__" ? filtroTagId : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, filtroTagId, JSON.stringify(idsAllowedFromTag || [])]);
+}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, filtroTagId]);
 
   // IDs de processos com mais de um responsável, respeitando os demais filtros
   // (ignora filtro de responsável para que a contagem não se anule a si mesma).
@@ -345,23 +334,19 @@ export default function DistribuicaoTst() {
       f = { ...f, responsavelIds: [user.id] };
     }
     if (filtroMultiResp) {
-      // Intersecta com a lista de processos com mais de um responsável.
-      const tagIds = idsAllowedFromTagFilter;
-      const finalIds = tagIds
-        ? multiRespIds.filter((id) => tagIds.includes(id))
-        : multiRespIds;
-      f = { ...f, idsAllowed: finalIds.length > 0 ? finalIds : ["00000000-0000-0000-0000-000000000000"] };
+      // multiRespIds já respeita o filtro por TAG (resolvido no banco).
+      f = { ...f, idsAllowed: multiRespIds.length > 0 ? multiRespIds : [TAG_FILTER_PENDING_ID] };
     }
     if (filtroSemPendencia) {
       // Restringe aos IDs "pronto para enviar" sem pendências (calculados no cliente).
       const base = f.idsAllowed && f.idsAllowed.length > 0
         ? prontoSemPendenciaIds.filter((id) => f.idsAllowed!.includes(id))
         : prontoSemPendenciaIds;
-      f = { ...f, idsAllowed: base.length > 0 ? base : ["00000000-0000-0000-0000-000000000000"] };
+      f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
     }
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), JSON.stringify(idsAllowedFromTagFilter || []), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds)]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds)]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
