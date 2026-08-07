@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Loader2, Download, Tag as TagIcon, Plus, Check } from "lucide-react";
+import { Upload, Loader2, Download, Tag as TagIcon, Plus, Check, FilePlus2 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -88,6 +88,9 @@ export default function AdminTstBasePcaDistribuicoes() {
   const [novoNome, setNovoNome] = useState("");
   const [novaCor, setNovaCor] = useState<string>(TAG_COLOR_PALETTE[10]);
   const [matchMode, setMatchMode] = useState<MatchMode>("exact");
+  const [cadastrando, setCadastrando] = useState(false);
+  const [tagCadastroId, setTagCadastroId] = useState<string | null>(null);
+  const [ultimoCadastro, setUltimoCadastro] = useState<number>(0);
 
   const { data: catalogo = [], isLoading: loadingTags } = useProcessoTagsCatalogo();
   const criar = useCriarTag();
@@ -368,7 +371,119 @@ export default function AdminTstBasePcaDistribuicoes() {
     }
   };
 
-  const busy = loadingSearch || applying;
+  const cadastrarNaoEncontrados = async () => {
+    const alvo = notFound.filter((n) => n.processo.trim().length > 0);
+    if (alvo.length === 0) {
+      toast.info("Não há processos não encontrados com número informado.");
+      return;
+    }
+    if (!tagCadastroId) {
+      toast.info("Selecione a TAG que será aplicada aos processos cadastrados.");
+      return;
+    }
+    const tagNome = catalogo.find((t: any) => t.id === tagCadastroId)?.nome || tagCadastroId;
+    const ok = window.confirm(
+      `Cadastrar ${alvo.length} processo(s) na Distribuição TST aplicando a TAG "${tagNome}"?`,
+    );
+    if (!ok) return;
+
+    setCadastrando(true);
+    setProgress(0);
+    setProgressLabel("Cadastrando processos não encontrados...");
+    const auditId = await iniciarAuditoriaLote({
+      tipo: "base_pca_cadastro_novos",
+      arquivoNome: fileName || undefined,
+      detalhes: {
+        tag_id: tagCadastroId,
+        tag_nome: tagNome,
+        modo_correspondencia: matchMode,
+        linhas_planilha: linhas.length,
+        a_cadastrar: alvo.length,
+      },
+    });
+
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id;
+      let coordenacaoId: string | null = null;
+      if (uid) {
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("coordenacao_id")
+          .eq("id", uid)
+          .maybeSingle();
+        coordenacaoId = (prof as any)?.coordenacao_id ?? null;
+      }
+
+      const novosIds: string[] = [];
+      const itensAudit: any[] = [];
+      const total = Math.ceil(alvo.length / APPLY_CHUNK);
+
+      for (let i = 0; i < alvo.length; i += APPLY_CHUNK) {
+        const slice = alvo.slice(i, i + APPLY_CHUNK);
+        const payload = slice.map((it) => ({
+          processo: it.processo,
+          dossie: it.dossie || null,
+          aba_origem: "Base PCA",
+          tribunal: "TST",
+          coordenacao_id: coordenacaoId,
+        }));
+        const { data, error } = await (supabase.from("dados_benner") as any)
+          .insert(payload)
+          .select("id, processo, dossie");
+        if (error) throw error;
+        for (const row of (data ?? []) as CandidateRow[]) {
+          novosIds.push(row.id);
+          itensAudit.push({
+            processo: row.processo || null,
+            dossie: row.dossie || null,
+            acao: "criado",
+            detalhe: `Cadastrado pela Base PCA com TAG "${tagNome}"`,
+          });
+        }
+        const lote = Math.floor(i / APPLY_CHUNK) + 1;
+        setProgress(Math.round((lote / total) * 80));
+        setProgressLabel(`Cadastrando lote ${lote}/${total} — criados: ${novosIds.length}`);
+      }
+
+      setProgressLabel(`Aplicando TAG "${tagNome}" aos ${novosIds.length} novos processos...`);
+      for (let i = 0; i < novosIds.length; i += APPLY_CHUNK) {
+        const slice = novosIds.slice(i, i + APPLY_CHUNK);
+        const rows = slice.map((dado_benner_id) => ({
+          dado_benner_id,
+          tag_id: tagCadastroId,
+          created_by: uid,
+        }));
+        const { error } = await supabase
+          .from("dados_benner_processo_tags" as any)
+          .upsert(rows as any, { onConflict: "dado_benner_id,tag_id", ignoreDuplicates: true });
+        if (error) throw error;
+      }
+
+      setFoundIds((prev) => Array.from(new Set([...prev, ...novosIds])));
+      setNotFound((prev) => prev.filter((n) => !n.processo.trim()));
+      setUltimoCadastro(novosIds.length);
+      setProgress(100);
+      setProgressLabel(`${novosIds.length} processo(s) cadastrado(s) com a TAG "${tagNome}"`);
+      toast.success(`${novosIds.length} processo(s) cadastrado(s) e marcado(s) com "${tagNome}"`);
+
+      await finalizarAuditoriaLote(auditId, {
+        status: "concluida",
+        totalLinhas: linhas.length,
+        criados: novosIds.length,
+        resumo: `${novosIds.length} processo(s) cadastrado(s) pela Base PCA com TAG "${tagNome}"`,
+        itens: itensAudit,
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Erro ao cadastrar processos: " + (err?.message || String(err)));
+      await finalizarAuditoriaLote(auditId, { status: "erro", erro: err?.message || String(err) });
+    } finally {
+      setCadastrando(false);
+    }
+  };
+
+  const busy = loadingSearch || applying || cadastrando;
 
   return (
     <MainLayout
@@ -435,7 +550,7 @@ export default function AdminTstBasePcaDistribuicoes() {
               </div>
             </div>
 
-            {(loadingSearch || applying || progress > 0) && (
+            {(busy || progress > 0) && (
               <div className="space-y-1">
                 <Progress value={progress} />
                 <p className="text-xs text-muted-foreground">{progressLabel}</p>
