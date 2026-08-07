@@ -14,7 +14,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, parseISO, isValid } from "date-fns";
 import { SelecionarAdvogadosAudiencia } from "./SelecionarAdvogadosAudiencia";
-import { ItemComentarios } from "@/components/comum/ItemComentarios";
+import { ItemAbas } from "@/components/comum/ItemAbas";
 import { ReagendarAudienciaDialog } from "./ReagendarAudienciaDialog";
 import { HistoricoReagendamentosAudiencia } from "./HistoricoReagendamentosAudiencia";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
@@ -538,7 +538,12 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
             </div>
           </div>
 
-          <ItemComentarios tipo="audiencia" itemId={audiencia?.id} />
+          <ItemAbas
+            tipo="audiencia"
+            tipoComentario="audiencia"
+            itemId={audiencia?.id}
+            processoId={(audiencia as any)?.processo_id ?? null}
+          />
 
           <HistoricoReagendamentosAudiencia audienciaId={audiencia?.id} />
 
