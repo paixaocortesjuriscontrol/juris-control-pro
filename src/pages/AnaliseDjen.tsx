@@ -3798,6 +3798,13 @@ const AnaliseDjen = () => {
               });
             } catch (err) {
               console.error("Erro ao marcar publicação como lida (Salvar e ler):", err);
+              toast.error("Não foi possível marcar como lida: " + ((err as any)?.message ?? err));
+              // Reverte o estado otimista para não indicar leitura que não gravou.
+              setPubsTratadasSessao((prev) => {
+                const copia = { ...prev };
+                delete copia[selectedPublicacao.id];
+                return copia;
+              });
             }
           };
           // Botão dropdown "Adicionar" reutilizado no cabeçalho do wrapper para
