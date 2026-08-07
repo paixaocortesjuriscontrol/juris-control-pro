@@ -109,18 +109,18 @@ export function CertidaoPdfImport({ onImported }: Props) {
 
       // Verifica dados_benner existentes (serão atualizados com a data da certidão)
       const existentes = new Set<string>();
-      const existentesRows: { id: string; processo: string; observacao_advogado: string | null }[] = [];
+      const existentesRows: { id: string; processo: string }[] = [];
       const CHK = 200;
       for (let i = 0; i < numeros.length; i += CHK) {
         const slice = numeros.slice(i, i + CHK);
         const { data, error } = await (supabase.from("dados_benner") as any)
-          .select("id, processo, observacao_advogado")
+          .select("id, processo")
           .eq("tribunal", "TST")
           .in("processo", slice);
         if (error) throw error;
         (data || []).forEach((r: any) => {
           existentes.add(r.processo);
-          existentesRows.push({ id: r.id, processo: r.processo, observacao_advogado: r.observacao_advogado ?? null });
+          existentesRows.push({ id: r.id, processo: r.processo });
         });
       }
 
@@ -128,8 +128,7 @@ export function CertidaoPdfImport({ onImported }: Props) {
       setStatusText(`${novos.length} novos · ${existentes.size} para atualizar`);
       setProgress(40);
 
-      // Atualiza processos já existentes: data de distribuição + comentário no card
-      const hoje = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      // Atualiza a data de distribuição dos processos já existentes na base
       let atualizados = 0;
       if (existentesRows.length > 0) {
         setStatusText(`Atualizando ${existentesRows.length} processos existentes...`);
@@ -137,15 +136,10 @@ export function CertidaoPdfImport({ onImported }: Props) {
           const row = existentesRows[i];
           const iso = map.get(row.processo);
           if (!iso) continue;
-          const dataBr = iso.split("-").reverse().join("/");
-          const comentario = `Data de distribuição atualizada pela Certidão de Distribuição TST (${dataBr}) em ${hoje}.`;
-          const anterior = (row.observacao_advogado || "").trim();
-          const novaObs = anterior ? `${anterior}\n${comentario}` : comentario;
           const { error } = await (supabase.from("dados_benner") as any)
             .update({
               data_distribuicao_planilha: iso,
               data_distribuicao_real: iso,
-              observacao_advogado: novaObs,
             })
             .eq("id", row.id);
           if (error) console.error("Erro update dados_benner:", row.processo, error);
