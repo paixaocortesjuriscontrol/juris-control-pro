@@ -4,7 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Bell, Loader2, Mail, MessageSquare, Save } from "lucide-react";
+import { Bell, CalendarClock, Loader2, Mail, MessageSquare, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -20,6 +20,8 @@ interface Config {
   evento_reagendamento: boolean;
   janela_hora_inicio: number;
   janela_hora_fim: number;
+  resumo_diario_ativo: boolean;
+  resumo_diario_hora: number;
 }
 
 const DEFAULT: Config = {
@@ -27,6 +29,7 @@ const DEFAULT: Config = {
   evento_mudanca_situacao: true, evento_prazo_perdido: true, evento_tarefa_nova: true,
   evento_comentario: true, evento_reagendamento: true,
   janela_hora_inicio: 8, janela_hora_fim: 20,
+  resumo_diario_ativo: false, resumo_diario_hora: 7,
 };
 
 export function ConfigNotificacoesUsuarioCard() {
@@ -128,6 +131,8 @@ export function ConfigNotificacoesUsuarioCard() {
 
         <div>
           <h4 className="text-sm font-semibold mb-3">Janela de envio (horário de Brasília)</h4>
+
+        </div>
           <div className="flex items-center gap-3">
             <Label className="text-sm">Das</Label>
             <Input type="number" min={0} max={23} value={cfg.janela_hora_inicio}
