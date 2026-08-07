@@ -603,24 +603,37 @@ export default function AdminTstBasePcaDistribuicoes() {
 
       for (let i = 0; i < alvo.length; i += APPLY_CHUNK) {
         const slice = alvo.slice(i, i + APPLY_CHUNK);
-        const payload = slice.map((it) => ({
-          processo: it.processo,
-          dossie: it.dossie || null,
-          aba_origem: "Base PCA",
-          tribunal: "TST",
-          coordenacao_id: coordenacaoId,
-        }));
+        const payload = slice.map((it) => {
+          const campos = { ...(it.campos || {}) };
+          // Remove chaves nulas para não sobrescrever defaults do banco
+          for (const k of Object.keys(campos)) {
+            if (campos[k] === null || campos[k] === undefined || campos[k] === "") delete campos[k];
+          }
+          return {
+            ...campos,
+            processo: it.processo,
+            dossie: it.dossie || null,
+            aba_origem: "Base PCA",
+            tribunal: campos.tribunal || "TST",
+            coordenacao_id: coordenacaoId,
+          };
+        });
         const { data, error } = await (supabase.from("dados_benner") as any)
           .insert(payload)
-          .select("id, processo, dossie");
+          .select("id, processo, dossie, turma, relator, data_distribuicao_planilha");
         if (error) throw error;
-        for (const row of (data ?? []) as CandidateRow[]) {
+        for (const row of (data ?? []) as any[]) {
           novosIds.push(row.id);
           itensAudit.push({
             processo: row.processo || null,
             dossie: row.dossie || null,
             acao: "criado",
             detalhe: `Cadastrado pela Base PCA com TAG "${tagNome}"`,
+            campos: {
+              turma: row.turma || null,
+              relator: row.relator || null,
+              data_distribuicao_planilha: row.data_distribuicao_planilha || null,
+            },
           });
         }
         const lote = Math.floor(i / APPLY_CHUNK) + 1;
