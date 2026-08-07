@@ -107,31 +107,68 @@ export function CertidaoPdfImport({ onImported }: Props) {
       setStatusText(`Encontrados ${numeros.length} processos. Verificando existentes...`);
       setProgress(25);
 
-      // Verifica dados_benner existentes (skip duplicados por processo+tribunal=TST)
+      // Verifica dados_benner existentes (serão atualizados com a data da certidão)
       const existentes = new Set<string>();
+      const existentesRows: { id: string; processo: string; observacao_advogado: string | null }[] = [];
       const CHK = 200;
       for (let i = 0; i < numeros.length; i += CHK) {
         const slice = numeros.slice(i, i + CHK);
         const { data, error } = await (supabase.from("dados_benner") as any)
-          .select("processo")
+          .select("id, processo, observacao_advogado")
           .eq("tribunal", "TST")
           .in("processo", slice);
         if (error) throw error;
-        (data || []).forEach((r: any) => existentes.add(r.processo));
+        (data || []).forEach((r: any) => {
+          existentes.add(r.processo);
+          existentesRows.push({ id: r.id, processo: r.processo, observacao_advogado: r.observacao_advogado ?? null });
+        });
       }
 
       const novos = numeros.filter(n => !existentes.has(n));
-      setStatusText(`${novos.length} novos · ${existentes.size} já cadastrados`);
+      setStatusText(`${novos.length} novos · ${existentes.size} para atualizar`);
       setProgress(40);
 
+      // Atualiza processos já existentes: data de distribuição + comentário no card
+      const hoje = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      let atualizados = 0;
+      if (existentesRows.length > 0) {
+        setStatusText(`Atualizando ${existentesRows.length} processos existentes...`);
+        for (let i = 0; i < existentesRows.length; i++) {
+          const row = existentesRows[i];
+          const iso = map.get(row.processo);
+          if (!iso) continue;
+          const dataBr = iso.split("-").reverse().join("/");
+          const comentario = `Data de distribuição atualizada pela Certidão de Distribuição TST (${dataBr}) em ${hoje}.`;
+          const anterior = (row.observacao_advogado || "").trim();
+          const novaObs = anterior ? `${anterior}\n${comentario}` : comentario;
+          const { error } = await (supabase.from("dados_benner") as any)
+            .update({
+              data_distribuicao_planilha: iso,
+              data_distribuicao_real: iso,
+              observacao_advogado: novaObs,
+            })
+            .eq("id", row.id);
+          if (error) console.error("Erro update dados_benner:", row.processo, error);
+          else atualizados++;
+          if (i % 20 === 0) {
+            setProgress(40 + Math.round(((i + 1) / existentesRows.length) * 15));
+            setStatusText(`Atualizando existentes ${atualizados}/${existentesRows.length}...`);
+          }
+        }
+      }
+
       if (novos.length === 0) {
-        toast.info("Todos os processos já estão cadastrados.");
+        toast.success(`${atualizados} processos existentes atualizados com a data da certidão.`);
         await finalizarAuditoriaLote(auditId, {
           status: "concluida",
           totalLinhas: numeros.length,
-          ignorados: existentes.size,
-          resumo: "Todos os processos do PDF já estavam cadastrados.",
-          itens: numeros.map((p) => ({ processo: p, acao: "ignorado", detalhe: "Já cadastrado" })),
+          atualizados,
+          resumo: `${atualizados} processos existentes atualizados (data de distribuição).`,
+          itens: numeros.map((p) => ({
+            processo: p,
+            acao: "atualizado",
+            detalhe: `Data de distribuição: ${map.get(p) || "—"}`,
+          })),
         });
         reset();
         onImported?.();
@@ -150,7 +187,7 @@ export function CertidaoPdfImport({ onImported }: Props) {
         const { error } = await (supabase.from("processos") as any)
           .upsert(batch, { onConflict: "numero", ignoreDuplicates: true });
         if (error) console.error("Erro upsert processos:", error);
-        setProgress(40 + Math.round(((i + batch.length) / procsPayload.length) * 30));
+        setProgress(55 + Math.round(((i + batch.length) / procsPayload.length) * 15));
       }
 
       // Insert em dados_benner
@@ -182,20 +219,24 @@ export function CertidaoPdfImport({ onImported }: Props) {
         setStatusText(`Cadastrando ${inseridos}/${novos.length}...`);
       }
 
-      toast.success(`${inseridos} processos cadastrados a partir da certidão. ${existentes.size} já existiam.`);
+      toast.success(`${inseridos} processos cadastrados · ${atualizados} atualizados a partir da certidão.`);
       await finalizarAuditoriaLote(auditId, {
         status: "concluida",
         totalLinhas: numeros.length,
         criados: inseridos,
-        ignorados: existentes.size,
-        resumo: `${inseridos} processos cadastrados · ${existentes.size} já existiam`,
+        atualizados,
+        resumo: `${inseridos} processos cadastrados · ${atualizados} atualizados`,
         itens: [
           ...novos.map((p) => ({
             processo: p,
             acao: "criado",
             detalhe: `Data de distribuição: ${map.get(p) || "—"}`,
           })),
-          ...[...existentes].map((p) => ({ processo: p, acao: "ignorado", detalhe: "Já cadastrado" })),
+          ...[...existentes].map((p) => ({
+            processo: p,
+            acao: "atualizado",
+            detalhe: `Data de distribuição: ${map.get(p) || "—"}`,
+          })),
         ],
       });
       onImported?.();
