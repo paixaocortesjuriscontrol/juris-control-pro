@@ -17,8 +17,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
 import { Textarea } from "@/components/ui/textarea";
-import { ItemComentarios } from "@/components/comum/ItemComentarios";
-import { ItemAnexos, type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
+import { ItemAbas } from "@/components/comum/ItemAbas";
+import { type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
 import {
   Select,
   SelectContent,
@@ -1121,14 +1121,13 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
               )}
             </div>
 
-            <ItemAnexos
+            <ItemAbas
               ref={anexosRef}
-              tipo="evento"
+              tipo="parcelamento"
+              tipoComentario="evento"
               itemId={evento?.id}
               processoId={processoIds[0] || null}
             />
-
-            <ItemComentarios tipo="evento" itemId={evento?.id} />
 
             <div>
               <Label htmlFor="descricao" className="text-sm">Observações</Label>
