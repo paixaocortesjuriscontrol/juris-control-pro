@@ -10231,6 +10231,7 @@ export type Database = {
         Args: { data_base: string; dias_uteis_subtrair: number }
         Returns: string
       }
+      try_uuid: { Args: { _txt: string }; Returns: string }
       unaccent: { Args: { "": string }; Returns: string }
       user_can_access_publicacao_djen: {
         Args: { _publicacao_id: string; _user_id: string }
