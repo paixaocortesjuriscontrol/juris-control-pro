@@ -131,8 +131,6 @@ export function ConfigNotificacoesUsuarioCard() {
 
         <div>
           <h4 className="text-sm font-semibold mb-3">Janela de envio (horário de Brasília)</h4>
-
-        </div>
           <div className="flex items-center gap-3">
             <Label className="text-sm">Das</Label>
             <Input type="number" min={0} max={23} value={cfg.janela_hora_inicio}
@@ -146,6 +144,39 @@ export function ConfigNotificacoesUsuarioCard() {
           </div>
           <p className="text-xs text-muted-foreground mt-2">
             Avisos fora dessa janela não são disparados (evita mensagens à noite).
+          </p>
+        </div>
+
+        <div className="rounded-md border p-3 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <Label className="flex items-center gap-2 font-normal">
+              <CalendarClock className="h-4 w-4" />
+              Resumo diário da minha agenda por e-mail
+            </Label>
+            <Switch {...bind("resumo_diario_ativo")} />
+          </div>
+          <div className="flex items-center gap-3">
+            <Label className="text-sm">Enviar às</Label>
+            <Input
+              type="number"
+              min={0}
+              max={23}
+              value={cfg.resumo_diario_hora}
+              disabled={!cfg.resumo_diario_ativo}
+              onChange={(e) =>
+                setCfg((c) => ({
+                  ...c,
+                  resumo_diario_hora: Math.max(0, Math.min(23, Number(e.target.value) || 0)),
+                }))
+              }
+              className="w-20"
+            />
+            <span className="text-sm text-muted-foreground">horas (Brasília)</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Todo dia você recebe um e-mail com todas as suas atividades do dia (prazos, audiências,
+            eventos, tarefas e parcelas), com processo, partes, cliente, situação, local, horários,
+            responsáveis, envolvidos e observações.
           </p>
         </div>
 
