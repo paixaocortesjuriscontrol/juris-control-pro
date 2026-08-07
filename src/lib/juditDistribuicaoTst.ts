@@ -23,69 +23,81 @@ import {
   RelatorTst,
 } from "@/hooks/useClassificacaoTst";
 
-const OPCOES_RECURSO_NORM = [
-  "Agravo de Instrumento em Recurso de Revista",
-  "Recurso de Revista com Agravo",
-  "Recurso de Revista",
-  "Embargos à SDI",
-  "Embargos em Recurso de Revista",
-  "Recurso Ordinário",
-  "Recurso Ordinário em Procedimento Sumaríssimo",
-  "Recurso Ordinário em Mandado de Segurança",
-  "Recurso Ordinário em Ação Rescisória",
-  "Recurso Ordinário Trabalhista",
-  "Agravo de Petição",
-  "Embargos de Declaração",
-  "Embargos em Execução",
-  "Embargos Infringentes",
-  "Embargos",
-  "Agravo Regimental",
-  "Agravo Interno",
+/** Lista fixa do dropdown MultiTipoRecurso (planilha "alterações" 2026-06). */
+export const OPCOES_RECURSO_NORM = [
+  "Ação Rescisória",
   "Agravo de Instrumento",
-  "Agravo",
-  "Recurso Extraordinário",
   "Agravo em Recurso Extraordinário",
-  "Recurso Especial",
-  "Agravo em Recurso Especial",
-  "Recurso Adesivo",
-  "Reclamação",
+  "Agravo Interno",
+  "Embargos de Declaração",
+  "Embargos de Divergência",
+  "Embargos SDI",
+  "Incidente de arguição de inconstitucionalidade",
+  "Incidente de assunção de competência",
+  "Incidente de recurso repetitivo",
+  "Incidente de resolução de demanda repetitiva",
+  "Incidente de superação e revisão dos precedentes",
   "Mandado de Segurança",
-  "Habeas Corpus",
+  "Medida Cautelar",
+  "Reclamação",
+  "Recurso de Revista",
+  "Recurso de Revista com Agravo (ARR)",
+  "Recurso Especial",
+  "Recurso Extraordinário",
+  "Recurso Ordinário",
 ];
 
-const SIGLAS_RECURSO: Record<string, string> = {
+/** Mapeamento de valores legados para a nova lista (planilha "alterações"). */
+export const ALTERACOES_LEGADAS: Record<string, string> = {
+  "agravo": "Agravo Interno",
+  "agravo de instrumento em recurso de revista": "Agravo de Instrumento",
+  "recurso de revista com agravo": "Agravo de Instrumento",
+  "recurso ordinario em mandado de seguranca": "Recurso Ordinário",
+  "embargos a sdi": "Embargos SDI",
+  "agravo regimental": "Agravo Interno",
+  "recurso ordinario trabalhista": "Recurso Ordinário",
+  "recurso ordinario em procedimento sumarissimo": "Recurso Ordinário",
+  "recurso ordinario em acao rescisoria": "Ação Rescisória",
+};
+
+export const SIGLAS_RECURSO: Record<string, string> = {
+  // TST
   rr: "Recurso de Revista",
-  rrag: "Recurso de Revista com Agravo",
-  arr: "Recurso de Revista com Agravo",
-  ararr: "Recurso de Revista com Agravo",
-  airr: "Agravo de Instrumento em Recurso de Revista",
-  aiarr: "Agravo de Instrumento em Recurso de Revista",
-  e: "Embargos à SDI",
-  err: "Embargos em Recurso de Revista",
+  rrag: "Agravo de Instrumento",
+  arr: "Agravo de Instrumento",
+  ararr: "Agravo de Instrumento",
+  airr: "Agravo de Instrumento",
+  aiarr: "Agravo de Instrumento",
+  e: "Embargos SDI",
+  esdi: "Embargos SDI",
+  ediv: "Embargos de Divergência",
+  err: "Embargos de Declaração",
+  // TRT
   ro: "Recurso Ordinário",
-  rot: "Recurso Ordinário Trabalhista",
-  rotsum: "Recurso Ordinário em Procedimento Sumaríssimo",
-  rops: "Recurso Ordinário em Procedimento Sumaríssimo",
-  roms: "Recurso Ordinário em Mandado de Segurança",
-  roar: "Recurso Ordinário em Ação Rescisória",
-  ap: "Agravo de Petição",
+  rot: "Recurso Ordinário",
+  rotsum: "Recurso Ordinário",
+  rops: "Recurso Ordinário",
+  roms: "Recurso Ordinário",
+  roar: "Ação Rescisória",
+  ar: "Ação Rescisória",
+  // Embargos
   ed: "Embargos de Declaração",
   edcl: "Embargos de Declaração",
-  ee: "Embargos em Execução",
-  ei: "Embargos Infringentes",
-  ag: "Agravo",
-  agr: "Agravo Regimental",
+  // Agravos
+  ag: "Agravo Interno",
+  agr: "Agravo Interno",
   agint: "Agravo Interno",
   agi: "Agravo Interno",
   ai: "Agravo de Instrumento",
+  // Cortes superiores
   re: "Recurso Extraordinário",
   are: "Agravo em Recurso Extraordinário",
   resp: "Recurso Especial",
-  aresp: "Agravo em Recurso Especial",
+  aresp: "Agravo em Recurso Extraordinário",
+  // Outros
   ms: "Mandado de Segurança",
-  hc: "Habeas Corpus",
+  mc: "Medida Cautelar",
   rcl: "Reclamação",
-  radesivo: "Recurso Adesivo",
 };
 
 export function normalizarTipoRecurso(raw: any): string | null {
@@ -114,6 +126,9 @@ export function normalizarTipoRecurso(raw: any): string | null {
       const hit = OPCOES_RECURSO_NORM.find((opt) => norm(opt) === alvo);
       nome = hit || p;
     }
+    // Aplica mapeamento de valores legados (planilha "alterações")
+    const legada = ALTERACOES_LEGADAS[norm(nome)];
+    if (legada) nome = legada;
     const k = norm(nome);
     if (vistos.has(k)) continue;
     vistos.add(k);
@@ -160,7 +175,12 @@ export function normalizarValorPorCampo(
   reclamada: string,
 ): any {
   if (valor === null || valor === undefined) return valor;
-  if (campo === "tipo_recurso" || campo === "tipo_recurso_reclamante" || campo === "tipo_recurso_banco") {
+  if (
+    campo === "tipo_recurso" ||
+    campo === "tipo_recurso_reclamante" ||
+    campo === "tipo_recurso_banco" ||
+    campo === "tipo_recurso_terceiro"
+  ) {
     return normalizarTipoRecurso(valor);
   }
   if (campo === "parte_recorrente") {
