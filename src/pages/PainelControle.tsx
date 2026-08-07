@@ -54,6 +54,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
   useAgendaUnificada,
+  fetchAgendaPage,
   useUpdateItemAgenda,
   ItemAgendaUnificado,
   AGENDA_INFINITE_QUERY_KEY,
