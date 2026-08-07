@@ -32,7 +32,7 @@ const groups: { title: string; description: string; tools: Tool[] }[] = [
     title: "Importações Distribuição TST",
     description: "Cargas e atualizações em massa da Distribuição TST — cada operação em sua própria tela.",
     tools: [
-      { label: "Importar PDF Certidão", path: "/admin-tst/importar-certidao-pdf", icon: FileSignature, description: "Cadastra novos processos a partir do PDF da Certidão de Distribuição do TST." },
+      { label: "Importar PDF Certidão", path: "/admin-tst/importar-certidao-pdf", icon: FileSignature, description: "Cadastra novos processos a partir do PDF da Certidão de Distribuição do TST. Se o processo já existir, a data de distribuição é atualizada." },
       { label: "Importar Planilha Distribuição", path: "/admin-tst/importar-distribuicao", icon: FileSpreadsheet, description: "Importação principal da planilha de distribuição, lendo todas as abas." },
       { label: "Atualizar Dossiês", path: "/admin-tst/atualizar-dossies", icon: Hash, description: "Atualiza o Nº do dossiê usando o CNJ como chave." },
       { label: "Atualizar Equipe", path: "/admin-tst/atualizar-equipe", icon: Users, description: "Atualiza a equipe responsável usando o Dossiê como chave." },

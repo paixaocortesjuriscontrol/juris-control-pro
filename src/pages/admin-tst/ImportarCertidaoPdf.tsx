@@ -6,7 +6,7 @@ export default function ImportarCertidaoPdf() {
     <PaginaImportacao
       pageTitle="Importar PDF Certidão de Distribuição"
       titulo="Importar PDF Certidão de Distribuição"
-      descricao="Cadastra novos processos a partir do PDF da Certidão de Distribuição do TST."
+      descricao="Cadastra novos processos a partir do PDF da Certidão de Distribuição do TST. Caso o processo já exista na base de dados, a data de distribuição será atualizada."
       comoUsar={[
         "Clique no botão ao lado e selecione o PDF da Certidão.",
         "O sistema lê cada linha do PDF (número CNJ + data) e cadastra os processos faltantes.",
