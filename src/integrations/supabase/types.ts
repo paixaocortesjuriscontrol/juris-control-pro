@@ -8706,6 +8706,54 @@ export type Database = {
         }
         Relationships: []
       }
+      subatividades_item: {
+        Row: {
+          concluida_em: string | null
+          concluida_por: string | null
+          created_at: string
+          criado_por: string | null
+          data_prevista: string | null
+          id: string
+          item_id: string
+          observacao: string | null
+          responsavel_id: string | null
+          situacao: string
+          tipo_item: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          concluida_em?: string | null
+          concluida_por?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_prevista?: string | null
+          id?: string
+          item_id: string
+          observacao?: string | null
+          responsavel_id?: string | null
+          situacao?: string
+          tipo_item: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          concluida_em?: string | null
+          concluida_por?: string | null
+          created_at?: string
+          criado_por?: string | null
+          data_prevista?: string | null
+          id?: string
+          item_id?: string
+          observacao?: string | null
+          responsavel_id?: string | null
+          situacao?: string
+          tipo_item?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tarefa_envolvidos: {
         Row: {
           created_at: string
