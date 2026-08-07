@@ -12,10 +12,22 @@ Comparei o preenchimento do botão individual (`DistribuicaoTstForm.tsx`, `handl
 | Parte Recorrente | `normalizarParteRecorrente` (RECLAMANTE / BANCO / AMBOS / OUTRA, cruzando com reclamante e reclamada) | Grava o resumo de nomes das partes em `recorrente` |
 | Turma / Relator favorabilidade | Classifica automaticamente pelo cadastro TST (`classificarTurmaDB` / `classificarRelatorDB`) e grava posição favorável/desfavorável | Não classifica |
 | Dossiê | Preenche quando a Judit retorna | Não preenche |
-| Data de distribuição | Grava só `data_distribuicao_real` (preserva a data da planilha) | Sobrescreve também `data_distribuicao` (perde a data da planilha) |
+| Data de distribuição | Grava só `data_distribuicao_real` | Grava `data_distribuicao_real` **e** sobrescreve `data_distribuicao` |
 | Campos de julgamento e resultado (`tem_data_julgamento`, `data_julgamento`, `horario`, `tipo_julgamento`, `resultado_*`) | Não são extraídos automaticamente — ficam sob controle do advogado | Gravados automaticamente |
 | `erro_judit` | Não é escrito pelo formulário | Reescrito a cada rodada pela regra de "turma oficial" |
 | Vínculo com Processos e Casos | Localiza/cria o processo e grava `processo_id` | Não vincula |
+
+## Data de distribuição — o que a advogada está vendo
+
+Confirmei nos dois caminhos:
+
+- No botão por contrato (`DistribuicaoTstForm.tsx:1058`), a data da Judit é gravada **apenas** em `data_distribuicao_real`, via `apply` — só quando a Judit devolve uma data; se não devolve, o valor existente é preservado.
+- No lote (`DistribuicaoTst.tsx:1318-1320`), a mesma data é gravada em `data_distribuicao_real` **e** em `data_distribuicao`, mexendo numa coluna que o individual não toca.
+- O lote ainda monta a chamada usando `data_distribuicao_real || data_distribuicao_planilha` como data de referência (`DistribuicaoTst.tsx:1131`), o que o individual não faz.
+
+Correção: no lote, gravar somente `data_distribuicao_real`, exatamente como no individual, sem tocar `data_distribuicao` nem `data_distribuicao_planilha`.
+
+A causa exata do relato ("no lote não funciona") ainda não está confirmada — pode ser essa divergência de coluna ou processos em que a Judit realmente não retorna data. Primeiro passo da implementação: rodar o lote em 3 a 5 processos indicados pela advogada e registrar, por processo, o que a Judit devolveu e o que foi gravado.
 
 ## O que fazer
 
@@ -28,7 +40,7 @@ Extrair a regra de preenchimento do formulário para um módulo único (`src/lib
    - classificação de Turma e Relator pelo cadastro TST;
    - dossiê, tribunal, relator, turma, situação, processo baixado;
    - trânsito em julgado com a mesma precedência (detecção por movimentação → fallback por situação/baixa);
-   - `data_distribuicao_real` apenas;
+   - `data_distribuicao_real` apenas (nunca `data_distribuicao` nem `data_distribuicao_planilha`);
    - sem campos de julgamento/resultado e sem `erro_judit`.
 2. `DistribuicaoTstForm.handleBuscarJudit` passa a usar essa função como fonte do patch (mantendo os efeitos de tela: badges verdes, aviso de "sem recurso", auto-save, anexos, partes).
 3. `handleBulkJudit` passa a: carregar os campos atuais necessários da linha, chamar `construirPatchJudit`, gravar o patch pelo `id`, persistir partes, vincular/criar o processo (`find_processo_id_by_numero`) e marcar `judit_preenchido`. Mantém progresso, cancelamento, `com_anexos: false`, throttle de 800 ms e o log em `judit_logs`.
@@ -42,4 +54,4 @@ Extrair a regra de preenchimento do formulário para um módulo único (`src/lib
 
 ## Verificação
 
-Rodar o lote em uma amostra pequena (5 a 10 processos, via seleção na tela) e conferir que o resultado gravado é idêntico ao de abrir o mesmo processo e clicar no Judit individual: mesmos tipos de recurso, mesma parte recorrente, favorabilidades classificadas, data da planilha preservada e campos de julgamento intactos.
+Rodar o lote em uma amostra pequena (5 a 10 processos, via seleção na tela) e conferir que o resultado gravado é idêntico ao de abrir o mesmo processo e clicar no Judit individual: mesmos tipos de recurso, mesma parte recorrente, favorabilidades classificadas, Data Real igual, Data Planilha intacta e campos de julgamento preservados.
