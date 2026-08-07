@@ -3733,7 +3733,10 @@ const AnaliseDjen = () => {
                   "get_publicacoes_relacionadas_por_dedup",
                   args,
                 );
-                if (relErr) console.error("[salvar-e-ler] dedup:", relErr);
+                if (relErr) {
+                  console.error("[salvar-e-ler] dedup:", relErr);
+                  toast.error("Não foi possível agrupar as publicações equivalentes: " + relErr.message);
+                }
                 relacionadas = (rel as any[]) || [];
               }
               if (relacionadas.length === 0) {
@@ -3777,7 +3780,10 @@ const AnaliseDjen = () => {
                 const { error: leiErr } = await (supabase as any)
                   .from("publicacoes_djen_leituras")
                   .upsert(leituras, { onConflict: "publicacao_id,tabela_origem,usuario_id" });
-                if (leiErr) console.error("[salvar-e-ler] leituras:", leiErr);
+                if (leiErr) {
+                  console.error("[salvar-e-ler] leituras:", leiErr);
+                  toast.error("Não foi possível registrar a leitura: " + leiErr.message);
+                }
               }
 
               await Promise.all([
