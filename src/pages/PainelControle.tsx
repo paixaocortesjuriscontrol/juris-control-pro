@@ -945,7 +945,32 @@ export default function PainelControle() {
       return { prev, fatal };
     };
 
-    const itensExport = itensPainelFiltrados.filter((it: any) => {
+    // Quando um período é informado, buscamos direto no banco nesse período —
+    // o painel só carrega o mês exibido no calendário, o que fazia a exportação
+    // trazer menos atividades (audiências, prazos etc.) do que o esperado.
+    let baseItens: any[] = itensPainelFiltrados;
+    if (inicio || fim) {
+      const dInicio = inicio ? new Date(inicio + "T00:00:00") : new Date(2015, 0, 1);
+      const dFim = fim ? new Date(fim + "T23:59:59") : new Date(2100, 0, 1);
+      const filtrosPeriodo = { ...filters, dataInicio: dInicio, dataFim: dFim };
+      const coletados: any[] = [];
+      for (let page = 0; page < 40; page++) {
+        const pageItens = await fetchAgendaPage(filtrosPeriodo as any, page, user?.id);
+        coletados.push(...pageItens);
+        if (pageItens.length === 0) break;
+      }
+      const vistos = new Set<string>();
+      baseItens = coletados
+        .filter((it) => {
+          const k = String(it.id);
+          if (vistos.has(k)) return false;
+          vistos.add(k);
+          return true;
+        })
+        .filter((it) => passaFiltrosPainel(it, true));
+    }
+
+    const itensExport = baseItens.filter((it: any) => {
       if (tipos.length > 0 && !tipos.includes(classificarItem(it))) return false;
       if (inicio || fim) {
         const { prev, fatal } = dataRefItem(it);
