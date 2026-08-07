@@ -675,7 +675,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       toast.warning("Processo sem número CNJ cadastrado.");
       return false;
     }
-    if (comAnexos) setSyncingAnexos(true); else setSyncingInterno(true);
+    // No fluxo "Preencher formulário" (noNetwork) não existe consulta à Judit —
+    // portanto não ativamos os estados que exibem a barra de progresso, para
+    // não dar a impressão de uma segunda consulta.
+    if (!noNetwork) {
+      if (comAnexos) setSyncingAnexos(true); else setSyncingInterno(true);
+    }
     try {
       // Reaproveita a última resposta Judit gravada em judit_logs para este CNJ,
       // evitando pagar uma nova consulta quando já existe resultado recente.
@@ -935,7 +940,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       toast.error(`Erro Judit ${comAnexos ? "c/ anexos" : "Interno"}: ` + (e?.message || "desconhecido"));
       return false;
     } finally {
-      if (comAnexos) setSyncingAnexos(false); else setSyncingInterno(false);
+      if (!noNetwork) {
+        if (comAnexos) setSyncingAnexos(false); else setSyncingInterno(false);
+      }
     }
   };
 
