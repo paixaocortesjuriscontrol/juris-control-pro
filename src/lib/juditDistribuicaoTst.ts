@@ -294,7 +294,6 @@ export function buildJuditPatch(
 
   apply("dossie", juditData?.dossie);
   apply("data_distribuicao_real", juditData?.data_distribuicao);
-  apply("data_distribuicao", juditData?.data_distribuicao);
   apply("relator", juditData?.relator);
   apply("turma", juditData?.turma);
 
@@ -312,12 +311,20 @@ export function buildJuditPatch(
   apply("reclamante", reclamante);
   apply("reclamada", reclamada);
   apply("parte_recorrente", normalizarParteRecorrente(juditData?.recorrente, reclamante, reclamada));
-  apply("recorrente", getJuditPartesResumo(juditData, null));
 
-  apply("tipo_recurso", normalizarTipoRecurso(juditData?.tipo_recurso));
-  apply("tipo_recurso_reclamante", normalizarTipoRecurso(juditData?.tipo_recurso_reclamante));
-  apply("tipo_recurso_banco", normalizarTipoRecurso(juditData?.tipo_recurso_banco));
-  apply("tipo_recurso_terceiro", normalizarTipoRecurso(juditData?.tipo_recurso_terceiro));
+  // Tipo de Recurso: a Judit é fonte ÚNICA, mas só APAGA o valor antigo quando
+  // efetivamente consultou a instância TST. Sem TST (ex.: só TRT), preserva o
+  // valor existente — que pode ter vindo da planilha.
+  const juditConfirmouTst =
+    String(juditData?._judit_meta?.tribunal_selecionado || "").toUpperCase() === "TST";
+  const applyJuditOnly = (field: string, novo: any) => {
+    if (hasValue(novo)) patch[field] = novo;
+    else if (juditConfirmouTst) patch[field] = null;
+  };
+  applyJuditOnly("tipo_recurso", normalizarTipoRecurso(juditData?.tipo_recurso));
+  applyJuditOnly("tipo_recurso_reclamante", normalizarTipoRecurso(juditData?.tipo_recurso_reclamante));
+  applyJuditOnly("tipo_recurso_banco", normalizarTipoRecurso(juditData?.tipo_recurso_banco));
+  applyJuditOnly("tipo_recurso_terceiro", normalizarTipoRecurso(juditData?.tipo_recurso_terceiro));
 
   const situacao = (juditData?.situacao_processo || "").toString();
   if (situacao) patch.situacao_processo = situacao;
@@ -341,25 +348,14 @@ export function buildJuditPatch(
     patch.transito_julgado = true;
   }
 
-  // Pauta / julgamento / resultados (mantidos do payload completo do batch)
-  if (juditData?.tem_data_julgamento) patch.tem_data_julgamento = juditData.tem_data_julgamento;
-  if (juditData?.data_julgamento) patch.data_julgamento = juditData.data_julgamento;
-  if (juditData?.horario_julgamento) patch.horario_julgamento = juditData.horario_julgamento;
-  if (juditData?.tipo_julgamento) patch.tipo_julgamento = juditData.tipo_julgamento;
-  if (juditData?.resultado_sem_transcendencia) patch.resultado_sem_transcendencia = true;
-  if (juditData?.resultado_nao_conhecido) patch.resultado_nao_conhecido = true;
-  if (juditData?.resultado_conhecido_provido) patch.resultado_conhecido_provido = true;
-  if (juditData?.resultado_conhecido_nao_provido) patch.resultado_conhecido_nao_provido = true;
-  if (juditData?.resultado_outra) patch.resultado_outra = juditData.resultado_outra;
+  // Pauta / julgamento / resultados: NÃO são extraídos automaticamente — ficam
+  // sob controle da advogada (mesma regra do botão individual).
 
-  const tribunaisAceitos = ["TST", "STF", "STJ"];
-  if (juditData?.tribunal && tribunaisAceitos.includes(juditData.tribunal)) {
-    patch.tribunal = juditData.tribunal;
-  }
+  // Tribunal: aceita o que a Judit devolveu (inclusive TRT), como no form.
+  apply("tribunal", juditData?.tribunal);
 
-  const turmaFinal = patch.turma || "";
-  const erroJuditFlag = !isTurmaOficialTst(turmaFinal);
-  patch.erro_judit = erroJuditFlag;
+  // `erro_judit` NÃO é escrito aqui — o botão individual nunca o reescreve.
+  const erroJuditFlag = !isTurmaOficialTst(patch.turma || "");
 
   return { patch, reclamante, reclamada, erroJuditFlag };
 }
