@@ -55,7 +55,7 @@ export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProp
       // Buscar nomes dos autores
       const autorIds = [...new Set(data.map(c => c.autor_id))];
       const { data: profiles } = await supabase
-        .from("profiles")
+        .from("profiles_basic")
         .select("id, nome")
         .in("id", autorIds);
 
