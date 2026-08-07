@@ -37,6 +37,7 @@ import type { NovoItemTipo } from "@/components/shared/NovoItemPanel";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
+import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 
 interface Props {
@@ -663,7 +664,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
    * Preenche o máximo de atributos do formulário (todos os FIELDS quando a
    * Judit traz valor).
    */
-  const handleSyncJuditInterno = async (comAnexos: boolean = false, forceRefresh: boolean = false, presetData: any = null) => {
+  const handleSyncJuditInterno = async (
+    comAnexos: boolean = false,
+    forceRefresh: boolean = false,
+    presetData: any = null,
+    noNetwork: boolean = false,
+  ) => {
     const numeroLimpo = getNumeroProcessoAtual();
     if (!numeroLimpo) {
       toast.warning("Processo sem número CNJ cadastrado.");
@@ -688,7 +694,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           const { data: cached } = await supabase
             .from("judit_logs" as any)
             .select("raw_response, request_payload, created_at")
-            .eq("processo_numero", numeroLimpo)
+            .in("processo_numero", obterVariantesCnjBusca(numeroLimpo))
             .eq("status", "sucesso")
             .order("created_at", { ascending: false })
             .limit(1)
@@ -710,6 +716,13 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         }
       }
       if (!data) {
+        // Fluxo "Preencher formulário": nunca dispara uma nova consulta paga.
+        if (noNetwork) {
+          toast.error(
+            "Nenhuma consulta Judit disponível para reaproveitar. Clique no botão Judit para fazer uma consulta.",
+          );
+          return false;
+        }
         const resp = await supabase.functions.invoke("judit-processo-interno", {
           body: { numero_processo: numeroLimpo, force_refresh: true, with_attachments: comAnexos },
         });
@@ -887,7 +900,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   useImperativeHandle(ref, () => ({
     save: handleSave,
     preencherFormularioJudit: async (comAnexos = false, presetData: any = null) => {
-      await handleSyncJuditInterno(comAnexos, false, presetData);
+      // noNetwork = true → só reaproveita o payload já exibido / o último log.
+      await handleSyncJuditInterno(comAnexos, false, presetData, true);
     },
   }), [handleSave, handleSyncJuditInterno, form, responsaveis, processo?.id]);
 
