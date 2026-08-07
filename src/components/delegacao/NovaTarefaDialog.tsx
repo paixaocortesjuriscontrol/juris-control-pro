@@ -32,7 +32,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AutoResizeTextarea } from "@/components/ui/auto-resize-textarea";
-import { ItemComentarios } from "@/components/comum/ItemComentarios";
+import { ItemAbas } from "@/components/comum/ItemAbas";
 import {
   Select,
   SelectContent,
@@ -1463,7 +1463,12 @@ export function NovaTarefaDialog({
                 )}
               </div>
 
-              <ItemComentarios tipo="tarefa" itemId={tarefaParaEditar?.id} />
+              <ItemAbas
+                tipo="tarefa"
+                tipoComentario="tarefa"
+                itemId={tarefaParaEditar?.id}
+                processoId={(tarefaParaEditar as any)?.processo_id ?? null}
+              />
 
               <FormField
                 control={form.control}
