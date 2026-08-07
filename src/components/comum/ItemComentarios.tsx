@@ -60,9 +60,9 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
       if (error) throw error;
       const autorIds = [...new Set((data as any[]).map((c) => c.autor_id))];
       const { data: profiles } = await supabase
-        .from("profiles")
+        .from("profiles_basic")
         .select("id, nome")
-        .in("id", autorIds);
+        .in("id", autorIds as string[]);
       const map = new Map((profiles ?? []).map((p) => [p.id, p]));
       return (data as any[]).map((c) => ({
         ...c,
