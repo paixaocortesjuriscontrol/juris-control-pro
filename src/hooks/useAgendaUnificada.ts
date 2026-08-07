@@ -148,29 +148,13 @@ const getAgendaDedupKey = (item: ItemAgendaUnificado) => {
   return `${item.origem}:${item.id}`;
 };
 
-/**
- * useAgendaUnificadaPaginated - usa useInfiniteQuery para carregar páginas de 1000 registros sob demanda.
- */
-export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}) {
-  const { user } = useAuth();
-
-  return useInfiniteQuery<ItemAgendaUnificado[], Error>({
-    // Important: new key avoids React Query cache shape mismatch (array vs InfiniteData)
-    // that can crash hasNextPage/getNextPageParam.
-    queryKey: [AGENDA_INFINITE_QUERY_KEY, filters, user?.id],
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, allPages) => {
-      // Defensive check: if lastPage is undefined or not an array, no more pages
-      if (!lastPage || !Array.isArray(lastPage) || lastPage.length === 0) {
-        return undefined;
-      }
-      // Se a última página retornou PAGE_SIZE itens, provavelmente há mais
-      if (lastPage.length === PAGE_SIZE) return allPages.length;
-      return undefined;
-    },
-    queryFn: async ({ pageParam }) => {
-      const page = pageParam as number;
-      if (!user?.id) return [];
+export async function fetchAgendaPage(
+  filters: AgendaUnificadaFilters,
+  page: number,
+  userId: string | undefined,
+): Promise<ItemAgendaUnificado[]> {
+  const user = userId ? { id: userId } : null;
+  if (!user?.id) return [];
 
       const resultItems: ItemAgendaUnificado[] = [];
       const seenIds = new Set<string>(); // Dedup: track seen IDs
@@ -1166,7 +1150,29 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
         .sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime());
 
       return [...futureItems, ...pastItems];
+}
+
+/**
+ * useAgendaUnificadaPaginated - usa useInfiniteQuery para carregar páginas de 1000 registros sob demanda.
+ */
+export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}) {
+  const { user } = useAuth();
+
+  return useInfiniteQuery<ItemAgendaUnificado[], Error>({
+    // Important: new key avoids React Query cache shape mismatch (array vs InfiniteData)
+    // that can crash hasNextPage/getNextPageParam.
+    queryKey: [AGENDA_INFINITE_QUERY_KEY, filters, user?.id],
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) => {
+      // Defensive check: if lastPage is undefined or not an array, no more pages
+      if (!lastPage || !Array.isArray(lastPage) || lastPage.length === 0) {
+        return undefined;
+      }
+      // Se a última página retornou PAGE_SIZE itens, provavelmente há mais
+      if (lastPage.length === PAGE_SIZE) return allPages.length;
+      return undefined;
     },
+    queryFn: async ({ pageParam }) => fetchAgendaPage(filters, pageParam as number, user?.id),
     enabled: !!user,
   });
 }

@@ -54,6 +54,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
   useAgendaUnificada,
+  fetchAgendaPage,
   useUpdateItemAgenda,
   ItemAgendaUnificado,
   AGENDA_INFINITE_QUERY_KEY,
@@ -806,8 +807,10 @@ export default function PainelControle() {
     return dias;
   }, [mesAtual]);
 
-  const itensPainelFiltrados = useMemo(() => {
-    return itensAgenda.filter((item) => {
+  // Predicado de filtros da tela. `ignorarPeriodo` é usado na exportação, que
+  // define seu próprio período (independente do mês exibido no calendário).
+  const passaFiltrosPainel = useCallback(
+    (item: any, ignorarPeriodo = false) => {
       // Classificação filter
       if (painelFiltros.classificacoes.length > 0) {
         const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
@@ -872,7 +875,7 @@ export default function PainelControle() {
       }
 
       // Período (data prevista/fatal conforme escolha em "Prazo")
-      if (painelFiltros.periodoInicio || painelFiltros.periodoFim) {
+      if (!ignorarPeriodo && (painelFiltros.periodoInicio || painelFiltros.periodoFim)) {
         let dateStr: string | undefined;
         if (item.origem === "tarefa") {
           if (painelFiltros.dataFatal && !painelFiltros.dataPrevista) {
@@ -890,7 +893,7 @@ export default function PainelControle() {
       }
 
       // Filtro "Somente Hoje"
-      if (somenteHoje) {
+      if (!ignorarPeriodo && somenteHoje) {
         let dateStr: string | undefined;
         if (item.origem === "tarefa") {
           if (painelFiltros.dataFatal && !painelFiltros.dataPrevista) {
@@ -911,8 +914,14 @@ export default function PainelControle() {
       }
 
       return true;
-    });
-  }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter]);
+    },
+    [painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter],
+  );
+
+  const itensPainelFiltrados = useMemo(
+    () => itensAgenda.filter((item) => passaFiltrosPainel(item)),
+    [itensAgenda, passaFiltrosPainel],
+  );
 
   // ===== Classificação de um item (mesma regra do filtro de classificação) =====
   const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" => {
@@ -937,7 +946,32 @@ export default function PainelControle() {
       return { prev, fatal };
     };
 
-    const itensExport = itensPainelFiltrados.filter((it: any) => {
+    // Quando um período é informado, buscamos direto no banco nesse período —
+    // o painel só carrega o mês exibido no calendário, o que fazia a exportação
+    // trazer menos atividades (audiências, prazos etc.) do que o esperado.
+    let baseItens: any[] = itensPainelFiltrados;
+    if (inicio || fim) {
+      const dInicio = inicio ? new Date(inicio + "T00:00:00") : new Date(2015, 0, 1);
+      const dFim = fim ? new Date(fim + "T23:59:59") : new Date(2100, 0, 1);
+      const filtrosPeriodo = { ...filters, dataInicio: dInicio, dataFim: dFim };
+      const coletados: any[] = [];
+      for (let page = 0; page < 40; page++) {
+        const pageItens = await fetchAgendaPage(filtrosPeriodo as any, page, user?.id);
+        coletados.push(...pageItens);
+        if (pageItens.length === 0) break;
+      }
+      const vistos = new Set<string>();
+      baseItens = coletados
+        .filter((it) => {
+          const k = String(it.id);
+          if (vistos.has(k)) return false;
+          vistos.add(k);
+          return true;
+        })
+        .filter((it) => passaFiltrosPainel(it, true));
+    }
+
+    const itensExport = baseItens.filter((it: any) => {
       if (tipos.length > 0 && !tipos.includes(classificarItem(it))) return false;
       if (inicio || fim) {
         const { prev, fatal } = dataRefItem(it);
