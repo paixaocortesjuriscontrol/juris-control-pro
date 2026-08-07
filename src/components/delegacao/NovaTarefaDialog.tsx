@@ -52,6 +52,7 @@ import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
+import { parseDataPublicacaoLocal } from "@/utils/formatConteudo";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 
 type AnexoComAnalise = {
@@ -201,6 +202,14 @@ export function NovaTarefaDialog({
     enabled: open,
   });
 
+  // Data base = data da publicação (disponibilização e, na falta, publicação);
+  // sem publicação vinculada, hoje.
+  const dataBaseInicial = (() => {
+    const disp = parseDataPublicacaoLocal((publicacao as any)?.data_disponibilizacao);
+    const pub = parseDataPublicacaoLocal((publicacao as any)?.data_publicacao);
+    return format(disp || pub || new Date(), "yyyy-MM-dd");
+  })();
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -210,7 +219,7 @@ export function NovaTarefaDialog({
       titulo: "",
       descricao: "",
       responsavel_id: "",
-      data_base: format(new Date(), "yyyy-MM-dd"),
+      data_base: dataBaseInicial,
       data_vencimento: "",
       hora_prevista: "",
       data_fatal: "",
@@ -416,7 +425,7 @@ export function NovaTarefaDialog({
       titulo: "",
       descricao: "",
       responsavel_id: "",
-      data_base: format(new Date(), "yyyy-MM-dd"),
+      data_base: dataBaseInicial,
       data_vencimento: "",
       hora_prevista: "",
       data_fatal: "",

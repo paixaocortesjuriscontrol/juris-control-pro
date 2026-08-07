@@ -3733,7 +3733,10 @@ const AnaliseDjen = () => {
                   "get_publicacoes_relacionadas_por_dedup",
                   args,
                 );
-                if (relErr) console.error("[salvar-e-ler] dedup:", relErr);
+                if (relErr) {
+                  console.error("[salvar-e-ler] dedup:", relErr);
+                  toast.error("Não foi possível agrupar as publicações equivalentes: " + relErr.message);
+                }
                 relacionadas = (rel as any[]) || [];
               }
               if (relacionadas.length === 0) {
@@ -3777,7 +3780,10 @@ const AnaliseDjen = () => {
                 const { error: leiErr } = await (supabase as any)
                   .from("publicacoes_djen_leituras")
                   .upsert(leituras, { onConflict: "publicacao_id,tabela_origem,usuario_id" });
-                if (leiErr) console.error("[salvar-e-ler] leituras:", leiErr);
+                if (leiErr) {
+                  console.error("[salvar-e-ler] leituras:", leiErr);
+                  toast.error("Não foi possível registrar a leitura: " + leiErr.message);
+                }
               }
 
               await Promise.all([
@@ -3792,6 +3798,13 @@ const AnaliseDjen = () => {
               });
             } catch (err) {
               console.error("Erro ao marcar publicação como lida (Salvar e ler):", err);
+              toast.error("Não foi possível marcar como lida: " + ((err as any)?.message ?? err));
+              // Reverte o estado otimista para não indicar leitura que não gravou.
+              setPubsTratadasSessao((prev) => {
+                const copia = { ...prev };
+                delete copia[selectedPublicacao.id];
+                return copia;
+              });
             }
           };
           // Botão dropdown "Adicionar" reutilizado no cabeçalho do wrapper para
