@@ -1871,6 +1871,7 @@ const AnaliseDjen = () => {
   const [gerandoResumoSemIA, setGerandoResumoSemIA] = useState(false);
   const [gerandoDocResumoSemIA, setGerandoDocResumoSemIA] = useState(false);
   const [gerandoDocResumoIntimacao, setGerandoDocResumoIntimacao] = useState(false);
+  const [gerandoDocResumoIntimacaoSemRep, setGerandoDocResumoIntimacaoSemRep] = useState(false);
   const [gerandoResumoSemRepeticao, setGerandoResumoSemRepeticao] = useState(false);
   const [gerandoDocResumoSemRepeticao, setGerandoDocResumoSemRepeticao] = useState(false);
 
@@ -2799,7 +2800,7 @@ const AnaliseDjen = () => {
   // ===== "Gerar Doc Resumo sem repetição" — mesmo fluxo do Doc Resumo sem IA,
   // ===== "Doc Resumo Intimação" — mesma lógica do Doc Resumo, excluindo as
   // publicações classificadas como Lista de Distribuição (mesma regra do Docs TST).
-  const handleGerarDocResumoIntimacao = async () => {
+  const handleGerarDocResumoIntimacao = async (semRepeticao = false) => {
     const rawPubs = getPubsParaGerar();
     if (rawPubs.length === 0) {
       toast.error("Nenhuma publicação para exportar");
@@ -2814,22 +2815,32 @@ const AnaliseDjen = () => {
         .toLowerCase();
       return texto.includes("lista de distribuicao");
     };
-    const allPublicacoes = rawPubs.filter((p) => !ehListaDistribuicao(p));
+    const semListas = rawPubs.filter((p) => !ehListaDistribuicao(p));
+    const allPublicacoes = semRepeticao
+      ? dedupPubsPorProcessoSemDestinatarios(semListas)
+      : semListas;
     const removidas = rawPubs.length - allPublicacoes.length;
     if (allPublicacoes.length === 0) {
       toast.error("Todas as publicações são Lista de Distribuição — nada a exportar");
       return;
     }
-    setGerandoDocResumoIntimacao(true);
+    const label = semRepeticao ? "Doc Resumo Intimação sem repetição" : "Doc Resumo Intimação";
+    if (semRepeticao) setGerandoDocResumoIntimacaoSemRep(true);
+    else setGerandoDocResumoIntimacao(true);
     const toastId = toast.loading(
       removidas > 0
-        ? `Gerando Doc Resumo Intimação (${removidas} lista(s) de distribuição excluída(s))...`
-        : "Gerando Doc Resumo Intimação..."
+        ? `Gerando ${label} (${removidas} publicação(ões) ignorada(s))...`
+        : `Gerando ${label}...`
     );
     try {
       const isPautasDejt = tipoOrigem === 'djet-pautas';
       const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
-      const children: Paragraph[] = [...buildDocHeader(`Resumo de Intimações ${origemLabel} (sem Lista de Distribuição)`, allPublicacoes.length)];
+      const children: Paragraph[] = [...buildDocHeader(
+        semRepeticao
+          ? `Resumo de Intimações ${origemLabel} (sem Lista de Distribuição, sem repetição)`
+          : `Resumo de Intimações ${origemLabel} (sem Lista de Distribuição)`,
+        allPublicacoes.length
+      )];
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
 
       allPublicacoes.forEach((pub, idx) => {
@@ -2860,20 +2871,21 @@ const AnaliseDjen = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `resumo_intimacao_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.docx`;
+      a.download = `${semRepeticao ? "resumo_intimacao_sem_repeticao_djen" : "resumo_intimacao_djen"}_${format(new Date(), "yyyy-MM-dd_HHmm")}.docx`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success(
         removidas > 0
-          ? `Doc Resumo Intimação gerado! (${removidas} lista(s) de distribuição excluída(s))`
-          : "Doc Resumo Intimação gerado!",
+          ? `${label} gerado! (${removidas} publicação(ões) ignorada(s))`
+          : `${label} gerado!`,
         { id: toastId }
       );
     } catch (err: any) {
-      console.error("Erro ao gerar Doc Resumo Intimação:", err);
-      toast.error(`Erro ao gerar Doc Resumo Intimação: ${err?.message || ""}`, { id: toastId });
+      console.error(`Erro ao gerar ${label}:`, err);
+      toast.error(`Erro ao gerar ${label}: ${err?.message || ""}`, { id: toastId });
     } finally {
-      setGerandoDocResumoIntimacao(false);
+      if (semRepeticao) setGerandoDocResumoIntimacaoSemRep(false);
+      else setGerandoDocResumoIntimacao(false);
     }
   };
 
@@ -4577,7 +4589,7 @@ const AnaliseDjen = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={handleGerarDocResumoIntimacao}
+            onClick={() => handleGerarDocResumoIntimacao(false)}
             disabled={allPublicacoes.length === 0 || gerandoDocResumoIntimacao}
             title="Mesmo Doc Resumo, excluindo as publicações classificadas como Lista de Distribuição"
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-slate-400 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-900/30"
@@ -4589,6 +4601,23 @@ const AnaliseDjen = () => {
             )}
             <span className="hidden sm:inline">{gerandoDocResumoIntimacao ? "Gerando..." : "Doc Resumo Intimação"}</span>
             <span className="sm:hidden">{gerandoDocResumoIntimacao ? "..." : "Intimação"}</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleGerarDocResumoIntimacao(true)}
+            disabled={allPublicacoes.length === 0 || gerandoDocResumoIntimacaoSemRep}
+            title="Doc Resumo Intimação sem publicações repetidas do mesmo processo (varia só o intimado)"
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-slate-400 text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-900/30"
+          >
+            {gerandoDocResumoIntimacaoSemRep ? (
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+            ) : (
+              <Download className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            )}
+            <span className="hidden sm:inline">{gerandoDocResumoIntimacaoSemRep ? "Gerando..." : "Doc Resumo Intimação sem repetição"}</span>
+            <span className="sm:hidden">{gerandoDocResumoIntimacaoSemRep ? "..." : "Intimação s/ rep."}</span>
           </Button>
 
           <Button
