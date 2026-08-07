@@ -32,8 +32,8 @@ import {
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ItemComentarios } from "@/components/comum/ItemComentarios";
-import { ItemAnexos, type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
+import { ItemAbas } from "@/components/comum/ItemAbas";
+import { type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
 import { CalendarIcon, Loader2, FileText, Tag, AlertTriangle, Search, X, ExternalLink } from "lucide-react";
 import { format, parseISO, addDays, addWeeks, addMonths, addYears } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1125,14 +1125,13 @@ export function PrazoDialog({
           />
         </div>
 
-        <ItemAnexos
+        <ItemAbas
           ref={anexosRef}
-          tipo="tarefa"
+          tipo="prazo"
+          tipoComentario="tarefa"
           itemId={prazo?.id}
           processoId={processoIdEfetivo}
         />
-
-        <ItemComentarios tipo="tarefa" itemId={prazo?.id} />
 
       </div>
 
