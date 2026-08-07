@@ -900,7 +900,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   useImperativeHandle(ref, () => ({
     save: handleSave,
     preencherFormularioJudit: async (comAnexos = false, presetData: any = null) => {
-      await handleSyncJuditInterno(comAnexos, false, presetData);
+      // noNetwork = true → só reaproveita o payload já exibido / o último log.
+      await handleSyncJuditInterno(comAnexos, false, presetData, true);
     },
   }), [handleSave, handleSyncJuditInterno, form, responsaveis, processo?.id]);
 
