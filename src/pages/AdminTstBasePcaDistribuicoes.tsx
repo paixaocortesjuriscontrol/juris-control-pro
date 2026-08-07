@@ -225,17 +225,22 @@ const buildRowKeys = (row: CandidateRow) => {
   return keys;
 };
 
-function findHeaderRow(rows: any[][]): { idx: number; colDossie: number; colProcesso: number } | null {
+function findHeaderRow(
+  rows: any[][],
+): { idx: number; colDossie: number; colProcesso: number; mapa: Record<string, number> } | null {
   for (let i = 0; i < Math.min(rows.length, 20); i++) {
     const r = rows[i] || [];
     let cd = -1;
     let cp = -1;
+    const mapa: Record<string, number> = {};
     for (let j = 0; j < r.length; j++) {
       const cell = String(r[j] ?? "").trim().toLowerCase();
+      const key = normHeader(r[j]);
+      if (key && mapa[key] === undefined) mapa[key] = j;
       if (cd === -1 && /^dossi[eê]$/.test(cell)) cd = j;
       if (cp === -1 && cell === "processo") cp = j;
     }
-    if (cd !== -1 && cp !== -1) return { idx: i, colDossie: cd, colProcesso: cp };
+    if (cd !== -1 && cp !== -1) return { idx: i, colDossie: cd, colProcesso: cp, mapa };
   }
   return null;
 }
