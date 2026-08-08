@@ -1,42 +1,55 @@
-# Processo em múltiplas coordenações
+# Processo compartilhado entre coordenações
 
-Hoje cada processo pertence a uma única coordenação (`processos.coordenacao_id`) e há 242 números de processo cadastrados em duplicidade (484 registros), sempre em coordenações diferentes. O objetivo é ter **um único cadastro por processo**, compartilhado entre coordenações, com dados comuns editáveis por todas e agenda privada por coordenação.
+Novo modelo: **um único cadastro por número de processo**, visível para todas as coordenações. A coordenação deixa de ser chave de acesso e passa a ser apenas **responsabilidade** — uma ou mais coordenações podem ser responsáveis pelo mesmo processo.
 
-## 1. Vínculo múltiplo de coordenações
+## 1. Responsáveis por coordenação (sem chave de acesso)
 
-- Nova tabela de vínculo `processos_coordenacoes` (processo + coordenação, com marcação de coordenação principal).
-- Backfill: cada processo existente gera um vínculo com sua coordenação atual.
-- `processos.coordenacao_id` continua existindo como "coordenação principal" (compatibilidade com telas e relatórios), mas a visibilidade passa a considerar todos os vínculos.
+- Nova tabela `processos_coordenacoes_responsaveis` (processo + coordenação), permitindo várias coordenações responsáveis pelo mesmo processo.
+- Backfill: cada processo existente gera um vínculo com a coordenação que hoje está em `processos.coordenacao_id`.
+- A visibilidade de processos deixa de depender de coordenação: **todos os usuários ativos veem todos os processos**. A coordenação responsável passa a ser informação e filtro, não restrição.
+- Nenhum índice/regra de unicidade "número + coordenação". A unicidade passa a ser apenas pelo **número do processo**.
 
-## 2. Unificação dos processos duplicados
+## 2. Situação encontrada nos duplicados
 
-Para cada número duplicado:
-1. O registro **mais recente** vira o canônico.
-2. Campos vazios no canônico são preenchidos com os valores do registro antigo (nada preenchido é sobrescrito).
-3. Todos os dados filhos (tarefas, eventos, audiências, parcelamentos, publicações DJEN, movimentações, documentos, pedidos, partes, testemunhas, custas, depósitos, distribuições, auditoria, monitoramentos etc.) são repontados para o canônico.
-4. O canônico recebe vínculo com **as duas coordenações**.
-5. O registro duplicado é **excluído definitivamente**.
-6. Itens de agenda sem coordenação definida recebem a coordenação **de quem criou o item**.
+242 números duplicados (484 registros):
 
-Um relatório da unificação (número, registros mesclados, itens movidos) fica registrado para conferência.
+```text
+Coordenação Dr. Thomás ............ 242 registros
+Coordenação Dra. Janaina Catunda .. 241 registros
+Coordenação Santander Cível ....... 1 registro
+```
 
-## 3. Regras de acesso
+Ou seja: 241 pares Thomás x Janaina e 1 par Thomás x Santander Cível.
 
-- **Comum a todas as coordenações vinculadas** (ver e editar): visão geral, partes, pedidos, andamentos, publicações DJEN, documentos, TST, Judit, auditoria.
-- **Privado por coordenação** (cada uma vê apenas os seus): tarefas, prazos, eventos, audiências e parcelamentos.
-- Administrador continua vendo tudo.
+## 3. Unificação sem tocar na coordenação da Dra. Janaina
 
-## 4. Ajustes de tela
+Para cada par:
+1. O registro da **Dra. Janaina** (ou, no par restante, o da Santander Cível) é o **canônico e permanece intacto** — nenhum campo, item ou vínculo dela é alterado.
+2. O registro duplicado do Dr. Thomás é absorvido: tarefas, prazos, audiências, eventos, parcelamentos, publicações DJEN, andamentos, documentos, pedidos, partes, testemunhas, custas, depósitos, distribuições, monitoramentos e auditoria são repontados para o canônico, mantendo cada item na sua coordenação de origem.
+3. Campos da visão geral **vazios no canônico** são complementados com os dados do registro do Thomás; nada já preenchido é sobrescrito.
+4. O canônico passa a ter **as duas coordenações como responsáveis**.
+5. O registro duplicado do Thomás é **excluído definitivamente**.
 
-- **Processos e Casos**: filtro de coordenação passa a considerar o vínculo múltiplo; a coluna/etiqueta de coordenação mostra todas as coordenações do processo.
-- **Visão geral**: campo de coordenações com **seleção múltipla** ao criar e editar o processo.
-- **Aba Agenda do processo** e cards de pendências: passam a filtrar itens pela coordenação do usuário logado (admin vê tudo, com indicação da coordenação de cada item).
-- **Auditoria**: sem filtro por coordenação (registro único e comum).
+Um relatório da unificação (número, coordenações, itens movidos) é gerado para conferência.
+
+## 4. Regras de visualização e edição
+
+- **Dados comuns do processo** (visão geral, partes, pedidos, andamentos, publicações DJEN, documentos, TST, Judit, auditoria): visíveis e editáveis por qualquer coordenação, com registro de autoria na auditoria.
+- **Itens de agenda** (tarefas, prazos, audiências, eventos e parcelamentos): cada coordenação vê apenas os seus. Administrador vê todos, com a coordenação indicada em cada item.
+- Itens antigos sem coordenação definida recebem a coordenação de **quem criou o item**.
+
+## 5. Ajustes de tela
+
+- **Processos e Casos**: filtro de coordenação passa a filtrar por coordenação responsável (podendo haver várias); a coluna mostra todas as responsáveis. Listagem não é mais restringida por coordenação.
+- **Visão geral**: campo de coordenações responsáveis com **seleção múltipla**, na criação e na edição.
+- **Aba Agenda do processo** e card de pendências: filtram os itens pela coordenação do usuário logado.
+- **Auditoria**: registro único e comum, sem filtro por coordenação.
 
 ## Detalhes técnicos
 
-- Migração: `processos_coordenacoes` (PK própria, únique processo+coordenação, GRANTs para authenticated/service_role, RLS com leitura para admin/membros/coordenadores e escrita para usuário ativo).
-- Função `public.usuario_ve_processo(processo_id)` (SECURITY DEFINER) para evitar recursão nas policies; `processos_select_scoped` reescrita para usar o vínculo múltiplo.
-- Remoção/ajuste do índice único de número por coordenação, substituído por unicidade global de `numero` após a unificação (para impedir novas duplicidades) — importações passam a adicionar vínculo de coordenação em vez de criar novo registro.
-- Frontend: `useProcessos`/`Processos.tsx` passam a trazer os vínculos agregados; novo hook `useProcessoCoordenacoes`; `ProcessoAgendaTab`, `PendenciasProcessoCard`, `useEventosAgenda`, `usePrazos` e `useAudienciasDetectadas` recebem filtro por coordenação do usuário.
-- Scripts de merge executados em lotes, com log em tabela de auditoria.
+- Migração: `processos_coordenacoes_responsaveis` (unique processo+coordenação, GRANTs para authenticated e service_role, RLS de leitura para usuário ativo e escrita para admin/coordenador/membro).
+- `processos_select_scoped` substituída por leitura aberta a usuário ativo (`is_user_active(auth.uid())`), mantendo o acesso do portal do cliente restrito aos seus próprios processos.
+- Remoção do índice único de número por coordenação; criação de índice único global em `numero` após a unificação, para impedir novas duplicidades. Importações passam a atualizar o processo existente e adicionar a coordenação responsável em vez de criar novo registro.
+- `processos.coordenacao_id` é mantido apenas como coordenação de origem/principal para compatibilidade de telas e relatórios; a fonte de verdade passa a ser a nova tabela.
+- Frontend: `useProcessos` e `Processos.tsx` trazem as coordenações responsáveis agregadas; novo hook `useProcessoCoordenacoes`; `ProcessoAgendaTab`, `PendenciasProcessoCard`, `useEventosAgenda`, `usePrazos` e `useAudienciasDetectadas` filtram por coordenação do usuário.
+- Merge executado em lotes, com log em tabela de auditoria e contagens antes/depois.
