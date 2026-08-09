@@ -558,8 +558,26 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       }
       await queryClient.invalidateQueries({ queryKey: ["processos_partes", processoId] });
       await queryClient.invalidateQueries({ queryKey: ["processo-partes", processoId] });
-      const advs = rows.filter((r) => r.is_advogado).length;
-      toast.success(`${rows.length} parte(s) gravada(s) — ${advs} advogado(s).`);
+      // Também consolida os advogados no próprio processo (campo usado em
+      // relatórios e no resumo), preservando o vínculo com o representado.
+      const advogados = rows
+        .filter((r) => r.is_advogado && r.nome)
+        .map((r) => ({
+          nome: r.nome,
+          documento: r.documento || null,
+          oab: (r.raw as any)?.oab || null,
+          advogado_de: (r.raw as any)?.advogado_de || null,
+          polo: r.polo || null,
+          fonte: "judit",
+        }));
+      if (advogados.length > 0) {
+        await supabase
+          .from("processos")
+          .update({ advogados_identificados: advogados as any })
+          .eq("id", processoId);
+        await queryClient.invalidateQueries({ queryKey: ["processo", processoId] });
+      }
+      toast.success(`${rows.length} parte(s) gravada(s) — ${advogados.length} advogado(s).`);
       return rows.length;
     } catch (e: any) {
       console.warn("Falha ao gravar partes da Judit:", e?.message || e);
@@ -1036,7 +1054,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   // Classe verde aplicada a inputs cujo campo foi preenchido pela Judit na sessão.
   const jcls = (field: string) =>
     juditSessionFields.has(field) && form[field] !== "" && form[field] != null
-      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 font-medium"
+      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-foreground"
       : "";
   const isAdmin = useMemo(() => processo?.tipo_processo === "administrativo", [processo?.tipo_processo]);
 

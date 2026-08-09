@@ -112,7 +112,7 @@ import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaForm
 import { NovoItemPanel, type NovoItemTipo } from "@/components/shared/NovoItemPanel";
 import { ClipboardList, CalendarPlus, Coins } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast as sonnerToast } from "sonner";
 import { Loader2, Upload as UploadIcon, Sparkles, Trash2, Save } from "lucide-react";
 
@@ -222,6 +222,36 @@ export function ProcessoDetalhesCompletos({
   // Inicializa com initialSection se fornecido (vem do ?tab= da URL)
   const [activeSection, setActiveSection] = useState<string>(initialSection || "resumo");
   const [juditNovoDestaque, setJuditNovoDestaque] = useState(false);
+
+  // Sinaliza (fonte verde no nome da aba) quais seções têm dados vindos da Judit.
+  const { data: juditFlags } = useQuery({
+    queryKey: ["judit-flags-processo", processo?.id],
+    enabled: !!processo?.id,
+    queryFn: async () => {
+      const [partes, consultas] = await Promise.all([
+        supabase
+          .from("processos_partes" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("processo_id", processo.id)
+          .eq("fonte", "judit"),
+        supabase
+          .from("consultas_judit" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("processo_id", processo.id),
+      ]);
+      return { partes: (partes.count || 0) > 0, analise: (consultas.count || 0) > 0 };
+    },
+  });
+
+  const juditCamposCount = Array.isArray((processo as any)?.judit_campos)
+    ? (processo as any).judit_campos.length
+    : 0;
+  const juditSecoes: Record<string, boolean> = {
+    resumo: juditCamposCount > 0,
+    andamentos: (movimentacoes || []).some((m: any) => String(m?.fonte || "").startsWith("judit")),
+    partes: !!juditFlags?.partes,
+    "analise-judit": !!juditFlags?.analise,
+  };
 
   // Ref para o formulário Resumo — permite autosave ao trocar de seção
   const visaoGeralRef = useRef<ProcessoVisaoGeralFormHandle>(null);
@@ -979,7 +1009,7 @@ export function ProcessoDetalhesCompletos({
                       )}
                     >
                       <item.icon className={cn("w-3 h-3 flex-shrink-0", !destacarJudit && activeSection !== item.id && item.iconColor)} />
-                      <span>{item.label}</span>
+                      <span className={cn(!destacarJudit && activeSection !== item.id && juditSecoes[item.id] && "text-emerald-600 dark:text-emerald-400 font-semibold")}>{item.label}</span>
                       {item.count !== undefined && item.count > 0 && (
                         <Badge variant="secondary" className="ml-1 text-[8px] h-3.5 px-1 min-w-[14px] flex items-center justify-center bg-background/80">
                           {item.count}
@@ -1025,7 +1055,7 @@ export function ProcessoDetalhesCompletos({
                       )}
                     >
                       <item.icon className={cn("w-3.5 h-3.5 flex-shrink-0", !destacarJudit && activeSection !== item.id && item.iconColor)} />
-                      <span className="truncate">{item.label}</span>
+                      <span className={cn("truncate", !destacarJudit && activeSection !== item.id && juditSecoes[item.id] && "text-emerald-600 dark:text-emerald-400 font-semibold")}>{item.label}</span>
                       {item.count !== undefined && item.count > 0 && (
                         <Badge variant="secondary" className="ml-auto text-[9px] h-4 px-1 min-w-[16px] flex items-center justify-center">
                           {item.count}
