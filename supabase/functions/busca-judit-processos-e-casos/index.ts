@@ -509,6 +509,7 @@ serve(async (req) => {
       advogados,
       parties_detail,
       _judit_meta: {
+        fonte: "busca-judit-processos-e-casos",
         tribunal_selecionado: tribAcr,
         instance: rd?.instance || null,
         source_name: rd?.crawler?.source_name || null,
