@@ -1932,8 +1932,11 @@ export default function ProcessoDetalhes() {
                 <div className="space-y-3">
                   {movimentacoes.map((mov) => (
                     <div key={mov.id} className="border-l-2 border-primary/30 pl-4 py-2">
-                      <p className="text-xs text-muted-foreground">{formatDate(mov.data_movimentacao)}</p>
-                      <p className="text-sm">{mov.descricao}</p>
+                      <p className={`text-xs ${mov.fonte === "judit" ? "text-emerald-700/80 dark:text-emerald-400/80" : "text-muted-foreground"}`}>
+                        {formatDate(mov.data_movimentacao)}
+                        {mov.fonte === "judit" && <span className="ml-2 uppercase text-[10px]">judit</span>}
+                      </p>
+                      <p className={`text-sm ${mov.fonte === "judit" ? "text-emerald-700 dark:text-emerald-400" : ""}`}>{mov.descricao}</p>
                     </div>
                   ))}
                 </div>
