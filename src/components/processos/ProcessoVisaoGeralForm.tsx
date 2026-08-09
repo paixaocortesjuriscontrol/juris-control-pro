@@ -676,8 +676,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       // Grava os andamentos retornados na aba "Andamentos" (sem custo adicional).
       if (processo?.id) {
         await persistirMovimentacoesJudit(processo.id, data);
-        const { data: u2 } = await supabase.auth.getUser();
-        await persistirPartesJudit(processo.id, data, u2?.user?.id || null);
+        await persistirPartesJudit(processo.id, data, uid);
       }
 
       // Persiste anexos quando solicitado
@@ -1037,7 +1036,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   // Classe verde aplicada a inputs cujo campo foi preenchido pela Judit na sessão.
   const jcls = (field: string) =>
     juditSessionFields.has(field) && form[field] !== "" && form[field] != null
-      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 font-medium"
       : "";
   const isAdmin = useMemo(() => processo?.tipo_processo === "administrativo", [processo?.tipo_processo]);
 
