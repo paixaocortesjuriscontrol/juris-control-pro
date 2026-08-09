@@ -17,6 +17,7 @@ type Parte = {
   polo: string | null;
   is_advogado: boolean | null;
   fonte?: string | null;
+  raw?: any;
 };
 
 type Testemunha = {
@@ -59,6 +60,8 @@ type GrupoItem = {
   tipo_pessoa?: string | null;
   fontes: Set<string>; // "usuario" | "judit" | fonte específica
   is_advogado?: boolean;
+  advogado_de?: string | null;
+  oab?: string | null;
 };
 
 const normNome = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
@@ -86,7 +89,7 @@ export function ProcessoPartesTab({ processoId }: Props) {
       if (!processoId) return [];
       const { data, error } = await supabase
         .from("processos_partes")
-        .select("nome, documento, tipo_pessoa, polo, is_advogado, fonte")
+        .select("nome, documento, tipo_pessoa, polo, is_advogado, fonte, raw")
         .eq("processo_id", processoId)
         .order("is_advogado", { ascending: true })
         .order("nome", { ascending: true });
@@ -142,6 +145,8 @@ export function ProcessoPartesTab({ processoId }: Props) {
         existente.documento = existente.documento || p.documento;
         existente.tipo_pessoa = existente.tipo_pessoa || p.tipo_pessoa;
         existente.is_advogado = existente.is_advogado || !!p.is_advogado;
+        existente.advogado_de = existente.advogado_de || (p.raw as any)?.advogado_de || null;
+        existente.oab = existente.oab || (p.raw as any)?.oab || null;
         existente.fontes.add(fonteLabel);
       } else {
         mapa.set(k, {
@@ -150,6 +155,8 @@ export function ProcessoPartesTab({ processoId }: Props) {
           documento: p.documento,
           tipo_pessoa: p.tipo_pessoa,
           is_advogado: !!p.is_advogado,
+          advogado_de: (p.raw as any)?.advogado_de || null,
+          oab: (p.raw as any)?.oab || null,
           fontes: new Set([fonteLabel]),
         });
       }
@@ -170,7 +177,9 @@ export function ProcessoPartesTab({ processoId }: Props) {
 
   const totalPartes = grupoAtivo.length + grupoPassivo.length + grupoTerceiros.length;
 
-  const renderItem = (item: GrupoItem) => (
+  const renderItem = (item: GrupoItem) => {
+    const daJudit = item.fontes.has("judit");
+    return (
     <li
       key={item.key}
       className={cn(
@@ -187,13 +196,25 @@ export function ProcessoPartesTab({ processoId }: Props) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("font-medium text-sm", item.is_advogado && "text-muted-foreground")}>
+          <span
+            className={cn(
+              "font-medium text-sm",
+              item.is_advogado && !daJudit && "text-muted-foreground",
+              daJudit && "text-emerald-700 dark:text-emerald-400",
+            )}
+          >
             {item.nome}
           </span>
           {item.is_advogado && (
             <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
               <Scale className="w-3 h-3 mr-1" /> advogado
             </Badge>
+          )}
+          {item.advogado_de && (
+            <span className="text-[11px] text-muted-foreground">adv. de {item.advogado_de}</span>
+          )}
+          {item.oab && (
+            <span className="text-[11px] text-muted-foreground font-mono">OAB {String(item.oab)}</span>
           )}
           {[...item.fontes].map((f) => (
             <Badge key={f} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 uppercase">
@@ -202,14 +223,15 @@ export function ProcessoPartesTab({ processoId }: Props) {
           ))}
         </div>
         {(item.documento || item.tipo_pessoa) && (
-          <div className="text-xs text-muted-foreground mt-0.5 font-mono">
+          <div className={cn("text-xs mt-0.5 font-mono", daJudit ? "text-emerald-700/80 dark:text-emerald-400/80" : "text-muted-foreground")}>
             {formatDoc(item.documento ?? null)}
             {item.tipo_pessoa && <span className="ml-2 font-sans">· {item.tipo_pessoa}</span>}
           </div>
         )}
       </div>
     </li>
-  );
+    );
+  };
 
   const renderSecao = (titulo: string, itens: GrupoItem[], corBadge: string) => {
     if (itens.length === 0) return null;
