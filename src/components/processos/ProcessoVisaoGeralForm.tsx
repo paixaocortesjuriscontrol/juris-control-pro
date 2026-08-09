@@ -551,6 +551,58 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
 
   /**
    * Consulta Judit apenas para alimentar a aba "Análise Judit" (e opcionalmente
+   */
+
+  /**
+   * Grava na aba "Andamentos" os movimentos vindos da Judit (payload novo ou
+   * bloco bruto reaproveitado). Não insere duplicados: compara data + descrição
+   * com o que já existe em `movimentacoes`.
+   */
+  const persistirMovimentacoesJudit = async (processoId: string, payload: any) => {
+    try {
+      const steps = extrairStepsDoJuditRaw(payload);
+      if (!steps.length) return 0;
+
+      const { data: existentes } = await supabase
+        .from("movimentacoes")
+        .select("data_movimentacao, descricao")
+        .eq("processo_id", processoId)
+        .limit(5000);
+      const jaTem = new Set(
+        ((existentes as any[]) || []).map(
+          (m) => `${String(m.data_movimentacao || "").substring(0, 10)}|${String(m.descricao || "").trim()}`,
+        ),
+      );
+
+      const rows = steps
+        .filter((s) => !jaTem.has(`${s.data}|${s.descricao}`))
+        .map((s) => ({
+          processo_id: processoId,
+          data_movimentacao: `${s.data}T12:00:00.000Z`,
+          descricao: s.descricao,
+          tipo: null,
+          fonte: "judit",
+          codigo: s.codigo != null ? String(s.codigo) : null,
+          raw: s.raw ?? null,
+        }));
+      if (!rows.length) return 0;
+
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error } = await supabase.from("movimentacoes").insert(rows.slice(i, i + 200) as any);
+        if (error) throw error;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["movimentacoes", processoId] });
+      await queryClient.invalidateQueries({ queryKey: ["movimentacoes"] });
+      toast.success(`${rows.length} andamento(s) gravado(s) na aba Andamentos.`);
+      return rows.length;
+    } catch (e: any) {
+      console.warn("Falha ao gravar andamentos da Judit:", e?.message || e);
+      return 0;
+    }
+  };
+
+  /**
+   * Consulta Judit apenas para alimentar a aba "Análise Judit" (e opcionalmente
    * a aba "Anexos"). NÃO altera o formulário nem grava em `processos` /
    * `processos_partes`. O preenchimento do formulário só acontece quando o
    * usuário clicar em "Preencher formulário" dentro da Análise Judit.
