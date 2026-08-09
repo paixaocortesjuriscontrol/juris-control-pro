@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
+import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
 
 interface Props {
   processo: any;
