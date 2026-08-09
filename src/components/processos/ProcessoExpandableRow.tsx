@@ -501,6 +501,16 @@ export function ProcessoExpandableRow({
 
         {/* Right side: responsável + ações */}
         <div className="flex items-start gap-1 shrink-0">
+          {extras?.temJudit && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="h-8 flex items-center">
+                  <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Campos preenchidos pela Judit</TooltipContent>
+            </Tooltip>
+          )}
           {processo.advogado_responsavel?.nome && (
             <Tooltip>
               <TooltipTrigger asChild>
