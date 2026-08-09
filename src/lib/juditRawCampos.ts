@@ -18,6 +18,18 @@ export interface JuditStepNormalizado {
   raw: any;
 }
 
+export interface JuditParteNormalizada {
+  nome: string;
+  documento: string | null;
+  tipo_pessoa: string | null;
+  polo: string | null;
+  lado_efetivo: string | null;
+  is_advogado: boolean;
+  advogado_de: string | null;
+  oab: string | null;
+  raw: any;
+}
+
 const isoToInput = (iso: any): string | null => {
   if (!iso) return null;
   const s = String(iso).substring(0, 10);
@@ -161,6 +173,19 @@ export function extrairCamposDoJuditRaw(payload: any): Record<string, any> {
     data_distribuicao: isoToInput(rd?.distribution_date),
   };
 
+  // Pedidos: aproxima pelos assuntos secundários (subjects)
+  const subs = Array.isArray(rd?.subjects) ? rd.subjects : [];
+  if (subs.length > 1) {
+    out.pedidos = subs.map((s: any) => String(s?.name || "").trim()).filter(Boolean).join("; ");
+  }
+  if (rd?.secrecy_level != null) out.segredo_justica = Number(rd.secrecy_level) > 0;
+
+  // Terceiros: partes que não são do polo ativo/passivo nem advogados
+  const terceiros = extrairPartesDoJuditRaw(payload)
+    .filter((p) => !p.is_advogado && p.lado_efetivo !== "ACTIVE" && p.lado_efetivo !== "PASSIVE")
+    .map((p) => p.nome);
+  if (terceiros.length) out.terceiro_envolvido = [...new Set(terceiros)].join(" / ");
+
   // Datas derivadas dos andamentos
   const steps = extrairStepsDoJuditRaw(payload);
   const ordenadosAsc = steps.slice().sort((a, b) => (a.data < b.data ? -1 : 1));
@@ -178,6 +203,76 @@ export function extrairCamposDoJuditRaw(payload: any): Record<string, any> {
     if (v === null || v === undefined || String(v).trim() === "") delete out[k];
   }
   return out;
+}
+
+/**
+ * Partes + advogados de TODAS as instâncias do payload, incluindo os patronos
+ * aninhados em `parties[].lawyers` (que a Judit devolve por parte).
+ */
+export function extrairPartesDoJuditRaw(payload: any): JuditParteNormalizada[] {
+  const out: JuditParteNormalizada[] = [];
+  const seen = new Set<string>();
+  const chave = (nome: string, doc: string | null, adv: boolean, de: string | null) =>
+    `${String(doc || "").replace(/\D/g, "") || nome.toUpperCase()}|${adv ? "A" : "P"}|${String(de || "").toUpperCase()}`;
+
+  const push = (p: Partial<JuditParteNormalizada> & { nome?: any }) => {
+    const nome = String(p?.nome || "").trim();
+    if (!nome) return;
+    const adv = !!p.is_advogado;
+    const k = chave(nome, (p.documento as any) ?? null, adv, (p.advogado_de as any) ?? null);
+    if (seen.has(k)) return;
+    seen.add(k);
+    const lado = String(p.lado_efetivo || p.polo || "").toUpperCase();
+    out.push({
+      nome,
+      documento: (p.documento as any) ?? null,
+      tipo_pessoa: (p.tipo_pessoa as any) ?? (adv ? "ADVOGADO" : null),
+      polo: (p.polo as any) ?? null,
+      lado_efetivo: lado === "ACTIVE" || lado === "PASSIVE" ? lado : null,
+      is_advogado: adv,
+      advogado_de: (p.advogado_de as any) ?? null,
+      oab: (p.oab as any) ?? null,
+      raw: p.raw ?? p,
+    });
+  };
+
+  // 1) Já normalizado pela edge function
+  for (const p of Array.isArray(payload?.parties_detail) ? payload.parties_detail : []) push(p);
+
+  // 2) Bloco bruto (todas as instâncias)
+  for (const rd of coletarInstancias(payload)) {
+    for (const p of Array.isArray(rd?.parties) ? rd.parties : []) {
+      const tipo = String(p?.person_type || "").toUpperCase();
+      push({
+        nome: p?.name,
+        documento: p?.main_document || null,
+        tipo_pessoa: p?.person_type || null,
+        polo: p?.side || null,
+        lado_efetivo: p?.side || null,
+        is_advogado: tipo === "ADVOGADO",
+        oab: p?.lawyer_documents || p?.oab || null,
+        raw: p,
+      });
+      for (const l of Array.isArray(p?.lawyers) ? p.lawyers : []) {
+        push({
+          nome: l?.name,
+          documento: l?.main_document || null,
+          tipo_pessoa: "ADVOGADO",
+          polo: p?.side || null,
+          lado_efetivo: p?.side || null,
+          is_advogado: true,
+          advogado_de: String(p?.name || "").trim() || null,
+          oab: l?.oab || l?.lawyer_documents || null,
+          raw: l,
+        });
+      }
+    }
+  }
+
+  return out.sort((a, b) => {
+    if (a.is_advogado !== b.is_advogado) return a.is_advogado ? 1 : -1;
+    return a.nome.localeCompare(b.nome, "pt-BR");
+  });
 }
 
 /**
