@@ -7306,6 +7306,51 @@ export type Database = {
           },
         ]
       }
+      processos_coordenacoes_responsaveis: {
+        Row: {
+          coordenacao_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          principal: boolean
+          processo_id: string
+          updated_at: string
+        }
+        Insert: {
+          coordenacao_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          principal?: boolean
+          processo_id: string
+          updated_at?: string
+        }
+        Update: {
+          coordenacao_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          principal?: boolean
+          processo_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processos_coordenacoes_responsaveis_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processos_coordenacoes_responsaveis_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       processos_documentos_download: {
         Row: {
           cofre_senha_id: string | null
