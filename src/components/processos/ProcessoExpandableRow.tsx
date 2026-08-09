@@ -58,6 +58,41 @@ export function ProcessoExpandableRow({
 }: ProcessoExpandableRowProps) {
   const [expandedSection, setExpandedSection] = useState<"djen" | "andamentos" | "audiencias" | "intimacoes" | "tarefas" | null>(null);
 
+  // Coordenações responsáveis + indicador de preenchimento pela Judit
+  const { data: extras } = useQuery({
+    queryKey: ["processo-row-extras", processo.id, processo.coordenacao_id],
+    queryFn: async () => {
+      const [respRes, procRes] = await Promise.all([
+        supabase
+          .from("processos_coordenacoes_responsaveis" as any)
+          .select("coordenacao_id, principal")
+          .eq("processo_id", processo.id),
+        supabase.from("processos").select("judit_campos").eq("id", processo.id).maybeSingle(),
+      ]);
+
+      const ids = new Set<string>();
+      if (processo.coordenacao_id) ids.add(processo.coordenacao_id);
+      for (const r of ((respRes.data as any[]) || [])) {
+        if (r?.coordenacao_id) ids.add(r.coordenacao_id);
+      }
+
+      let nomes: string[] = [];
+      if (ids.size > 0) {
+        const { data: coords } = await supabase
+          .from("coordenacoes")
+          .select("id, nome")
+          .in("id", [...ids]);
+        nomes = ((coords as any[]) || [])
+          .map((c) => c.nome as string)
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b, "pt-BR"));
+      }
+
+      const campos = (procRes.data as any)?.judit_campos;
+      return { coordenacoes: nomes, temJudit: Array.isArray(campos) ? campos.length > 0 : !!campos };
+    },
+  });
+
   // Check if process has DJEN publications
   const { data: countDjen } = useQuery({
     queryKey: ["count-djen-processo", processo.id],
