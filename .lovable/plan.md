@@ -15,8 +15,19 @@ Ou seja: nada precisa de nova consulta paga na Judit — basta ler o bloco bruto
 
 ## O que será feito
 
-### 1) Preencher os campos que faltam
-Criar um extrator que lê o bloco bruto (`_judit_raw`) do payload armazenado e deriva, quando o campo estiver vazio no formulário:
+### 1) Função Judit própria da tela Processos e Casos
+Criar uma função dedicada `busca-judit-processos-e-casos`, totalmente separada da usada na Distribuição TST (`buscar-judit`). A tela Processos e Casos passa a usar só essa função, tanto no botão Judit quanto no "Preencher formulário".
+
+Ela devolve o conjunto completo de campos do processo (não o recorte do TST) e também os andamentos:
+- Identificação: assunto/matéria, classe, natureza, área, fase, situação
+- Tribunal/órgão: tribunal, justiça, instância, esfera, sistema, órgão julgador, vara, comarca, UF
+- Partes: polo ativo, polo passivo, terceiros, advogados e detalhamento das partes
+- Datas: distribuição, recebimento, citação
+- Financeiro: valor da causa
+- Andamentos (lista completa de movimentos) e anexos quando solicitado
+
+### 2) Preencher os campos que faltam
+O extrator lê tanto os campos de topo da nova função quanto o bloco bruto (`_judit_raw`) de consultas já armazenadas, e deriva, quando o campo estiver vazio no formulário:
 - Valor da causa (`amount`/`value`)
 - Órgão julgador, vara e comarca/cidade (a partir de `courts`)
 - UF, instância, justiça, área, sistema
@@ -25,7 +36,7 @@ Criar um extrator que lê o bloco bruto (`_judit_raw`) do payload armazenado e d
 
 Regras mantidas: só preenche campo vazio (não sobrescreve o que a advogada digitou), marca em verde os campos preenchidos pela Judit e não gera nova cobrança na Judit. Continua valendo a regra atual de tipo de recurso: apenas o que a Judit confirma, sem inferência.
 
-### 2) Gravar os andamentos na aba Andamentos
+### 3) Gravar os andamentos na aba Andamentos
 Ao usar o botão Judit (e também no "Preencher formulário", reaproveitando o cache), os andamentos do payload passam a ser gravados nas movimentações do processo:
 - Origem `judit_api`, com data, descrição e código do movimento
 - Sem duplicar: ignora movimentos já existentes com a mesma data + descrição
@@ -33,7 +44,8 @@ Ao usar o botão Judit (e também no "Preencher formulário", reaproveitando o c
 - Mensagem informando quantos andamentos novos entraram
 
 ## Detalhes técnicos
-- `src/components/processos/ProcessoVisaoGeralForm.tsx`: em `handleSyncJuditInterno`, adicionar fallback com os campos derivados de `_judit_raw` (`cache_lookup` e `crawler.page_data[].response_data`, escolhendo a instância com mais `steps`), aplicados via `applyIfEmpty`.
+- Nova Edge Function `supabase/functions/busca-judit-processos-e-casos/index.ts`, derivada da lógica de mapeamento completa hoje em `judit-processo-interno`, acrescentando `steps` (andamentos normalizados: data, descrição, código) no retorno. Cache-first (TTL padrão) e `force_refresh` só quando o usuário pede atualização forçada; anexos só com `with_attachments`. Nenhuma dependência de `buscar-judit`.
+- `src/components/processos/ProcessoVisaoGeralForm.tsx`: `handleFetchJuditOnly` e `handleSyncJuditInterno` passam a invocar `busca-judit-processos-e-casos`; o fallback usa os campos derivados de `_judit_raw` (`cache_lookup` e `crawler.page_data[].response_data`, escolhendo a instância com mais `steps`), aplicados via `applyIfEmpty`.
 - Novo utilitário `src/lib/juditRawCampos.ts` com `extrairCamposDoJuditRaw(payload)` e `extrairStepsDoJuditRaw(payload)`, reutilizável pelas duas rotas (botão Judit e preencher formulário).
 - Andamentos: insert em `movimentacoes` (`processo_id`, `data_movimentacao`, `descricao`, `codigo`, `tipo: "judit"`, `fonte: "judit_api"`, `raw`) com deduplicação prévia por `data|descricao`, seguido de `invalidateQueries(["movimentacoes-processo", id])`.
-- Nenhuma mudança de schema e nenhuma chamada extra à API Judit.
+- Logs continuam em `judit_logs`/`consultas_judit` (marcados com fonte `busca-judit-processos-e-casos`) e alimentam a tela Consumo Judit. Nenhuma mudança de schema; a Distribuição TST segue intocada em `buscar-judit`.
