@@ -1,9 +1,11 @@
-// supabase/functions/judit-processo-interno/index.ts
+// supabase/functions/busca-judit-processos-e-casos/index.ts
 //
-// Função INDEPENDENTE de `buscar-judit` (que serve Dados Benner / Distribuição TST).
+// Função EXCLUSIVA da tela "Processos e Casos". Totalmente INDEPENDENTE de
+// `buscar-judit` (que serve Dados Benner / Distribuição TST).
 // Objetivo: consultar a API Judit (cache + crawler async) e devolver o conjunto
 // MAIS COMPLETO possível de campos que o formulário "Visão Geral" do processo
-// interno (src/components/processos/ProcessoVisaoGeralForm.tsx) consegue exibir.
+// interno (src/components/processos/ProcessoVisaoGeralForm.tsx) consegue exibir,
+// incluindo os ANDAMENTOS normalizados (para a aba Andamentos).
 //
 // Campos retornados (todos opcionais — só preenchidos quando a Judit traz dado):
 //   Identificação:   assunto, classe, natureza, area, fase, status
@@ -13,7 +15,8 @@
 //                    reclamante, reclamados, pedidos
 //   Datas:           data_distribuicao, data_recebimento, data_citacao
 //   Financeiro:      valor_causa
-//   Extras p/ UI:    parties_detail, advogados, _judit_raw, _judit_meta
+//   Andamentos:      movimentacoes[] { data, descricao, codigo, raw }
+//   Extras p/ UI:    parties_detail, advogados, attachments, _judit_raw, _judit_meta
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
