@@ -1317,6 +1317,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       </SelectContent>
                     </Select>
                   </FormField>
+                  <FormField label="Outras Coordenações Responsáveis">
+                    <CoordenacoesResponsaveisPicker
+                      processoId={processo?.id}
+                      coordenacaoPrincipalId={form.coordenacao_id || null}
+                    />
+                  </FormField>
                   <FormField label="Fase Processual">
                     {(() => {
                       const FASES = ["Conhecimento", "Instrutória", "Recursal", "Execução"];
