@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { CalendarIcon, PlayCircle, Loader2, CheckCircle2, XCircle, Clock, Info, RefreshCw, Server } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { AcompanhamentoEspecialDivergencias } from "./AcompanhamentoEspecialDivergencias";
 
 type Execucao = {
   id: string;
@@ -138,7 +139,10 @@ export function AcompanhamentoEspecialPanel() {
               <CardDescription className="mt-1">
                 Rotina que consulta a API Judit para os processos marcados com <strong>“Acompanhamento Especial”</strong>,
                 registra novas movimentações em <code className="text-xs bg-muted px-1 rounded">acompanhamento_especial_eventos</code>
-                {" "}e notifica os responsáveis por sino, e-mail e WhatsApp.
+                {" "}e notifica os responsáveis por sino, e-mail e WhatsApp. A cada consulta os dados da Judit são
+                gravados no processo como se o botão Judit tivesse sido clicado: as abas <strong>Partes</strong>,
+                <strong> Andamentos</strong> e <strong>Análise Judit</strong> são sempre atualizadas e, na Visão Geral,
+                apenas os campos vazios são completados — nada digitado pelo advogado é sobrescrito.
               </CardDescription>
             </div>
           </div>
@@ -186,6 +190,9 @@ export function AcompanhamentoEspecialPanel() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Divergências detectadas entre Judit e o formulário */}
+      <AcompanhamentoEspecialDivergencias />
 
       {/* Execuções + filtros */}
       <Card>

@@ -1,5 +1,198 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import {
+  extrairCamposDoJuditRaw,
+  extrairPartesDoJuditRaw,
+  extrairStepsDoJuditRaw,
+} from "../_shared/juditRawCampos.ts";
+
+// Campos do formulário "Visão Geral" que a Judit consegue preencher.
+// Regra: NUNCA sobrescrever valor já preenchido pelo advogado — só grava
+// quando o campo está vazio. Divergências são registradas para aviso no painel.
+const CAMPOS_SINCRONIZAVEIS = [
+  "tribunal", "orgao_julgador", "classe", "natureza", "assunto", "materia",
+  "comarca", "vara", "uf", "instancia", "justica", "esfera", "area", "sistema",
+  "data_distribuicao", "data_citacao", "data_recebimento", "valor_causa",
+  "polo_ativo", "polo_passivo", "reclamante", "reclamados",
+  "terceiro_envolvido", "pedidos", "fase", "segredo_justica",
+] as const;
+
+const vazio = (v: any) =>
+  v === null || v === undefined || (typeof v === "string" && v.trim() === "");
+
+const comparavel = (v: any) => {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "number") return String(v);
+  if (typeof v === "boolean") return v ? "true" : "false";
+  return String(v).trim().toLowerCase().replace(/\s+/g, " ");
+};
+
+/**
+ * Aplica no processo o MESMO efeito do botão Judit da tela Processos e Casos:
+ *  - `processos`: só preenche campos vazios (jamais sobrescreve o advogado)
+ *  - `processos_partes` (aba Partes): sempre regravada a partir da Judit
+ *  - `movimentacoes` (aba Andamentos): insere novos, com dedup data+descrição
+ *  - `consultas_judit` (aba Análise Judit): já gravada pelo fluxo principal
+ * Divergências (campo preenchido pelo advogado ≠ valor da Judit) são
+ * registradas em `acompanhamento_especial_divergencias`.
+ */
+async function sincronizarProcessoComJudit(
+  supabase: any,
+  processoId: string,
+  cnj: string,
+  payloadJudit: any,
+  execucaoId: string | null,
+) {
+  const resumo = { campos_preenchidos: 0, partes: 0, andamentos: 0, divergencias: 0 };
+  const wrapper = { _judit_raw: { cache_lookup: payloadJudit?.response_data || payloadJudit, crawler: null } };
+
+  // ── 1. Campos do formulário ───────────────────────────────────────────────
+  const campos = extrairCamposDoJuditRaw(wrapper);
+  const { data: atual } = await supabase
+    .from("processos")
+    .select(`id, judit_campos, ${CAMPOS_SINCRONIZAVEIS.join(", ")}`)
+    .eq("id", processoId)
+    .maybeSingle();
+
+  if (atual) {
+    const update: Record<string, any> = {};
+    const jaJudit = new Set<string>(
+      Array.isArray(atual.judit_campos) ? atual.judit_campos.map(String) : [],
+    );
+    const divergencias: any[] = [];
+
+    for (const campo of CAMPOS_SINCRONIZAVEIS) {
+      const valorJudit = (campos as any)[campo];
+      if (vazio(valorJudit)) continue;
+      const valorAtual = (atual as any)[campo];
+      if (vazio(valorAtual)) {
+        update[campo] = valorJudit;
+        jaJudit.add(campo);
+        continue;
+      }
+      // Campo já preenchido — se o valor era da própria Judit, atualiza;
+      // se foi digitado pelo advogado, preserva e registra a divergência.
+      if (comparavel(valorAtual) === comparavel(valorJudit)) continue;
+      if (jaJudit.has(campo)) {
+        update[campo] = valorJudit;
+        continue;
+      }
+      divergencias.push({
+        processo_id: processoId,
+        processo_numero: cnj,
+        campo,
+        valor_atual: String(valorAtual).slice(0, 500),
+        valor_judit: String(valorJudit).slice(0, 500),
+        execucao_id: execucaoId,
+      });
+    }
+
+    if (Object.keys(update).length > 0) {
+      update.judit_campos = Array.from(jaJudit);
+      const { error: upErr } = await supabase.from("processos").update(update).eq("id", processoId);
+      if (!upErr) resumo.campos_preenchidos = Object.keys(update).length - 1;
+      else console.warn("[acomp-especial] update processos:", upErr.message);
+    }
+
+    if (divergencias.length > 0) {
+      // Substitui as divergências pendentes do mesmo campo (mantém 1 por campo)
+      for (const d of divergencias) {
+        await supabase
+          .from("acompanhamento_especial_divergencias")
+          .delete()
+          .eq("processo_id", processoId)
+          .eq("campo", d.campo)
+          .is("resolvido_em", null);
+      }
+      const { error: divErr } = await supabase
+        .from("acompanhamento_especial_divergencias")
+        .insert(divergencias);
+      if (!divErr) resumo.divergencias = divergencias.length;
+      else console.warn("[acomp-especial] divergencias:", divErr.message);
+    }
+  }
+
+  // ── 2. Partes + advogados (aba Partes) — sempre atualizada ────────────────
+  try {
+    const partes = extrairPartesDoJuditRaw(wrapper);
+    if (partes.length > 0) {
+      await supabase
+        .from("processos_partes")
+        .delete()
+        .eq("processo_id", processoId)
+        .eq("fonte", "judit");
+      const rows = partes.map((p: any) => ({
+        processo_id: processoId,
+        nome: p.nome,
+        documento: p.documento,
+        tipo_pessoa: p.tipo_pessoa,
+        polo: p.polo,
+        lado_efetivo: p.lado_efetivo,
+        is_advogado: p.is_advogado,
+        fonte: "judit",
+        raw: { ...(p.raw || {}), advogado_de: p.advogado_de, oab: p.oab },
+      }));
+      for (let i = 0; i < rows.length; i += 200) {
+        await supabase.from("processos_partes").insert(rows.slice(i, i + 200));
+      }
+      resumo.partes = rows.length;
+      const advogados = partes
+        .filter((p: any) => p.is_advogado && p.nome)
+        .map((p: any) => ({
+          nome: p.nome,
+          documento: p.documento || null,
+          oab: p.oab || null,
+          advogado_de: p.advogado_de || null,
+          polo: p.polo || null,
+          fonte: "judit",
+        }));
+      if (advogados.length > 0) {
+        await supabase
+          .from("processos")
+          .update({ advogados_identificados: advogados })
+          .eq("id", processoId);
+      }
+    }
+  } catch (e) {
+    console.warn("[acomp-especial] partes:", (e as Error).message);
+  }
+
+  // ── 3. Andamentos (aba Andamentos) — sempre atualizada, com dedup ─────────
+  try {
+    const steps = extrairStepsDoJuditRaw(wrapper);
+    if (steps.length > 0) {
+      const { data: existentes } = await supabase
+        .from("movimentacoes")
+        .select("data_movimentacao, descricao")
+        .eq("processo_id", processoId)
+        .limit(5000);
+      const jaTem = new Set(
+        ((existentes as any[]) || []).map(
+          (m) => `${String(m.data_movimentacao || "").substring(0, 10)}|${String(m.descricao || "").trim()}`,
+        ),
+      );
+      const rows = steps
+        .filter((s: any) => !jaTem.has(`${s.data}|${s.descricao}`))
+        .map((s: any) => ({
+          processo_id: processoId,
+          data_movimentacao: `${s.data}T12:00:00.000Z`,
+          descricao: s.descricao,
+          tipo: null,
+          fonte: "judit",
+          codigo: s.codigo != null ? String(s.codigo) : null,
+          raw: s.raw ?? null,
+        }));
+      for (let i = 0; i < rows.length; i += 200) {
+        await supabase.from("movimentacoes").insert(rows.slice(i, i + 200));
+      }
+      resumo.andamentos = rows.length;
+    }
+  } catch (e) {
+    console.warn("[acomp-especial] andamentos:", (e as Error).message);
+  }
+
+  return resumo;
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -232,6 +425,15 @@ serve(async (req) => {
       const tribunal = rd.tribunal_acronym || rd.tribunal || rd.court || null;
       const instancia = rd.instance || rd.instancia || null;
 
+      // Grava tudo como se o botão Judit tivesse sido clicado (sem sobrescrever
+      // o que o advogado digitou) e detecta divergências para aviso no painel.
+      let sync: any = null;
+      try {
+        sync = await sincronizarProcessoComJudit(supabase, p.id, cnj, payload, execId);
+      } catch (e) {
+        console.warn("[acomp-especial] sync judit falhou:", (e as Error).message);
+      }
+
       const ultimoConhecido = p.acompanhamento_ultimo_step_date
         ? new Date(p.acompanhamento_ultimo_step_date).getTime()
         : 0;
@@ -381,7 +583,7 @@ serve(async (req) => {
         })
         .eq("id", p.id);
 
-      resultados.push({ processo_id: p.id, novos, total_steps: steps.length });
+      resultados.push({ processo_id: p.id, numero: cnj, novos, total_steps: steps.length, sync });
     } catch (e: any) {
       resultados.push({ processo_id: p.id, erro: e?.message ?? String(e) });
     }

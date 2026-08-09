@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      acompanhamento_especial_divergencias: {
+        Row: {
+          campo: string
+          created_at: string
+          detectado_em: string
+          execucao_id: string | null
+          id: string
+          processo_id: string
+          processo_numero: string | null
+          resolvido_em: string | null
+          resolvido_por: string | null
+          valor_atual: string | null
+          valor_judit: string | null
+        }
+        Insert: {
+          campo: string
+          created_at?: string
+          detectado_em?: string
+          execucao_id?: string | null
+          id?: string
+          processo_id: string
+          processo_numero?: string | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          valor_atual?: string | null
+          valor_judit?: string | null
+        }
+        Update: {
+          campo?: string
+          created_at?: string
+          detectado_em?: string
+          execucao_id?: string | null
+          id?: string
+          processo_id?: string
+          processo_numero?: string | null
+          resolvido_em?: string | null
+          resolvido_por?: string | null
+          valor_atual?: string | null
+          valor_judit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acompanhamento_especial_divergencias_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       acompanhamento_especial_eventos: {
         Row: {
           anexos_count: number
