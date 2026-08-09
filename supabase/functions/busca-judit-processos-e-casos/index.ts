@@ -307,6 +307,10 @@ function extrairDataRecebimento(rd: any): string | null {
 }
 
 function stripAttachments(value: any): any {
+  return stripAttachmentsInner(value);
+}
+
+function stripAttachmentsInner(value: any): any {
   if (Array.isArray(value)) return value.map(stripAttachments);
   if (value && typeof value === "object") {
     const out: any = {};
@@ -338,7 +342,7 @@ serve(async (req) => {
     const digitos = normalizarDigitosCnj(numero.replace(/\D/g, ""));
     if (!digitos) return json({ error: `CNJ inválido: ${numero}` }, 200);
     const cnj = `${digitos.slice(0,7)}-${digitos.slice(7,9)}.${digitos.slice(9,13)}.${digitos.slice(13,14)}.${digitos.slice(14,16)}.${digitos.slice(16,20)}`;
-    console.log(`[judit-processo-interno] cnj=${cnj} cache_ttl=${cacheTtl}d`);
+    console.log(`[busca-judit-processos-e-casos] cnj=${cnj} cache_ttl=${cacheTtl}d`);
 
     const raw: { cache_lookup: any; crawler: any } = { cache_lookup: null, crawler: null };
     const cached = await juditCache(apiKey, cnj);
@@ -373,6 +377,10 @@ serve(async (req) => {
     const data_recebimento = extrairDataRecebimento(rd);
     const data_citacao = extrairDataCitacao(rd);
     const valor_causa = rd?.amount != null ? Number(rd.amount) : (rd?.value != null ? Number(rd.value) : null);
+
+    // ---- Andamentos normalizados (aba Andamentos) ----------------------------
+    const movimentacoes = extrairMovimentacoes(raw.crawler?.page_data || [], cached);
+    console.log(`[busca-judit-processos-e-casos] andamentos normalizados: ${movimentacoes.length}`);
 
     const justica = justicaPorTribunal(tribAcr);
     const esfera = esferaPorTribunal(tribAcr);
@@ -463,6 +471,9 @@ serve(async (req) => {
       data_distribuicao_br: isoToBR(rd?.distribution_date),
       // Financeiro
       valor_causa,
+      // Andamentos
+      movimentacoes,
+      total_movimentacoes: movimentacoes.length,
       // Extras
       advogados,
       parties_detail,
@@ -477,10 +488,10 @@ serve(async (req) => {
       attachments,
     };
 
-    console.log(`[judit-processo-interno] ${cnj} -> tribunal=${tribAcr} classe=${classe} status=${status}`);
+    console.log(`[busca-judit-processos-e-casos] ${cnj} -> tribunal=${tribAcr} classe=${classe} status=${status} andamentos=${movimentacoes.length}`);
     return json(result, 200);
   } catch (e) {
-    console.error("[judit-processo-interno] erro:", e);
+    console.error("[busca-judit-processos-e-casos] erro:", e);
     return json({ error: (e as Error).message || "Erro interno" }, 200);
   }
 });
