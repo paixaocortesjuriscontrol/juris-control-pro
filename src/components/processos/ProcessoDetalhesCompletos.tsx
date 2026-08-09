@@ -223,6 +223,36 @@ export function ProcessoDetalhesCompletos({
   const [activeSection, setActiveSection] = useState<string>(initialSection || "resumo");
   const [juditNovoDestaque, setJuditNovoDestaque] = useState(false);
 
+  // Sinaliza (fonte verde no nome da aba) quais seções têm dados vindos da Judit.
+  const { data: juditFlags } = useQuery({
+    queryKey: ["judit-flags-processo", processo?.id],
+    enabled: !!processo?.id,
+    queryFn: async () => {
+      const [partes, consultas] = await Promise.all([
+        supabase
+          .from("processos_partes" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("processo_id", processo.id)
+          .eq("fonte", "judit"),
+        supabase
+          .from("consultas_judit" as any)
+          .select("id", { count: "exact", head: true })
+          .eq("processo_id", processo.id),
+      ]);
+      return { partes: (partes.count || 0) > 0, analise: (consultas.count || 0) > 0 };
+    },
+  });
+
+  const juditCamposCount = Array.isArray((processo as any)?.judit_campos)
+    ? (processo as any).judit_campos.length
+    : 0;
+  const juditSecoes: Record<string, boolean> = {
+    resumo: juditCamposCount > 0,
+    andamentos: (movimentacoes || []).some((m: any) => String(m?.fonte || "").startsWith("judit")),
+    partes: !!juditFlags?.partes,
+    "analise-judit": !!juditFlags?.analise,
+  };
+
   // Ref para o formulário Resumo — permite autosave ao trocar de seção
   const visaoGeralRef = useRef<ProcessoVisaoGeralFormHandle>(null);
   const handleSectionChange = (next: string) => {
