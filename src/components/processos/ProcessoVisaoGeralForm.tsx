@@ -622,9 +622,14 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       if (error) throw error;
       if (data?.error) { toast.error(data.error); return; }
 
-      const veioDoCache = (data as any)?._judit_meta?.respondido_do_cache === true;
-      if (veioDoCache) {
-        toast.success("Judit (cache) — atualizando em segundo plano");
+      const meta: any = (data as any)?._judit_meta || {};
+      const segundos = meta.elapsed_ms ? ` (${(meta.elapsed_ms / 1000).toFixed(1)}s)` : "";
+      if (meta.origem === "cache") {
+        toast.success(`Judit (cache) — resposta imediata${segundos}. Atualizando em segundo plano.`);
+      } else if (meta.parcial) {
+        toast.warning(`Judit atualizada pelo crawler${segundos} — resultado parcial, tente novamente em instantes.`);
+      } else {
+        toast.success(`Judit atualizada pelo crawler${segundos}.`);
       }
 
       const { data: userData } = await supabase.auth.getUser();
