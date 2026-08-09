@@ -112,6 +112,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState, useEffect, useRef } from "react";
 import { Database } from "@/integrations/supabase/types";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { filtrarItensPorCoordenacao } from "@/lib/escopoCoordenacaoItens";
 
 type StatusProcesso = Database["public"]["Enums"]["status_processo"];
 type AreaAtuacao = Database["public"]["Enums"]["area_atuacao"];
