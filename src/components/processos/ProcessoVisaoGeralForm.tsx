@@ -554,6 +554,42 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
    * bloco bruto reaproveitado). Não insere duplicados: compara data + descrição
    * com o que já existe em `movimentacoes`.
    */
+  /**
+   * Grava/atualiza em `processos_partes` todas as partes E os advogados
+   * (inclusive os aninhados em `parties[].lawyers`) do payload Judit.
+   */
+  const persistirPartesJudit = async (processoId: string, payload: any, uid: string | null) => {
+    try {
+      const partes = extrairPartesDoJuditRaw(payload);
+      if (!partes.length) return 0;
+      await supabase.from("processos_partes" as any).delete().eq("processo_id", processoId).eq("fonte", "judit");
+      const rows = partes.map((p) => ({
+        processo_id: processoId,
+        nome: p.nome,
+        documento: p.documento,
+        tipo_pessoa: p.tipo_pessoa,
+        polo: p.polo,
+        lado_efetivo: p.lado_efetivo,
+        is_advogado: p.is_advogado,
+        fonte: "judit",
+        raw: { ...(p.raw || {}), advogado_de: p.advogado_de, oab: p.oab },
+        created_by: uid,
+      }));
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error } = await supabase.from("processos_partes" as any).insert(rows.slice(i, i + 200) as any);
+        if (error) throw error;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["processos_partes", processoId] });
+      await queryClient.invalidateQueries({ queryKey: ["processo-partes", processoId] });
+      const advs = rows.filter((r) => r.is_advogado).length;
+      toast.success(`${rows.length} parte(s) gravada(s) — ${advs} advogado(s).`);
+      return rows.length;
+    } catch (e: any) {
+      console.warn("Falha ao gravar partes da Judit:", e?.message || e);
+      return 0;
+    }
+  };
+
   const persistirMovimentacoesJudit = async (processoId: string, payload: any) => {
     try {
       const steps = extrairStepsDoJuditRaw(payload);
