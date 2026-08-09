@@ -274,7 +274,7 @@ export default function ProcessoDetalhes() {
 
   // Audiências query - carrega sempre pois é usada no card de pendências
   const { data: audiencias = [], isLoading: loadingAudiencias } = useQuery<AudienciaProcessoItem[]>({
-    queryKey: ["audiencias-processo", id, processo?.numero],
+    queryKey: ["audiencias-processo", id, processo?.numero, isAdminEscopo, coordenacoesEscopo],
     queryFn: async () => {
       const [porProcessoId, porNumeroProcesso] = await Promise.all([
         supabase
@@ -320,7 +320,11 @@ export default function ProcessoDetalhes() {
         });
       }
 
-      const deduplicadas = Array.from(audienciasAgrupadas.values());
+      const deduplicadas = filtrarItensPorCoordenacao(
+        Array.from(audienciasAgrupadas.values()),
+        isAdminEscopo,
+        coordenacoesEscopo
+      );
       deduplicadas.sort((a, b) => {
         const dateA = a.data_audiencia ? new Date(a.data_audiencia).getTime() : 0;
         const dateB = b.data_audiencia ? new Date(b.data_audiencia).getTime() : 0;
@@ -351,7 +355,7 @@ export default function ProcessoDetalhes() {
 
   // Tarefas query - carrega sempre pois é usada no card de pendências
   const { data: tarefas = [], isLoading: loadingTarefas } = useQuery({
-    queryKey: ["tarefas-processo", id],
+    queryKey: ["tarefas-processo", id, isAdminEscopo, coordenacoesEscopo],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tarefas")
@@ -363,7 +367,7 @@ export default function ProcessoDetalhes() {
         .order("data_vencimento", { ascending: true });
 
       if (error) throw error;
-      return data || [];
+      return filtrarItensPorCoordenacao(data || [], isAdminEscopo, coordenacoesEscopo);
     },
     enabled: !!id && !isNovo,
   });

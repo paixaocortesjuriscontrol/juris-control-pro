@@ -104,8 +104,8 @@ const Processos = () => {
 
   const isAdmin = userCoordData?.isAdmin ?? false;
   const userCoordsIds = userCoordData?.coordenacoesIds ?? [];
-  // Usuário tem acesso a "Todas" somente se for admin ou tiver mais de uma coordenação
-  const canSelectAll = isAdmin || userCoordsIds.length > 1;
+  // Processos são visíveis para todas as coordenações — "Todas" liberado a todos
+  const canSelectAll = true;
   
   // Ler filtros da URL na inicialização
   const urlCoordParam = searchParams.get("coordenacao");
@@ -333,10 +333,6 @@ const Processos = () => {
     area: tipoProcessoFilter === "caso" ? "caso" : areaFilter,
     status: statusFilter,
     coordenacao_id: coordenacaoFilter,
-    // Para não-admins com "Todas" selecionado, restringir às coordenações do usuário
-    coordenacoesRestritas: !isAdmin && coordenacaoFilter === "all" && userCoordsIds.length > 1
-      ? userCoordsIds
-      : undefined,
     responsavel_id: filtrosAplicados.responsavelId,
     instancia: filtrosAplicados.instancia,
     comMovimento: comAndamentos,
