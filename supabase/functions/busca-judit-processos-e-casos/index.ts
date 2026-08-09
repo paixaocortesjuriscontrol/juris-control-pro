@@ -307,10 +307,6 @@ function extrairDataRecebimento(rd: any): string | null {
 }
 
 function stripAttachments(value: any): any {
-  return stripAttachmentsInner(value);
-}
-
-function stripAttachmentsInner(value: any): any {
   if (Array.isArray(value)) return value.map(stripAttachments);
   if (value && typeof value === "object") {
     const out: any = {};
@@ -321,6 +317,41 @@ function stripAttachmentsInner(value: any): any {
     return out;
   }
   return value;
+}
+
+// Normaliza os andamentos (steps) de TODAS as instâncias devolvidas pela Judit.
+// Deduplica por data + descrição para não repetir movimentos entre instâncias.
+function extrairMovimentacoes(pageData: any[], cached: any): any[] {
+  const fontes: any[] = [];
+  if (cached) fontes.push(cached);
+  for (const it of pageData || []) {
+    if (it?.response_data) fontes.push(it.response_data);
+  }
+  const out: any[] = [];
+  const seen = new Set<string>();
+  for (const rd of fontes) {
+    const steps = Array.isArray(rd?.steps) ? rd.steps : [];
+    for (const s of steps) {
+      const data = isoToInput(s?.step_date || s?.date || s?.movement_date);
+      const bruto = s?.content ?? s?.title ?? s?.description ?? "";
+      const descricao = (typeof bruto === "string" ? bruto : JSON.stringify(bruto)).trim();
+      if (!data || !descricao) continue;
+      const key = `${data}|${descricao}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        data,
+        descricao,
+        codigo: s?.step_code ?? s?.code ?? s?.movement_code ?? null,
+        instancia: rd?.instance != null ? String(rd.instance) : null,
+        tribunal: rd?.tribunal_acronym || null,
+        raw: s,
+      });
+    }
+  }
+  // Mais recentes primeiro
+  out.sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0));
+  return out;
 }
 
 // ---------- Handler -----------------------------------------------------------
