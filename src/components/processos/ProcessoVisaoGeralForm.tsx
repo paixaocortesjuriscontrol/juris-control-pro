@@ -676,6 +676,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       // Grava os andamentos retornados na aba "Andamentos" (sem custo adicional).
       if (processo?.id) {
         await persistirMovimentacoesJudit(processo.id, data);
+        const { data: u2 } = await supabase.auth.getUser();
+        await persistirPartesJudit(processo.id, data, u2?.user?.id || null);
       }
 
       // Persiste anexos quando solicitado
@@ -953,25 +955,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       }
 
       // Partes
-      const partes = Array.isArray((data as any)?.parties_detail) ? (data as any).parties_detail : [];
-      await supabase.from("processos_partes" as any).delete().eq("processo_id", processo.id).eq("fonte", "judit");
-      if (partes.length > 0) {
-        const rows = partes.map((p: any) => ({
-          processo_id: processo.id,
-          nome: String(p?.nome || "").trim(),
-          documento: p?.documento || null,
-          tipo_pessoa: p?.tipo_pessoa || null,
-          polo: p?.polo || null,
-          lado_efetivo: p?.lado_efetivo || null,
-          is_advogado: !!p?.is_advogado,
-          fonte: "judit",
-          raw: p,
-          created_by: uid,
-        })).filter((r: any) => r.nome);
-        if (rows.length > 0) {
-          await supabase.from("processos_partes" as any).insert(rows);
-        }
-      }
+      await persistirPartesJudit(processo.id, data, uid);
 
       // Andamentos → aba Andamentos (usa o payload já obtido, sem nova cobrança)
       await persistirMovimentacoesJudit(processo.id, data);
