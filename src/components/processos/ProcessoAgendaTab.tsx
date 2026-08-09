@@ -44,6 +44,8 @@ import { cn } from "@/lib/utils";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { filtrarItensPorCoordenacao } from "@/lib/escopoCoordenacaoItens";
 
 interface ProcessoAgendaTabProps {
   processoId: string;
@@ -71,6 +73,8 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
   const queryClient = useQueryClient();
   const updateEvento = useUpdateEvento();
   const deleteEvento = useDeleteEvento();
+  const { isAdmin, coordenacoes: coordenacoesUsuario } = useCoordenacoesDoUsuario();
+  const coordenacoesIds = coordenacoesUsuario.map((c) => c.id);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [parcelasDialogOpen, setParcelasDialogOpen] = useState(false);
@@ -81,7 +85,7 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
 
   // Buscar eventos vinculados ao processo
   const { data: eventos, isLoading } = useQuery({
-    queryKey: ["eventos-processo", processoId],
+    queryKey: ["eventos-processo", processoId, isAdmin, coordenacoesIds],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("eventos_agenda")
@@ -94,15 +98,21 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
 
       if (error) throw error;
 
+      // Itens de agenda são privados por coordenação, mesmo em processos
+      // compartilhados entre coordenações.
+      const escopo = (lista: any[]) =>
+        filtrarItensPorCoordenacao(lista, isAdmin, coordenacoesIds);
+
       // Buscar participantes
-      if (data && data.length > 0) {
-        const eventIds = data.map((e) => e.id);
+      const visiveis = escopo(data || []);
+      if (visiveis.length > 0) {
+        const eventIds = visiveis.map((e) => e.id);
         const { data: participantes } = await supabase
           .from("participantes_evento")
           .select("evento_id, usuario_id")
           .in("evento_id", eventIds);
 
-        const eventsWithParticipants = data.map((evento) => ({
+        const eventsWithParticipants = visiveis.map((evento) => ({
           ...evento,
           participantes:
             participantes?.filter((p) => p.evento_id === evento.id) || [],
@@ -121,26 +131,31 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
         return [...futureEvents, ...pastEvents] as EventoAgenda[];
       }
 
-      return data as EventoAgenda[];
+      return visiveis as EventoAgenda[];
     },
     enabled: !!processoId,
   });
 
   // Buscar parcelas vinculadas a eventos de parcelamento deste processo
   const { data: parcelas } = useQuery({
-    queryKey: ["parcelas-processo", processoId],
+    queryKey: ["parcelas-processo", processoId, isAdmin, coordenacoesIds],
     queryFn: async () => {
       // Primeiro buscar eventos de parcelamento do processo
       const { data: eventosParcelamento, error: evError } = await supabase
         .from("eventos_agenda")
-        .select("id, titulo")
+        .select("id, titulo, coordenacao_id")
         .eq("processo_id", processoId)
         .eq("tipo", "parcelamento");
 
       if (evError) throw evError;
       if (!eventosParcelamento || eventosParcelamento.length === 0) return [];
 
-      const eventIds = eventosParcelamento.map((e) => e.id);
+      const eventIds = filtrarItensPorCoordenacao(
+        eventosParcelamento as any[],
+        isAdmin,
+        coordenacoesIds
+      ).map((e: any) => e.id);
+      if (eventIds.length === 0) return [];
 
       const { data, error } = await supabase
         .from("parcelas_evento")
