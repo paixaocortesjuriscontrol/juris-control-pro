@@ -37,6 +37,7 @@ import type { NovoItemTipo } from "@/components/shared/NovoItemPanel";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
+import { extrairCamposDoJuditRaw, extrairStepsDoJuditRaw } from "@/lib/juditRawCampos";
 import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
@@ -549,6 +550,55 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   };
 
   /**
+   * Grava na aba "Andamentos" os movimentos vindos da Judit (payload novo ou
+   * bloco bruto reaproveitado). Não insere duplicados: compara data + descrição
+   * com o que já existe em `movimentacoes`.
+   */
+  const persistirMovimentacoesJudit = async (processoId: string, payload: any) => {
+    try {
+      const steps = extrairStepsDoJuditRaw(payload);
+      if (!steps.length) return 0;
+
+      const { data: existentes } = await supabase
+        .from("movimentacoes")
+        .select("data_movimentacao, descricao")
+        .eq("processo_id", processoId)
+        .limit(5000);
+      const jaTem = new Set(
+        ((existentes as any[]) || []).map(
+          (m) => `${String(m.data_movimentacao || "").substring(0, 10)}|${String(m.descricao || "").trim()}`,
+        ),
+      );
+
+      const rows = steps
+        .filter((s) => !jaTem.has(`${s.data}|${s.descricao}`))
+        .map((s) => ({
+          processo_id: processoId,
+          data_movimentacao: `${s.data}T12:00:00.000Z`,
+          descricao: s.descricao,
+          tipo: null,
+          fonte: "judit",
+          codigo: s.codigo != null ? String(s.codigo) : null,
+          raw: s.raw ?? null,
+        }));
+      if (!rows.length) return 0;
+
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error } = await supabase.from("movimentacoes").insert(rows.slice(i, i + 200) as any);
+        if (error) throw error;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["movimentacoes-processo", processoId] });
+      await queryClient.invalidateQueries({ queryKey: ["movimentacoes-processo"] });
+      await queryClient.invalidateQueries({ queryKey: ["recent-movimentacoes"] });
+      toast.success(`${rows.length} andamento(s) gravado(s) na aba Andamentos.`);
+      return rows.length;
+    } catch (e: any) {
+      console.warn("Falha ao gravar andamentos da Judit:", e?.message || e);
+      return 0;
+    }
+  };
+
+  /**
    * Consulta Judit apenas para alimentar a aba "Análise Judit" (e opcionalmente
    * a aba "Anexos"). NÃO altera o formulário nem grava em `processos` /
    * `processos_partes`. O preenchimento do formulário só acontece quando o
@@ -562,11 +612,10 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     }
     if (comAnexos) setSyncingAnexos(true); else setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("buscar-judit", {
+      const { data, error } = await supabase.functions.invoke("busca-judit-processos-e-casos", {
         body: {
           numero_processo: numeroLimpo,
-          tribunal: "TST",
-          com_anexos: comAnexos,
+          with_attachments: comAnexos,
           force_refresh: forceRefresh || comAnexos,
         },
       });
@@ -597,14 +646,19 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       try {
         await supabase.from("judit_logs" as any).insert({
           processo_numero: numeroLimpo,
-          tribunal: "TST",
-          request_payload: { numero_processo: numeroLimpo, tribunal: "TST", com_anexos: comAnexos, force_refresh: true },
+          tribunal: (data as any)?.tribunal || null,
+          request_payload: { numero_processo: numeroLimpo, fonte: "busca-judit-processos-e-casos", with_attachments: comAnexos, force_refresh: true },
           raw_response: data,
           status: "sucesso",
           error_message: null,
           created_by: uid,
       });
       } catch (_) { /* noop */ }
+
+      // Grava os andamentos retornados na aba "Andamentos" (sem custo adicional).
+      if (processo?.id) {
+        await persistirMovimentacoesJudit(processo.id, data);
+      }
 
       // Persiste anexos quando solicitado
       if (comAnexos) {
@@ -753,7 +807,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           );
           return false;
         }
-        const resp = await supabase.functions.invoke("judit-processo-interno", {
+        const resp = await supabase.functions.invoke("busca-judit-processos-e-casos", {
           body: { numero_processo: numeroLimpo, force_refresh: true, with_attachments: comAnexos },
         });
         if (resp.error) throw resp.error;
@@ -780,6 +834,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         if (vazio) apply(field, value);
       };
       const d: any = data || {};
+      // Campos derivados do bloco BRUTO (`_judit_raw`): cobre payloads antigos
+      // (buscar-judit / TST) que não traziam valor da causa, comarca, vara etc.
+      const rawFields = extrairCamposDoJuditRaw(d);
       const partesJudit = Array.isArray(d.parties_detail) ? d.parties_detail : [];
       const nomesPorTipo = (re: RegExp) =>
         [...new Set(
@@ -801,20 +858,28 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       applyIfEmpty("reclamados", reclamadaJ);
       applyIfEmpty("polo_ativo", reclamanteJ);
       applyIfEmpty("polo_passivo", reclamadaJ);
-      applyIfEmpty("tribunal", d.tribunal || d.tribunal_acronimo);
-      applyIfEmpty("classe", d.classe_capa || d.classe);
-      applyIfEmpty("orgao_julgador", d.orgao_julgador);
-      applyIfEmpty("assunto", d.assunto);
-      applyIfEmpty("comarca", d.comarca);
-      applyIfEmpty("vara", d.vara);
-      applyIfEmpty("uf", d.uf);
-      applyIfEmpty("instancia", d.instancia);
-      applyIfEmpty("data_distribuicao", d.data_distribuicao || d.distribution_date);
-      applyIfEmpty("valor_causa", d.valor_causa);
-      applyIfEmpty("fase", d.fase || d.situacao_processo);
-      applyIfEmpty("status", d.status_processo);
+      applyIfEmpty("tribunal", d.tribunal || d.tribunal_acronimo || rawFields.tribunal);
+      applyIfEmpty("classe", d.classe_capa || d.classe || rawFields.classe);
+      applyIfEmpty("natureza", d.natureza || rawFields.natureza);
+      applyIfEmpty("orgao_julgador", d.orgao_julgador || rawFields.orgao_julgador);
+      applyIfEmpty("assunto", d.assunto || rawFields.assunto);
+      applyIfEmpty("materia", d.materia || rawFields.materia);
+      applyIfEmpty("comarca", d.comarca || rawFields.comarca);
+      applyIfEmpty("vara", d.vara || rawFields.vara);
+      applyIfEmpty("uf", d.uf || rawFields.uf);
+      applyIfEmpty("instancia", d.instancia || rawFields.instancia);
+      applyIfEmpty("justica", d.justica || rawFields.justica);
+      applyIfEmpty("esfera", d.esfera || rawFields.esfera);
+      applyIfEmpty("area", d.area || rawFields.area);
+      applyIfEmpty("sistema", d.sistema || rawFields.sistema);
+      applyIfEmpty("data_distribuicao", d.data_distribuicao || d.distribution_date || rawFields.data_distribuicao);
+      applyIfEmpty("data_citacao", d.data_citacao || rawFields.data_citacao);
+      applyIfEmpty("data_recebimento", d.data_recebimento || rawFields.data_recebimento);
+      applyIfEmpty("valor_causa", d.valor_causa ?? rawFields.valor_causa);
+      applyIfEmpty("fase", d.fase || d.situacao_processo || rawFields.fase);
+      applyIfEmpty("status", d.status_processo || d.status || rawFields.status);
       // Quando a Judit retornou tribunal, marcamos o processo como Judicial.
-      if (data?.tribunal || data?.tribunal_acronimo) {
+      if (data?.tribunal || data?.tribunal_acronimo || rawFields.tribunal) {
         apply("tipo_processo", "judicial");
       }
       setForm(next);
@@ -828,7 +893,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
             await supabase.from("judit_logs" as any).insert({
               processo_numero: numeroLimpo,
               tribunal: data?.tribunal || null,
-              request_payload: { numero_processo: numeroLimpo, fonte: "judit-processo-interno", with_attachments: comAnexos },
+              request_payload: { numero_processo: numeroLimpo, fonte: "busca-judit-processos-e-casos", with_attachments: comAnexos },
               raw_response: data,
               status: "sucesso",
               error_message: null,
@@ -860,7 +925,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           await supabase.from("judit_logs" as any).insert({
             processo_numero: numeroLimpo,
             tribunal: data?.tribunal || null,
-            request_payload: { numero_processo: numeroLimpo, fonte: "judit-processo-interno", with_attachments: comAnexos },
+            request_payload: { numero_processo: numeroLimpo, fonte: "busca-judit-processos-e-casos", with_attachments: comAnexos },
             raw_response: data,
             status: "sucesso",
             error_message: null,
@@ -889,6 +954,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           await supabase.from("processos_partes" as any).insert(rows);
         }
       }
+
+      // Andamentos → aba Andamentos (usa o payload já obtido, sem nova cobrança)
+      await persistirMovimentacoesJudit(processo.id, data);
 
       // Persiste anexos quando solicitado (mesma lógica do "Judit c/ anexos" anterior)
       if (comAnexos) {
