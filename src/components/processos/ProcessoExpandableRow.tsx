@@ -375,6 +375,21 @@ export function ProcessoExpandableRow({
                 {processo.vara || "Não informado"}
               </div>
             </div>
+            {(extras?.coordenacoes?.length ?? 0) > 0 && (
+              <div>
+                <div className="text-[11px] text-muted-foreground leading-tight">
+                  {extras!.coordenacoes.length > 1 ? "Coordenações responsáveis" : "Coordenação responsável"}
+                </div>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {extras!.coordenacoes.map((nome) => (
+                    <Badge key={nome} variant="outline" className="text-[10px] px-1.5 py-0 font-normal">
+                      <Users className="w-2.5 h-2.5 mr-1" />
+                      {nome}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Counts row (across all columns) */}
