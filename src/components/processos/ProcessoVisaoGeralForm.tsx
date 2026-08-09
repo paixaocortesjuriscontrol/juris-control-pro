@@ -806,7 +806,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           );
           return false;
         }
-        const resp = await supabase.functions.invoke("judit-processo-interno", {
+        const resp = await supabase.functions.invoke("busca-judit-processos-e-casos", {
           body: { numero_processo: numeroLimpo, force_refresh: true, with_attachments: comAnexos },
         });
         if (resp.error) throw resp.error;
@@ -833,6 +833,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         if (vazio) apply(field, value);
       };
       const d: any = data || {};
+      // Campos derivados do bloco BRUTO (`_judit_raw`): cobre payloads antigos
+      // (buscar-judit / TST) que não traziam valor da causa, comarca, vara etc.
+      const rawFields = extrairCamposDoJuditRaw(d);
       const partesJudit = Array.isArray(d.parties_detail) ? d.parties_detail : [];
       const nomesPorTipo = (re: RegExp) =>
         [...new Set(
@@ -854,20 +857,28 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       applyIfEmpty("reclamados", reclamadaJ);
       applyIfEmpty("polo_ativo", reclamanteJ);
       applyIfEmpty("polo_passivo", reclamadaJ);
-      applyIfEmpty("tribunal", d.tribunal || d.tribunal_acronimo);
-      applyIfEmpty("classe", d.classe_capa || d.classe);
-      applyIfEmpty("orgao_julgador", d.orgao_julgador);
-      applyIfEmpty("assunto", d.assunto);
-      applyIfEmpty("comarca", d.comarca);
-      applyIfEmpty("vara", d.vara);
-      applyIfEmpty("uf", d.uf);
-      applyIfEmpty("instancia", d.instancia);
-      applyIfEmpty("data_distribuicao", d.data_distribuicao || d.distribution_date);
-      applyIfEmpty("valor_causa", d.valor_causa);
-      applyIfEmpty("fase", d.fase || d.situacao_processo);
-      applyIfEmpty("status", d.status_processo);
+      applyIfEmpty("tribunal", d.tribunal || d.tribunal_acronimo || rawFields.tribunal);
+      applyIfEmpty("classe", d.classe_capa || d.classe || rawFields.classe);
+      applyIfEmpty("natureza", d.natureza || rawFields.natureza);
+      applyIfEmpty("orgao_julgador", d.orgao_julgador || rawFields.orgao_julgador);
+      applyIfEmpty("assunto", d.assunto || rawFields.assunto);
+      applyIfEmpty("materia", d.materia || rawFields.materia);
+      applyIfEmpty("comarca", d.comarca || rawFields.comarca);
+      applyIfEmpty("vara", d.vara || rawFields.vara);
+      applyIfEmpty("uf", d.uf || rawFields.uf);
+      applyIfEmpty("instancia", d.instancia || rawFields.instancia);
+      applyIfEmpty("justica", d.justica || rawFields.justica);
+      applyIfEmpty("esfera", d.esfera || rawFields.esfera);
+      applyIfEmpty("area", d.area || rawFields.area);
+      applyIfEmpty("sistema", d.sistema || rawFields.sistema);
+      applyIfEmpty("data_distribuicao", d.data_distribuicao || d.distribution_date || rawFields.data_distribuicao);
+      applyIfEmpty("data_citacao", d.data_citacao || rawFields.data_citacao);
+      applyIfEmpty("data_recebimento", d.data_recebimento || rawFields.data_recebimento);
+      applyIfEmpty("valor_causa", d.valor_causa ?? rawFields.valor_causa);
+      applyIfEmpty("fase", d.fase || d.situacao_processo || rawFields.fase);
+      applyIfEmpty("status", d.status_processo || d.status || rawFields.status);
       // Quando a Judit retornou tribunal, marcamos o processo como Judicial.
-      if (data?.tribunal || data?.tribunal_acronimo) {
+      if (data?.tribunal || data?.tribunal_acronimo || rawFields.tribunal) {
         apply("tipo_processo", "judicial");
       }
       setForm(next);
