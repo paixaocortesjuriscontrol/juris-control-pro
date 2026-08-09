@@ -1009,7 +1009,7 @@ export function ProcessoDetalhesCompletos({
                       )}
                     >
                       <item.icon className={cn("w-3 h-3 flex-shrink-0", !destacarJudit && activeSection !== item.id && item.iconColor)} />
-                      <span>{item.label}</span>
+                      <span className={cn(!destacarJudit && activeSection !== item.id && juditSecoes[item.id] && "text-emerald-600 dark:text-emerald-400 font-semibold")}>{item.label}</span>
                       {item.count !== undefined && item.count > 0 && (
                         <Badge variant="secondary" className="ml-1 text-[8px] h-3.5 px-1 min-w-[14px] flex items-center justify-center bg-background/80">
                           {item.count}
@@ -1055,7 +1055,7 @@ export function ProcessoDetalhesCompletos({
                       )}
                     >
                       <item.icon className={cn("w-3.5 h-3.5 flex-shrink-0", !destacarJudit && activeSection !== item.id && item.iconColor)} />
-                      <span className="truncate">{item.label}</span>
+                      <span className={cn("truncate", !destacarJudit && activeSection !== item.id && juditSecoes[item.id] && "text-emerald-600 dark:text-emerald-400 font-semibold")}>{item.label}</span>
                       {item.count !== undefined && item.count > 0 && (
                         <Badge variant="secondary" className="ml-auto text-[9px] h-4 px-1 min-w-[16px] flex items-center justify-center">
                           {item.count}
