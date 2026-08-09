@@ -517,30 +517,8 @@ export function PendenciasProcessoCard({
           </div>
         )}
 
-        {/* Últimos Andamentos */}
-        {movimentacoesRecentes.length > 0 && (
-          <div className="space-y-2 pt-2 border-t border-border/50">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              <FileText className="w-3.5 h-3.5" />
-              Últimos Andamentos
-            </div>
-            {movimentacoesRecentes.map((mov) => (
-              <div key={mov.id} className="text-xs p-2 bg-muted/30 rounded-lg border border-border/30">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-foreground font-medium line-clamp-2">
-                    {mov.tipo || mov.descricao?.substring(0, 80)}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground shrink-0 mt-0.5">
-                    {formatDate(mov.data_movimentacao)}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
         {/* Sem pendências */}
-        {totalPendencias === 0 && movimentacoesRecentes.length === 0 && (
+        {totalPendencias === 0 && (
           <div className="text-center py-6 text-muted-foreground">
             <AlertTriangle className="w-8 h-8 mx-auto mb-2 opacity-20" />
             <p className="text-xs">Nenhuma pendência registrada</p>
