@@ -37,7 +37,7 @@ import type { NovoItemTipo } from "@/components/shared/NovoItemPanel";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
-import { extrairCamposDoJuditRaw, extrairStepsDoJuditRaw } from "@/lib/juditRawCampos";
+import { extrairCamposDoJuditRaw, extrairStepsDoJuditRaw, extrairPartesDoJuditRaw } from "@/lib/juditRawCampos";
 import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
@@ -452,30 +452,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       // Atualiza partes vindas da Judit em processos_partes
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData?.user?.id || null;
-      await supabase
-        .from("processos_partes" as any)
-        .delete()
-        .eq("processo_id", processo.id)
-        .eq("fonte", "judit");
-      if (partes.length > 0) {
-        const rows = partes
-          .map((p: any) => ({
-            processo_id: processo.id,
-            nome: String(p?.nome || "").trim(),
-            documento: p?.documento || null,
-            tipo_pessoa: p?.tipo_pessoa || null,
-            polo: p?.polo || null,
-            lado_efetivo: p?.lado_efetivo || null,
-            is_advogado: !!p?.is_advogado,
-            fonte: "judit",
-            raw: p,
-            created_by: uid,
-          }))
-          .filter((r: any) => r.nome);
-        if (rows.length > 0) {
-          await supabase.from("processos_partes" as any).insert(rows);
-        }
-      }
+      await persistirPartesJudit(processo.id, data, uid);
 
       // Log
       await supabase.from("consultas_judit").insert({
@@ -554,6 +531,42 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
    * bloco bruto reaproveitado). Não insere duplicados: compara data + descrição
    * com o que já existe em `movimentacoes`.
    */
+  /**
+   * Grava/atualiza em `processos_partes` todas as partes E os advogados
+   * (inclusive os aninhados em `parties[].lawyers`) do payload Judit.
+   */
+  const persistirPartesJudit = async (processoId: string, payload: any, uid: string | null) => {
+    try {
+      const partes = extrairPartesDoJuditRaw(payload);
+      if (!partes.length) return 0;
+      await supabase.from("processos_partes" as any).delete().eq("processo_id", processoId).eq("fonte", "judit");
+      const rows = partes.map((p) => ({
+        processo_id: processoId,
+        nome: p.nome,
+        documento: p.documento,
+        tipo_pessoa: p.tipo_pessoa,
+        polo: p.polo,
+        lado_efetivo: p.lado_efetivo,
+        is_advogado: p.is_advogado,
+        fonte: "judit",
+        raw: { ...(p.raw || {}), advogado_de: p.advogado_de, oab: p.oab },
+        created_by: uid,
+      }));
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error } = await supabase.from("processos_partes" as any).insert(rows.slice(i, i + 200) as any);
+        if (error) throw error;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["processos_partes", processoId] });
+      await queryClient.invalidateQueries({ queryKey: ["processo-partes", processoId] });
+      const advs = rows.filter((r) => r.is_advogado).length;
+      toast.success(`${rows.length} parte(s) gravada(s) — ${advs} advogado(s).`);
+      return rows.length;
+    } catch (e: any) {
+      console.warn("Falha ao gravar partes da Judit:", e?.message || e);
+      return 0;
+    }
+  };
+
   const persistirMovimentacoesJudit = async (processoId: string, payload: any) => {
     try {
       const steps = extrairStepsDoJuditRaw(payload);
@@ -663,6 +676,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       // Grava os andamentos retornados na aba "Andamentos" (sem custo adicional).
       if (processo?.id) {
         await persistirMovimentacoesJudit(processo.id, data);
+        await persistirPartesJudit(processo.id, data, uid);
       }
 
       // Persiste anexos quando solicitado
@@ -940,25 +954,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       }
 
       // Partes
-      const partes = Array.isArray((data as any)?.parties_detail) ? (data as any).parties_detail : [];
-      await supabase.from("processos_partes" as any).delete().eq("processo_id", processo.id).eq("fonte", "judit");
-      if (partes.length > 0) {
-        const rows = partes.map((p: any) => ({
-          processo_id: processo.id,
-          nome: String(p?.nome || "").trim(),
-          documento: p?.documento || null,
-          tipo_pessoa: p?.tipo_pessoa || null,
-          polo: p?.polo || null,
-          lado_efetivo: p?.lado_efetivo || null,
-          is_advogado: !!p?.is_advogado,
-          fonte: "judit",
-          raw: p,
-          created_by: uid,
-        })).filter((r: any) => r.nome);
-        if (rows.length > 0) {
-          await supabase.from("processos_partes" as any).insert(rows);
-        }
-      }
+      await persistirPartesJudit(processo.id, data, uid);
 
       // Andamentos → aba Andamentos (usa o payload já obtido, sem nova cobrança)
       await persistirMovimentacoesJudit(processo.id, data);
@@ -1040,7 +1036,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   // Classe verde aplicada a inputs cujo campo foi preenchido pela Judit na sessão.
   const jcls = (field: string) =>
     juditSessionFields.has(field) && form[field] !== "" && form[field] != null
-      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30"
+      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 font-medium"
       : "";
   const isAdmin = useMemo(() => processo?.tipo_processo === "administrativo", [processo?.tipo_processo]);
 

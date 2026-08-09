@@ -195,12 +195,16 @@ function extrairPartes(rd: any) {
   const advogados: any[] = [];
   const detail: any[] = [];
   const seen = new Set<string>();
+  // Documentos/nomes de advogados já capturados via parties[].lawyers — evita
+  // duplicar a mesma pessoa quando ela também vem como parte "ADVOGADO".
+  const advVistos = new Set<string>();
   for (const p of parties) {
     const tipo = String(p?.person_type || "").toUpperCase();
     const isAdv = tipo === "ADVOGADO";
     const nome = String(p?.name || "").trim();
     if (!nome) continue;
     const doc = String(p?.main_document || "").replace(/\D/g, "");
+    if (isAdv && advVistos.has(doc || nome.toUpperCase())) continue;
     const key = `${doc || nome.toUpperCase()}|${isAdv ? "A" : "P"}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -213,6 +217,29 @@ function extrairPartes(rd: any) {
       lado_efetivo: side === "ACTIVE" || side === "PASSIVE" ? side : null,
       is_advogado: isAdv,
     });
+    // Advogados aninhados dentro da parte (parties[].lawyers) — a Judit devolve
+    // aqui os patronos de cada parte, com o nome/documento do representado.
+    for (const l of Array.isArray(p?.lawyers) ? p.lawyers : []) {
+      const lnome = String(l?.name || "").trim();
+      if (!lnome) continue;
+      const ldoc = String(l?.main_document || "").replace(/\D/g, "");
+      const lkey = `${ldoc || lnome.toUpperCase()}|A|${doc || nome.toUpperCase()}`;
+      if (seen.has(lkey)) continue;
+      seen.add(lkey);
+      advVistos.add(ldoc || lnome.toUpperCase());
+      detail.push({
+        nome: lnome,
+        documento: l?.main_document || null,
+        tipo_pessoa: "ADVOGADO",
+        polo: p?.side || null,
+        lado_efetivo: side === "ACTIVE" || side === "PASSIVE" ? side : null,
+        is_advogado: true,
+        advogado_de: nome,
+        advogado_de_documento: p?.main_document || null,
+        oab: l?.oab || l?.lawyer_documents || null,
+      });
+      advogados.push({ nome: lnome, oab: l?.oab || l?.lawyer_documents || null, advogado_de: nome });
+    }
     if (isAdv) { advogados.push({ nome, oab: p?.lawyer_documents || p?.oab || null }); continue; }
     if (/RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE|RECORRENTE|AGRAVANTE|EMBARGANTE/.test(tipo) || side === "ACTIVE") ativos.push(nome);
     else if (/RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID|RECORRID|AGRAVAD|EMBARGAD/.test(tipo) || side === "PASSIVE") passivos.push(nome);
@@ -415,6 +442,27 @@ serve(async (req) => {
 
     const tribAcr = rd?.tribunal_acronym || null;
     const { polo_ativo, polo_passivo, terceiro_envolvido, advogados, parties_detail } = extrairPartes(rd);
+    // Complementa partes/advogados com as demais instâncias retornadas (sem custo extra)
+    {
+      const outras: any[] = [];
+      if (cached && cached !== rd) outras.push(cached);
+      for (const it of raw.crawler?.page_data || []) {
+        if (it?.response_data && it.response_data !== rd) outras.push(it.response_data);
+      }
+      const chave = (x: any) =>
+        `${String(x?.documento || "").replace(/\D/g, "") || String(x?.nome || "").toUpperCase()}|${x?.is_advogado ? "A" : "P"}|${String(x?.advogado_de || "").toUpperCase()}`;
+      const vistos = new Set(parties_detail.map(chave));
+      for (const o of outras) {
+        const ext = extrairPartes(o);
+        for (const d of ext.parties_detail) {
+          const k = chave(d);
+          if (vistos.has(k)) continue;
+          vistos.add(k);
+          parties_detail.push(d);
+          if (d.is_advogado) advogados.push({ nome: d.nome, oab: d.oab || null, advogado_de: d.advogado_de || null });
+        }
+      }
+    }
     const classe = extrairClasse(rd);
     const assunto = extrairAssunto(rd);
     const pedidos = extrairPedidos(rd);
@@ -525,6 +573,16 @@ serve(async (req) => {
       // Extras
       advogados,
       parties_detail,
+      // Extras aproveitados da capa Judit
+      juiz: rd?.judge && String(rd.judge).toUpperCase() !== "NÃO INFORMADO" ? String(rd.judge) : null,
+      nome_capa: rd?.name || null,
+      gratuidade_justica: rd?.free_justice ?? null,
+      segredo_justica: rd?.secrecy_level != null ? Number(rd.secrecy_level) > 0 : null,
+      comarca_completa: rd?.county || null,
+      cidade: rd?.city || null,
+      tags: Array.isArray(rd?.tags) ? rd.tags : null,
+      ultimo_andamento: rd?.last_step?.content || null,
+      ultimo_andamento_data: isoToInput(rd?.last_step?.step_date),
       _judit_meta: {
         fonte: "busca-judit-processos-e-casos",
         origem: somenteCache ? "cache" : "crawler",
