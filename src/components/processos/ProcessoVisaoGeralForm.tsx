@@ -892,7 +892,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
             await supabase.from("judit_logs" as any).insert({
               processo_numero: numeroLimpo,
               tribunal: data?.tribunal || null,
-              request_payload: { numero_processo: numeroLimpo, fonte: "judit-processo-interno", with_attachments: comAnexos },
+              request_payload: { numero_processo: numeroLimpo, fonte: "busca-judit-processos-e-casos", with_attachments: comAnexos },
               raw_response: data,
               status: "sucesso",
               error_message: null,
@@ -924,7 +924,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           await supabase.from("judit_logs" as any).insert({
             processo_numero: numeroLimpo,
             tribunal: data?.tribunal || null,
-            request_payload: { numero_processo: numeroLimpo, fonte: "judit-processo-interno", with_attachments: comAnexos },
+            request_payload: { numero_processo: numeroLimpo, fonte: "busca-judit-processos-e-casos", with_attachments: comAnexos },
             raw_response: data,
             status: "sucesso",
             error_message: null,
@@ -953,6 +953,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           await supabase.from("processos_partes" as any).insert(rows);
         }
       }
+
+      // Andamentos → aba Andamentos (usa o payload já obtido, sem nova cobrança)
+      await persistirMovimentacoesJudit(processo.id, data);
 
       // Persiste anexos quando solicitado (mesma lógica do "Judit c/ anexos" anterior)
       if (comAnexos) {
