@@ -112,7 +112,7 @@ import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaForm
 import { NovoItemPanel, type NovoItemTipo } from "@/components/shared/NovoItemPanel";
 import { ClipboardList, CalendarPlus, Coins } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast as sonnerToast } from "sonner";
 import { Loader2, Upload as UploadIcon, Sparkles, Trash2, Save } from "lucide-react";
 
