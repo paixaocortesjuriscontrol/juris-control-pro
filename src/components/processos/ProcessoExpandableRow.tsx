@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Scale, ArrowRightLeft, FileText, Activity, ChevronDown, ChevronUp, Gavel, AlertCircle, ClipboardList, ExternalLink, MoreVertical } from "lucide-react";
+import { Scale, ArrowRightLeft, FileText, Activity, ChevronDown, ChevronUp, Gavel, AlertCircle, ClipboardList, ExternalLink, MoreVertical, Users, BadgeCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +57,41 @@ export function ProcessoExpandableRow({
   etiquetaIds,
 }: ProcessoExpandableRowProps) {
   const [expandedSection, setExpandedSection] = useState<"djen" | "andamentos" | "audiencias" | "intimacoes" | "tarefas" | null>(null);
+
+  // Coordenações responsáveis + indicador de preenchimento pela Judit
+  const { data: extras } = useQuery({
+    queryKey: ["processo-row-extras", processo.id, processo.coordenacao_id],
+    queryFn: async () => {
+      const [respRes, procRes] = await Promise.all([
+        supabase
+          .from("processos_coordenacoes_responsaveis" as any)
+          .select("coordenacao_id, principal")
+          .eq("processo_id", processo.id),
+        supabase.from("processos").select("judit_campos").eq("id", processo.id).maybeSingle(),
+      ]);
+
+      const ids = new Set<string>();
+      if (processo.coordenacao_id) ids.add(processo.coordenacao_id);
+      for (const r of ((respRes.data as any[]) || [])) {
+        if (r?.coordenacao_id) ids.add(r.coordenacao_id);
+      }
+
+      let nomes: string[] = [];
+      if (ids.size > 0) {
+        const { data: coords } = await supabase
+          .from("coordenacoes")
+          .select("id, nome")
+          .in("id", [...ids]);
+        nomes = ((coords as any[]) || [])
+          .map((c) => c.nome as string)
+          .filter(Boolean)
+          .sort((a, b) => a.localeCompare(b, "pt-BR"));
+      }
+
+      const campos = (procRes.data as any)?.judit_campos;
+      return { coordenacoes: nomes, temJudit: Array.isArray(campos) ? campos.length > 0 : !!campos };
+    },
+  });
 
   // Check if process has DJEN publications
   const { data: countDjen } = useQuery({
@@ -340,6 +375,21 @@ export function ProcessoExpandableRow({
                 {processo.vara || "Não informado"}
               </div>
             </div>
+            {(extras?.coordenacoes?.length ?? 0) > 0 && (
+              <div>
+                <div className="text-[11px] text-muted-foreground leading-tight">
+                  {extras!.coordenacoes.length > 1 ? "Coordenações responsáveis" : "Coordenação responsável"}
+                </div>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {extras!.coordenacoes.map((nome) => (
+                    <Badge key={nome} variant="outline" className="text-[10px] px-1.5 py-0 font-normal">
+                      <Users className="w-2.5 h-2.5 mr-1" />
+                      {nome}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Counts row (across all columns) */}
@@ -451,6 +501,16 @@ export function ProcessoExpandableRow({
 
         {/* Right side: responsável + ações */}
         <div className="flex items-start gap-1 shrink-0">
+          {extras?.temJudit && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="h-8 flex items-center">
+                  <BadgeCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>Campos preenchidos pela Judit</TooltipContent>
+            </Tooltip>
+          )}
           {processo.advogado_responsavel?.nome && (
             <Tooltip>
               <TooltipTrigger asChild>
