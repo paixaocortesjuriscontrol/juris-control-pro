@@ -212,6 +212,7 @@ export function extrairCamposDoJuditRaw(payload: any): Record<string, any> {
 export function extrairPartesDoJuditRaw(payload: any): JuditParteNormalizada[] {
   const out: JuditParteNormalizada[] = [];
   const seen = new Set<string>();
+  const advVistos = new Set<string>();
   const chave = (nome: string, doc: string | null, adv: boolean, de: string | null) =>
     `${String(doc || "").replace(/\D/g, "") || nome.toUpperCase()}|${adv ? "A" : "P"}|${String(de || "").toUpperCase()}`;
 
@@ -219,9 +220,13 @@ export function extrairPartesDoJuditRaw(payload: any): JuditParteNormalizada[] {
     const nome = String(p?.nome || "").trim();
     if (!nome) return;
     const adv = !!p.is_advogado;
+    const docNorm = String(p.documento || "").replace(/\D/g, "") || nome.toUpperCase();
+    // Advogado sem vínculo é descartado quando a mesma pessoa já entrou vinculada a uma parte
+    if (adv && !p.advogado_de && advVistos.has(docNorm)) return;
     const k = chave(nome, (p.documento as any) ?? null, adv, (p.advogado_de as any) ?? null);
     if (seen.has(k)) return;
     seen.add(k);
+    if (adv && p.advogado_de) advVistos.add(docNorm);
     const lado = String(p.lado_efetivo || p.polo || "").toUpperCase();
     out.push({
       nome,
