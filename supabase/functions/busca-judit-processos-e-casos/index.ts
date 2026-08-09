@@ -32,7 +32,7 @@ const RESPONSES_URL = `${JUDIT_BASE}/responses`;
 const LAWSUITS_BASE = "https://lawsuits.production.judit.io/lawsuits";
 
 const POLL_INTERVAL_MS = 1000;
-const POLL_TIMEOUT_MS = 60_000;
+const POLL_TIMEOUT_MS = 35_000;
 const CACHE_TTL_DAYS_DEFAULT = 1;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -379,15 +379,32 @@ serve(async (req) => {
     const cached = await juditCache(apiKey, cnj);
     if (cached) raw.cache_lookup = cached;
 
-    const reqId = await juditCriarRequest(apiKey, cnj, cacheTtl, withAttachments);
-    if (reqId) {
-      const env = await juditPollar(apiKey, reqId);
-      if (env) {
-        raw.crawler = {
-          request_id: reqId,
-          request_status: env.request_status,
-          page_data: env.page_data || [],
-        };
+    // CAMINHO RÁPIDO: o cache da Judit já respondeu com dados e o usuário não
+    // pediu atualização forçada nem anexos. Devolvemos na hora (~1-3s) e ainda
+    // assim disparamos o crawler em segundo plano para renovar o cache da Judit
+    // para a próxima consulta — sem bloquear a resposta.
+    const somenteCache = !!cached && !forceRefresh && !withAttachments;
+    let parcial = false;
+
+    if (somenteCache) {
+      juditCriarRequest(apiKey, cnj, CACHE_TTL_DAYS_DEFAULT, false).catch((e) =>
+        console.warn("[busca-judit-processos-e-casos] refresh em background falhou:", (e as Error)?.message),
+      );
+      console.log(`[busca-judit-processos-e-casos] caminho rápido (cache) para ${cnj}`);
+    } else {
+      const reqId = await juditCriarRequest(apiKey, cnj, cacheTtl, withAttachments);
+      if (reqId) {
+        const env = await juditPollar(apiKey, reqId);
+        if (env) {
+          raw.crawler = {
+            request_id: reqId,
+            request_status: env.request_status,
+            page_data: env.page_data || [],
+          };
+          parcial = env.request_status !== "completed";
+        } else {
+          parcial = true;
+        }
       }
     }
 
@@ -510,6 +527,8 @@ serve(async (req) => {
       parties_detail,
       _judit_meta: {
         fonte: "busca-judit-processos-e-casos",
+        origem: somenteCache ? "cache" : "crawler",
+        parcial,
         tribunal_selecionado: tribAcr,
         instance: rd?.instance || null,
         source_name: rd?.crawler?.source_name || null,
@@ -520,7 +539,9 @@ serve(async (req) => {
       attachments,
     };
 
-    console.log(`[busca-judit-processos-e-casos] ${cnj} -> tribunal=${tribAcr} classe=${classe} status=${status} andamentos=${movimentacoes.length}`);
+    console.log(
+      `[busca-judit-processos-e-casos] ${cnj} -> origem=${somenteCache ? "cache" : "crawler"} parcial=${parcial} tribunal=${tribAcr} classe=${classe} status=${status} andamentos=${movimentacoes.length} elapsed=${Date.now() - t0}ms`,
+    );
     return json(result, 200);
   } catch (e) {
     console.error("[busca-judit-processos-e-casos] erro:", e);
