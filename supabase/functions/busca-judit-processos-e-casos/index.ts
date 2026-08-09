@@ -195,12 +195,16 @@ function extrairPartes(rd: any) {
   const advogados: any[] = [];
   const detail: any[] = [];
   const seen = new Set<string>();
+  // Documentos/nomes de advogados já capturados via parties[].lawyers — evita
+  // duplicar a mesma pessoa quando ela também vem como parte "ADVOGADO".
+  const advVistos = new Set<string>();
   for (const p of parties) {
     const tipo = String(p?.person_type || "").toUpperCase();
     const isAdv = tipo === "ADVOGADO";
     const nome = String(p?.name || "").trim();
     if (!nome) continue;
     const doc = String(p?.main_document || "").replace(/\D/g, "");
+    if (isAdv && advVistos.has(doc || nome.toUpperCase())) continue;
     const key = `${doc || nome.toUpperCase()}|${isAdv ? "A" : "P"}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -222,6 +226,7 @@ function extrairPartes(rd: any) {
       const lkey = `${ldoc || lnome.toUpperCase()}|A|${doc || nome.toUpperCase()}`;
       if (seen.has(lkey)) continue;
       seen.add(lkey);
+      advVistos.add(ldoc || lnome.toUpperCase());
       detail.push({
         nome: lnome,
         documento: l?.main_document || null,
