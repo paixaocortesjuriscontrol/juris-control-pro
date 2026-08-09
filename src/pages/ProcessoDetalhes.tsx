@@ -423,7 +423,9 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!id && !isNovo && (activeTab === "andamentos" || activeTab === "redistribuicoes"),
+    // Sempre habilitada: a visão completa (sidebar) tem seu próprio estado de
+    // seção, então o gating por activeTab deixava a aba Andamentos vazia.
+    enabled: !!id && !isNovo,
   });
 
   // Redistribuições derivadas de movimentacoes (elimina query duplicada)
