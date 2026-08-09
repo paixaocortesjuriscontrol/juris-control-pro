@@ -587,8 +587,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         const { error } = await supabase.from("movimentacoes").insert(rows.slice(i, i + 200) as any);
         if (error) throw error;
       }
-      await queryClient.invalidateQueries({ queryKey: ["movimentacoes", processoId] });
-      await queryClient.invalidateQueries({ queryKey: ["movimentacoes"] });
+      await queryClient.invalidateQueries({ queryKey: ["movimentacoes-processo", processoId] });
+      await queryClient.invalidateQueries({ queryKey: ["movimentacoes-processo"] });
+      await queryClient.invalidateQueries({ queryKey: ["recent-movimentacoes"] });
       toast.success(`${rows.length} andamento(s) gravado(s) na aba Andamentos.`);
       return rows.length;
     } catch (e: any) {
