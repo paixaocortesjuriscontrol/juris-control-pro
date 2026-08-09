@@ -1036,7 +1036,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   // Classe verde aplicada a inputs cujo campo foi preenchido pela Judit na sessão.
   const jcls = (field: string) =>
     juditSessionFields.has(field) && form[field] !== "" && form[field] != null
-      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 font-medium"
+      ? "ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-foreground"
       : "";
   const isAdmin = useMemo(() => processo?.tipo_processo === "administrativo", [processo?.tipo_processo]);
 
