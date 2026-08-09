@@ -550,10 +550,6 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   };
 
   /**
-   * Consulta Judit apenas para alimentar a aba "Análise Judit" (e opcionalmente
-   */
-
-  /**
    * Grava na aba "Andamentos" os movimentos vindos da Judit (payload novo ou
    * bloco bruto reaproveitado). Não insere duplicados: compara data + descrição
    * com o que já existe em `movimentacoes`.
