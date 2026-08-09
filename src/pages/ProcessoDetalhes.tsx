@@ -112,6 +112,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState, useEffect, useRef } from "react";
 import { Database } from "@/integrations/supabase/types";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { filtrarItensPorCoordenacao } from "@/lib/escopoCoordenacaoItens";
 
 type StatusProcesso = Database["public"]["Enums"]["status_processo"];
 type AreaAtuacao = Database["public"]["Enums"]["area_atuacao"];
@@ -176,6 +178,10 @@ export default function ProcessoDetalhes() {
   // Modo "novo processo": a rota estática /processos/novo não fornece `id`
   // via useParams, então a detecção precisa considerar também o pathname.
   const isNovo = id === "novo" || location.pathname === "/processos/novo";
+  // Itens de agenda são privados por coordenação (processo é compartilhado)
+  const { isAdmin: isAdminEscopo, coordenacoes: coordenacoesUsuarioEscopo } =
+    useCoordenacoesDoUsuario();
+  const coordenacoesEscopo = coordenacoesUsuarioEscopo.map((c) => c.id);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
@@ -274,7 +280,7 @@ export default function ProcessoDetalhes() {
 
   // Audiências query - carrega sempre pois é usada no card de pendências
   const { data: audiencias = [], isLoading: loadingAudiencias } = useQuery<AudienciaProcessoItem[]>({
-    queryKey: ["audiencias-processo", id, processo?.numero],
+    queryKey: ["audiencias-processo", id, processo?.numero, isAdminEscopo, coordenacoesEscopo],
     queryFn: async () => {
       const [porProcessoId, porNumeroProcesso] = await Promise.all([
         supabase
@@ -320,7 +326,11 @@ export default function ProcessoDetalhes() {
         });
       }
 
-      const deduplicadas = Array.from(audienciasAgrupadas.values());
+      const deduplicadas = filtrarItensPorCoordenacao(
+        Array.from(audienciasAgrupadas.values()),
+        isAdminEscopo,
+        coordenacoesEscopo
+      );
       deduplicadas.sort((a, b) => {
         const dateA = a.data_audiencia ? new Date(a.data_audiencia).getTime() : 0;
         const dateB = b.data_audiencia ? new Date(b.data_audiencia).getTime() : 0;
@@ -351,7 +361,7 @@ export default function ProcessoDetalhes() {
 
   // Tarefas query - carrega sempre pois é usada no card de pendências
   const { data: tarefas = [], isLoading: loadingTarefas } = useQuery({
-    queryKey: ["tarefas-processo", id],
+    queryKey: ["tarefas-processo", id, isAdminEscopo, coordenacoesEscopo],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tarefas")
@@ -363,7 +373,7 @@ export default function ProcessoDetalhes() {
         .order("data_vencimento", { ascending: true });
 
       if (error) throw error;
-      return data || [];
+      return filtrarItensPorCoordenacao(data || [], isAdminEscopo, coordenacoesEscopo);
     },
     enabled: !!id && !isNovo,
   });

@@ -9,7 +9,10 @@ interface ProcessosPaginadosFilters {
   area?: string;
   status?: string;
   coordenacao_id?: string;
-  // IDs de coordenações para restringir quando "all" é selecionado por não-admin
+  /**
+   * @deprecated Processos são visíveis a todas as coordenações; mantido apenas
+   * para compatibilidade de chamadas antigas (ignorado).
+   */
   coordenacoesRestritas?: string[];
   responsavel_id?: string;
   instancia?: string;
@@ -44,7 +47,7 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
       // precisamos fazer múltiplas queries ou filtrar manualmente.
       // Optamos por buscar com a primeira coordenação e depois unir os resultados
       // para cada coordenação restrita.
-      const coordenacoesRestritas = filters.coordenacoesRestritas;
+      const coordenacoesRestritas: string[] | undefined = undefined;
       const coordId = filters.coordenacao_id && filters.coordenacao_id !== "all"
         ? filters.coordenacao_id
         : null;

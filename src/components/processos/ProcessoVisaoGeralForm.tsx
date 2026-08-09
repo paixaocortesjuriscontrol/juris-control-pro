@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
+import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
 
 interface Props {
   processo: any;
@@ -1316,6 +1317,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                         ))}
                       </SelectContent>
                     </Select>
+                  </FormField>
+                  <FormField label="Outras Coordenações Responsáveis">
+                    <CoordenacoesResponsaveisPicker
+                      processoId={processo?.id}
+                      coordenacaoPrincipalId={form.coordenacao_id || null}
+                    />
                   </FormField>
                   <FormField label="Fase Processual">
                     {(() => {
