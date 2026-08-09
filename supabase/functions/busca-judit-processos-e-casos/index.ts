@@ -213,6 +213,28 @@ function extrairPartes(rd: any) {
       lado_efetivo: side === "ACTIVE" || side === "PASSIVE" ? side : null,
       is_advogado: isAdv,
     });
+    // Advogados aninhados dentro da parte (parties[].lawyers) — a Judit devolve
+    // aqui os patronos de cada parte, com o nome/documento do representado.
+    for (const l of Array.isArray(p?.lawyers) ? p.lawyers : []) {
+      const lnome = String(l?.name || "").trim();
+      if (!lnome) continue;
+      const ldoc = String(l?.main_document || "").replace(/\D/g, "");
+      const lkey = `${ldoc || lnome.toUpperCase()}|A|${doc || nome.toUpperCase()}`;
+      if (seen.has(lkey)) continue;
+      seen.add(lkey);
+      detail.push({
+        nome: lnome,
+        documento: l?.main_document || null,
+        tipo_pessoa: "ADVOGADO",
+        polo: p?.side || null,
+        lado_efetivo: side === "ACTIVE" || side === "PASSIVE" ? side : null,
+        is_advogado: true,
+        advogado_de: nome,
+        advogado_de_documento: p?.main_document || null,
+        oab: l?.oab || l?.lawyer_documents || null,
+      });
+      advogados.push({ nome: lnome, oab: l?.oab || l?.lawyer_documents || null, advogado_de: nome });
+    }
     if (isAdv) { advogados.push({ nome, oab: p?.lawyer_documents || p?.oab || null }); continue; }
     if (/RECLAMANTE|AUTOR|EXEQUENTE|REQUERENTE|RECORRENTE|AGRAVANTE|EMBARGANTE/.test(tipo) || side === "ACTIVE") ativos.push(nome);
     else if (/RECLAMAD|R[ÉE]U|EXECUTAD|REQUERID|RECORRID|AGRAVAD|EMBARGAD/.test(tipo) || side === "PASSIVE") passivos.push(nome);
