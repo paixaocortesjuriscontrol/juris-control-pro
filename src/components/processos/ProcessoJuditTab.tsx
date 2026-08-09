@@ -192,6 +192,17 @@ export function ProcessoJuditTab({ processoId, processoNumero }: Props) {
           <Field label="Tipo recurso (reclamante)" value={payload?.tipo_recurso_reclamante} />
           <Field label="Tipo recurso (terceiro)" value={payload?.tipo_recurso_terceiro} />
           <Field label="Dossiê" value={payload?.dossie} />
+          <Field label="Valor da causa" value={payload?.valor_causa != null ? Number(payload.valor_causa).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : null} />
+          <Field label="Comarca" value={payload?.comarca_completa || payload?.comarca} />
+          <Field label="Vara" value={payload?.vara} />
+          <Field label="UF" value={payload?.uf} />
+          <Field label="Instância" value={payload?.instancia} />
+          <Field label="Sistema" value={payload?.sistema} />
+          <Field label="Assunto" value={payload?.assunto} />
+          <Field label="Juiz" value={payload?.juiz} />
+          <Field label="Gratuidade" value={payload?.gratuidade_justica === true ? "Sim" : payload?.gratuidade_justica === false ? "Não" : null} />
+          <Field label="Andamentos" value={payload?.total_movimentacoes != null ? String(payload.total_movimentacoes) : null} />
+          <Field label="Último andamento" value={payload?.ultimo_andamento} />
           <Field
             label="Julgamento"
             value={[
@@ -231,8 +242,8 @@ export function ProcessoJuditTab({ processoId, processoNumero }: Props) {
               {partesNaoAdv.map((p) => (
                 <div key={p.id} className="py-2 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{p.nome}</p>
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-sm font-medium truncate text-emerald-700 dark:text-emerald-400">{p.nome}</p>
+                    <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80">
                       {p.tipo_pessoa || "—"} {p.documento ? `· ${p.documento}` : ""}
                     </p>
                   </div>
@@ -265,9 +276,10 @@ export function ProcessoJuditTab({ processoId, processoNumero }: Props) {
             <div className="divide-y">
               {advogados.map((p) => (
                 <div key={p.id} className="py-2">
-                  <p className="text-sm">{p.nome}</p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-sm text-emerald-700 dark:text-emerald-400">{p.nome}</p>
+                  <p className="text-[11px] text-emerald-700/80 dark:text-emerald-400/80">
                     {p.documento || ""} {p.polo ? `· ${p.polo}` : ""}
+                    {(p as any)?.raw?.advogado_de ? ` · adv. de ${(p as any).raw.advogado_de}` : ""}
                   </p>
                 </div>
               ))}
@@ -289,7 +301,7 @@ function Field({ label, value }: { label: string; value?: string | null }) {
   return (
     <div>
       <p className="text-[10px] uppercase text-muted-foreground tracking-wide">{label}</p>
-      <p className="text-xs font-medium break-words">{value || "—"}</p>
+      <p className={`text-xs font-medium break-words ${value ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"}`}>{value || "—"}</p>
     </div>
   );
 }
