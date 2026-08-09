@@ -562,11 +562,10 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     }
     if (comAnexos) setSyncingAnexos(true); else setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke("buscar-judit", {
+      const { data, error } = await supabase.functions.invoke("busca-judit-processos-e-casos", {
         body: {
           numero_processo: numeroLimpo,
-          tribunal: "TST",
-          com_anexos: comAnexos,
+          with_attachments: comAnexos,
           force_refresh: forceRefresh || comAnexos,
         },
       });
@@ -597,14 +596,19 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       try {
         await supabase.from("judit_logs" as any).insert({
           processo_numero: numeroLimpo,
-          tribunal: "TST",
-          request_payload: { numero_processo: numeroLimpo, tribunal: "TST", com_anexos: comAnexos, force_refresh: true },
+          tribunal: (data as any)?.tribunal || null,
+          request_payload: { numero_processo: numeroLimpo, fonte: "busca-judit-processos-e-casos", with_attachments: comAnexos, force_refresh: true },
           raw_response: data,
           status: "sucesso",
           error_message: null,
           created_by: uid,
       });
       } catch (_) { /* noop */ }
+
+      // Grava os andamentos retornados na aba "Andamentos" (sem custo adicional).
+      if (processo?.id) {
+        await persistirMovimentacoesJudit(processo.id, data);
+      }
 
       // Persiste anexos quando solicitado
       if (comAnexos) {
