@@ -176,6 +176,10 @@ export default function ProcessoDetalhes() {
   // Modo "novo processo": a rota estática /processos/novo não fornece `id`
   // via useParams, então a detecção precisa considerar também o pathname.
   const isNovo = id === "novo" || location.pathname === "/processos/novo";
+  // Itens de agenda são privados por coordenação (processo é compartilhado)
+  const { isAdmin: isAdminEscopo, coordenacoes: coordenacoesUsuarioEscopo } =
+    useCoordenacoesDoUsuario();
+  const coordenacoesEscopo = coordenacoesUsuarioEscopo.map((c) => c.id);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
