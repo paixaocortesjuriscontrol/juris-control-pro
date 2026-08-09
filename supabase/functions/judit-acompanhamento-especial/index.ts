@@ -425,6 +425,15 @@ serve(async (req) => {
       const tribunal = rd.tribunal_acronym || rd.tribunal || rd.court || null;
       const instancia = rd.instance || rd.instancia || null;
 
+      // Grava tudo como se o botão Judit tivesse sido clicado (sem sobrescrever
+      // o que o advogado digitou) e detecta divergências para aviso no painel.
+      let sync: any = null;
+      try {
+        sync = await sincronizarProcessoComJudit(supabase, p.id, cnj, payload, execId);
+      } catch (e) {
+        console.warn("[acomp-especial] sync judit falhou:", (e as Error).message);
+      }
+
       const ultimoConhecido = p.acompanhamento_ultimo_step_date
         ? new Date(p.acompanhamento_ultimo_step_date).getTime()
         : 0;
@@ -574,7 +583,7 @@ serve(async (req) => {
         })
         .eq("id", p.id);
 
-      resultados.push({ processo_id: p.id, novos, total_steps: steps.length });
+      resultados.push({ processo_id: p.id, numero: cnj, novos, total_steps: steps.length, sync });
     } catch (e: any) {
       resultados.push({ processo_id: p.id, erro: e?.message ?? String(e) });
     }
