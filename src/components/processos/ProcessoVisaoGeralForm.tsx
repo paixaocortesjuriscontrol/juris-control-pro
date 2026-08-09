@@ -452,30 +452,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       // Atualiza partes vindas da Judit em processos_partes
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData?.user?.id || null;
-      await supabase
-        .from("processos_partes" as any)
-        .delete()
-        .eq("processo_id", processo.id)
-        .eq("fonte", "judit");
-      if (partes.length > 0) {
-        const rows = partes
-          .map((p: any) => ({
-            processo_id: processo.id,
-            nome: String(p?.nome || "").trim(),
-            documento: p?.documento || null,
-            tipo_pessoa: p?.tipo_pessoa || null,
-            polo: p?.polo || null,
-            lado_efetivo: p?.lado_efetivo || null,
-            is_advogado: !!p?.is_advogado,
-            fonte: "judit",
-            raw: p,
-            created_by: uid,
-          }))
-          .filter((r: any) => r.nome);
-        if (rows.length > 0) {
-          await supabase.from("processos_partes" as any).insert(rows);
-        }
-      }
+      await persistirPartesJudit(processo.id, data, uid);
 
       // Log
       await supabase.from("consultas_judit").insert({
