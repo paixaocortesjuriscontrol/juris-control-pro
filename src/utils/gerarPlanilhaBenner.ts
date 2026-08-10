@@ -4,6 +4,7 @@ import { DadoBenner } from "@/hooks/useDadosBenner";
 import * as XLSX from "xlsx";
 import { deriveRecorrenteFromRecursos, normalizeRecorrenteBenner, splitRecursoValues } from "@/utils/recorrenteFromRecursos";
 import { isOutraMateria } from "@/utils/outraMateria";
+import { getDataDistribuicaoReal } from "@/utils/dataDistribuicaoBenner";
 
 const DOSSIE_INVALIDO_PATTERNS = [
   /n[aã]o\s*(encontrad|localizad)/i,
@@ -234,7 +235,7 @@ function getValuesFromDado(d: DadoBenner): string[] {
     d.dossie || "",
     d.tribunal || "",
     tipoRecurso,
-    formatDateForSpreadsheet(d.data_distribuicao),
+    formatDateForSpreadsheet(getDataDistribuicaoReal(d)),
     fixVicePresidencia(d.turma || ""),
     cleanRelator(d.relator || ""),
     toSentenceCaseDash(cleanDadoBennerValue((d as any).decisao_quarteirizado)),
@@ -286,7 +287,7 @@ export async function gerarPlanilhaBenner(
 ): Promise<ResultadoGeracaoBenner> {
   // Ordenação obrigatória: Data da Distribuição (menor para maior) antes de exportar
   const dadosOrdenados = [...dados].sort(
-    (a, b) => parseDateAny(a.data_distribuicao) - parseDateAny(b.data_distribuicao)
+    (a, b) => parseDateAny(getDataDistribuicaoReal(a)) - parseDateAny(getDataDistribuicaoReal(b))
   );
   const validos = dadosOrdenados.filter(d => !isDossieInvalido(d.dossie));
   const rejeitados = dadosOrdenados.filter(d => isDossieInvalido(d.dossie));
