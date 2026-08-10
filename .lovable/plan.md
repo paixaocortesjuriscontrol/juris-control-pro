@@ -20,23 +20,21 @@ Levantamento item a item das 13 solicitações, verificado no sistema atual, com
 | 12. Relatórios em Excel | Parcial | Diversas exportações Excel já existem (Distribuição TST, atividades, indicadores, carga Benner). A tela Relatórios exporta somente PDF |
 | 13. Auditoria de exclusão/reagendamento/troca de responsável | Já existe | Coberto pela trilha de auditoria do item 4 |
 
-## O que será desenvolvido
+## Escopo aprovado agora
 
-### Bloco A — Parametrização e regras de tarefa
-- Cadastro de tipos de tarefa em tabela própria, gerenciável por admin/coordenação (nome, cor, ativo, ordem, global ou por coordenação), substituindo a lista fixa nos formulários e filtros.
-- Justificativa obrigatória apenas para "Cancelado" (demais situações seguem com comentário opcional), gravada no histórico do item.
+Serão desenvolvidos os blocos A, B, E e F. Blocos C (workflows), D (Objeto/Assunto separados) e G (migração do histórico Projuris) ficam fora deste ciclo.
 
-### Bloco B — Menções e notificações
-- Menção a colaborador nos comentários de tarefas, prazos, audiências e eventos, com seleção de usuários da coordenação.
-- E-mail automático ao mencionado, no mesmo padrão detalhado já usado (autor, item, processo, coordenação, data/hora BRT e trecho do comentário).
+### Bloco A — Tipos de tarefa e situações por coordenação
+- Novas tabelas de catálogo: tipos de tarefa e situações de item, ambas com coordenação, rótulo, ícone/cor, ordem e ativo.
+- Carga inicial: todos os tipos e situações usados hoje são criados como padrão para todas as coordenações, sem mudança de comportamento no primeiro dia.
+- Tela de administração (Admin/Coordenação): criar, renomear, reordenar, ativar/desativar e marcar situações como restritas (só admin/coordenador/assistente coordenador podem selecionar).
+- Formulários e filtros de prazo, tarefa, audiência, evento e parcelamento passam a listar os tipos e situações da coordenação do item; sem catálogo próprio, usam o padrão.
+- Justificativa obrigatória apenas na situação "Cancelado", gravada no histórico do item (as demais seguem com comentário opcional).
 
-### Bloco C — Workflows
-- Cadastro de fluxos por coordenação: etapas sequenciais com tipo de tarefa, responsável padrão e prazo relativo à conclusão da etapa anterior.
-- Ao concluir uma etapa, a próxima tarefa é criada automaticamente e vinculada ao mesmo processo.
-
-### Bloco D — Cadastro do processo
-- Campos "Objeto" e "Assunto" separados, com listas padronizadas administráveis, disponíveis em filtros e relatórios.
-- Campo de seleção do sistema judicial (PJe, e-SAJ, EPROC, PROJUDI, Creta, outros) visível no formulário, preenchido automaticamente pela Judit quando vazio.
+### Bloco B — Menções com @ e notificação por e-mail
+- Ao digitar `@` no comentário de qualquer item, abre a lista de membros das coordenações às quais o usuário logado pertence (admin vê todas), com busca por nome.
+- A menção é destacada no texto do comentário e registrada de forma estruturada.
+- E-mail automático ao mencionado no mesmo padrão detalhado já usado: autor, item e título, processo vinculado, coordenação, data/hora em BRT e trecho do comentário, com link direto para o item.
 
 ### Bloco E — TAGs em destaque
 - Exibição destacada das TAGs do processo e da tarefa nos cards de nova movimentação e nas publicações DJEN.
@@ -44,25 +42,20 @@ Levantamento item a item das 13 solicitações, verificado no sistema atual, com
 ### Bloco F — Relatórios em Excel
 - Exportação em Excel na tela Relatórios, com as mesmas seções e filtros da versão PDF.
 
-### Bloco G — Migração Projuris (histórico completo)
-- Importador de comentários, documentos, peças, comprovantes de protocolo e histórico das tarefas desde 2024, em lotes com barra de progresso e cancelamento, vinculando ao processo e à tarefa de origem e preservando autor e data originais.
-- Depende do formato de extração disponível no Projuris (planilhas e/ou pacote de arquivos) — a confirmar com o solicitante.
-
 ## Detalhes técnicos
 
-- Novas tabelas: tipos de tarefa configuráveis, catálogos de objeto/assunto, definições e etapas de workflow, menções de item. Todas com RLS por coordenação e grants padrão.
-- Workflow acionado na conclusão do item, reutilizando a criação de item já existente (um único card para o conjunto de responsáveis).
-- Menções enviadas pela fila de notificações atual, sem novo canal de e-mail.
+- Novas tabelas: catálogo de tipos de tarefa, catálogo de situações e menções de item — todas com RLS por coordenação e grants padrão.
+- O seed replica as listas atuais (tipos de `tiposTarefa.ts` e situações de `situacoesItem.ts`) para cada coordenação existente; novas coordenações recebem o padrão automaticamente.
+- Menções gravadas em tabela própria vinculada ao comentário e enviadas pela fila de notificações atual, sem novo canal de e-mail.
+- O seletor de `@` reaproveita a regra de coordenações do usuário já existente (`useCoordenacoesDoUsuario` + membros da coordenação).
 - Exportação Excel reaproveitando o utilitário de planilhas já usado nas demais telas, com datas em DD/MM/AAAA.
-- Migração Projuris em worker de leitura de planilha, com upsert idempotente por identificador de origem para permitir reprocessamento sem duplicar.
 
-## Ordem de entrega sugerida
+## Ordem de entrega
 
-1. Blocos A e D (baixo risco, uso imediato)
-2. Blocos B e E
-3. Bloco F
-4. Bloco C
-5. Bloco G (após definição do formato de extração do Projuris)
+1. Bloco A (catálogos + tela de administração + justificativa de cancelamento)
+2. Bloco B (menções com `@` + e-mail)
+3. Bloco E
+4. Bloco F
 
 ## Rascunho do e-mail de resposta
 
@@ -72,8 +65,8 @@ Prezados,
 
 Analisamos as 13 funcionalidades solicitadas. Sete já estão disponíveis hoje: captura automática de movimentações dos tribunais (monitoramento push, com acompanhamento especial e sincronização automática), trilha de auditoria completa das tarefas (troca de responsável, reagendamento, edição e exclusão, com usuário e data), status ampliados (Em revisão, A confirmar, Concluída com sucesso, Concluída sem sucesso, Cancelada, Reagendada, Protocolada, entre outros), restrição de funcionalidades por perfil de acesso, TAGs/marcadores em processos e tarefas, exportações em Excel em diversas telas operacionais e importação de processos e tarefas do Projuris.
 
-As demais serão desenvolvidas: parametrização dos tipos de tarefa pela Coordenação/Controladoria; justificativa obrigatória no cancelamento; notificação por e-mail ao colaborador mencionado em uma tarefa; workflows com geração automática das etapas subsequentes; campos "Objeto" e "Assunto" com classificação padronizada, filtros e relatórios; campo de identificação do sistema do tribunal (PJe, e-SAJ, EPROC, PROJUDI etc.); destaque das TAGs na chegada de nova movimentação ou publicação; e exportação em Excel também na tela de Relatórios.
+Serão desenvolvidas nesta etapa: parametrização dos tipos de tarefa e das situações por coordenação (mantendo as opções atuais como padrão em todas), com justificativa obrigatória no cancelamento; menção a colaboradores nos comentários usando "@", com lista dos membros das coordenações do usuário e envio automático de e-mail ao mencionado; destaque das TAGs na chegada de nova movimentação ou publicação; e exportação em Excel também na tela de Relatórios.
 
-Sobre a migração do histórico do Projuris desde 2024 (comentários, documentos, peças, comprovantes de protocolo e registros das tarefas), é viável e será feita em lotes com controle de progresso. Para isso, precisamos saber qual formato de extração está disponível no Projuris (planilhas e/ou pacote de arquivos) e receber uma amostra.
+Ficam previstas para uma etapa posterior, conforme priorização: workflows com geração automática das etapas subsequentes, separação dos campos "Objeto" e "Assunto" e a migração do histórico do Projuris desde 2024 (comentários, documentos, peças e comprovantes de protocolo) — esta última dependerá do formato de extração disponível no Projuris.
 
 Ficamos à disposição.
