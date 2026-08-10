@@ -38,7 +38,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import { extrairCamposDoJuditRaw, extrairStepsDoJuditRaw, extrairPartesDoJuditRaw } from "@/lib/juditRawCampos";
-import { obterVariantesCnjBusca } from "@/utils/cnjMask";
+import { obterVariantesCnjBusca, mascararCnjDigitacao } from "@/utils/cnjMask";
 import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
 
