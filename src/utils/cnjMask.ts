@@ -42,3 +42,26 @@ export function obterVariantesCnjBusca(valor: string | null | undefined): string
   const maskedDigits = masked.replace(/\D/g, "");
   return [...new Set([raw, masked, rawDigits, maskedDigits].filter(Boolean))];
 }
+
+/**
+ * Máscara CNJ progressiva para digitação: NNNNNNN-DD.AAAA.J.TR.OOOO
+ * Formata conforme o usuário digita, sem exigir os 20 dígitos completos.
+ */
+export function mascararCnjDigitacao(valor: string): string {
+  const d = String(valor ?? "").replace(/\D/g, "").slice(0, 20);
+  let out = d.slice(0, 7);
+  if (d.length > 7) out += "-" + d.slice(7, 9);
+  if (d.length > 9) out += "." + d.slice(9, 13);
+  if (d.length > 13) out += "." + d.slice(13, 14);
+  if (d.length > 14) out += "." + d.slice(14, 16);
+  if (d.length > 16) out += "." + d.slice(16, 20);
+  return out;
+}
+
+function obterVariantesCnjBuscaLegacy(valor: string | null | undefined): string[] {
+  const raw = String(valor ?? "").trim();
+  const masked = aplicarMascaraCnj(raw);
+  const rawDigits = raw.replace(/\D/g, "");
+  const maskedDigits = masked.replace(/\D/g, "");
+  return [...new Set([raw, masked, rawDigits, maskedDigits].filter(Boolean))];
+}
