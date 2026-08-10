@@ -2210,6 +2210,7 @@ export default function PainelControle() {
                       .map((dia, i) => {
                         const key = format(dia, "yyyy-MM-dd");
                         const itens = itensPorDia.get(key) || [];
+                        const atividadesDia = atividadesPorDia.get(key) || [];
                         const ehHoje = isToday(dia);
                         const ehMesAtual = isSameMonth(dia, mesAtual);
                         const MAX_VISIBLE = 5;
@@ -2279,6 +2280,26 @@ export default function PainelControle() {
                                   </span>
                                 </div>
                               )})}
+                              {atividadesDia.map((a: any) => (
+                                <div
+                                  key={`ativ-${a.id}`}
+                                  className={cn(
+                                    "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer font-medium flex items-center gap-0.5",
+                                    "bg-background border border-blue-500/60 text-blue-600 dark:text-blue-400",
+                                    a.situacao === "concluida" && "line-through opacity-70",
+                                  )}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const pai = itemPorRawId.get(String(a.item_id));
+                                    if (pai) handleItemClick(pai);
+                                    else setDiaLateralKey(key);
+                                  }}
+                                  title={`Atividade: ${a.titulo}`}
+                                >
+                                  <ListChecks className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0" />
+                                  <span className="truncate">{a.titulo}</span>
+                                </div>
+                              ))}
                               {extras > 0 && (
                                 <button
                                   className="text-[9px] md:text-[10px] text-primary font-semibold px-0.5 md:px-1 hover:underline cursor-pointer w-full text-left"
