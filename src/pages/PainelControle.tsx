@@ -1318,6 +1318,57 @@ export default function PainelControle() {
     // Apenas para visualização
   };
 
+  // ===== ATIVIDADES (subatividades) DOS ITENS NO CALENDÁRIO =====
+  // Cada tarefa/prazo/audiência/evento pode ter atividades com data prevista.
+  // Elas aparecem no calendário em branco com letras azuis e são independentes
+  // da conclusão do item pai (concluir o item NÃO conclui a atividade).
+  const itemPorRawId = useMemo(() => {
+    const map = new Map<string, ItemAgendaUnificado>();
+    itensPainelFiltrados.forEach((item) => {
+      const raw = String(item.id)
+        .replace(/^audiencia-det-/, "")
+        .replace(/^prazo-tst-/, "")
+        .split("::")[0];
+      if (raw) map.set(raw, item);
+    });
+    return map;
+  }, [itensPainelFiltrados]);
+
+  const idsAtividadesKey = useMemo(
+    () => Array.from(itemPorRawId.keys()).sort().join(","),
+    [itemPorRawId],
+  );
+
+  const { data: atividadesCalendario = [] } = useQuery({
+    queryKey: ["painel-subatividades-calendario", idsAtividadesKey],
+    enabled: itemPorRawId.size > 0,
+    queryFn: async () => {
+      const ids = Array.from(itemPorRawId.keys());
+      const out: any[] = [];
+      for (let i = 0; i < ids.length; i += 300) {
+        const { data, error } = await (supabase as any)
+          .from("subatividades_item")
+          .select("id, item_id, tipo_item, titulo, situacao, data_prevista, responsavel_id")
+          .in("item_id", ids.slice(i, i + 300))
+          .not("data_prevista", "is", null);
+        if (error) throw error;
+        out.push(...(data || []));
+      }
+      return out;
+    },
+  });
+
+  const atividadesPorDia = useMemo(() => {
+    const map = new Map<string, any[]>();
+    (atividadesCalendario as any[]).forEach((a) => {
+      const key = String(a.data_prevista).slice(0, 10);
+      if (!key) return;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(a);
+    });
+    return map;
+  }, [atividadesCalendario]);
+
   const handleItemClick = (item: ItemAgendaUnificado) => {
     handleEditItem(item);
   };
