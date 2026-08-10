@@ -116,6 +116,7 @@ export default function DistribuicaoTst() {
   type SortKey = "data_distribuicao_planilha" | "data_distribuicao_real" | "processo_numero" | "dossie" | "responsaveis" | "benner_atualizado";
   const [sortBy, setSortBy] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [sortPrefLoaded, setSortPrefLoaded] = useState(false);
   const handleSort = (key: SortKey) => {
     if (sortBy === key) {
       setSortDir(sortDir === "asc" ? "desc" : "asc");
