@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Plus, Trash2, ListChecks } from "lucide-react";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { toast } from "sonner";
@@ -14,6 +15,24 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 export type TipoItemAtividade = "tarefa" | "prazo" | "evento" | "audiencia" | "parcelamento";
+
+/**
+ * Situações próprias das ATIVIDADES (subatividades).
+ * São independentes das situações do item pai (prazo, audiência, tarefa etc.).
+ */
+export const SITUACOES_ATIVIDADE: { value: string; label: string }[] = [
+  { value: "pendente", label: "⏳ Pendente" },
+  { value: "em_execucao", label: "▶️ Em execução" },
+  { value: "aguardando", label: "⏸️ Aguardando terceiros" },
+  { value: "revisao", label: "🔍 Em revisão" },
+  { value: "concluida", label: "✔️ Concluída" },
+  { value: "nao_realizada", label: "⚠️ Não realizada" },
+  { value: "cancelada", label: "❌ Cancelada" },
+];
+
+export function labelSituacaoAtividade(valor?: string | null): string {
+  return SITUACOES_ATIVIDADE.find((s) => s.value === (valor ?? "pendente"))?.label ?? (valor ?? "Pendente");
+}
 
 export interface Subatividade {
   id: string;
@@ -65,6 +84,7 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
   const [responsavelIds, setResponsavelIds] = useState<string[]>([]);
   const [dataPrevista, setDataPrevista] = useState("");
   const [observacao, setObservacao] = useState("");
+  const [situacaoNova, setSituacaoNova] = useState("pendente");
 
   const invalidar = async () => {
     await queryClient.invalidateQueries({ queryKey: subatividadesQueryKey(tipo, itemId), refetchType: "all" });
@@ -80,6 +100,7 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
         responsavel_id: responsavelIds[0] ?? null,
         data_prevista: dataPrevista || null,
         observacao: observacao.trim() || null,
+        situacao: situacaoNova || "pendente",
         criado_por: user?.id ?? null,
       });
       if (error) throw error;
@@ -89,6 +110,7 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
       setResponsavelIds([]);
       setDataPrevista("");
       setObservacao("");
+      setSituacaoNova("pendente");
       await invalidar();
       toast.success("Atividade adicionada");
     },
@@ -196,6 +218,32 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
                     emptyLabel="Sem responsável"
                   />
                 </div>
+                <div className="pl-6">
+                  <Select
+                    value={a.situacao ?? "pendente"}
+                    onValueChange={(v) =>
+                      atualizar.mutate({
+                        id: a.id,
+                        patch: {
+                          situacao: v,
+                          concluida_em: v === "concluida" ? new Date().toISOString() : null,
+                          concluida_por: v === "concluida" ? user?.id ?? null : null,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Situação da atividade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SITUACOES_ATIVIDADE.map((s) => (
+                        <SelectItem key={s.value} value={s.value} className="text-xs">
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Textarea
                   defaultValue={a.observacao ?? ""}
                   placeholder="Observação"
@@ -245,6 +293,18 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
             emptyLabel="Sem responsável"
           />
         </div>
+        <Select value={situacaoNova} onValueChange={setSituacaoNova}>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue placeholder="Situação da atividade" />
+          </SelectTrigger>
+          <SelectContent>
+            {SITUACOES_ATIVIDADE.map((s) => (
+              <SelectItem key={s.value} value={s.value} className="text-xs">
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Textarea
           value={observacao}
           onChange={(e) => setObservacao(e.target.value)}
