@@ -38,7 +38,7 @@ import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import { extrairCamposDoJuditRaw, extrairStepsDoJuditRaw, extrairPartesDoJuditRaw } from "@/lib/juditRawCampos";
-import { obterVariantesCnjBusca } from "@/utils/cnjMask";
+import { obterVariantesCnjBusca, mascararCnjDigitacao } from "@/utils/cnjMask";
 import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
 
@@ -1290,11 +1290,16 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     <FormField label="Número do Processo *" className="md:col-span-2">
                       <Input
                         className={inputCls}
-                        placeholder="0000000-00.0000.0.00.0000"
+                        placeholder={(form.tipo_processo || "judicial") === "administrativo" ? "14152.127256/2023-39" : "0000000-00.0000.0.00.0000"}
                         value={form.numero || ""}
+                        maxLength={30}
                         onChange={(e) => {
-                          update("numero", e.target.value);
-                          onNumeroChange?.(e.target.value);
+                          const tipo = form.tipo_processo || "judicial";
+                          const valor = tipo === "administrativo"
+                            ? e.target.value
+                            : mascararCnjDigitacao(e.target.value);
+                          update("numero", valor);
+                          onNumeroChange?.(valor);
                         }}
                         onBlur={(e) => onNumeroChange?.(e.target.value)}
                       />
