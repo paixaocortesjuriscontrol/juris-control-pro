@@ -218,6 +218,32 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
                     emptyLabel="Sem responsável"
                   />
                 </div>
+                <div className="pl-6">
+                  <Select
+                    value={a.situacao ?? "pendente"}
+                    onValueChange={(v) =>
+                      atualizar.mutate({
+                        id: a.id,
+                        patch: {
+                          situacao: v,
+                          concluida_em: v === "concluida" ? new Date().toISOString() : null,
+                          concluida_por: v === "concluida" ? user?.id ?? null : null,
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Situação da atividade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SITUACOES_ATIVIDADE.map((s) => (
+                        <SelectItem key={s.value} value={s.value} className="text-xs">
+                          {s.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Textarea
                   defaultValue={a.observacao ?? ""}
                   placeholder="Observação"
