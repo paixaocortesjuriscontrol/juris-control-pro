@@ -7649,6 +7649,7 @@ export type Database = {
           notificacoes_email: boolean
           notificacoes_email_360: boolean
           oab: string | null
+          pref_ordenacao_dist_tst: Json | null
           telefone: string | null
           updated_at: string
         }
@@ -7665,6 +7666,7 @@ export type Database = {
           notificacoes_email?: boolean
           notificacoes_email_360?: boolean
           oab?: string | null
+          pref_ordenacao_dist_tst?: Json | null
           telefone?: string | null
           updated_at?: string
         }
@@ -7681,6 +7683,7 @@ export type Database = {
           notificacoes_email?: boolean
           notificacoes_email_360?: boolean
           oab?: string | null
+          pref_ordenacao_dist_tst?: Json | null
           telefone?: string | null
           updated_at?: string
         }
