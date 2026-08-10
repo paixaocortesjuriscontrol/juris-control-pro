@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 
 type Resultado = {
   id: string;
@@ -36,6 +37,13 @@ function normalizeSearchTerm(s: string) {
 function buildOr(columns: string[], terms: string[]) {
   const uniqueTerms = Array.from(new Set(terms.map(escapeIlike).filter((term) => term.length >= 2)));
   return columns.flatMap((column) => uniqueTerms.map((term) => `${column}.ilike.%${term}%`)).join(",");
+}
+
+/** Variantes do número do processo (com e sem máscara CNJ) para busca. */
+function variantesNumero(termo: string): string[] {
+  return obterVariantesCnjBusca(termo)
+    .map(escapeIlike)
+    .filter((v) => v.replace(/\D/g, "").length >= 3);
 }
 
 export function BuscaGlobalPainel() {
@@ -71,6 +79,9 @@ export function BuscaGlobalPainel() {
     const termosBusca = [termo, normalizeSearchTerm(termo)];
     const like = `%${termo}%`;
     const digitsOnly = termo.replace(/\D/g, "");
+    const numeroVariantes = variantesNumero(termo);
+    const numeroOr = (coluna: string) =>
+      numeroVariantes.map((v) => `${coluna}.ilike.%${v}%`).join(",");
     try {
         const [proc, cli, tar, evt, aud, pub] = await Promise.all([
           supabase
@@ -78,11 +89,13 @@ export function BuscaGlobalPainel() {
             .select("id, numero, assunto, polo_ativo, polo_passivo")
             .or(
               [
-                `numero.ilike.${like}`,
+                ...(numeroVariantes.length > 0 ? [numeroOr("numero")] : [`numero.ilike.${like}`]),
                 `assunto.ilike.${like}`,
                 `polo_ativo.ilike.${like}`,
                 `polo_passivo.ilike.${like}`,
-              ].join(",")
+              ]
+                .filter(Boolean)
+                .join(",")
             )
             .limit(8),
           supabase
@@ -121,8 +134,8 @@ export function BuscaGlobalPainel() {
             .from("audiencias_detectadas")
             .select("id, processo_numero, data_audiencia, tipo_audiencia")
             .or(
-              digitsOnly.length >= 3
-                ? `processo_numero.ilike.%${digitsOnly}%,tipo_audiencia.ilike.${like}`
+              numeroVariantes.length > 0
+                ? `${numeroOr("processo_numero")},tipo_audiencia.ilike.${like}`
                 : `tipo_audiencia.ilike.${like}`
             )
             .limit(5),
@@ -130,8 +143,8 @@ export function BuscaGlobalPainel() {
             .from("publicacoes_djen")
             .select("id, processo_numero, data_disponibilizacao, tribunal")
             .or(
-              digitsOnly.length >= 3
-                ? `processo_numero.ilike.%${digitsOnly}%,tribunal.ilike.${like}`
+              numeroVariantes.length > 0
+                ? `${numeroOr("processo_numero")},tribunal.ilike.${like}`
                 : `tribunal.ilike.${like}`
             )
             .limit(5),
