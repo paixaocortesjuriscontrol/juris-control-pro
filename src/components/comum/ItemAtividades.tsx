@@ -293,6 +293,18 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
             emptyLabel="Sem responsável"
           />
         </div>
+        <Select value={situacaoNova} onValueChange={setSituacaoNova}>
+          <SelectTrigger className="h-8 text-xs">
+            <SelectValue placeholder="Situação da atividade" />
+          </SelectTrigger>
+          <SelectContent>
+            {SITUACOES_ATIVIDADE.map((s) => (
+              <SelectItem key={s.value} value={s.value} className="text-xs">
+                {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Textarea
           value={observacao}
           onChange={(e) => setObservacao(e.target.value)}
