@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "4.4.2";
+export const APP_VERSION = "4.4.3";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -28,4 +28,5 @@ export const VERSION_HISTORY = [
   { version: "4.4.0", date: "2026-08-06", notes: "Distribuição TST: seleção por quantidade (1 até o total filtrado) na lista" },
   { version: "4.4.1", date: "2026-08-07", notes: "Análise DJEN: Salvar e ler marca o grupo corretamente, data base da publicação e coordenador fixo como envolvido" },
   { version: "4.4.2", date: "2026-08-09", notes: "Acompanhamento Especial: sincronização automática Judit (partes, andamentos, análise) e card de divergências no painel" },
+  { version: "4.4.3", date: "2026-08-10", notes: "Distribuição TST: relatórios e carga Benner sempre por data de distribuição (crescente), ordenação da lista salva no perfil e cabeçalho 'Data Distribuição'" },
 ];
