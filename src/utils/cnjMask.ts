@@ -57,11 +57,3 @@ export function mascararCnjDigitacao(valor: string): string {
   if (d.length > 16) out += "." + d.slice(16, 20);
   return out;
 }
-
-function obterVariantesCnjBuscaLegacy(valor: string | null | undefined): string[] {
-  const raw = String(valor ?? "").trim();
-  const masked = aplicarMascaraCnj(raw);
-  const rawDigits = raw.replace(/\D/g, "");
-  const maskedDigits = masked.replace(/\D/g, "");
-  return [...new Set([raw, masked, rawDigits, maskedDigits].filter(Boolean))];
-}
