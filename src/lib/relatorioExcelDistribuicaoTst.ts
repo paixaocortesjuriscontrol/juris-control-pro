@@ -67,6 +67,13 @@ export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExc
 
   const rows: Row[] = [];
   let semProcessoDossie = 0;
+  const ordemData = new Map<string, number>();
+
+  const dataOrdenavel = (d: string | null): number => {
+    if (!d) return Number.MAX_SAFE_INTEGER;
+    const dt = new Date(d.length === 10 ? d + "T12:00:00" : d);
+    return Number.isNaN(dt.getTime()) ? Number.MAX_SAFE_INTEGER : dt.getTime();
+  };
 
   for (let i = 0; i < ids.length; i += BATCH) {
     const batch = ids.slice(i, i + BATCH);
@@ -85,6 +92,7 @@ export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExc
       const dossie = b.dossie || "";
       const semAmbos = !processo && !dossie;
       if (semAmbos) semProcessoDossie++;
+      ordemData.set(String(rows.length), dataOrdenavel(b.data_distribuicao_real || b.data_distribuicao_planilha));
       rows.push({
         Processo: processo,
         Dossiê: dossie,
@@ -102,7 +110,11 @@ export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExc
     onProgress?.(Math.min(i + BATCH, ids.length), ids.length);
   }
 
-  rows.sort((a, b) => a.Processo.localeCompare(b.Processo, "pt-BR"));
+  // Ordenação obrigatória: Data da Distribuição, da menor para a maior
+  const rowsComOrdem = rows.map((r, i) => ({ r, k: ordemData.get(String(i)) ?? Number.MAX_SAFE_INTEGER }));
+  rowsComOrdem.sort((a, b) => (a.k - b.k) || a.r.Processo.localeCompare(b.r.Processo, "pt-BR"));
+  rows.length = 0;
+  rows.push(...rowsComOrdem.map((x) => x.r));
 
   const ws = XLSX.utils.json_to_sheet(rows, {
     header: [
