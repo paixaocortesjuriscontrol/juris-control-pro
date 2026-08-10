@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Plus, Trash2, ListChecks } from "lucide-react";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { toast } from "sonner";
@@ -14,6 +15,24 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 export type TipoItemAtividade = "tarefa" | "prazo" | "evento" | "audiencia" | "parcelamento";
+
+/**
+ * Situações próprias das ATIVIDADES (subatividades).
+ * São independentes das situações do item pai (prazo, audiência, tarefa etc.).
+ */
+export const SITUACOES_ATIVIDADE: { value: string; label: string }[] = [
+  { value: "pendente", label: "⏳ Pendente" },
+  { value: "em_execucao", label: "▶️ Em execução" },
+  { value: "aguardando", label: "⏸️ Aguardando terceiros" },
+  { value: "revisao", label: "🔍 Em revisão" },
+  { value: "concluida", label: "✔️ Concluída" },
+  { value: "nao_realizada", label: "⚠️ Não realizada" },
+  { value: "cancelada", label: "❌ Cancelada" },
+];
+
+export function labelSituacaoAtividade(valor?: string | null): string {
+  return SITUACOES_ATIVIDADE.find((s) => s.value === (valor ?? "pendente"))?.label ?? (valor ?? "Pendente");
+}
 
 export interface Subatividade {
   id: string;
