@@ -106,8 +106,8 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
   };
 
   return (
-    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6 print:hidden">
-      <div className="pl-12 lg:pl-0">
+    <header className="min-h-16 py-2 bg-card border-b border-border flex flex-wrap items-center justify-between gap-y-2 px-4 lg:px-6 print:hidden">
+      <div className="pl-12 lg:pl-0 min-w-0">
         <h1 className="font-serif text-lg lg:text-xl font-semibold text-foreground truncate">{title}</h1>
         {subtitle && (
           <p className="text-xs lg:text-sm text-muted-foreground hidden sm:block">{subtitle}</p>
@@ -115,11 +115,11 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
       </div>
 
       {/* Busca global fixa em todas as telas */}
-      <div className="hidden md:block flex-1 max-w-xl mx-4">
+      <div className="hidden md:block flex-1 min-w-[220px] max-w-xl mx-4">
         <BuscaGlobalPainel />
       </div>
 
-      <div className="flex items-center gap-2 lg:gap-4">
+      <div className="flex flex-wrap items-center justify-end gap-2 lg:gap-3 min-w-0">
         {/* Header Actions (filters, etc) */}
         {headerActions}
         {/* Import Indicator */}
