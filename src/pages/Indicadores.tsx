@@ -231,9 +231,9 @@ export default function Indicadores() {
           : `Produtividade por tipo de atividade em ${ano}`
       }
       headerActions={
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2 w-full">
           <Select value={ano} onValueChange={setAno}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="h-9 w-full sm:w-[170px]">
               <SelectValue placeholder="Período" />
             </SelectTrigger>
             <SelectContent>
@@ -256,7 +256,7 @@ export default function Indicadores() {
                 setUsuarioId("todos");
               }}
             >
-              <SelectTrigger className="w-[240px]">
+              <SelectTrigger className="h-9 w-full sm:w-[220px]">
                 <SelectValue placeholder="Coordenação" />
               </SelectTrigger>
               <SelectContent>
@@ -272,7 +272,7 @@ export default function Indicadores() {
             </Select>
 
             <Select value={usuarioId} onValueChange={setUsuarioId}>
-              <SelectTrigger className="w-[220px]">
+              <SelectTrigger className="h-9 w-full sm:w-[200px]">
                 <SelectValue placeholder="Usuário" />
               </SelectTrigger>
               <SelectContent>
