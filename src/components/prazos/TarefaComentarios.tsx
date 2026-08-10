@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { MencaoTextarea, ConteudoComMencoes } from "@/components/comum/MencaoTextarea";
+import { useMembrosMencionaveis } from "@/hooks/useMembrosMencionaveis";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Send, Trash2 } from "lucide-react";
@@ -31,9 +32,11 @@ interface TarefaComentariosProps {
 
 export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProps) {
   const [novoComentario, setNovoComentario] = useState("");
+  const [mencionados, setMencionados] = useState<string[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { membros } = useMembrosMencionaveis();
 
   const { data: comentarios, isLoading } = useQuery({
     queryKey: ["comentarios-tarefa", tarefaId],
@@ -78,6 +81,7 @@ export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProp
           tarefa_id: tarefaId,
           autor_id: user.id,
           conteudo,
+          mencionados,
         });
 
       if (error) throw error;
@@ -85,6 +89,7 @@ export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProp
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["comentarios-tarefa", tarefaId] });
       setNovoComentario("");
+      setMencionados([]);
     },
     onError: (error: any) => {
       toast({
@@ -190,7 +195,7 @@ export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProp
                           : "bg-muted"
                       )}
                     >
-                      {comentario.conteudo}
+                      <ConteudoComMencoes texto={comentario.conteudo} membros={membros} />
                     </div>
                   </div>
                 </div>
@@ -201,10 +206,14 @@ export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProp
       </ScrollArea>
 
       <form onSubmit={handleSubmit} className="flex gap-2">
-        <Textarea
-          placeholder="Digite seu comentário..."
+        <MencaoTextarea
+          placeholder="Digite seu comentário... use @ para mencionar"
           value={novoComentario}
-          onChange={(e) => setNovoComentario(e.target.value)}
+          onChange={setNovoComentario}
+          onMencionadosChange={setMencionados}
+          onSubmit={() => {
+            if (novoComentario.trim()) addComentario.mutate(novoComentario.trim());
+          }}
           className="resize-none min-h-[60px]"
           rows={2}
         />

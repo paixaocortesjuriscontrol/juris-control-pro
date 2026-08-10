@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { MencaoTextarea, ConteudoComMencoes } from "@/components/comum/MencaoTextarea";
+import { useMembrosMencionaveis } from "@/hooks/useMembrosMencionaveis";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Send, Trash2, MessageSquare } from "lucide-react";
@@ -41,10 +42,12 @@ interface Comentario {
 
 export function ItemComentarios({ tipo, itemId, className }: Props) {
   const [novo, setNovo] = useState("");
+  const [mencionados, setMencionados] = useState<string[]>([]);
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { table, fk } = CONFIG[tipo];
+  const { membros } = useMembrosMencionaveis();
 
   const queryKey = ["item-comentarios", tipo, itemId];
 
@@ -74,13 +77,14 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
   const addMut = useMutation({
     mutationFn: async (conteudo: string) => {
       if (!user || !itemId) throw new Error("Salve o item antes de comentar");
-      const payload: any = { autor_id: user.id, conteudo, [fk]: itemId };
+      const payload: any = { autor_id: user.id, conteudo, mencionados, [fk]: itemId };
       const { error } = await (supabase as any).from(table).insert(payload);
       if (error) throw error;
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey });
       setNovo("");
+      setMencionados([]);
     },
     onError: (e: any) =>
       toast({ title: "Erro ao enviar comentário", description: e.message, variant: "destructive" }),
@@ -166,7 +170,7 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
                         own ? "bg-primary text-primary-foreground" : "bg-background border"
                       )}
                     >
-                      {c.conteudo}
+                      <ConteudoComMencoes texto={c.conteudo} membros={membros} />
                     </div>
                   </div>
                 </div>
@@ -177,16 +181,12 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
       </ScrollArea>
 
       <div className="flex gap-2">
-        <Textarea
+        <MencaoTextarea
           placeholder="Escreva um comentário..."
           value={novo}
-          onChange={(e) => setNovo(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-              e.preventDefault();
-              handleSubmit();
-            }
-          }}
+          onChange={setNovo}
+          onMencionadosChange={setMencionados}
+          onSubmit={handleSubmit}
           className="resize-none min-h-[48px] text-sm"
           rows={2}
         />

@@ -1693,6 +1693,7 @@ export type Database = {
           conteudo: string
           created_at: string
           id: string
+          mencionados: string[]
           updated_at: string
         }
         Insert: {
@@ -1701,6 +1702,7 @@ export type Database = {
           conteudo: string
           created_at?: string
           id?: string
+          mencionados?: string[]
           updated_at?: string
         }
         Update: {
@@ -1709,6 +1711,7 @@ export type Database = {
           conteudo?: string
           created_at?: string
           id?: string
+          mencionados?: string[]
           updated_at?: string
         }
         Relationships: [
@@ -1728,6 +1731,7 @@ export type Database = {
           created_at: string
           evento_id: string
           id: string
+          mencionados: string[]
           updated_at: string
         }
         Insert: {
@@ -1736,6 +1740,7 @@ export type Database = {
           created_at?: string
           evento_id: string
           id?: string
+          mencionados?: string[]
           updated_at?: string
         }
         Update: {
@@ -1744,6 +1749,7 @@ export type Database = {
           created_at?: string
           evento_id?: string
           id?: string
+          mencionados?: string[]
           updated_at?: string
         }
         Relationships: [
@@ -1797,6 +1803,7 @@ export type Database = {
           conteudo: string
           created_at: string
           id: string
+          mencionados: string[]
           tarefa_id: string
         }
         Insert: {
@@ -1804,6 +1811,7 @@ export type Database = {
           conteudo: string
           created_at?: string
           id?: string
+          mencionados?: string[]
           tarefa_id: string
         }
         Update: {
@@ -1811,6 +1819,7 @@ export type Database = {
           conteudo?: string
           created_at?: string
           id?: string
+          mencionados?: string[]
           tarefa_id?: string
         }
         Relationships: [
