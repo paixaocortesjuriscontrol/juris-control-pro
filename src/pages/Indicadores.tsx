@@ -230,66 +230,6 @@ export default function Indicadores() {
           ? "Produtividade por tipo de atividade, consolidada por ano"
           : `Produtividade por tipo de atividade em ${ano}`
       }
-      headerActions={
-        <div className="flex flex-wrap items-center justify-end gap-2 w-full">
-          <Select value={ano} onValueChange={setAno}>
-            <SelectTrigger className="h-9 w-full sm:w-[170px]">
-              <SelectValue placeholder="Período" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ultimos12">Últimos 12 meses</SelectItem>
-              <SelectItem value="todos">Todos os anos</SelectItem>
-              {anosDisponiveis.map((a) => (
-                <SelectItem key={a} value={String(a)}>
-                  {a}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {podeVerOutros ? (
-            <>
-            <Select
-              value={coordenacaoId}
-              onValueChange={(v) => {
-                setCoordenacaoId(v);
-                setUsuarioId("todos");
-              }}
-            >
-              <SelectTrigger className="h-9 w-full sm:w-[220px]">
-                <SelectValue placeholder="Coordenação" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">
-                  {isAdmin ? "Todas as coordenações" : "Todas as minhas coordenações"}
-                </SelectItem>
-                {coordenacoesDisponiveis.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={usuarioId} onValueChange={setUsuarioId}>
-              <SelectTrigger className="h-9 w-full sm:w-[200px]">
-                <SelectValue placeholder="Usuário" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os usuários</SelectItem>
-                {(usuarios ?? []).map((u) => (
-                  <SelectItem key={u.id} value={u.id}>
-                    {u.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            </>
-          ) : (
-            <span className="text-xs text-muted-foreground">Minhas atividades</span>
-          )}
-        </div>
-      }
     >
       <div className="space-y-4">
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -318,8 +258,83 @@ export default function Indicadores() {
           ))}
         </div>
 
-        <Card>
-          <CardHeader className="pb-2">
+        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 items-start">
+          {/* Filtros à esquerda do gráfico */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Filtros</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Período</p>
+                <Select value={ano} onValueChange={setAno}>
+                  <SelectTrigger className="h-9 w-full">
+                    <SelectValue placeholder="Período" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ultimos12">Últimos 12 meses</SelectItem>
+                    <SelectItem value="todos">Todos os anos</SelectItem>
+                    {anosDisponiveis.map((a) => (
+                      <SelectItem key={a} value={String(a)}>
+                        {a}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {podeVerOutros ? (
+                <>
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">Coordenação</p>
+                    <Select
+                      value={coordenacaoId}
+                      onValueChange={(v) => {
+                        setCoordenacaoId(v);
+                        setUsuarioId("todos");
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-full">
+                        <SelectValue placeholder="Coordenação" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todas">
+                          {isAdmin ? "Todas as coordenações" : "Todas as minhas coordenações"}
+                        </SelectItem>
+                        {coordenacoesDisponiveis.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground">Usuário</p>
+                    <Select value={usuarioId} onValueChange={setUsuarioId}>
+                      <SelectTrigger className="h-9 w-full">
+                        <SelectValue placeholder="Usuário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos os usuários</SelectItem>
+                        {(usuarios ?? []).map((u) => (
+                          <SelectItem key={u.id} value={u.id}>
+                            {u.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </>
+              ) : (
+                <span className="text-xs text-muted-foreground">Minhas atividades</span>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-primary" />
               Atividades concluídas
@@ -357,7 +372,8 @@ export default function Indicadores() {
               </ResponsiveContainer>
             )}
           </CardContent>
-        </Card>
+          </Card>
+        </div>
       </div>
     </MainLayout>
   );
