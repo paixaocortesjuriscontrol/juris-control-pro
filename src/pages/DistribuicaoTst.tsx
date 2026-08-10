@@ -2407,7 +2407,7 @@ export default function DistribuicaoTst() {
                 </TableHead>
                 {([
                   { key: "data_distribuicao_planilha" as const, label: "Data Plan." },
-                  { key: "data_distribuicao_real" as const, label: "Data Real" },
+                  { key: "data_distribuicao_real" as const, label: "Data Distribuição" },
                   { key: "processo_numero" as const, label: "Processo" },
                   { key: "dossie" as const, label: "Dossiê" },
                   { key: "responsaveis" as const, label: "Responsáveis" },
