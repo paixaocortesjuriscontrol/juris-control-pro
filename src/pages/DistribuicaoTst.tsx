@@ -155,6 +155,38 @@ export default function DistribuicaoTst() {
   const [detailInitialTab, setDetailInitialTab] = useState<"distribuicao" | "benner">("distribuicao");
   const { isAdmin, isAdminOrCoordinator } = useUserRole();
   const { user } = useAuth();
+
+  // Carrega a preferência de ordenação salva no perfil do usuário
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("pref_ordenacao_dist_tst")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (cancelled) return;
+      const pref: any = (data as any)?.pref_ordenacao_dist_tst;
+      if (pref?.sortBy) {
+        setSortBy(pref.sortBy as SortKey);
+        setSortDir(pref.sortDir === "desc" ? "desc" : "asc");
+      }
+      setSortPrefLoaded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+
+  // Grava a preferência de ordenação escolhida
+  useEffect(() => {
+    if (!user?.id || !sortPrefLoaded) return;
+    supabase
+      .from("profiles")
+      .update({ pref_ordenacao_dist_tst: sortBy ? { sortBy, sortDir } : null } as any)
+      .eq("id", user.id)
+      .then(() => {});
+  }, [sortBy, sortDir, sortPrefLoaded, user?.id]);
+
   const [delegarOpen, setDelegarOpen] = useState(false);
   const [arquivarDupOpen, setArquivarDupOpen] = useState(false);
   const [arquivarDupRunning, setArquivarDupRunning] = useState(false);
