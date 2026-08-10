@@ -1,72 +1,39 @@
-# Resposta à nova coordenação — o que já existe e o que falta desenvolver
+# Padronizar número CNJ em Processos e Casos
 
-Levantamento item a item das 13 solicitações, verificado no sistema atual, com plano do que falta e um texto pronto para o e-mail de resposta.
+## Diagnóstico (base real, 22.258 processos)
 
-## Situação atual (verificada no sistema)
+| Situação | Qtde |
+| --- | --- |
+| Já com máscara CNJ correta | 21.859 |
+| 20 dígitos, mas sem máscara / com "sujeira" | 55 |
+| Não tem 20 dígitos (fora do padrão CNJ) | 344 |
+| Vazio | 0 |
 
-| Solicitação | Situação | Observação |
-|---|---|---|
-| 1. Captura de movimentações (push TJs) | Já existe | Hub de Monitoração + DJEN Servidor por coordenação, Judit e Acompanhamento Especial (sincronização automática de partes, andamentos e campos, com aviso de divergências no Painel de Controle) |
-| 2. Migração de históricos/documentos do Projuris | Parcial | Importação de processos e tarefas Projuris já existe; comentários, documentos, peças, comprovantes de protocolo e histórico das tarefas ainda não são migrados |
-| 3. Tipos de tarefa parametrizáveis pelo admin | A desenvolver | Hoje a lista de tipos é fixa no código |
-| 4. Auditoria das tarefas | Já existe | Trilha campo a campo por item (aba Histórico) e tela Auditoria de Itens, com usuário e data |
-| 5. Ampliação de status | Já existe (parcial) | Em revisão, A confirmar, Verificado, Concluído com sucesso/sem sucesso, Cancelado, Reagendado, Protocolado, Baixado, Tratado. Falta justificativa obrigatória no cancelamento |
-| 6. Restrição por perfil de acesso | Já existe | Perfis (admin, coordenador, assistente coordenador, advogado, estagiário, assistente, secretária), permissões de menu por usuário, situações restritas e bloqueio de alteração de datas |
-| 7. Notificação de citação/menção por e-mail | A desenvolver | Existem notificações de criação, mudança de situação e comentários, mas não menção a colaborador |
-| 8. Workflows (etapas encadeadas) | A desenvolver | Existem modelos de título com preenchimentos padrão, mas não geração automática da etapa seguinte |
-| 9. TAGs em processos e tarefas | Já existe (parcial) | Etiquetas por coordenação em processos e itens + TAGs na Distribuição TST. Falta destaque da TAG na chegada de nova movimentação/publicação |
-| 10. Campos Objeto e Assunto | Parcial | Existe "Objeto da ação (assunto)" em campo único de texto livre. Falta separar Objeto e Assunto como campos classificatórios com lista padronizada, filtro e relatório |
-| 11. Campo do sistema judicial (PJe, e-SAJ, EPROC…) | Parcial | O campo existe na base e é preenchido pela Judit, mas não está exposto como seleção no formulário |
-| 12. Relatórios em Excel | Parcial | Diversas exportações Excel já existem (Distribuição TST, atividades, indicadores, carga Benner). A tela Relatórios exporta somente PDF |
-| 13. Auditoria de exclusão/reagendamento/troca de responsável | Já existe | Coberto pela trilha de auditoria do item 4 |
+Padrões encontrados nos 399 divergentes:
+- 20 dígitos colados, sem pontuação: `00010158020265100004`
+- Máscara correta com prefixo `*`: `*0001202-62.2022.5.12.0040`
+- Máscara correta + anotação no fim: `0000208-80.2024.5.11.0011 (ACORDO NOS AUTOS)`, `... (transitou em julgado em 12/02/2026)` (76 casos com 28 dígitos)
+- Dois processos no mesmo campo: `0012504-49.2018.8.21.0001 / 5016273-77.2018.8.21.0001` (5 casos, 40 dígitos)
+- Numerações antigas/administrativas: 16 e 17 dígitos (149 casos), `2024/0487328-7`, `AIs 23.188.114-2; ...`
+- 33 registros sem nenhum dígito (identificador textual — provavelmente "Caso", não judicial)
 
-## Escopo aprovado agora
+## Abordagem proposta (duas frentes)
 
-Serão desenvolvidos os blocos A, B, E e F. Blocos C (workflows), D (Objeto/Assunto separados) e G (migração do histórico Projuris) ficam fora deste ciclo.
+### 1. Apresentação (resolve 100% dos casos, sem risco)
+Formatar na exibição: quando o texto contiver um CNJ válido de 20 dígitos, mostrar com máscara; caso contrário, mostrar o valor original como está. Reaproveitar `aplicarMascaraCnj` (já existe em `src/utils/cnjMask.ts`) na lista de Processos e Casos, no cabeçalho de detalhes do processo e nos cards/linhas expansíveis.
 
-### Bloco A — Tipos de tarefa e situações por coordenação
-- Novas tabelas de catálogo: tipos de tarefa e situações de item, ambas com coordenação, rótulo, ícone/cor, ordem e ativo.
-- Carga inicial: todos os tipos e situações usados hoje são criados como padrão para todas as coordenações, sem mudança de comportamento no primeiro dia.
-- Tela de administração (Admin/Coordenação): criar, renomear, reordenar, ativar/desativar e marcar situações como restritas (só admin/coordenador/assistente coordenador podem selecionar).
-- Formulários e filtros de prazo, tarefa, audiência, evento e parcelamento passam a listar os tipos e situações da coordenação do item; sem catálogo próprio, usam o padrão.
-- Justificativa obrigatória apenas na situação "Cancelado", gravada no histórico do item (as demais seguem com comentário opcional).
+### 2. Normalização dos dados (por níveis de segurança)
+- **Nível seguro (automático)** — 20 dígitos válidos: gravar com máscara canônica; remover prefixos `*` e espaços. Inclui os 20-dígitos colados e os prefixados.
+- **Nível anotação (automático, com preservação)** — quando o campo tem CNJ válido + texto extra (ex.: "(transitou em julgado em ...)"): o campo `numero` fica só com o CNJ mascarado e o texto extra é preservado em `observacoes` do processo (concatenado, nunca sobrescrito). ~85 registros.
+- **Nível manual (não alterar)** — múltiplos processos no mesmo campo, numerações antigas de 16/17 dígitos, identificadores textuais e casos sem dígitos. Esses ficam como estão e aparecem numa listagem de revisão.
 
-### Bloco B — Menções com @ e notificação por e-mail
-- Ao digitar `@` no comentário de qualquer item, abre a lista de membros das coordenações às quais o usuário logado pertence (admin vê todas), com busca por nome.
-- A menção é destacada no texto do comentário e registrada de forma estruturada.
-- E-mail automático ao mencionado no mesmo padrão detalhado já usado: autor, item e título, processo vinculado, coordenação, data/hora em BRT e trecho do comentário, com link direto para o item.
+### 3. Escrita futura
+A máscara progressiva já existe no cadastro para processos judiciais. Reforçar a normalização no salvamento: antes de gravar, aplicar `aplicarMascaraCnj` quando o valor for um CNJ válido, para novos cadastros e para as importações (Astrea, Projuris, TST, certidão PDF).
 
-### Bloco E — TAGs em destaque
-- Exibição destacada das TAGs do processo e da tarefa nos cards de nova movimentação e nas publicações DJEN.
-
-### Bloco F — Relatórios em Excel
-- Exportação em Excel na tela Relatórios, com as mesmas seções e filtros da versão PDF.
+### 4. Tela de revisão (opcional, mesmo escopo)
+Em Processos e Casos, um filtro/atalho "Número fora do padrão CNJ" listando os registros do nível manual, para as advogadas corrigirem manualmente.
 
 ## Detalhes técnicos
-
-- Novas tabelas: catálogo de tipos de tarefa, catálogo de situações e menções de item — todas com RLS por coordenação e grants padrão.
-- O seed replica as listas atuais (tipos de `tiposTarefa.ts` e situações de `situacoesItem.ts`) para cada coordenação existente; novas coordenações recebem o padrão automaticamente.
-- Menções gravadas em tabela própria vinculada ao comentário e enviadas pela fila de notificações atual, sem novo canal de e-mail.
-- O seletor de `@` reaproveita a regra de coordenações do usuário já existente (`useCoordenacoesDoUsuario` + membros da coordenação).
-- Exportação Excel reaproveitando o utilitário de planilhas já usado nas demais telas, com datas em DD/MM/AAAA.
-
-## Ordem de entrega
-
-1. Bloco A (catálogos + tela de administração + justificativa de cancelamento)
-2. Bloco B (menções com `@` + e-mail)
-3. Bloco E
-4. Bloco F
-
-## Rascunho do e-mail de resposta
-
-Assunto: Juris Control — análise das funcionalidades solicitadas
-
-Prezados,
-
-Analisamos as 13 funcionalidades solicitadas. Sete já estão disponíveis hoje: captura automática de movimentações dos tribunais (monitoramento push, com acompanhamento especial e sincronização automática), trilha de auditoria completa das tarefas (troca de responsável, reagendamento, edição e exclusão, com usuário e data), status ampliados (Em revisão, A confirmar, Concluída com sucesso, Concluída sem sucesso, Cancelada, Reagendada, Protocolada, entre outros), restrição de funcionalidades por perfil de acesso, TAGs/marcadores em processos e tarefas, exportações em Excel em diversas telas operacionais e importação de processos e tarefas do Projuris.
-
-Serão desenvolvidas nesta etapa: parametrização dos tipos de tarefa e das situações por coordenação (mantendo as opções atuais como padrão em todas), com justificativa obrigatória no cancelamento; menção a colaboradores nos comentários usando "@", com lista dos membros das coordenações do usuário e envio automático de e-mail ao mencionado; destaque das TAGs na chegada de nova movimentação ou publicação; e exportação em Excel também na tela de Relatórios.
-
-Ficam previstas para uma etapa posterior, conforme priorização: workflows com geração automática das etapas subsequentes, separação dos campos "Objeto" e "Assunto" e a migração do histórico do Projuris desde 2024 (comentários, documentos, peças e comprovantes de protocolo) — esta última dependerá do formato de extração disponível no Projuris.
-
-Ficamos à disposição.
+- Migração SQL única em `public.processos` com `UPDATE` em duas etapas (nível seguro e nível anotação), usando regex `[0-9]{7}-?[0-9]{2}\.?[0-9]{4}...` sobre os dígitos e validação do dígito verificador equivalente à de `cnjMask.ts`.
+- Atenção à unicidade por `coordenacao_id`: antes do update, checar colisões (mascarar pode gerar duplicata com um registro já mascarado na mesma coordenação). Colisões não são atualizadas — vão para a lista de revisão manual.
+- Frontend: usar `aplicarMascaraCnj` em `ProcessoExpandableRow.tsx`, lista de processos e cabeçalho de detalhes; normalizar no submit de `ProcessoVisaoGeralForm.tsx`.
