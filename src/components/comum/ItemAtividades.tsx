@@ -84,6 +84,7 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
   const [responsavelIds, setResponsavelIds] = useState<string[]>([]);
   const [dataPrevista, setDataPrevista] = useState("");
   const [observacao, setObservacao] = useState("");
+  const [situacaoNova, setSituacaoNova] = useState("pendente");
 
   const invalidar = async () => {
     await queryClient.invalidateQueries({ queryKey: subatividadesQueryKey(tipo, itemId), refetchType: "all" });
@@ -99,6 +100,7 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
         responsavel_id: responsavelIds[0] ?? null,
         data_prevista: dataPrevista || null,
         observacao: observacao.trim() || null,
+        situacao: situacaoNova || "pendente",
         criado_por: user?.id ?? null,
       });
       if (error) throw error;
@@ -108,6 +110,7 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
       setResponsavelIds([]);
       setDataPrevista("");
       setObservacao("");
+      setSituacaoNova("pendente");
       await invalidar();
       toast.success("Atividade adicionada");
     },
