@@ -42,7 +42,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
-import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersHorizontal, FilterX } from "lucide-react";
+import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersHorizontal, FilterX, ListChecks } from "lucide-react";
 import { BarChart3 } from "lucide-react";
 import { RelatorioAudienciasDialog } from "@/components/audiencias/RelatorioAudienciasDialog";
 import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
