@@ -251,9 +251,10 @@ serve(async (req) => {
     for (const item of pendentes ?? []) {
       try {
         let responsaveis: string[] = item.responsaveis ?? [];
-        const isComentario = item.tipo_evento === "comentario";
+        const isMencao = item.tipo_evento === "mencao";
+        const isComentario = item.tipo_evento === "comentario" || isMencao;
 
-        if (isComentario && item.coordenacao_id) {
+        if (isComentario && !isMencao && item.coordenacao_id) {
           const { data: cfgC } = await supabase
             .from("config_alertas_coordenacao")
             .select("tipos_alerta")
@@ -346,14 +347,18 @@ serve(async (req) => {
 
         const tituloItem = item.titulo ?? labelEntidade(item.entidade);
         const conteudoComentario: string = String(ctx.conteudo ?? "");
-        const assunto = isComentario
+        const assunto = isMencao
+          ? `[${labelEntidade(item.entidade)}] Você foi mencionado — ${tituloItem}`
+          : isComentario
           ? `[${labelEntidade(item.entidade)}] Novo comentário — ${tituloItem}`
           : `[${labelEntidade(item.entidade)}] ${tituloItem} — ${labelSituacao(item.status_anterior)} → ${labelSituacao(item.status_novo)}`;
 
         const linhas: string[] = isComentario ? [
           `${labelEntidade(item.entidade)}: ${tituloItem}`,
           ``,
-          `Novo comentário de: ${atorNome}${atorEmail ? ` <${atorEmail}>` : ""}`,
+          isMencao
+            ? `Você foi mencionado por: ${atorNome}${atorEmail ? ` <${atorEmail}>` : ""}`
+            : `Novo comentário de: ${atorNome}${atorEmail ? ` <${atorEmail}>` : ""}`,
           `Data/hora: ${quando} (BRT)`,
           ``,
           `"${conteudoComentario}"`,
@@ -372,7 +377,7 @@ serve(async (req) => {
 
         // HTML rico
         const rows: string[] = (isComentario ? [
-          ["Comentário de", esc(atorNome) + (atorEmail ? ` <span style="color:#666">&lt;${esc(atorEmail)}&gt;</span>` : "")] as [string, string],
+          [isMencao ? "Mencionado por" : "Comentário de", esc(atorNome) + (atorEmail ? ` <span style="color:#666">&lt;${esc(atorEmail)}&gt;</span>` : "")] as [string, string],
           ["Data/hora", `${esc(quando)} <span style="color:#666">(BRT)</span>`] as [string, string],
           ["Comentário", `<div style="white-space:pre-wrap"><strong>${esc(conteudoComentario)}</strong></div>`] as [string, string],
           ...(coordNome ? [["Coordenação", esc(coordNome)] as [string, string]] : []),
@@ -388,7 +393,7 @@ serve(async (req) => {
 
         const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111;max-width:640px">
   <div style="padding:16px 20px;background:#0f172a;color:#fff;border-radius:8px 8px 0 0">
-    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:0.8">${esc(labelEntidade(item.entidade))} · ${isComentario ? "novo comentário" : "situação alterada"}</div>
+    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:0.8">${esc(labelEntidade(item.entidade))} · ${isMencao ? "você foi mencionado" : isComentario ? "novo comentário" : "situação alterada"}</div>
     <div style="font-size:18px;font-weight:600;margin-top:4px">${esc(tituloItem)}</div>
   </div>
   <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 8px 8px">
@@ -410,7 +415,7 @@ serve(async (req) => {
             mensagem: corpo,
             lida: false,
             dados: {
-              evento: isComentario ? "comentario" : "mudanca_situacao",
+              evento: isMencao ? "mencao" : isComentario ? "comentario" : "mudanca_situacao",
               entidade: item.entidade,
               entidade_id: item.entidade_id,
               ...(isComentario ? { conteudo: conteudoComentario } : {}),
@@ -438,14 +443,14 @@ serve(async (req) => {
           if (cfg.canal_email && p.email) {
             const r = await enviarEmail(p.email, assunto, corpo, html);
             await supabase.from("historico_alertas_enviados").insert({
-              tipo_alerta: isComentario ? "comentario" : "mudanca_situacao", canal: "email", destinatario: p.email,
+              tipo_alerta: isMencao ? "mencao" : isComentario ? "comentario" : "mudanca_situacao", canal: "email", destinatario: p.email,
               conteudo: corpo, referencia_id: item.entidade_id, status: r.ok ? "enviado" : "erro", erro: r.erro,
             });
           }
           if (cfg.canal_whatsapp && p.telefone) {
             const r = await enviarWhatsApp(supabase, p.telefone, corpo);
             await supabase.from("historico_alertas_enviados").insert({
-              tipo_alerta: isComentario ? "comentario" : "mudanca_situacao", canal: "whatsapp", destinatario: p.telefone,
+              tipo_alerta: isMencao ? "mencao" : isComentario ? "comentario" : "mudanca_situacao", canal: "whatsapp", destinatario: p.telefone,
               conteudo: corpo, referencia_id: item.entidade_id, status: r.ok ? "enviado" : "erro", erro: r.erro,
             });
           }
