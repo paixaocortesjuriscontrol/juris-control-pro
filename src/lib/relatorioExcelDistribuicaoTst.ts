@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
 import { loadResponsaveisMap } from "@/hooks/useDistribuicaoResponsaveis";
 import * as XLSX from "xlsx";
+import { getDataDistribuicaoReal } from "@/utils/dataDistribuicaoBenner";
 
 const BATCH = 500;
 
@@ -80,7 +81,7 @@ export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExc
 
     const { data: bennerRows, error } = await supabase
       .from("dados_benner" as any)
-      .select("id, processo, dossie, equipe, data_distribuicao_real, data_distribuicao_planilha, situacao_processo, status_distribuicao, em_analise, situacao_envio_carga_id")
+      .select("id, processo, dossie, equipe, data_distribuicao_real, data_distribuicao_planilha, data_distribuicao, situacao_processo, status_distribuicao, em_analise, situacao_envio_carga_id")
       .in("id", batch);
     if (error) throw new Error(error.message);
 
@@ -92,12 +93,12 @@ export async function gerarRelatorioExcelDistribuicaoTst(opts: GerarRelatorioExc
       const dossie = b.dossie || "";
       const semAmbos = !processo && !dossie;
       if (semAmbos) semProcessoDossie++;
-      ordemData.set(String(rows.length), dataOrdenavel(b.data_distribuicao_real || b.data_distribuicao_planilha));
+      ordemData.set(String(rows.length), dataOrdenavel(getDataDistribuicaoReal(b)));
       rows.push({
         Processo: processo,
         Dossiê: dossie,
         Equipe: b.equipe || "",
-        "Data da Distribuição": fmtDate(b.data_distribuicao_real || b.data_distribuicao_planilha),
+        "Data da Distribuição": fmtDate(getDataDistribuicaoReal(b)),
         Responsável: resps.map((r) => r.nome).join(", "),
         "Situação do Processo": b.situacao_processo || "",
         "Status do Envio": statusEnvioLabel(b.status_distribuicao),

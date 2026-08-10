@@ -15,6 +15,7 @@ import { deriveRecorrenteFromRecursos, normalizeRecorrenteBenner, splitRecursoVa
 import { isOutraMateria } from "@/utils/outraMateria";
 import { applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
 import { getPendencias } from "@/utils/distribuicaoTstPendencias";
+import { getDataDistribuicaoReal } from "@/utils/dataDistribuicaoBenner";
 
 // --- Types ---
 interface Stats {
@@ -428,7 +429,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       if (allDist.length === 0) throw new Error("Nenhuma distribuição encontrada no banco");
 
       // Ordenação obrigatória: Data da Distribuição no TST/STF (menor para maior)
-      allDist.sort((a, b) => parseDateAny(a.data_distribuicao) - parseDateAny(b.data_distribuicao));
+      allDist.sort((a, b) => parseDateAny(getDataDistribuicaoReal(a)) - parseDateAny(getDataDistribuicaoReal(b)));
 
       setProgress(50);
       setPhase("Gerando Layout Carga exclusivamente com Dados Benner...");
@@ -465,7 +466,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           rejected.push({
             "Dossiê": dossie,
             "Número do Processo": numProcesso,
-            "Data Distribuição": formatDateDDMMYYYY(d.data_distribuicao),
+            "Data Distribuição": formatDateDDMMYYYY(getDataDistribuicaoReal(d)),
             "Turma": d.turma || "",
             "Relator": d.relator || "",
             "Motivo": motivoBloqueio,
@@ -484,7 +485,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
             rejected.push({
               "Dossiê": dossie,
               "Número do Processo": numProcesso,
-              "Data Distribuição": formatDateDDMMYYYY(d.data_distribuicao),
+              "Data Distribuição": formatDateDDMMYYYY(getDataDistribuicaoReal(d)),
               "Turma": d.turma || "",
               "Relator": d.relator || "",
               "Motivo": motivo,
@@ -506,7 +507,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           ...splitRecursoValues((d as any).tipo_recurso_reclamante),
           ...splitRecursoValues((d as any).tipo_recurso_banco),
         ].join(", "));
-        outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(d.data_distribuicao);
+        outRow[LAYOUT_COLS[3]] = formatDateDDMMYYYY(getDataDistribuicaoReal(d));
         outRow[LAYOUT_COLS[4]] = fixVicePresidencia(turmaRaw);
         outRow[LAYOUT_COLS[5]] = cleanRelator(String(d.relator ?? "").trim());
         outRow[LAYOUT_COLS[6]] = toSentenceCaseDash(String(d.decisao_quarteirizado ?? "").trim());
