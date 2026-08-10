@@ -2331,9 +2331,17 @@ export default function PainelControle() {
                 dia={new Date(`${diaLateralKey}T12:00:00`)}
                 itens={itensPorDia.get(diaLateralKey) || []}
                 userId={user?.id}
+                atividades={atividadesPorDia.get(diaLateralKey) || []}
                 onSelectItem={(item) => {
                   setDiaLateralKey(null);
                   handleItemClick(item);
+                }}
+                onSelectAtividade={(a) => {
+                  const pai = itemPorRawId.get(String(a.item_id));
+                  if (pai) {
+                    setDiaLateralKey(null);
+                    handleItemClick(pai);
+                  }
                 }}
                 onClose={() => setDiaLateralKey(null)}
               />
