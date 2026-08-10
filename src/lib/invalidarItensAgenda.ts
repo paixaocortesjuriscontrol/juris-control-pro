@@ -26,6 +26,7 @@ export const CHAVES_ITENS_AGENDA: string[] = [
   "prazos-tst",
   "kanban-itens-agenda",
   "subatividades-item",
+  "painel-subatividades-calendario",
   "item-historico",
 ];
 

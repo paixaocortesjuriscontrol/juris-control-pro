@@ -138,6 +138,10 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
 
   return (
     <div className={cn("space-y-3", className)}>
+      <p className="text-[11px] text-muted-foreground">
+        As atividades são independentes: concluir o item (prazo, audiência, tarefa etc.) não conclui as atividades — cada
+        uma deve ser marcada manualmente.
+      </p>
       {isLoading ? (
         <div className="flex items-center justify-center py-6 text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />

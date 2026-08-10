@@ -42,7 +42,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
-import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersHorizontal, FilterX } from "lucide-react";
+import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersHorizontal, FilterX, ListChecks } from "lucide-react";
 import { BarChart3 } from "lucide-react";
 import { RelatorioAudienciasDialog } from "@/components/audiencias/RelatorioAudienciasDialog";
 import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
@@ -1318,6 +1318,57 @@ export default function PainelControle() {
     // Apenas para visualização
   };
 
+  // ===== ATIVIDADES (subatividades) DOS ITENS NO CALENDÁRIO =====
+  // Cada tarefa/prazo/audiência/evento pode ter atividades com data prevista.
+  // Elas aparecem no calendário em branco com letras azuis e são independentes
+  // da conclusão do item pai (concluir o item NÃO conclui a atividade).
+  const itemPorRawId = useMemo(() => {
+    const map = new Map<string, ItemAgendaUnificado>();
+    itensPainelFiltrados.forEach((item) => {
+      const raw = String(item.id)
+        .replace(/^audiencia-det-/, "")
+        .replace(/^prazo-tst-/, "")
+        .split("::")[0];
+      if (raw) map.set(raw, item);
+    });
+    return map;
+  }, [itensPainelFiltrados]);
+
+  const idsAtividadesKey = useMemo(
+    () => Array.from(itemPorRawId.keys()).sort().join(","),
+    [itemPorRawId],
+  );
+
+  const { data: atividadesCalendario = [] } = useQuery({
+    queryKey: ["painel-subatividades-calendario", idsAtividadesKey],
+    enabled: itemPorRawId.size > 0,
+    queryFn: async () => {
+      const ids = Array.from(itemPorRawId.keys());
+      const out: any[] = [];
+      for (let i = 0; i < ids.length; i += 300) {
+        const { data, error } = await (supabase as any)
+          .from("subatividades_item")
+          .select("id, item_id, tipo_item, titulo, situacao, data_prevista, responsavel_id")
+          .in("item_id", ids.slice(i, i + 300))
+          .not("data_prevista", "is", null);
+        if (error) throw error;
+        out.push(...(data || []));
+      }
+      return out;
+    },
+  });
+
+  const atividadesPorDia = useMemo(() => {
+    const map = new Map<string, any[]>();
+    (atividadesCalendario as any[]).forEach((a) => {
+      const key = String(a.data_prevista).slice(0, 10);
+      if (!key) return;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(a);
+    });
+    return map;
+  }, [atividadesCalendario]);
+
   const handleItemClick = (item: ItemAgendaUnificado) => {
     handleEditItem(item);
   };
@@ -2159,6 +2210,7 @@ export default function PainelControle() {
                       .map((dia, i) => {
                         const key = format(dia, "yyyy-MM-dd");
                         const itens = itensPorDia.get(key) || [];
+                        const atividadesDia = atividadesPorDia.get(key) || [];
                         const ehHoje = isToday(dia);
                         const ehMesAtual = isSameMonth(dia, mesAtual);
                         const MAX_VISIBLE = 5;
@@ -2228,6 +2280,26 @@ export default function PainelControle() {
                                   </span>
                                 </div>
                               )})}
+                              {atividadesDia.map((a: any) => (
+                                <div
+                                  key={`ativ-${a.id}`}
+                                  className={cn(
+                                    "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer font-medium flex items-center gap-0.5",
+                                    "bg-background border border-blue-500/60 text-blue-600 dark:text-blue-400",
+                                    a.situacao === "concluida" && "line-through opacity-70",
+                                  )}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const pai = itemPorRawId.get(String(a.item_id));
+                                    if (pai) handleItemClick(pai);
+                                    else setDiaLateralKey(key);
+                                  }}
+                                  title={`Atividade: ${a.titulo}`}
+                                >
+                                  <ListChecks className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0" />
+                                  <span className="truncate">{a.titulo}</span>
+                                </div>
+                              ))}
                               {extras > 0 && (
                                 <button
                                   className="text-[9px] md:text-[10px] text-primary font-semibold px-0.5 md:px-1 hover:underline cursor-pointer w-full text-left"
