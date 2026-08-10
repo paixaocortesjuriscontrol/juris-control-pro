@@ -44,6 +44,7 @@ import MonitoracaoHub from "./pages/MonitoracaoHub";
 import MinhaCarteira from "./pages/MinhaCarteira";
 import AnaliseDjen from "./pages/AnaliseDjen";
 import AnaliseDjenServidor from "./pages/AnaliseDjenServidor";
+import ComparaDocsTst from "./pages/ComparaDocsTst";
 import TermosDjen from "./pages/TermosDjen";
 import ManualSistema from "./pages/ManualSistema";
 import Pastas from "./pages/Pastas";
@@ -213,6 +214,7 @@ function App() {
               <Route path="/classificacao-tst" element={<ProtectedRoute><ClassificacaoTst /></ProtectedRoute>} />
               <Route path="/comparar-dj-santander" element={<ProtectedRoute><CompararDjSantander /></ProtectedRoute>} />
               <Route path="/errata-djen" element={<ProtectedRoute><ErrataDjen /></ProtectedRoute>} />
+              <Route path="/compara-docs-tst" element={<ProtectedRoute><ComparaDocsTst /></ProtectedRoute>} />
               <Route path="/corrigir-planilha" element={<ProtectedRoute><CorrigirPlanilha /></ProtectedRoute>} />
               <Route path="/ia-responde" element={<AdminRoute><IaResponde /></AdminRoute>} />
               <Route path="/admin-tst" element={<ProtectedRoute><AdminTst /></ProtectedRoute>} />
