@@ -291,6 +291,53 @@ serve(async (req) => {
     }
 
     // 2) Envio
+    // Atividades (subatividades) previstas para hoje
+    const { data: atividades } = await supabase
+      .from("subatividades_item")
+      .select("id, item_id, tipo_item, titulo, situacao, observacao, data_prevista, responsavel_id, criado_por")
+      .eq("data_prevista", hoje)
+      .limit(2000);
+
+    const paiTitulos = new Map<string, string>();
+    const ids = [...new Set((atividades ?? []).map((a: any) => a.item_id).filter(Boolean))];
+    if (ids.length) {
+      const [t, a2, e2] = await Promise.all([
+        supabase.from("tarefas").select("id, titulo").in("id", ids),
+        supabase.from("audiencias_detectadas").select("id, titulo, processo_numero").in("id", ids),
+        supabase.from("eventos_agenda").select("id, titulo").in("id", ids),
+      ]);
+      for (const r of (t.data ?? []) as any[]) paiTitulos.set(r.id, r.titulo ?? "");
+      for (const r of (a2.data ?? []) as any[]) paiTitulos.set(r.id, r.titulo ?? r.processo_numero ?? "");
+      for (const r of (e2.data ?? []) as any[]) paiTitulos.set(r.id, r.titulo ?? "");
+    }
+
+    const SIT_ATIV: Record<string, string> = {
+      pendente: "Pendente",
+      em_execucao: "Em execução",
+      concluida: "Concluída",
+      cancelada: "Cancelada",
+      aguardando: "Aguardando",
+    };
+    for (const a of (atividades ?? []) as any[]) {
+      const dest = new Set<string>();
+      if (a.responsavel_id) dest.add(a.responsavel_id);
+      if (a.criado_por) dest.add(a.criado_por);
+      push(dest, {
+        tipo: "Atividade",
+        cor: "#2563EB",
+        titulo: a.titulo ?? "(sem título)",
+        hora: null,
+        detalhes: [
+          ["Situação", SIT_ATIV[a.situacao] ?? a.situacao],
+          ["Data prevista", dataBR(a.data_prevista)],
+          ["Vinculada a", paiTitulos.get(a.item_id) ?? null],
+          ["Tipo do item", a.tipo_item],
+          ["Responsável", await nomes(a.responsavel_id ? [a.responsavel_id] : [])],
+          ["Observação", a.observacao],
+        ],
+      });
+    }
+
     let enviados = 0;
     const erros: string[] = [];
     for (const cfg of alvos as any[]) {
