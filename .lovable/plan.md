@@ -1,39 +1,27 @@
-# Padronizar número CNJ em Processos e Casos
+# Menções com @ nos comentários
 
-## Diagnóstico (base real, 22.258 processos)
+Permitir que o usuário logado mencione outro membro das suas coordenações digitando `@` no comentário, com lista automática de sugestões e envio de e-mail ao mencionado.
 
-| Situação | Qtde |
-| --- | --- |
-| Já com máscara CNJ correta | 21.859 |
-| 20 dígitos, mas sem máscara / com "sujeira" | 55 |
-| Não tem 20 dígitos (fora do padrão CNJ) | 344 |
-| Vazio | 0 |
+## Como vai funcionar
 
-Padrões encontrados nos 399 divergentes:
-- 20 dígitos colados, sem pontuação: `00010158020265100004`
-- Máscara correta com prefixo `*`: `*0001202-62.2022.5.12.0040`
-- Máscara correta + anotação no fim: `0000208-80.2024.5.11.0011 (ACORDO NOS AUTOS)`, `... (transitou em julgado em 12/02/2026)` (76 casos com 28 dígitos)
-- Dois processos no mesmo campo: `0012504-49.2018.8.21.0001 / 5016273-77.2018.8.21.0001` (5 casos, 40 dígitos)
-- Numerações antigas/administrativas: 16 e 17 dígitos (149 casos), `2024/0487328-7`, `AIs 23.188.114-2; ...`
-- 33 registros sem nenhum dígito (identificador textual — provavelmente "Caso", não judicial)
-
-## Abordagem proposta (duas frentes)
-
-### 1. Apresentação (resolve 100% dos casos, sem risco)
-Formatar na exibição: quando o texto contiver um CNJ válido de 20 dígitos, mostrar com máscara; caso contrário, mostrar o valor original como está. Reaproveitar `aplicarMascaraCnj` (já existe em `src/utils/cnjMask.ts`) na lista de Processos e Casos, no cabeçalho de detalhes do processo e nos cards/linhas expansíveis.
-
-### 2. Normalização dos dados (por níveis de segurança)
-- **Nível seguro (automático)** — 20 dígitos válidos: gravar com máscara canônica; remover prefixos `*` e espaços. Inclui os 20-dígitos colados e os prefixados.
-- **Nível anotação (automático, com preservação)** — quando o campo tem CNJ válido + texto extra (ex.: "(transitou em julgado em ...)"): o campo `numero` fica só com o CNJ mascarado e o texto extra é preservado em `observacoes` do processo (concatenado, nunca sobrescrito). ~85 registros.
-- **Nível manual (não alterar)** — múltiplos processos no mesmo campo, numerações antigas de 16/17 dígitos, identificadores textuais e casos sem dígitos. Esses ficam como estão e aparecem numa listagem de revisão.
-
-### 3. Escrita futura
-A máscara progressiva já existe no cadastro para processos judiciais. Reforçar a normalização no salvamento: antes de gravar, aplicar `aplicarMascaraCnj` quando o valor for um CNJ válido, para novos cadastros e para as importações (Astrea, Projuris, TST, certidão PDF).
-
-### 4. Tela de revisão (opcional, mesmo escopo)
-Em Processos e Casos, um filtro/atalho "Número fora do padrão CNJ" listando os registros do nível manual, para as advogadas corrigirem manualmente.
+1. Ao digitar `@` na caixa de comentário (tarefas, prazos, eventos, audiências, parcelamentos), aparece uma lista suspensa com os membros das coordenações às quais o usuário logado pertence (Admin vê todos). A lista filtra conforme as letras digitadas depois do `@`.
+2. Ao escolher um nome, o texto recebe `@Nome Sobrenome` e o usuário fica registrado como mencionado no comentário.
+3. No comentário publicado, as menções aparecem destacadas (cor primária, negrito leve).
+4. Cada pessoa mencionada recebe um e-mail com: quem mencionou, data/hora (BRT), título do item, coordenação, processo vinculado (quando houver), trecho do comentário e link direto para o item.
+5. O e-mail de menção é enviado sempre, mesmo que a pessoa não seja responsável nem envolvida no item. Continua valendo a preferência individual de canal na Central de Notificações (quem desativou e-mail de comentários não recebe).
+6. Quem se menciona a si mesmo não recebe e-mail; menções repetidas geram apenas um e-mail por pessoa.
 
 ## Detalhes técnicos
-- Migração SQL única em `public.processos` com `UPDATE` em duas etapas (nível seguro e nível anotação), usando regex `[0-9]{7}-?[0-9]{2}\.?[0-9]{4}...` sobre os dígitos e validação do dígito verificador equivalente à de `cnjMask.ts`.
-- Atenção à unicidade por `coordenacao_id`: antes do update, checar colisões (mascarar pode gerar duplicata com um registro já mascarado na mesma coordenação). Colisões não são atualizadas — vão para a lista de revisão manual.
-- Frontend: usar `aplicarMascaraCnj` em `ProcessoExpandableRow.tsx`, lista de processos e cabeçalho de detalhes; normalizar no submit de `ProcessoVisaoGeralForm.tsx`.
+
+**Banco**
+- Nova coluna `mencionados uuid[] default '{}'` em `comentarios_tarefas`, `comentarios_eventos` e `comentarios_audiencias`.
+- Novo tipo de evento `mencao` na fila: o gatilho `enqueue_comentario` passa a inserir, além da linha de `comentario` (destinatários = responsáveis/envolvidos, excluindo mencionados para não duplicar), uma segunda linha em `notificacoes_fila` com `tipo_evento = 'mencao'` e `responsaveis = NEW.mencionados` (menos o autor).
+- Ativar `mencao` em `config_alertas_coordenacao.tipos_alerta` por padrão, e tratar `mencao` como não filtrável pelo tipo de alerta da coordenação (a pessoa foi chamada diretamente).
+
+**Frontend**
+- Novo componente `src/components/comum/MencaoTextarea.tsx`: textarea com detecção do `@` (posição do caret), popover de sugestões navegável por teclado (setas/Enter/Esc), e callback com os IDs mencionados.
+- Novo hook `src/hooks/useMembrosMencionaveis.ts`: reaproveita `useCoordenacoesDoUsuario` e busca membros via `membros_coordenacao` + `coordenacoes.coordenador_id`, resolvendo nomes em `profiles_basic`.
+- `src/components/comum/ItemComentarios.tsx` e `src/components/prazos/TarefaComentarios.tsx`: trocar `Textarea` por `MencaoTextarea`, gravar `mencionados` no insert e renderizar o conteúdo com as menções destacadas.
+
+**Edge Function**
+- `supabase/functions/notificar-mudanca-situacao/index.ts`: reconhecer `tipo_evento = 'mencao'` com assunto e cabeçalho próprios ("Você foi mencionado em ..."), mapeando para o mesmo canal/preferência de comentário e registrando `tipo_alerta: 'mencao'` no histórico.
