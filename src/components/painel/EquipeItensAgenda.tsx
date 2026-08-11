@@ -304,9 +304,20 @@ export function EquipeItensAgenda({
     [listaItens, paginaAtual]
   );
 
+  // Volta para a primeira página apenas quando o membro/busca realmente mudam
+  // (não em remontagens nem ao salvar um item, para preservar os filtros).
+  const filtroAnteriorRef = useRef<string | null>(null);
   useEffect(() => {
-    setPagina(1);
-  }, [selectedMembro, search, itens.length]);
+    const chave = `${selectedMembro ?? ""}|${search}`;
+    if (filtroAnteriorRef.current === null) {
+      filtroAnteriorRef.current = chave;
+      return;
+    }
+    if (filtroAnteriorRef.current !== chave) {
+      filtroAnteriorRef.current = chave;
+      setPagina(1);
+    }
+  }, [selectedMembro, search, setPagina]);
 
   const processoIds = useMemo(
     () => Array.from(new Set(itensPagina.map((i) => i.processo_id).filter(Boolean))) as string[],
