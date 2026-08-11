@@ -57,11 +57,43 @@ export function PautasExcelDialog({
   const [progresso, setProgresso] = useState(0);
   const [resumo, setResumo] = useState<ResumoImport | null>(null);
 
-  const audienciaKey = (processoId: string, dataHora: string | null | undefined) => {
+  const normalizarTitulo = (titulo: string | null | undefined) =>
+    String(titulo ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+
+  const diaLocalISO = (dataHora: string | null | undefined) => {
     if (!dataHora) return null;
-    const data = new Date(dataHora);
+    // Datas vindas do banco já chegam em ISO; usamos o dia em BRT para comparar
+    const bruto = String(dataHora);
+    const soData = bruto.slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(soData) && bruto.length <= 10) return soData;
+    const data = new Date(bruto);
     if (Number.isNaN(data.getTime())) return null;
-    return `${processoId}|${data.toISOString()}`;
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(data);
+  };
+
+  /**
+   * Chave de duplicidade: mesmo processo + MESMO DIA + MESMO TÍTULO.
+   * A hora é ignorada de propósito — reimportar a mesma pauta com horário
+   * ajustado não deve duplicar a audiência/tarefa.
+   */
+  const audienciaKey = (
+    processoId: string,
+    dataHora: string | null | undefined,
+    titulo: string | null | undefined,
+  ) => {
+    const dia = diaLocalISO(dataHora);
+    if (!processoId || !dia) return null;
+    return `${processoId}|${dia}|${normalizarTitulo(titulo)}`;
   };
 
   const resetAll = useCallback(() => {
