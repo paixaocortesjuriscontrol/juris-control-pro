@@ -241,17 +241,21 @@ export function PautasExcelDialog({
 
     // 3) Pré-consulta de duplicidade de audiências (mesmo processo + mesma data_audiencia)
     const procIds = Array.from(new Set(Array.from(procIdByDigits.values())));
-    let audienciasDb: Array<{ processo_id: string | null; data_audiencia: string | null }> = [];
+    let audienciasDb: Array<{
+      processo_id: string | null;
+      data_audiencia: string | null;
+      titulo: string | null;
+    }> = [];
     if (procIds.length > 0) {
       const { data } = await supabase
         .from("audiencias_detectadas")
-        .select("processo_id, data_audiencia")
+        .select("processo_id, data_audiencia, titulo")
         .in("processo_id", procIds);
       audienciasDb = (data || []) as any;
     }
     const audChave = new Set<string>();
     for (const a of audienciasDb) {
-      const chave = audienciaKey(a.processo_id || "", a.data_audiencia);
+      const chave = audienciaKey(a.processo_id || "", a.data_audiencia, a.titulo);
       if (chave) audChave.add(chave);
     }
 
@@ -266,14 +270,14 @@ export function PautasExcelDialog({
 
       const hora = l.hora || "12:00";
       const dataAudISO = `${l.data_iso}T${hora}:00-03:00`;
-      const chaveAudiencia = audienciaKey(procId, dataAudISO);
+      const titulo = l.tipo || "Audiência";
+      const chaveAudiencia = audienciaKey(procId, l.data_iso, titulo);
 
       if (chaveAudiencia && audChave.has(chaveAudiencia)) {
         r.audienciasDuplicadas++;
         continue;
       }
 
-      const titulo = l.tipo || "Audiência";
       const audId = crypto.randomUUID();
       const { error: audErr } = await supabase
         .from("audiencias_detectadas")
