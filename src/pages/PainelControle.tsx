@@ -418,6 +418,27 @@ export default function PainelControle() {
   const itensAgenda = agendaQuery.data;
   const isLoading = agendaQuery.isLoading;
 
+  // ===== Vencidos anteriores ao mês exibido (Lista e Equipe) =====
+  // As visões Lista e Equipe devem sempre mostrar os prazos/itens vencidos e
+  // ainda não tratados, mesmo que a data seja anterior ao mês do calendário
+  // (mesmo comportamento da coluna "Vencidos" do Kanban).
+  const vencidosAtivo = viewMode === "lista" || viewMode === "equipe";
+  const filtersVencidos = useMemo(
+    () => ({
+      ...filters,
+      dataInicio: subMonths(dataInicio, 24),
+      dataFim: addDays(dataInicio, -1),
+      enabled: vencidosAtivo,
+    }),
+    [filters, dataInicio, vencidosAtivo],
+  );
+  const vencidosQuery = useAgendaUnificada(filtersVencidos);
+  useEffect(() => {
+    if (vencidosAtivo && vencidosQuery.hasNextPage && !vencidosQuery.isFetchingNextPage) {
+      vencidosQuery.fetchNextPage();
+    }
+  }, [vencidosAtivo, vencidosQuery.hasNextPage, vencidosQuery.isFetchingNextPage, vencidosQuery.fetchNextPage]);
+
   // Estado do Painel da Equipe mantido aqui para não se perder ao abrir/salvar um item
   const [equipeMembro, setEquipeMembro] = useState<string | null>(null);
   const [equipeSearch, setEquipeSearch] = useState("");
