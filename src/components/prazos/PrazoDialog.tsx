@@ -362,14 +362,14 @@ export function PrazoDialog({
     },
   });
 
-  // data base = data da publicação (se houver) ou hoje
+  // data base = data da PUBLICAÇÃO (data_publicacao); fallback: disponibilização; ou hoje
   const dataBase = useMemo<Date>(() => {
-    const disp = parseDataPublicacaoLocal(publicacaoEfetiva?.data_disponibilizacao);
-    if (disp) return disp;
     const pub = parseDataPublicacaoLocal(publicacaoEfetiva?.data_publicacao);
     if (pub) return pub;
+    const disp = parseDataPublicacaoLocal(publicacaoEfetiva?.data_disponibilizacao);
+    if (disp) return disp;
     return new Date();
-  }, [publicacaoEfetiva?.data_disponibilizacao, publicacaoEfetiva?.data_publicacao]);
+  }, [publicacaoEfetiva?.data_publicacao, publicacaoEfetiva?.data_disponibilizacao]);
 
   // Reset do formulário para "novo prazo". Reutilizado pelo useEffect de abertura
   // e pelo pós-Save quando o wrapper deve permanecer aberto para cadastrar outro item.
