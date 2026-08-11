@@ -202,12 +202,12 @@ export function NovaTarefaDialog({
     enabled: open,
   });
 
-  // Data base = data da publicação (disponibilização e, na falta, publicação);
-  // sem publicação vinculada, hoje.
+  // Data base = data da PUBLICAÇÃO (data_publicacao); na falta dela,
+  // a data de disponibilização; sem publicação vinculada, hoje.
   const dataBaseInicial = (() => {
-    const disp = parseDataPublicacaoLocal((publicacao as any)?.data_disponibilizacao);
     const pub = parseDataPublicacaoLocal((publicacao as any)?.data_publicacao);
-    return format(disp || pub || new Date(), "yyyy-MM-dd");
+    const disp = parseDataPublicacaoLocal((publicacao as any)?.data_disponibilizacao);
+    return format(pub || disp || new Date(), "yyyy-MM-dd");
   })();
 
   const form = useForm<FormValues>({
@@ -950,7 +950,7 @@ export function NovaTarefaDialog({
                           // da data base (data da publicação, se houver, ou hoje)
                           const prazoCalculado = resolverPrazoModelo(
                             m,
-                            publicacao?.data_disponibilizacao || publicacao?.data_publicacao || null,
+                            publicacao?.data_publicacao || publicacao?.data_disponibilizacao || null,
                           );
                           if (prazoCalculado && !String(form.getValues("data_vencimento") ?? "").trim()) {
                             form.setValue("data_vencimento" as any, prazoCalculado, { shouldDirty: true });

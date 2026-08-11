@@ -613,7 +613,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                     // data base (data da publicação, se houver, ou hoje)
                     const prazoCalculado = resolverPrazoModelo(
                       m,
-                      (publicacao as any)?.data_disponibilizacao || (publicacao as any)?.data_publicacao || null,
+                      (publicacao as any)?.data_publicacao || (publicacao as any)?.data_disponibilizacao || null,
                     );
                     if (prazoCalculado) {
                       setDataInicio((prev) => (p.data_inicio ? prev : prazoCalculado));
