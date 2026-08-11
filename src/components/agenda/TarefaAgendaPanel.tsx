@@ -225,6 +225,28 @@ export function TarefaAgendaPanel({
   const [editEnvolvidosIds, setEditEnvolvidosIds] = useState<string[]>([]);
   const [editMostrarEnvolvidos, setEditMostrarEnvolvidos] = useState(false);
 
+  // Coordenadores da coordenação do item são responsáveis obrigatórios (cadeado)
+  const { data: itemCoordenacaoId } = useQuery({
+    queryKey: ["item-coordenacao-id", tarefa.origem, tarefa.id],
+    queryFn: async () => {
+      const tabela = tarefa.origem === "tarefa" ? "tarefas" : "eventos_agenda";
+      const { data } = await supabase
+        .from(tabela as any)
+        .select("coordenacao_id")
+        .eq("id", tarefa.id)
+        .maybeSingle();
+      return ((data as any)?.coordenacao_id as string | null) ?? null;
+    },
+  });
+  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(itemCoordenacaoId || null);
+  useEffect(() => {
+    if (!isEditing || coordenadoresIds.length === 0) return;
+    setEditResponsaveisIds((prev) => {
+      const faltando = coordenadoresIds.filter((id) => !prev.includes(id));
+      return faltando.length > 0 ? [...prev, ...faltando] : prev;
+    });
+  }, [isEditing, JSON.stringify(coordenadoresIds)]);
+
   // Usar statusOverride se disponível, senão usar status original
   const statusAtual = statusOverride ?? tarefa.status;
 
