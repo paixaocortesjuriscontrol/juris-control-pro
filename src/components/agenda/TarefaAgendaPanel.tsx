@@ -1184,7 +1184,13 @@ export function TarefaAgendaPanel({
                       onChange={setEditResponsaveisIds}
                       placeholder="Adicionar responsável"
                       emptyLabel="Nenhum responsável selecionado"
+                      lockedIds={coordenadoresIds}
                     />
+                    {coordenadoresIds.length > 0 && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Coordenadores da coordenação são responsáveis obrigatórios e não podem ser removidos.
+                      </p>
+                    )}
                     {!editMostrarEnvolvidos && (
                       <button
                         type="button"
