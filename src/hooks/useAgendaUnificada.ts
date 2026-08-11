@@ -83,6 +83,7 @@ export interface AgendaUnificadaFilters {
   fetchAll?: boolean; // Se true, busca todas as tarefas sem filtrar por usuário (para admins)
   pessoal?: boolean; // Se true, inclui tarefas criadas pelo usuário mesmo que delegadas a outros
   strictCoordenacaoIsolation?: boolean; // Se true, exclui itens sem processo da visão por coordenação
+  enabled?: boolean; // Se false, a query não é executada
 }
 
 const PAGE_SIZE = 1000; // Supabase default limit
@@ -1173,7 +1174,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
       return undefined;
     },
     queryFn: async ({ pageParam }) => fetchAgendaPage(filters, pageParam as number, user?.id),
-    enabled: !!user,
+    enabled: !!user && filters.enabled !== false,
   });
 }
 

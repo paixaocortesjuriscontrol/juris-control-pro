@@ -418,6 +418,27 @@ export default function PainelControle() {
   const itensAgenda = agendaQuery.data;
   const isLoading = agendaQuery.isLoading;
 
+  // ===== Vencidos anteriores ao mês exibido (Lista e Equipe) =====
+  // As visões Lista e Equipe devem sempre mostrar os prazos/itens vencidos e
+  // ainda não tratados, mesmo que a data seja anterior ao mês do calendário
+  // (mesmo comportamento da coluna "Vencidos" do Kanban).
+  const vencidosAtivo = viewMode === "lista" || viewMode === "equipe";
+  const filtersVencidos = useMemo(
+    () => ({
+      ...filters,
+      dataInicio: subMonths(dataInicio, 24),
+      dataFim: addDays(dataInicio, -1),
+      enabled: vencidosAtivo,
+    }),
+    [filters, dataInicio, vencidosAtivo],
+  );
+  const vencidosQuery = useAgendaUnificada(filtersVencidos);
+  useEffect(() => {
+    if (vencidosAtivo && vencidosQuery.hasNextPage && !vencidosQuery.isFetchingNextPage) {
+      vencidosQuery.fetchNextPage();
+    }
+  }, [vencidosAtivo, vencidosQuery.hasNextPage, vencidosQuery.isFetchingNextPage, vencidosQuery.fetchNextPage]);
+
   // Estado do Painel da Equipe mantido aqui para não se perder ao abrir/salvar um item
   const [equipeMembro, setEquipeMembro] = useState<string | null>(null);
   const [equipeSearch, setEquipeSearch] = useState("");
@@ -928,6 +949,19 @@ export default function PainelControle() {
     () => itensAgenda.filter((item) => passaFiltrosPainel(item)),
     [itensAgenda, passaFiltrosPainel],
   );
+
+  // Itens vencidos (anteriores ao mês exibido) ainda não tratados/cancelados,
+  // mesclados às visões Lista e Equipe.
+  const itensListaEquipe = useMemo(() => {
+    if (!vencidosAtivo) return itensPainelFiltrados;
+    const vencidosPendentes = (vencidosQuery.data ?? []).filter(
+      (item) => !isItemEncerrado(item) && passaFiltrosPainel(item),
+    );
+    if (vencidosPendentes.length === 0) return itensPainelFiltrados;
+    const vistos = new Set(itensPainelFiltrados.map((i) => `${i.origem}:${i.id}`));
+    const extras = vencidosPendentes.filter((i) => !vistos.has(`${i.origem}:${i.id}`));
+    return [...extras, ...itensPainelFiltrados];
+  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel]);
 
   // ===== Classificação de um item (mesma regra do filtro de classificação) =====
   const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" => {
@@ -2050,8 +2084,8 @@ export default function PainelControle() {
             <ListaAtividadesView
               embedded
               onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("tarefa"); }}
-              externalItems={itensPainelFiltrados}
-              externalLoading={isLoading}
+              externalItems={itensListaEquipe}
+              externalLoading={isLoading || (vencidosAtivo && vencidosQuery.isLoading)}
               forcedCoordenacaoId={
                 tabMode === "pessoal"
                   ? "all"
@@ -2101,7 +2135,7 @@ export default function PainelControle() {
           ) : (
             <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
               <EquipeItensAgenda
-                itens={itensPainelFiltrados}
+                itens={itensListaEquipe}
                 onItemClick={handleItemClick}
                 selectedMembro={equipeMembro}
                 onSelectedMembroChange={setEquipeMembro}
