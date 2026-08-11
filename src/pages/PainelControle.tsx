@@ -950,6 +950,19 @@ export default function PainelControle() {
     [itensAgenda, passaFiltrosPainel],
   );
 
+  // Itens vencidos (anteriores ao mês exibido) ainda não tratados/cancelados,
+  // mesclados às visões Lista e Equipe.
+  const itensListaEquipe = useMemo(() => {
+    if (!vencidosAtivo) return itensPainelFiltrados;
+    const vencidosPendentes = (vencidosQuery.data ?? []).filter(
+      (item) => !isItemEncerrado(item) && passaFiltrosPainel(item),
+    );
+    if (vencidosPendentes.length === 0) return itensPainelFiltrados;
+    const vistos = new Set(itensPainelFiltrados.map((i) => `${i.origem}:${i.id}`));
+    const extras = vencidosPendentes.filter((i) => !vistos.has(`${i.origem}:${i.id}`));
+    return [...extras, ...itensPainelFiltrados];
+  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel]);
+
   // ===== Classificação de um item (mesma regra do filtro de classificação) =====
   const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" => {
     const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
