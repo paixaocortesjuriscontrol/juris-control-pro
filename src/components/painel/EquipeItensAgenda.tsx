@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -20,6 +20,13 @@ import { cn } from "@/lib/utils";
 interface EquipeItensAgendaProps {
   itens: ItemAgendaUnificado[];
   onItemClick: (item: ItemAgendaUnificado) => void;
+  /** Estado dos filtros controlado pelo pai, para não perder a seleção ao abrir/salvar um item */
+  selectedMembro?: string | null;
+  onSelectedMembroChange?: (id: string | null) => void;
+  search?: string;
+  onSearchChange?: (v: string) => void;
+  pagina?: number;
+  onPaginaChange?: (p: number) => void;
 }
 
 interface MembroStats {
@@ -112,10 +119,26 @@ const getInitials = (name: string) =>
 
 const ITENS_POR_PAGINA = 50;
 
-export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps) {
-  const [selectedMembro, setSelectedMembro] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [pagina, setPagina] = useState(1);
+export function EquipeItensAgenda({
+  itens,
+  onItemClick,
+  selectedMembro: selectedMembroProp,
+  onSelectedMembroChange,
+  search: searchProp,
+  onSearchChange,
+  pagina: paginaProp,
+  onPaginaChange,
+}: EquipeItensAgendaProps) {
+  const [selectedMembroLocal, setSelectedMembroLocal] = useState<string | null>(null);
+  const [searchLocal, setSearchLocal] = useState("");
+  const [paginaLocal, setPaginaLocal] = useState(1);
+
+  const selectedMembro = selectedMembroProp !== undefined ? selectedMembroProp : selectedMembroLocal;
+  const setSelectedMembro = onSelectedMembroChange ?? setSelectedMembroLocal;
+  const search = searchProp !== undefined ? searchProp : searchLocal;
+  const setSearch = onSearchChange ?? setSearchLocal;
+  const pagina = paginaProp !== undefined ? paginaProp : paginaLocal;
+  const setPagina = onPaginaChange ?? setPaginaLocal;
 
   const pessoaLookupIds = useMemo(() => {
     const tarefas = new Set<string>();
@@ -281,9 +304,20 @@ export function EquipeItensAgenda({ itens, onItemClick }: EquipeItensAgendaProps
     [listaItens, paginaAtual]
   );
 
+  // Volta para a primeira página apenas quando o membro/busca realmente mudam
+  // (não em remontagens nem ao salvar um item, para preservar os filtros).
+  const filtroAnteriorRef = useRef<string | null>(null);
   useEffect(() => {
-    setPagina(1);
-  }, [selectedMembro, search, itens.length]);
+    const chave = `${selectedMembro ?? ""}|${search}`;
+    if (filtroAnteriorRef.current === null) {
+      filtroAnteriorRef.current = chave;
+      return;
+    }
+    if (filtroAnteriorRef.current !== chave) {
+      filtroAnteriorRef.current = chave;
+      setPagina(1);
+    }
+  }, [selectedMembro, search, setPagina]);
 
   const processoIds = useMemo(
     () => Array.from(new Set(itensPagina.map((i) => i.processo_id).filter(Boolean))) as string[],

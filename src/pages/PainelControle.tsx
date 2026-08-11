@@ -418,6 +418,11 @@ export default function PainelControle() {
   const itensAgenda = agendaQuery.data;
   const isLoading = agendaQuery.isLoading;
 
+  // Estado do Painel da Equipe mantido aqui para não se perder ao abrir/salvar um item
+  const [equipeMembro, setEquipeMembro] = useState<string | null>(null);
+  const [equipeSearch, setEquipeSearch] = useState("");
+  const [equipePagina, setEquipePagina] = useState(1);
+
   // Auto-fetch all pages
   useEffect(() => {
     if (agendaQuery.hasNextPage && !agendaQuery.isFetchingNextPage) {
@@ -2098,6 +2103,12 @@ export default function PainelControle() {
               <EquipeItensAgenda
                 itens={itensPainelFiltrados}
                 onItemClick={handleItemClick}
+                selectedMembro={equipeMembro}
+                onSelectedMembroChange={setEquipeMembro}
+                search={equipeSearch}
+                onSearchChange={setEquipeSearch}
+                pagina={equipePagina}
+                onPaginaChange={setEquipePagina}
               />
             </div>
           )
