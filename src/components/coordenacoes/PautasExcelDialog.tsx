@@ -57,11 +57,43 @@ export function PautasExcelDialog({
   const [progresso, setProgresso] = useState(0);
   const [resumo, setResumo] = useState<ResumoImport | null>(null);
 
-  const audienciaKey = (processoId: string, dataHora: string | null | undefined) => {
+  const normalizarTitulo = (titulo: string | null | undefined) =>
+    String(titulo ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+
+  const diaLocalISO = (dataHora: string | null | undefined) => {
     if (!dataHora) return null;
-    const data = new Date(dataHora);
+    // Datas vindas do banco já chegam em ISO; usamos o dia em BRT para comparar
+    const bruto = String(dataHora);
+    const soData = bruto.slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(soData) && bruto.length <= 10) return soData;
+    const data = new Date(bruto);
     if (Number.isNaN(data.getTime())) return null;
-    return `${processoId}|${data.toISOString()}`;
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Sao_Paulo",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(data);
+  };
+
+  /**
+   * Chave de duplicidade: mesmo processo + MESMO DIA + MESMO TÍTULO.
+   * A hora é ignorada de propósito — reimportar a mesma pauta com horário
+   * ajustado não deve duplicar a audiência/tarefa.
+   */
+  const audienciaKey = (
+    processoId: string,
+    dataHora: string | null | undefined,
+    titulo: string | null | undefined,
+  ) => {
+    const dia = diaLocalISO(dataHora);
+    if (!processoId || !dia) return null;
+    return `${processoId}|${dia}|${normalizarTitulo(titulo)}`;
   };
 
   const resetAll = useCallback(() => {
@@ -209,18 +241,38 @@ export function PautasExcelDialog({
 
     // 3) Pré-consulta de duplicidade de audiências (mesmo processo + mesma data_audiencia)
     const procIds = Array.from(new Set(Array.from(procIdByDigits.values())));
-    let audienciasDb: Array<{ processo_id: string | null; data_audiencia: string | null }> = [];
+    let audienciasDb: Array<{
+      processo_id: string | null;
+      data_audiencia: string | null;
+      titulo: string | null;
+    }> = [];
     if (procIds.length > 0) {
       const { data } = await supabase
         .from("audiencias_detectadas")
-        .select("processo_id, data_audiencia")
+        .select("processo_id, data_audiencia, titulo")
         .in("processo_id", procIds);
       audienciasDb = (data || []) as any;
     }
     const audChave = new Set<string>();
     for (const a of audienciasDb) {
-      const chave = audienciaKey(a.processo_id || "", a.data_audiencia);
+      const chave = audienciaKey(a.processo_id || "", a.data_audiencia, a.titulo);
       if (chave) audChave.add(chave);
+    }
+
+    // 3b) Também considerar tarefas/itens já existentes (mesmo processo + dia + título)
+    if (procIds.length > 0) {
+      const { data: tarefasDb } = await supabase
+        .from("tarefas")
+        .select("processo_id, titulo, data_vencimento")
+        .in("processo_id", procIds);
+      for (const t of tarefasDb || []) {
+        const chave = audienciaKey(
+          (t as any).processo_id || "",
+          (t as any).data_vencimento,
+          (t as any).titulo,
+        );
+        if (chave) audChave.add(chave);
+      }
     }
 
     // 4) Criar audiências
@@ -234,14 +286,14 @@ export function PautasExcelDialog({
 
       const hora = l.hora || "12:00";
       const dataAudISO = `${l.data_iso}T${hora}:00-03:00`;
-      const chaveAudiencia = audienciaKey(procId, dataAudISO);
+      const titulo = l.tipo || "Audiência";
+      const chaveAudiencia = audienciaKey(procId, l.data_iso, titulo);
 
       if (chaveAudiencia && audChave.has(chaveAudiencia)) {
         r.audienciasDuplicadas++;
         continue;
       }
 
-      const titulo = l.tipo || "Audiência";
       const audId = crypto.randomUUID();
       const { error: audErr } = await supabase
         .from("audiencias_detectadas")
