@@ -2084,8 +2084,8 @@ export default function PainelControle() {
             <ListaAtividadesView
               embedded
               onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("tarefa"); }}
-              externalItems={itensPainelFiltrados}
-              externalLoading={isLoading}
+              externalItems={itensListaEquipe}
+              externalLoading={isLoading || (vencidosAtivo && vencidosQuery.isLoading)}
               forcedCoordenacaoId={
                 tabMode === "pessoal"
                   ? "all"
@@ -2135,7 +2135,7 @@ export default function PainelControle() {
           ) : (
             <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
               <EquipeItensAgenda
-                itens={itensPainelFiltrados}
+                itens={itensListaEquipe}
                 onItemClick={handleItemClick}
                 selectedMembro={equipeMembro}
                 onSelectedMembroChange={setEquipeMembro}
