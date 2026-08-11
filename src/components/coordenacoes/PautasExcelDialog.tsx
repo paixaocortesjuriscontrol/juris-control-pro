@@ -259,6 +259,22 @@ export function PautasExcelDialog({
       if (chave) audChave.add(chave);
     }
 
+    // 3b) Também considerar tarefas/itens já existentes (mesmo processo + dia + título)
+    if (procIds.length > 0) {
+      const { data: tarefasDb } = await supabase
+        .from("tarefas")
+        .select("processo_id, titulo, data_vencimento")
+        .in("processo_id", procIds);
+      for (const t of tarefasDb || []) {
+        const chave = audienciaKey(
+          (t as any).processo_id || "",
+          (t as any).data_vencimento,
+          (t as any).titulo,
+        );
+        if (chave) audChave.add(chave);
+      }
+    }
+
     // 4) Criar audiências
     let processadas = 0;
     for (const l of linhas) {
