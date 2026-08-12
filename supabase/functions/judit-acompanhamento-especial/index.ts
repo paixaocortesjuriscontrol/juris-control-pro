@@ -359,7 +359,7 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const juditApiKey = Deno.env.get("JUDIT_API_KEY");
-  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  // E-mail desativado nesta rotina (reclamações de spam de divergências Judit).
 
   if (!juditApiKey) {
     return new Response(JSON.stringify({ error: "JUDIT_API_KEY não configurada" }), {
@@ -672,25 +672,8 @@ serve(async (req) => {
               )
               .join("");
 
-            // Email via Resend
-            if (resendApiKey) {
-              const emails = (profs ?? []).map((p: any) => p.email).filter(Boolean);
-              if (emails.length > 0) {
-                await fetch("https://api.resend.com/emails", {
-                  method: "POST",
-                  headers: {
-                    Authorization: `Bearer ${resendApiKey}`,
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({
-                    from: "JurisControl <alertas@juriscontrol.adv.br>",
-                    to: emails,
-                    subject: `[Acompanhamento Especial] ${novos} nova(s) movimentação(ões) em ${cnj}`,
-                    html: `<p>Foram encontradas <strong>${novos}</strong> nova(s) movimentação(ões) no processo <strong>${cnj}</strong>:</p><ul>${linhasHtml}</ul><p><a href="https://juriscontrol.adv.br/processos/${p.id}">Abrir processo</a></p>`,
-                  }),
-                }).catch((e) => console.error("[acomp-especial] erro email:", e));
-              }
-            }
+            // Envio de e-mail DESATIVADO nesta rotina (somente sino/WhatsApp).
+            void linhasHtml;
 
             // WhatsApp via Z-API
             const telefones = (profs ?? []).map((p: any) => p.telefone).filter(Boolean);
@@ -754,44 +737,7 @@ serve(async (req) => {
         dados: { processo_id: processoId, divergencias: itens.length },
       });
 
-      if (resendApiKey && destinatarios.length > 0) {
-        const { data: profs } = await supabase
-          .from("profiles")
-          .select("email")
-          .in("id", destinatarios);
-        const emails = (profs ?? []).map((x: any) => x.email).filter(Boolean);
-        if (emails.length > 0) {
-          const linhas = itens
-            .map(
-              (d: any) =>
-                `<tr><td style="padding:4px 8px;border:1px solid #e5e7eb"><strong>${d.campo}</strong></td>` +
-                `<td style="padding:4px 8px;border:1px solid #e5e7eb">${String(d.valor_atual ?? "—").replace(/</g, "&lt;")}</td>` +
-                `<td style="padding:4px 8px;border:1px solid #e5e7eb;color:#047857">${String(d.valor_judit ?? "—").replace(/</g, "&lt;")}</td></tr>`,
-            )
-            .join("");
-          await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${resendApiKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              from: "JurisControl <alertas@juriscontrol.adv.br>",
-              to: emails,
-              subject: `[Acompanhamento Especial] ${itens.length} divergência(s) em ${numero}`,
-              html:
-                `<p>A Judit trouxe valores diferentes dos que estão preenchidos no processo <strong>${numero}</strong>. ` +
-                `O valor digitado foi <strong>preservado</strong> — confira e ajuste se necessário.</p>` +
-                `<table style="border-collapse:collapse;font-size:13px"><thead><tr>` +
-                `<th style="padding:4px 8px;border:1px solid #e5e7eb">Campo</th>` +
-                `<th style="padding:4px 8px;border:1px solid #e5e7eb">No formulário</th>` +
-                `<th style="padding:4px 8px;border:1px solid #e5e7eb">Judit</th>` +
-                `</tr></thead><tbody>${linhas}</tbody></table>` +
-                `<p><a href="https://juriscontrol.adv.br/processos/${processoId}">Abrir processo</a></p>`,
-            }),
-          }).catch((e) => console.error("[acomp-especial] erro email divergencias:", e));
-        }
-      }
+      // Envio de e-mail de divergências DESATIVADO — aviso apenas no sino/painel.
 
       await supabase
         .from("acompanhamento_especial_divergencias")
