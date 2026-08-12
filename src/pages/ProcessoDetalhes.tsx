@@ -1,3 +1,4 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
