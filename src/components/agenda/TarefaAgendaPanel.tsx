@@ -290,10 +290,18 @@ export function TarefaAgendaPanel({
         // Carregar responsáveis/envolvidos existentes
         (async () => {
           const [{ data: resps }, { data: envs }] = await Promise.all([
-            supabase.from("tarefa_responsaveis").select("usuario_id").eq("tarefa_id", tarefa.id),
+            supabase
+              .from("tarefa_responsaveis")
+              .select("usuario_id, created_at")
+              .eq("tarefa_id", tarefa.id)
+              .order("created_at", { ascending: true }),
             supabase.from("tarefa_envolvidos").select("usuario_id").eq("tarefa_id", tarefa.id),
           ]);
-          const respIds = (resps || []).map((r: any) => r.usuario_id);
+          const respIdsRaw = (resps || []).map((r: any) => r.usuario_id);
+          // Preserva o responsável principal na primeira posição
+          const respIds = tarefa.responsavel_id && respIdsRaw.includes(tarefa.responsavel_id)
+            ? [tarefa.responsavel_id, ...respIdsRaw.filter((id: string) => id !== tarefa.responsavel_id)]
+            : respIdsRaw;
           const envIds = (envs || []).map((e: any) => e.usuario_id);
           setEditResponsaveisIds(
             respIds.length > 0 ? respIds : tarefa.responsavel_id ? [tarefa.responsavel_id] : [],
@@ -893,7 +901,10 @@ export function TarefaAgendaPanel({
           data_fatal: editForm.data_fatal || null,
           prioridade: editForm.prioridade || "media",
           updated_at: new Date().toISOString(),
-          responsavel_id: editResponsaveisIds[0],
+          responsavel_id:
+            tarefa.responsavel_id && editResponsaveisIds.includes(tarefa.responsavel_id)
+              ? tarefa.responsavel_id
+              : (editResponsaveisIds.find((id) => !coordenadoresIds.includes(id)) || editResponsaveisIds[0]),
         };
         const { error } = await supabase
           .from("tarefas")
