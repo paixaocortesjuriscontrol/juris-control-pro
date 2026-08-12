@@ -24,19 +24,15 @@ Correção:
 
 Já corrigido em pedido anterior (campo "Nova data do reagendamento" opcional). Nenhuma ação nova.
 
-## 4. Status "Protocolado"/"Baixado" virando "Concluído"
+## 4. Concluir passa a ser apenas uma situação
 
-Causa levantada na auditoria: não existe gatilho no banco que faça isso. Os registros mostram sempre o mesmo usuário salvando "protocolado"/"baixado" e, 1 a 2 segundos depois, uma segunda gravação com `status = cumprido` + `data_cumprimento` — a assinatura exata da ação **Concluir** do painel lateral do item, que continua habilitada mesmo quando a situação atual já é uma situação final.
+Causa levantada na auditoria: não há gatilho no banco fazendo isso. Os registros mostram o mesmo usuário salvando "protocolado"/"baixado" e, 1 a 2 segundos depois, uma segunda gravação com `status = cumprido` + `data_cumprimento` — a assinatura da ação rápida **Concluir**.
 
-Correção:
-- No painel lateral do item (`TarefaAgendaPanel`) e nas ações rápidas das listas, tratar **protocolado, baixado, minutado/revisão, reagendado e tratado** como situações próprias: o botão "Concluir" fica oculto (ou desabilitado com aviso) nessas situações, exigindo mudança explícita pelo formulário.
-- Quando a situação atual não é "pendente", a ação "Concluir" passa a pedir confirmação mostrando de qual situação para qual vai mudar.
-- Respeitar as permissões de situação por tipo de tarefa já existentes: se o usuário não pode aplicar "concluído com sucesso", a ação não aparece.
-- Sem reprocessamento retroativo: apenas o comportamento futuro é bloqueado; os itens já alterados podem ser corrigidos manualmente, com registro na auditoria.
+Correção: remover o botão/ação rápida "Concluir" das telas de itens. A conclusão passa a existir só como situação escolhida no formulário — **Concluído com sucesso** ou **Concluído sem sucesso** — e nada mais é alterado automaticamente.
 
 ## 5. "Concluído com sucesso" restrito ao coordenador
 
-Já disponível via **Permissões de Situação por Tipo de Tarefa** (menu Coordenações). O item 4 faz o botão rápido "Concluir" — que hoje ignora essa configuração — passar a respeitá-la.
+Já disponível via **Permissões de Situação por Tipo de Tarefa** (menu Coordenações). Com a remoção do botão rápido, essa configuração passa a valer para todos os caminhos de conclusão. Nenhuma outra alteração.
 
 ## Detalhes técnicos
 
@@ -44,6 +40,6 @@ Já disponível via **Permissões de Situação por Tipo de Tarefa** (menu Coord
 - `src/utils/date.ts`: novos helpers `horaBrt()` e `dataHoraBrt()`.
 - `src/pages/PainelControle.tsx`: substituir `extractHora` por `horaBrt`.
 - `src/components/audiencias/RelatorioAudienciasDiretoria.tsx` e `src/hooks/useExportarAudiencias.ts`: hora com prioridade BRT.
-- `src/components/agenda/TarefaAgendaPanel.tsx` e `src/components/lista/ListaAtividadesView.tsx`: bloqueio/confirmação do "Concluir" e checagem de permissão de situação.
+- `src/components/agenda/TarefaAgendaPanel.tsx` e demais listas/kanban: remover o botão e o handler de "Concluir" (a conclusão fica somente pela seleção de situação).
 - Sem alterações de banco de dados.
 - Versão do menu atualizada para **v4.4.8**.
