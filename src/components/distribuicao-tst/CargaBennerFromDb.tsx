@@ -117,8 +117,8 @@ function isFlagOn(v: unknown): boolean {
 function getMotivoBloqueioCarga(d: any): string | null {
   if (isFlagOn(d?.transito_julgado)) return "Trânsito em julgado";
   if (isFlagOn(d?.processo_outro_escritorio)) return "Processo em outro escritório";
-  if (isFlagOn(d?.problema_judit)) return "Problema Judit";
   if (isFlagOn(d?.segredo_justica)) return "Segredo de justiça";
+  // "Problema Judit" NÃO é motivo de rejeição na Carga Benner.
   if (isFlagOn(d?.cejusc)) return "CEJUSC";
   if (isFlagOn(d?.acordo)) return "Acordo";
   // "Recurso de terceiro" NÃO é motivo de rejeição na Carga Benner.
@@ -514,9 +514,11 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         // Campos unificados: a aba Distribuição TST (Análise) é a fonte
         // autoritativa. `risco_midia`/`materia_honra` são apenas fallback
         // para registros legados (campo removido da aba Confere Benner).
-        outRow[LAYOUT_COLS[7]] = (d.midia_negativa || d.risco_midia)
+        const midiaSN = (d.midia_negativa || d.risco_midia)
           ? toSN(String(d.midia_negativa || d.risco_midia)) : "";
-        outRow[LAYOUT_COLS[8]] = String(d.risco_descricao ?? "").trim();
+        outRow[LAYOUT_COLS[7]] = midiaSN;
+        // Se não há risco de mídia negativa (N), a coluna "Risco" fica vazia.
+        outRow[LAYOUT_COLS[8]] = midiaSN === "N" ? "" : String(d.risco_descricao ?? "").trim();
         outRow[LAYOUT_COLS[9]] = d.provas_digitais ? toSN(String(d.provas_digitais)) : "";
         outRow[LAYOUT_COLS[10]] = d.tem_data_julgamento ? toSN(String(d.tem_data_julgamento)) : "";
         outRow[LAYOUT_COLS[11]] = formatDateDDMMYYYY(d.data_julgamento);
