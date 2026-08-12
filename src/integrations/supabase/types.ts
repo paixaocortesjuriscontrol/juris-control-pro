@@ -6594,6 +6594,50 @@ export type Database = {
         }
         Relationships: []
       }
+      permissoes_situacao_tipo_tarefa: {
+        Row: {
+          coordenacao_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          perfis: string[]
+          situacao: string
+          tipo_tarefa: string
+          updated_at: string
+          usuarios: string[]
+        }
+        Insert: {
+          coordenacao_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          perfis?: string[]
+          situacao: string
+          tipo_tarefa: string
+          updated_at?: string
+          usuarios?: string[]
+        }
+        Update: {
+          coordenacao_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          perfis?: string[]
+          situacao?: string
+          tipo_tarefa?: string
+          updated_at?: string
+          usuarios?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permissoes_situacao_tipo_tarefa_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       processo_tags_catalogo: {
         Row: {
           ativo: boolean
