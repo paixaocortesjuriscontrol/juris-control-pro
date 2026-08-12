@@ -143,7 +143,7 @@ export function AudienciaFormSimplificado({
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const [coordenacaoId, setCoordenacaoId] = useState<string>(
-    audienciaParaEditar?.coordenacao_id ?? defaultCoordenacaoId ?? ""
+    audienciaParaEditar?.coordenacao_id ?? ""
   );
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
   useEffect(() => {
@@ -217,10 +217,8 @@ export function AudienciaFormSimplificado({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coordenacaoId, isAdminCoord, isEditing, JSON.stringify(coordenacoesDoUsuario), unicaCoordenacaoId]);
 
-  // Coordenação herdada do processo/pasta (evita bloqueio "Selecione a coordenação")
-  useEffect(() => {
-    if (defaultCoordenacaoId) setCoordenacaoId((prev) => prev || defaultCoordenacaoId);
-  }, [defaultCoordenacaoId]);
+  // A coordenação nunca é herdada do processo/pasta: usa sempre a do usuário logado
+  // (e, com mais de uma, exige escolha explícita no select).
 
   const set = (field: keyof typeof empty, v: any) =>
     setForm((p) => ({ ...p, [field]: v }));
@@ -246,9 +244,6 @@ export function AudienciaFormSimplificado({
       }
       setProcessoNumero(formatProcessoNumero(data.numero ?? numero));
       setProcessoId(data.id);
-      if ((data as any).coordenacao_id) {
-        setCoordenacaoId((prev) => prev || (data as any).coordenacao_id);
-      }
       if (withToast) toast.success("Processo encontrado");
     } finally {
       setBuscando(false);
@@ -270,9 +265,6 @@ export function AudienciaFormSimplificado({
         if (!data) return;
         setProcessoId(data.id);
         setProcessoNumero(formatProcessoNumero(data.numero ?? defaultProcessoNumero ?? ""));
-        if ((data as any).coordenacao_id) {
-          setCoordenacaoId((prev) => prev || (data as any).coordenacao_id);
-        }
       })();
       return;
     }
