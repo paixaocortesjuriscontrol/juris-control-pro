@@ -756,7 +756,7 @@ export function PrazoDialog({
             {situacao === "reagendado" && (
               <div className="space-y-1.5 pb-2">
                 <Label className="text-xs font-semibold">
-                  Nova data do reagendamento <span className="text-destructive">*</span>
+                  Nova data do reagendamento (opcional)
                 </Label>
                 <Input
                   type="date"
@@ -765,10 +765,11 @@ export function PrazoDialog({
                   className="h-9 w-[180px] text-sm"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  O prazo será movido para esta data no painel de controle.
+                  Se preenchido, o prazo será movido para esta data no painel. Se deixado em branco, permanece na data atual.
                 </p>
               </div>
             )}
+
             <Label className="text-xs font-semibold">
               Comentário da mudança de situação (opcional)
             </Label>
