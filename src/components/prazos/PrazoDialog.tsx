@@ -435,8 +435,8 @@ export function PrazoDialog({
   }, [open, prazo?.id, unicaCoordenacaoId]);
 
   // Auto-calcular data limite quando Prazo (dias) muda
-  // Coordenadores da coordenação são responsáveis obrigatórios do prazo
-  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null);
+  // Responsáveis definidos na configuração da coordenação para o tipo Prazo
+  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "PRAZO");
 
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
@@ -1076,7 +1076,7 @@ export function PrazoDialog({
           />
           {coordenadoresIds.length > 0 && (
             <p className="text-[11px] text-muted-foreground">
-              Coordenadores da coordenação são responsáveis obrigatórios e não podem ser removidos.
+              Responsáveis fixos configurados para Prazo não podem ser removidos.
             </p>
           )}
           {!mostrarEnvolvidos && (

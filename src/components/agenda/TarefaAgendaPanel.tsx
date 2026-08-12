@@ -226,7 +226,7 @@ export function TarefaAgendaPanel({
   const [editEnvolvidosIds, setEditEnvolvidosIds] = useState<string[]>([]);
   const [editMostrarEnvolvidos, setEditMostrarEnvolvidos] = useState(false);
 
-  // Coordenadores da coordenação do item são responsáveis obrigatórios (cadeado)
+  // Responsáveis fixos da coordenação e do tipo do item recebem o cadeado
   const { data: itemCoordenacaoId } = useQuery({
     queryKey: ["item-coordenacao-id", tarefa.origem, tarefa.id],
     queryFn: async () => {
@@ -239,7 +239,10 @@ export function TarefaAgendaPanel({
       return ((data as any)?.coordenacao_id as string | null) ?? null;
     },
   });
-  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(itemCoordenacaoId || null);
+  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(
+    itemCoordenacaoId || null,
+    tarefa.origem === "tarefa" ? (editForm.tipo_tarefa || tarefa.tipo_tarefa || "TAREFA EQUIPE") : "OUTROS",
+  );
   useEffect(() => {
     if (!isEditing || coordenadoresIds.length === 0) return;
     setEditResponsaveisIds((prev) => {
@@ -1188,7 +1191,7 @@ export function TarefaAgendaPanel({
                     />
                     {coordenadoresIds.length > 0 && (
                       <p className="text-[11px] text-muted-foreground">
-                        Coordenadores da coordenação são responsáveis obrigatórios e não podem ser removidos.
+                        Responsáveis fixos configurados para este tipo não podem ser removidos.
                       </p>
                     )}
                     {!editMostrarEnvolvidos && (
