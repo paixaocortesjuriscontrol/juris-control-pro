@@ -5,6 +5,27 @@ import {
   extrairPartesDoJuditRaw,
   extrairStepsDoJuditRaw,
 } from "../_shared/juditRawCampos.ts";
+import { coordenacaoDoUsuario } from "../_shared/coordenacao-usuario.ts";
+
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "JurisControl <alertas@juriscontrol.adv.br>";
+
+/** Envia e-mail via Resend. Nunca lança — retorna status para o histórico. */
+async function enviarEmailResend(to: string, subject: string, html: string) {
+  if (!RESEND_API_KEY) return { ok: false, erro: "RESEND_API_KEY não configurada" };
+  try {
+    const resp = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject, html }),
+    });
+    if (!resp.ok) return { ok: false, erro: `resend ${resp.status}: ${await resp.text()}` };
+    await resp.json().catch(() => null);
+    return { ok: true as const, erro: null };
+  } catch (e) {
+    return { ok: false, erro: String((e as Error)?.message ?? e) };
+  }
+}
 
 // Campos do formulário "Visão Geral" que a Judit consegue preencher.
 // Regra: NUNCA sobrescrever valor já preenchido pelo advogado — só grava
