@@ -28,7 +28,6 @@ import {
   TimerOff,
   CalendarX,
   CircleDollarSign,
-  AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
@@ -410,17 +409,13 @@ export function DashboardCoordenacoes({
 
                     {/* Não tratados (itens do botão Adicionar vencidos) */}
                     {(naoTratados[coord.id]?.total ?? 0) > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-rose-600 dark:text-rose-400">
-                          <AlertTriangle className="h-3 w-3" />
-                          Não tratados
-                        </span>
+                      <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-red-500/50 p-1.5 bg-red-500/5">
                         {([
-                          { key: "tarefas", label: "Tarefas não tratadas", Icon: ClipboardX, cls: "text-rose-600", bg: "bg-rose-600/15 border-rose-600/40" },
-                          { key: "prazos", label: "Prazos não tratados", Icon: TimerOff, cls: "text-fuchsia-600", bg: "bg-fuchsia-600/15 border-fuchsia-600/40" },
-                          { key: "eventos", label: "Eventos não tratados", Icon: CalendarX, cls: "text-yellow-600", bg: "bg-yellow-600/15 border-yellow-600/40" },
-                          { key: "audiencias", label: "Audiências não tratadas", Icon: Gavel, cls: "text-pink-600", bg: "bg-pink-600/15 border-pink-600/40" },
-                          { key: "parcelas", label: "Parcelas não tratadas", Icon: CircleDollarSign, cls: "text-orange-600", bg: "bg-orange-600/15 border-orange-600/40" },
+                          { key: "tarefas", label: "Tarefas não tratadas", Icon: ClipboardX, cls: "text-blue-600", bg: "bg-blue-600/15 border-blue-600/30" },
+                          { key: "prazos", label: "Prazos não tratados", Icon: TimerOff, cls: "text-red-600", bg: "bg-red-600/15 border-red-600/30" },
+                          { key: "eventos", label: "Eventos não tratados", Icon: CalendarX, cls: "text-green-600", bg: "bg-green-600/15 border-green-600/30" },
+                          { key: "audiencias", label: "Audiências não tratadas", Icon: Gavel, cls: "text-yellow-600", bg: "bg-yellow-600/15 border-yellow-600/30" },
+                          { key: "parcelas", label: "Parcelas não tratadas", Icon: CircleDollarSign, cls: "text-emerald-600", bg: "bg-emerald-600/15 border-emerald-600/30" },
                         ] as const).map(({ key, label, Icon, cls, bg }) => {
                           const value = naoTratados[coord.id]?.[key] ?? 0;
                           if (value <= 0) return null;
@@ -428,7 +423,7 @@ export function DashboardCoordenacoes({
                             <div
                               key={key}
                               title={label}
-                              className={cn("flex flex-col items-center p-1.5 rounded-md border border-dashed", bg)}
+                              className={cn("flex flex-col items-center p-1.5 rounded-md border", bg)}
                             >
                               <Icon className={cn("h-4 w-4", cls)} />
                               <span className={cn("text-xs font-semibold", cls)}>{value}</span>
