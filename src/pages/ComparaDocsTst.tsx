@@ -101,6 +101,8 @@ export default function ComparaDocsTst() {
   };
 
   const buscarPublicacoes = async () => {
+    // data_disponibilizacao é timestamp: usa intervalo do dia [dia, dia+1)
+    const proximoDia = format(new Date(new Date(`${dataInicio}T00:00:00Z`).getTime() + 86400000), "yyyy-MM-dd");
     const linhas: { processo_numero: string | null; conteudo: string | null; tipo_comunicacao: string | null; orgao: string | null }[] = [];
     const pageSize = 1000;
     for (let page = 0; ; page++) {
@@ -108,7 +110,8 @@ export default function ComparaDocsTst() {
         .from("publicacoes_djen")
         .select("processo_numero, conteudo, tipo_comunicacao, orgao")
         .eq("status", "encontrada")
-        .eq("data_disponibilizacao", dataInicio)
+        .gte("data_disponibilizacao", dataInicio)
+        .lt("data_disponibilizacao", proximoDia)
         .range(page * pageSize, page * pageSize + pageSize - 1);
       if (coordenacaoId !== "todas") q = q.eq("coordenacao_id", coordenacaoId);
       const { data, error } = await q;
