@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, User, LogOut, Bell, Loader2, KeyRound } from "lucide-react";
+import { Search, User, LogOut, Bell, Loader2, KeyRound, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { NotificacoesDropdown } from "./NotificacoesDropdown";
+import { useAcompanhamentoEspecialNovidades } from "@/hooks/useAcompanhamentoEspecialNovidades";
 import { AlterarSenhaDialog } from "./AlterarSenhaDialog";
 import { MeuPerfilDialog } from "./MeuPerfilDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -37,6 +38,7 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
   const { user, signOut } = useAuth();
   const { isImporting, importLabel } = useImport();
   const { role } = useUserRole();
+  const { total: novidadesAcomp, temNovidades, marcarComoVistas } = useAcompanhamentoEspecialNovidades();
   const navigate = useNavigate();
   const [senhaDialogOpen, setSenhaDialogOpen] = useState(false);
   const [notifDialogOpen, setNotifDialogOpen] = useState(false);
@@ -130,6 +132,25 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
               {importLabel || "Importando..."}
             </span>
           </Badge>
+        )}
+
+        {/* Novidades do Acompanhamento Especial (escopo do usuário) */}
+        {temNovidades && (
+          <button
+            type="button"
+            title="Novidades do Acompanhamento Especial na sua coordenação"
+            onClick={() => {
+              marcarComoVistas();
+              navigate("/painel-controle");
+            }}
+            className="flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-amber-700 dark:text-amber-400 transition-opacity hover:opacity-80"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline text-xs font-medium">Novidades</span>
+            <span className="text-[10px] font-bold leading-none rounded-full bg-amber-500 text-white px-1.5 py-0.5">
+              {novidadesAcomp > 99 ? "99+" : novidadesAcomp}
+            </span>
+          </button>
         )}
 
         {/* Notifications */}
