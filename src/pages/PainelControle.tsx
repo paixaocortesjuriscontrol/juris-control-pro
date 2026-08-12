@@ -1947,7 +1947,7 @@ export default function PainelControle() {
             </summary>
             <div className="mt-2 max-h-96 overflow-y-auto pr-2 space-y-2">
               <AcompanhamentoEspecialResumo />
-              <AcompanhamentoEspecialEventos limit={10} showProcesso />
+              <AcompanhamentoEspecialEventos limit={10} showProcesso hideWhenEmpty />
             </div>
           </details>
           {!mostrarTotalizadores ? null : isLoading ? (
