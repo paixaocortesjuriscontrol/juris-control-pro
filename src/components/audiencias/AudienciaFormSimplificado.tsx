@@ -140,7 +140,7 @@ export function AudienciaFormSimplificado({
   const [coordenacaoId, setCoordenacaoId] = useState<string>(
     audienciaParaEditar?.coordenacao_id ?? defaultCoordenacaoId ?? ""
   );
-  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null);
+  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
     setResponsaveisIds((prev) => {
@@ -725,7 +725,7 @@ export function AudienciaFormSimplificado({
         />
         {coordenadoresIds.length > 0 && (
           <p className="text-[11px] text-muted-foreground">
-            Coordenadores da coordenação são responsáveis obrigatórios e não podem ser removidos.
+            Responsáveis fixos configurados para Audiência não podem ser removidos.
           </p>
         )}
         {!mostrarEnvolvidos && (

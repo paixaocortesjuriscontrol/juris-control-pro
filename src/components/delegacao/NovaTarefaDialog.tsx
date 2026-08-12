@@ -231,7 +231,7 @@ export function NovaTarefaDialog({
 
   const tipoVinculo = form.watch("tipo_vinculo");
   const coordenacaoId = form.watch("coordenacao_id");
-  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null);
+  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "TAREFA EQUIPE");
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
     setResponsaveisIds((prev) => {
@@ -1098,7 +1098,7 @@ export function NovaTarefaDialog({
                     </FormControl>
                     {coordenadoresIds.length > 0 && (
                       <p className="text-[11px] text-muted-foreground">
-                        Coordenadores da coordenação são responsáveis obrigatórios e não podem ser removidos.
+                        Responsáveis fixos configurados para Tarefa Equipe não podem ser removidos.
                       </p>
                     )}
                     <FormMessage />

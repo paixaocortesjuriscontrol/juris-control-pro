@@ -139,7 +139,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const [alertaValor, setAlertaValor] = useState<number>(0);
   const [alertaUnidade, setAlertaUnidade] = useState<AlertaUnidade>("horas");
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
-  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null);
+  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "OUTROS");
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
     setResponsaveisIds((prev) => {
@@ -744,7 +744,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               </div>
               {coordenadoresIds.length > 0 && (
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Coordenadores da coordenação são responsáveis obrigatórios e não podem ser removidos.
+                  Responsáveis fixos configurados para Outros não podem ser removidos.
                 </p>
               )}
               {!mostrarEnvolvidos && (
