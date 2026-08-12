@@ -16,13 +16,14 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Search, Eye, CheckCircle2, XCircle, FileText } from "lucide-react";
+import { Loader2, Search, Eye, CheckCircle2, XCircle, FileText, Download } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { gerarRelatorioAuditoriaPdf } from "@/lib/relatorioAuditoriaCoordenacaoPdf";
+import { gerarRelatorioAuditoriaExcel } from "@/lib/relatorioAuditoriaCoordenacaoExcel";
 import { toast } from "sonner";
 
 interface AuditoriaRow {
@@ -172,7 +173,7 @@ export default function AuditoriaItens() {
   const nomeCoordenacao = (id: string) =>
     (coordenacoes || []).find((c: any) => c.id === id)?.nome || "Todas as coordenações";
 
-  const gerarPdf = async () => {
+  const gerarRelatorio = async (formato: "pdf" | "excel" = "pdf") => {
     if (rowsFiltradas.length === 0) {
       toast.error("Nenhuma alteração no período/filtros selecionados.");
       return;
@@ -220,7 +221,7 @@ export default function AuditoriaItens() {
         return `${u?.nome ?? ""} ${u?.email ?? ""}`.toLowerCase().includes(termo);
       });
 
-      gerarRelatorioAuditoriaPdf({
+      const params = {
         coordenacaoNome: coordenacaoId === "todas" ? "Todas as coordenações" : nomeCoordenacao(coordenacaoId),
         periodo:
           dataInicio || dataFim
@@ -243,7 +244,9 @@ export default function AuditoriaItens() {
         })),
         labelCampo,
         formatValor,
-      });
+      };
+      if (formato === "excel") gerarRelatorioAuditoriaExcel(params);
+      else gerarRelatorioAuditoriaPdf(params);
       toast.success(`${finais.length} alteração(ões) no relatório.`);
     } catch (e: any) {
       toast.error(e.message || "Falha ao gerar o relatório");
@@ -325,13 +328,23 @@ export default function AuditoriaItens() {
           </div>
           <div className="md:col-span-3 lg:col-span-6 flex justify-end gap-2">
             {podeRelatorio && (
-              <Button onClick={gerarPdf} variant="outline" disabled={gerandoPdf}>
+              <Button onClick={() => gerarRelatorio("pdf")} variant="outline" disabled={gerandoPdf}>
                 {gerandoPdf ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
                   <FileText className="w-4 h-4 mr-2" />
                 )}
                 Relatório de Auditoria (PDF)
+              </Button>
+            )}
+            {podeRelatorio && (
+              <Button onClick={() => gerarRelatorio("excel")} variant="outline" disabled={gerandoPdf}>
+                {gerandoPdf ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4 mr-2" />
+                )}
+                Relatório de Auditoria (Excel)
               </Button>
             )}
             <Button onClick={() => refetch()} variant="secondary">
