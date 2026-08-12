@@ -498,6 +498,19 @@ export function PrazoDialog({
     }
     const situacaoMudou = situacao !== situacaoInicial;
 
+    // Reagendamento: exige nova data e move o prazo para ela (senão o item
+    // continuaria preso na data antiga e "não entra" no painel).
+    let dataLimiteFinal = dataLimite;
+    let dataFatalFinal = dataFatal;
+    if (situacao === "reagendado" && situacaoMudou) {
+      if (!novaDataReagendamento) {
+        toast.error("Informe a nova data do reagendamento");
+        return;
+      }
+      dataLimiteFinal = parseISO(`${novaDataReagendamento}T12:00:00`);
+      if (dataFatal && dataFatal < dataLimiteFinal) dataFatalFinal = dataLimiteFinal;
+    }
+
     // Responsável principal: preserva o atual (se continua na lista); caso contrário
     // usa o primeiro responsável que NÃO seja um responsável fixo da coordenação,
     // para que o coordenador fixo não "roube" a titularidade do prazo.
@@ -528,7 +541,7 @@ export function PrazoDialog({
 
     const payload = {
       titulo: tituloFinal,
-      data_vencimento: format(dataLimite, "yyyy-MM-dd"),
+      data_vencimento: format(dataLimiteFinal, "yyyy-MM-dd"),
       prioridade: "media" as const,
       processo_id: processoIdParaSalvar,
       responsavel_id: responsavelPrincipal,
@@ -546,7 +559,7 @@ export function PrazoDialog({
       prazo_unidade: prazoDias > 0 ? prazoUnidade : null,
       alerta_dias: null,
       alerta_unidade: null,
-      data_fatal: dataFatal ? format(dataFatal, "yyyy-MM-dd") : null,
+      data_fatal: dataFatalFinal ? format(dataFatalFinal, "yyyy-MM-dd") : null,
       coordenacao_id: coordenacaoId || null,
       recorrente: recorrenciaTipo !== "nenhuma",
       recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
