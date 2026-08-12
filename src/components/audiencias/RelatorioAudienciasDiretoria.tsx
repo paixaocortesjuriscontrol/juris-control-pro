@@ -14,6 +14,7 @@ import * as XLSX from "xlsx";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
+import { horaAudienciaBrt } from "@/utils/date";
 
 type PeriodoPreset = "todas" | "semana_atual" | "proxima_semana" | "mes_atual" | "personalizado";
 
@@ -149,7 +150,7 @@ export function RelatorioAudienciasDiretoria() {
 
     const dados = audienciasOrdenadas.map(a => ({
       "DATA": formatDate(a.data_audiencia),
-      "HORA": a.hora || "",
+      "HORA": horaAudienciaBrt(a),
       "NÚMERO PROCESSO": a.processo_numero || "",
       "VT/ CÂMARA": a.vara_camara || "",
       "COMARCA": a.comarca || "",
@@ -342,7 +343,7 @@ export function RelatorioAudienciasDiretoria() {
                     .map((audiencia) => (
                       <TableRow key={audiencia.id}>
                         <TableCell className="whitespace-nowrap">{formatDate(audiencia.data_audiencia)}</TableCell>
-                        <TableCell className="whitespace-nowrap">{audiencia.hora || "-"}</TableCell>
+                        <TableCell className="whitespace-nowrap">{horaAudienciaBrt(audiencia) || "-"}</TableCell>
                         <TableCell className="font-mono text-xs">{audiencia.processo_numero || "-"}</TableCell>
                         <TableCell>{audiencia.vara_camara || "-"}</TableCell>
                         <TableCell>{audiencia.comarca || "-"}</TableCell>

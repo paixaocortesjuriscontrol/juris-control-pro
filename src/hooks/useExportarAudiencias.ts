@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import { AudienciaDetectada } from "./useAudienciasDetectadas";
 import { format, parseISO, isValid } from "date-fns";
 import { toast } from "sonner";
+import { horaAudienciaBrt } from "@/utils/date";
 
 export function useExportarAudiencias() {
   const exportarExcel = (audiencias: AudienciaDetectada[], nomeArquivo?: string) => {
@@ -23,7 +24,7 @@ export function useExportarAudiencias() {
 
     const dados = audiencias.map(a => ({
       "DATA": formatDate(a.data_audiencia),
-      "HORA": a.hora || "",
+      "HORA": horaAudienciaBrt(a),
       "NÚMERO PROCESSO": a.processo_numero || "",
       "VT/ CÂMARA": a.vara_camara || "",
       "COMARCA": a.comarca || "",

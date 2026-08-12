@@ -1128,35 +1128,6 @@ export default function ListaAtividadesView({
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              title="Concluir"
-                              disabled={r.status === "cumprido" || r.status === "concluido" || item.origem !== "tarefa" || String(r.id).startsWith("prazo-tst-")}
-                              onClick={async () => {
-                                const { error } = await supabase
-                                  .from("tarefas")
-                                  .update({
-                                    status: "cumprido",
-                                    data_cumprimento: new Date().toISOString(),
-                                  })
-                                  .eq("id", r.id);
-                                if (error) {
-                                  toast.error(error.message);
-                                  return;
-                                }
-                                await queryClient.invalidateQueries({
-                                  queryKey: ["lista-atividades"],
-                                });
-                                await queryClient.invalidateQueries({
-                                  queryKey: [AGENDA_INFINITE_QUERY_KEY],
-                                });
-                                toast.success("Tarefa concluída");
-                              }}
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5" />
-                            </Button>
                             </div>
                           </TableCell>
                         </TableRow>

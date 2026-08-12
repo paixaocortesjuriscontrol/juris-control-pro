@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "4.4.7";
+export const APP_VERSION = "4.4.8";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -33,4 +33,5 @@ export const VERSION_HISTORY = [
   { version: "4.4.5", date: "2026-08-12", notes: "Pessoas fixas por tipo de tarefa: janela mais larga (papéis Responsável/Envolvido sem corte)" },
   { version: "4.4.6", date: "2026-08-12", notes: "Reagendamento: nova data opcional para prazos e audiências (mantém data atual se não informada)" },
   { version: "4.4.7", date: "2026-08-12", notes: "Correção do filtro de data na tela Compara DOCs TST" },
+  { version: "4.4.8", date: "2026-08-12", notes: "Relatório de auditoria da coordenação em PDF, horários das exportações Excel em BRT e conclusão apenas como situação (sem botão Concluir)" },
 ];

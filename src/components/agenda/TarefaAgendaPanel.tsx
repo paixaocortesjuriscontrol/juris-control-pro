@@ -649,49 +649,8 @@ export function TarefaAgendaPanel({
     });
   };
 
-  const handleConcluir = async () => {
-    setUpdatingStatus(true);
-    try {
-      const concluidoEm = new Date().toISOString();
-      if (tarefa.origem === "tarefa") {
-        const { error } = await supabase
-          .from("tarefas")
-          .update({
-            status: "cumprido",
-            data_cumprimento: concluidoEm,
-            updated_at: concluidoEm,
-          })
-          .eq("id", tarefa.id);
-        if (error) throw error;
-        setStatusOverride("cumprido");
-        patchAgendaCacheStatus("cumprido", null);
-      } else {
-        const { error } = await supabase
-          .from("eventos_agenda")
-          .update({
-            status: "concluido",
-            concluido_em: concluidoEm,
-            updated_at: concluidoEm,
-          })
-          .eq("id", tarefa.id);
-        if (error) throw error;
-        setStatusOverride("concluido");
-        patchAgendaCacheStatus("concluido", concluidoEm);
-      }
-      toast({ title: "Concluído com sucesso!" });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-      onUpdate();
-    } catch (error: any) {
-      toast({
-        title: "Erro ao concluir",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setUpdatingStatus(false);
-    }
-  };
+  // A conclusão deixou de ser uma ação rápida: agora é apenas uma situação
+  // ("Concluído com sucesso" / "Concluído sem sucesso") escolhida no formulário.
 
   const handleReabrir = async () => {
     setUpdatingStatus(true);
@@ -1013,17 +972,7 @@ export function TarefaAgendaPanel({
 
         {/* Quick Actions */}
         <div className="flex flex-wrap gap-2">
-          {!isConcluido ? (
-            <Button 
-              size="sm" 
-              onClick={handleConcluir}
-              disabled={updatingStatus}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
-              {updatingStatus ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Check className="w-3 h-3 mr-1" />}
-              Concluir
-            </Button>
-          ) : (
+          {isConcluido && (
             <Button 
               size="sm" 
               variant="outline"
