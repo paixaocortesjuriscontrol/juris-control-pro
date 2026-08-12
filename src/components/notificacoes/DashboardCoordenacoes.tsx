@@ -24,8 +24,6 @@ import {
   Scale,
   Radar,
   RefreshCw,
-  CalendarClock,
-  Banknote,
   ClipboardX,
   TimerOff,
   CalendarX,
