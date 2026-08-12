@@ -37,6 +37,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const { podeCancelar } = usePodeCancelarItens();
+  const { podeUsarSituacao } = usePermissoesSituacao(((audiencia as any)?.coordenacao_id as string) || null, "AUDIÊNCIA");
   const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas();
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
   const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);
