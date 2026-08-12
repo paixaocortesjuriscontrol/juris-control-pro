@@ -148,7 +148,7 @@ export function ResponsaveisFixosTipoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-w-[95vw] sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <UserCheck className="w-5 h-5" />
