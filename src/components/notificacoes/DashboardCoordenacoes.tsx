@@ -36,6 +36,7 @@ import { startOfDay, parseISO, isBefore, isAfter } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNotificacoesCountsByCoordenacao } from "@/hooks/useNotificacoesCounts";
+import { useItensNaoTratados } from "@/hooks/useItensNaoTratados";
 
 interface MembroStats {
   id: string;
@@ -124,6 +125,9 @@ export function DashboardCoordenacoes({
     statusFilter,
     searchQuery,
   });
+
+  // Itens do botão "Adicionar" vencidos e ainda não tratados (por coordenação)
+  const { data: naoTratados = {} } = useItensNaoTratados(coordenacaoIdsKey);
 
   // Helper para filtrar por período (usado nos breakdowns de membro)
   const matchesPeriodo = useMemo(() => {
@@ -397,6 +401,32 @@ export function DashboardCoordenacoes({
                         {coord.total === 0 ? "OK" : "Pendentes"}
                       </Badge>
                     </div>
+
+                    {/* Itens do botão Adicionar vencidos e não tratados */}
+                    {(() => {
+                      const nt = naoTratados[coord.id];
+                      if (!nt) return null;
+                      return (
+                        <div className="flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1">
+                          <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                            Não tratados (Adicionar)
+                          </span>
+                          <span className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                            {nt.total}
+                          </span>
+                        </div>
+                      );
+                    })()}
+
+                    {naoTratados[coord.id]?.total ? (
+                      <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+                        {naoTratados[coord.id].tarefas > 0 && <span>Tarefas: {naoTratados[coord.id].tarefas}</span>}
+                        {naoTratados[coord.id].prazos > 0 && <span>Prazos: {naoTratados[coord.id].prazos}</span>}
+                        {naoTratados[coord.id].eventos > 0 && <span>Eventos: {naoTratados[coord.id].eventos}</span>}
+                        {naoTratados[coord.id].audiencias > 0 && <span>Audiências: {naoTratados[coord.id].audiencias}</span>}
+                        {naoTratados[coord.id].parcelas > 0 && <span>Parcelas: {naoTratados[coord.id].parcelas}</span>}
+                      </div>
+                    ) : null}
 
                     {/* Breakdown por tipo */}
                     {coord.total > 0 && (
