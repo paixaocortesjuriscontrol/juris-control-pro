@@ -456,7 +456,7 @@ export default function ProcessoDetalhes() {
 
   // Eventos Agenda query - lazy load
   const { data: eventosAgenda = [] } = useQuery({
-    queryKey: ["eventos-agenda-processo", id],
+    queryKey: ["eventos-agenda-processo", id, isAdminEscopo, coordenacoesEscopo],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("eventos_agenda")
@@ -465,7 +465,9 @@ export default function ProcessoDetalhes() {
         .order("data_inicio", { ascending: true });
 
       if (error) throw error;
-      return data || [];
+      // Itens de agenda são privados por coordenação, mesmo em processos
+      // compartilhados entre coordenações responsáveis.
+      return filtrarItensPorCoordenacao(data || [], isAdminEscopo, coordenacoesEscopo);
     },
     enabled: !!id && !isNovo,
   });
