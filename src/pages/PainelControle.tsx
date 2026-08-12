@@ -485,6 +485,23 @@ export default function PainelControle() {
 
       const baseSelect = "data_vencimento, data_fatal, tipo_tarefa, status, responsavel_id, criado_por";
 
+      // Ids de tarefas em que os membros filtrados são co-responsáveis
+      const idsMembros = membrosIdsParaResumo.length > 0 ? membrosIdsParaResumo : [user.id];
+      let tarefaIdsCoResp: string[] = [];
+      if (!(tabMode === "escritorio" && isAdmin && membrosIdsParaResumo.length === 0)) {
+        const { data: vinculos } = await supabase
+          .from("tarefa_responsaveis")
+          .select("tarefa_id")
+          .in("usuario_id", idsMembros)
+          .limit(5000);
+        tarefaIdsCoResp = Array.from(new Set((vinculos || []).map((v: any) => v.tarefa_id).filter(Boolean)));
+      }
+      const orClause = (ids: string) => {
+        const parts = [`responsavel_id.in.(${ids})`, `criado_por.in.(${ids})`];
+        if (tarefaIdsCoResp.length > 0) parts.push(`id.in.(${tarefaIdsCoResp.join(",")})`);
+        return parts.join(",");
+      };
+
       let q = supabase
         .from("tarefas")
         .select(baseSelect)
@@ -499,16 +516,9 @@ export default function PainelControle() {
       } else if (tabMode === "escritorio" && isAdmin && membrosIdsParaResumo.length === 0) {
         // Admin escritório sem filtro: vê tudo
       } else if (membrosIdsParaResumo.length > 0) {
-        if (tabMode === "pessoal") {
-          const ids = membrosIdsParaResumo.join(",");
-          q = q.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
-        } else {
-          // Escritório: tarefas onde qualquer membro é responsável OU criador
-          const ids = membrosIdsParaResumo.join(",");
-          q = q.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
-        }
+        q = q.or(orClause(membrosIdsParaResumo.join(",")));
       } else {
-        q = q.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
+        q = q.or(orClause(user.id));
       }
 
       const { data: tarefas, error } = await q;
@@ -879,7 +889,10 @@ export default function PainelControle() {
       if (painelFiltros.souResponsavel || painelFiltros.estouEnvolvido) {
         const userId = user?.id;
         if (!userId) return false;
-        const isResp = item.responsavel_id === userId || item.criado_por === userId;
+        const isResp =
+          item.responsavel_id === userId ||
+          (item as any).responsaveis_ids?.includes(userId) ||
+          item.criado_por === userId;
         const isEnvolvido = item.participantes?.some((p) => p.usuario_id === userId);
         if (painelFiltros.souResponsavel && painelFiltros.estouEnvolvido) {
           if (!isResp && !isEnvolvido) return false;
@@ -897,6 +910,7 @@ export default function PainelControle() {
         const envolvido = item.participantes?.some((p) => painelFiltros.responsavelIds.includes(p.usuario_id));
         const isMatch =
           (rid && painelFiltros.responsavelIds.includes(rid)) ||
+          (item as any).responsaveis_ids?.some((id: string) => painelFiltros.responsavelIds.includes(id)) ||
           (cid && painelFiltros.responsavelIds.includes(cid)) ||
           envolvido;
         if (!isMatch) return false;
@@ -1279,7 +1293,10 @@ export default function PainelControle() {
       if (painelFiltros.souResponsavel || painelFiltros.estouEnvolvido) {
         const userId = user?.id;
         if (!userId) return false;
-        const isResp = item.responsavel_id === userId || item.criado_por === userId;
+        const isResp =
+          item.responsavel_id === userId ||
+          (item as any).responsaveis_ids?.includes(userId) ||
+          item.criado_por === userId;
         const isEnvolvido = item.participantes?.some((p: any) => p.usuario_id === userId);
         if (painelFiltros.souResponsavel && painelFiltros.estouEnvolvido) {
           if (!isResp && !isEnvolvido) return false;
@@ -1295,6 +1312,7 @@ export default function PainelControle() {
         const envolvido = item.participantes?.some((p: any) => painelFiltros.responsavelIds.includes(p.usuario_id));
         const isMatch =
           (rid && painelFiltros.responsavelIds.includes(rid)) ||
+          (item as any).responsaveis_ids?.some((id: string) => painelFiltros.responsavelIds.includes(id)) ||
           (cid && painelFiltros.responsavelIds.includes(cid)) ||
           envolvido;
         if (!isMatch) return false;

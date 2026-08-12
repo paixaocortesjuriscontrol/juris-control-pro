@@ -415,10 +415,19 @@ export function PrazoDialog({
       setRecorrenciaOcorrencias("");
       (async () => {
         const [{ data: resps }, { data: envs }] = await Promise.all([
-          supabase.from("tarefa_responsaveis").select("usuario_id").eq("tarefa_id", prazo.id),
+          supabase
+            .from("tarefa_responsaveis")
+            .select("usuario_id, created_at")
+            .eq("tarefa_id", prazo.id)
+            .order("created_at", { ascending: true }),
           supabase.from("tarefa_envolvidos").select("usuario_id").eq("tarefa_id", prazo.id),
         ]);
-        const respIds = (resps || []).map((r: any) => r.usuario_id);
+        // Mantém o responsável principal atual sempre na primeira posição para que
+        // uma edição não troque o responsável "sozinho".
+        const respIdsRaw = (resps || []).map((r: any) => r.usuario_id);
+        const respIds = prazo.responsavel_id && respIdsRaw.includes(prazo.responsavel_id)
+          ? [prazo.responsavel_id, ...respIdsRaw.filter((id: string) => id !== prazo.responsavel_id)]
+          : respIdsRaw;
         setResponsaveisIds(respIds.length > 0 ? respIds : (prazo.responsavel_id ? [prazo.responsavel_id] : []));
         const envIds = (envs || []).map((e: any) => e.usuario_id);
         setEnvolvidosIds(envIds);
@@ -471,6 +480,14 @@ export function PrazoDialog({
     }
     const situacaoMudou = situacao !== situacaoInicial;
 
+    // Responsável principal: preserva o atual (se continua na lista); caso contrário
+    // usa o primeiro responsável que NÃO seja um responsável fixo da coordenação,
+    // para que o coordenador fixo não "roube" a titularidade do prazo.
+    const responsavelPrincipal =
+      (prazo?.responsavel_id && responsaveisIds.includes(prazo.responsavel_id))
+        ? prazo.responsavel_id
+        : (responsaveisIds.find((id) => !coordenadoresIds.includes(id)) || responsaveisIds[0]);
+
 
     let processoIdParaSalvar = processoIdEfetivo;
     if (publicacao && user?.id) {
@@ -496,7 +513,7 @@ export function PrazoDialog({
       data_vencimento: format(dataLimite, "yyyy-MM-dd"),
       prioridade: "media" as const,
       processo_id: processoIdParaSalvar,
-      responsavel_id: responsaveisIds[0],
+      responsavel_id: responsavelPrincipal,
       observacoes: observacoes.trim() || undefined,
       status: situacao as any,
       data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
