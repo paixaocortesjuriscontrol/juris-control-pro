@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { linhaPainelAlertasTexto } from "../_shared/app-links.ts";
+import { coordenacaoDoUsuario } from "../_shared/coordenacao-usuario.ts";
 import {
   ENCERRADAS_AUDIENCIA,
   ENCERRADAS_EVENTO,
@@ -227,19 +228,22 @@ serve(async (req) => {
 
     let enviados = 0;
     for (const [uid, itens] of porUsuario) {
-      // Já enviou hoje?
+      const { data: profile } = await supabase
+        .from("profiles").select("id, nome, email, telefone").eq("id", uid).maybeSingle();
+      if (!profile) continue;
+
+      // Já enviou hoje? (aceita registros antigos gravados com o id do usuário)
+      const destinatarios = [uid, profile.email, profile.telefone].filter(Boolean) as string[];
       const { data: jaEnviado } = await supabase
         .from("historico_alertas_enviados")
         .select("id")
         .eq("tipo_alerta", "prazo_perdido")
-        .eq("destinatario", uid)
+        .in("destinatario", destinatarios)
         .gte("enviado_em", `${hoje}T00:00:00Z`)
         .limit(1);
       if ((jaEnviado ?? []).length > 0) continue;
 
-      const { data: profile } = await supabase
-        .from("profiles").select("id, nome, email, telefone").eq("id", uid).maybeSingle();
-      if (!profile) continue;
+      const coordenacaoId = await coordenacaoDoUsuario(supabase, uid);
 
       const { data: cfg } = await supabase
         .from("config_notificacoes_usuario").select("*").eq("usuario_id", uid).maybeSingle();
@@ -253,7 +257,9 @@ serve(async (req) => {
       if (c.canal_email && profile.email) {
         const r = await enviarEmail(profile.email, assunto, corpo);
         await supabase.from("historico_alertas_enviados").insert({
-          tipo_alerta: "prazo_perdido", canal: "email", destinatario: uid, conteudo: corpo, status: r.ok ? "enviado" : "erro", erro: r.erro,
+          tipo_alerta: "prazo_perdido", canal: "email", destinatario: profile.email,
+          coordenacao_id: coordenacaoId,
+          conteudo: corpo, status: r.ok ? "enviado" : "erro", erro: r.erro,
         });
       }
       if (c.canal_whatsapp && profile.telefone) {
@@ -261,7 +267,9 @@ serve(async (req) => {
           body: { telefones: [profile.telefone], mensagem: corpo, tipo: "lembrete" },
         });
         await supabase.from("historico_alertas_enviados").insert({
-          tipo_alerta: "prazo_perdido", canal: "whatsapp", destinatario: uid, conteudo: corpo,
+          tipo_alerta: "prazo_perdido", canal: "whatsapp", destinatario: profile.telefone,
+          coordenacao_id: coordenacaoId,
+          conteudo: corpo,
           status: error ? "erro" : "enviado", erro: error ? String(error.message ?? error) : null,
         });
       }

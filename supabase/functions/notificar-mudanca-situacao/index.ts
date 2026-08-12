@@ -444,6 +444,7 @@ serve(async (req) => {
             const r = await enviarEmail(p.email, assunto, corpo, html);
             await supabase.from("historico_alertas_enviados").insert({
               tipo_alerta: isMencao ? "mencao" : isComentario ? "comentario" : "mudanca_situacao", canal: "email", destinatario: p.email,
+              coordenacao_id: item.coordenacao_id ?? null,
               conteudo: corpo, referencia_id: item.entidade_id, status: r.ok ? "enviado" : "erro", erro: r.erro,
             });
           }
@@ -451,6 +452,7 @@ serve(async (req) => {
             const r = await enviarWhatsApp(supabase, p.telefone, corpo);
             await supabase.from("historico_alertas_enviados").insert({
               tipo_alerta: isMencao ? "mencao" : isComentario ? "comentario" : "mudanca_situacao", canal: "whatsapp", destinatario: p.telefone,
+              coordenacao_id: item.coordenacao_id ?? null,
               conteudo: corpo, referencia_id: item.entidade_id, status: r.ok ? "enviado" : "erro", erro: r.erro,
             });
           }

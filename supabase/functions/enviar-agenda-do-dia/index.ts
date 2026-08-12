@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { coordenacaoDoUsuario } from "../_shared/coordenacao-usuario.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -343,20 +344,20 @@ serve(async (req) => {
     for (const cfg of alvos as any[]) {
       const uid = cfg.usuario_id;
 
+      const { data: profile } = await supabase
+        .from("profiles").select("id, nome, email, ativo").eq("id", uid).maybeSingle();
+      if (!profile?.email || (profile as any).ativo === false) continue;
+
       if (!ignorarHora) {
         const { data: ja } = await supabase
           .from("historico_alertas_enviados")
           .select("id")
           .eq("tipo_alerta", "resumo_diario_agenda")
-          .eq("destinatario", uid)
+          .in("destinatario", [uid, profile.email])
           .gte("enviado_em", `${hoje}T00:00:00Z`)
           .limit(1);
         if ((ja ?? []).length > 0) continue;
       }
-
-      const { data: profile } = await supabase
-        .from("profiles").select("id, nome, email, ativo").eq("id", uid).maybeSingle();
-      if (!profile?.email || (profile as any).ativo === false) continue;
 
       const itens = (porUsuario.get(uid) ?? []).sort((a, b) =>
         String(a.hora ?? "99:99").localeCompare(String(b.hora ?? "99:99")),
@@ -375,7 +376,8 @@ serve(async (req) => {
       await supabase.from("historico_alertas_enviados").insert({
         tipo_alerta: "resumo_diario_agenda",
         canal: "email",
-        destinatario: uid,
+        destinatario: profile.email,
+        coordenacao_id: await coordenacaoDoUsuario(supabase, uid),
         conteudo: `Resumo diário com ${itens.length} atividade(s)`,
         status: r.ok ? "enviado" : "erro",
         erro: r.erro ?? null,
