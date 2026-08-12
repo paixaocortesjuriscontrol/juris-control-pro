@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { FileDiff, Upload, X, CheckCircle2, AlertTriangle } from "lucide-react";
+import { FileDiff, Upload, X, CheckCircle2, AlertTriangle, FileText } from "lucide-react";
 import {
   CATEGORIAS_DOC_TST,
   CategoriaDocTst,
@@ -124,6 +124,7 @@ export default function ComparaDocsTst() {
   };
 
   const handleComparar = async () => {
+    setResultados(null);
     if (docs.length === 0) {
       toast.error("Envie ao menos um documento");
       return;
@@ -186,6 +187,63 @@ export default function ComparaDocsTst() {
     } finally {
       setComparando(false);
     }
+  };
+
+  const gerarPdf = async () => {
+    if (!resultados || resultados.length === 0) {
+      toast.error("Faça a comparação antes de gerar o relatório");
+      return;
+    }
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const coordNome =
+      coordenacaoId === "todas"
+        ? "Todas as coordenações"
+        : ((coordenacoes || []).find((c: any) => c.id === coordenacaoId)?.nome ?? "-");
+    const dataBr = dataInicio.split("-").reverse().join("/");
+
+    doc.setFontSize(15);
+    doc.text("Compara Docs TST - Relatório de Divergências", 40, 40);
+    doc.setFontSize(10);
+    doc.text(`Disponibilização: ${dataBr}`, 40, 60);
+    doc.text(`Coordenação: ${coordNome}`, 40, 74);
+    doc.text(`Total de divergências: ${totalDivergencias}`, 40, 88);
+
+    let y = 110;
+    resultados.forEach((r) => {
+      doc.setFontSize(11);
+      doc.text(`${r.label} — ${r.doc}`, 40, y);
+      doc.setFontSize(9);
+      doc.text(
+        `Documento: ${r.totalDoc}  |  Sistema: ${r.totalSistema}  |  Divergências: ${r.divergencias.length}`,
+        40,
+        y + 14,
+      );
+      autoTable(doc, {
+        startY: y + 24,
+        head: [["Processo", "Tipo", "Detalhe"]],
+        body: r.divergencias.map((d) => [
+          mascararCnj(d.processo),
+          d.tipo === "faltando" ? "Falta no documento" : d.tipo === "categoria" ? "Categoria divergente" : "Fora da base",
+          d.detalhe,
+        ]),
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: { fillColor: [30, 41, 59] },
+        columnStyles: { 0: { cellWidth: 150 }, 1: { cellWidth: 130 } },
+        margin: { left: 40, right: 40 },
+      });
+      y = (doc as any).lastAutoTable.finalY + 28;
+      if (y > doc.internal.pageSize.getHeight() - 90) {
+        doc.addPage();
+        y = 50;
+      }
+    });
+
+    doc.save(`Divergencias_Docs_TST_${dataInicio}.pdf`);
+    toast.success("Relatório PDF gerado");
   };
 
   return (
