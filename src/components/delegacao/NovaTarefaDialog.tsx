@@ -232,6 +232,15 @@ export function NovaTarefaDialog({
   const tipoVinculo = form.watch("tipo_vinculo");
   const coordenacaoId = form.watch("coordenacao_id");
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "TAREFA EQUIPE");
+  // Envolvidos fixos configurados na coordenação para este tipo
+  const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "TAREFA EQUIPE");
+  useEffect(() => {
+    if (envolvidosFixosIds.length === 0) return;
+    setEnvolvidosIds((prev) => {
+      const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
+      return faltando.length > 0 ? [...prev, ...faltando] : prev;
+    });
+  }, [JSON.stringify(envolvidosFixosIds)]);
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
     setResponsaveisIds((prev) => {

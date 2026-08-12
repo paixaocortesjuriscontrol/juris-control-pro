@@ -146,6 +146,15 @@ export function AudienciaFormSimplificado({
     audienciaParaEditar?.coordenacao_id ?? ""
   );
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
+  // Envolvidos fixos configurados na coordenação para este tipo
+  const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
+  useEffect(() => {
+    if (envolvidosFixosIds.length === 0) return;
+    setEnvolvidosIds((prev) => {
+      const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
+      return faltando.length > 0 ? [...prev, ...faltando] : prev;
+    });
+  }, [JSON.stringify(envolvidosFixosIds)]);
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
     setResponsaveisIds((prev) => {
