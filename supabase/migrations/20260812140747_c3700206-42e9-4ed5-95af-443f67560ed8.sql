@@ -1,0 +1,3 @@
+DELETE FROM public.tarefas WHERE id IN ('a591be62-9cf2-49b0-9d13-7b77c78e78ae','f0abd427-a28c-4ca2-9d38-85fc4f81f465','65872092-1399-4ae0-814d-0e275c890a35','3c4a0149-f72b-4bde-bc16-2ea7d3281d10','31097000-2c94-4695-b72a-acacbbd2b0ee','473bc604-22f1-47b4-9cba-d850eaabdaf1','6b9d9cb8-244a-4383-b62e-44dcf4958307','7f32b74f-abf0-4a94-a647-b02e40667f9e','e83bdf9d-1a53-4f80-9687-2d4d141c940a');
+
+DELETE FROM public.audiencias_detectadas WHERE id IN ('5e90d799-38a9-479e-afa4-231ebc5c942a','6d1b6c83-0750-4165-96a5-f6ce1f604313','daeee2ba-d086-4e35-b157-d1c163c0d4d4','0f289953-1912-4af6-bfe1-602f5845c362','80172e6f-d6fb-481d-97cd-e9ec510345bc');
