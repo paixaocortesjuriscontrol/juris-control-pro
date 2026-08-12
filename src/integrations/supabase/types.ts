@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       acompanhamento_especial_divergencias: {
         Row: {
+          avisado_em: string | null
           campo: string
           created_at: string
           detectado_em: string
@@ -29,6 +30,7 @@ export type Database = {
           valor_judit: string | null
         }
         Insert: {
+          avisado_em?: string | null
           campo: string
           created_at?: string
           detectado_em?: string
@@ -42,6 +44,7 @@ export type Database = {
           valor_judit?: string | null
         }
         Update: {
+          avisado_em?: string | null
           campo?: string
           created_at?: string
           detectado_em?: string

@@ -200,6 +200,142 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// ── Fallback de crawler Judit ───────────────────────────────────────────────
+// O endpoint de cache (`GET /lawsuits/{cnj}`) devolve vazio (ou LAWSUIT_NOT_FOUND)
+// quando a Judit ainda não tem o processo indexado. Nesses casos criamos uma
+// requisição de crawler e aguardamos o resultado, senão o acompanhamento nunca
+// enxerga movimentação nova e o usuário nunca é avisado.
+const JUDIT_REQUESTS_URL = "https://requests.prod.judit.io/requests";
+const JUDIT_RESPONSES_URL = "https://requests.prod.judit.io/responses";
+const CRAWLER_POLL_TIMEOUT_MS = 45_000;
+const CRAWLER_POLL_INTERVAL_MS = 3_000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function temDadosUteis(rd: any) {
+  if (!rd || typeof rd !== "object") return false;
+  return !!(rd.steps?.length || rd.parties?.length || rd.courts?.length);
+}
+
+async function juditCrawler(
+  apiKey: string,
+  cnj: string,
+  withAttachments: boolean,
+): Promise<any | null> {
+  try {
+    const r = await fetch(JUDIT_REQUESTS_URL, {
+      method: "POST",
+      headers: { "api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        search: { search_type: "lawsuit_cnj", search_key: cnj, cache_ttl_in_days: 0 },
+        with_attachments: withAttachments,
+      }),
+    });
+    if (!r.ok) {
+      console.warn(`[acomp-especial] POST /requests ${r.status}: ${await r.text()}`);
+      return null;
+    }
+    const requestId = (await r.json())?.request_id;
+    if (!requestId) return null;
+
+    const deadline = Date.now() + CRAWLER_POLL_TIMEOUT_MS;
+    let melhor: any = null;
+    while (Date.now() < deadline) {
+      await sleep(CRAWLER_POLL_INTERVAL_MS);
+      const url = new URL(JUDIT_RESPONSES_URL);
+      url.searchParams.set("request_id", String(requestId));
+      url.searchParams.set("page_size", "50");
+      const rr = await fetch(url.toString(), { headers: { "api-key": apiKey } });
+      if (!rr.ok) { await rr.text(); continue; }
+      const data = await rr.json();
+      const candidatos: any[] = (data?.page_data || data?.data || [])
+        .map((it: any) => it?.response_data)
+        .filter(temDadosUteis);
+      candidatos.sort((a, b) => (b?.steps?.length || 0) - (a?.steps?.length || 0));
+      if (candidatos[0]) melhor = candidatos[0];
+      if (data?.request_status === "completed" || data?.request_status === "cancelled") break;
+    }
+    return melhor ? { response_data: melhor, _origem: "crawler" } : null;
+  } catch (e) {
+    console.warn("[acomp-especial] crawler falhou:", (e as Error).message);
+    return null;
+  }
+}
+
+/** Notifica no sino um conjunto de usuários (dedup automático). */
+async function notificarUsuarios(
+  supabase: any,
+  userIds: string[],
+  payload: { titulo: string; mensagem: string; tipo: string; link: string; dados?: any },
+) {
+  const unicos = Array.from(new Set(userIds.filter(Boolean)));
+  if (unicos.length === 0) return;
+  await supabase.from("notificacoes").insert(
+    unicos.map((usuario_id) => ({
+      usuario_id,
+      titulo: payload.titulo,
+      mensagem: payload.mensagem,
+      tipo: payload.tipo,
+      lida: false,
+      link: payload.link,
+      dados: payload.dados ?? null,
+    })),
+  );
+}
+
+/**
+ * Destinatários do processo: responsáveis ativos + coordenador titular e
+ * coordenadores/assistentes membros da(s) coordenação(ões) responsável(is).
+ */
+async function destinatariosDoProcesso(supabase: any, processoId: string) {
+  const ids = new Set<string>();
+
+  const { data: resps } = await supabase
+    .from("processos_responsaveis")
+    .select("usuario_id")
+    .eq("processo_id", processoId)
+    .eq("ativo", true);
+  (resps ?? []).forEach((r: any) => r.usuario_id && ids.add(r.usuario_id));
+
+  const coordIds = new Set<string>();
+  const { data: proc } = await supabase
+    .from("processos")
+    .select("coordenacao_id")
+    .eq("id", processoId)
+    .maybeSingle();
+  if ((proc as any)?.coordenacao_id) coordIds.add((proc as any).coordenacao_id);
+  const { data: extras } = await supabase
+    .from("processos_coordenacoes_responsaveis")
+    .select("coordenacao_id")
+    .eq("processo_id", processoId);
+  (extras ?? []).forEach((c: any) => c.coordenacao_id && coordIds.add(c.coordenacao_id));
+
+  if (coordIds.size > 0) {
+    const lista = Array.from(coordIds);
+    const { data: coords } = await supabase
+      .from("coordenacoes")
+      .select("coordenador_id")
+      .in("id", lista);
+    (coords ?? []).forEach((c: any) => c.coordenador_id && ids.add(c.coordenador_id));
+
+    const { data: membros } = await supabase
+      .from("membros_coordenacao")
+      .select("usuario_id")
+      .in("coordenacao_id", lista);
+    const membroIds = (membros ?? []).map((m: any) => m.usuario_id).filter(Boolean);
+    if (membroIds.length > 0) {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", membroIds)
+        .in("role", ["coordenador", "assistente_coordenador"]);
+      (roles ?? []).forEach((r: any) => ids.add(r.user_id));
+    }
+  }
+
+  return Array.from(ids);
+}
+
 /**
  * Job de Acompanhamento Especial — roda em horários fixos BRT (10h/14h/18h),
  * disparados por 3 cron jobs distintos que enviam `slot` no body:
@@ -356,6 +492,20 @@ serve(async (req) => {
         clearTimeout(to);
       }
 
+      // Fallback: cache sem dados úteis (ou 404) → dispara crawler
+      let origemDado = "cache";
+      if (!payload || !temDadosUteis(payload.response_data || payload)) {
+        const viaCrawler = await juditCrawler(juditApiKey, cnj, comAnexosProc);
+        if (viaCrawler) {
+          payload = viaCrawler;
+          erro = null;
+          statusHttp = 200;
+          origemDado = "crawler";
+        } else if (!erro) {
+          erro = "sem dados na Judit (cache e crawler vazios)";
+        }
+      }
+
       await supabase.from("consultas_judit").insert({
         processo_id: p.id,
         requisitada_em: new Date().toISOString(),
@@ -397,6 +547,7 @@ serve(async (req) => {
             with_attachments: comAnexosProc,
             slot,
             origem: "acompanhamento-especial",
+            origem_dado: origemDado,
           },
           raw_response: payload ?? null,
           status: logStatus,
@@ -484,25 +635,14 @@ serve(async (req) => {
         const conteudoStr = typeof conteudo === "string" ? conteudo : JSON.stringify(conteudo);
         novosResumo.push({ data: dataStr, conteudo: conteudoStr.slice(0, 500) });
 
-        // Notificar responsáveis do processo
-        const { data: resps } = await supabase
-          .from("processos_responsaveis")
-          .select("usuario_id")
-          .eq("processo_id", p.id)
-          .eq("ativo", true);
-
-        for (const r of resps ?? []) {
-          if (!r.usuario_id) continue;
-          await supabase.from("notificacoes").insert({
-            usuario_id: r.usuario_id,
-            titulo: `Novidade em ${cnj}`,
-            mensagem: conteudoStr.slice(0, 280),
-            tipo: "acompanhamento_especial",
-            lida: false,
-            link: `/processos/${p.id}`,
-            dados: { processo_id: p.id, evento_id: evento?.id ?? null, step_date: dataStr },
-          });
-        }
+        // Notificar responsáveis do processo + coordenadores da coordenação
+        await notificarUsuarios(supabase, await destinatariosDoProcesso(supabase, p.id), {
+          titulo: `Novidade em ${cnj}`,
+          mensagem: conteudoStr.slice(0, 280),
+          tipo: "acompanhamento_especial",
+          link: `/processos/${p.id}`,
+          dados: { processo_id: p.id, evento_id: evento?.id ?? null, step_date: dataStr },
+        });
 
         await supabase
           .from("acompanhamento_especial_eventos")
@@ -513,12 +653,7 @@ serve(async (req) => {
       // Envio consolidado (1 email + 1 WhatsApp por processo, listando todos os novos)
       if (novos > 0 && novosResumo.length > 0) {
         try {
-          const { data: resps2 } = await supabase
-            .from("processos_responsaveis")
-            .select("usuario_id")
-            .eq("processo_id", p.id)
-            .eq("ativo", true);
-          const userIds = (resps2 ?? []).map((r: any) => r.usuario_id).filter(Boolean);
+          const userIds = await destinatariosDoProcesso(supabase, p.id);
           if (userIds.length > 0) {
             const { data: profs } = await supabase
               .from("profiles")
@@ -587,6 +722,107 @@ serve(async (req) => {
     } catch (e: any) {
       resultados.push({ processo_id: p.id, erro: e?.message ?? String(e) });
     }
+  }
+
+  // ── Aviso de divergências (Judit × formulário) ainda não avisadas ─────────
+  try {
+    const { data: pendentes } = await supabase
+      .from("acompanhamento_especial_divergencias")
+      .select("id, processo_id, processo_numero, campo, valor_atual, valor_judit")
+      .is("resolvido_em", null)
+      .is("avisado_em", null)
+      .limit(500);
+
+    const porProcesso = new Map<string, any[]>();
+    for (const d of (pendentes ?? []) as any[]) {
+      const arr = porProcesso.get(d.processo_id) ?? [];
+      arr.push(d);
+      porProcesso.set(d.processo_id, arr);
+    }
+
+    for (const [processoId, itens] of porProcesso) {
+      const numero = itens[0]?.processo_numero || processoId.slice(0, 8);
+      const destinatarios = await destinatariosDoProcesso(supabase, processoId);
+
+      await notificarUsuarios(supabase, destinatarios, {
+        titulo: `Divergências Judit em ${numero}`,
+        mensagem: `${itens.length} campo(s) com valor diferente do que a Judit trouxe. O valor digitado foi preservado.`,
+        tipo: "acompanhamento_especial",
+        link: `/processos/${processoId}`,
+        dados: { processo_id: processoId, divergencias: itens.length },
+      });
+
+      if (resendApiKey && destinatarios.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("email")
+          .in("id", destinatarios);
+        const emails = (profs ?? []).map((x: any) => x.email).filter(Boolean);
+        if (emails.length > 0) {
+          const linhas = itens
+            .map(
+              (d: any) =>
+                `<tr><td style="padding:4px 8px;border:1px solid #e5e7eb"><strong>${d.campo}</strong></td>` +
+                `<td style="padding:4px 8px;border:1px solid #e5e7eb">${String(d.valor_atual ?? "—").replace(/</g, "&lt;")}</td>` +
+                `<td style="padding:4px 8px;border:1px solid #e5e7eb;color:#047857">${String(d.valor_judit ?? "—").replace(/</g, "&lt;")}</td></tr>`,
+            )
+            .join("");
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${resendApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: "JurisControl <alertas@juriscontrol.adv.br>",
+              to: emails,
+              subject: `[Acompanhamento Especial] ${itens.length} divergência(s) em ${numero}`,
+              html:
+                `<p>A Judit trouxe valores diferentes dos que estão preenchidos no processo <strong>${numero}</strong>. ` +
+                `O valor digitado foi <strong>preservado</strong> — confira e ajuste se necessário.</p>` +
+                `<table style="border-collapse:collapse;font-size:13px"><thead><tr>` +
+                `<th style="padding:4px 8px;border:1px solid #e5e7eb">Campo</th>` +
+                `<th style="padding:4px 8px;border:1px solid #e5e7eb">No formulário</th>` +
+                `<th style="padding:4px 8px;border:1px solid #e5e7eb">Judit</th>` +
+                `</tr></thead><tbody>${linhas}</tbody></table>` +
+                `<p><a href="https://juriscontrol.adv.br/processos/${processoId}">Abrir processo</a></p>`,
+            }),
+          }).catch((e) => console.error("[acomp-especial] erro email divergencias:", e));
+        }
+      }
+
+      await supabase
+        .from("acompanhamento_especial_divergencias")
+        .update({ avisado_em: new Date().toISOString() })
+        .in("id", itens.map((d: any) => d.id));
+    }
+  } catch (e) {
+    console.error("[acomp-especial] aviso de divergências falhou:", (e as Error).message);
+  }
+
+  // ── Aviso de execução com falhas (silêncio ≠ "nada aconteceu") ────────────
+  try {
+    const comErro = resultados.filter((r: any) => r?.erro);
+    if (comErro.length > 0) {
+      const { data: admins } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "admin");
+      const adminIds = (admins ?? []).map((a: any) => a.user_id).filter(Boolean);
+      const envolvidos = new Set<string>(adminIds);
+      for (const r of comErro) {
+        (await destinatariosDoProcesso(supabase, r.processo_id)).forEach((id) => envolvidos.add(id));
+      }
+      await notificarUsuarios(supabase, Array.from(envolvidos), {
+        titulo: "Acompanhamento Especial: processos sem retorno da Judit",
+        mensagem: `${comErro.length} processo(s) não retornaram dados nesta execução (slot ${slot ?? "manual"}).`,
+        tipo: "acompanhamento_especial",
+        link: "/painel-controle",
+        dados: { execucao_id: execId, processos_com_erro: comErro.length },
+      });
+    }
+  } catch (e) {
+    console.error("[acomp-especial] aviso de falhas:", (e as Error).message);
   }
 
   // ── Finaliza log de execução ──

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertTriangle, Check, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { useEscopoAcompanhamentoEspecial } from "@/hooks/useEscopoAcompanhamentoEspecial";
 
 type Divergencia = {
   id: string;
@@ -53,16 +54,21 @@ const LABEL_CAMPO: Record<string, string> = {
 export function AcompanhamentoEspecialDivergencias() {
   const qc = useQueryClient();
   const [resolvendo, setResolvendo] = useState<string | null>(null);
+  const { processoIds, semRestricao, isLoading: escopoLoading } = useEscopoAcompanhamentoEspecial();
 
   const { data: divergencias, isLoading, refetch } = useQuery({
-    queryKey: ["acomp-especial-divergencias"],
+    queryKey: ["acomp-especial-divergencias", semRestricao ? "all" : processoIds.join(",")],
+    enabled: !escopoLoading,
     queryFn: async () => {
-      const { data, error } = await supabase
+      if (!semRestricao && processoIds.length === 0) return [] as Divergencia[];
+      let q = supabase
         .from("acompanhamento_especial_divergencias")
         .select("id, processo_id, processo_numero, campo, valor_atual, valor_judit, detectado_em")
         .is("resolvido_em", null)
         .order("detectado_em", { ascending: false })
         .limit(300);
+      if (!semRestricao) q = q.in("processo_id", processoIds);
+      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as Divergencia[];
     },
