@@ -8,7 +8,8 @@ const LS_KEY = "acomp-especial-novidades-visto-em";
 /**
  * Novidades do Acompanhamento Especial no escopo do usuário logado
  * (coordenações que participa ou processos em que é responsável).
- * Conta novos eventos da Judit + divergências pendentes.
+ * Conta apenas novos eventos (movimentações) encontrados pela Judit.
+ * Divergências de campos NÃO geram aviso.
  */
 export function useAcompanhamentoEspecialNovidades() {
   const { processoIds, semRestricao, isLoading: escopoLoading } = useEscopoAcompanhamentoEspecial();
@@ -24,7 +25,7 @@ export function useAcompanhamentoEspecialNovidades() {
     staleTime: 60_000,
     refetchInterval: 120_000,
     queryFn: async () => {
-      if (!semRestricao && processoIds.length === 0) return { eventos: 0, divergencias: 0 };
+      if (!semRestricao && processoIds.length === 0) return { eventos: 0 };
       const desde =
         vistoEm || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -33,15 +34,8 @@ export function useAcompanhamentoEspecialNovidades() {
         .select("id", { count: "exact", head: true })
         .gte("criado_em", desde);
       if (!semRestricao) qEventos = qEventos.in("processo_id", processoIds);
-
-      let qDiv = supabase
-        .from("acompanhamento_especial_divergencias")
-        .select("id", { count: "exact", head: true })
-        .is("resolvido_em", null);
-      if (!semRestricao) qDiv = qDiv.in("processo_id", processoIds);
-
-      const [ev, dv] = await Promise.all([qEventos, qDiv]);
-      return { eventos: ev.count ?? 0, divergencias: dv.count ?? 0 };
+      const ev = await qEventos;
+      return { eventos: ev.count ?? 0 };
     },
   });
 
@@ -52,13 +46,12 @@ export function useAcompanhamentoEspecialNovidades() {
   }, []);
 
   const eventos = data?.eventos ?? 0;
-  const divergencias = data?.divergencias ?? 0;
 
   return {
     eventos,
-    divergencias,
-    total: eventos + divergencias,
-    temNovidades: eventos + divergencias > 0,
+    divergencias: 0,
+    total: eventos,
+    temNovidades: eventos > 0,
     marcarComoVistas,
   };
 }
