@@ -20,7 +20,7 @@ import { Loader2, Search, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { useAudienciasDetectadas, NovaAudiencia } from "@/hooks/useAudienciasDetectadas";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
-import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
+import { useCoordenadoresDaCoordenacao, useEnvolvidosFixosDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { supabase } from "@/integrations/supabase/client";
 import { formatProcessoNumero } from "@/lib/utils";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";

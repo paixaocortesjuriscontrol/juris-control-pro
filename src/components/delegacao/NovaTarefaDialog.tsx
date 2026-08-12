@@ -44,7 +44,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, X, Upload, FileText, Trash2, Sparkles, CheckCircle2, Eye, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
-import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
+import { useCoordenadoresDaCoordenacao, useEnvolvidosFixosDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { Label } from "@/components/ui/label";
 import { TarefaPublicacaoVinculada } from "@/components/shared/TarefaPublicacaoVinculada";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";

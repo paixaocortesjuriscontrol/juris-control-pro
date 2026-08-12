@@ -43,7 +43,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
-import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
+import { useCoordenadoresDaCoordenacao, useEnvolvidosFixosDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
