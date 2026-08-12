@@ -755,6 +755,22 @@ export function PrazoDialog({
 
         {situacao !== situacaoInicial && (
           <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+            {situacao === "reagendado" && (
+              <div className="space-y-1.5 pb-2">
+                <Label className="text-xs font-semibold">
+                  Nova data do reagendamento <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="date"
+                  value={novaDataReagendamento}
+                  onChange={(e) => setNovaDataReagendamento(e.target.value)}
+                  className="h-9 w-[180px] text-sm"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  O prazo será movido para esta data no painel de controle.
+                </p>
+              </div>
+            )}
             <Label className="text-xs font-semibold">
               Comentário da mudança de situação (opcional)
             </Label>
