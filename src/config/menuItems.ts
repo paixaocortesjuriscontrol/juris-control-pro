@@ -18,6 +18,7 @@ import {
   History,
   Tag,
   BarChart3,
+  Bell,
 } from "lucide-react";
 
 export type MenuItem = {
