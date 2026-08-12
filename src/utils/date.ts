@@ -27,3 +27,61 @@ export function formatDateSafe(value: string | Date | null | undefined, fallback
   if (!d) return fallback;
   return d.toLocaleDateString("pt-BR");
 }
+
+const BRT_TZ = "America/Sao_Paulo";
+
+/**
+ * Retorna a hora (HH:mm) sempre no fuso de Brasília.
+ *
+ * - "14:30" ou "14:30:00" → devolve "14:30" (já é hora local, não converte).
+ * - "2026-08-12T17:00:00+00:00" / "...Z" → converte para BRT ("14:00").
+ * - "2026-08-12T14:00:00" (sem fuso) → devolve "14:00" (tratado como hora local).
+ */
+export function horaBrt(value: string | Date | null | undefined): string {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const soHora = /^(\d{2}):(\d{2})/.exec(value.trim());
+    if (soHora) return `${soHora[1]}:${soHora[2]}`;
+    const temFuso = /(Z|[+-]\d{2}:?\d{2})$/.test(value.trim());
+    if (!temFuso) {
+      const m = /T(\d{2}):(\d{2})/.exec(value);
+      return m ? `${m[1]}:${m[2]}` : "";
+    }
+  }
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: BRT_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+}
+
+/** Formata data e hora (dd/MM/yyyy HH:mm) no fuso de Brasília. */
+export function dataHoraBrt(value: string | Date | null | undefined, fallback = ""): string {
+  if (!value) return fallback;
+  const d = value instanceof Date ? value : new Date(value);
+  if (isNaN(d.getTime())) return fallback;
+  return new Intl.DateTimeFormat("pt-BR", {
+    timeZone: BRT_TZ,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+    .format(d)
+    .replace(",", "");
+}
+
+/** Hora BRT de uma audiência, priorizando os campos já gravados em horário local. */
+export function horaAudienciaBrt(a: {
+  hora_brasilia?: string | null;
+  hora_local?: string | null;
+  hora?: string | null;
+  data_inicio?: string | null;
+}): string {
+  return horaBrt(a.hora_brasilia || a.hora_local || a.hora || a.data_inicio || null);
+}
