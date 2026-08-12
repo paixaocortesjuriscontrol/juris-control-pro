@@ -288,10 +288,11 @@ serve(async (req) => {
       const horaAtual = horaBrt(atual.iniciado_em);
       const horaAnterior = horaBrt(anterior.iniciado_em);
 
-      // Janela da execução atual: do início da execução anterior até o início da
-      // próxima execução (ou fim do dia BRT, se for a última).
+      // Janela da execução atual: do seu próprio início até o início da próxima
+      // execução (ou fim do dia BRT, se for a última). Assim contamos apenas as
+      // publicações gravadas por ESTA execução.
       const fimJanela = i + 1 < execucoes.length ? execucoes[i + 1].iniciado_em : endUtc;
-      const mapNovas = novasNaJanela(anterior.iniciado_em, fimJanela);
+      const mapNovas = novasNaJanela(atual.iniciado_em, fimJanela);
 
       const linhas: LinhaCoord[] = [];
       for (const [coordId, novas] of mapNovas) {
