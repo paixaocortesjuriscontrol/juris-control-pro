@@ -313,7 +313,15 @@ export function DashboardCoordenacoes({
         whatsappHabilitado: config?.whatsapp_habilitado || false,
         membros,
       };
-    }).sort((a, b) => b.total - a.total);
+    }).sort((a, b) => {
+      const totalA = a.total + (naoTratados[a.id]?.total ?? 0);
+      const totalB = b.total + (naoTratados[b.id]?.total ?? 0);
+      if (totalB === 0 && totalA === 0) return a.nome.localeCompare(b.nome);
+      if (totalA === 0) return 1;
+      if (totalB === 0) return -1;
+      return totalB - totalA;
+    });
+
   }, [coordenacoesFiltradas, countsByCoord, prazosUrgentes, tarefasPendentes, configs, matchesPeriodo, matchesSearch, membrosCoordenacao]);
 
   const handleOpenConfig = (coord: { id: string; nome: string }) => {
