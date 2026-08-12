@@ -452,6 +452,20 @@ export function PrazoDialog({
     });
   }, [JSON.stringify(coordenadoresIds)]);
 
+  // Envolvidos fixos definidos na configuração da coordenação para o tipo Prazo
+  const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(
+    coordenacaoId || null,
+    "PRAZO",
+  );
+
+  useEffect(() => {
+    if (envolvidosFixosIds.length === 0) return;
+    setEnvolvidosIds((prev) => {
+      const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
+      return faltando.length > 0 ? [...prev, ...faltando] : prev;
+    });
+  }, [JSON.stringify(envolvidosFixosIds)]);
+
   useEffect(() => {
     if (prazo) return;
     if (dataLimiteEditadaManualmente) return;
