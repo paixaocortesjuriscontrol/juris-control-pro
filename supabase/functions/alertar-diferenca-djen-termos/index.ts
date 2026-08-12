@@ -55,9 +55,10 @@ type Exec = {
 type LinhaCoord = {
   coordenacaoId: string;
   nome: string;
-  totalAnterior: number;
-  totalAtual: number;
+  /** Publicações novas efetivamente gravadas na janela da execução. */
   diferenca: number;
+  /** Total do dia da coordenação (mesma base da tela Análise DJEN). */
+  totalDia: number;
 };
 
 function isTermos(tipo: string): boolean {
@@ -91,18 +92,16 @@ function tabelaLinhas(linhas: LinhaCoord[], mostrarCoordenacao: boolean): string
   const cabecalho = `
     <tr style="background:#F3F4F6;">
       ${mostrarCoordenacao ? '<th align="left" style="padding:8px;font-size:13px;">Coordenação</th>' : ""}
-      <th align="center" style="padding:8px;font-size:13px;">Execução anterior</th>
-      <th align="center" style="padding:8px;font-size:13px;">Execução atual</th>
-      <th align="center" style="padding:8px;font-size:13px;">Diferença</th>
+      <th align="center" style="padding:8px;font-size:13px;">Novas publicações</th>
+      <th align="center" style="padding:8px;font-size:13px;">Total do dia</th>
     </tr>`;
   const corpo = linhas
     .map(
       (l) => `
       <tr>
         ${mostrarCoordenacao ? `<td style="padding:8px;border-top:1px solid #e5e7eb;font-size:13px;">${l.nome}</td>` : ""}
-        <td align="center" style="padding:8px;border-top:1px solid #e5e7eb;font-size:13px;">${l.totalAnterior}</td>
-        <td align="center" style="padding:8px;border-top:1px solid #e5e7eb;font-size:13px;">${l.totalAtual}</td>
         <td align="center" style="padding:8px;border-top:1px solid #e5e7eb;font-size:13px;color:#047857;font-weight:bold;">+${l.diferenca}</td>
+        <td align="center" style="padding:8px;border-top:1px solid #e5e7eb;font-size:13px;">${l.totalDia}</td>
       </tr>`,
     )
     .join("");
@@ -175,46 +174,54 @@ serve(async (req) => {
       );
     }
 
-    // 2) Contagens por (execução, coordenação).
-    const servIds = execucoes.filter((e) => e.fonte === "servidor").map((e) => e.id);
-    const locaisIds = execucoes.filter((e) => e.fonte === "local").map((e) => e.id);
-
-    const [junServ, junLocal] = await Promise.all([
-      servIds.length === 0
-        ? Promise.resolve({ data: [], error: null } as any)
-        : supabase
-            .from("publicacoes_djen_servidor_execucoes")
-            .select("execucao_id, publicacao:publicacoes_djen_servidor!inner(id, coordenacao_id)")
-            .in("execucao_id", servIds),
-      locaisIds.length === 0
-        ? Promise.resolve({ data: [], error: null } as any)
-        : supabase
-            .from("publicacoes_djen_execucoes")
-            .select(
-              "execucao_id, publicacao:publicacoes_djen!inner(id, monitoramento:monitoramentos_djen!inner(coordenacao_id))",
-            )
-            .in("execucao_id", locaisIds),
-    ]);
-
-    if (junServ.error) log("erro junção servidor", junServ.error);
-    if (junLocal.error) log("erro junção local", junLocal.error);
-
-    // execId -> coordId -> total
-    const totais = new Map<string, Map<string, number>>();
+    // 2) Publicações do dia efetivamente gravadas (mesma base da tela Análise DJEN:
+    //    publicacoes_djen; as descartadas vivem em outra tabela e já ficam de fora).
+    //    Guardamos created_at + coordenação para contar somente o que é NOVO em cada
+    //    janela de execução — revínculos de publicações antigas não contam mais.
+    type PubDia = { createdAt: string; coordId: string };
+    const pubsDia: PubDia[] = [];
     const coordIds = new Set<string>();
-    const acumular = (rows: any[], extract: (r: any) => string | null | undefined) => {
-      for (const r of rows || []) {
-        const execId = r.execucao_id as string;
-        const coordId = extract(r);
-        if (!execId || !coordId) continue;
-        coordIds.add(coordId);
-        if (!totais.has(execId)) totais.set(execId, new Map());
-        const m = totais.get(execId)!;
-        m.set(coordId, (m.get(coordId) || 0) + 1);
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from("publicacoes_djen")
+        .select("id, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)")
+        .gte("created_at", startUtc)
+        .lt("created_at", endUtc)
+        .order("created_at", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) {
+        log("erro ao carregar publicacoes_djen", error);
+        break;
       }
+      for (const r of data || []) {
+        const coordId = (r as any)?.monitoramento?.coordenacao_id as string | null | undefined;
+        if (!coordId || !r.created_at) continue;
+        coordIds.add(coordId);
+        pubsDia.push({ createdAt: r.created_at as string, coordId });
+      }
+      if (!data || data.length < PAGE) break;
+    }
+
+    // Total do dia por coordenação
+    const totalDiaPorCoord = new Map<string, number>();
+    for (const p of pubsDia) {
+      totalDiaPorCoord.set(p.coordId, (totalDiaPorCoord.get(p.coordId) || 0) + 1);
+    }
+
+    /** Novas publicações por coordenação na janela [inicio, fim). */
+    const novasNaJanela = (inicio: string, fim: string): Map<string, number> => {
+      const m = new Map<string, number>();
+      const ini = new Date(inicio).getTime();
+      const end = new Date(fim).getTime();
+      for (const p of pubsDia) {
+        const t = new Date(p.createdAt).getTime();
+        if (t >= ini && t < end) m.set(p.coordId, (m.get(p.coordId) || 0) + 1);
+      }
+      return m;
     };
-    acumular(junServ.data || [], (r) => r.publicacao?.coordenacao_id);
-    acumular(junLocal.data || [], (r) => r.publicacao?.monitoramento?.coordenacao_id);
+
+    log(`publicações do dia carregadas: ${pubsDia.length}`);
 
     // Nomes das coordenações
     const nomes = new Map<string, string>();
@@ -281,21 +288,20 @@ serve(async (req) => {
       const horaAtual = horaBrt(atual.iniciado_em);
       const horaAnterior = horaBrt(anterior.iniciado_em);
 
-      const mapAtual = totais.get(atual.id) || new Map<string, number>();
-      const mapAnterior = totais.get(anterior.id) || new Map<string, number>();
+      // Janela da execução atual: do seu próprio início até o início da próxima
+      // execução (ou fim do dia BRT, se for a última). Assim contamos apenas as
+      // publicações gravadas por ESTA execução.
+      const fimJanela = i + 1 < execucoes.length ? execucoes[i + 1].iniciado_em : endUtc;
+      const mapNovas = novasNaJanela(atual.iniciado_em, fimJanela);
 
       const linhas: LinhaCoord[] = [];
-      for (const coordId of new Set([...mapAtual.keys(), ...mapAnterior.keys()])) {
-        const totalAtual = mapAtual.get(coordId) || 0;
-        const totalAnterior = mapAnterior.get(coordId) || 0;
-        const diferenca = totalAtual - totalAnterior;
-        if (diferenca <= 0) continue;
+      for (const [coordId, novas] of mapNovas) {
+        if (novas <= 0) continue;
         linhas.push({
           coordenacaoId: coordId,
           nome: nomes.get(coordId) || "(sem nome)",
-          totalAnterior,
-          totalAtual,
-          diferenca,
+          diferenca: novas,
+          totalDia: totalDiaPorCoord.get(coordId) || novas,
         });
       }
       linhas.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
@@ -342,16 +348,22 @@ serve(async (req) => {
         const corpo = `
           <div style="background-color:#EFF6FF;padding:14px;border-radius:8px;margin-bottom:16px;">
             <p style="margin:0;font-size:15px;">
-              A execução do <strong>DJEN Termos</strong> das <strong>${horaAtual}</strong> encontrou
+              A execução do <strong>DJEN Termos</strong> das <strong>${horaAtual}</strong> gravou
               <strong style="color:#047857;">+${linha.diferenca}</strong>
-              ${linha.diferenca === 1 ? "publicação" : "publicações"} a mais do que a execução das
-              <strong>${horaAnterior}</strong>.
+              ${linha.diferenca === 1 ? "nova publicação" : "novas publicações"} desde a execução das
+              <strong>${horaAnterior}</strong>. Total do dia da coordenação:
+              <strong>${linha.totalDia}</strong>.
             </p>
           </div>
           <p style="margin:0 0 8px 0;font-size:13px;color:#374151;">
             Coordenação: <strong>${linha.nome}</strong> · Dia: <strong>${dataBr(ymd)}</strong>
           </p>
-          ${tabelaLinhas([linha], false)}`;
+          ${tabelaLinhas([linha], false)}
+          <p style="margin:12px 0 0 0;font-size:12px;color:#6b7280;">
+            O "Total do dia" é o número de publicações gravadas hoje para a coordenação. Na tela
+            Análise DJEN o número exibido pode ser menor, pois lá as publicações idênticas são
+            agrupadas (deduplicação) e as descartadas não aparecem.
+          </p>`;
 
         const enviados = await enviarEmail(
           emails,
@@ -369,8 +381,8 @@ serve(async (req) => {
             fonte: atual.fonte,
             coordenacao_id: linha.coordenacaoId,
             diferenca: linha.diferenca,
-            total_anterior: linha.totalAnterior,
-            total_atual: linha.totalAtual,
+            total_anterior: Math.max(linha.totalDia - linha.diferenca, 0),
+            total_atual: linha.totalDia,
             destinatarios: enviados,
             dia_ymd: ymd,
           });
@@ -393,9 +405,9 @@ serve(async (req) => {
         const corpoAdmin = `
           <div style="background-color:#EFF6FF;padding:14px;border-radius:8px;margin-bottom:16px;">
             <p style="margin:0;font-size:15px;">
-              A execução do <strong>DJEN Termos</strong> das <strong>${horaAtual}</strong> encontrou
+              A execução do <strong>DJEN Termos</strong> das <strong>${horaAtual}</strong> gravou
               <strong style="color:#047857;">+${totalDif}</strong>
-              ${totalDif === 1 ? "publicação" : "publicações"} a mais do que a execução das
+              ${totalDif === 1 ? "nova publicação" : "novas publicações"} desde a execução das
               <strong>${horaAnterior}</strong>, em ${linhas.length}
               ${linhas.length === 1 ? "coordenação" : "coordenações"}.
             </p>
@@ -418,8 +430,8 @@ serve(async (req) => {
             fonte: atual.fonte,
             coordenacao_id: null,
             diferenca: totalDif,
-            total_anterior: linhas.reduce((a, l) => a + l.totalAnterior, 0),
-            total_atual: linhas.reduce((a, l) => a + l.totalAtual, 0),
+            total_anterior: linhas.reduce((a, l) => a + Math.max(l.totalDia - l.diferenca, 0), 0),
+            total_atual: linhas.reduce((a, l) => a + l.totalDia, 0),
             destinatarios: enviadosAdmin,
             dia_ymd: ymd,
           });
