@@ -515,14 +515,31 @@ export async function fetchAgendaPage(
           filters.responsavelIds && filters.responsavelIds.length > 0 ? filters.responsavelIds : [user.id];
         let tarefaIdsPorResponsavel: string[] = [];
         if (!filters.fetchAll && coordScopeIds.length === 0) {
-          const { data: vinculos } = await supabase
+          // IMPORTANTE: restringir ao período exibido. Sem isso a lista de ids
+          // podia chegar a milhares e a URL do filtro `or(...)` estourava o
+          // limite do servidor, fazendo a consulta falhar e "sumir tudo".
+          let vinculosQuery = supabase
             .from("tarefa_responsaveis")
-            .select("tarefa_id")
-            .in("usuario_id", targetTaskUserIds)
-            .limit(5000);
+            .select("tarefa_id, tarefas!inner(data_vencimento)")
+            .in("usuario_id", targetTaskUserIds);
+          if (filters.dataInicio) {
+            const di = filters.dataInicio;
+            vinculosQuery = vinculosQuery.gte(
+              "tarefas.data_vencimento",
+              `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`,
+            );
+          }
+          if (filters.dataFim) {
+            const df = filters.dataFim;
+            vinculosQuery = vinculosQuery.lte(
+              "tarefas.data_vencimento",
+              `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`,
+            );
+          }
+          const { data: vinculos } = await vinculosQuery.limit(2000);
           tarefaIdsPorResponsavel = Array.from(
             new Set((vinculos || []).map((v: any) => v.tarefa_id).filter(Boolean))
-          );
+          ).slice(0, 400);
         }
         const buildTarefasOr = (ids: string) => {
           const parts = [`responsavel_id.in.(${ids})`, `criado_por.in.(${ids})`];
