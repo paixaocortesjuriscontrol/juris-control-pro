@@ -24,6 +24,8 @@ import {
   Scale,
   Radar,
   RefreshCw,
+  CalendarClock,
+  Banknote,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
