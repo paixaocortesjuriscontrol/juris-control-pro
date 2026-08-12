@@ -201,24 +201,39 @@ export function ResponsaveisFixosTipoDialog({
                     Nenhum membro cadastrado nesta coordenação.
                   </p>
                 ) : (
-                  pessoas.map((p) => (
-                    <div key={p.id} className="flex items-center gap-3 py-1">
-                      <Checkbox
-                        id={`resp-${tipoSelecionado}-${p.id}`}
-                        checked={selecionados.includes(p.id)}
-                        onCheckedChange={() => toggle(p.id)}
-                      />
-                      <Label
-                        htmlFor={`resp-${tipoSelecionado}-${p.id}`}
-                        className="flex-1 cursor-pointer text-sm font-normal"
-                      >
-                        {p.nome}
-                        {p.cargo && (
-                          <span className="text-muted-foreground"> — {p.cargo}</span>
-                        )}
-                      </Label>
-                    </div>
-                  ))
+                  pessoas.map((p) => {
+                    const papel = selecionados.includes(p.id)
+                      ? "responsavel"
+                      : selecionadosEnv.includes(p.id)
+                        ? "envolvido"
+                        : "nenhum";
+                    return (
+                      <div key={p.id} className="flex items-center justify-between gap-3 py-1.5">
+                        <span className="flex-1 text-sm truncate">
+                          {p.nome}
+                          {p.cargo && <span className="text-muted-foreground"> — {p.cargo}</span>}
+                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {([
+                            ["nenhum", "Nenhum"],
+                            ["responsavel", "Responsável"],
+                            ["envolvido", "Envolvido"],
+                          ] as const).map(([valor, rotulo]) => (
+                            <Button
+                              key={valor}
+                              type="button"
+                              size="sm"
+                              variant={papel === valor ? "default" : "outline"}
+                              className="h-7 px-2 text-xs"
+                              onClick={() => definirPapel(p.id, valor)}
+                            >
+                              {rotulo}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </ScrollArea>
