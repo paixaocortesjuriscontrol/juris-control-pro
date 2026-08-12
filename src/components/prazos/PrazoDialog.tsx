@@ -1,5 +1,6 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
+import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
@@ -693,7 +694,7 @@ export function PrazoDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {situacoesDisponiveis("prazo", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+                {situacoesDisponiveis("prazo", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || podeUsarSituacao(s.value)).map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>

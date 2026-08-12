@@ -1,5 +1,6 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
+import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
@@ -481,7 +482,7 @@ export function AudienciaFormSimplificado({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || podeUsarSituacao(s.value)).map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
