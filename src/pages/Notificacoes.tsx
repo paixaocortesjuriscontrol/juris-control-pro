@@ -861,36 +861,7 @@ export default function Notificacoes({
       {/* Filters Bar (oculta quando embedded: usa os filtros superiores do Painel) */}
       <div className={cn("bg-card rounded-xl border border-border/50 p-4 mb-6 animate-fade-in", embedded && "hidden")}>
         <div className="flex flex-col gap-4">
-          {/* Search Row */}
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="flex-1" />
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todos</SelectItem>
-                <SelectItem value="pendente">Pendente</SelectItem>
-                <SelectItem value="concluido">Concluído</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            <Select value={prioridadeFilter} onValueChange={setPrioridadeFilter}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="Prioridade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas</SelectItem>
-                <SelectItem value="urgente">Urgente</SelectItem>
-                <SelectItem value="alta">Alta</SelectItem>
-                <SelectItem value="media">Média</SelectItem>
-                <SelectItem value="baixa">Baixa</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Second Row - Coordination, Member & Period */}
+          {/* Coordination, period and status filters */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Quick Period Filters */}
             <div className="flex gap-1">
@@ -911,6 +882,30 @@ export default function Notificacoes({
                 Hoje
               </Button>
             </div>
+
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todos</SelectItem>
+                <SelectItem value="pendente">Pendente</SelectItem>
+                <SelectItem value="concluido">Concluído</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={prioridadeFilter} onValueChange={setPrioridadeFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Prioridade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas</SelectItem>
+                <SelectItem value="urgente">Urgente</SelectItem>
+                <SelectItem value="alta">Alta</SelectItem>
+                <SelectItem value="media">Média</SelectItem>
+                <SelectItem value="baixa">Baixa</SelectItem>
+              </SelectContent>
+            </Select>
 
             {/* Period Filters - Data Início */}
             <Popover>

@@ -91,10 +91,7 @@ async function fetchCountsViaRPC(
 
   if (error) {
     console.error("get_notificacoes_counts_by_coordenacao error:", error);
-    // Return zeros for all requested coordinations
-    const out: Record<string, NotificacoesCounts> = {};
-    for (const id of coordenacaoIds) out[id] = { ...ZERO };
-    return out;
+    throw error;
   }
 
   const out: Record<string, NotificacoesCounts> = {};
