@@ -20,7 +20,6 @@ import {
   FileWarning,
   FileQuestion,
   User,
-  Newspaper,
   Scale,
   Radar,
   RefreshCw,
@@ -29,6 +28,7 @@ import {
   CalendarX,
   CircleDollarSign,
 } from "lucide-react";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
@@ -265,8 +265,9 @@ export function DashboardCoordenacoes({
       const audiencias = c?.audiencias ?? 0;
       const intimacoes = c?.intimacoes ?? 0;
       const proc_nao_cadastrados = c?.proc_nao_cadastrados ?? 0;
-      // Andamentos e redistribuições não são contabilizados
-      const total = djen + distribuicoes + alertas360 + prazos + tarefas + audiencias + intimacoes + proc_nao_cadastrados;
+      // Andamentos, redistribuições e DJEN não são contabilizados
+      const total = distribuicoes + alertas360 + prazos + tarefas + audiencias + intimacoes + proc_nao_cadastrados;
+
 
       // Para breakdown de membros, usamos os datasets locais (tarefas/prazos)
       const tarefasCoord = tarefasFiltradas.filter(t => (t.processo as any)?.coordenacao_id === coord.id);
@@ -437,20 +438,8 @@ export function DashboardCoordenacoes({
                     {/* Breakdown por tipo */}
                     {coord.total > 0 && (
                       <div className="flex flex-wrap gap-1.5 pt-2">
-                        {coord.djen > 0 && (
-                          <div 
-                            className="flex flex-col items-center p-1.5 rounded-md bg-blue-600/15 cursor-pointer hover:bg-blue-600/25 transition-colors" 
-                            title="DJEN"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectCoordenacao(coord.id, "djen");
-                            }}
-                          >
-                            <Newspaper className="h-4 w-4 text-blue-600" />
-                            <span className="text-xs font-semibold text-blue-600">{coord.djen}</span>
-                          </div>
-                        )}
                         {coord.distribuicoes > 0 && (
+
                           <div 
                             className="flex flex-col items-center p-1.5 rounded-md bg-purple-600/15 cursor-pointer hover:bg-purple-600/25 transition-colors" 
                             title="Distribuições"
