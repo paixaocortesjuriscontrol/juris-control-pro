@@ -693,8 +693,31 @@ serve(async (req) => {
               )
               .join("");
 
-            // Envio de e-mail DESATIVADO nesta rotina (somente sino/WhatsApp).
-            void linhasHtml;
+            // E-mail consolidado — SOMENTE para novas movimentações
+            // (divergências de campos nunca geram e-mail).
+            const assunto = `Acompanhamento Especial - novas movimentações - ${cnj}`;
+            const linkProcesso = `https://juriscontrol.adv.br/processos/${p.id}`;
+            const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111">
+              <p><strong>Acompanhamento Especial</strong></p>
+              <p>Processo <strong>${cnj}</strong> — ${novos} nova(s) movimentação(ões) encontrada(s) pela Judit:</p>
+              <ul>${linhasHtml}</ul>
+              <p><a href="${linkProcesso}" style="color:#2563EB">Abrir o processo no JurisControl</a></p>
+            </div>`;
+
+            for (const prof of (profs ?? []) as any[]) {
+              if (!prof?.email) continue;
+              const r = await enviarEmailResend(prof.email, assunto, html);
+              const coordenacaoId = await coordenacaoDoUsuario(supabase, prof.id);
+              await supabase.from("historico_alertas_enviados").insert({
+                tipo_alerta: "acompanhamento_especial",
+                canal: "email",
+                destinatario: prof.email,
+                coordenacao_id: coordenacaoId,
+                conteudo: `${assunto}\n\n${linhasTxt}`,
+                status: r.ok ? "enviado" : "erro",
+                erro: r.erro,
+              });
+            }
 
             // WhatsApp via Z-API
             const telefones = (profs ?? []).map((p: any) => p.telefone).filter(Boolean);
