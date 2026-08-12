@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useUserRole } from "@/hooks/useUserRole";
 
 interface Mensagem {
   id: string;
@@ -27,6 +28,7 @@ interface Mensagem {
   enviado_em: string;
   status: string | null;
   referencia_id?: string | null;
+  coordenacao_id?: string | null;
   itens_referencias?: { id: string; titulo?: string | null; origem?: string | null }[] | null;
 }
 
@@ -51,6 +53,7 @@ export default function MinhasMensagensRecebidas({
   onAbrirItem?: (referenciaId: string) => void;
 }) {
   const { user } = useAuth();
+  const { isAdmin } = useUserRole();
   const queryClient = useQueryClient();
   const [busca, setBusca] = useState("");
   const [filtroLeitura, setFiltroLeitura] = useState<"todas" | "nao_lidas" | "lidas">("todas");
@@ -71,6 +74,26 @@ export default function MinhasMensagensRecebidas({
   const email = (perfil?.email || user?.email || "").toLowerCase();
   const telefone = onlyDigits(perfil?.telefone);
 
+  // Coordenações do usuário logado — usadas para limitar o modo "Escritório"
+  // de coordenadores/assistentes às suas próprias coordenações.
+  const { data: minhasCoordenacoes = [] } = useQuery({
+    queryKey: ["minhas-coordenacoes-alertas", user?.id],
+    enabled: !!user?.id && !isAdmin,
+    staleTime: 300_000,
+    queryFn: async () => {
+      const [{ data: membros }, { data: titular }] = await Promise.all([
+        supabase.from("membros_coordenacao").select("coordenacao_id").eq("usuario_id", user!.id),
+        supabase.from("coordenacoes").select("id").eq("coordenador_id", user!.id),
+      ]);
+      return Array.from(
+        new Set([
+          ...(membros ?? []).map((m: any) => m.coordenacao_id).filter(Boolean),
+          ...(titular ?? []).map((c: any) => c.id).filter(Boolean),
+        ])
+      ) as string[];
+    },
+  });
+
   const inicioISO = periodoInicio
     ? new Date(new Date(periodoInicio).setHours(0, 0, 0, 0)).toISOString()
     : undefined;
@@ -79,18 +102,33 @@ export default function MinhasMensagensRecebidas({
     : undefined;
   const coordFiltro = coordenacaoId && coordenacaoId !== "todas" ? coordenacaoId : undefined;
 
+  const escopoCoordenacoes = todosDestinatarios && !isAdmin ? minhasCoordenacoes : null;
+
   const { data: mensagens = [], isLoading } = useQuery({
-    queryKey: ["minhas-mensagens", email, telefone, inicioISO, fimISO, coordFiltro, todosDestinatarios],
+    queryKey: [
+      "minhas-mensagens",
+      email,
+      telefone,
+      inicioISO,
+      fimISO,
+      coordFiltro,
+      todosDestinatarios,
+      isAdmin,
+      (escopoCoordenacoes ?? []).join(","),
+    ],
     enabled: todosDestinatarios || !!email || !!telefone,
     queryFn: async () => {
       let q = supabase
         .from("historico_alertas_enviados")
-        .select("id, tipo_alerta, canal, destinatario, conteudo, enviado_em, status, referencia_id, itens_referencias")
+        .select("id, tipo_alerta, canal, destinatario, conteudo, enviado_em, status, referencia_id, coordenacao_id, itens_referencias")
         .order("enviado_em", { ascending: false })
         .limit(500);
       if (inicioISO) q = q.gte("enviado_em", inicioISO);
       if (fimISO) q = q.lte("enviado_em", fimISO);
       if (coordFiltro) q = q.eq("coordenacao_id", coordFiltro);
+      else if (escopoCoordenacoes && escopoCoordenacoes.length > 0) {
+        q = q.in("coordenacao_id", escopoCoordenacoes);
+      }
       if (!inicioISO && !fimISO) {
         const d = new Date();
         d.setDate(d.getDate() - 30);
@@ -99,7 +137,17 @@ export default function MinhasMensagensRecebidas({
       const { data, error } = await q;
       if (error) throw error;
       const rows = (data || []) as Mensagem[];
-      if (todosDestinatarios) return rows;
+      if (todosDestinatarios) {
+        // Coordenador sem nenhuma coordenação vinculada: mostra apenas as próprias mensagens
+        if (escopoCoordenacoes && escopoCoordenacoes.length === 0) {
+          return rows.filter((m) => {
+            const dest = (m.destinatario || "").toLowerCase();
+            return (!!email && dest === email) ||
+              (!!telefone && onlyDigits(dest).endsWith(telefone.slice(-8)));
+          });
+        }
+        return rows;
+      }
       return rows.filter((m) => {
         const dest = (m.destinatario || "").toLowerCase();
         if (email && dest === email) return true;
