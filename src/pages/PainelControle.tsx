@@ -1283,7 +1283,10 @@ export default function PainelControle() {
       if (painelFiltros.souResponsavel || painelFiltros.estouEnvolvido) {
         const userId = user?.id;
         if (!userId) return false;
-        const isResp = item.responsavel_id === userId || item.criado_por === userId;
+        const isResp =
+          item.responsavel_id === userId ||
+          (item as any).responsaveis_ids?.includes(userId) ||
+          item.criado_por === userId;
         const isEnvolvido = item.participantes?.some((p: any) => p.usuario_id === userId);
         if (painelFiltros.souResponsavel && painelFiltros.estouEnvolvido) {
           if (!isResp && !isEnvolvido) return false;
@@ -1299,6 +1302,7 @@ export default function PainelControle() {
         const envolvido = item.participantes?.some((p: any) => painelFiltros.responsavelIds.includes(p.usuario_id));
         const isMatch =
           (rid && painelFiltros.responsavelIds.includes(rid)) ||
+          (item as any).responsaveis_ids?.some((id: string) => painelFiltros.responsavelIds.includes(id)) ||
           (cid && painelFiltros.responsavelIds.includes(cid)) ||
           envolvido;
         if (!isMatch) return false;
