@@ -1684,25 +1684,11 @@ export default function PainelControle() {
             <SlidersHorizontal className={`w-4 h-4 ${mostrarFiltros ? "" : "opacity-50"}`} />
           </Button>
           <Button asChild variant="outline" size="sm">
-            <Link to="/indicadores">
-              <BarChart3 className="w-4 h-4 mr-1" /> Indicadores
-            </Link>
+            <Link to="/notificacoes">Config. Notificações</Link>
           </Button>
-          {isAdminOrCoordinator && (
-            <Button asChild variant="outline" size="sm">
-              <Link to="/notificacoes">Config. Notificações</Link>
-            </Button>
-          )}
           <Button variant="outline" size="sm" onClick={() => setRelatorioAudOpen(true)} title="Relatório de audiências por usuário/situação" className="whitespace-nowrap">
             <BarChart3 className="w-4 h-4 mr-1" /> Rel. Audiências
           </Button>
-          {isAdminOrCoordinator && (
-            <Button asChild variant="outline" size="sm" title="Relatório de auditoria da coordenação (PDF/Excel)" className="whitespace-nowrap">
-              <Link to="/auditoria-itens">
-                <FileText className="w-4 h-4 mr-1" /> Rel. Auditoria
-              </Link>
-            </Button>
-          )}
           {false && isAdmin && (
             <Button asChild variant="outline" size="sm">
               <Link to="/painel-intimacoes">Painel Intimações</Link>
@@ -1740,15 +1726,6 @@ export default function PainelControle() {
                 Escritório
               </Button>
             </div>
-            <Button
-              size="sm"
-              variant={somenteHoje ? "default" : "outline"}
-              className="h-7 px-2 text-[11px]"
-              onClick={() => setSomenteHoje((v) => !v)}
-              title="Exibir apenas itens de hoje"
-            >
-              Somente Hoje
-            </Button>
             <Select value={situacaoFilter} onValueChange={setSituacaoFilter}>
               <SelectTrigger className="h-7 w-[160px] text-xs" title="Filtrar por situação">
                 <SelectValue placeholder="Situação" />
