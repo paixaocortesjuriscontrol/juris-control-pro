@@ -429,8 +429,8 @@ serve(async (req) => {
             fonte: atual.fonte,
             coordenacao_id: null,
             diferenca: totalDif,
-            total_anterior: linhas.reduce((a, l) => a + l.totalAnterior, 0),
-            total_atual: linhas.reduce((a, l) => a + l.totalAtual, 0),
+            total_anterior: linhas.reduce((a, l) => a + Math.max(l.totalDia - l.diferenca, 0), 0),
+            total_atual: linhas.reduce((a, l) => a + l.totalDia, 0),
             destinatarios: enviadosAdmin,
             dia_ymd: ymd,
           });
