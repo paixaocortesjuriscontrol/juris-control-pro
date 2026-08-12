@@ -202,9 +202,11 @@ function getValuesFromDado(d: DadoBenner): string[] {
   const midiaSN = d.risco_midia ? toSN(d.risco_midia) : "";
   const riscoNivel = cleanDadoBennerValue((d as any).risco_nivel);
   const riscoDescRaw = cleanDadoBennerValue(d.risco_descricao);
-  const riscoDesc = riscoNivel && riscoDescRaw
+  const riscoDescCalc = riscoNivel && riscoDescRaw
     ? `${riscoNivel} - ${riscoDescRaw}`
     : (riscoNivel || riscoDescRaw);
+  // Se "Há risco de mídia negativa? (S/N)" = N, a coluna Risco fica vazia.
+  const riscoDesc = midiaSN === "N" ? "" : riscoDescCalc;
 
   // Listas de matérias com análise (Reclamante + Banco) - novas colunas AB..AH
   const materiasAnalise: Array<any> = [
