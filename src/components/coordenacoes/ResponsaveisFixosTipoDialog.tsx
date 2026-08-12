@@ -43,18 +43,71 @@ export function ResponsaveisFixosTipoDialog({
   const [mapa, setMapa] = useState<Record<string, string[]>>({});
   const [mapaEnvolvidos, setMapaEnvolvidos] = useState<Record<string, string[]>>({});
 
-  const pessoas = useMemo(
-    () =>
-      (membros || [])
-        .map((m) => ({
-          id: m.usuario?.id as string,
-          nome: m.usuario?.nome || m.usuario?.email || "Usuário",
-          cargo: m.cargo || "",
-        }))
-        .filter((p) => !!p.id)
-        .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")),
-    [membros]
-  );
+  // Busca completa dos integrantes da coordenação (membros + coordenador),
+  // pois a prop `membros` pode vir incompleta dependendo da tela.
+  const { data: membrosCoord = [] } = useQuery({
+    queryKey: ["coordenacao-integrantes-fixos", coordenacaoId],
+    enabled: open && !!coordenacaoId,
+    queryFn: async () => {
+      const ids = new Set<string>();
+      const cargoPorId: Record<string, string> = {};
+
+      const { data: mem } = await supabase
+        .from("membros_coordenacao")
+        .select("usuario_id, cargo")
+        .eq("coordenacao_id", coordenacaoId);
+      (mem || []).forEach((m: any) => {
+        if (m.usuario_id) {
+          ids.add(m.usuario_id);
+          if (m.cargo) cargoPorId[m.usuario_id] = m.cargo;
+        }
+      });
+
+      const { data: coord } = await supabase
+        .from("coordenacoes")
+        .select("coordenador_id")
+        .eq("id", coordenacaoId)
+        .maybeSingle();
+      if (coord?.coordenador_id) {
+        ids.add(coord.coordenador_id);
+        cargoPorId[coord.coordenador_id] = cargoPorId[coord.coordenador_id] || "coordenador";
+      }
+
+      if (ids.size === 0) return [];
+      const { data: profiles } = await supabase
+        .from("profiles_basic")
+        .select("id, nome")
+        .in("id", Array.from(ids));
+
+      return Array.from(ids).map((id) => ({
+        id,
+        nome: (profiles || []).find((p: any) => p.id === id)?.nome || "Usuário",
+        cargo: cargoPorId[id] || "",
+      }));
+    },
+  });
+
+  const pessoas = useMemo(() => {
+    const map = new Map<string, { id: string; nome: string; cargo: string }>();
+    (membros || []).forEach((m) => {
+      const id = m.usuario?.id;
+      if (!id) return;
+      map.set(id, {
+        id,
+        nome: m.usuario?.nome || m.usuario?.email || "Usuário",
+        cargo: m.cargo || "",
+      });
+    });
+    (membrosCoord as any[]).forEach((p) => {
+      const atual = map.get(p.id);
+      map.set(p.id, {
+        id: p.id,
+        nome: atual?.nome && atual.nome !== "Usuário" ? atual.nome : p.nome,
+        cargo: atual?.cargo || p.cargo,
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [membros, membrosCoord]);
 
   const { data: configs, isLoading } = useQuery({
     queryKey: ["responsaveis-fixos-tipo", coordenacaoId],
