@@ -415,10 +415,19 @@ export function PrazoDialog({
       setRecorrenciaOcorrencias("");
       (async () => {
         const [{ data: resps }, { data: envs }] = await Promise.all([
-          supabase.from("tarefa_responsaveis").select("usuario_id").eq("tarefa_id", prazo.id),
+          supabase
+            .from("tarefa_responsaveis")
+            .select("usuario_id, created_at")
+            .eq("tarefa_id", prazo.id)
+            .order("created_at", { ascending: true }),
           supabase.from("tarefa_envolvidos").select("usuario_id").eq("tarefa_id", prazo.id),
         ]);
-        const respIds = (resps || []).map((r: any) => r.usuario_id);
+        // Mantém o responsável principal atual sempre na primeira posição para que
+        // uma edição não troque o responsável "sozinho".
+        const respIdsRaw = (resps || []).map((r: any) => r.usuario_id);
+        const respIds = prazo.responsavel_id && respIdsRaw.includes(prazo.responsavel_id)
+          ? [prazo.responsavel_id, ...respIdsRaw.filter((id: string) => id !== prazo.responsavel_id)]
+          : respIdsRaw;
         setResponsaveisIds(respIds.length > 0 ? respIds : (prazo.responsavel_id ? [prazo.responsavel_id] : []));
         const envIds = (envs || []).map((e: any) => e.usuario_id);
         setEnvolvidosIds(envIds);
