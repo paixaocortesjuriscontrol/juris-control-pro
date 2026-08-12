@@ -78,6 +78,7 @@ import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 import { AcompanhamentoEspecialEventos } from "@/components/processos/AcompanhamentoEspecialEventos";
 import { AcompanhamentoEspecialResumo } from "@/components/processos/AcompanhamentoEspecialResumo";
 import { Sparkles } from "lucide-react";
+import { horaBrt } from "@/utils/date";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
