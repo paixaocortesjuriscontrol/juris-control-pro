@@ -1,3 +1,4 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import DOMPurify from "dompurify";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
@@ -182,6 +183,8 @@ export default function ProcessoDetalhes() {
   const { isAdmin: isAdminEscopo, coordenacoes: coordenacoesUsuarioEscopo } =
     useCoordenacoesDoUsuario();
   const coordenacoesEscopo = coordenacoesUsuarioEscopo.map((c) => c.id);
+  const { user: usuarioLogadoEscopo } = useAuth();
+  const userIdEscopo = usuarioLogadoEscopo?.id ?? null;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
@@ -280,7 +283,14 @@ export default function ProcessoDetalhes() {
 
   // Audiências query - carrega sempre pois é usada no card de pendências
   const { data: audiencias = [], isLoading: loadingAudiencias } = useQuery<AudienciaProcessoItem[]>({
-    queryKey: ["audiencias-processo", id, processo?.numero, isAdminEscopo, coordenacoesEscopo],
+    queryKey: [
+      "audiencias-processo",
+      id,
+      processo?.numero,
+      isAdminEscopo,
+      coordenacoesEscopo,
+      userIdEscopo,
+    ],
     queryFn: async () => {
       const [porProcessoId, porNumeroProcesso] = await Promise.all([
         supabase
@@ -329,7 +339,8 @@ export default function ProcessoDetalhes() {
       const deduplicadas = filtrarItensPorCoordenacao(
         Array.from(audienciasAgrupadas.values()),
         isAdminEscopo,
-        coordenacoesEscopo
+        coordenacoesEscopo,
+        userIdEscopo
       );
       deduplicadas.sort((a, b) => {
         const dateA = a.data_audiencia ? new Date(a.data_audiencia).getTime() : 0;
@@ -361,7 +372,7 @@ export default function ProcessoDetalhes() {
 
   // Tarefas query - carrega sempre pois é usada no card de pendências
   const { data: tarefas = [], isLoading: loadingTarefas } = useQuery({
-    queryKey: ["tarefas-processo", id, isAdminEscopo, coordenacoesEscopo],
+    queryKey: ["tarefas-processo", id, isAdminEscopo, coordenacoesEscopo, userIdEscopo],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("tarefas")
@@ -373,7 +384,12 @@ export default function ProcessoDetalhes() {
         .order("data_vencimento", { ascending: true });
 
       if (error) throw error;
-      return filtrarItensPorCoordenacao(data || [], isAdminEscopo, coordenacoesEscopo);
+      return filtrarItensPorCoordenacao(
+        data || [],
+        isAdminEscopo,
+        coordenacoesEscopo,
+        userIdEscopo
+      );
     },
     enabled: !!id && !isNovo,
   });
@@ -456,7 +472,7 @@ export default function ProcessoDetalhes() {
 
   // Eventos Agenda query - lazy load
   const { data: eventosAgenda = [] } = useQuery({
-    queryKey: ["eventos-agenda-processo", id, isAdminEscopo, coordenacoesEscopo],
+    queryKey: ["eventos-agenda-processo", id, isAdminEscopo, coordenacoesEscopo, userIdEscopo],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("eventos_agenda")
@@ -467,7 +483,12 @@ export default function ProcessoDetalhes() {
       if (error) throw error;
       // Itens de agenda são privados por coordenação, mesmo em processos
       // compartilhados entre coordenações responsáveis.
-      return filtrarItensPorCoordenacao(data || [], isAdminEscopo, coordenacoesEscopo);
+      return filtrarItensPorCoordenacao(
+        data || [],
+        isAdminEscopo,
+        coordenacoesEscopo,
+        userIdEscopo
+      );
     },
     enabled: !!id && !isNovo,
   });

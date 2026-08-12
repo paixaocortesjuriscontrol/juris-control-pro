@@ -1,3 +1,4 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -75,6 +76,8 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
   const deleteEvento = useDeleteEvento();
   const { isAdmin, coordenacoes: coordenacoesUsuario } = useCoordenacoesDoUsuario();
   const coordenacoesIds = coordenacoesUsuario.map((c) => c.id);
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [parcelasDialogOpen, setParcelasDialogOpen] = useState(false);
@@ -85,7 +88,7 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
 
   // Buscar eventos vinculados ao processo
   const { data: eventos, isLoading } = useQuery({
-    queryKey: ["eventos-processo", processoId, isAdmin, coordenacoesIds],
+    queryKey: ["eventos-processo", processoId, isAdmin, coordenacoesIds, userId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("eventos_agenda")
@@ -101,7 +104,7 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
       // Itens de agenda são privados por coordenação, mesmo em processos
       // compartilhados entre coordenações.
       const escopo = (lista: any[]) =>
-        filtrarItensPorCoordenacao(lista, isAdmin, coordenacoesIds);
+        filtrarItensPorCoordenacao(lista, isAdmin, coordenacoesIds, userId);
 
       // Buscar participantes
       const visiveis = escopo(data || []);
@@ -138,7 +141,7 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
 
   // Buscar parcelas vinculadas a eventos de parcelamento deste processo
   const { data: parcelas } = useQuery({
-    queryKey: ["parcelas-processo", processoId, isAdmin, coordenacoesIds],
+    queryKey: ["parcelas-processo", processoId, isAdmin, coordenacoesIds, userId],
     queryFn: async () => {
       // Primeiro buscar eventos de parcelamento do processo
       const { data: eventosParcelamento, error: evError } = await supabase
@@ -153,7 +156,8 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
       const eventIds = filtrarItensPorCoordenacao(
         eventosParcelamento as any[],
         isAdmin,
-        coordenacoesIds
+        coordenacoesIds,
+        userId
       ).map((e: any) => e.id);
       if (eventIds.length === 0) return [];
 
