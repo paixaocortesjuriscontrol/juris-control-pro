@@ -16,10 +16,14 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Search, Eye, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Search, Eye, CheckCircle2, XCircle, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
+import { gerarRelatorioAuditoriaPdf } from "@/lib/relatorioAuditoriaCoordenacaoPdf";
+import { toast } from "sonner";
 
 interface AuditoriaRow {
   id: string;
@@ -103,9 +107,15 @@ export default function AuditoriaItens() {
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
   const [selected, setSelected] = useState<AuditoriaRow | null>(null);
+  const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
+  const [gerandoPdf, setGerandoPdf] = useState(false);
+
+  const { role } = useUserRole();
+  const podeRelatorio = role === "admin" || role === "coordenador" || role === "assistente_coordenador";
+  const { data: coordenacoes } = useCoordenacoesFull();
 
   const { data: rows, isLoading, refetch } = useQuery({
-    queryKey: ["auditoria-itens", tipoItem, acao, sucesso, origem, dataInicio, dataFim],
+    queryKey: ["auditoria-itens", tipoItem, acao, sucesso, origem, dataInicio, dataFim, coordenacaoId],
     queryFn: async () => {
       let q: any = supabase
         .from("auditoria_tarefas")
@@ -116,6 +126,7 @@ export default function AuditoriaItens() {
       if (acao !== "todos") q = q.eq("acao", acao);
       if (sucesso !== "todos") q = q.eq("sucesso", sucesso === "sim");
       if (origem.trim()) q = q.ilike("origem", `%${origem.trim()}%`);
+      if (coordenacaoId !== "todas") q = q.eq("coordenacao_id", coordenacaoId);
       if (dataInicio) q = q.gte("created_at", `${dataInicio}T00:00:00`);
       if (dataFim) q = q.lte("created_at", `${dataFim}T23:59:59`);
       const { data, error } = await q;
@@ -157,6 +168,89 @@ export default function AuditoriaItens() {
       `${nomeUsuario(r.usuario_id)} ${emailUsuario(r.usuario_id)}`.toLowerCase().includes(termo)
     );
   }, [rows, buscaUsuario, profiles]);
+
+  const nomeCoordenacao = (id: string) =>
+    (coordenacoes || []).find((c: any) => c.id === id)?.nome || "Todas as coordenações";
+
+  const gerarPdf = async () => {
+    if (rowsFiltradas.length === 0) {
+      toast.error("Nenhuma alteração no período/filtros selecionados.");
+      return;
+    }
+    setGerandoPdf(true);
+    try {
+      // Busca completa (paginada) do período, sem o teto de 500 da tabela.
+      const coletados: AuditoriaRow[] = [];
+      for (let page = 0; page < 40; page++) {
+        let q: any = supabase
+          .from("auditoria_tarefas")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .range(page * 1000, page * 1000 + 999);
+        if (tipoItem !== "todos") q = q.eq("tipo_item", tipoItem);
+        if (acao !== "todos") q = q.eq("acao", acao);
+        if (sucesso !== "todos") q = q.eq("sucesso", sucesso === "sim");
+        if (origem.trim()) q = q.ilike("origem", `%${origem.trim()}%`);
+        if (coordenacaoId !== "todas") q = q.eq("coordenacao_id", coordenacaoId);
+        if (dataInicio) q = q.gte("created_at", `${dataInicio}T00:00:00`);
+        if (dataFim) q = q.lte("created_at", `${dataFim}T23:59:59`);
+        const { data, error } = await q;
+        if (error) throw error;
+        const lote = (data || []) as AuditoriaRow[];
+        coletados.push(...lote);
+        if (lote.length < 1000) break;
+      }
+
+      const ids = Array.from(new Set(coletados.map((r) => r.usuario_id).filter(Boolean) as string[]));
+      const mapaUsuarios = new Map<string, { nome: string; email: string }>();
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data } = await supabase
+          .from("profiles")
+          .select("id, nome, email")
+          .in("id", ids.slice(i, i + 200));
+        (data || []).forEach((p: any) =>
+          mapaUsuarios.set(p.id, { nome: p.nome || p.email || p.id, email: p.email || "" }),
+        );
+      }
+
+      const termo = buscaUsuario.trim().toLowerCase();
+      const finais = coletados.filter((r) => {
+        if (!termo) return true;
+        const u = r.usuario_id ? mapaUsuarios.get(r.usuario_id) : undefined;
+        return `${u?.nome ?? ""} ${u?.email ?? ""}`.toLowerCase().includes(termo);
+      });
+
+      gerarRelatorioAuditoriaPdf({
+        coordenacaoNome: coordenacaoId === "todas" ? "Todas as coordenações" : nomeCoordenacao(coordenacaoId),
+        periodo:
+          dataInicio || dataFim
+            ? `${dataInicio ? dataInicio.split("-").reverse().join("/") : "início"} a ${
+                dataFim ? dataFim.split("-").reverse().join("/") : "hoje"
+              }`
+            : "Todo o histórico",
+        tipoLabel: tipoItem === "todos" ? "Todos" : tipoItem,
+        usuarioLabel: buscaUsuario.trim() || "Todos",
+        rows: finais.map((r) => ({
+          created_at: r.created_at,
+          usuarioNome: (r.usuario_id && mapaUsuarios.get(r.usuario_id)?.nome) || "Sistema",
+          usuarioEmail: (r.usuario_id && mapaUsuarios.get(r.usuario_id)?.email) || "",
+          tipo_item: r.tipo_item,
+          titulo: getTituloItem(r),
+          acao: r.acao,
+          origem: labelOrigem(r.origem),
+          processo: (r.dados_saida?.processo_numero || r.dados_entrada?.processo_numero || "") as string,
+          campos: getDiff(r),
+        })),
+        labelCampo,
+        formatValor,
+      });
+      toast.success(`${finais.length} alteração(ões) no relatório.`);
+    } catch (e: any) {
+      toast.error(e.message || "Falha ao gerar o relatório");
+    } finally {
+      setGerandoPdf(false);
+    }
+  };
 
   return (
     <MainLayout
@@ -206,6 +300,18 @@ export default function AuditoriaItens() {
             <Input value={origem} onChange={(e) => setOrigem(e.target.value)} placeholder="ex: nova_tarefa_page" />
           </div>
           <div>
+            <Label>Coordenação</Label>
+            <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas</SelectItem>
+                {(coordenacoes || []).map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
             <Label>Usuário</Label>
             <Input value={buscaUsuario} onChange={(e) => setBuscaUsuario(e.target.value)} placeholder="nome ou e-mail" />
           </div>
@@ -217,7 +323,17 @@ export default function AuditoriaItens() {
             <Label>Até</Label>
             <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
           </div>
-          <div className="md:col-span-3 lg:col-span-6 flex justify-end">
+          <div className="md:col-span-3 lg:col-span-6 flex justify-end gap-2">
+            {podeRelatorio && (
+              <Button onClick={gerarPdf} variant="outline" disabled={gerandoPdf}>
+                {gerandoPdf ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4 mr-2" />
+                )}
+                Relatório de Auditoria (PDF)
+              </Button>
+            )}
             <Button onClick={() => refetch()} variant="secondary">
               <Search className="w-4 h-4 mr-2" /> Aplicar
             </Button>
