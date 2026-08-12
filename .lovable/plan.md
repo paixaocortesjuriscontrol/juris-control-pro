@@ -30,9 +30,9 @@ Causa levantada na auditoria: não há gatilho no banco fazendo isso. Os registr
 
 Correção: remover o botão/ação rápida "Concluir" das telas de itens. A conclusão passa a existir só como situação escolhida no formulário — **Concluído com sucesso** ou **Concluído sem sucesso** — e nada mais é alterado automaticamente.
 
-## 5. "Concluído com sucesso" restrito ao coordenador
+## 5. Quem pode usar "Concluído com sucesso"
 
-Já disponível via **Permissões de Situação por Tipo de Tarefa** (menu Coordenações). Com a remoção do botão rápido, essa configuração passa a valer para todos os caminhos de conclusão. Nenhuma outra alteração.
+"Concluído com sucesso" **não** é restrito ao coordenador. Continua liberado para todos, salvo se a coordenação restringir a situação no menu **Permissões de Situação por Tipo de Tarefa**. Com a remoção do botão rápido, essa configuração passa a valer para todos os caminhos de conclusão. Nenhuma outra alteração.
 
 ## Detalhes técnicos
 
