@@ -200,6 +200,142 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// ── Fallback de crawler Judit ───────────────────────────────────────────────
+// O endpoint de cache (`GET /lawsuits/{cnj}`) devolve vazio (ou LAWSUIT_NOT_FOUND)
+// quando a Judit ainda não tem o processo indexado. Nesses casos criamos uma
+// requisição de crawler e aguardamos o resultado, senão o acompanhamento nunca
+// enxerga movimentação nova e o usuário nunca é avisado.
+const JUDIT_REQUESTS_URL = "https://requests.prod.judit.io/requests";
+const JUDIT_RESPONSES_URL = "https://requests.prod.judit.io/responses";
+const CRAWLER_POLL_TIMEOUT_MS = 45_000;
+const CRAWLER_POLL_INTERVAL_MS = 3_000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function temDadosUteis(rd: any) {
+  if (!rd || typeof rd !== "object") return false;
+  return !!(rd.steps?.length || rd.parties?.length || rd.courts?.length);
+}
+
+async function juditCrawler(
+  apiKey: string,
+  cnj: string,
+  withAttachments: boolean,
+): Promise<any | null> {
+  try {
+    const r = await fetch(JUDIT_REQUESTS_URL, {
+      method: "POST",
+      headers: { "api-key": apiKey, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        search: { search_type: "lawsuit_cnj", search_key: cnj, cache_ttl_in_days: 0 },
+        with_attachments: withAttachments,
+      }),
+    });
+    if (!r.ok) {
+      console.warn(`[acomp-especial] POST /requests ${r.status}: ${await r.text()}`);
+      return null;
+    }
+    const requestId = (await r.json())?.request_id;
+    if (!requestId) return null;
+
+    const deadline = Date.now() + CRAWLER_POLL_TIMEOUT_MS;
+    let melhor: any = null;
+    while (Date.now() < deadline) {
+      await sleep(CRAWLER_POLL_INTERVAL_MS);
+      const url = new URL(JUDIT_RESPONSES_URL);
+      url.searchParams.set("request_id", String(requestId));
+      url.searchParams.set("page_size", "50");
+      const rr = await fetch(url.toString(), { headers: { "api-key": apiKey } });
+      if (!rr.ok) { await rr.text(); continue; }
+      const data = await rr.json();
+      const candidatos: any[] = (data?.page_data || data?.data || [])
+        .map((it: any) => it?.response_data)
+        .filter(temDadosUteis);
+      candidatos.sort((a, b) => (b?.steps?.length || 0) - (a?.steps?.length || 0));
+      if (candidatos[0]) melhor = candidatos[0];
+      if (data?.request_status === "completed" || data?.request_status === "cancelled") break;
+    }
+    return melhor ? { response_data: melhor, _origem: "crawler" } : null;
+  } catch (e) {
+    console.warn("[acomp-especial] crawler falhou:", (e as Error).message);
+    return null;
+  }
+}
+
+/** Notifica no sino um conjunto de usuários (dedup automático). */
+async function notificarUsuarios(
+  supabase: any,
+  userIds: string[],
+  payload: { titulo: string; mensagem: string; tipo: string; link: string; dados?: any },
+) {
+  const unicos = Array.from(new Set(userIds.filter(Boolean)));
+  if (unicos.length === 0) return;
+  await supabase.from("notificacoes").insert(
+    unicos.map((usuario_id) => ({
+      usuario_id,
+      titulo: payload.titulo,
+      mensagem: payload.mensagem,
+      tipo: payload.tipo,
+      lida: false,
+      link: payload.link,
+      dados: payload.dados ?? null,
+    })),
+  );
+}
+
+/**
+ * Destinatários do processo: responsáveis ativos + coordenador titular e
+ * coordenadores/assistentes membros da(s) coordenação(ões) responsável(is).
+ */
+async function destinatariosDoProcesso(supabase: any, processoId: string) {
+  const ids = new Set<string>();
+
+  const { data: resps } = await supabase
+    .from("processos_responsaveis")
+    .select("usuario_id")
+    .eq("processo_id", processoId)
+    .eq("ativo", true);
+  (resps ?? []).forEach((r: any) => r.usuario_id && ids.add(r.usuario_id));
+
+  const coordIds = new Set<string>();
+  const { data: proc } = await supabase
+    .from("processos")
+    .select("coordenacao_id")
+    .eq("id", processoId)
+    .maybeSingle();
+  if ((proc as any)?.coordenacao_id) coordIds.add((proc as any).coordenacao_id);
+  const { data: extras } = await supabase
+    .from("processos_coordenacoes_responsaveis")
+    .select("coordenacao_id")
+    .eq("processo_id", processoId);
+  (extras ?? []).forEach((c: any) => c.coordenacao_id && coordIds.add(c.coordenacao_id));
+
+  if (coordIds.size > 0) {
+    const lista = Array.from(coordIds);
+    const { data: coords } = await supabase
+      .from("coordenacoes")
+      .select("coordenador_id")
+      .in("id", lista);
+    (coords ?? []).forEach((c: any) => c.coordenador_id && ids.add(c.coordenador_id));
+
+    const { data: membros } = await supabase
+      .from("membros_coordenacao")
+      .select("usuario_id")
+      .in("coordenacao_id", lista);
+    const membroIds = (membros ?? []).map((m: any) => m.usuario_id).filter(Boolean);
+    if (membroIds.length > 0) {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .in("user_id", membroIds)
+        .in("role", ["coordenador", "assistente_coordenador"]);
+      (roles ?? []).forEach((r: any) => ids.add(r.user_id));
+    }
+  }
+
+  return Array.from(ids);
+}
+
 /**
  * Job de Acompanhamento Especial — roda em horários fixos BRT (10h/14h/18h),
  * disparados por 3 cron jobs distintos que enviam `slot` no body:
