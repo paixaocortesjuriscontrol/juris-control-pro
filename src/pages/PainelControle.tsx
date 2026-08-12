@@ -76,6 +76,7 @@ import PainelAudiencias from "@/pages/PainelAudiencias";
 import MinhasMensagensRecebidas from "@/components/notificacoes/MinhasMensagensRecebidas";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 import { AcompanhamentoEspecialEventos } from "@/components/processos/AcompanhamentoEspecialEventos";
+import { AcompanhamentoEspecialResumo } from "@/components/processos/AcompanhamentoEspecialResumo";
 import { Sparkles } from "lucide-react";
 
 const TIME_ZONE = "America/Sao_Paulo";
@@ -1921,7 +1922,8 @@ export default function PainelControle() {
               <Sparkles className="w-3.5 h-3.5" />
               Acompanhamento Especial — Novidades
             </summary>
-            <div className="mt-2 max-h-56 overflow-y-auto pr-2">
+            <div className="mt-2 max-h-96 overflow-y-auto pr-2 space-y-2">
+              <AcompanhamentoEspecialResumo />
               <AcompanhamentoEspecialEventos limit={10} showProcesso />
             </div>
           </details>
