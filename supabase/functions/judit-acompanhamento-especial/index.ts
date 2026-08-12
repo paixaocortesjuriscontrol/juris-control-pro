@@ -709,44 +709,11 @@ serve(async (req) => {
     }
   }
 
-  // ── Aviso de divergências (Judit × formulário) ainda não avisadas ─────────
-  try {
-    const { data: pendentes } = await supabase
-      .from("acompanhamento_especial_divergencias")
-      .select("id, processo_id, processo_numero, campo, valor_atual, valor_judit")
-      .is("resolvido_em", null)
-      .is("avisado_em", null)
-      .limit(500);
-
-    const porProcesso = new Map<string, any[]>();
-    for (const d of (pendentes ?? []) as any[]) {
-      const arr = porProcesso.get(d.processo_id) ?? [];
-      arr.push(d);
-      porProcesso.set(d.processo_id, arr);
-    }
-
-    for (const [processoId, itens] of porProcesso) {
-      const numero = itens[0]?.processo_numero || processoId.slice(0, 8);
-      const destinatarios = await destinatariosDoProcesso(supabase, processoId);
-
-      await notificarUsuarios(supabase, destinatarios, {
-        titulo: `Divergências Judit em ${numero}`,
-        mensagem: `${itens.length} campo(s) com valor diferente do que a Judit trouxe. O valor digitado foi preservado.`,
-        tipo: "acompanhamento_especial",
-        link: `/processos/${processoId}`,
-        dados: { processo_id: processoId, divergencias: itens.length },
-      });
-
-      // Envio de e-mail de divergências DESATIVADO — aviso apenas no sino/painel.
-
-      await supabase
-        .from("acompanhamento_especial_divergencias")
-        .update({ avisado_em: new Date().toISOString() })
-        .in("id", itens.map((d: any) => d.id));
-    }
-  } catch (e) {
-    console.error("[acomp-especial] aviso de divergências falhou:", (e as Error).message);
-  }
+  // ── Divergências (Judit × formulário): SEM aviso ──────────────────────────
+  // Continuam registradas em `acompanhamento_especial_divergencias` para
+  // consulta na tela do processo / Painel de Controle, mas não geram
+  // notificação no sino nem e-mail. Aviso ocorre apenas para NOVAS
+  // movimentações encontradas pela Judit.
 
   // ── Aviso de execução com falhas (silêncio ≠ "nada aconteceu") ────────────
   try {
