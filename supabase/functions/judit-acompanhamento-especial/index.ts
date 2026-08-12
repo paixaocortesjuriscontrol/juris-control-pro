@@ -5,6 +5,27 @@ import {
   extrairPartesDoJuditRaw,
   extrairStepsDoJuditRaw,
 } from "../_shared/juditRawCampos.ts";
+import { coordenacaoDoUsuario } from "../_shared/coordenacao-usuario.ts";
+
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "JurisControl <alertas@juriscontrol.adv.br>";
+
+/** Envia e-mail via Resend. Nunca lança — retorna status para o histórico. */
+async function enviarEmailResend(to: string, subject: string, html: string) {
+  if (!RESEND_API_KEY) return { ok: false, erro: "RESEND_API_KEY não configurada" };
+  try {
+    const resp = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from: EMAIL_FROM, to: [to], subject, html }),
+    });
+    if (!resp.ok) return { ok: false, erro: `resend ${resp.status}: ${await resp.text()}` };
+    await resp.json().catch(() => null);
+    return { ok: true as const, erro: null };
+  } catch (e) {
+    return { ok: false, erro: String((e as Error)?.message ?? e) };
+  }
+}
 
 // Campos do formulário "Visão Geral" que a Judit consegue preencher.
 // Regra: NUNCA sobrescrever valor já preenchido pelo advogado — só grava
@@ -672,8 +693,31 @@ serve(async (req) => {
               )
               .join("");
 
-            // Envio de e-mail DESATIVADO nesta rotina (somente sino/WhatsApp).
-            void linhasHtml;
+            // E-mail consolidado — SOMENTE para novas movimentações
+            // (divergências de campos nunca geram e-mail).
+            const assunto = `Acompanhamento Especial - novas movimentações - ${cnj}`;
+            const linkProcesso = `https://juriscontrol.adv.br/processos/${p.id}`;
+            const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111">
+              <p><strong>Acompanhamento Especial</strong></p>
+              <p>Processo <strong>${cnj}</strong> — ${novos} nova(s) movimentação(ões) encontrada(s) pela Judit:</p>
+              <ul>${linhasHtml}</ul>
+              <p><a href="${linkProcesso}" style="color:#2563EB">Abrir o processo no JurisControl</a></p>
+            </div>`;
+
+            for (const prof of (profs ?? []) as any[]) {
+              if (!prof?.email) continue;
+              const r = await enviarEmailResend(prof.email, assunto, html);
+              const coordenacaoId = await coordenacaoDoUsuario(supabase, prof.id);
+              await supabase.from("historico_alertas_enviados").insert({
+                tipo_alerta: "acompanhamento_especial",
+                canal: "email",
+                destinatario: prof.email,
+                coordenacao_id: coordenacaoId,
+                conteudo: `${assunto}\n\n${linhasTxt}`,
+                status: r.ok ? "enviado" : "erro",
+                erro: r.erro,
+              });
+            }
 
             // WhatsApp via Z-API
             const telefones = (profs ?? []).map((p: any) => p.telefone).filter(Boolean);
