@@ -214,7 +214,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 function temDadosUteis(rd: any) {
   if (!rd || typeof rd !== "object") return false;
-  return !!(rd.steps?.length || rd.parties?.length || rd.courts?.length);
+  // Movimentações são o objetivo do acompanhamento: se o cache voltou sem
+  // steps, tratamos como "sem dados úteis" para forçar o crawler.
+  return !!rd.steps?.length;
 }
 
 async function juditCrawler(

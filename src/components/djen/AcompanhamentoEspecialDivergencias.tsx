@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, Check, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, Check, CheckCheck, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useEscopoAcompanhamentoEspecial } from "@/hooks/useEscopoAcompanhamentoEspecial";
 
@@ -54,6 +54,7 @@ const LABEL_CAMPO: Record<string, string> = {
 export function AcompanhamentoEspecialDivergencias() {
   const qc = useQueryClient();
   const [resolvendo, setResolvendo] = useState<string | null>(null);
+  const [resolvendoTodas, setResolvendoTodas] = useState(false);
   const { processoIds, semRestricao, isLoading: escopoLoading } = useEscopoAcompanhamentoEspecial();
 
   const { data: divergencias, isLoading, refetch } = useQuery({
@@ -85,6 +86,7 @@ export function AcompanhamentoEspecialDivergencias() {
       if (error) throw error;
       await qc.invalidateQueries({ queryKey: ["acomp-especial-divergencias"] });
       toast.success("Divergência marcada como ciente.");
+      await qc.invalidateQueries({ queryKey: ["acomp-especial-novidades"] });
     } catch (e: any) {
       toast.error("Falha ao marcar", { description: e?.message ?? String(e) });
     } finally {
@@ -93,6 +95,29 @@ export function AcompanhamentoEspecialDivergencias() {
   };
 
   const total = divergencias?.length ?? 0;
+
+  const marcarTodasCiente = async () => {
+    if (!divergencias?.length) return;
+    setResolvendoTodas(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const ids = divergencias.map((d) => d.id);
+      for (let i = 0; i < ids.length; i += 200) {
+        const { error } = await supabase
+          .from("acompanhamento_especial_divergencias")
+          .update({ resolvido_em: new Date().toISOString(), resolvido_por: userData.user?.id ?? null })
+          .in("id", ids.slice(i, i + 200));
+        if (error) throw error;
+      }
+      await qc.invalidateQueries({ queryKey: ["acomp-especial-divergencias"] });
+      await qc.invalidateQueries({ queryKey: ["acomp-especial-novidades"] });
+      toast.success(`${ids.length} divergência(s) marcadas como ciente.`);
+    } catch (e: any) {
+      toast.error("Falha ao marcar todas", { description: e?.message ?? String(e) });
+    } finally {
+      setResolvendoTodas(false);
+    }
+  };
 
   return (
     <Card className={total > 0 ? "border-l-4 border-l-amber-500" : undefined}>
@@ -113,9 +138,21 @@ export function AcompanhamentoEspecialDivergencias() {
               é sempre preservado — apenas campos vazios são completados automaticamente.
             </CardDescription>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => refetch()}>
-            <RefreshCw className="mr-2 h-3 w-3" /> Atualizar
-          </Button>
+          <div className="flex items-center gap-2">
+            {total > 0 && (
+              <Button size="sm" variant="outline" disabled={resolvendoTodas} onClick={marcarTodasCiente}>
+                {resolvendoTodas ? (
+                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                ) : (
+                  <CheckCheck className="mr-2 h-3 w-3" />
+                )}
+                Marcar todas como Ciente
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={() => refetch()}>
+              <RefreshCw className="mr-2 h-3 w-3" /> Atualizar
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
