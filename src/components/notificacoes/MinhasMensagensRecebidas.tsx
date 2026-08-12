@@ -125,9 +125,15 @@ export default function MinhasMensagensRecebidas({
         .limit(500);
       if (inicioISO) q = q.gte("enviado_em", inicioISO);
       if (fimISO) q = q.lte("enviado_em", fimISO);
-      if (coordFiltro) q = q.eq("coordenacao_id", coordFiltro);
-      else if (escopoCoordenacoes && escopoCoordenacoes.length > 0) {
-        q = q.in("coordenacao_id", escopoCoordenacoes);
+      // Muitos alertas (mudança de situação, comentários, prazos perdidos) são gravados
+      // sem coordenacao_id. Esses são globais e devem continuar visíveis mesmo com
+      // filtro de coordenação aplicado — o recorte por destinatário cuida do escopo.
+      if (coordFiltro) {
+        q = q.or(`coordenacao_id.eq.${coordFiltro},coordenacao_id.is.null`);
+      } else if (escopoCoordenacoes && escopoCoordenacoes.length > 0) {
+        q = q.or(
+          `coordenacao_id.in.(${escopoCoordenacoes.join(",")}),coordenacao_id.is.null`
+        );
       }
       if (!inicioISO && !fimISO) {
         const d = new Date();
