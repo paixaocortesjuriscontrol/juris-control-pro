@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "4.4.4";
+export const APP_VERSION = "4.4.5";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -30,4 +30,5 @@ export const VERSION_HISTORY = [
   { version: "4.4.2", date: "2026-08-09", notes: "Acompanhamento Especial: sincronização automática Judit (partes, andamentos, análise) e card de divergências no painel" },
   { version: "4.4.3", date: "2026-08-10", notes: "Distribuição TST: relatórios e carga Benner sempre por data de distribuição (crescente), ordenação da lista salva no perfil e cabeçalho 'Data Distribuição'" },
   { version: "4.4.4", date: "2026-08-12", notes: "Atualização de versão" },
+  { version: "4.4.5", date: "2026-08-12", notes: "Pessoas fixas por tipo de tarefa: janela mais larga (papéis Responsável/Envolvido sem corte)" },
 ];
