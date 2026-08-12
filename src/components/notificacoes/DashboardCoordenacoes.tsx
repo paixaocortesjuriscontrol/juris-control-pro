@@ -20,7 +20,6 @@ import {
   FileWarning,
   FileQuestion,
   User,
-  Newspaper,
   Scale,
   Radar,
   RefreshCw,
@@ -29,6 +28,7 @@ import {
   CalendarX,
   CircleDollarSign,
 } from "lucide-react";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useNotificacoes } from "@/hooks/useNotificacoes";
