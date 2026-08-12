@@ -484,7 +484,7 @@ export function AudienciaFormSimplificado({
       {situacao === "reagendado" && situacao !== situacaoInicial && (
         <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
           <Label className="text-xs font-semibold">
-            Nova data do reagendamento <span className="text-destructive">*</span>
+            Nova data do reagendamento (opcional)
           </Label>
           <Input
             type="date"
@@ -493,10 +493,11 @@ export function AudienciaFormSimplificado({
             className="h-9 w-[180px] text-sm"
           />
           <p className="text-[11px] text-muted-foreground">
-            A audiência será movida para esta data no painel de controle.
+            Se preenchido, a audiência será movida para esta data no painel. Se deixado em branco, permanece na data atual.
           </p>
         </div>
       )}
+
       {!hideTitleHeader && (
         <div className="flex items-center justify-between gap-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-foreground flex items-center gap-2">
