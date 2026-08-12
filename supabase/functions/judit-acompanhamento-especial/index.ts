@@ -359,7 +359,7 @@ serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const juditApiKey = Deno.env.get("JUDIT_API_KEY");
-  const resendApiKey = Deno.env.get("RESEND_API_KEY");
+  // E-mail desativado nesta rotina (reclamações de spam de divergências Judit).
 
   if (!juditApiKey) {
     return new Response(JSON.stringify({ error: "JUDIT_API_KEY não configurada" }), {
