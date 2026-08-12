@@ -32,6 +32,7 @@ import { ReatribuirProcessoDialog } from "@/components/coordenacoes/ReatribuirPr
 import { PautasExcelDialog } from "@/components/coordenacoes/PautasExcelDialog";
 import { NivelAcessoDialog } from "@/components/coordenacoes/NivelAcessoDialog";
 import { ResponsaveisFixosTipoDialog } from "@/components/coordenacoes/ResponsaveisFixosTipoDialog";
+import { PermissoesSituacaoDialog } from "@/components/coordenacoes/PermissoesSituacaoDialog";
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -75,6 +76,7 @@ const Coordenacoes = () => {
   const [pautasExcelDialog, setPautasExcelDialog] = useState(false);
   const [transferirDialog, setTransferirDialog] = useState(false);
   const [respFixosDialog, setRespFixosDialog] = useState(false);
+  const [permSituacaoDialog, setPermSituacaoDialog] = useState(false);
   const [nivelAcessoMembro, setNivelAcessoMembro] = useState<any>(null);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null);
@@ -427,6 +429,14 @@ const Coordenacoes = () => {
                           <Users className="w-4 h-4 mr-1" />
                           <span className="hidden sm:inline">Responsáveis Fixos</span>
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPermSituacaoDialog(true)}
+                        >
+                          <ShieldCheck className="w-4 h-4 mr-1" />
+                          <span className="hidden sm:inline">Permissões de Situação</span>
+                        </Button>
                         <Button size="sm" variant="outline" asChild>
                           <Link to="/modelos-titulo">
                             <FileType className="w-4 h-4 mr-1" />
@@ -673,6 +683,13 @@ const Coordenacoes = () => {
             coordenacaoId={selectedCoord.id}
             coordenacaoNome={selectedCoord.nome}
             membros={selectedCoord.membros}
+          />
+
+          <PermissoesSituacaoDialog
+            open={permSituacaoDialog}
+            onOpenChange={setPermSituacaoDialog}
+            coordenacaoId={selectedCoord.id}
+            coordenacaoNome={selectedCoord.nome}
           />
 
         </>
