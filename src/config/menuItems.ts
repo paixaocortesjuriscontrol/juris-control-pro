@@ -17,6 +17,7 @@ import {
   Server,
   History,
   Tag,
+  BarChart3,
 } from "lucide-react";
 
 export type MenuItem = {
@@ -34,6 +35,8 @@ export type MenuItem = {
 export const menuItemsPublicos: MenuItem[] = [
   // Itens destacados (amarelo) - mais utilizados
   { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle", highlight: true },
+  { icon: BarChart3, label: "Indicadores", path: "/indicadores" },
+  { icon: FileText, label: "Rel. Auditoria", path: "/auditoria-itens", adminOrCoordOnly: true },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
   { icon: ArrowRightLeft, label: "Comparar DJEN", path: "/comparar-dj-santander", highlight: true, adminOnly: true },
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true, adminOrCoordOnly: true },
