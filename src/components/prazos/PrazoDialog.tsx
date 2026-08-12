@@ -274,7 +274,7 @@ export function PrazoDialog({
           publicacao,
           user.id,
           null,
-          publicacao.coordenacao_id || null,
+          unicaCoordenacaoId || null,
         );
         if (!cancelled && proc?.id) setResolvedProcessoId(proc.id);
       } catch (err) {
@@ -414,20 +414,17 @@ export function PrazoDialog({
       setRecorrenciaFim(((prazo as any).recorrencia_fim ? String((prazo as any).recorrencia_fim).slice(0, 10) : ""));
       setRecorrenciaOcorrencias("");
       (async () => {
-        const processoId = defaultProcessoId || prazo.processo_id;
-        const [{ data: resps }, { data: envs }, { data: proc }] = await Promise.all([
+        const [{ data: resps }, { data: envs }] = await Promise.all([
           supabase.from("tarefa_responsaveis").select("usuario_id").eq("tarefa_id", prazo.id),
           supabase.from("tarefa_envolvidos").select("usuario_id").eq("tarefa_id", prazo.id),
-          processoId
-            ? supabase.from("processos").select("coordenacao_id").eq("id", processoId).maybeSingle()
-            : Promise.resolve({ data: null } as any),
         ]);
         const respIds = (resps || []).map((r: any) => r.usuario_id);
         setResponsaveisIds(respIds.length > 0 ? respIds : (prazo.responsavel_id ? [prazo.responsavel_id] : []));
         const envIds = (envs || []).map((e: any) => e.usuario_id);
         setEnvolvidosIds(envIds);
         setMostrarEnvolvidos(envIds.length > 0);
-        setCoordenacaoId((prev) => prev || (proc as any)?.coordenacao_id || unicaCoordenacaoId || "");
+        // Nunca herdar a coordenação do processo: usar a do item ou a do usuário logado.
+        setCoordenacaoId((prev) => prev || unicaCoordenacaoId || "");
       })();
     } else {
       resetFormForNew();
@@ -482,7 +479,7 @@ export function PrazoDialog({
           publicacao,
           user.id,
           null,
-          coordenacaoId || publicacao.coordenacao_id || null,
+          coordenacaoId || unicaCoordenacaoId || null,
         );
         if (proc?.id) {
           processoIdParaSalvar = proc.id;
@@ -549,14 +546,7 @@ export function PrazoDialog({
           });
           if (comErr) console.error("Falha ao gravar comentário da situação:", comErr);
         }
-        // Atualizar coordenação do processo, se alterada
-        const processoId = processoIdParaSalvar;
-        if (processoId && coordenacaoId) {
-          await supabase
-            .from("processos")
-            .update({ coordenacao_id: coordenacaoId })
-            .eq("id", processoId);
-        }
+        // A coordenação do item é sempre a do usuário logado; nunca alterar a do processo.
 
         await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefaId);
         if (responsaveisIds.length > 0) {
