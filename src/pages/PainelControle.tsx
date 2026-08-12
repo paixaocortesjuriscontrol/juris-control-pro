@@ -1696,6 +1696,13 @@ export default function PainelControle() {
           <Button variant="outline" size="sm" onClick={() => setRelatorioAudOpen(true)} title="Relatório de audiências por usuário/situação">
             <BarChart3 className="w-4 h-4 mr-1" /> Relatório Audiências
           </Button>
+          {isAdminOrCoordinator && (
+            <Button asChild variant="outline" size="sm" title="Relatório de auditoria da coordenação (PDF)">
+              <Link to="/auditoria-itens">
+                <FileText className="w-4 h-4 mr-1" /> Relatório Auditoria
+              </Link>
+            </Button>
+          )}
           {false && isAdmin && (
             <Button asChild variant="outline" size="sm">
               <Link to="/painel-intimacoes">Painel Intimações</Link>
