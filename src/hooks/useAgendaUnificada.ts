@@ -507,6 +507,30 @@ export async function fetchAgendaPage(
       if (incluirTarefas && incluirTarefasPorTipo) {
         let queryTarefas = buildTarefasQuery(true);
 
+        // Tarefas onde o(s) usuário(s) alvo aparecem em tarefa_responsaveis
+        // (multi-responsáveis): sem isso, prazos com mais de um responsável só
+        // apareciam para o responsável "principal" (tarefas.responsavel_id).
+        const targetTaskUserIds =
+          filters.responsavelIds && filters.responsavelIds.length > 0 ? filters.responsavelIds : [user.id];
+        let tarefaIdsPorResponsavel: string[] = [];
+        if (!filters.fetchAll && coordScopeIds.length === 0) {
+          const { data: vinculos } = await supabase
+            .from("tarefa_responsaveis")
+            .select("tarefa_id")
+            .in("usuario_id", targetTaskUserIds)
+            .limit(5000);
+          tarefaIdsPorResponsavel = Array.from(
+            new Set((vinculos || []).map((v: any) => v.tarefa_id).filter(Boolean))
+          );
+        }
+        const buildTarefasOr = (ids: string) => {
+          const parts = [`responsavel_id.in.(${ids})`, `criado_por.in.(${ids})`];
+          if (tarefaIdsPorResponsavel.length > 0) {
+            parts.push(`id.in.(${tarefaIdsPorResponsavel.join(",")})`);
+          }
+          return parts.join(",");
+        };
+
         if (filters.fetchAll) {
           // Admin vendo todas - sem filtro
         } else if (coordScopeIds.length > 0) {
@@ -515,19 +539,12 @@ export async function fetchAgendaPage(
           // também aparecem no escopo da coordenação.
           queryTarefas = queryTarefas.in("coordenacao_id", coordScopeIds);
         } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-          if (filters.pessoal) {
-            // Modo pessoal: tarefas onde o usuário é responsável OU criador
-            const ids = filters.responsavelIds.join(",");
-            queryTarefas = queryTarefas.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
-          } else {
-            // Modo escritório: tarefas onde QUALQUER membro é responsável OU criador
-            // (inclui tarefas com responsavel_id null criadas por membros)
-            const ids = filters.responsavelIds.join(",");
-            queryTarefas = queryTarefas.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
-          }
+          // Tarefas onde o usuário (ou qualquer membro filtrado) é responsável
+          // principal, co-responsável ou criador.
+          queryTarefas = queryTarefas.or(buildTarefasOr(filters.responsavelIds.join(",")));
         } else {
           // Usuário comum vendo apenas suas próprias tarefas
-          queryTarefas = queryTarefas.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
+          queryTarefas = queryTarefas.or(buildTarefasOr(user.id));
         }
 
         if (filters.status && filters.status !== "todas") {
@@ -582,15 +599,9 @@ export async function fetchAgendaPage(
               queryTarefasFallback = queryTarefasFallback.in("processo_id", processoIds);
             }
           } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
-            if (filters.pessoal) {
-              const ids = filters.responsavelIds.join(",");
-              queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
-            } else {
-              const ids = filters.responsavelIds.join(",");
-              queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.in.(${ids}),criado_por.in.(${ids})`);
-            }
+            queryTarefasFallback = queryTarefasFallback.or(buildTarefasOr(filters.responsavelIds.join(",")));
           } else {
-            queryTarefasFallback = queryTarefasFallback.or(`responsavel_id.eq.${user.id},criado_por.eq.${user.id}`);
+            queryTarefasFallback = queryTarefasFallback.or(buildTarefasOr(user.id));
           }
 
           if (shouldRunFallbackQuery) {
