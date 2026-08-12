@@ -444,6 +444,7 @@ export function PrazoDialog({
   // Auto-calcular data limite quando Prazo (dias) muda
   // Responsáveis definidos na configuração da coordenação para o tipo Prazo
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "PRAZO");
+  const { podeUsarSituacao } = usePermissoesSituacao(coordenacaoId || null, "PRAZO");
 
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
