@@ -972,17 +972,7 @@ export function TarefaAgendaPanel({
 
         {/* Quick Actions */}
         <div className="flex flex-wrap gap-2">
-          {!isConcluido ? (
-            <Button 
-              size="sm" 
-              onClick={handleConcluir}
-              disabled={updatingStatus}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
-              {updatingStatus ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Check className="w-3 h-3 mr-1" />}
-              Concluir
-            </Button>
-          ) : (
+          {isConcluido && (
             <Button 
               size="sm" 
               variant="outline"
