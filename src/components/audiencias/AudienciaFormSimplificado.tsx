@@ -106,7 +106,12 @@ export function AudienciaFormSimplificado({
   const secondaryClickedRef = useRef(false);
   const anexosRef = useRef<ItemAnexosHandle>(null);
   const tertiaryClickedRef = useRef(false);
-  const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
+  const {
+    precisaSelecionar,
+    unicaCoordenacaoId,
+    isAdmin: isAdminCoord,
+    coordenacoes: coordenacoesDoUsuario,
+  } = useCoordenacoesDoUsuario();
   const toDateInput = (value?: string | null) => value ? value.slice(0, 10) : "";
   const toTimeInput = (value?: string | null) => value ? value.slice(0, 5) : "";
   const [form, setForm] = useState({
@@ -200,6 +205,17 @@ export function AudienciaFormSimplificado({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unicaCoordenacaoId]);
+
+  // Segurança de escopo: a coordenação herdada do processo pode pertencer a outra
+  // equipe (processos são compartilhados). O item deve nascer na coordenação do
+  // próprio usuário — nunca em uma coordenação da qual ele não participa.
+  useEffect(() => {
+    if (isEditing || isAdminCoord) return;
+    if (coordenacoesDoUsuario.length === 0 || !coordenacaoId) return;
+    const permitida = coordenacoesDoUsuario.some((c) => c.id === coordenacaoId);
+    if (!permitida) setCoordenacaoId(unicaCoordenacaoId ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coordenacaoId, isAdminCoord, isEditing, JSON.stringify(coordenacoesDoUsuario), unicaCoordenacaoId]);
 
   // Coordenação herdada do processo/pasta (evita bloqueio "Selecione a coordenação")
   useEffect(() => {
