@@ -102,7 +102,10 @@ export default function ComparaDocsTst() {
 
   const buscarPublicacoes = async () => {
     // data_disponibilizacao é timestamp: usa intervalo do dia [dia, dia+1)
-    const proximoDia = format(new Date(new Date(`${dataInicio}T00:00:00Z`).getTime() + 86400000), "yyyy-MM-dd");
+    // Importante: calcular em UTC para não perder um dia por causa do fuso local (UTC-3)
+    const proximoDia = new Date(new Date(`${dataInicio}T00:00:00Z`).getTime() + 86400000)
+      .toISOString()
+      .slice(0, 10);
     const linhas: { processo_numero: string | null; conteudo: string | null; tipo_comunicacao: string | null; orgao: string | null }[] = [];
     const pageSize = 1000;
     for (let page = 0; ; page++) {
