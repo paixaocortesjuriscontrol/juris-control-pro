@@ -55,9 +55,10 @@ type Exec = {
 type LinhaCoord = {
   coordenacaoId: string;
   nome: string;
-  totalAnterior: number;
-  totalAtual: number;
+  /** Publicações novas efetivamente gravadas na janela da execução. */
   diferenca: number;
+  /** Total do dia da coordenação (mesma base da tela Análise DJEN). */
+  totalDia: number;
 };
 
 function isTermos(tipo: string): boolean {
@@ -91,18 +92,16 @@ function tabelaLinhas(linhas: LinhaCoord[], mostrarCoordenacao: boolean): string
   const cabecalho = `
     <tr style="background:#F3F4F6;">
       ${mostrarCoordenacao ? '<th align="left" style="padding:8px;font-size:13px;">Coordenação</th>' : ""}
-      <th align="center" style="padding:8px;font-size:13px;">Execução anterior</th>
-      <th align="center" style="padding:8px;font-size:13px;">Execução atual</th>
-      <th align="center" style="padding:8px;font-size:13px;">Diferença</th>
+      <th align="center" style="padding:8px;font-size:13px;">Novas publicações</th>
+      <th align="center" style="padding:8px;font-size:13px;">Total do dia</th>
     </tr>`;
   const corpo = linhas
     .map(
       (l) => `
       <tr>
         ${mostrarCoordenacao ? `<td style="padding:8px;border-top:1px solid #e5e7eb;font-size:13px;">${l.nome}</td>` : ""}
-        <td align="center" style="padding:8px;border-top:1px solid #e5e7eb;font-size:13px;">${l.totalAnterior}</td>
-        <td align="center" style="padding:8px;border-top:1px solid #e5e7eb;font-size:13px;">${l.totalAtual}</td>
         <td align="center" style="padding:8px;border-top:1px solid #e5e7eb;font-size:13px;color:#047857;font-weight:bold;">+${l.diferenca}</td>
+        <td align="center" style="padding:8px;border-top:1px solid #e5e7eb;font-size:13px;">${l.totalDia}</td>
       </tr>`,
     )
     .join("");
