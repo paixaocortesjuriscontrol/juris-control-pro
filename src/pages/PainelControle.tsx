@@ -1693,13 +1693,13 @@ export default function PainelControle() {
               <Link to="/notificacoes">Config. Notificações</Link>
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={() => setRelatorioAudOpen(true)} title="Relatório de audiências por usuário/situação">
-            <BarChart3 className="w-4 h-4 mr-1" /> Relatório Audiências
+          <Button variant="outline" size="sm" onClick={() => setRelatorioAudOpen(true)} title="Relatório de audiências por usuário/situação" className="whitespace-nowrap">
+            <BarChart3 className="w-4 h-4 mr-1" /> Rel. Audiências
           </Button>
           {isAdminOrCoordinator && (
-            <Button asChild variant="outline" size="sm" title="Relatório de auditoria da coordenação (PDF)">
+            <Button asChild variant="outline" size="sm" title="Relatório de auditoria da coordenação (PDF/Excel)" className="whitespace-nowrap">
               <Link to="/auditoria-itens">
-                <FileText className="w-4 h-4 mr-1" /> Relatório Auditoria
+                <FileText className="w-4 h-4 mr-1" /> Rel. Auditoria
               </Link>
             </Button>
           )}
