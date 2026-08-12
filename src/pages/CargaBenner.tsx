@@ -530,7 +530,8 @@ export default function CargaBenner() {
           midiaHVal = "N";
         }
         outRow[LAYOUT_COLS[7]] = midiaHVal; // Mídia negativa S/N
-        outRow[LAYOUT_COLS[8]] = riscoVal; // Risco
+        // Se "Há risco de mídia negativa? (S/N)" = N, a coluna Risco fica vazia.
+        outRow[LAYOUT_COLS[8]] = midiaHVal === "N" ? "" : riscoVal; // Risco
         // Coluna U (índice 20) ou Coluna Q (índice 16): se contém "Prova Digital" ou "Provas Digitais" → "S"
         const colUVal = normalizeText(String(row["__col20"] ?? ""));
         const colQVal = normalizeText(String(row["__col16"] ?? ""));
