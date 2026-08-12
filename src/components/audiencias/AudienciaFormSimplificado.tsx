@@ -301,10 +301,12 @@ export function AudienciaFormSimplificado({
       return;
     }
     const reagendando = situacao === "reagendado" && situacao !== situacaoInicial;
-    if (reagendando && !novaDataReagendamento) {
-      toast.error("Informe a nova data do reagendamento");
-      return;
-    }
+    // Se o usuário não informar nova data, mantém a data atual — o item continua
+    // visível no calendário/painel apenas com a situação alterada.
+    const dataAudienciaFinal = reagendando && novaDataReagendamento
+      ? novaDataReagendamento
+      : form.data_audiencia;
+
     if (!isEditing && responsaveisIds.length === 0) {
       toast.error("Selecione ao menos um responsável", {
         description: "Campo obrigatório: 'Responsáveis', no final do formulário.",
