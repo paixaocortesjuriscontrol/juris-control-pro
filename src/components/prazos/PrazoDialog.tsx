@@ -253,6 +253,8 @@ export function PrazoDialog({
   const [situacao, setSituacao] = useState<string>("pendente");
   const [situacaoInicial, setSituacaoInicial] = useState<string>("pendente");
   const [comentarioSituacao, setComentarioSituacao] = useState("");
+  // Reagendamento: nova data obrigatória quando a situação passa para "reagendado"
+  const [novaDataReagendamento, setNovaDataReagendamento] = useState<string>("");
   const { podeCancelar } = usePodeCancelarItens();
   // Processo resolvido a partir da publicação (quando não há defaultProcessoId)
   const [resolvedProcessoId, setResolvedProcessoId] = useState<string>("");
@@ -496,6 +498,19 @@ export function PrazoDialog({
     }
     const situacaoMudou = situacao !== situacaoInicial;
 
+    // Reagendamento: exige nova data e move o prazo para ela (senão o item
+    // continuaria preso na data antiga e "não entra" no painel).
+    let dataLimiteFinal = dataLimite;
+    let dataFatalFinal = dataFatal;
+    if (situacao === "reagendado" && situacaoMudou) {
+      if (!novaDataReagendamento) {
+        toast.error("Informe a nova data do reagendamento");
+        return;
+      }
+      dataLimiteFinal = parseISO(`${novaDataReagendamento}T12:00:00`);
+      if (dataFatal && dataFatal < dataLimiteFinal) dataFatalFinal = dataLimiteFinal;
+    }
+
     // Responsável principal: preserva o atual (se continua na lista); caso contrário
     // usa o primeiro responsável que NÃO seja um responsável fixo da coordenação,
     // para que o coordenador fixo não "roube" a titularidade do prazo.
@@ -526,7 +541,7 @@ export function PrazoDialog({
 
     const payload = {
       titulo: tituloFinal,
-      data_vencimento: format(dataLimite, "yyyy-MM-dd"),
+      data_vencimento: format(dataLimiteFinal, "yyyy-MM-dd"),
       prioridade: "media" as const,
       processo_id: processoIdParaSalvar,
       responsavel_id: responsavelPrincipal,
@@ -544,7 +559,7 @@ export function PrazoDialog({
       prazo_unidade: prazoDias > 0 ? prazoUnidade : null,
       alerta_dias: null,
       alerta_unidade: null,
-      data_fatal: dataFatal ? format(dataFatal, "yyyy-MM-dd") : null,
+      data_fatal: dataFatalFinal ? format(dataFatalFinal, "yyyy-MM-dd") : null,
       coordenacao_id: coordenacaoId || null,
       recorrente: recorrenciaTipo !== "nenhuma",
       recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
@@ -740,6 +755,22 @@ export function PrazoDialog({
 
         {situacao !== situacaoInicial && (
           <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+            {situacao === "reagendado" && (
+              <div className="space-y-1.5 pb-2">
+                <Label className="text-xs font-semibold">
+                  Nova data do reagendamento <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  type="date"
+                  value={novaDataReagendamento}
+                  onChange={(e) => setNovaDataReagendamento(e.target.value)}
+                  className="h-9 w-[180px] text-sm"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  O prazo será movido para esta data no painel de controle.
+                </p>
+              </div>
+            )}
             <Label className="text-xs font-semibold">
               Comentário da mudança de situação (opcional)
             </Label>

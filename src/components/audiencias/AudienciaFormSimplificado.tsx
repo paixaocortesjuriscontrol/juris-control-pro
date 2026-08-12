@@ -133,6 +133,9 @@ export function AudienciaFormSimplificado({
     terceirizado: audienciaParaEditar?.terceirizado ?? "",
   });
   const [situacao, setSituacao] = useState<string>(audienciaParaEditar?.status ?? "pendente");
+  const situacaoInicial = audienciaParaEditar?.status ?? "pendente";
+  // Reagendamento: nova data obrigatória para a audiência mudar de dia no painel
+  const [novaDataReagendamento, setNovaDataReagendamento] = useState<string>("");
   const { podeCancelar } = usePodeCancelarItens();
   const [processoNumero, setProcessoNumero] = useState(
     audienciaParaEditar?.processo_numero
@@ -297,6 +300,11 @@ export function AudienciaFormSimplificado({
       toast.error("Informe a data");
       return;
     }
+    const reagendando = situacao === "reagendado" && situacao !== situacaoInicial;
+    if (reagendando && !novaDataReagendamento) {
+      toast.error("Informe a nova data do reagendamento");
+      return;
+    }
     if (!isEditing && responsaveisIds.length === 0) {
       toast.error("Selecione ao menos um responsável", {
         description: "Campo obrigatório: 'Responsáveis', no final do formulário.",
@@ -346,7 +354,7 @@ export function AudienciaFormSimplificado({
       processo_id: processoIdParaSalvar,
       processo_numero: processoNumeroParaSalvar || "",
       titulo: form.titulo.trim(),
-      data_audiencia: form.data_audiencia,
+      data_audiencia: reagendando ? novaDataReagendamento : form.data_audiencia,
       hora: form.hora || undefined,
       hora_fim: form.hora_fim || undefined,
       alerta_valor: form.alerta_valor > 0 ? Number(form.alerta_valor) : undefined,
@@ -470,6 +478,22 @@ export function AudienciaFormSimplificado({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {situacao === "reagendado" && situacao !== situacaoInicial && (
+        <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+          <Label className="text-xs font-semibold">
+            Nova data do reagendamento <span className="text-destructive">*</span>
+          </Label>
+          <Input
+            type="date"
+            value={novaDataReagendamento}
+            onChange={(e) => setNovaDataReagendamento(e.target.value)}
+            className="h-9 w-[180px] text-sm"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            A audiência será movida para esta data no painel de controle.
+          </p>
+        </div>
+      )}
       {!hideTitleHeader && (
         <div className="flex items-center justify-between gap-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-foreground flex items-center gap-2">
