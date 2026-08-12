@@ -41,6 +41,7 @@ export interface ItemAgendaUnificado {
   criado_por?: string;
   // Para tarefas
   responsavel_id?: string;
+  responsaveis_ids?: string[];
   responsavel?: { id: string; nome: string } | null;
   delegado_por_id?: string;
   criador?: { id: string; nome: string } | null;
