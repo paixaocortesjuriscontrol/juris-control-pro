@@ -338,7 +338,7 @@ export function DashboardCoordenacoes({
             Alertas por Coordenação
           </h3>
           <Badge variant="secondary">
-            {coordenacoesStats.filter(c => c.total > 0).length} com pendências
+            {coordenacoesStats.filter(c => (c.total + (naoTratados[c.id]?.total ?? 0)) > 0).length} com pendências
           </Badge>
         </div>
 
@@ -352,15 +352,18 @@ export function DashboardCoordenacoes({
             />
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-            {coordenacoesStats.map((coord) => (
+            {coordenacoesStats.map((coord) => {
+              const naoTratadosTotal = naoTratados[coord.id]?.total ?? 0;
+              const totalGeral = coord.total + naoTratadosTotal;
+              return (
               <Card
                 key={coord.id}
                 className={cn(
                   "cursor-pointer transition-all hover:shadow-md",
                   selectedCoordenacaoId === coord.id && "ring-2 ring-primary",
                   selectedCoordConfig?.id === coord.id && "ring-2 ring-primary",
-                  coord.total > 0 && coord.total <= 5 && "border-amber-500/50",
-                  coord.total > 5 && "border-red-500/50"
+                  totalGeral > 0 && totalGeral <= 5 && "border-amber-500/50",
+                  totalGeral > 5 && "border-red-500/50"
                 )}
                 onClick={() => onSelectCoordenacao(coord.id)}
               >
@@ -398,9 +401,9 @@ export function DashboardCoordenacoes({
                     {/* Total */}
                     <div className="flex items-center justify-between">
                       <span className="text-2xl font-bold">
-                        {coord.total}
+                        {totalGeral}
                       </span>
-                      {(naoTratados[coord.id]?.total ?? 0) > 0 ? (
+                      {naoTratadosTotal > 0 ? (
                         <Badge variant="destructive">Pendentes</Badge>
                       ) : (
                         <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-500">
@@ -410,7 +413,7 @@ export function DashboardCoordenacoes({
                     </div>
 
                     {/* Não tratados (itens do botão Adicionar vencidos) */}
-                    {(naoTratados[coord.id]?.total ?? 0) > 0 && (
+                    {naoTratadosTotal > 0 && (
                       <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-red-500/50 p-1.5 bg-red-500/5">
                         {([
                           { key: "tarefas", label: "Tarefas não tratadas", Icon: ClipboardX, cls: "text-blue-600", bg: "bg-blue-600/15 border-blue-600/30" },
@@ -594,7 +597,8 @@ export function DashboardCoordenacoes({
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
 
             {coordenacoesStats.length === 0 && (
               <div className="col-span-full text-center py-8 text-muted-foreground">
