@@ -305,7 +305,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
           publicacao,
           user.id,
           null,
-          publicacao.coordenacao_id || null,
+          unicaCoordenacaoId || null,
         );
         if (!cancelled && proc?.id) setProcessoId(proc.id);
       } catch (err) {
@@ -347,7 +347,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
           publicacao,
           user.id,
           null,
-          coordenacaoId || publicacao.coordenacao_id || null,
+          coordenacaoId || unicaCoordenacaoId || null,
         );
         if (proc?.id) {
           processoIdParaSalvar = proc.id;
