@@ -22,8 +22,8 @@ A rotina **está rodando**, mas nunca gerou aviso. Dados reais do banco:
 ## O que vou implementar
 
 1. **Fallback de crawler na Judit** (`judit-acompanhamento-especial`): quando o cache não trouxer `steps` (ou vier `LAWSUIT_NOT_FOUND`), criar requisição de crawler (mesmo padrão já usado em `busca-judit-processos-e-casos`) com polling curto e reaproveitar o payload. Registrar em `judit_logs` a origem do dado (cache ou crawler).
-2. **Aviso de divergências por e-mail**: resumo diário (1 e-mail por coordenação/responsável) listando as divergências pendentes do dia, com link para o processo. Sem repetir divergência já avisada (nova coluna `avisado_em`).
-3. **Resumo de execução**: quando a execução terminar com processos sem retorno da Judit ou com erro, gravar notificação para o administrador, para que o silêncio nunca mais seja confundido com "nada aconteceu".
+2. **Aviso de divergências por e-mail**: resumo diário para **os responsáveis ativos do processo e o coordenador da coordenação responsável** (admin recebe consolidado), listando as divergências pendentes do dia com link para o processo. Sem repetir divergência já avisada (nova coluna `avisado_em`).
+3. **Resumo de execução**: quando a execução terminar com processos sem retorno da Judit ou com erro, gravar notificação no sino para os responsáveis do processo, o coordenador e o admin — o silêncio nunca mais será confundido com "nada aconteceu".
 4. **Card de status no Painel de Controle — visível para todos os envolvidos**: última execução, slot, processos checados, novos eventos e erros, lendo `execucoes_acompanhamento_especial`. Quem vê:
    - **Admin**: tudo, de todas as coordenações.
    - **Coordenador / assistente coordenador**: os processos das suas coordenações.
