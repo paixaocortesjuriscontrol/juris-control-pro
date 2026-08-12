@@ -576,11 +576,15 @@ const Processos = () => {
               </SelectTrigger>
               <SelectContent>
                 {canSelectAll && (
-                  <SelectItem value="all">Todas as coordenações</SelectItem>
+                  <SelectItem value="all">
+                    Todas as coordenações
+                    {totalProcessosTodasCoordenacoes > 0 ? ` (${totalProcessosTodasCoordenacoes})` : ""}
+                  </SelectItem>
                 )}
                 {coordenacoes?.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.nome}
+                    {processosPorCoordenacao[c.id] !== undefined ? ` (${processosPorCoordenacao[c.id]})` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
