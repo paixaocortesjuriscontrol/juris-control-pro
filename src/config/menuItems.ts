@@ -37,12 +37,12 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
   { icon: ArrowRightLeft, label: "Comparar DJEN", path: "/comparar-dj-santander", highlight: true, adminOnly: true },
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true, adminOrCoordOnly: true },
-  { icon: FileDiff, label: "Compara Docs TST", path: "/compara-docs-tst", color: "text-sky-400" },
   { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true, adminOrCoordOnly: true },
   { icon: Tag, label: "Etiquetas", path: "/etiquetas", highlight: true },
   // Demais itens
   { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400", restrictedCoordenacoes: ["Coordenação Dra. Renata com termos do João", "Dr. Renata com termos do João", "Coordenação Dra. Renata Santander"] },
+  { icon: FileDiff, label: "Compara Docs TST", path: "/compara-docs-tst", color: "text-sky-400", restrictedCoordenacoes: ["Coordenação Dra. Renata com termos do João", "Dr. Renata com termos do João", "Coordenação Dra. Renata Santander"] },
   { icon: Mail, label: "Remessas Benner", path: "/remessas-benner", color: "text-sky-400", adminOnly: true },
   { icon: BookOpen, label: "Matérias Benner", path: "/materias-benner", color: "text-sky-400", restrictedCoordenacoes: ["Dr. Renata com termos do João", "Coordenação Dra. Renata Santander"] },
   { icon: ShieldCheck, label: "Admin. TST", path: "/admin-tst", color: "text-sky-400", adminOnly: true },
