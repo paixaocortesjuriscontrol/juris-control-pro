@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, Check, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, Check, CheckCheck, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { useEscopoAcompanhamentoEspecial } from "@/hooks/useEscopoAcompanhamentoEspecial";
 
@@ -54,6 +54,7 @@ const LABEL_CAMPO: Record<string, string> = {
 export function AcompanhamentoEspecialDivergencias() {
   const qc = useQueryClient();
   const [resolvendo, setResolvendo] = useState<string | null>(null);
+  const [resolvendoTodas, setResolvendoTodas] = useState(false);
   const { processoIds, semRestricao, isLoading: escopoLoading } = useEscopoAcompanhamentoEspecial();
 
   const { data: divergencias, isLoading, refetch } = useQuery({
