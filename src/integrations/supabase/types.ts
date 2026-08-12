@@ -8751,6 +8751,44 @@ export type Database = {
           },
         ]
       }
+      responsaveis_fixos_tipo_tarefa: {
+        Row: {
+          coordenacao_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          responsaveis: string[]
+          tipo_tarefa: string
+          updated_at: string
+        }
+        Insert: {
+          coordenacao_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          responsaveis?: string[]
+          tipo_tarefa: string
+          updated_at?: string
+        }
+        Update: {
+          coordenacao_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          responsaveis?: string[]
+          tipo_tarefa?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "responsaveis_fixos_tipo_tarefa_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       resumos_monitoramento_djen: {
         Row: {
           created_at: string
