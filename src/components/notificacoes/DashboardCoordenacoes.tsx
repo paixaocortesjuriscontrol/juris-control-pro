@@ -265,7 +265,8 @@ export function DashboardCoordenacoes({
       const audiencias = c?.audiencias ?? 0;
       const intimacoes = c?.intimacoes ?? 0;
       const proc_nao_cadastrados = c?.proc_nao_cadastrados ?? 0;
-      const total = c?.total ?? (djen + distribuicoes + alertas360 + redistribuicoes + andamentos + prazos + tarefas + audiencias + intimacoes + proc_nao_cadastrados);
+      // Andamentos e redistribuições não são contabilizados
+      const total = djen + distribuicoes + alertas360 + prazos + tarefas + audiencias + intimacoes + proc_nao_cadastrados;
 
       // Para breakdown de membros, usamos os datasets locais (tarefas/prazos)
       const tarefasCoord = tarefasFiltradas.filter(t => (t.processo as any)?.coordenacao_id === coord.id);
@@ -473,32 +474,6 @@ export function DashboardCoordenacoes({
                           >
                             <Radar className="h-4 w-4 text-amber-600" />
                             <span className="text-xs font-semibold text-amber-600">{coord.alertas360}</span>
-                          </div>
-                        )}
-                        {coord.redistribuicoes > 0 && (
-                          <div 
-                            className="flex flex-col items-center p-1.5 rounded-md bg-cyan-600/15 cursor-pointer hover:bg-cyan-600/25 transition-colors" 
-                            title="Redistribuições"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectCoordenacao(coord.id, "redistribuicoes");
-                            }}
-                          >
-                            <RefreshCw className="h-4 w-4 text-cyan-600" />
-                            <span className="text-xs font-semibold text-cyan-600">{coord.redistribuicoes}</span>
-                          </div>
-                        )}
-                        {coord.andamentos > 0 && (
-                          <div 
-                            className="flex flex-col items-center p-1.5 rounded-md bg-violet-600/15 cursor-pointer hover:bg-violet-600/25 transition-colors" 
-                            title="Andamentos"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectCoordenacao(coord.id, "andamentos");
-                            }}
-                          >
-                            <Activity className="h-4 w-4 text-violet-600" />
-                            <span className="text-xs font-semibold text-violet-600">{coord.andamentos}</span>
                           </div>
                         )}
                         {coord.prazos > 0 && (
