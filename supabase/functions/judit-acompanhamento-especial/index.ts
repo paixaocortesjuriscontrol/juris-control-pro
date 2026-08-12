@@ -724,6 +724,107 @@ serve(async (req) => {
     }
   }
 
+  // ── Aviso de divergências (Judit × formulário) ainda não avisadas ─────────
+  try {
+    const { data: pendentes } = await supabase
+      .from("acompanhamento_especial_divergencias")
+      .select("id, processo_id, processo_numero, campo, valor_atual, valor_judit")
+      .is("resolvido_em", null)
+      .is("avisado_em", null)
+      .limit(500);
+
+    const porProcesso = new Map<string, any[]>();
+    for (const d of (pendentes ?? []) as any[]) {
+      const arr = porProcesso.get(d.processo_id) ?? [];
+      arr.push(d);
+      porProcesso.set(d.processo_id, arr);
+    }
+
+    for (const [processoId, itens] of porProcesso) {
+      const numero = itens[0]?.processo_numero || processoId.slice(0, 8);
+      const destinatarios = await destinatariosDoProcesso(supabase, processoId);
+
+      await notificarUsuarios(supabase, destinatarios, {
+        titulo: `Divergências Judit em ${numero}`,
+        mensagem: `${itens.length} campo(s) com valor diferente do que a Judit trouxe. O valor digitado foi preservado.`,
+        tipo: "acompanhamento_especial",
+        link: `/processos/${processoId}`,
+        dados: { processo_id: processoId, divergencias: itens.length },
+      });
+
+      if (resendApiKey && destinatarios.length > 0) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("email")
+          .in("id", destinatarios);
+        const emails = (profs ?? []).map((x: any) => x.email).filter(Boolean);
+        if (emails.length > 0) {
+          const linhas = itens
+            .map(
+              (d: any) =>
+                `<tr><td style="padding:4px 8px;border:1px solid #e5e7eb"><strong>${d.campo}</strong></td>` +
+                `<td style="padding:4px 8px;border:1px solid #e5e7eb">${String(d.valor_atual ?? "—").replace(/</g, "&lt;")}</td>` +
+                `<td style="padding:4px 8px;border:1px solid #e5e7eb;color:#047857">${String(d.valor_judit ?? "—").replace(/</g, "&lt;")}</td></tr>`,
+            )
+            .join("");
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${resendApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: "JurisControl <alertas@juriscontrol.adv.br>",
+              to: emails,
+              subject: `[Acompanhamento Especial] ${itens.length} divergência(s) em ${numero}`,
+              html:
+                `<p>A Judit trouxe valores diferentes dos que estão preenchidos no processo <strong>${numero}</strong>. ` +
+                `O valor digitado foi <strong>preservado</strong> — confira e ajuste se necessário.</p>` +
+                `<table style="border-collapse:collapse;font-size:13px"><thead><tr>` +
+                `<th style="padding:4px 8px;border:1px solid #e5e7eb">Campo</th>` +
+                `<th style="padding:4px 8px;border:1px solid #e5e7eb">No formulário</th>` +
+                `<th style="padding:4px 8px;border:1px solid #e5e7eb">Judit</th>` +
+                `</tr></thead><tbody>${linhas}</tbody></table>` +
+                `<p><a href="https://juriscontrol.adv.br/processos/${processoId}">Abrir processo</a></p>`,
+            }),
+          }).catch((e) => console.error("[acomp-especial] erro email divergencias:", e));
+        }
+      }
+
+      await supabase
+        .from("acompanhamento_especial_divergencias")
+        .update({ avisado_em: new Date().toISOString() })
+        .in("id", itens.map((d: any) => d.id));
+    }
+  } catch (e) {
+    console.error("[acomp-especial] aviso de divergências falhou:", (e as Error).message);
+  }
+
+  // ── Aviso de execução com falhas (silêncio ≠ "nada aconteceu") ────────────
+  try {
+    const comErro = resultados.filter((r: any) => r?.erro);
+    if (comErro.length > 0) {
+      const { data: admins } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "admin");
+      const adminIds = (admins ?? []).map((a: any) => a.user_id).filter(Boolean);
+      const envolvidos = new Set<string>(adminIds);
+      for (const r of comErro) {
+        (await destinatariosDoProcesso(supabase, r.processo_id)).forEach((id) => envolvidos.add(id));
+      }
+      await notificarUsuarios(supabase, Array.from(envolvidos), {
+        titulo: "Acompanhamento Especial: processos sem retorno da Judit",
+        mensagem: `${comErro.length} processo(s) não retornaram dados nesta execução (slot ${slot ?? "manual"}).`,
+        tipo: "acompanhamento_especial",
+        link: "/painel-controle",
+        dados: { execucao_id: execId, processos_com_erro: comErro.length },
+      });
+    }
+  } catch (e) {
+    console.error("[acomp-especial] aviso de falhas:", (e as Error).message);
+  }
+
   // ── Finaliza log de execução ──
   if (execId) {
     const totalNovos = resultados.reduce(
