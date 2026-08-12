@@ -300,6 +300,11 @@ export function AudienciaFormSimplificado({
       toast.error("Informe a data");
       return;
     }
+    const reagendando = situacao === "reagendado" && situacao !== situacaoInicial;
+    if (reagendando && !novaDataReagendamento) {
+      toast.error("Informe a nova data do reagendamento");
+      return;
+    }
     if (!isEditing && responsaveisIds.length === 0) {
       toast.error("Selecione ao menos um responsável", {
         description: "Campo obrigatório: 'Responsáveis', no final do formulário.",
@@ -349,7 +354,7 @@ export function AudienciaFormSimplificado({
       processo_id: processoIdParaSalvar,
       processo_numero: processoNumeroParaSalvar || "",
       titulo: form.titulo.trim(),
-      data_audiencia: form.data_audiencia,
+      data_audiencia: reagendando ? novaDataReagendamento : form.data_audiencia,
       hora: form.hora || undefined,
       hora_fim: form.hora_fim || undefined,
       alerta_valor: form.alerta_valor > 0 ? Number(form.alerta_valor) : undefined,
