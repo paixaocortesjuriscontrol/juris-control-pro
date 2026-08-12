@@ -253,6 +253,8 @@ export function PrazoDialog({
   const [situacao, setSituacao] = useState<string>("pendente");
   const [situacaoInicial, setSituacaoInicial] = useState<string>("pendente");
   const [comentarioSituacao, setComentarioSituacao] = useState("");
+  // Reagendamento: nova data obrigatória quando a situação passa para "reagendado"
+  const [novaDataReagendamento, setNovaDataReagendamento] = useState<string>("");
   const { podeCancelar } = usePodeCancelarItens();
   // Processo resolvido a partir da publicação (quando não há defaultProcessoId)
   const [resolvedProcessoId, setResolvedProcessoId] = useState<string>("");
