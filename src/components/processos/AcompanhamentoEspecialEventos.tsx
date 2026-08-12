@@ -9,9 +9,11 @@ interface Props {
   processoId?: string;
   limit?: number;
   showProcesso?: boolean;
+  /** Não renderiza nada quando não há eventos (evita mensagem duplicada ao lado das divergências) */
+  hideWhenEmpty?: boolean;
 }
 
-export function AcompanhamentoEspecialEventos({ processoId, limit = 20, showProcesso = false }: Props) {
+export function AcompanhamentoEspecialEventos({ processoId, limit = 20, showProcesso = false, hideWhenEmpty = false }: Props) {
   const { data, isLoading } = useQuery({
     queryKey: ["acompanhamento-eventos", processoId, limit],
     queryFn: async () => {
@@ -33,6 +35,7 @@ export function AcompanhamentoEspecialEventos({ processoId, limit = 20, showProc
   }
 
   if (!data || data.length === 0) {
+    if (hideWhenEmpty) return null;
     return (
       <div className="text-center py-6 text-xs text-muted-foreground">
         <Sparkles className="w-6 h-6 mx-auto mb-2 text-amber-500/60" />
