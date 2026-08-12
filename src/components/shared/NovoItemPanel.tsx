@@ -135,7 +135,7 @@ export function NovoItemPanel({
                 hideTitleHeader
                 defaultProcessoId={processoPreSelecionado?.id}
                 defaultProcessoNumero={processoPreSelecionado?.numero}
-                defaultCoordenacaoId={processoPreSelecionado?.coordenacao_id || undefined}
+                /* Coordenação nunca vem do processo: usa a do usuário logado */
                 publicacaoId={publicacao?.id}
                 onSuccess={() => { void onSuccess(); }}
                 onCancel={onClose}
