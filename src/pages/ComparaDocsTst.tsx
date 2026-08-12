@@ -347,7 +347,7 @@ export default function ComparaDocsTst() {
 
         {resultados && (
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 {totalDivergencias === 0 ? (
                   <><CheckCircle2 className="w-5 h-5 text-emerald-500" /> Sem divergências</>
@@ -355,6 +355,11 @@ export default function ComparaDocsTst() {
                   <><AlertTriangle className="w-5 h-5 text-amber-500" /> {totalDivergencias} divergência(s)</>
                 )}
               </CardTitle>
+              {resultados.length > 0 && (
+                <Button variant="outline" size="sm" onClick={gerarPdf}>
+                  <FileText className="w-4 h-4 mr-2" /> Relatório PDF
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-6">
               {resultados.map((r) => (
