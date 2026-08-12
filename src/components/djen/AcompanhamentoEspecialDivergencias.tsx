@@ -86,6 +86,7 @@ export function AcompanhamentoEspecialDivergencias() {
       if (error) throw error;
       await qc.invalidateQueries({ queryKey: ["acomp-especial-divergencias"] });
       toast.success("Divergência marcada como ciente.");
+      await qc.invalidateQueries({ queryKey: ["acomp-especial-novidades"] });
     } catch (e: any) {
       toast.error("Falha ao marcar", { description: e?.message ?? String(e) });
     } finally {
