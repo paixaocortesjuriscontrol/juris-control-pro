@@ -1,0 +1,311 @@
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
+import { situacoesBase, TipoSituacaoItem } from "@/constants/situacoesItem";
+import { toast } from "@/hooks/use-toast";
+import { Loader2, Save, ShieldCheck } from "lucide-react";
+
+const PERFIS: { value: string; label: string }[] = [
+  { value: "admin", label: "Administrador" },
+  { value: "coordenador", label: "Coordenador" },
+  { value: "assistente_coordenador", label: "Assistente Coordenador" },
+  { value: "advogado", label: "Advogado" },
+  { value: "advogado_temporario", label: "Advogado Temporário" },
+  { value: "estagiario", label: "Estagiário" },
+  { value: "assistente", label: "Assistente" },
+  { value: "secretaria", label: "Secretária" },
+];
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  coordenacaoId: string;
+  coordenacaoNome?: string;
+}
+
+function tipoItemDe(tipo: string): TipoSituacaoItem {
+  if (tipo === "PRAZO") return "prazo";
+  if (tipo === "AUDIÊNCIA" || tipo === "PREPARAÇÃO AUDIÊNCIA") return "audiencia";
+  return "tarefa";
+}
+
+type Regra = { perfis: string[]; usuarios: string[] };
+
+export function PermissoesSituacaoDialog({
+  open,
+  onOpenChange,
+  coordenacaoId,
+  coordenacaoNome,
+}: Props) {
+  const queryClient = useQueryClient();
+  const [tipoSelecionado, setTipoSelecionado] = useState<string>(TIPOS_TAREFA[0]);
+  // chave: `${tipo}|${situacao}`
+  const [regras, setRegras] = useState<Record<string, Regra>>({});
+
+  const { data: pessoas = [] } = useQuery({
+    queryKey: ["coordenacao-integrantes-permissoes", coordenacaoId],
+    enabled: open && !!coordenacaoId,
+    queryFn: async () => {
+      const ids = new Set<string>();
+      const { data: mem } = await supabase
+        .from("membros_coordenacao")
+        .select("usuario_id")
+        .eq("coordenacao_id", coordenacaoId);
+      (mem || []).forEach((m: any) => m.usuario_id && ids.add(m.usuario_id));
+      const { data: coord } = await supabase
+        .from("coordenacoes")
+        .select("coordenador_id")
+        .eq("id", coordenacaoId)
+        .maybeSingle();
+      if (coord?.coordenador_id) ids.add(coord.coordenador_id);
+      if (ids.size === 0) return [] as { id: string; nome: string }[];
+      const { data: profiles } = await supabase
+        .from("profiles_basic")
+        .select("id, nome")
+        .in("id", Array.from(ids));
+      return Array.from(ids)
+        .map((id) => ({
+          id,
+          nome: (profiles || []).find((p: any) => p.id === id)?.nome || "Usuário",
+        }))
+        .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    },
+  });
+
+  const { data: configs, isLoading } = useQuery({
+    queryKey: ["permissoes-situacao-coord", coordenacaoId],
+    enabled: open && !!coordenacaoId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("permissoes_situacao_tipo_tarefa")
+        .select("tipo_tarefa, situacao, perfis, usuarios")
+        .eq("coordenacao_id", coordenacaoId);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  useEffect(() => {
+    if (!configs) return;
+    const next: Record<string, Regra> = {};
+    (configs as any[]).forEach((c) => {
+      next[`${c.tipo_tarefa}|${c.situacao}`] = {
+        perfis: (c.perfis || []) as string[],
+        usuarios: (c.usuarios || []) as string[],
+      };
+    });
+    setRegras(next);
+  }, [configs]);
+
+  const situacoes = useMemo(
+    () => situacoesBase(tipoItemDe(tipoSelecionado)),
+    [tipoSelecionado],
+  );
+
+  const getRegra = (situacao: string): Regra | undefined =>
+    regras[`${tipoSelecionado}|${situacao}`];
+
+  const toggleRestricao = (situacao: string, restrito: boolean) => {
+    const key = `${tipoSelecionado}|${situacao}`;
+    setRegras((prev) => {
+      const next = { ...prev };
+      if (restrito) next[key] = prev[key] || { perfis: [], usuarios: [] };
+      else delete next[key];
+      return next;
+    });
+  };
+
+  const toggleItem = (situacao: string, campo: keyof Regra, valor: string) => {
+    const key = `${tipoSelecionado}|${situacao}`;
+    setRegras((prev) => {
+      const atual = prev[key] || { perfis: [], usuarios: [] };
+      const lista = atual[campo];
+      const nova = lista.includes(valor)
+        ? lista.filter((v) => v !== valor)
+        : [...lista, valor];
+      return { ...prev, [key]: { ...atual, [campo]: nova } };
+    });
+  };
+
+  const salvar = useMutation({
+    mutationFn: async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      const uid = userData?.user?.id ?? null;
+
+      const rows = Object.entries(regras).map(([key, r]) => {
+        const [tipo, situacao] = key.split("|");
+        return {
+          coordenacao_id: coordenacaoId,
+          tipo_tarefa: tipo,
+          situacao,
+          perfis: r.perfis,
+          usuarios: r.usuarios,
+          created_by: uid,
+        };
+      });
+
+      // Remove tudo que não está mais configurado e regrava o restante
+      const { error: delError } = await supabase
+        .from("permissoes_situacao_tipo_tarefa")
+        .delete()
+        .eq("coordenacao_id", coordenacaoId);
+      if (delError) throw delError;
+
+      if (rows.length > 0) {
+        const { error } = await supabase
+          .from("permissoes_situacao_tipo_tarefa")
+          .insert(rows);
+        if (error) throw error;
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["permissoes-situacao-coord", coordenacaoId] });
+      await queryClient.invalidateQueries({ queryKey: ["permissoes-situacao"] });
+      toast({ title: "Permissões de situação salvas" });
+      onOpenChange(false);
+    },
+    onError: (e: any) =>
+      toast({ title: "Erro ao salvar", description: e.message, variant: "destructive" }),
+  });
+
+  const qtdPorTipo = (tipo: string) =>
+    Object.keys(regras).filter((k) => k.startsWith(`${tipo}|`)).length;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[95vw] sm:max-w-5xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck className="w-5 h-5" />
+            Quem pode mudar cada situação
+          </DialogTitle>
+          <DialogDescription>
+            Escolha, por tipo de tarefa, quais perfis e/ou pessoas podem aplicar cada situação
+            {coordenacaoNome ? ` na ${coordenacaoNome}` : ""}. Situações sem restrição ficam
+            liberadas para todos.
+          </DialogDescription>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="w-5 h-5 animate-spin" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-4">
+            <ScrollArea className="h-[460px] border rounded-md">
+              <div className="p-2 space-y-1">
+                {TIPOS_TAREFA.map((tipo) => {
+                  const ativo = tipo === tipoSelecionado;
+                  const qtd = qtdPorTipo(tipo);
+                  return (
+                    <button
+                      key={tipo}
+                      type="button"
+                      onClick={() => setTipoSelecionado(tipo)}
+                      className={`w-full flex items-center justify-between gap-2 text-left text-sm px-3 py-2 rounded-md transition-colors ${
+                        ativo ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                      }`}
+                    >
+                      <span className="truncate">{TIPOS_TAREFA_LABELS[tipo] || tipo}</span>
+                      {qtd > 0 && <Badge variant={ativo ? "secondary" : "outline"}>{qtd}</Badge>}
+                    </button>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+
+            <ScrollArea className="h-[460px] border rounded-md min-w-0">
+              <div className="p-3 pr-4 space-y-3">
+                <p className="text-sm font-medium">
+                  {TIPOS_TAREFA_LABELS[tipoSelecionado] || tipoSelecionado}
+                </p>
+                {situacoes.map((s) => {
+                  const regra = getRegra(s.value);
+                  const restrito = !!regra;
+                  return (
+                    <div key={s.value} className="border rounded-md p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm">{s.label}</span>
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                          <Checkbox
+                            checked={restrito}
+                            onCheckedChange={(v) => toggleRestricao(s.value, !!v)}
+                          />
+                          Restringir
+                        </label>
+                      </div>
+
+                      {restrito && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground">Perfis</p>
+                            {PERFIS.map((p) => (
+                              <label key={p.value} className="flex items-center gap-2 text-sm">
+                                <Checkbox
+                                  checked={regra!.perfis.includes(p.value)}
+                                  onCheckedChange={() => toggleItem(s.value, "perfis", p.value)}
+                                />
+                                {p.label}
+                              </label>
+                            ))}
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              Pessoas específicas
+                            </p>
+                            {pessoas.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">
+                                Nenhum integrante nesta coordenação.
+                              </p>
+                            ) : (
+                              pessoas.map((p) => (
+                                <label key={p.id} className="flex items-center gap-2 text-sm">
+                                  <Checkbox
+                                    checked={regra!.usuarios.includes(p.id)}
+                                    onCheckedChange={() => toggleItem(s.value, "usuarios", p.id)}
+                                  />
+                                  <span className="truncate">{p.nome}</span>
+                                </label>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={() => salvar.mutate()} disabled={salvar.isPending}>
+            {salvar.isPending ? (
+              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 mr-1" />
+            )}
+            Salvar
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
