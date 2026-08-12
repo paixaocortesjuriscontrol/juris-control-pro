@@ -1683,9 +1683,6 @@ export default function PainelControle() {
           >
             <SlidersHorizontal className={`w-4 h-4 ${mostrarFiltros ? "" : "opacity-50"}`} />
           </Button>
-          <Button asChild variant="outline" size="sm">
-            <Link to="/notificacoes">Config. Notificações</Link>
-          </Button>
           <Button variant="outline" size="sm" onClick={() => setRelatorioAudOpen(true)} title="Relatório de audiências por usuário/situação" className="whitespace-nowrap">
             <BarChart3 className="w-4 h-4 mr-1" /> Rel. Audiências
           </Button>

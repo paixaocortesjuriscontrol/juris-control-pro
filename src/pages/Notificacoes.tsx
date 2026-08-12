@@ -863,16 +863,8 @@ export default function Notificacoes({
         <div className="flex flex-col gap-4">
           {/* Search Row */}
           <div className="flex flex-col lg:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input 
-                placeholder="Buscar por processo, termo, título..." 
-                className="pl-9"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            
+            <div className="flex-1" />
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="Status" />
@@ -1034,8 +1026,8 @@ export default function Notificacoes({
       />
 
 
-      {/* Cards de resumo por tipo (somente administradores) */}
-      {isAdmin && (
+      {/* Cards de resumo por tipo (removidos por solicitação) */}
+      {false && (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-13 gap-3 mb-6">
         {!embedded && (
           <Card 
