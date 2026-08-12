@@ -649,45 +649,8 @@ export function TarefaAgendaPanel({
     });
   };
 
-  const handleConcluir = async () => {
-    setUpdatingStatus(true);
-    try {
-      const concluidoEm = new Date().toISOString();
-      if (tarefa.origem === "tarefa") {
-        const { error } = await supabase
-          .from("tarefas")
-          .update({
-            status: "cumprido",
-            data_cumprimento: concluidoEm,
-            updated_at: concluidoEm,
-          })
-          .eq("id", tarefa.id);
-        if (error) throw error;
-        setStatusOverride("cumprido");
-        patchAgendaCacheStatus("cumprido", null);
-      } else {
-        const { error } = await supabase
-          .from("eventos_agenda")
-          .update({
-            status: "concluido",
-            concluido_em: concluidoEm,
-            updated_at: concluidoEm,
-          })
-          .eq("id", tarefa.id);
-        if (error) throw error;
-        setStatusOverride("concluido");
-        patchAgendaCacheStatus("concluido", concluidoEm);
-      }
-      toast({ title: "Concluído com sucesso!" });
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-      onUpdate();
-    } catch (error: any) {
-      toast({
-        title: "Erro ao concluir",
-        description: error.message,
-        variant: "destructive",
-      });
+  // A conclusão deixou de ser uma ação rápida: agora é apenas uma situação
+  // ("Concluído com sucesso" / "Concluído sem sucesso") escolhida no formulário.
     } finally {
       setUpdatingStatus(false);
     }
