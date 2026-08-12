@@ -480,6 +480,14 @@ export function PrazoDialog({
     }
     const situacaoMudou = situacao !== situacaoInicial;
 
+    // Responsável principal: preserva o atual (se continua na lista); caso contrário
+    // usa o primeiro responsável que NÃO seja um responsável fixo da coordenação,
+    // para que o coordenador fixo não "roube" a titularidade do prazo.
+    const responsavelPrincipal =
+      (prazo?.responsavel_id && responsaveisIds.includes(prazo.responsavel_id))
+        ? prazo.responsavel_id
+        : (responsaveisIds.find((id) => !coordenadoresIds.includes(id)) || responsaveisIds[0]);
+
 
     let processoIdParaSalvar = processoIdEfetivo;
     if (publicacao && user?.id) {
@@ -505,7 +513,7 @@ export function PrazoDialog({
       data_vencimento: format(dataLimite, "yyyy-MM-dd"),
       prioridade: "media" as const,
       processo_id: processoIdParaSalvar,
-      responsavel_id: responsaveisIds[0],
+      responsavel_id: responsavelPrincipal,
       observacoes: observacoes.trim() || undefined,
       status: situacao as any,
       data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
