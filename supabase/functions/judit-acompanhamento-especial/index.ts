@@ -672,25 +672,8 @@ serve(async (req) => {
               )
               .join("");
 
-            // Email via Resend
-            if (resendApiKey) {
-              const emails = (profs ?? []).map((p: any) => p.email).filter(Boolean);
-              if (emails.length > 0) {
-                await fetch("https://api.resend.com/emails", {
-                  method: "POST",
-                  headers: {
-                    Authorization: `Bearer ${resendApiKey}`,
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({
-                    from: "JurisControl <alertas@juriscontrol.adv.br>",
-                    to: emails,
-                    subject: `[Acompanhamento Especial] ${novos} nova(s) movimentação(ões) em ${cnj}`,
-                    html: `<p>Foram encontradas <strong>${novos}</strong> nova(s) movimentação(ões) no processo <strong>${cnj}</strong>:</p><ul>${linhasHtml}</ul><p><a href="https://juriscontrol.adv.br/processos/${p.id}">Abrir processo</a></p>`,
-                  }),
-                }).catch((e) => console.error("[acomp-especial] erro email:", e));
-              }
-            }
+            // Envio de e-mail DESATIVADO nesta rotina (somente sino/WhatsApp).
+            void linhasHtml;
 
             // WhatsApp via Z-API
             const telefones = (profs ?? []).map((p: any) => p.telefone).filter(Boolean);
