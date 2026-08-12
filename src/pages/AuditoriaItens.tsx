@@ -16,7 +16,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Search, Eye, CheckCircle2, XCircle, FileText } from "lucide-react";
+import { Loader2, Search, Eye, CheckCircle2, XCircle, FileText, Download } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { MainLayout } from "@/components/layout/MainLayout";
