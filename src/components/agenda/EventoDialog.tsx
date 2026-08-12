@@ -1,5 +1,6 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
+import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
@@ -140,6 +141,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const [alertaUnidade, setAlertaUnidade] = useState<AlertaUnidade>("horas");
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "OUTROS");
+  const { podeUsarSituacao } = usePermissoesSituacao(coordenacaoId || null, "OUTROS");
   // Envolvidos fixos configurados na coordenação para este tipo
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "OUTROS");
   useEffect(() => {
@@ -535,7 +537,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {situacoesDisponiveis("evento", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+                    {situacoesDisponiveis("evento", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || podeUsarSituacao(s.value)).map((s) => (
                       <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                     ))}
                   </SelectContent>

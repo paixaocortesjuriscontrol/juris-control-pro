@@ -1,4 +1,5 @@
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
+import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { useState, useEffect } from "react";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -608,7 +609,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
             <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
               <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).map((s) => (
+                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).filter((s) => s.value === formData.status || podeUsarSituacao(s.value)).map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -634,7 +635,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
             <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
               <SelectTrigger className="h-9 w-[140px] sm:w-[180px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).map((s) => (
+                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).filter((s) => s.value === formData.status || podeUsarSituacao(s.value)).map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -678,7 +679,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
               <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
                 <SelectTrigger className="h-9 w-[180px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).map((s) => (
+                  {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).filter((s) => s.value === formData.status || podeUsarSituacao(s.value)).map((s) => (
                     <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                   ))}
                 </SelectContent>
