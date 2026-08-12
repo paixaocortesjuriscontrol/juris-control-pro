@@ -28,7 +28,6 @@ import {
   TimerOff,
   CalendarX,
   CircleDollarSign,
-  AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
