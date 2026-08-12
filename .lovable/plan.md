@@ -24,7 +24,12 @@ A rotina **está rodando**, mas nunca gerou aviso. Dados reais do banco:
 1. **Fallback de crawler na Judit** (`judit-acompanhamento-especial`): quando o cache não trouxer `steps` (ou vier `LAWSUIT_NOT_FOUND`), criar requisição de crawler (mesmo padrão já usado em `busca-judit-processos-e-casos`) com polling curto e reaproveitar o payload. Registrar em `judit_logs` a origem do dado (cache ou crawler).
 2. **Aviso de divergências por e-mail**: resumo diário (1 e-mail por coordenação/responsável) listando as divergências pendentes do dia, com link para o processo. Sem repetir divergência já avisada (nova coluna `avisado_em`).
 3. **Resumo de execução**: quando a execução terminar com processos sem retorno da Judit ou com erro, gravar notificação para o administrador, para que o silêncio nunca mais seja confundido com "nada aconteceu".
-4. **Card de status no Painel de Controle**: última execução, slot, processos checados, novos eventos, erros e botão "Executar agora" (admin), lendo `execucoes_acompanhamento_especial`.
+4. **Card de status no Painel de Controle — visível para todos os envolvidos**: última execução, slot, processos checados, novos eventos e erros, lendo `execucoes_acompanhamento_especial`. Quem vê:
+   - **Admin**: tudo, de todas as coordenações.
+   - **Coordenador / assistente coordenador**: os processos das suas coordenações.
+   - **Responsável pelo processo** (`processos_responsaveis.ativo`): os processos em que é responsável.
+   O botão "Executar agora" fica disponível para admin, coordenador e responsável do processo.
+   O card de divergências segue a mesma regra de visibilidade (hoje aberto a todos os autenticados) e passa a filtrar por coordenação/responsabilidade.
 
 ## Detalhes técnicos
 
