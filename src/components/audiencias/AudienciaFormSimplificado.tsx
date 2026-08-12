@@ -356,8 +356,9 @@ export function AudienciaFormSimplificado({
       processo_id: processoIdParaSalvar,
       processo_numero: processoNumeroParaSalvar || "",
       titulo: form.titulo.trim(),
-      data_audiencia: reagendando ? novaDataReagendamento : form.data_audiencia,
+      data_audiencia: dataAudienciaFinal,
       hora: form.hora || undefined,
+
       hora_fim: form.hora_fim || undefined,
       alerta_valor: form.alerta_valor > 0 ? Number(form.alerta_valor) : undefined,
       alerta_unidade: form.alerta_valor > 0 ? form.alerta_unidade : undefined,
