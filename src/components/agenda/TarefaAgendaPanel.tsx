@@ -651,10 +651,6 @@ export function TarefaAgendaPanel({
 
   // A conclusão deixou de ser uma ação rápida: agora é apenas uma situação
   // ("Concluído com sucesso" / "Concluído sem sucesso") escolhida no formulário.
-    } finally {
-      setUpdatingStatus(false);
-    }
-  };
 
   const handleReabrir = async () => {
     setUpdatingStatus(true);
