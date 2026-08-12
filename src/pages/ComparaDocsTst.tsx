@@ -49,7 +49,6 @@ const labelCategoria = (c: CategoriaDocTst) =>
 export default function ComparaDocsTst() {
   const hoje = format(new Date(), "yyyy-MM-dd");
   const [dataInicio, setDataInicio] = useState(hoje);
-  const [dataFim, setDataFim] = useState(hoje);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
   const [docs, setDocs] = useState<DocManual[]>([]);
   const [lendo, setLendo] = useState(false);
@@ -109,8 +108,7 @@ export default function ComparaDocsTst() {
         .from("publicacoes_djen")
         .select("processo_numero, conteudo, tipo_comunicacao, orgao")
         .eq("status", "encontrada")
-        .gte("data_disponibilizacao", dataInicio)
-        .lte("data_disponibilizacao", dataFim)
+        .eq("data_disponibilizacao", dataInicio)
         .range(page * pageSize, page * pageSize + pageSize - 1);
       if (coordenacaoId !== "todas") q = q.eq("coordenacao_id", coordenacaoId);
       const { data, error } = await q;
@@ -199,17 +197,13 @@ export default function ComparaDocsTst() {
               <FileDiff className="w-5 h-5 text-sky-400" /> Base de comparação
             </CardTitle>
             <CardDescription>
-              O sistema reclassifica as publicações do período com as mesmas regras do botão "Docs TST" e confronta com os processos citados nos documentos enviados.
+              O sistema reclassifica as publicações de um único dia (disponibilização) com as mesmas regras do botão "Docs TST" e confronta com os processos citados nos documentos enviados.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>Data inicial (disponibilização)</Label>
+              <Label>Data da disponibilização</Label>
               <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Data final</Label>
-              <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>Coordenação</Label>
