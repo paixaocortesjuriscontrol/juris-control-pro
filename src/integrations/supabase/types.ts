@@ -10200,6 +10200,18 @@ export type Database = {
           tarefas: number
         }[]
       }
+      get_itens_nao_tratados_por_coordenacao: {
+        Args: { p_coordenacao_ids: string[] }
+        Returns: {
+          audiencias: number
+          coordenacao_id: string
+          eventos: number
+          parcelas: number
+          prazos: number
+          tarefas: number
+          total: number
+        }[]
+      }
       get_leituras_publicacoes: {
         Args: { p_ids: string[] }
         Returns: {
