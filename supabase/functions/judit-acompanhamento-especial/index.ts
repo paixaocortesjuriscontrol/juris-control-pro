@@ -635,25 +635,14 @@ serve(async (req) => {
         const conteudoStr = typeof conteudo === "string" ? conteudo : JSON.stringify(conteudo);
         novosResumo.push({ data: dataStr, conteudo: conteudoStr.slice(0, 500) });
 
-        // Notificar responsáveis do processo
-        const { data: resps } = await supabase
-          .from("processos_responsaveis")
-          .select("usuario_id")
-          .eq("processo_id", p.id)
-          .eq("ativo", true);
-
-        for (const r of resps ?? []) {
-          if (!r.usuario_id) continue;
-          await supabase.from("notificacoes").insert({
-            usuario_id: r.usuario_id,
-            titulo: `Novidade em ${cnj}`,
-            mensagem: conteudoStr.slice(0, 280),
-            tipo: "acompanhamento_especial",
-            lida: false,
-            link: `/processos/${p.id}`,
-            dados: { processo_id: p.id, evento_id: evento?.id ?? null, step_date: dataStr },
-          });
-        }
+        // Notificar responsáveis do processo + coordenadores da coordenação
+        await notificarUsuarios(supabase, await destinatariosDoProcesso(supabase, p.id), {
+          titulo: `Novidade em ${cnj}`,
+          mensagem: conteudoStr.slice(0, 280),
+          tipo: "acompanhamento_especial",
+          link: `/processos/${p.id}`,
+          dados: { processo_id: p.id, evento_id: evento?.id ?? null, step_date: dataStr },
+        });
 
         await supabase
           .from("acompanhamento_especial_eventos")
@@ -664,12 +653,7 @@ serve(async (req) => {
       // Envio consolidado (1 email + 1 WhatsApp por processo, listando todos os novos)
       if (novos > 0 && novosResumo.length > 0) {
         try {
-          const { data: resps2 } = await supabase
-            .from("processos_responsaveis")
-            .select("usuario_id")
-            .eq("processo_id", p.id)
-            .eq("ativo", true);
-          const userIds = (resps2 ?? []).map((r: any) => r.usuario_id).filter(Boolean);
+          const userIds = await destinatariosDoProcesso(supabase, p.id);
           if (userIds.length > 0) {
             const { data: profs } = await supabase
               .from("profiles")
