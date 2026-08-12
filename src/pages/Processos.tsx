@@ -218,6 +218,30 @@ const Processos = () => {
   
   const { executarMonitoramento } = useConfiguracoesMonitoramento();
   const { data: coordenacoes } = useCoordenacoes();
+
+  // Total de processos por coordenação (exibido no seletor de coordenação)
+  const { data: processosPorCoordenacao = {} } = useQuery({
+    queryKey: ["processos-count-por-coordenacao", (coordenacoes || []).map((c: any) => c.id).join(",")],
+    enabled: (coordenacoes?.length ?? 0) > 0,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const results = await Promise.all(
+        (coordenacoes || []).map(async (c: any) => {
+          const { count } = await supabase
+            .from("processos")
+            .select("id", { count: "exact", head: true })
+            .eq("coordenacao_id", c.id);
+          return [c.id, count ?? 0] as const;
+        })
+      );
+      return Object.fromEntries(results) as Record<string, number>;
+    },
+  });
+
+  const totalProcessosTodasCoordenacoes = useMemo(
+    () => Object.values(processosPorCoordenacao).reduce((acc, n) => acc + (n || 0), 0),
+    [processosPorCoordenacao]
+  );
   const queryClient = useQueryClient();
 
   // Auto-selecionar coordenação do usuário ao carregar (se não veio da URL)
@@ -552,11 +576,15 @@ const Processos = () => {
               </SelectTrigger>
               <SelectContent>
                 {canSelectAll && (
-                  <SelectItem value="all">Todas as coordenações</SelectItem>
+                  <SelectItem value="all">
+                    Todas as coordenações
+                    {totalProcessosTodasCoordenacoes > 0 ? ` (${totalProcessosTodasCoordenacoes})` : ""}
+                  </SelectItem>
                 )}
                 {coordenacoes?.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.nome}
+                    {processosPorCoordenacao[c.id] !== undefined ? ` (${processosPorCoordenacao[c.id]})` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>

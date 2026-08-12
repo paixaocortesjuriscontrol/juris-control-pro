@@ -24,6 +24,8 @@ import {
   Scale,
   Radar,
   RefreshCw,
+  CalendarClock,
+  Banknote,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
@@ -394,39 +396,40 @@ export function DashboardCoordenacoes({
                       <span className="text-2xl font-bold">
                         {coord.total}
                       </span>
-                      <Badge 
-                        variant={coord.total === 0 ? "secondary" : coord.total > 5 ? "destructive" : "default"}
-                        className={coord.total === 0 ? "bg-emerald-500/10 text-emerald-500" : ""}
-                      >
-                        {coord.total === 0 ? "OK" : "Pendentes"}
-                      </Badge>
+                      {(naoTratados[coord.id]?.total ?? 0) > 0 ? (
+                        <Badge variant="destructive">Pendentes</Badge>
+                      ) : (
+                        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-500">
+                          OK
+                        </Badge>
+                      )}
                     </div>
 
-                    {/* Itens do botão Adicionar vencidos e não tratados */}
-                    {(() => {
-                      const nt = naoTratados[coord.id];
-                      if (!nt) return null;
-                      return (
-                        <div className="flex items-center justify-between rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1">
-                          <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400">
-                            Não tratados (Adicionar)
-                          </span>
-                          <span className="text-sm font-bold text-amber-700 dark:text-amber-400">
-                            {nt.total}
-                          </span>
-                        </div>
-                      );
-                    })()}
-
-                    {naoTratados[coord.id]?.total ? (
-                      <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
-                        {naoTratados[coord.id].tarefas > 0 && <span>Tarefas: {naoTratados[coord.id].tarefas}</span>}
-                        {naoTratados[coord.id].prazos > 0 && <span>Prazos: {naoTratados[coord.id].prazos}</span>}
-                        {naoTratados[coord.id].eventos > 0 && <span>Eventos: {naoTratados[coord.id].eventos}</span>}
-                        {naoTratados[coord.id].audiencias > 0 && <span>Audiências: {naoTratados[coord.id].audiencias}</span>}
-                        {naoTratados[coord.id].parcelas > 0 && <span>Parcelas: {naoTratados[coord.id].parcelas}</span>}
+                    {/* Não tratados (itens do botão Adicionar vencidos) */}
+                    {(naoTratados[coord.id]?.total ?? 0) > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {([
+                          { key: "tarefas", label: "Tarefas não tratadas", Icon: ListTodo, cls: "text-green-600", bg: "bg-green-600/15" },
+                          { key: "prazos", label: "Prazos não tratados", Icon: Clock, cls: "text-red-600", bg: "bg-red-600/15" },
+                          { key: "eventos", label: "Eventos não tratados", Icon: CalendarClock, cls: "text-sky-600", bg: "bg-sky-600/15" },
+                          { key: "audiencias", label: "Audiências não tratadas", Icon: Gavel, cls: "text-indigo-600", bg: "bg-indigo-600/15" },
+                          { key: "parcelas", label: "Parcelas não tratadas", Icon: Banknote, cls: "text-amber-600", bg: "bg-amber-600/15" },
+                        ] as const).map(({ key, label, Icon, cls, bg }) => {
+                          const value = naoTratados[coord.id]?.[key] ?? 0;
+                          if (value <= 0) return null;
+                          return (
+                            <div
+                              key={key}
+                              title={label}
+                              className={cn("flex flex-col items-center p-1.5 rounded-md", bg)}
+                            >
+                              <Icon className={cn("h-4 w-4", cls)} />
+                              <span className={cn("text-xs font-semibold", cls)}>{value}</span>
+                            </div>
+                          );
+                        })}
                       </div>
-                    ) : null}
+                    )}
 
                     {/* Breakdown por tipo */}
                     {coord.total > 0 && (
