@@ -20,7 +20,7 @@ import { Loader2, Search, Tag } from "lucide-react";
 import { toast } from "sonner";
 import { useAudienciasDetectadas, NovaAudiencia } from "@/hooks/useAudienciasDetectadas";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
-import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
+import { useCoordenadoresDaCoordenacao, useEnvolvidosFixosDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { supabase } from "@/integrations/supabase/client";
 import { formatProcessoNumero } from "@/lib/utils";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
@@ -146,6 +146,15 @@ export function AudienciaFormSimplificado({
     audienciaParaEditar?.coordenacao_id ?? ""
   );
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
+  // Envolvidos fixos configurados na coordenação para este tipo
+  const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
+  useEffect(() => {
+    if (envolvidosFixosIds.length === 0) return;
+    setEnvolvidosIds((prev) => {
+      const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
+      return faltando.length > 0 ? [...prev, ...faltando] : prev;
+    });
+  }, [JSON.stringify(envolvidosFixosIds)]);
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
     setResponsaveisIds((prev) => {

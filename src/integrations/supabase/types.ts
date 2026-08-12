@@ -8756,6 +8756,7 @@ export type Database = {
           coordenacao_id: string
           created_at: string
           created_by: string | null
+          envolvidos: string[]
           id: string
           responsaveis: string[]
           tipo_tarefa: string
@@ -8765,6 +8766,7 @@ export type Database = {
           coordenacao_id: string
           created_at?: string
           created_by?: string | null
+          envolvidos?: string[]
           id?: string
           responsaveis?: string[]
           tipo_tarefa: string
@@ -8774,6 +8776,7 @@ export type Database = {
           coordenacao_id?: string
           created_at?: string
           created_by?: string | null
+          envolvidos?: string[]
           id?: string
           responsaveis?: string[]
           tipo_tarefa?: string

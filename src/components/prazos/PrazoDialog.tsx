@@ -44,7 +44,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { PublicacaoVinculadaCollapsible } from "@/components/shared/PublicacaoVinculadaCollapsible";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
-import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
+import { useCoordenadoresDaCoordenacao, useEnvolvidosFixosDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { formatConteudoParaExibicao, conteudoDisplayClasses, parseDataPublicacaoLocal } from "@/utils/formatConteudo";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
@@ -451,6 +451,20 @@ export function PrazoDialog({
       return faltando.length > 0 ? [...prev, ...faltando] : prev;
     });
   }, [JSON.stringify(coordenadoresIds)]);
+
+  // Envolvidos fixos definidos na configuração da coordenação para o tipo Prazo
+  const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(
+    coordenacaoId || null,
+    "PRAZO",
+  );
+
+  useEffect(() => {
+    if (envolvidosFixosIds.length === 0) return;
+    setEnvolvidosIds((prev) => {
+      const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
+      return faltando.length > 0 ? [...prev, ...faltando] : prev;
+    });
+  }, [JSON.stringify(envolvidosFixosIds)]);
 
   useEffect(() => {
     if (prazo) return;
