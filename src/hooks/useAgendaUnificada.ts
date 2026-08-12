@@ -673,6 +673,20 @@ export async function fetchAgendaPage(
 
             // Buscar criadores separadamente (sem FK no banco)
             const criadorIds = [...new Set(tarefasFiltradas.map((t: any) => t.criado_por as string).filter(Boolean))] as string[];
+
+            // Buscar todos os responsáveis (multi-responsáveis) das tarefas exibidas
+            const respMap: Record<string, string[]> = {};
+            const tarefaIdsExibidas = tarefasFiltradas.map((t: any) => t.id as string);
+            if (tarefaIdsExibidas.length > 0) {
+              const { data: respRows } = await supabase
+                .from("tarefa_responsaveis")
+                .select("tarefa_id, usuario_id")
+                .in("tarefa_id", tarefaIdsExibidas);
+              (respRows || []).forEach((r: any) => {
+                if (!r?.tarefa_id || !r?.usuario_id) return;
+                (respMap[r.tarefa_id] ||= []).push(r.usuario_id);
+              });
+            }
             let criadoresMap: Record<string, { id: string; nome: string }> = {};
             if (criadorIds.length > 0) {
               const { data: criadores } = await supabase
@@ -783,6 +797,9 @@ export async function fetchAgendaPage(
                       }
                     : null,
                   responsavel_id: tarefa.responsavel_id,
+                  responsaveis_ids: Array.from(
+                    new Set([...(respMap[tarefa.id] || []), ...(tarefa.responsavel_id ? [tarefa.responsavel_id] : [])])
+                  ),
                   responsavel: tarefa.responsavel,
                   criado_por: tarefa.criado_por,
                   criador: tarefa.criado_por ? criadoresMap[tarefa.criado_por] || null : null,
