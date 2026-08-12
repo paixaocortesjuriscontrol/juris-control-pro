@@ -301,10 +301,12 @@ export function AudienciaFormSimplificado({
       return;
     }
     const reagendando = situacao === "reagendado" && situacao !== situacaoInicial;
-    if (reagendando && !novaDataReagendamento) {
-      toast.error("Informe a nova data do reagendamento");
-      return;
-    }
+    // Se o usuário não informar nova data, mantém a data atual — o item continua
+    // visível no calendário/painel apenas com a situação alterada.
+    const dataAudienciaFinal = reagendando && novaDataReagendamento
+      ? novaDataReagendamento
+      : form.data_audiencia;
+
     if (!isEditing && responsaveisIds.length === 0) {
       toast.error("Selecione ao menos um responsável", {
         description: "Campo obrigatório: 'Responsáveis', no final do formulário.",
@@ -354,8 +356,9 @@ export function AudienciaFormSimplificado({
       processo_id: processoIdParaSalvar,
       processo_numero: processoNumeroParaSalvar || "",
       titulo: form.titulo.trim(),
-      data_audiencia: reagendando ? novaDataReagendamento : form.data_audiencia,
+      data_audiencia: dataAudienciaFinal,
       hora: form.hora || undefined,
+
       hora_fim: form.hora_fim || undefined,
       alerta_valor: form.alerta_valor > 0 ? Number(form.alerta_valor) : undefined,
       alerta_unidade: form.alerta_valor > 0 ? form.alerta_unidade : undefined,
@@ -481,7 +484,7 @@ export function AudienciaFormSimplificado({
       {situacao === "reagendado" && situacao !== situacaoInicial && (
         <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
           <Label className="text-xs font-semibold">
-            Nova data do reagendamento <span className="text-destructive">*</span>
+            Nova data do reagendamento (opcional)
           </Label>
           <Input
             type="date"
@@ -490,10 +493,11 @@ export function AudienciaFormSimplificado({
             className="h-9 w-[180px] text-sm"
           />
           <p className="text-[11px] text-muted-foreground">
-            A audiência será movida para esta data no painel de controle.
+            Se preenchido, a audiência será movida para esta data no painel. Se deixado em branco, permanece na data atual.
           </p>
         </div>
       )}
+
       {!hideTitleHeader && (
         <div className="flex items-center justify-between gap-4">
           <h3 className="text-sm font-bold uppercase tracking-wide text-foreground flex items-center gap-2">

@@ -498,18 +498,16 @@ export function PrazoDialog({
     }
     const situacaoMudou = situacao !== situacaoInicial;
 
-    // Reagendamento: exige nova data e move o prazo para ela (senão o item
-    // continuaria preso na data antiga e "não entra" no painel).
+    // Reagendamento: se uma nova data for informada, move o prazo para ela;
+    // caso contrário, mantém a data atual e apenas marca a situação como
+    // reagendado, garantindo que o item continue visível no painel.
     let dataLimiteFinal = dataLimite;
     let dataFatalFinal = dataFatal;
-    if (situacao === "reagendado" && situacaoMudou) {
-      if (!novaDataReagendamento) {
-        toast.error("Informe a nova data do reagendamento");
-        return;
-      }
+    if (situacao === "reagendado" && situacaoMudou && novaDataReagendamento) {
       dataLimiteFinal = parseISO(`${novaDataReagendamento}T12:00:00`);
       if (dataFatal && dataFatal < dataLimiteFinal) dataFatalFinal = dataLimiteFinal;
     }
+
 
     // Responsável principal: preserva o atual (se continua na lista); caso contrário
     // usa o primeiro responsável que NÃO seja um responsável fixo da coordenação,
@@ -758,7 +756,7 @@ export function PrazoDialog({
             {situacao === "reagendado" && (
               <div className="space-y-1.5 pb-2">
                 <Label className="text-xs font-semibold">
-                  Nova data do reagendamento <span className="text-destructive">*</span>
+                  Nova data do reagendamento (opcional)
                 </Label>
                 <Input
                   type="date"
@@ -767,10 +765,11 @@ export function PrazoDialog({
                   className="h-9 w-[180px] text-sm"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                  O prazo será movido para esta data no painel de controle.
+                  Se preenchido, o prazo será movido para esta data no painel. Se deixado em branco, permanece na data atual.
                 </p>
               </div>
             )}
+
             <Label className="text-xs font-semibold">
               Comentário da mudança de situação (opcional)
             </Label>
