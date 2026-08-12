@@ -288,21 +288,19 @@ serve(async (req) => {
       const horaAtual = horaBrt(atual.iniciado_em);
       const horaAnterior = horaBrt(anterior.iniciado_em);
 
-      const mapAtual = totais.get(atual.id) || new Map<string, number>();
-      const mapAnterior = totais.get(anterior.id) || new Map<string, number>();
+      // Janela da execução atual: do início da execução anterior até o início da
+      // próxima execução (ou fim do dia BRT, se for a última).
+      const fimJanela = i + 1 < execucoes.length ? execucoes[i + 1].iniciado_em : endUtc;
+      const mapNovas = novasNaJanela(anterior.iniciado_em, fimJanela);
 
       const linhas: LinhaCoord[] = [];
-      for (const coordId of new Set([...mapAtual.keys(), ...mapAnterior.keys()])) {
-        const totalAtual = mapAtual.get(coordId) || 0;
-        const totalAnterior = mapAnterior.get(coordId) || 0;
-        const diferenca = totalAtual - totalAnterior;
-        if (diferenca <= 0) continue;
+      for (const [coordId, novas] of mapNovas) {
+        if (novas <= 0) continue;
         linhas.push({
           coordenacaoId: coordId,
           nome: nomes.get(coordId) || "(sem nome)",
-          totalAnterior,
-          totalAtual,
-          diferenca,
+          diferenca: novas,
+          totalDia: totalDiaPorCoord.get(coordId) || novas,
         });
       }
       linhas.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR", { sensitivity: "base" }));
@@ -349,16 +347,22 @@ serve(async (req) => {
         const corpo = `
           <div style="background-color:#EFF6FF;padding:14px;border-radius:8px;margin-bottom:16px;">
             <p style="margin:0;font-size:15px;">
-              A execução do <strong>DJEN Termos</strong> das <strong>${horaAtual}</strong> encontrou
+              A execução do <strong>DJEN Termos</strong> das <strong>${horaAtual}</strong> gravou
               <strong style="color:#047857;">+${linha.diferenca}</strong>
-              ${linha.diferenca === 1 ? "publicação" : "publicações"} a mais do que a execução das
-              <strong>${horaAnterior}</strong>.
+              ${linha.diferenca === 1 ? "nova publicação" : "novas publicações"} desde a execução das
+              <strong>${horaAnterior}</strong>. Total do dia da coordenação:
+              <strong>${linha.totalDia}</strong>.
             </p>
           </div>
           <p style="margin:0 0 8px 0;font-size:13px;color:#374151;">
             Coordenação: <strong>${linha.nome}</strong> · Dia: <strong>${dataBr(ymd)}</strong>
           </p>
-          ${tabelaLinhas([linha], false)}`;
+          ${tabelaLinhas([linha], false)}
+          <p style="margin:12px 0 0 0;font-size:12px;color:#6b7280;">
+            O "Total do dia" é o número de publicações gravadas hoje para a coordenação. Na tela
+            Análise DJEN o número exibido pode ser menor, pois lá as publicações idênticas são
+            agrupadas (deduplicação) e as descartadas não aparecem.
+          </p>`;
 
         const enviados = await enviarEmail(
           emails,
@@ -376,8 +380,8 @@ serve(async (req) => {
             fonte: atual.fonte,
             coordenacao_id: linha.coordenacaoId,
             diferenca: linha.diferenca,
-            total_anterior: linha.totalAnterior,
-            total_atual: linha.totalAtual,
+            total_anterior: Math.max(linha.totalDia - linha.diferenca, 0),
+            total_atual: linha.totalDia,
             destinatarios: enviados,
             dia_ymd: ymd,
           });
@@ -400,9 +404,9 @@ serve(async (req) => {
         const corpoAdmin = `
           <div style="background-color:#EFF6FF;padding:14px;border-radius:8px;margin-bottom:16px;">
             <p style="margin:0;font-size:15px;">
-              A execução do <strong>DJEN Termos</strong> das <strong>${horaAtual}</strong> encontrou
+              A execução do <strong>DJEN Termos</strong> das <strong>${horaAtual}</strong> gravou
               <strong style="color:#047857;">+${totalDif}</strong>
-              ${totalDif === 1 ? "publicação" : "publicações"} a mais do que a execução das
+              ${totalDif === 1 ? "nova publicação" : "novas publicações"} desde a execução das
               <strong>${horaAnterior}</strong>, em ${linhas.length}
               ${linhas.length === 1 ? "coordenação" : "coordenações"}.
             </p>
