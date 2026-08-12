@@ -1026,8 +1026,8 @@ export default function Notificacoes({
       />
 
 
-      {/* Cards de resumo por tipo (somente administradores) */}
-      {isAdmin && (
+      {/* Cards de resumo por tipo (removidos por solicitação) */}
+      {false && (
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 lg:grid-cols-13 gap-3 mb-6">
         {!embedded && (
           <Card 
