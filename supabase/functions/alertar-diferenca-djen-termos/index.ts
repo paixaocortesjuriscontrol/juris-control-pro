@@ -174,46 +174,54 @@ serve(async (req) => {
       );
     }
 
-    // 2) Contagens por (execução, coordenação).
-    const servIds = execucoes.filter((e) => e.fonte === "servidor").map((e) => e.id);
-    const locaisIds = execucoes.filter((e) => e.fonte === "local").map((e) => e.id);
-
-    const [junServ, junLocal] = await Promise.all([
-      servIds.length === 0
-        ? Promise.resolve({ data: [], error: null } as any)
-        : supabase
-            .from("publicacoes_djen_servidor_execucoes")
-            .select("execucao_id, publicacao:publicacoes_djen_servidor!inner(id, coordenacao_id)")
-            .in("execucao_id", servIds),
-      locaisIds.length === 0
-        ? Promise.resolve({ data: [], error: null } as any)
-        : supabase
-            .from("publicacoes_djen_execucoes")
-            .select(
-              "execucao_id, publicacao:publicacoes_djen!inner(id, monitoramento:monitoramentos_djen!inner(coordenacao_id))",
-            )
-            .in("execucao_id", locaisIds),
-    ]);
-
-    if (junServ.error) log("erro junção servidor", junServ.error);
-    if (junLocal.error) log("erro junção local", junLocal.error);
-
-    // execId -> coordId -> total
-    const totais = new Map<string, Map<string, number>>();
+    // 2) Publicações do dia efetivamente gravadas (mesma base da tela Análise DJEN:
+    //    publicacoes_djen; as descartadas vivem em outra tabela e já ficam de fora).
+    //    Guardamos created_at + coordenação para contar somente o que é NOVO em cada
+    //    janela de execução — revínculos de publicações antigas não contam mais.
+    type PubDia = { createdAt: string; coordId: string };
+    const pubsDia: PubDia[] = [];
     const coordIds = new Set<string>();
-    const acumular = (rows: any[], extract: (r: any) => string | null | undefined) => {
-      for (const r of rows || []) {
-        const execId = r.execucao_id as string;
-        const coordId = extract(r);
-        if (!execId || !coordId) continue;
-        coordIds.add(coordId);
-        if (!totais.has(execId)) totais.set(execId, new Map());
-        const m = totais.get(execId)!;
-        m.set(coordId, (m.get(coordId) || 0) + 1);
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from("publicacoes_djen")
+        .select("id, created_at, monitoramento:monitoramentos_djen!inner(coordenacao_id)")
+        .gte("created_at", startUtc)
+        .lt("created_at", endUtc)
+        .order("created_at", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) {
+        log("erro ao carregar publicacoes_djen", error);
+        break;
       }
+      for (const r of data || []) {
+        const coordId = (r as any)?.monitoramento?.coordenacao_id as string | null | undefined;
+        if (!coordId || !r.created_at) continue;
+        coordIds.add(coordId);
+        pubsDia.push({ createdAt: r.created_at as string, coordId });
+      }
+      if (!data || data.length < PAGE) break;
+    }
+
+    // Total do dia por coordenação
+    const totalDiaPorCoord = new Map<string, number>();
+    for (const p of pubsDia) {
+      totalDiaPorCoord.set(p.coordId, (totalDiaPorCoord.get(p.coordId) || 0) + 1);
+    }
+
+    /** Novas publicações por coordenação na janela [inicio, fim). */
+    const novasNaJanela = (inicio: string, fim: string): Map<string, number> => {
+      const m = new Map<string, number>();
+      const ini = new Date(inicio).getTime();
+      const end = new Date(fim).getTime();
+      for (const p of pubsDia) {
+        const t = new Date(p.createdAt).getTime();
+        if (t >= ini && t < end) m.set(p.coordId, (m.get(p.coordId) || 0) + 1);
+      }
+      return m;
     };
-    acumular(junServ.data || [], (r) => r.publicacao?.coordenacao_id);
-    acumular(junLocal.data || [], (r) => r.publicacao?.monitoramento?.coordenacao_id);
+
+    log(`publicações do dia carregadas: ${pubsDia.length}`);
 
     // Nomes das coordenações
     const nomes = new Map<string, string>();
