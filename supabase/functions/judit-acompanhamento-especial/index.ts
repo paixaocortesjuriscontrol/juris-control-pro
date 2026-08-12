@@ -492,6 +492,20 @@ serve(async (req) => {
         clearTimeout(to);
       }
 
+      // Fallback: cache sem dados úteis (ou 404) → dispara crawler
+      let origemDado = "cache";
+      if (!payload || !temDadosUteis(payload.response_data || payload)) {
+        const viaCrawler = await juditCrawler(juditApiKey, cnj, comAnexosProc);
+        if (viaCrawler) {
+          payload = viaCrawler;
+          erro = null;
+          statusHttp = 200;
+          origemDado = "crawler";
+        } else if (!erro) {
+          erro = "sem dados na Judit (cache e crawler vazios)";
+        }
+      }
+
       await supabase.from("consultas_judit").insert({
         processo_id: p.id,
         requisitada_em: new Date().toISOString(),
@@ -533,6 +547,7 @@ serve(async (req) => {
             with_attachments: comAnexosProc,
             slot,
             origem: "acompanhamento-especial",
+            origem_dado: origemDado,
           },
           raw_response: payload ?? null,
           status: logStatus,
