@@ -597,7 +597,8 @@ export function DashboardCoordenacoes({
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
 
             {coordenacoesStats.length === 0 && (
               <div className="col-span-full text-center py-8 text-muted-foreground">
