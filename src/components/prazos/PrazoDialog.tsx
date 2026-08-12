@@ -546,14 +546,7 @@ export function PrazoDialog({
           });
           if (comErr) console.error("Falha ao gravar comentário da situação:", comErr);
         }
-        // Atualizar coordenação do processo, se alterada
-        const processoId = processoIdParaSalvar;
-        if (processoId && coordenacaoId) {
-          await supabase
-            .from("processos")
-            .update({ coordenacao_id: coordenacaoId })
-            .eq("id", processoId);
-        }
+        // A coordenação do item é sempre a do usuário logado; nunca alterar a do processo.
 
         await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefaId);
         if (responsaveisIds.length > 0) {
