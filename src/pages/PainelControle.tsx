@@ -1106,11 +1106,8 @@ export default function PainelControle() {
     ((audAdv.data as any[]) || []).forEach((r) => pushNome(respMap, `a:${r.audiencia_id}`, nomeById.get(r.advogado_id)));
     ((audEnv.data as any[]) || []).forEach((r) => pushNome(envMap, `a:${r.audiencia_id}`, nomeById.get(r.usuario_id)));
 
-    const extractHora = (iso?: string | null) => {
-      if (!iso) return "";
-      const m = String(iso).match(/T(\d{2}:\d{2})/);
-      return m ? m[1] : "";
-    };
+    // Sempre em BRT: valores timestamptz voltam em UTC e mostravam a hora errada.
+    const extractHora = (iso?: string | null) => horaBrt(iso);
 
     const coordIdsSet = new Set<string>();
     for (const it of itensExport) {
