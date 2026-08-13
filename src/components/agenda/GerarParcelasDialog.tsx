@@ -1150,19 +1150,9 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
             Cancelar
           </Button>
-          {podeCancelar && isEditing && evento?.status !== "cancelado" && (
-            <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={isSubmitting}>
-              Cancelar parcelamento
-            </Button>
-          )}
           {isEditing && evento?.status !== "pendente" && (
             <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={isSubmitting}>
               Reabrir
-            </Button>
-          )}
-          {isEditing && evento?.status !== "concluido" && (
-            <Button type="button" variant="outline" onClick={() => handleAlterarStatus("concluido")} disabled={isSubmitting}>
-              Concluir
             </Button>
           )}
           <Button onClick={handleSubmit} disabled={isSubmitting || !formData.titulo.trim()}>
