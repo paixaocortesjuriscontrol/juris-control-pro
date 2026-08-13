@@ -1,6 +1,6 @@
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
