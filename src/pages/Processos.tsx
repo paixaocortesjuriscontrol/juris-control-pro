@@ -1191,7 +1191,22 @@ const Processos = () => {
               </Button>
             </div>
           </div>
-        </>
+          </div>
+
+          {lateralProcessoId && (
+            <aside className="w-full lg:w-[420px] xl:w-[460px] flex-none bg-card rounded-xl border border-border/50 overflow-hidden flex flex-col max-h-[calc(100vh-12rem)] lg:sticky lg:top-4">
+              <ProcessoItensLateral
+                key={lateralProcessoId}
+                processoId={lateralProcessoId}
+                processoNumero={
+                  processos.find((p: any) => p.id === lateralProcessoId)?.numero || ""
+                }
+                onClose={() => setLateralProcessoId(null)}
+                onNavigate={(id) => navigate(`/processos/${id}`)}
+              />
+            </aside>
+          )}
+        </div>
       ) : (
         <div className="text-center py-12 animate-fade-in">
           <Scale className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
