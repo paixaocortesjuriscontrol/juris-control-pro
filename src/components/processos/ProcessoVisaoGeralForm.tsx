@@ -1434,6 +1434,21 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       coordenacaoPrincipalId={form.coordenacao_id || null}
                     />
                   </FormField>
+                  {processo?.id && (
+                    <FormField label="Etiquetas" className="md:col-span-2">
+                      <div className="space-y-1">
+                        <EtiquetaPicker
+                          entidade="processo"
+                          entidadeId={processo.id}
+                          coordenacaoId={form.coordenacao_id || null}
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          As etiquetas aplicadas ao processo são replicadas automaticamente para
+                          todos os prazos, tarefas, audiências, eventos e parcelamentos dele.
+                        </p>
+                      </div>
+                    </FormField>
+                  )}
                   <FormField label="Fase Processual">
                     {(() => {
                       const FASES = ["Conhecimento", "Instrutória", "Recursal", "Execução"];
