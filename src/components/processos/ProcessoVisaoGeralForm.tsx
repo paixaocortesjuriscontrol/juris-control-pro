@@ -1796,6 +1796,16 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           />
         </>
       )}
+      <ClienteDialog
+        open={clienteDialogOpen}
+        onOpenChange={(o) => { setClienteDialogOpen(o); if (!o) setClienteEmEdicao(null); }}
+        cliente={clienteEmEdicao}
+        onSaved={(c) => {
+          update("cliente_id", c.id);
+          queryClient.invalidateQueries({ queryKey: ["clientes-select-processo"] });
+          if (processo?.id) queryClient.invalidateQueries({ queryKey: ["processo", processo.id] });
+        }}
+      />
     </div>
   );
 });
