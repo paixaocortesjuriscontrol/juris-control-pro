@@ -175,24 +175,25 @@ export default function DistribuicaoTstKanban() {
     }
   };
 
-  const totals = useMemo(() => columns.map((c) => ({ key: c.key, count: cards.filter(c.match).length })), [cards]);
-
   // Resumo por responsável (obedece filtros aplicados, pois deriva de `cards`)
   const resumoResponsaveis = useMemo(() => {
-    const map = new Map<string, { id: string; nome: string; total: number; pronto: number }>();
+    const map = new Map<string, { id: string; nome: string; total: number; pronto: number; semPend: number }>();
     cards.forEach((c) => {
-      const isPronto = c.status_distribuicao === "finalizada";
+      const pronto = isPronto(c);
+      const prontoOk = pronto && !!c.semPendencia;
       if (c.responsaveis.length === 0) {
         const k = "__sem__";
-        const cur = map.get(k) || { id: k, nome: "Sem responsável", total: 0, pronto: 0 };
+        const cur = map.get(k) || { id: k, nome: "Sem responsável", total: 0, pronto: 0, semPend: 0 };
         cur.total += 1;
-        if (isPronto) cur.pronto += 1;
+        if (pronto) cur.pronto += 1;
+        if (prontoOk) cur.semPend += 1;
         map.set(k, cur);
       } else {
         c.responsaveis.forEach((r) => {
-          const cur = map.get(r.id) || { id: r.id, nome: r.nome, total: 0, pronto: 0 };
+          const cur = map.get(r.id) || { id: r.id, nome: r.nome, total: 0, pronto: 0, semPend: 0 };
           cur.total += 1;
-          if (isPronto) cur.pronto += 1;
+          if (pronto) cur.pronto += 1;
+          if (prontoOk) cur.semPend += 1;
           map.set(r.id, cur);
         });
       }
