@@ -14,9 +14,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Save, UserCheck } from "lucide-react";
+
+/** Somente as opções do botão "Adicionar" */
+const TIPOS_ITEM: { key: string; label: string }[] = [
+  { key: "PRAZO", label: "Prazo" },
+  { key: "TAREFA", label: "Tarefa" },
+  { key: "AUDIÊNCIA", label: "Audiência" },
+  { key: "PARCELAMENTO", label: "Parcelamento Recorrente" },
+  { key: "EVENTO", label: "Evento" },
+];
+
+const labelTipo = (k: string) => TIPOS_ITEM.find((t) => t.key === k)?.label ?? k;
 
 interface Membro {
   usuario?: { id?: string; nome?: string; email?: string } | null;
@@ -39,7 +49,7 @@ export function ResponsaveisFixosTipoDialog({
   membros,
 }: Props) {
   const queryClient = useQueryClient();
-  const [tipoSelecionado, setTipoSelecionado] = useState<string>(TIPOS_TAREFA[0]);
+  const [tipoSelecionado, setTipoSelecionado] = useState<string>(TIPOS_ITEM[0].key);
   const [mapa, setMapa] = useState<Record<string, string[]>>({});
   const [mapaEnvolvidos, setMapaEnvolvidos] = useState<Record<string, string[]>>({});
 
@@ -74,6 +84,26 @@ export function ResponsaveisFixosTipoDialog({
       }
 
       if (ids.size === 0) return [];
+
+      // Coordenações com apenas o coordenador cadastrado ficariam praticamente vazias:
+      // nesse caso, lista todos os usuários ativos para permitir a configuração.
+      if (ids.size <= 1) {
+        const { data: todos } = await supabase
+          .from("profiles")
+          .select("id, nome, email, ativo")
+          .eq("ativo", true)
+          .order("nome");
+        (todos || []).forEach((p: any) => ids.add(p.id));
+        return Array.from(ids).map((id) => {
+          const p = (todos || []).find((x: any) => x.id === id);
+          return {
+            id,
+            nome: p?.nome || p?.email || "Usuário",
+            cargo: cargoPorId[id] || "",
+          };
+        });
+      }
+
       const { data: profiles } = await supabase
         .from("profiles_basic")
         .select("id, nome")
@@ -222,7 +252,7 @@ export function ResponsaveisFixosTipoDialog({
           <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-4">
             <ScrollArea className="h-[420px] border rounded-md">
               <div className="p-2 space-y-1">
-                {TIPOS_TAREFA.map((tipo) => {
+                {TIPOS_ITEM.map(({ key: tipo, label }) => {
                   const qtd = (mapa[tipo] || []).length + (mapaEnvolvidos[tipo] || []).length;
                   const ativo = tipo === tipoSelecionado;
                   return (
@@ -234,7 +264,7 @@ export function ResponsaveisFixosTipoDialog({
                         ativo ? "bg-primary text-primary-foreground" : "hover:bg-muted"
                       }`}
                     >
-                      <span className="truncate">{TIPOS_TAREFA_LABELS[tipo] || tipo}</span>
+                      <span className="truncate">{label}</span>
                       {qtd > 0 && (
                         <Badge variant={ativo ? "secondary" : "outline"}>{qtd}</Badge>
                       )}
@@ -247,7 +277,7 @@ export function ResponsaveisFixosTipoDialog({
             <ScrollArea className="h-[420px] border rounded-md min-w-0">
               <div className="p-3 pr-4 space-y-2">
                 <p className="text-sm font-medium mb-2">
-                  {TIPOS_TAREFA_LABELS[tipoSelecionado] || tipoSelecionado}
+                  {labelTipo(tipoSelecionado)}
                 </p>
                 {pessoas.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
