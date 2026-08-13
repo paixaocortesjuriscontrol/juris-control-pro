@@ -144,8 +144,8 @@ export function PrazoDialog({
   const tertiaryClickedRef = useRef(false);
   const anexosRef = useRef<ItemAnexosHandle>(null);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
-  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas();
-  // Estagiário/assistente/secretaria não podem ALTERAR datas de itens existentes.
+  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(null, "PRAZO");
+  // Perfis bloqueados e quem não pode reagendar não alteram datas de itens existentes.
   const travarDatas = datasBloqueadas && !!prazo;
 
   // Quando editando um prazo existente, carregar publicação vinculada (se houver)
