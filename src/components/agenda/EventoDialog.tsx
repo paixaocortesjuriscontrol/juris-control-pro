@@ -995,19 +995,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               >
                 Cancelar
               </Button>
-              {podeCancelar && isEditing && evento?.status !== "cancelado" && (
-                <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={isPending} className="w-full sm:w-auto">
-                  Cancelar evento
-                </Button>
-              )}
               {isEditing && evento?.status !== "pendente" && (
                 <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={isPending} className="w-full sm:w-auto">
                   Reabrir
-                </Button>
-              )}
-              {isEditing && evento?.status !== "concluido" && (
-                <Button type="button" variant="outline" onClick={() => handleAlterarStatus("concluido")} disabled={isPending} className="w-full sm:w-auto">
-                  Concluir
                 </Button>
               )}
               <Button
