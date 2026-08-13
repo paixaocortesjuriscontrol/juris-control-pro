@@ -371,6 +371,8 @@ const AnaliseDjen = () => {
 
   // Estado do descarte em lote de duplicadas (botão vermelho)
   const [descartandoDuplicadas, setDescartandoDuplicadas] = useState(false);
+  // Etiquetagem em lote das publicações selecionadas.
+  const [etiquetarLoteOpen, setEtiquetarLoteOpen] = useState(false);
   const [desfazendoLote, setDesfazendoLote] = useState<string | null>(null);
   // Intervalo opcional para o botão "Descartar duplicadas".
   // Se vazio, o descarte segue os filtros de data visíveis na tela antes de cair para hoje.
