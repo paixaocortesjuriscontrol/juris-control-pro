@@ -619,8 +619,7 @@ serve(async (req) => {
           .from("processos")
           .update({ acompanhamento_ultima_checagem_em: new Date().toISOString() })
           .eq("id", p.id);
-        resultados.push({ processo_id: p.id, erro });
-        continue;
+        return { processo_id: p.id, erro };
       }
 
       const rd = payload.response_data || payload;
