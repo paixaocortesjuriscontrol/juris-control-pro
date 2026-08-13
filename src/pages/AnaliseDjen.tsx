@@ -93,6 +93,7 @@ import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { PublicacaoSidePanel } from "@/components/shared/PublicacaoSidePanel";
 import { ItensCriadosPublicacaoCard, type ItemCriado } from "@/components/shared/ItensCriadosPublicacaoCard";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
+import { EtiquetarLoteDialog } from "@/components/etiquetas/EtiquetarLoteDialog";
 import { EdicaoItemPublicacaoInline } from "@/components/shared/EdicaoItemPublicacaoInline";
 import { useItensExistentesPublicacao } from "@/hooks/useItensExistentesPublicacao";
 import { ensureProcessoFromPublicacao, salvarPublicacaoNoProcesso } from "@/lib/ensureProcessoFromPublicacao";
