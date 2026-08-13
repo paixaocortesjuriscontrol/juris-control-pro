@@ -905,6 +905,7 @@ export function PrazoDialog({
                 if (m.descricao) setObservacoes((prev) => prev || m.descricao || "");
                 const p = resolverPadroes(m);
                 if (p.observacoes) setObservacoes((prev) => prev || p.observacoes);
+                if (travarDatas) return;
                 if (p.prazo_dias) setPrazoDias(Number(p.prazo_dias));
                 if (p.prazo_unidade) setPrazoUnidade(p.prazo_unidade as Unidade);
                 if (p.data_limite) {
