@@ -7,11 +7,20 @@ import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 export const TIPO_REAGENDAMENTO = "REAGENDAMENTO";
 export const SITUACAO_REAGENDAR = "reagendar";
 
+/** Tipos do botão "Adicionar" que podem ter reagendamento restrito. */
+export const TIPOS_REAGENDAMENTO: { key: string; label: string }[] = [
+  { key: "PRAZO", label: "Prazo" },
+  { key: "TAREFA", label: "Tarefa" },
+  { key: "AUDIÊNCIA", label: "Audiência" },
+  { key: "PARCELAMENTO", label: "Parcelamento Recorrente" },
+  { key: "EVENTO", label: "Evento" },
+];
+
 /**
- * Controle de quem pode reagendar itens (por coordenação).
+ * Controle de quem pode reagendar itens (por coordenação e tipo de tarefa).
  * Sem configuração => liberado para todos. Admin sempre pode.
  */
-export function usePodeReagendar(coordenacaoId?: string | null) {
+export function usePodeReagendar(coordenacaoId?: string | null, tipoItem?: string | null) {
   const { user } = useAuth();
   const { role, loading: roleLoading } = useUserRole();
   const { isAdmin, coordenacoes } = useCoordenacoesDoUsuario();
@@ -29,16 +38,26 @@ export function usePodeReagendar(coordenacaoId?: string | null) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("permissoes_situacao_tipo_tarefa")
-        .select("perfis, usuarios, ativa")
+        .select("perfis, usuarios, ativa, tipo_tarefa")
         .in("coordenacao_id", idsEfetivos)
-        .eq("tipo_tarefa", TIPO_REAGENDAMENTO)
         .eq("situacao", SITUACAO_REAGENDAR);
       if (error) throw error;
-      return (data || []) as { perfis: string[] | null; usuarios: string[] | null; ativa: boolean | null }[];
+      return (data || []) as {
+        perfis: string[] | null;
+        usuarios: string[] | null;
+        ativa: boolean | null;
+        tipo_tarefa: string | null;
+      }[];
     },
   });
 
-  const regrasRestritivas = data.filter(
+  const tipoAlvo = (tipoItem || "").toUpperCase() || null;
+  // Regras do tipo específico; na falta delas, usa a regra geral legada.
+  const doTipo = tipoAlvo ? data.filter((r) => (r.tipo_tarefa || "").toUpperCase() === tipoAlvo) : [];
+  const legadas = data.filter((r) => (r.tipo_tarefa || "").toUpperCase() === TIPO_REAGENDAMENTO);
+  const aplicaveis = doTipo.length > 0 ? doTipo : tipoAlvo ? legadas : data;
+
+  const regrasRestritivas = aplicaveis.filter(
     (r) => ((r.perfis || []).length + (r.usuarios || []).length) > 0 || r.ativa === false,
   );
 
