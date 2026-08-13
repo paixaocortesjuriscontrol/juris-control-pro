@@ -1240,6 +1240,8 @@ export function TarefaAgendaPanel({
                         type="datetime-local"
                         value={editForm.data_inicio}
                         onChange={(e) => setEditForm(f => ({ ...f, data_inicio: e.target.value }))}
+                        disabled={datasBloqueadas}
+                        title={datasBloqueadas ? motivoBloqueio : undefined}
                         className="h-9"
                       />
                     </div>
@@ -1249,6 +1251,8 @@ export function TarefaAgendaPanel({
                         type="datetime-local"
                         value={editForm.data_fim}
                         onChange={(e) => setEditForm(f => ({ ...f, data_fim: e.target.value }))}
+                        disabled={datasBloqueadas}
+                        title={datasBloqueadas ? motivoBloqueio : undefined}
                         className="h-9"
                       />
                     </div>

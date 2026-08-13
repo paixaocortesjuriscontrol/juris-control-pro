@@ -762,6 +762,8 @@ export function PrazoDialog({
                   type="date"
                   value={novaDataReagendamento}
                   onChange={(e) => setNovaDataReagendamento(e.target.value)}
+                  disabled={travarDatas}
+                  title={travarDatas ? motivoBloqueio : undefined}
                   className="h-9 w-[180px] text-sm"
                 />
                 <p className="text-[11px] text-muted-foreground">
