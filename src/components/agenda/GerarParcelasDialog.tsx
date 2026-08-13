@@ -689,17 +689,26 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
                   tipo="parcela"
                   coordenacaoId={coordenacaoId}
                   onSelect={(m) => {
+                    const anterior = modeloPadroesRef.current || {};
                     const p = resolverPadroes(m);
+                    /** Limpa o que o modelo anterior preencheu e o novo não define */
+                    const limpou = (key: string, atual: any) =>
+                      anterior[key] && !p[key] && String(atual ?? "") === anterior[key];
                     setFormData((prev) => {
                       const next: any = { ...prev, titulo: m.titulo };
+                      if (limpou("descricao", next.descricao)) next.descricao = "";
                       if (!next.descricao && (p.descricao || m.descricao)) next.descricao = p.descricao || m.descricao;
+                      if (limpou("dataVencimento", next.dataVencimento)) next.dataVencimento = "";
                       if (p.dataVencimento) next.dataVencimento = p.dataVencimento;
                       if (p.totalParcelas) next.totalParcelas = Number(p.totalParcelas);
+                      if (limpou("valorPadrao", next.valorPadrao)) next.valorPadrao = "";
                       if (p.valorPadrao && !next.valorPadrao) next.valorPadrao = p.valorPadrao;
                       if (p.intervalo) next.intervalo = p.intervalo;
+                      if (limpou("hora_alerta", next.hora_alerta)) next.hora_alerta = "";
                       if (p.hora_alerta) next.hora_alerta = p.hora_alerta;
                       return next;
                     });
+                    modeloPadroesRef.current = { ...p, descricao: p.descricao || m.descricao || "" };
                   }}
                 />
               </div>
