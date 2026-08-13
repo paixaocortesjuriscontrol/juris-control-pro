@@ -296,13 +296,21 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 tipo="audiencia"
                 coordenacaoId={(audiencia as any)?.coordenacao_id ?? null}
                 onSelect={(m) => {
-                  handleChange("titulo", m.titulo);
+                  const anterior = modeloPadroesRef.current || {};
                   const p = resolverPadroes(m);
-                  for (const [k, v] of Object.entries(p)) {
-                    if (k === "titulo") continue;
-                    if (datasBloqueadas && /(data|hora|prazo|dias)/i.test(k)) continue;
-                    if (!String((formData as any)[k] ?? "").trim()) handleChange(k, String(v));
+                  handleChange("titulo", m.titulo);
+                  const bloqueado = (k: string) =>
+                    datasBloqueadas && /(data|hora|prazo|dias)/i.test(k);
+                  // Limpa o que o modelo anterior preencheu e o novo não define
+                  for (const [k, v] of Object.entries(anterior)) {
+                    if (k === "titulo" || bloqueado(k) || p[k] !== undefined) continue;
+                    if (String((formData as any)[k] ?? "") === v) handleChange(k, "");
                   }
+                  for (const [k, v] of Object.entries(p)) {
+                    if (k === "titulo" || bloqueado(k)) continue;
+                    handleChange(k, String(v));
+                  }
+                  modeloPadroesRef.current = p;
                 }}
                 />
               </div>
