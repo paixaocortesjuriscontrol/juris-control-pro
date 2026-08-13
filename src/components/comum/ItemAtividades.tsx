@@ -92,8 +92,7 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
     // por queries próprias — precisam ser atualizadas junto.
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["painel-subatividades-calendario"], refetchType: "all" }),
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite"], refetchType: "all" }),
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"], refetchType: "all" }),
+      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY], refetchType: "all" }),
     ]);
   };
 
