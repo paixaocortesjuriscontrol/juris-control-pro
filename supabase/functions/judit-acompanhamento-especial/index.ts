@@ -786,9 +786,50 @@ serve(async (req) => {
         })
         .eq("id", p.id);
 
-      resultados.push({ processo_id: p.id, numero: cnj, novos, total_steps: steps.length, sync });
-    } catch (e: any) {
-      resultados.push({ processo_id: p.id, erro: e?.message ?? String(e) });
+      return { processo_id: p.id, numero: cnj, novos, total_steps: steps.length, sync };
+    }
+  }
+
+  // ── Pool de concorrência + orçamento de tempo ────────────────────────────
+  // Edge Functions têm limite de tempo de execução: 28 processos em série
+  // (até 20s de cache + 25s de crawler cada) estouravam o limite e a execução
+  // ficava presa em "executando". Agora rodam em paralelo (5 por vez) e, se o
+  // orçamento acabar, o restante é retomado numa nova invocação encadeada.
+  const CONCORRENCIA = 5;
+  const BUDGET_MS = 100_000;
+  const fila = [...(processos ?? [])];
+  const adiados: string[] = [];
+
+  async function worker() {
+    while (fila.length > 0) {
+      const p = fila.shift();
+      if (!p) break;
+      if (Date.now() - iniciadoEm.getTime() > BUDGET_MS) {
+        adiados.push(p.id);
+        resultados.push({ processo_id: p.id, skipped: "adiado-tempo" });
+        continue;
+      }
+      try {
+        const r = await processarProcesso(p);
+        if (r) resultados.push(r);
+      } catch (e: any) {
+        resultados.push({ processo_id: p.id, erro: e?.message ?? String(e) });
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(CONCORRENCIA, Math.max(1, fila.length)) }, () => worker())
+  );
+
+  // Retoma os adiados numa próxima invocação (fire-and-forget)
+  if (adiados.length > 0) {
+    try {
+      await supabase.functions.invoke("judit-acompanhamento-especial", {
+        body: { slot, processo_ids: adiados, disparo, continuacao: true },
+      });
+    } catch (e) {
+      console.warn("[acomp-especial] falha ao encadear continuação:", (e as Error).message);
     }
   }
 
