@@ -314,6 +314,16 @@ export default function Monitoramento() {
 
   const totalNaoLidos = grupos.reduce((acc, g) => acc + g.naoLidos, 0);
 
+  const totalPaginas = Math.max(1, Math.ceil(grupos.length / POR_PAGINA));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const gruposPagina = useMemo(
+    () => grupos.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA),
+    [grupos, paginaAtual]
+  );
+  useEffect(() => {
+    setPagina(1);
+  }, [busca, periodo, dataInicial, dataFinal, coordenacaoId, somenteNaoLidas]);
+
   const marcarLidas = async (grupo: Grupo) => {
     const ids = grupo.eventos.filter((e) => !e.lido_em).map((e) => e.id);
     if (ids.length === 0) return;
