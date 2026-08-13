@@ -235,7 +235,7 @@ export default function DistribuicaoTstKanban() {
                         key={r.id}
                         type="button"
                         onClick={() => {
-                          if (r.id === "__sem__") return;
+                          if (r.id === "00000000-0000-0000-0000-000000000000") return;
                           setFiltroAdvogados((prev) => prev.includes(r.id) ? [] : [r.id]);
                         }}
                         className={`w-[200px] max-w-full text-left rounded-lg border p-2.5 transition-colors bg-card hover:border-primary/60 ${
