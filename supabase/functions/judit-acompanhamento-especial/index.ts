@@ -813,7 +813,7 @@ serve(async (req) => {
   // (até 20s de cache + 25s de crawler cada) estouravam o limite e a execução
   // ficava presa em "executando". Agora rodam em paralelo (5 por vez) e, se o
   // orçamento acabar, o restante é retomado numa nova invocação encadeada.
-  const CONCORRENCIA = 8;
+  const CONCORRENCIA = 5;
   // Orçamento curto: o runtime encerra a invocação por volta de 90s, então cada
   // invocação processa um lote e encadeia o restante numa nova invocação.
   const BUDGET_MS = 40_000;
