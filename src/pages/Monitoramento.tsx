@@ -210,6 +210,44 @@ export default function Monitoramento() {
     },
   });
 
+  const {
+    data: divergencias,
+    isLoading: isLoadingDiv,
+    isFetching: isFetchingDiv,
+    refetch: refetchDiv,
+  } = useQuery({
+    queryKey: [
+      "monitoramento-divergencias",
+      semRestricao ? "all" : processoIds.join(","),
+      periodoDiv,
+    ],
+    enabled: !escopoLoading,
+    staleTime: 30_000,
+    refetchInterval: 120_000,
+    queryFn: async () => {
+      if (!semRestricao && processoIds.length === 0) return [] as Divergencia[];
+
+      let q = supabase
+        .from("acompanhamento_especial_divergencias")
+        .select(
+          "id, processo_id, campo, valor_atual, valor_judit, detectado_em, resolvido_em, processo:processos(numero, polo_ativo, polo_passivo, coordenacao_id)"
+        )
+        .order("detectado_em", { ascending: false })
+        .limit(1000);
+
+      if (periodoDiv !== "todos") {
+        const desde = new Date(Date.now() - Number(periodoDiv) * 24 * 60 * 60 * 1000).toISOString();
+        q = q.gte("detectado_em", desde);
+      }
+      if (!semRestricao) q = q.in("processo_id", processoIds);
+
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as unknown as Divergencia[];
+    },
+  });
+
+
   const grupos = useMemo<Grupo[]>(() => {
     const map = new Map<string, Grupo>();
     for (const ev of eventos ?? []) {
