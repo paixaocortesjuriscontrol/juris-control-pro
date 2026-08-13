@@ -44,6 +44,76 @@ const horaDoItem = (item: ItemAgendaUnificado) => {
   return /^\d{2}:\d{2}$/.test(hhmm) && hhmm !== "00:00" ? hhmm : null;
 };
 
+/** Linha de item usada no menu lateral (mesmo layout no Painel de Controle e em Processos). */
+export function AgendaItemRow({
+  item,
+  userId,
+  onSelect,
+}: {
+  item: ItemAgendaUnificado;
+  userId?: string;
+  onSelect: (item: ItemAgendaUnificado) => void;
+}) {
+  const concluido = isItemTratado(item);
+  const cancelado = isCancelado(item);
+  const hora = horaDoItem(item);
+  const sou =
+    !!userId &&
+    (item.responsavel_id === userId ||
+      item.criado_por === userId ||
+      item.participantes?.some((p) => p.usuario_id === userId));
+
+  return (
+    <button
+      onClick={() => onSelect(item)}
+      className="w-full text-left px-4 py-3 flex gap-3 hover:bg-muted/50 transition-colors"
+    >
+      <div className="pt-0.5 flex-shrink-0">
+        <TratadoCheck tratado={concluido} size={14} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p
+          className={cn(
+            "text-[10px] font-bold tracking-wide",
+            TIPO_TEXTO[item.tipo] || "text-muted-foreground"
+          )}
+        >
+          {TIPO_LABELS[item.tipo] || (item.tipo_tarefa ?? item.tipo).toUpperCase()}
+        </p>
+        <p
+          className={cn(
+            "text-sm text-foreground leading-snug",
+            (concluido || cancelado) && "line-through text-muted-foreground"
+          )}
+        >
+          {item.titulo || TIPO_LABELS[item.tipo] || "Sem título"}
+          {hora ? `: ${hora}` : ""}
+        </p>
+        {(item.local || item.descricao) && (
+          <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">
+            {item.local || item.descricao}
+          </p>
+        )}
+        {(item.processo?.assunto || item.processo?.numero) && (
+          <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">
+            {[item.processo?.assunto, item.processo?.numero].filter(Boolean).join(" - ")}
+          </p>
+        )}
+        {item.responsavel?.nome && (
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            Responsável: {item.responsavel.nome}
+          </p>
+        )}
+      </div>
+      {sou && (
+        <span className="flex-shrink-0 self-start text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground">
+          Eu
+        </span>
+      )}
+    </button>
+  );
+}
+
 interface DiaAgendaLateralProps {
   dia: Date;
   itens: ItemAgendaUnificado[];
@@ -86,69 +156,9 @@ export function DiaAgendaLateral({
           {total === 0 && (
             <p className="p-4 text-xs text-muted-foreground">Nenhuma atividade neste dia.</p>
           )}
-          {itens.map((item) => {
-            const concluido = isItemTratado(item);
-            const cancelado = isCancelado(item);
-            const hora = horaDoItem(item);
-            const sou =
-              !!userId &&
-              (item.responsavel_id === userId ||
-                item.criado_por === userId ||
-                item.participantes?.some((p) => p.usuario_id === userId));
-
-            return (
-              <button
-                key={item.id}
-                onClick={() => onSelectItem(item)}
-                className="w-full text-left px-4 py-3 flex gap-3 hover:bg-muted/50 transition-colors"
-              >
-                <div className="pt-0.5 flex-shrink-0">
-                  <TratadoCheck tratado={concluido} size={14} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p
-                    className={cn(
-                      "text-[10px] font-bold tracking-wide",
-                      TIPO_TEXTO[item.tipo] || "text-muted-foreground"
-                    )}
-                  >
-                    {TIPO_LABELS[item.tipo] || (item.tipo_tarefa ?? item.tipo).toUpperCase()}
-                  </p>
-                  <p
-                    className={cn(
-                      "text-sm text-foreground leading-snug",
-                      (concluido || cancelado) && "line-through text-muted-foreground"
-                    )}
-                  >
-                    {item.titulo || TIPO_LABELS[item.tipo] || "Sem título"}
-                    {hora ? `: ${hora}` : ""}
-                  </p>
-                  {(item.local || item.descricao) && (
-                    <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">
-                      {item.local || item.descricao}
-                    </p>
-                  )}
-                  {(item.processo?.assunto || item.processo?.numero) && (
-                    <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">
-                      {[item.processo?.assunto, item.processo?.numero]
-                        .filter(Boolean)
-                        .join(" - ")}
-                    </p>
-                  )}
-                  {item.responsavel?.nome && (
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Responsável: {item.responsavel.nome}
-                    </p>
-                  )}
-                </div>
-                {sou && (
-                  <span className="flex-shrink-0 self-start text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground">
-                    Eu
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          {itens.map((item) => (
+            <AgendaItemRow key={item.id} item={item} userId={userId} onSelect={onSelectItem} />
+          ))}
           {atividades.map((a: any) => {
             const encerrada = a.situacao === "concluida" || a.situacao === "cancelada";
             const sou = !!userId && (a.responsavel_id === userId || a.criado_por === userId);
