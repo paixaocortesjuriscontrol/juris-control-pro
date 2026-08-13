@@ -86,7 +86,6 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "problemaJudit", label: "Problema Judit", value: stats.problemaJudit, className: "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800", textClass: "text-amber-700 dark:text-amber-400" },
     // Vermelhos / Rosas (última fileira)
     { key: "processosInvalidos", label: "Processos Inválidos", value: stats.processosInvalidos, className: "from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/30 border-rose-200 dark:border-rose-800", textClass: "text-rose-600 dark:text-rose-400" },
-    { key: "dossiesInvalidos", label: "Dossiês Inválidos/Não Localizados", value: stats.dossiesInvalidos + stats.dossiesNaoPreenchidos, className: "from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/30 border-rose-200 dark:border-rose-800", textClass: "text-rose-600 dark:text-rose-400" },
     { key: "semTurma", label: "Sem Turma", value: stats.semTurma, className: "from-pink-50 to-pink-100 dark:from-pink-950/50 dark:to-pink-900/30 border-pink-200 dark:border-pink-800", textClass: "text-pink-600 dark:text-pink-400" },
     { key: "semResponsavel", label: "Sem Responsável", value: stats.semResponsavel, className: "from-red-50 to-red-100 dark:from-red-950/50 dark:to-red-900/30 border-red-200 dark:border-red-800", textClass: "text-red-600 dark:text-red-400" },
   ];
@@ -181,6 +180,17 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
             leftColor: "text-lime-700 dark:text-lime-400",
             rightKey: "semEquipe", rightValue: stats.semEquipe, rightLabel: "sem",
             rightColor: "text-fuchsia-700 dark:text-fuchsia-400",
+          });
+        }
+        if (c.key === "dossiesValidos") {
+          return renderCombined({
+            keyId: "dossiesCombined",
+            title: "Dossiês Válidos / Inválidos",
+            containerClass: "from-emerald-50 to-rose-50 dark:from-emerald-950/40 dark:to-rose-950/40 border-emerald-200 dark:border-emerald-800",
+            leftKey: "dossiesValidos", leftValue: stats.dossiesValidos, leftLabel: "válidos",
+            leftColor: "text-emerald-700 dark:text-emerald-400",
+            rightKey: "dossiesInvalidos", rightValue: stats.dossiesInvalidos + stats.dossiesNaoPreenchidos, rightLabel: "inválidos",
+            rightColor: "text-rose-700 dark:text-rose-400",
           });
         }
         if (c.key === "bennerSim") {
