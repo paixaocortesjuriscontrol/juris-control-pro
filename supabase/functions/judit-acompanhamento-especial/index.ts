@@ -483,11 +483,12 @@ serve(async (req) => {
   const nowBrt = new Date(Date.now() - 3 * 60 * 60 * 1000);
   const dataBrtStr = nowBrt.toISOString().slice(0, 10);
 
-  for (const p of processos ?? []) {
-    try {
+  // Processa 1 processo — usado pelo pool de concorrência abaixo.
+  async function processarProcesso(p: any): Promise<any> {
+    {
       const freq = Math.max(1, Math.min(3, p.acompanhamento_freq_diaria ?? 1));
 
-      const automatico = disparo !== "manual" && !forcedProcessoId;
+      const automatico = disparo !== "manual" && !forcedProcessoId && !forcedProcessoIds;
 
       // Última checagem em BRT
       let ultDia: string | null = null;
@@ -506,25 +507,22 @@ serve(async (req) => {
       // Exceção (retomada): se o processo ainda NÃO foi checado com sucesso hoje,
       // permite rodar num slot posterior para não ficar o dia inteiro sem checagem.
       if (automatico && slot && freq < minFreqRequired && jaChecadoHoje) {
-        resultados.push({ processo_id: p.id, skipped: "slot-fora-da-freq" });
-        continue;
+        return { processo_id: p.id, skipped: "slot-fora-da-freq" };
       }
 
       // Evita rodar duas vezes no mesmo slot no mesmo dia BRT
       if (automatico && slot && jaChecadoHoje && ultHora === slot) {
-        resultados.push({ processo_id: p.id, skipped: "ja-rodou-neste-slot" });
-        continue;
+        return { processo_id: p.id, skipped: "ja-rodou-neste-slot" };
       }
 
       const cnj = (p.numero || "").trim();
       if (!cnj) {
-        resultados.push({ processo_id: p.id, skipped: "sem-cnj" });
-        continue;
+        return { processo_id: p.id, skipped: "sem-cnj" };
       }
 
       // ── Chamar Judit ──
       const ctl = new AbortController();
-      const to = setTimeout(() => ctl.abort(), 30_000);
+      const to = setTimeout(() => ctl.abort(), 20_000);
       let payload: any = null;
       let erro: string | null = null;
       let statusHttp = 0;
