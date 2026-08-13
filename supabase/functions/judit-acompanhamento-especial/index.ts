@@ -449,6 +449,12 @@ serve(async (req) => {
   const minFreqBySlot: Record<number, number> = { 10: 1, 14: 3, 18: 2 };
   const minFreqRequired = slot && minFreqBySlot[slot] ? minFreqBySlot[slot] : 1;
 
+  // ── Trabalho pesado roda em BACKGROUND ───────────────────────────────────
+  // Motivo: quem invoca (cron via pg_net, UI ou curl) fecha a conexão antes do
+  // fim; quando isso acontece o runtime encerra a invocação no meio e a
+  // execução ficava presa em "executando". Com waitUntil respondemos na hora e
+  // o processamento continua até o fim.
+  const job = (async () => {
   // ── Selecionar processos ──
   let query = supabase
     .from("processos")
@@ -472,10 +478,7 @@ serve(async (req) => {
         })
         .eq("id", execId);
     }
-    return new Response(JSON.stringify({ error: procErr.message }), {
-      status: 500,
-      headers,
-    });
+    return;
   }
 
   const resultados: any[] = [];
