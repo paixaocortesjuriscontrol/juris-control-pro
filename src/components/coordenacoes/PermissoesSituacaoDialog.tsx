@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
 import { situacoesBase, TipoSituacaoItem } from "@/constants/situacoesItem";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Save, ShieldCheck } from "lucide-react";
 
@@ -29,6 +29,15 @@ const PERFIS: { value: string; label: string }[] = [
   { value: "secretaria", label: "Secretária" },
 ];
 
+/** Somente as opções do botão "Adicionar" */
+const TIPOS_ITEM: { key: string; label: string; tipo: TipoSituacaoItem }[] = [
+  { key: "PRAZO", label: "Prazo", tipo: "prazo" },
+  { key: "TAREFA", label: "Tarefa", tipo: "tarefa" },
+  { key: "AUDIÊNCIA", label: "Audiência", tipo: "audiencia" },
+  { key: "PARCELAMENTO", label: "Parcelamento Recorrente", tipo: "parcelamento" },
+  { key: "EVENTO", label: "Evento", tipo: "evento" },
+];
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -36,13 +45,15 @@ interface Props {
   coordenacaoNome?: string;
 }
 
-function tipoItemDe(tipo: string): TipoSituacaoItem {
-  if (tipo === "PRAZO") return "prazo";
-  if (tipo === "AUDIÊNCIA" || tipo === "PREPARAÇÃO AUDIÊNCIA") return "audiencia";
-  return "tarefa";
+function tipoItemDe(key: string): TipoSituacaoItem {
+  return TIPOS_ITEM.find((t) => t.key === key)?.tipo ?? "tarefa";
 }
 
-type Regra = { perfis: string[]; usuarios: string[] };
+function labelDe(key: string): string {
+  return TIPOS_ITEM.find((t) => t.key === key)?.label ?? key;
+}
+
+type Regra = { perfis: string[]; usuarios: string[]; ativa: boolean };
 
 export function PermissoesSituacaoDialog({
   open,
@@ -51,7 +62,7 @@ export function PermissoesSituacaoDialog({
   coordenacaoNome,
 }: Props) {
   const queryClient = useQueryClient();
-  const [tipoSelecionado, setTipoSelecionado] = useState<string>(TIPOS_TAREFA[0]);
+  const [tipoSelecionado, setTipoSelecionado] = useState<string>(TIPOS_ITEM[0].key);
   // chave: `${tipo}|${situacao}`
   const [regras, setRegras] = useState<Record<string, Regra>>({});
 
@@ -91,7 +102,7 @@ export function PermissoesSituacaoDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("permissoes_situacao_tipo_tarefa")
-        .select("tipo_tarefa, situacao, perfis, usuarios")
+        .select("tipo_tarefa, situacao, perfis, usuarios, ativa")
         .eq("coordenacao_id", coordenacaoId);
       if (error) throw error;
       return data || [];
@@ -105,6 +116,7 @@ export function PermissoesSituacaoDialog({
       next[`${c.tipo_tarefa}|${c.situacao}`] = {
         perfis: (c.perfis || []) as string[],
         usuarios: (c.usuarios || []) as string[],
+        ativa: c.ativa !== false,
       };
     });
     setRegras(next);
@@ -122,8 +134,25 @@ export function PermissoesSituacaoDialog({
     const key = `${tipoSelecionado}|${situacao}`;
     setRegras((prev) => {
       const next = { ...prev };
-      if (restrito) next[key] = prev[key] || { perfis: [], usuarios: [] };
+      const atual = prev[key];
+      if (restrito) next[key] = { perfis: [], usuarios: [], ativa: true, ...(atual || {}) };
+      else if (atual && atual.ativa === false)
+        next[key] = { perfis: [], usuarios: [], ativa: false };
       else delete next[key];
+      return next;
+    });
+  };
+
+  const toggleAtiva = (situacao: string, ativa: boolean) => {
+    const key = `${tipoSelecionado}|${situacao}`;
+    setRegras((prev) => {
+      const next = { ...prev };
+      const atual = prev[key];
+      if (ativa && atual && atual.perfis.length === 0 && atual.usuarios.length === 0 && !restritoManual(atual)) {
+        delete next[key];
+        return next;
+      }
+      next[key] = { perfis: atual?.perfis || [], usuarios: atual?.usuarios || [], ativa };
       return next;
     });
   };
@@ -131,7 +160,7 @@ export function PermissoesSituacaoDialog({
   const toggleItem = (situacao: string, campo: keyof Regra, valor: string) => {
     const key = `${tipoSelecionado}|${situacao}`;
     setRegras((prev) => {
-      const atual = prev[key] || { perfis: [], usuarios: [] };
+      const atual = prev[key] || { perfis: [], usuarios: [], ativa: true };
       const lista = atual[campo];
       const nova = lista.includes(valor)
         ? lista.filter((v) => v !== valor)
@@ -153,6 +182,7 @@ export function PermissoesSituacaoDialog({
           situacao,
           perfis: r.perfis,
           usuarios: r.usuarios,
+          ativa: r.ativa,
           created_by: uid,
         };
       });
@@ -207,7 +237,7 @@ export function PermissoesSituacaoDialog({
           <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-4">
             <ScrollArea className="h-[460px] border rounded-md">
               <div className="p-2 space-y-1">
-                {TIPOS_TAREFA.map((tipo) => {
+                {TIPOS_ITEM.map(({ key: tipo, label }) => {
                   const ativo = tipo === tipoSelecionado;
                   const qtd = qtdPorTipo(tipo);
                   return (
@@ -219,7 +249,7 @@ export function PermissoesSituacaoDialog({
                         ativo ? "bg-primary text-primary-foreground" : "hover:bg-muted"
                       }`}
                     >
-                      <span className="truncate">{TIPOS_TAREFA_LABELS[tipo] || tipo}</span>
+                      <span className="truncate">{label}</span>
                       {qtd > 0 && <Badge variant={ativo ? "secondary" : "outline"}>{qtd}</Badge>}
                     </button>
                   );
@@ -230,25 +260,36 @@ export function PermissoesSituacaoDialog({
             <ScrollArea className="h-[460px] border rounded-md min-w-0">
               <div className="p-3 pr-4 space-y-3">
                 <p className="text-sm font-medium">
-                  {TIPOS_TAREFA_LABELS[tipoSelecionado] || tipoSelecionado}
+                  {labelDe(tipoSelecionado)}
                 </p>
                 {situacoes.map((s) => {
                   const regra = getRegra(s.value);
-                  const restrito = !!regra;
+                  const ativa = regra ? regra.ativa : true;
+                  const restrito = !!regra && restritoManual(regra);
                   return (
                     <div key={s.value} className="border rounded-md p-3 space-y-2">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm">{s.label}</span>
-                        <label className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
-                          <Checkbox
-                            checked={restrito}
-                            onCheckedChange={(v) => toggleRestricao(s.value, !!v)}
-                          />
-                          Restringir
-                        </label>
+                        <div className="flex items-center gap-4 shrink-0">
+                          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Switch
+                              checked={ativa}
+                              onCheckedChange={(v) => toggleAtiva(s.value, !!v)}
+                            />
+                            {ativa ? "Ativa" : "Inativa"}
+                          </label>
+                          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Checkbox
+                              checked={restrito}
+                              disabled={!ativa}
+                              onCheckedChange={(v) => toggleRestricao(s.value, !!v)}
+                            />
+                            Restringir
+                          </label>
+                        </div>
                       </div>
 
-                      {restrito && (
+                      {ativa && restrito && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div className="space-y-1">
                             <p className="text-xs font-medium text-muted-foreground">Perfis</p>
