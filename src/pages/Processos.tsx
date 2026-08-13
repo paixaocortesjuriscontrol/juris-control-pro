@@ -20,6 +20,7 @@ import { TransferirProcessosDialog } from "@/components/processos/TransferirProc
 import { ProcessoFormDialog } from "@/components/processos/ProcessoFormDialog";
 import { FiltrosAvancadosProcessos, FiltrosAvancados, defaultFiltrosAvancados } from "@/components/processos/FiltrosAvancadosProcessos";
 import { ProcessoExpandableRow } from "@/components/processos/ProcessoExpandableRow";
+import { ProcessoItensLateral } from "@/components/processos/ProcessoItensLateral";
 import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
 import { useEtiquetasDeItens } from "@/hooks/useEtiquetas";
 import { cn } from "@/lib/utils";
