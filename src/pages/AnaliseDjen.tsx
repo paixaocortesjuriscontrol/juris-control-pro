@@ -4475,6 +4475,19 @@ const AnaliseDjen = () => {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setEtiquetarLoteOpen(true)}
+            disabled={selectedIds.size === 0}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 text-teal-700 hover:text-teal-800 hover:bg-teal-50 border-teal-300"
+            title="Aplica (ou remove) etiquetas em todas as publicações selecionadas"
+          >
+            <Tag className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            <span className="hidden sm:inline">Etiquetar selecionadas</span>
+            <span className="sm:hidden">Etiquetar</span>
+            <span className="ml-1">({selectedIds.size})</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleDescartarSelecionadas}
             disabled={selectedIds.size === 0 || descartandoSelecionadas || descartarManualmente.isPending}
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
