@@ -3,7 +3,7 @@ import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
-import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
+import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -906,10 +906,20 @@ export function PrazoDialog({
                 const p = resolverPadroes(m);
                 if (p.observacoes) setObservacoes((prev) => prev || p.observacoes);
                 if (travarDatas) return;
-                if (p.prazo_dias) setPrazoDias(Number(p.prazo_dias));
-                if (p.prazo_unidade) setPrazoUnidade(p.prazo_unidade as Unidade);
-                if (p.data_limite) {
-                  setDataLimite((prev) => prev ?? new Date(`${p.data_limite}T12:00:00`));
+                // Prazo pré-programado no modelo: aplica sempre a partir da data base
+                // (data da publicação vinculada; senão hoje), inclusive em edição.
+                const dias = p.prazo_dias ? Number(p.prazo_dias) : 0;
+                const unidade = (p.prazo_unidade as Unidade) || prazoUnidade;
+                if (dias > 0) {
+                  setPrazoDias(dias);
+                  setPrazoUnidade(unidade);
+                  const calc = computeDataLimite(dataBase, dias, unidade);
+                  if (calc) {
+                    setDataLimite(calc);
+                    setDataLimiteEditadaManualmente(true);
+                  }
+                } else if (p.data_limite) {
+                  setDataLimite(new Date(`${p.data_limite}T12:00:00`));
                   setDataLimiteEditadaManualmente(true);
                 }
                 if (p.data_fatal) setDataFatal((prev) => prev ?? new Date(`${p.data_fatal}T12:00:00`));
