@@ -402,6 +402,7 @@ serve(async (req) => {
   let slot: number | null = null;
   let invocadoPor: string | null = null;
   let disparo = "automatico";
+  let background = false;
   try {
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     forcedProcessoId = body?.processo_id ?? null;
@@ -417,6 +418,7 @@ serve(async (req) => {
     }
     invocadoPor = body?.invocado_por ?? null;
     if (body?.manual || body?.disparo === "manual" || invocadoPor) disparo = "manual";
+    background = body?.background === true;
   } catch (_) {
     /* ignore */
   }
@@ -927,9 +929,13 @@ serve(async (req) => {
       headers,
     });
 
+  // Execução em background só quando pedida explicitamente: no runtime das Edge
+  // Functions o trabalho em background é encerrado cedo, então por padrão
+  // processamos de forma síncrona (lotes curtos, ~30s) e o chamador (cron com
+  // timeout de 60s) aguarda o fim.
   // deno-lint-ignore no-explicit-any
   const rt = (globalThis as any).EdgeRuntime;
-  if (rt?.waitUntil) {
+  if (background && rt?.waitUntil) {
     rt.waitUntil(
       job.catch(async (e: any) => {
         console.error("[acomp-especial] job falhou:", e?.message ?? e);
