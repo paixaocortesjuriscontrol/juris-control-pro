@@ -884,12 +884,13 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   <Label className="text-xs text-muted-foreground">Frequência</Label>
                   <Select
                     value={recorrenciaTipo}
+                    disabled={travarDatas}
                     onValueChange={(value) => {
                       setRecorrenciaTipo(value);
                       setRecorrenciaIntervalo(1);
                     }}
                   >
-                    <SelectTrigger className="mt-1">
+                    <SelectTrigger className="mt-1" title={travarDatas ? motivoBloqueio : undefined}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -912,6 +913,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                       min={1}
                       placeholder="Ex.: 9"
                       value={recorrenciaOcorrencias}
+                      disabled={travarDatas}
+                      title={travarDatas ? motivoBloqueio : undefined}
                       onChange={(e) => {
                         const v = e.target.value;
                         setRecorrenciaOcorrencias(v);
