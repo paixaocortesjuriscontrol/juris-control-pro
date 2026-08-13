@@ -318,7 +318,79 @@ export default function Monitoramento() {
     }
   };
 
-  return (
+  const gruposDiv = useMemo<GrupoDivergencia[]>(() => {
+    const map = new Map<string, GrupoDivergencia>();
+    for (const d of divergencias ?? []) {
+      const g = map.get(d.processo_id) ?? {
+        processoId: d.processo_id,
+        numero: d.processo?.numero || "Processo sem número",
+        parte: [d.processo?.polo_ativo, d.processo?.polo_passivo].filter(Boolean).join(" × "),
+        coordenacaoId: d.processo?.coordenacao_id ?? null,
+        divergencias: [],
+        pendentes: 0,
+        ultima: null,
+      };
+      g.divergencias.push(d);
+      if (!d.resolvido_em) g.pendentes += 1;
+      if (d.detectado_em && (!g.ultima || d.detectado_em > g.ultima)) g.ultima = d.detectado_em;
+      map.set(d.processo_id, g);
+    }
+
+    const termo = buscaDiv.trim().toLowerCase();
+    const somenteDigitos = termo.replace(/\D/g, "");
+
+    return Array.from(map.values())
+      .filter((g) => {
+        if (somentePendentes && g.pendentes === 0) return false;
+        if (coordenacaoIdDiv !== "todas" && g.coordenacaoId !== coordenacaoIdDiv) return false;
+        if (!termo) return true;
+        const numeroDigitos = g.numero.replace(/\D/g, "");
+        return (
+          g.numero.toLowerCase().includes(termo) ||
+          g.parte.toLowerCase().includes(termo) ||
+          (somenteDigitos.length >= 4 && numeroDigitos.includes(somenteDigitos))
+        );
+      })
+      .sort((a, b) => {
+        if (a.pendentes !== b.pendentes) return b.pendentes - a.pendentes;
+        return (b.ultima ?? "").localeCompare(a.ultima ?? "");
+      });
+  }, [divergencias, buscaDiv, somentePendentes, coordenacaoIdDiv]);
+
+  const grupoDivAtivo = useMemo(
+    () => gruposDiv.find((g) => g.processoId === selecionadoDiv) ?? null,
+    [gruposDiv, selecionadoDiv]
+  );
+
+  const totalPendentes = gruposDiv.reduce((acc, g) => acc + g.pendentes, 0);
+
+  const marcarCiente = async (grupo: GrupoDivergencia) => {
+    const ids = grupo.divergencias.filter((d) => !d.resolvido_em).map((d) => d.id);
+    if (ids.length === 0) return;
+    setResolvendo(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      for (let i = 0; i < ids.length; i += 200) {
+        const { error } = await supabase
+          .from("acompanhamento_especial_divergencias")
+          .update({ resolvido_em: new Date().toISOString(), resolvido_por: userData.user?.id ?? null })
+          .in("id", ids.slice(i, i + 200));
+        if (error) throw error;
+      }
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["monitoramento-divergencias"] }),
+        qc.invalidateQueries({ queryKey: ["monitoramento-counts"] }),
+        qc.invalidateQueries({ queryKey: ["acomp-especial-novidades"] }),
+        qc.invalidateQueries({ queryKey: ["acomp-especial-divergencias"] }),
+      ]);
+      toast.success(`${ids.length} divergência(s) marcada(s) como ciente`);
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível marcar como ciente");
+    } finally {
+      setResolvendo(false);
+    }
+  };
+
     <div className="flex flex-col h-full">
       <header className="px-4 md:px-6 py-4 border-b border-border bg-card">
         <div className="flex items-center justify-between gap-3 flex-wrap">
