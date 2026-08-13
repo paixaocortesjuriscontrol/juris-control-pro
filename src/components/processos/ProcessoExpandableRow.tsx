@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Scale, ArrowRightLeft, FileText, Activity, ChevronDown, ChevronUp, Gavel, AlertCircle, ClipboardList, ExternalLink, MoreVertical, Users, BadgeCheck } from "lucide-react";
+import { Scale, ArrowRightLeft, FileText, Activity, ChevronDown, ChevronUp, Gavel, AlertCircle, ClipboardList, ExternalLink, MoreVertical, Users, BadgeCheck, PanelRightOpen } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +45,9 @@ interface ProcessoExpandableRowProps {
   onNavigate: (id: string) => void;
   /** Etiquetas já carregadas em lote para esta linha. */
   etiquetaIds?: string[];
+  /** Abre o painel lateral com resumo + itens (audiências, prazos, tarefas, eventos). */
+  onOpenLateral?: (id: string) => void;
+  lateralAberto?: boolean;
 }
 
 export function ProcessoExpandableRow({
@@ -55,6 +58,8 @@ export function ProcessoExpandableRow({
   onToggleSelection,
   onNavigate,
   etiquetaIds,
+  onOpenLateral,
+  lateralAberto,
 }: ProcessoExpandableRowProps) {
   const [expandedSection, setExpandedSection] = useState<"djen" | "andamentos" | "audiencias" | "intimacoes" | "tarefas" | null>(null);
 
