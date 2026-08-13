@@ -44,7 +44,7 @@ import {
 import { useEscopoAcompanhamentoEspecial } from "@/hooks/useEscopoAcompanhamentoEspecial";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useMonitoramentoCounts } from "@/hooks/useMonitoramentoCounts";
-import { AcompanhamentoEspecialDivergencias } from "@/components/djen/AcompanhamentoEspecialDivergencias";
+
 
 type Evento = {
   id: string;
