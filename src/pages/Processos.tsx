@@ -116,6 +116,7 @@ const Processos = () => {
   const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>("all");
   const [selectedProcessos, setSelectedProcessos] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [lateralProcessoId, setLateralProcessoId] = useState<string | null>(null);
   const [showAtribuirDialog, setShowAtribuirDialog] = useState(false);
   const [showTransferirDialog, setShowTransferirDialog] = useState(false);
   const [showFormDialog, setShowFormDialog] = useState(false);
