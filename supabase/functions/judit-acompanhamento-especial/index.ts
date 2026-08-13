@@ -367,6 +367,9 @@ async function destinatariosDoProcesso(supabase: any, processoId: string) {
  *  - slot 18 → processa freq >= 2
  * (freq máximo permitido = 3)
  *
+ * Novidade = step ainda não registrado em `acompanhamento_especial_eventos`
+ * (dedup pelo unique processo_id + step_id), independente da data — assim
+ * andamentos retroativos também são avisados.
  * Para cada novo step encontrado grava em `acompanhamento_especial_eventos`,
  * cria notificação no sino e envia email + WhatsApp aos responsáveis ativos.
  */
