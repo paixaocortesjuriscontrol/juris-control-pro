@@ -733,7 +733,9 @@ export function PrazoDialog({
                 if (resultado.titulo) setTitulo(resultado.titulo);
                 if (resultado.observacoes) setObservacoes(resultado.observacoes);
                 const dias = (resultado as any).dias_prazo as number | undefined;
-                if (dias && dias > 0) {
+                if (travarDatas) {
+                  // usuário sem autorização não pode alterar prazos/datas
+                } else if (dias && dias > 0) {
                   setPrazoDias(dias);
                   setPrazoUnidade("uteis");
                   setDataLimiteEditadaManualmente(false);
