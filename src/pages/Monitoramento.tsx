@@ -138,6 +138,7 @@ const LABEL_CAMPO: Record<string, string> = {
   segredo_justica: "Segredo de justiça",
 };
 
+const POR_PAGINA = 100;
 
 export default function Monitoramento() {
   const qc = useQueryClient();
