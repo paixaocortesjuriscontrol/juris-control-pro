@@ -715,12 +715,15 @@ serve(async (req) => {
               .in("id", userIds);
 
             const linhasTxt = novosResumo
-              .map((n) => `• ${new Date(n.data).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} — ${n.conteudo}`)
+              .map(
+                (n) =>
+                  `• ${new Date(n.data).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}${n.retroativo ? " (retroativo)" : ""} — ${n.conteudo}`
+              )
               .join("\n");
             const linhasHtml = novosResumo
               .map(
                 (n) =>
-                  `<li><strong>${new Date(n.data).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</strong> — ${n.conteudo.replace(/</g, "&lt;")}</li>`
+                  `<li><strong>${new Date(n.data).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</strong>${n.retroativo ? ' <em style="color:#b45309">(retroativo)</em>' : ""} — ${n.conteudo.replace(/</g, "&lt;")}</li>`
               )
               .join("");
 
