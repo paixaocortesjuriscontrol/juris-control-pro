@@ -228,7 +228,7 @@ const corsHeaders = {
 // enxerga movimentação nova e o usuário nunca é avisado.
 const JUDIT_REQUESTS_URL = "https://requests.prod.judit.io/requests";
 const JUDIT_RESPONSES_URL = "https://requests.prod.judit.io/responses";
-const CRAWLER_POLL_TIMEOUT_MS = 45_000;
+const CRAWLER_POLL_TIMEOUT_MS = 25_000;
 const CRAWLER_POLL_INTERVAL_MS = 3_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -398,12 +398,16 @@ serve(async (req) => {
 
   // slot BRT (10 | 14 | 18) + processo_id forçado (uso manual via UI / debug)
   let forcedProcessoId: string | null = null;
+  let forcedProcessoIds: string[] | null = null;
   let slot: number | null = null;
   let invocadoPor: string | null = null;
   let disparo = "automatico";
   try {
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     forcedProcessoId = body?.processo_id ?? null;
+    forcedProcessoIds = Array.isArray(body?.processo_ids) && body.processo_ids.length > 0
+      ? body.processo_ids.map((x: any) => String(x))
+      : null;
     slot = typeof body?.slot === "number" ? body.slot : null;
     invocadoPor = body?.invocado_por ?? null;
     if (body?.manual || body?.disparo === "manual" || invocadoPor) disparo = "manual";
@@ -445,6 +449,12 @@ serve(async (req) => {
   const minFreqBySlot: Record<number, number> = { 10: 1, 14: 3, 18: 2 };
   const minFreqRequired = slot && minFreqBySlot[slot] ? minFreqBySlot[slot] : 1;
 
+  // ── Trabalho pesado roda em BACKGROUND ───────────────────────────────────
+  // Motivo: quem invoca (cron via pg_net, UI ou curl) fecha a conexão antes do
+  // fim; quando isso acontece o runtime encerra a invocação no meio e a
+  // execução ficava presa em "executando". Com waitUntil respondemos na hora e
+  // o processamento continua até o fim.
+  const job = (async () => {
   // ── Selecionar processos ──
   let query = supabase
     .from("processos")
@@ -453,6 +463,7 @@ serve(async (req) => {
     )
     .eq("acompanhamento_especial", true);
   if (forcedProcessoId) query = query.eq("id", forcedProcessoId);
+  if (forcedProcessoIds) query = query.in("id", forcedProcessoIds);
 
   const { data: processos, error: procErr } = await query;
   if (procErr) {
@@ -467,10 +478,7 @@ serve(async (req) => {
         })
         .eq("id", execId);
     }
-    return new Response(JSON.stringify({ error: procErr.message }), {
-      status: 500,
-      headers,
-    });
+    return;
   }
 
   const resultados: any[] = [];
@@ -478,11 +486,12 @@ serve(async (req) => {
   const nowBrt = new Date(Date.now() - 3 * 60 * 60 * 1000);
   const dataBrtStr = nowBrt.toISOString().slice(0, 10);
 
-  for (const p of processos ?? []) {
-    try {
+  // Processa 1 processo — usado pelo pool de concorrência abaixo.
+  async function processarProcesso(p: any): Promise<any> {
+    {
       const freq = Math.max(1, Math.min(3, p.acompanhamento_freq_diaria ?? 1));
 
-      const automatico = disparo !== "manual" && !forcedProcessoId;
+      const automatico = disparo !== "manual" && !forcedProcessoId && !forcedProcessoIds;
 
       // Última checagem em BRT
       let ultDia: string | null = null;
@@ -501,25 +510,22 @@ serve(async (req) => {
       // Exceção (retomada): se o processo ainda NÃO foi checado com sucesso hoje,
       // permite rodar num slot posterior para não ficar o dia inteiro sem checagem.
       if (automatico && slot && freq < minFreqRequired && jaChecadoHoje) {
-        resultados.push({ processo_id: p.id, skipped: "slot-fora-da-freq" });
-        continue;
+        return { processo_id: p.id, skipped: "slot-fora-da-freq" };
       }
 
       // Evita rodar duas vezes no mesmo slot no mesmo dia BRT
       if (automatico && slot && jaChecadoHoje && ultHora === slot) {
-        resultados.push({ processo_id: p.id, skipped: "ja-rodou-neste-slot" });
-        continue;
+        return { processo_id: p.id, skipped: "ja-rodou-neste-slot" };
       }
 
       const cnj = (p.numero || "").trim();
       if (!cnj) {
-        resultados.push({ processo_id: p.id, skipped: "sem-cnj" });
-        continue;
+        return { processo_id: p.id, skipped: "sem-cnj" };
       }
 
       // ── Chamar Judit ──
       const ctl = new AbortController();
-      const to = setTimeout(() => ctl.abort(), 30_000);
+      const to = setTimeout(() => ctl.abort(), 20_000);
       let payload: any = null;
       let erro: string | null = null;
       let statusHttp = 0;
@@ -544,7 +550,7 @@ serve(async (req) => {
       // Fallback: cache sem dados úteis (ou 404) → dispara crawler
       let origemDado = "cache";
       if (!payload || !temDadosUteis(payload.response_data || payload)) {
-        const viaCrawler = await juditCrawler(juditApiKey, cnj, comAnexosProc);
+        const viaCrawler = await juditCrawler(juditApiKey!, cnj, comAnexosProc);
         if (viaCrawler) {
           payload = viaCrawler;
           erro = null;
@@ -616,8 +622,7 @@ serve(async (req) => {
           .from("processos")
           .update({ acompanhamento_ultima_checagem_em: new Date().toISOString() })
           .eq("id", p.id);
-        resultados.push({ processo_id: p.id, erro });
-        continue;
+        return { processo_id: p.id, erro };
       }
 
       const rd = payload.response_data || payload;
@@ -784,9 +789,50 @@ serve(async (req) => {
         })
         .eq("id", p.id);
 
-      resultados.push({ processo_id: p.id, numero: cnj, novos, total_steps: steps.length, sync });
-    } catch (e: any) {
-      resultados.push({ processo_id: p.id, erro: e?.message ?? String(e) });
+      return { processo_id: p.id, numero: cnj, novos, total_steps: steps.length, sync };
+    }
+  }
+
+  // ── Pool de concorrência + orçamento de tempo ────────────────────────────
+  // Edge Functions têm limite de tempo de execução: 28 processos em série
+  // (até 20s de cache + 25s de crawler cada) estouravam o limite e a execução
+  // ficava presa em "executando". Agora rodam em paralelo (5 por vez) e, se o
+  // orçamento acabar, o restante é retomado numa nova invocação encadeada.
+  const CONCORRENCIA = 5;
+  const BUDGET_MS = 100_000;
+  const fila = [...(processos ?? [])];
+  const adiados: string[] = [];
+
+  async function worker() {
+    while (fila.length > 0) {
+      const p = fila.shift();
+      if (!p) break;
+      if (Date.now() - iniciadoEm.getTime() > BUDGET_MS) {
+        adiados.push(p.id);
+        resultados.push({ processo_id: p.id, skipped: "adiado-tempo" });
+        continue;
+      }
+      try {
+        const r = await processarProcesso(p);
+        if (r) resultados.push(r);
+      } catch (e: any) {
+        resultados.push({ processo_id: p.id, erro: e?.message ?? String(e) });
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(CONCORRENCIA, Math.max(1, fila.length)) }, () => worker())
+  );
+
+  // Retoma os adiados numa próxima invocação (fire-and-forget)
+  if (adiados.length > 0) {
+    try {
+      await supabase.functions.invoke("judit-acompanhamento-especial", {
+        body: { slot, processo_ids: adiados, disparo, continuacao: true },
+      });
+    } catch (e) {
+      console.warn("[acomp-especial] falha ao encadear continuação:", (e as Error).message);
     }
   }
 
@@ -842,9 +888,35 @@ serve(async (req) => {
       })
       .eq("id", execId);
   }
+  })();
 
-  return new Response(
-    JSON.stringify({ ok: true, slot, processados: resultados.length, resultados }),
-    { headers }
-  );
+  const resposta = () =>
+    new Response(JSON.stringify({ ok: true, slot, execucao_id: execId, background: true }), {
+      headers,
+    });
+
+  // deno-lint-ignore no-explicit-any
+  const rt = (globalThis as any).EdgeRuntime;
+  if (rt?.waitUntil) {
+    rt.waitUntil(
+      job.catch(async (e: any) => {
+        console.error("[acomp-especial] job falhou:", e?.message ?? e);
+        if (execId) {
+          await supabase
+            .from("execucoes_acompanhamento_especial")
+            .update({
+              status: "erro",
+              finalizado_em: new Date().toISOString(),
+              duracao_ms: Date.now() - iniciadoEm.getTime(),
+              erro: String(e?.message ?? e),
+            })
+            .eq("id", execId);
+        }
+      })
+    );
+    return resposta();
+  }
+
+  await job;
+  return resposta();
 });
