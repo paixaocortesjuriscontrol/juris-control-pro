@@ -200,6 +200,17 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     },
     enabled: isUserAdmin || membrosCoordenacoes.length > 0,
   });
+  const { data: clientesLista = [] } = useQuery({
+    queryKey: ["clientes-select-processo"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("id, nome")
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+  });
   // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Contador ao vivo (segundos decorridos) durante a busca Judit — mesma
