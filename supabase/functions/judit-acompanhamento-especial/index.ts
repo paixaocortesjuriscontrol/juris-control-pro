@@ -561,11 +561,26 @@ serve(async (req) => {
         }
       }
 
+      // Resumo compacto do payload: gravar o JSON completo (~73KB por processo,
+      // duas vezes) estourava o limite de CPU da Edge Function.
+      const rdResumo = payload?.response_data || payload || null;
+      const resumoPayload = rdResumo
+        ? {
+            tribunal: rdResumo.tribunal_acronym || rdResumo.tribunal || rdResumo.court || null,
+            instancia: rdResumo.instance || rdResumo.instancia || null,
+            steps: Array.isArray(rdResumo.steps) ? rdResumo.steps.length : 0,
+            ultimo_step: Array.isArray(rdResumo.steps)
+              ? rdResumo.steps[0]?.step_date ?? null
+              : null,
+            origem_dado: origemDado,
+          }
+        : null;
+
       await supabase.from("consultas_judit").insert({
         processo_id: p.id,
         requisitada_em: new Date().toISOString(),
         status_http: statusHttp,
-        payload_resposta: payload,
+        payload_resposta: resumoPayload,
         erro,
       });
 
