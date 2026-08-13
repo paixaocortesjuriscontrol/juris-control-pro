@@ -51,12 +51,14 @@ export const ItemAbas = forwardRef<ItemAnexosHandle, ItemAbasProps>(
 
         {mostrarAnexos && (
           <TabsContent value="anexos" className="mt-3" forceMount>
-            <ItemAnexos
-              ref={anexosRef}
-              tipo={tipoComentario as ItemAnexosTipo}
-              itemId={itemId}
-              processoId={processoId}
-            />
+            <TabErrorBoundary area="os anexos">
+              <ItemAnexos
+                ref={anexosRef}
+                tipo={tipoComentario as ItemAnexosTipo}
+                itemId={itemId}
+                processoId={processoId}
+              />
+            </TabErrorBoundary>
           </TabsContent>
         )}
 
