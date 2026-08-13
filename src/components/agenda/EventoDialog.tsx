@@ -628,7 +628,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                     );
                     if (prazoCalculado) {
                       if (!travarDatas) setDataInicio((prev) => (p.data_inicio ? prev : prazoCalculado));
-                      setDataFim((prev) => (p.data_fim ? prev : prazoCalculado));
+                      if (!travarDatas) setDataFim((prev) => (p.data_fim ? prev : prazoCalculado));
                     }
                   }}
                 />
