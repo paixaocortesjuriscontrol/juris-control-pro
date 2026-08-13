@@ -27,7 +27,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -138,6 +137,7 @@ const LABEL_CAMPO: Record<string, string> = {
   segredo_justica: "Segredo de justiça",
 };
 
+const POR_PAGINA = 100;
 
 export default function Monitoramento() {
   const qc = useQueryClient();
@@ -153,6 +153,7 @@ export default function Monitoramento() {
   const [somenteNaoLidas, setSomenteNaoLidas] = useState(false);
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [marcando, setMarcando] = useState(false);
+  const [pagina, setPagina] = useState(1);
 
   const [buscaDiv, setBuscaDiv] = useState("");
   const [periodoDiv, setPeriodoDiv] = useState("30");
@@ -162,6 +163,7 @@ export default function Monitoramento() {
   const [somentePendentes, setSomentePendentes] = useState(true);
   const [selecionadoDiv, setSelecionadoDiv] = useState<string | null>(null);
   const [resolvendo, setResolvendo] = useState(false);
+  const [paginaDiv, setPaginaDiv] = useState(1);
 
 
   useEffect(() => {
@@ -312,6 +314,16 @@ export default function Monitoramento() {
 
   const totalNaoLidos = grupos.reduce((acc, g) => acc + g.naoLidos, 0);
 
+  const totalPaginas = Math.max(1, Math.ceil(grupos.length / POR_PAGINA));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const gruposPagina = useMemo(
+    () => grupos.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA),
+    [grupos, paginaAtual]
+  );
+  useEffect(() => {
+    setPagina(1);
+  }, [busca, periodo, dataInicial, dataFinal, coordenacaoId, somenteNaoLidas]);
+
   const marcarLidas = async (grupo: Grupo) => {
     const ids = grupo.eventos.filter((e) => !e.lido_em).map((e) => e.id);
     if (ids.length === 0) return;
@@ -381,6 +393,16 @@ export default function Monitoramento() {
 
   const totalPendentes = gruposDiv.reduce((acc, g) => acc + g.pendentes, 0);
 
+  const totalPaginasDiv = Math.max(1, Math.ceil(gruposDiv.length / POR_PAGINA));
+  const paginaAtualDiv = Math.min(paginaDiv, totalPaginasDiv);
+  const gruposDivPagina = useMemo(
+    () => gruposDiv.slice((paginaAtualDiv - 1) * POR_PAGINA, paginaAtualDiv * POR_PAGINA),
+    [gruposDiv, paginaAtualDiv]
+  );
+  useEffect(() => {
+    setPaginaDiv(1);
+  }, [buscaDiv, periodoDiv, dataInicialDiv, dataFinalDiv, coordenacaoIdDiv, somentePendentes]);
+
   const marcarCiente = async (grupo: GrupoDivergencia) => {
     const ids = grupo.divergencias.filter((d) => !d.resolvido_em).map((d) => d.id);
     if (ids.length === 0) return;
@@ -428,8 +450,8 @@ export default function Monitoramento() {
         </Button>
       )}
     >
-    <div className="flex flex-col min-h-[600px] lg:h-[calc(100vh-7rem)] overflow-hidden border border-border rounded-lg bg-background">
-      <Tabs defaultValue="movimentacoes" className="flex-1 flex flex-col min-h-0">
+    <div className="flex flex-col border border-border rounded-lg bg-background">
+      <Tabs defaultValue="movimentacoes" className="flex flex-col">
         <div className="px-4 md:px-6 pt-3 border-b border-border bg-card">
           <TabsList>
             <TabsTrigger value="movimentacoes" className="gap-2">
@@ -453,7 +475,7 @@ export default function Monitoramento() {
           </TabsList>
         </div>
 
-        <TabsContent value="movimentacoes" className="flex-1 min-h-0 m-0 flex flex-col">
+        <TabsContent value="movimentacoes" className="m-0 flex flex-col">
           {/* Filtros */}
           <div className="px-4 md:px-6 py-3 border-b border-border bg-card flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[220px]">
@@ -536,14 +558,14 @@ export default function Monitoramento() {
           </div>
 
           {/* Lista + painel lateral */}
-          <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
+          <div className="flex flex-col lg:flex-row lg:items-start">
             <div
               className={cn(
-                "min-h-0 border-b lg:border-b-0 lg:border-r border-border transition-all duration-300",
+                "border-b lg:border-b-0 lg:border-r border-border",
                 grupoAtivo ? "lg:w-[38%]" : "w-full"
               )}
             >
-              <ScrollArea className="h-[40vh] lg:h-full">
+              <div>
                 <div className="p-3 md:p-4 space-y-2">
                   {isLoading || escopoLoading ? (
                     [...Array(6)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
@@ -553,7 +575,7 @@ export default function Monitoramento() {
                       Nenhuma movimentação encontrada com os filtros atuais.
                     </div>
                   ) : (
-                    grupos.map((g) => (
+                    gruposPagina.map((g) => (
                       <button
                         key={g.processoId}
                         onClick={() =>
@@ -588,11 +610,36 @@ export default function Monitoramento() {
                     ))
                   )}
                 </div>
-              </ScrollArea>
+                {totalPaginas > 1 && (
+                  <div className="flex items-center justify-between gap-2 px-3 md:px-4 py-3 border-t border-border">
+                    <span className="text-xs text-muted-foreground">
+                      Página {paginaAtual} de {totalPaginas} · {grupos.length} processo(s)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={paginaAtual <= 1}
+                        onClick={() => setPagina((p) => Math.max(1, p - 1))}
+                      >
+                        Anterior
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={paginaAtual >= totalPaginas}
+                        onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+                      >
+                        Próxima
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {grupoAtivo && (
-              <div className="flex-1 min-h-0 flex flex-col bg-background animate-fade-in">
+              <div className="flex-1 flex flex-col bg-background animate-fade-in lg:sticky lg:top-4">
                 <div className="px-4 py-3 border-b border-border flex items-start gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="font-mono text-sm truncate">{grupoAtivo.numero}</p>
@@ -625,7 +672,7 @@ export default function Monitoramento() {
                   </Button>
                 </div>
 
-                <ScrollArea className="flex-1">
+                <div className="lg:max-h-[70vh] lg:overflow-y-auto">
                   <div className="p-4 space-y-3">
                     {grupoAtivo.eventos.map((ev) => (
                       <Card
@@ -667,13 +714,13 @@ export default function Monitoramento() {
                       </Card>
                     ))}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
             )}
           </div>
         </TabsContent>
 
-        <TabsContent value="divergencias" className="flex-1 min-h-0 m-0 flex flex-col">
+        <TabsContent value="divergencias" className="m-0 flex flex-col">
           {/* Filtros */}
           <div className="px-4 md:px-6 py-3 border-b border-border bg-card flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[220px]">
@@ -756,14 +803,14 @@ export default function Monitoramento() {
           </div>
 
           {/* Lista + painel lateral */}
-          <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
+          <div className="flex flex-col lg:flex-row lg:items-start">
             <div
               className={cn(
-                "min-h-0 border-b lg:border-b-0 lg:border-r border-border transition-all duration-300",
+                "border-b lg:border-b-0 lg:border-r border-border",
                 grupoDivAtivo ? "lg:w-[38%]" : "w-full"
               )}
             >
-              <ScrollArea className="h-[40vh] lg:h-full">
+              <div>
                 <div className="p-3 md:p-4 space-y-2">
                   {isLoadingDiv || escopoLoading ? (
                     [...Array(6)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
@@ -773,7 +820,7 @@ export default function Monitoramento() {
                       Nenhuma divergência encontrada com os filtros atuais.
                     </div>
                   ) : (
-                    gruposDiv.map((g) => (
+                    gruposDivPagina.map((g) => (
                       <button
                         key={g.processoId}
                         onClick={() =>
@@ -808,11 +855,36 @@ export default function Monitoramento() {
                     ))
                   )}
                 </div>
-              </ScrollArea>
+                {totalPaginasDiv > 1 && (
+                  <div className="flex items-center justify-between gap-2 px-3 md:px-4 py-3 border-t border-border">
+                    <span className="text-xs text-muted-foreground">
+                      Página {paginaAtualDiv} de {totalPaginasDiv} · {gruposDiv.length} processo(s)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={paginaAtualDiv <= 1}
+                        onClick={() => setPaginaDiv((p) => Math.max(1, p - 1))}
+                      >
+                        Anterior
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={paginaAtualDiv >= totalPaginasDiv}
+                        onClick={() => setPaginaDiv((p) => Math.min(totalPaginasDiv, p + 1))}
+                      >
+                        Próxima
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {grupoDivAtivo && (
-              <div className="flex-1 min-h-0 flex flex-col bg-background animate-fade-in">
+              <div className="flex-1 flex flex-col bg-background animate-fade-in lg:sticky lg:top-4">
                 <div className="px-4 py-3 border-b border-border flex items-start gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="font-mono text-sm truncate">{grupoDivAtivo.numero}</p>
@@ -841,7 +913,7 @@ export default function Monitoramento() {
                   </Button>
                 </div>
 
-                <ScrollArea className="flex-1">
+                <div className="lg:max-h-[70vh] lg:overflow-y-auto">
                   <div className="p-4 space-y-3">
                     <div className="rounded-md border overflow-x-auto">
                       <Table>
@@ -897,7 +969,7 @@ export default function Monitoramento() {
                       </Table>
                     </div>
                   </div>
-                </ScrollArea>
+                </div>
               </div>
             )}
           </div>
