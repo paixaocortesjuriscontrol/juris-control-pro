@@ -409,6 +409,12 @@ serve(async (req) => {
       ? body.processo_ids.map((x: any) => String(x))
       : null;
     slot = typeof body?.slot === "number" ? body.slot : null;
+    // slot: "auto" (ou ausente) => deriva do horário BRT atual, permitindo que
+    // um cron de repescagem rode a cada poucos minutos e vá avançando a fila.
+    if (slot === null) {
+      const horaBrt = new Date(Date.now() - 3 * 60 * 60 * 1000).getUTCHours();
+      slot = horaBrt >= 18 ? 18 : horaBrt >= 14 ? 14 : 10;
+    }
     invocadoPor = body?.invocado_por ?? null;
     if (body?.manual || body?.disparo === "manual" || invocadoPor) disparo = "manual";
   } catch (_) {
@@ -422,10 +428,10 @@ serve(async (req) => {
       .update({
         status: "erro",
         finalizado_em: new Date().toISOString(),
-        erro: "Execução travada (>30min em executando) — encerrada automaticamente",
+        erro: "Execução interrompida (>5min em executando) — encerrada automaticamente",
       })
       .eq("status", "executando")
-      .lt("iniciado_em", new Date(Date.now() - 30 * 60 * 1000).toISOString());
+      .lt("iniciado_em", new Date(Date.now() - 5 * 60 * 1000).toISOString());
   } catch (e) {
     console.warn("[acomp-especial] falha ao liberar execuções travadas:", (e as Error).message);
   }
@@ -816,11 +822,14 @@ serve(async (req) => {
   const CONCORRENCIA = 4;
   // Orçamento curto: o runtime encerra a invocação por volta de 90s, então cada
   // invocação processa um lote e encadeia o restante numa nova invocação.
-  const BUDGET_MS = 40_000;
+  const BUDGET_MS = 20_000;
   // Limite de processos EFETIVAMENTE consultados por invocação: o runtime das
   // Edge Functions corta por "CPU Time exceeded" ao parsear muitos payloads
   // grandes da Judit. O restante é encadeado em novas invocações.
   const MAX_CONSULTAS_POR_INVOCACAO = 4;
+  // Sem auto-invocação: o cron de repescagem (a cada 3 min, 10h–19h BRT)
+  // retoma os processos restantes, o que é muito mais confiável do que
+  // encadear invocações que o runtime pode encerrar no meio.
   let consultados = 0;
   const fila = [...(processos ?? [])];
   const adiados: string[] = [];
@@ -853,15 +862,10 @@ serve(async (req) => {
     Array.from({ length: Math.min(CONCORRENCIA, Math.max(1, fila.length)) }, () => worker())
   );
 
-  // Retoma os adiados numa próxima invocação (fire-and-forget)
   if (adiados.length > 0) {
-    try {
-      await supabase.functions.invoke("judit-acompanhamento-especial", {
-        body: { slot, processo_ids: adiados, disparo, continuacao: true },
-      });
-    } catch (e) {
-      console.warn("[acomp-especial] falha ao encadear continuação:", (e as Error).message);
-    }
+    console.log(
+      `[acomp-especial] ${adiados.length} processo(s) adiados — serão retomados pelo cron de repescagem`
+    );
   }
 
   // ── Divergências (Judit × formulário): SEM aviso ──────────────────────────
