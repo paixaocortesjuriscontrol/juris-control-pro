@@ -3302,15 +3302,18 @@ const AnaliseDjen = () => {
       return;
     }
 
-    // Agrupamento por chave de duplicidade (coordenacao + id_djen; fallback dedup_key/dedup_conteudo_key).
+    // Agrupamento por chave de duplicidade.
+    // A chave de CONTEÚDO vem primeiro: a mesma publicação costuma chegar com
+    // id_djen diferente em capturas distintas, então priorizar id_djen fazia com
+    // que duplicadas reais nunca fossem agrupadas ("nenhuma duplicada encontrada").
     const keyOf = (p: PublicacaoUnificada): string => {
       const coord = p.coordenacao_id ?? 'sem_coord';
-      const idDjen = String(p.id_djen ?? '').trim();
-      if (idDjen) return `${coord}|id_djen|${idDjen}`;
-      const dk = String(p.dedup_key ?? '').trim();
-      if (dk) return `${coord}|dedup_key|${dk}`;
       const dck = String(p.dedup_conteudo_key ?? '').trim();
       if (dck) return `${coord}|dedup_conteudo_key|${dck}`;
+      const dk = String(p.dedup_key ?? '').trim();
+      if (dk) return `${coord}|dedup_key|${dk}`;
+      const idDjen = String(p.id_djen ?? '').trim();
+      if (idDjen) return `${coord}|id_djen|${idDjen}`;
       return `${coord}|unica|${p.id}`;
     };
 
@@ -3339,7 +3342,7 @@ const AnaliseDjen = () => {
     if (paraDescartar.length === 0) {
       toast.error(
         `Nenhuma duplicada encontrada entre as ${selecionadas.length} selecionada(s). ` +
-        `Selecione publicações com mesma coordenação e mesmo id_djen (ou dedup_key).`
+        `Duplicadas = mesma coordenação, mesmo processo, mesmo dia e mesmo conteúdo.`
       );
       return;
     }
