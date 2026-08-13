@@ -88,6 +88,13 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
 
   const invalidar = async () => {
     await queryClient.invalidateQueries({ queryKey: subatividadesQueryKey(tipo, itemId), refetchType: "all" });
+    // O calendário do Painel de Controle e a agenda unificada leem as atividades
+    // por queries próprias — precisam ser atualizadas junto.
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["painel-subatividades-calendario"], refetchType: "all" }),
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite"], refetchType: "all" }),
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"], refetchType: "all" }),
+    ]);
   };
 
   const criar = useMutation({
