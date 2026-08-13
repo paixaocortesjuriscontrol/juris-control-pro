@@ -367,6 +367,9 @@ async function destinatariosDoProcesso(supabase: any, processoId: string) {
  *  - slot 18 → processa freq >= 2
  * (freq máximo permitido = 3)
  *
+ * Novidade = step ainda não registrado em `acompanhamento_especial_eventos`
+ * (dedup pelo unique processo_id + step_id), independente da data — assim
+ * andamentos retroativos também são avisados.
  * Para cada novo step encontrado grava em `acompanhamento_especial_eventos`,
  * cria notificação no sino e envia email + WhatsApp aos responsáveis ativos.
  */
@@ -406,6 +409,21 @@ serve(async (req) => {
     if (body?.manual || body?.disparo === "manual" || invocadoPor) disparo = "manual";
   } catch (_) {
     /* ignore */
+  }
+
+  // ── Libera execuções travadas (> 30 min em "executando") ──
+  try {
+    await supabase
+      .from("execucoes_acompanhamento_especial")
+      .update({
+        status: "erro",
+        finalizado_em: new Date().toISOString(),
+        erro: "Execução travada (>30min em executando) — encerrada automaticamente",
+      })
+      .eq("status", "executando")
+      .lt("iniciado_em", new Date(Date.now() - 30 * 60 * 1000).toISOString());
+  } catch (e) {
+    console.warn("[acomp-especial] falha ao liberar execuções travadas:", (e as Error).message);
   }
 
   // ── Registra início da execução ──
@@ -464,25 +482,33 @@ serve(async (req) => {
     try {
       const freq = Math.max(1, Math.min(3, p.acompanhamento_freq_diaria ?? 1));
 
-      // Filtra por slot: só roda se a freq do processo alcança este slot
-      // (execuções manuais via UI ignoram esse guard)
-      if (disparo !== "manual" && !forcedProcessoId && slot && freq < minFreqRequired) {
+      const automatico = disparo !== "manual" && !forcedProcessoId;
+
+      // Última checagem em BRT
+      let ultDia: string | null = null;
+      let ultHora: number | null = null;
+      if (p.acompanhamento_ultima_checagem_em) {
+        const ult = new Date(
+          new Date(p.acompanhamento_ultima_checagem_em).getTime() - 3 * 60 * 60 * 1000
+        );
+        ultDia = ult.toISOString().slice(0, 10);
+        ultHora = ult.getUTCHours(); // já ajustado para BRT
+      }
+      const jaChecadoHoje = ultDia === dataBrtStr;
+
+      // Respeita exatamente a frequência configurada:
+      //  freq 1 → só slot 10 | freq 2 → slots 10 e 18 | freq 3 → slots 10, 14 e 18
+      // Exceção (retomada): se o processo ainda NÃO foi checado com sucesso hoje,
+      // permite rodar num slot posterior para não ficar o dia inteiro sem checagem.
+      if (automatico && slot && freq < minFreqRequired && jaChecadoHoje) {
         resultados.push({ processo_id: p.id, skipped: "slot-fora-da-freq" });
         continue;
       }
 
       // Evita rodar duas vezes no mesmo slot no mesmo dia BRT
-      // (execuções manuais via UI ignoram esse guard — a intenção é justamente forçar)
-      if (disparo !== "manual" && !forcedProcessoId && p.acompanhamento_ultima_checagem_em) {
-        const ult = new Date(
-          new Date(p.acompanhamento_ultima_checagem_em).getTime() - 3 * 60 * 60 * 1000
-        );
-        const ultDia = ult.toISOString().slice(0, 10);
-        const ultHora = ult.getUTCHours(); // já ajustado para BRT
-        if (slot && ultDia === dataBrtStr && ultHora === slot) {
-          resultados.push({ processo_id: p.id, skipped: "ja-rodou-neste-slot" });
-          continue;
-        }
+      if (automatico && slot && jaChecadoHoje && ultHora === slot) {
+        resultados.push({ processo_id: p.id, skipped: "ja-rodou-neste-slot" });
+        continue;
       }
 
       const cnj = (p.numero || "").trim();
@@ -613,7 +639,7 @@ serve(async (req) => {
         : 0;
       let maiorStepDate = ultimoConhecido;
       let novos = 0;
-      const novosResumo: { data: string; conteudo: string }[] = [];
+      const novosResumo: { data: string; conteudo: string; retroativo: boolean }[] = [];
 
       for (const step of steps) {
         const dataStr = step.step_date || step.date || step.movement_date;
@@ -621,10 +647,9 @@ serve(async (req) => {
         const dt = new Date(dataStr).getTime();
         if (!Number.isFinite(dt)) continue;
         if (dt > maiorStepDate) maiorStepDate = dt;
-        if (ultimoConhecido && dt <= ultimoConhecido) continue;
-        // primeira execução: pula tudo (apenas marca baseline)
-        if (!ultimoConhecido) continue;
 
+        // Novidade é definida pela IDENTIDADE do step (step_id), não pela data:
+        // tribunais publicam andamentos retroativos que ficariam invisíveis.
         const stepId =
           step.step_id || step.id || `${dataStr}-${(step.content || step.title || "").slice(0, 40)}`;
         const conteudo =
@@ -654,17 +679,26 @@ serve(async (req) => {
           continue;
         }
 
+        // Primeira execução do processo: grava baseline em silêncio (sem avisos)
+        if (!ultimoConhecido) continue;
+
         novos++;
         const conteudoStr = typeof conteudo === "string" ? conteudo : JSON.stringify(conteudo);
-        novosResumo.push({ data: dataStr, conteudo: conteudoStr.slice(0, 500) });
+        const retroativo = dt <= ultimoConhecido;
+        novosResumo.push({ data: dataStr, conteudo: conteudoStr.slice(0, 500), retroativo });
 
         // Notificar responsáveis do processo + coordenadores da coordenação
         await notificarUsuarios(supabase, await destinatariosDoProcesso(supabase, p.id), {
-          titulo: `Novidade em ${cnj}`,
+          titulo: `Novidade${retroativo ? " (retroativa)" : ""} em ${cnj}`,
           mensagem: conteudoStr.slice(0, 280),
           tipo: "acompanhamento_especial",
           link: `/processos/${p.id}`,
-          dados: { processo_id: p.id, evento_id: evento?.id ?? null, step_date: dataStr },
+          dados: {
+            processo_id: p.id,
+            evento_id: evento?.id ?? null,
+            step_date: dataStr,
+            retroativo,
+          },
         });
 
         await supabase
@@ -684,12 +718,15 @@ serve(async (req) => {
               .in("id", userIds);
 
             const linhasTxt = novosResumo
-              .map((n) => `• ${new Date(n.data).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} — ${n.conteudo}`)
+              .map(
+                (n) =>
+                  `• ${new Date(n.data).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}${n.retroativo ? " (retroativo)" : ""} — ${n.conteudo}`
+              )
               .join("\n");
             const linhasHtml = novosResumo
               .map(
                 (n) =>
-                  `<li><strong>${new Date(n.data).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</strong> — ${n.conteudo.replace(/</g, "&lt;")}</li>`
+                  `<li><strong>${new Date(n.data).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</strong>${n.retroativo ? ' <em style="color:#b45309">(retroativo)</em>' : ""} — ${n.conteudo.replace(/</g, "&lt;")}</li>`
               )
               .join("");
 
