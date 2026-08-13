@@ -1513,19 +1513,9 @@ export function NovaTarefaDialog({
           >
             Cancelar
           </Button>
-          {podeCancelar && tarefaParaEditar?.id && tarefaParaEditar.status !== "cancelado" && (
-            <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={loading} className="w-full sm:w-auto">
-              Cancelar tarefa
-            </Button>
-          )}
           {tarefaParaEditar?.id && tarefaParaEditar.status !== "pendente" && (
             <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={loading} className="w-full sm:w-auto">
               Reabrir
-            </Button>
-          )}
-          {tarefaParaEditar?.id && tarefaParaEditar.status !== "cumprido" && (
-            <Button type="button" variant="outline" onClick={() => handleAlterarStatus("cumprido")} disabled={loading} className="w-full sm:w-auto">
-              Concluir
             </Button>
           )}
           <Button 
