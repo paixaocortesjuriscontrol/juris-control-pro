@@ -117,6 +117,14 @@ export default function Monitoramento() {
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [marcando, setMarcando] = useState(false);
 
+  const [buscaDiv, setBuscaDiv] = useState("");
+  const [periodoDiv, setPeriodoDiv] = useState("30");
+  const [coordenacaoIdDiv, setCoordenacaoIdDiv] = useState("todas");
+  const [somentePendentes, setSomentePendentes] = useState(true);
+  const [selecionadoDiv, setSelecionadoDiv] = useState<string | null>(null);
+  const [resolvendo, setResolvendo] = useState(false);
+
+
   useEffect(() => {
     document.title = "Monitoramento de Processos | Juris Control";
   }, []);
