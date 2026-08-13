@@ -391,7 +391,9 @@ export default function Monitoramento() {
     }
   };
 
+  return (
     <div className="flex flex-col h-full">
+
       <header className="px-4 md:px-6 py-4 border-b border-border bg-card">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
