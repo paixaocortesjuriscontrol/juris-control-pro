@@ -1203,19 +1203,9 @@ export function PrazoDialog({
         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
           Cancelar
         </Button>
-        {podeCancelar && prazo?.id && (prazo.status as string) !== "cancelado" && (
-          <Button type="button" variant="destructive" onClick={() => handleAlterarStatus("cancelado")} disabled={isLoading}>
-            Cancelar prazo
-          </Button>
-        )}
         {prazo?.id && prazo.status !== "pendente" && (
           <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={isLoading}>
             Reabrir
-          </Button>
-        )}
-        {prazo?.id && prazo.status !== "cumprido" && (
-          <Button type="button" variant="outline" onClick={() => handleAlterarStatus("cumprido")} disabled={isLoading}>
-            Concluir
           </Button>
         )}
         <Button
