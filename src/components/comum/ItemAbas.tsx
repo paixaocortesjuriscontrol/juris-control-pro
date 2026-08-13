@@ -4,6 +4,7 @@ import { ItemAtividades, useSubatividades, type TipoItemAtividade } from "./Item
 import { ItemComentarios } from "./ItemComentarios";
 import { ItemAnexos, type ItemAnexosHandle, type ItemAnexosTipo } from "./ItemAnexos";
 import { ItemHistorico } from "./ItemHistorico";
+import { TabErrorBoundary } from "./TabErrorBoundary";
 
 interface ItemAbasProps {
   /** Tipo do item (usado em atividades e histórico) */
@@ -37,26 +38,34 @@ export const ItemAbas = forwardRef<ItemAnexosHandle, ItemAbasProps>(
         </TabsList>
 
         <TabsContent value="atividades" className="mt-3">
-          <ItemAtividades tipo={tipo} itemId={itemId} />
+          <TabErrorBoundary area="as atividades">
+            <ItemAtividades tipo={tipo} itemId={itemId} />
+          </TabErrorBoundary>
         </TabsContent>
 
         <TabsContent value="comentarios" className="mt-3">
-          <ItemComentarios tipo={tipoComentario} itemId={itemId} />
+          <TabErrorBoundary area="os comentários">
+            <ItemComentarios tipo={tipoComentario} itemId={itemId} />
+          </TabErrorBoundary>
         </TabsContent>
 
         {mostrarAnexos && (
           <TabsContent value="anexos" className="mt-3" forceMount>
-            <ItemAnexos
-              ref={anexosRef}
-              tipo={tipoComentario as ItemAnexosTipo}
-              itemId={itemId}
-              processoId={processoId}
-            />
+            <TabErrorBoundary area="os anexos">
+              <ItemAnexos
+                ref={anexosRef}
+                tipo={tipoComentario as ItemAnexosTipo}
+                itemId={itemId}
+                processoId={processoId}
+              />
+            </TabErrorBoundary>
           </TabsContent>
         )}
 
         <TabsContent value="historico" className="mt-3">
-          <ItemHistorico tipo={tipo} tipoComentario={tipoComentario} itemId={itemId} />
+          <TabErrorBoundary area="o histórico">
+            <ItemHistorico tipo={tipo} tipoComentario={tipoComentario} itemId={itemId} />
+          </TabErrorBoundary>
         </TabsContent>
       </Tabs>
     );

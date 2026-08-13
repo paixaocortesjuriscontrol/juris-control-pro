@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Trash2, ListChecks } from "lucide-react";
+import { Loader2, Plus, Trash2, ListChecks, AlertTriangle } from "lucide-react";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { toast } from "sonner";
@@ -35,6 +35,18 @@ export function labelSituacaoAtividade(valor?: string | null): string {
   return SITUACOES_ATIVIDADE.find((s) => s.value === (valor ?? "pendente"))?.label ?? (valor ?? "Pendente");
 }
 
+/** Formata data/hora com segurança (valores inválidos não podem quebrar a aba). */
+function fmtDataHora(valor?: string | null): string | null {
+  if (!valor) return null;
+  try {
+    const d = parseISO(valor);
+    if (isNaN(d.getTime())) return null;
+    return format(d, "dd/MM/yyyy HH:mm", { locale: ptBR });
+  } catch {
+    return null;
+  }
+}
+
 export interface Subatividade {
   id: string;
   tipo_item: string;
@@ -57,6 +69,7 @@ export function useSubatividades(tipo: TipoItemAtividade, itemId?: string | null
   return useQuery({
     queryKey: subatividadesQueryKey(tipo, itemId),
     enabled: !!itemId,
+    retry: 1,
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("subatividades_item")
@@ -79,7 +92,7 @@ interface Props {
 export function ItemAtividades({ tipo, itemId, className }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { data: atividades = [], isLoading } = useSubatividades(tipo, itemId);
+  const { data: atividades = [], isLoading, error, refetch } = useSubatividades(tipo, itemId);
 
   const [titulo, setTitulo] = useState("");
   const [responsavelIds, setResponsavelIds] = useState<string[]>([]);
@@ -171,7 +184,22 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
         As atividades são independentes: concluir o item (prazo, audiência, tarefa etc.) não conclui as atividades — cada
         uma deve ser marcada manualmente.
       </p>
-      {isLoading ? (
+      {error ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-xs space-y-1">
+          <p className="flex items-center gap-1.5 font-medium text-destructive">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            Não foi possível carregar as atividades.
+          </p>
+          <p className="text-muted-foreground break-words">{(error as any)?.message}</p>
+          <button
+            type="button"
+            className="underline text-muted-foreground hover:text-foreground"
+            onClick={() => refetch()}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      ) : isLoading ? (
         <div className="flex items-center justify-center py-6 text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
         </div>
@@ -261,9 +289,9 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
                   }}
                   className="text-xs ml-6 w-[calc(100%-1.5rem)]"
                 />
-                {concluida && a.concluida_em && (
+                {concluida && fmtDataHora(a.concluida_em) && (
                   <p className="pl-6 text-[11px] text-emerald-600 dark:text-emerald-400">
-                    Concluída em {format(parseISO(a.concluida_em), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                    Concluída em {fmtDataHora(a.concluida_em)}
                   </p>
                 )}
               </li>
