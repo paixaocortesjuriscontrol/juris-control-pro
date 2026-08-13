@@ -48,6 +48,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);
   const [statusInicial, setStatusInicial] = useState<string>("pendente");
   const [comentarioSituacao, setComentarioSituacao] = useState("");
+  /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
+  const modeloPadroesRef = useRef<Record<string, string> | null>(null);
   const [formData, setFormData] = useState({
     titulo: "",
     data_audiencia: "",
