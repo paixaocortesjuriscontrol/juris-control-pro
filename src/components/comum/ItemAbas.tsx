@@ -4,6 +4,7 @@ import { ItemAtividades, useSubatividades, type TipoItemAtividade } from "./Item
 import { ItemComentarios } from "./ItemComentarios";
 import { ItemAnexos, type ItemAnexosHandle, type ItemAnexosTipo } from "./ItemAnexos";
 import { ItemHistorico } from "./ItemHistorico";
+import { TabErrorBoundary } from "./TabErrorBoundary";
 
 interface ItemAbasProps {
   /** Tipo do item (usado em atividades e histórico) */
@@ -37,11 +38,15 @@ export const ItemAbas = forwardRef<ItemAnexosHandle, ItemAbasProps>(
         </TabsList>
 
         <TabsContent value="atividades" className="mt-3">
-          <ItemAtividades tipo={tipo} itemId={itemId} />
+          <TabErrorBoundary area="as atividades">
+            <ItemAtividades tipo={tipo} itemId={itemId} />
+          </TabErrorBoundary>
         </TabsContent>
 
         <TabsContent value="comentarios" className="mt-3">
-          <ItemComentarios tipo={tipoComentario} itemId={itemId} />
+          <TabErrorBoundary area="os comentários">
+            <ItemComentarios tipo={tipoComentario} itemId={itemId} />
+          </TabErrorBoundary>
         </TabsContent>
 
         {mostrarAnexos && (
@@ -56,7 +61,9 @@ export const ItemAbas = forwardRef<ItemAnexosHandle, ItemAbasProps>(
         )}
 
         <TabsContent value="historico" className="mt-3">
-          <ItemHistorico tipo={tipo} tipoComentario={tipoComentario} itemId={itemId} />
+          <TabErrorBoundary area="o histórico">
+            <ItemHistorico tipo={tipo} tipoComentario={tipoComentario} itemId={itemId} />
+          </TabErrorBoundary>
         </TabsContent>
       </Tabs>
     );
