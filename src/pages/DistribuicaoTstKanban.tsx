@@ -16,6 +16,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { loadResponsaveisMap, ProfileBasic } from "@/hooks/useDistribuicaoResponsaveis";
+import { COLUNAS_SELECT_PENDENCIAS, getPendencias } from "@/utils/distribuicaoTstPendencias";
 
 interface Card {
   id: string;
@@ -28,6 +29,9 @@ interface Card {
   aba_origem: string | null;
   fontes_importacao?: string[] | null;
   responsaveis: ProfileBasic[];
+  /** Linha completa (colunas de pendências) para calcular "Pronto sem pendência". */
+  raw?: any;
+  semPendencia?: boolean;
 }
 
 function getDias(prazo: string | null): number | null {
@@ -35,15 +39,19 @@ function getDias(prazo: string | null): number | null {
   return differenceInCalendarDays(new Date(prazo + "T12:00:00"), new Date());
 }
 
-type ColKey = "delegada" | "em_andamento" | "finalizada";
+type ColKey = "delegada" | "em_andamento" | "finalizada" | "pronto_sem_pendencia";
+
+const isPronto = (c: Card) => c.status_distribuicao === "finalizada" || c.status_distribuicao === "pronto";
 
 const columns: { key: ColKey; label: string; color: string; bg: string; match: (c: Card) => boolean }[] = [
   { key: "delegada", label: "Delegada", color: "text-blue-600", bg: "bg-blue-500/10 border-blue-500/30",
-    match: (c) => (c.status_distribuicao || "delegada") === "delegada" },
-  { key: "em_andamento", label: "Em andamento", color: "text-amber-600", bg: "bg-amber-500/10 border-amber-500/30",
-    match: (c) => c.status_distribuicao === "em_andamento" },
-  { key: "finalizada", label: "Finalizada", color: "text-emerald-600", bg: "bg-emerald-500/10 border-emerald-500/30",
-    match: (c) => c.status_distribuicao === "finalizada" },
+    match: (c) => !c.status_distribuicao || c.status_distribuicao === "delegada" },
+  { key: "em_andamento", label: "Em análise", color: "text-amber-600", bg: "bg-amber-500/10 border-amber-500/30",
+    match: (c) => c.status_distribuicao === "em_andamento" || c.status_distribuicao === "em_analise" },
+  { key: "finalizada", label: "Pronto", color: "text-teal-600", bg: "bg-teal-500/10 border-teal-500/30",
+    match: (c) => isPronto(c) && !c.semPendencia },
+  { key: "pronto_sem_pendencia", label: "Pronto sem pendência", color: "text-emerald-600", bg: "bg-emerald-500/10 border-emerald-500/30",
+    match: (c) => isPronto(c) && !!c.semPendencia },
 ];
 
 export default function DistribuicaoTstKanban() {
