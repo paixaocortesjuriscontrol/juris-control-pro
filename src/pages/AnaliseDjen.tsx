@@ -3416,7 +3416,11 @@ const AnaliseDjen = () => {
     // Reinjeta as publicações tratadas nesta sessão (que o filtro "não lidas"
     // removeria do resultado do servidor logo após salvar um item).
     const tratadas = Object.values(pubsTratadasSessao) as any[];
-    if (tratadas.length > 0) {
+    if (tratadas.length > 0 && apenasNaoLidas) {
+      // Com o filtro "Não lidas" ativo, a publicação lida nesta sessão sai da lista.
+      const lidasIds = new Set(tratadas.filter((p) => p?.lida).map((p) => p.id));
+      if (lidasIds.size > 0) result = result.filter((p: any) => !lidasIds.has(p.id));
+    } else if (tratadas.length > 0) {
       const presentes = new Set(result.map((p: any) => p.id));
       const faltantes = tratadas.filter((p) => p && !presentes.has(p.id));
       if (faltantes.length > 0) result = [...faltantes, ...result];
@@ -3456,7 +3460,7 @@ const AnaliseDjen = () => {
       result = dedupePublicacoesDjen(result);
     }
     return result;
-  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas, tipoOrigem, execucaoFocada, pubsTratadasSessao]);
+  }, [mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, ocultarDuplicadas, tipoOrigem, execucaoFocada, pubsTratadasSessao, apenasNaoLidas]);
 
   // Quantas publicações foram ocultadas pela deduplicação (para o badge).
   const totalDuplicadasOcultas = useMemo(() => {
