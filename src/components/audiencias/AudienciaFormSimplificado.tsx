@@ -153,6 +153,8 @@ export function AudienciaFormSimplificado({
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
+  /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
+  const modeloPadroesRef = useRef<Record<string, string> | null>(null);
   const [coordenacaoId, setCoordenacaoId] = useState<string>(
     audienciaParaEditar?.coordenacao_id ?? ""
   );
