@@ -457,6 +457,7 @@ serve(async (req) => {
     )
     .eq("acompanhamento_especial", true);
   if (forcedProcessoId) query = query.eq("id", forcedProcessoId);
+  if (forcedProcessoIds) query = query.in("id", forcedProcessoIds);
 
   const { data: processos, error: procErr } = await query;
   if (procErr) {
