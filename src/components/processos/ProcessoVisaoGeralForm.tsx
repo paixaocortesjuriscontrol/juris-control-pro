@@ -91,6 +91,8 @@ const FIELDS = [
   "orgao_julgador", "vara", "comarca", "uf", "materia",
   // Partes
   "polo_ativo", "polo_passivo", "terceiro_envolvido", "reclamante", "reclamados", "pedidos",
+  // Cliente
+  "cliente_id", "nome_cliente_envolvido",
   // Importação Beatriz Costa
   "empresa_terceirizada", "processos_relacionados", "segredo_justica",
   // Datas
