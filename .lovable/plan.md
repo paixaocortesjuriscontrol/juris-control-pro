@@ -1,27 +1,18 @@
-# Menu do processo: "Partes" visível e menu completo
+# Menu do processo: voltar a exibir "Monitoramento" (Análise Judit + Partes)
 
 ## Por que não aparece
-O item **Partes** continua no código (confirmado em `src/components/processos/ProcessoDetalhesCompletos.tsx`, array `navGroups`) — ele está no grupo **Monitoramento**, junto de "Análise Judit". Esse grupo, mais "Distribuições" e "Interação", ficam depois de "Pedidos & Financeiro".
+O grupo **Monitoramento** com "Análise Judit" e "Partes" continua no código (`src/components/processos/ProcessoDetalhesCompletos.tsx`, array `navGroups`) — nada foi removido e não há filtro de permissão.
 
-Nos dois prints o menu termina em "Cobrança": o menu lateral do processo é um `ScrollArea` com `max-h-[calc(100vh-112px)]` e `sticky top-0` dentro de outra área que já rola. Com isso a lista fica cortada na altura da tela e o restante (Monitoramento → Partes, Distribuições, Interação) não é alcançável na prática — não é permissão nem remoção do item.
+O problema é visual: o menu lateral do processo é um `ScrollArea` com `max-h-[calc(100vh-112px)]` e `sticky top-0` dentro de uma área que já rola. A lista fica cortada na altura da tela (termina em "Cobrança"), e os grupos seguintes — **Monitoramento** (Análise Judit, Partes), **Distribuições** e **Interação** — não são alcançáveis.
 
 ## O que fazer
-
-1. **Seção própria "Partes" no topo**: criar um grupo `Partes` logo abaixo de "Visão Geral", contendo o item `partes` (mantendo o mesmo id, ícone e a tela `ProcessoPartesTab` com Polo Ativo/Passivo/Terceiros e Testemunhas). O grupo "Monitoramento" fica só com "Análise Judit".
-
-2. **Corrigir o corte do menu**: garantir que o menu lateral role por completo, com altura definida e rolagem própria, mantendo todos os grupos acessíveis (incluindo Monitoramento, Distribuições e Interação).
-
-```text
-VISÃO GERAL          PARTES              PRAZOS & EVENTOS
-  Visão Geral          Partes              Tarefa ...
-  Auditoria
-```
+Nada muda de posição: o menu fica exatamente como era, com Análise Judit e Partes no grupo Monitoramento. Apenas corrigir a rolagem do menu lateral para que a lista completa volte a ser acessível até o último grupo.
 
 ## Detalhes técnicos
-- Arquivo: `src/components/processos/ProcessoDetalhesCompletos.tsx`.
-- `navGroups`: remover `{ id: "partes", ... }` de "Monitoramento" e criar o grupo `{ label: "Partes", items: [{ id: "partes", label: "Partes", icon: Users }] }` após o grupo "Visão geral".
-- Sidebar desktop (linha ~1027): trocar `max-h-[calc(100vh-112px)]` por altura fixa `h-[calc(100vh-112px)]` no `ScrollArea` (com `sticky top-0`) para o viewport do Radix ter altura e a barra de rolagem funcionar; conferir que o `aside` não impede a rolagem (`overflow-hidden`/`self-start`).
-- Sem alterações de dados, permissões ou banco.
+- Arquivo: `src/components/processos/ProcessoDetalhesCompletos.tsx` (sidebar desktop, ~linha 1027).
+- Trocar `max-h-[calc(100vh-112px)]` por altura fixa `h-[calc(100vh-112px)]` no `ScrollArea`, para o viewport do Radix ter altura própria e a barra de rolagem funcionar.
+- Ajustar o `aside` (`self-start` / evitar `overflow-hidden`) se ele estiver limitando a rolagem.
+- `navGroups` permanece intacto; sem mudanças de dados, permissões ou banco.
 
 ## Verificação
-Abrir um processo no desktop: "Partes" aparece no topo, logo após Visão Geral, e o menu rola até o último grupo ("Interação"). No mobile, o menu horizontal continua exibindo todos os grupos.
+Abrir um processo no desktop e rolar o menu lateral: os grupos **Monitoramento** (Análise Judit, Partes), **Distribuições** e **Interação** aparecem e os itens abrem normalmente. No mobile o menu horizontal continua igual.
