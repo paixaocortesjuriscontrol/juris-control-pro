@@ -20,6 +20,7 @@ import { TransferirProcessosDialog } from "@/components/processos/TransferirProc
 import { ProcessoFormDialog } from "@/components/processos/ProcessoFormDialog";
 import { FiltrosAvancadosProcessos, FiltrosAvancados, defaultFiltrosAvancados } from "@/components/processos/FiltrosAvancadosProcessos";
 import { ProcessoExpandableRow } from "@/components/processos/ProcessoExpandableRow";
+import { ProcessoItensLateral } from "@/components/processos/ProcessoItensLateral";
 import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
 import { useEtiquetasDeItens } from "@/hooks/useEtiquetas";
 import { cn } from "@/lib/utils";
@@ -115,6 +116,7 @@ const Processos = () => {
   const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>("all");
   const [selectedProcessos, setSelectedProcessos] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [lateralProcessoId, setLateralProcessoId] = useState<string | null>(null);
   const [showAtribuirDialog, setShowAtribuirDialog] = useState(false);
   const [showTransferirDialog, setShowTransferirDialog] = useState(false);
   const [showFormDialog, setShowFormDialog] = useState(false);
@@ -1101,7 +1103,8 @@ const Processos = () => {
           </div>
         </div>
       ) : processos.length > 0 ? (
-        <>
+        <div className={cn("flex gap-4", lateralProcessoId && "flex-col lg:flex-row")}>
+          <div className="flex-1 min-w-0">
           {/* Header Row */}
           <div className="bg-card rounded-t-xl border border-border/50 overflow-hidden">
             <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-muted/30 border-b border-border/50 text-xs text-muted-foreground">
@@ -1128,6 +1131,10 @@ const Processos = () => {
                     onToggleSelection={toggleProcessoSelection}
                     onNavigate={(id) => navigate(`/processos/${id}`)}
                     etiquetaIds={etiquetasPorProcesso?.get(processo.id) || []}
+                    lateralAberto={lateralProcessoId === processo.id}
+                    onOpenLateral={(id) =>
+                      setLateralProcessoId((prev) => (prev === id ? null : id))
+                    }
                   />
                 );
               })}
@@ -1185,7 +1192,22 @@ const Processos = () => {
               </Button>
             </div>
           </div>
-        </>
+          </div>
+
+          {lateralProcessoId && (
+            <aside className="w-full lg:w-[420px] xl:w-[460px] flex-none bg-card rounded-xl border border-border/50 overflow-hidden flex flex-col max-h-[calc(100vh-12rem)] lg:sticky lg:top-4">
+              <ProcessoItensLateral
+                key={lateralProcessoId}
+                processoId={lateralProcessoId}
+                processoNumero={
+                  processos.find((p: any) => p.id === lateralProcessoId)?.numero || ""
+                }
+                onClose={() => setLateralProcessoId(null)}
+                onNavigate={(id) => navigate(`/processos/${id}`)}
+              />
+            </aside>
+          )}
+        </div>
       ) : (
         <div className="text-center py-12 animate-fade-in">
           <Scale className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
