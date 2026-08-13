@@ -49,6 +49,8 @@ interface ClienteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   cliente?: any;
+  /** Chamado após salvar, com o cliente criado/atualizado. */
+  onSaved?: (cliente: { id: string; nome: string }) => void;
 }
 
 // Format CPF: 000.000.000-00
@@ -78,7 +80,7 @@ const formatPhone = (value: string): string => {
   return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
 };
 
-export function ClienteDialog({ open, onOpenChange, cliente }: ClienteDialogProps) {
+export function ClienteDialog({ open, onOpenChange, cliente, onSaved }: ClienteDialogProps) {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -149,10 +151,12 @@ export function ClienteDialog({ open, onOpenChange, cliente }: ClienteDialogProp
       };
 
       if (isEditing && cliente) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("clientes")
           .update(clienteData)
-          .eq("id", cliente.id);
+          .eq("id", cliente.id)
+          .select("id, nome")
+          .single();
 
         if (error) throw error;
 
@@ -160,8 +164,13 @@ export function ClienteDialog({ open, onOpenChange, cliente }: ClienteDialogProp
           title: "Cliente atualizado",
           description: "O cliente foi atualizado com sucesso.",
         });
+        if (data) onSaved?.(data as any);
       } else {
-        const { error } = await supabase.from("clientes").insert(clienteData);
+        const { data, error } = await supabase
+          .from("clientes")
+          .insert(clienteData)
+          .select("id, nome")
+          .single();
 
         if (error) throw error;
 
@@ -169,9 +178,11 @@ export function ClienteDialog({ open, onOpenChange, cliente }: ClienteDialogProp
           title: "Cliente cadastrado",
           description: "O cliente foi cadastrado com sucesso.",
         });
+        if (data) onSaved?.(data as any);
       }
 
-      queryClient.invalidateQueries({ queryKey: ["clientes"] });
+      await queryClient.invalidateQueries({ queryKey: ["clientes"] });
+      await queryClient.invalidateQueries({ queryKey: ["clientes-select-processo"] });
       form.reset();
       onOpenChange(false);
     } catch (error: any) {

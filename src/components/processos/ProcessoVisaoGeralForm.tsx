@@ -41,6 +41,7 @@ import { extrairCamposDoJuditRaw, extrairStepsDoJuditRaw, extrairPartesDoJuditRa
 import { obterVariantesCnjBusca, mascararCnjDigitacao } from "@/utils/cnjMask";
 import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
+import { ClienteDialog } from "@/components/clientes/ClienteDialog";
 
 interface Props {
   processo: any;
@@ -211,6 +212,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       return data || [];
     },
   });
+  // Dialog de cadastro/edição rápida de cliente (usado na seção Partes)
+  const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
+  const [clienteEmEdicao, setClienteEmEdicao] = useState<any>(null);
   // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Contador ao vivo (segundos decorridos) durante a busca Judit — mesma
@@ -1507,20 +1511,55 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <SectionHeader icon={Users} title="Partes e Envolvidos" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <FormField label="Cliente (cadastro)">
-                    <Select
-                      value={form.cliente_id || "__none__"}
-                      onValueChange={(v) => update("cliente_id", v === "__none__" ? null : v)}
-                    >
-                      <SelectTrigger className={inputCls}>
-                        <SelectValue placeholder="Selecione o cliente" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Sem cliente vinculado</SelectItem>
-                        {clientesLista.map((c: any) => (
-                          <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={form.cliente_id || "__none__"}
+                        onValueChange={(v) => update("cliente_id", v === "__none__" ? null : v)}
+                      >
+                        <SelectTrigger className={cn(inputCls, "flex-1 min-w-0")}>
+                          <SelectValue placeholder="Selecione o cliente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sem cliente vinculado</SelectItem>
+                          {clientesLista.map((c: any) => (
+                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0"
+                        title="Cadastrar novo cliente"
+                        onClick={() => { setClienteEmEdicao(null); setClienteDialogOpen(true); }}
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Novo
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0"
+                        disabled={!form.cliente_id}
+                        title="Alterar o nome/dados do cliente selecionado"
+                        onClick={async () => {
+                          const { data, error } = await supabase
+                            .from("clientes")
+                            .select("*")
+                            .eq("id", form.cliente_id)
+                            .maybeSingle();
+                          if (error || !data) {
+                            toast.error("Não foi possível carregar o cliente.");
+                            return;
+                          }
+                          setClienteEmEdicao(data);
+                          setClienteDialogOpen(true);
+                        }}
+                      >
+                        Alterar nome
+                      </Button>
+                    </div>
                   </FormField>
                   <FormField label="Cliente / Envolvido (texto livre)">
                     <Input
@@ -1766,6 +1805,16 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           />
         </>
       )}
+      <ClienteDialog
+        open={clienteDialogOpen}
+        onOpenChange={(o) => { setClienteDialogOpen(o); if (!o) setClienteEmEdicao(null); }}
+        cliente={clienteEmEdicao}
+        onSaved={(c) => {
+          update("cliente_id", c.id);
+          queryClient.invalidateQueries({ queryKey: ["clientes-select-processo"] });
+          if (processo?.id) queryClient.invalidateQueries({ queryKey: ["processo", processo.id] });
+        }}
+      />
     </div>
   );
 });
