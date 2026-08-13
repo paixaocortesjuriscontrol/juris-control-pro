@@ -13,7 +13,6 @@ import { differenceInCalendarDays, format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { loadResponsaveisMap, ProfileBasic } from "@/hooks/useDistribuicaoResponsaveis";
 import { COLUNAS_SELECT_PENDENCIAS, getPendencias } from "@/utils/distribuicaoTstPendencias";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
