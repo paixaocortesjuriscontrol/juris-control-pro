@@ -44,6 +44,7 @@ import {
 import { useEscopoAcompanhamentoEspecial } from "@/hooks/useEscopoAcompanhamentoEspecial";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useMonitoramentoCounts } from "@/hooks/useMonitoramentoCounts";
+import { MainLayout } from "@/components/layout/MainLayout";
 
 
 type Evento = {
@@ -140,12 +141,14 @@ const LABEL_CAMPO: Record<string, string> = {
 
 export default function Monitoramento() {
   const qc = useQueryClient();
-  const { isAdmin, isAdminOrCoordinator } = useUserRole();
+  const { isAdminOrCoordinator } = useUserRole();
   const { processoIds, semRestricao, isLoading: escopoLoading } = useEscopoAcompanhamentoEspecial();
   const { movimentacoes: countMov, divergencias: countDiv } = useMonitoramentoCounts();
 
   const [busca, setBusca] = useState("");
   const [periodo, setPeriodo] = useState("30");
+  const [dataInicial, setDataInicial] = useState("");
+  const [dataFinal, setDataFinal] = useState("");
   const [coordenacaoId, setCoordenacaoId] = useState("todas");
   const [somenteNaoLidas, setSomenteNaoLidas] = useState(false);
   const [selecionado, setSelecionado] = useState<string | null>(null);
@@ -153,6 +156,8 @@ export default function Monitoramento() {
 
   const [buscaDiv, setBuscaDiv] = useState("");
   const [periodoDiv, setPeriodoDiv] = useState("30");
+  const [dataInicialDiv, setDataInicialDiv] = useState("");
+  const [dataFinalDiv, setDataFinalDiv] = useState("");
   const [coordenacaoIdDiv, setCoordenacaoIdDiv] = useState("todas");
   const [somentePendentes, setSomentePendentes] = useState(true);
   const [selecionadoDiv, setSelecionadoDiv] = useState<string | null>(null);
@@ -187,6 +192,8 @@ export default function Monitoramento() {
       "monitoramento-eventos",
       semRestricao ? "all" : processoIds.join(","),
       periodo,
+      dataInicial,
+      dataFinal,
     ],
     enabled: !escopoLoading,
     staleTime: 30_000,
@@ -202,10 +209,12 @@ export default function Monitoramento() {
         .order("step_date", { ascending: false })
         .limit(1000);
 
-      if (periodo !== "todos") {
+      if (!dataInicial && !dataFinal && periodo !== "todos") {
         const desde = new Date(Date.now() - Number(periodo) * 24 * 60 * 60 * 1000).toISOString();
         q = q.gte("criado_em", desde);
       }
+      if (dataInicial) q = q.gte("criado_em", `${dataInicial}T00:00:00-03:00`);
+      if (dataFinal) q = q.lte("criado_em", `${dataFinal}T23:59:59.999-03:00`);
       if (!semRestricao) q = q.in("processo_id", processoIds);
 
       const { data, error } = await q;
@@ -224,6 +233,8 @@ export default function Monitoramento() {
       "monitoramento-divergencias",
       semRestricao ? "all" : processoIds.join(","),
       periodoDiv,
+      dataInicialDiv,
+      dataFinalDiv,
     ],
     enabled: !escopoLoading,
     staleTime: 30_000,
@@ -239,10 +250,12 @@ export default function Monitoramento() {
         .order("detectado_em", { ascending: false })
         .limit(1000);
 
-      if (periodoDiv !== "todos") {
+      if (!dataInicialDiv && !dataFinalDiv && periodoDiv !== "todos") {
         const desde = new Date(Date.now() - Number(periodoDiv) * 24 * 60 * 60 * 1000).toISOString();
         q = q.gte("detectado_em", desde);
       }
+      if (dataInicialDiv) q = q.gte("detectado_em", `${dataInicialDiv}T00:00:00-03:00`);
+      if (dataFinalDiv) q = q.lte("detectado_em", `${dataFinalDiv}T23:59:59.999-03:00`);
       if (!semRestricao) q = q.in("processo_id", processoIds);
 
       const { data, error } = await q;
@@ -396,32 +409,26 @@ export default function Monitoramento() {
   };
 
   return (
-    <div className="flex flex-col h-full">
-
-      <header className="px-4 md:px-6 py-4 border-b border-border bg-card">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-              <Radar className="w-5 h-5 text-amber-500" />
-            </div>
-            <div>
-              <h1 className="text-xl font-serif font-bold">Monitoramento</h1>
-              <p className="text-xs text-muted-foreground">
-                Movimentações encontradas nos processos em acompanhamento e divergências Judit
-              </p>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}>
-            {isFetching ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4 mr-2" />
-            )}
-            Atualizar
-          </Button>
-        </div>
-      </header>
-
+    <MainLayout
+      title="Monitoramento"
+      subtitle="Movimentações encontradas nos processos em acompanhamento e divergências Judit"
+      headerActions={(
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => Promise.all([refetch(), refetchDiv()])}
+          disabled={isFetching || isFetchingDiv}
+        >
+          {isFetching || isFetchingDiv ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4 mr-2" />
+          )}
+          Atualizar
+        </Button>
+      )}
+    >
+    <div className="flex flex-col min-h-[600px] lg:h-[calc(100vh-7rem)] overflow-hidden border border-border rounded-lg bg-background">
       <Tabs defaultValue="movimentacoes" className="flex-1 flex flex-col min-h-0">
         <div className="px-4 md:px-6 pt-3 border-b border-border bg-card">
           <TabsList>
@@ -458,7 +465,7 @@ export default function Monitoramento() {
                 className="pl-8 h-9"
               />
             </div>
-            <Select value={periodo} onValueChange={setPeriodo}>
+             <Select value={periodo} onValueChange={setPeriodo}>
               <SelectTrigger className="h-9 w-[170px]">
                 <SelectValue />
               </SelectTrigger>
@@ -470,6 +477,32 @@ export default function Monitoramento() {
                 ))}
               </SelectContent>
             </Select>
+             <div className="flex items-center gap-1.5">
+               <Label htmlFor="mov-data-inicial" className="text-xs whitespace-nowrap">De</Label>
+               <Input
+                 id="mov-data-inicial"
+                 type="date"
+                 value={dataInicial}
+                 max={dataFinal || undefined}
+                 onChange={(e) => {
+                   setDataInicial(e.target.value);
+                   if (e.target.value) setPeriodo("todos");
+                 }}
+                 className="h-9 w-[145px]"
+               />
+               <Label htmlFor="mov-data-final" className="text-xs whitespace-nowrap">Até</Label>
+               <Input
+                 id="mov-data-final"
+                 type="date"
+                 value={dataFinal}
+                 min={dataInicial || undefined}
+                 onChange={(e) => {
+                   setDataFinal(e.target.value);
+                   if (e.target.value) setPeriodo("todos");
+                 }}
+                 className="h-9 w-[145px]"
+               />
+             </div>
             {isAdminOrCoordinator && (
               <Select value={coordenacaoId} onValueChange={setCoordenacaoId}>
                 <SelectTrigger className="h-9 w-[220px]">
@@ -664,6 +697,32 @@ export default function Monitoramento() {
                 ))}
               </SelectContent>
             </Select>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="div-data-inicial" className="text-xs whitespace-nowrap">De</Label>
+              <Input
+                id="div-data-inicial"
+                type="date"
+                value={dataInicialDiv}
+                max={dataFinalDiv || undefined}
+                onChange={(e) => {
+                  setDataInicialDiv(e.target.value);
+                  if (e.target.value) setPeriodoDiv("todos");
+                }}
+                className="h-9 w-[145px]"
+              />
+              <Label htmlFor="div-data-final" className="text-xs whitespace-nowrap">Até</Label>
+              <Input
+                id="div-data-final"
+                type="date"
+                value={dataFinalDiv}
+                min={dataInicialDiv || undefined}
+                onChange={(e) => {
+                  setDataFinalDiv(e.target.value);
+                  if (e.target.value) setPeriodoDiv("todos");
+                }}
+                className="h-9 w-[145px]"
+              />
+            </div>
             {isAdminOrCoordinator && (
               <Select value={coordenacaoIdDiv} onValueChange={setCoordenacaoIdDiv}>
                 <SelectTrigger className="h-9 w-[220px]">
@@ -846,5 +905,6 @@ export default function Monitoramento() {
 
       </Tabs>
     </div>
+    </MainLayout>
   );
 }
