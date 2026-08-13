@@ -296,6 +296,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                   const p = resolverPadroes(m);
                   for (const [k, v] of Object.entries(p)) {
                     if (k === "titulo") continue;
+                    if (datasBloqueadas && /(data|hora|prazo|dias)/i.test(k)) continue;
                     if (!String((formData as any)[k] ?? "").trim()) handleChange(k, String(v));
                   }
                 }}
