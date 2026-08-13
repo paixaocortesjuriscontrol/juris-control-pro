@@ -182,9 +182,6 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
             rightColor: "text-fuchsia-700 dark:text-fuchsia-400",
           });
         }
-        if (c.key === "bennerSim") {
-          // placeholder to keep ordering readable
-        }
         if (c.key === "dossiesValidos") {
           return renderCombined({
             keyId: "dossiesCombined",
