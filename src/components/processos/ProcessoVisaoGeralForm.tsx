@@ -41,6 +41,7 @@ import { extrairCamposDoJuditRaw, extrairStepsDoJuditRaw, extrairPartesDoJuditRa
 import { obterVariantesCnjBusca, mascararCnjDigitacao } from "@/utils/cnjMask";
 import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
+import { ClienteDialog } from "@/components/clientes/ClienteDialog";
 
 interface Props {
   processo: any;
