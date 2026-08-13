@@ -216,6 +216,30 @@ export async function ensureProcessoFromPublicacao(
 
   const coordFinal = coordenacaoIdOverride || pub.coordenacao_id || userCoordenacaoId || null;
 
+  const vincularExistente = async (proc: { id: string; numero?: string | null }) => {
+    if (coordenacaoIdOverride) {
+      await supabase
+        .from("processos")
+        .update({ coordenacao_id: coordenacaoIdOverride })
+        .eq("id", proc.id)
+        .then(() => {}, () => {});
+    }
+    await salvarPublicacaoNoProcesso(pub, proc.id);
+    return { id: proc.id, numero: proc.numero ?? numero };
+  };
+
+  // 0. Busca segura (ignora RLS e pontuação) — evita tentar recriar um processo
+  // que existe em outra coordenação e violar o índice único de número.
+  try {
+    const { data: viaRpc } = await (supabase as any).rpc("find_processo_by_digits", {
+      _numero: numeroDigits || numero,
+    });
+    const encontrado = Array.isArray(viaRpc) ? viaRpc[0] : viaRpc;
+    if (encontrado?.id) return await vincularExistente(encontrado);
+  } catch {
+    /* segue para busca padrão */
+  }
+
   // 1. Tenta encontrar processo existente
   try {
     const orExpr = candidatos.map((c) => `numero.ilike.%${c}%`).join(",");
@@ -225,17 +249,7 @@ export async function ensureProcessoFromPublicacao(
       .or(orExpr)
       .limit(1)
       .maybeSingle();
-    if (existente?.id) {
-      // Atualizar coordenacao_id se um override válido foi fornecido
-      if (coordenacaoIdOverride) {
-        await supabase
-          .from("processos")
-          .update({ coordenacao_id: coordenacaoIdOverride })
-          .eq("id", existente.id);
-      }
-      await salvarPublicacaoNoProcesso(pub, existente.id);
-      return { id: existente.id, numero: existente.numero ?? numero };
-    }
+    if (existente?.id) return await vincularExistente(existente);
   } catch {
     /* segue para criação */
   }
@@ -284,7 +298,16 @@ export async function ensureProcessoFromPublicacao(
     })
     .select("id, numero")
     .single();
-  if (procErr) throw procErr;
+  if (procErr) {
+    // Corrida/RLS: o processo já existe (índice único por número).
+    // Resolve via função segura e apenas vincula a publicação.
+    const { data: viaRpc } = await (supabase as any).rpc("find_processo_by_digits", {
+      _numero: numeroDigits || numero,
+    });
+    const encontrado = Array.isArray(viaRpc) ? viaRpc[0] : viaRpc;
+    if (encontrado?.id) return await vincularExistente(encontrado);
+    throw procErr;
+  }
 
   await supabase
     .from("processos_responsaveis")
