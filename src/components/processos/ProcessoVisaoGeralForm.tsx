@@ -33,6 +33,7 @@ import { PendenciasProcessoCard } from "./PendenciasProcessoCard";
 import { DepositosRecursaisCard } from "./DepositosRecursaisCard";
 import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
 import { TestemunhasSection } from "./TestemunhasSection";
+import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import type { NovoItemTipo } from "@/components/shared/NovoItemPanel";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
