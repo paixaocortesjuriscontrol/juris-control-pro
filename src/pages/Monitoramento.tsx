@@ -153,6 +153,7 @@ export default function Monitoramento() {
   const [somenteNaoLidas, setSomenteNaoLidas] = useState(false);
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [marcando, setMarcando] = useState(false);
+  const [pagina, setPagina] = useState(1);
 
   const [buscaDiv, setBuscaDiv] = useState("");
   const [periodoDiv, setPeriodoDiv] = useState("30");
@@ -162,6 +163,7 @@ export default function Monitoramento() {
   const [somentePendentes, setSomentePendentes] = useState(true);
   const [selecionadoDiv, setSelecionadoDiv] = useState<string | null>(null);
   const [resolvendo, setResolvendo] = useState(false);
+  const [paginaDiv, setPaginaDiv] = useState(1);
 
 
   useEffect(() => {
