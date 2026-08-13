@@ -813,10 +813,15 @@ serve(async (req) => {
   // (até 20s de cache + 25s de crawler cada) estouravam o limite e a execução
   // ficava presa em "executando". Agora rodam em paralelo (5 por vez) e, se o
   // orçamento acabar, o restante é retomado numa nova invocação encadeada.
-  const CONCORRENCIA = 5;
+  const CONCORRENCIA = 4;
   // Orçamento curto: o runtime encerra a invocação por volta de 90s, então cada
   // invocação processa um lote e encadeia o restante numa nova invocação.
   const BUDGET_MS = 40_000;
+  // Limite de processos EFETIVAMENTE consultados por invocação: o runtime das
+  // Edge Functions corta por "CPU Time exceeded" ao parsear muitos payloads
+  // grandes da Judit. O restante é encadeado em novas invocações.
+  const MAX_CONSULTAS_POR_INVOCACAO = 4;
+  let consultados = 0;
   const fila = [...(processos ?? [])];
   const adiados: string[] = [];
 
@@ -824,14 +829,20 @@ serve(async (req) => {
     while (fila.length > 0) {
       const p = fila.shift();
       if (!p) break;
-      if (Date.now() - iniciadoEm.getTime() > BUDGET_MS) {
+      if (
+        consultados >= MAX_CONSULTAS_POR_INVOCACAO ||
+        Date.now() - iniciadoEm.getTime() > BUDGET_MS
+      ) {
         adiados.push(p.id);
         resultados.push({ processo_id: p.id, skipped: "adiado-tempo" });
         continue;
       }
       try {
         const r = await processarProcesso(p);
-        if (r) resultados.push(r);
+        if (r) {
+          resultados.push(r);
+          if (!r.skipped) consultados++;
+        }
       } catch (e: any) {
         resultados.push({ processo_id: p.id, erro: e?.message ?? String(e) });
       }
