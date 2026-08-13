@@ -619,7 +619,7 @@ serve(async (req) => {
             origem: "acompanhamento-especial",
             origem_dado: origemDado,
           },
-          raw_response: payload ?? null,
+          raw_response: resumoPayload,
           status: logStatus,
           error_message: erro,
           created_by: null,
