@@ -733,7 +733,9 @@ export function PrazoDialog({
                 if (resultado.titulo) setTitulo(resultado.titulo);
                 if (resultado.observacoes) setObservacoes(resultado.observacoes);
                 const dias = (resultado as any).dias_prazo as number | undefined;
-                if (dias && dias > 0) {
+                if (travarDatas) {
+                  // usuário sem autorização não pode alterar prazos/datas
+                } else if (dias && dias > 0) {
                   setPrazoDias(dias);
                   setPrazoUnidade("uteis");
                   setDataLimiteEditadaManualmente(false);
@@ -903,6 +905,7 @@ export function PrazoDialog({
                 if (m.descricao) setObservacoes((prev) => prev || m.descricao || "");
                 const p = resolverPadroes(m);
                 if (p.observacoes) setObservacoes((prev) => prev || p.observacoes);
+                if (travarDatas) return;
                 if (p.prazo_dias) setPrazoDias(Number(p.prazo_dias));
                 if (p.prazo_unidade) setPrazoUnidade(p.prazo_unidade as Unidade);
                 if (p.data_limite) {
@@ -931,6 +934,8 @@ export function PrazoDialog({
                 type="number"
                 min={0}
                 value={prazoDias}
+                disabled={travarDatas}
+                title={travarDatas ? motivoBloqueio : undefined}
                 onChange={(e) => {
                   const dias = parseInt(e.target.value || "0", 10);
                   setPrazoDias(dias);
@@ -941,6 +946,7 @@ export function PrazoDialog({
               />
               <Select
                 value={prazoUnidade}
+                disabled={travarDatas}
                 onValueChange={(v) => {
                   const unidade = v as Unidade;
                   setPrazoUnidade(unidade);
@@ -1005,12 +1011,13 @@ export function PrazoDialog({
               <Label className="text-xs text-muted-foreground">Frequência</Label>
               <Select
                 value={recorrenciaTipo}
+                disabled={travarDatas}
                 onValueChange={(v) => {
                   setRecorrenciaTipo(v);
                   setRecorrenciaIntervalo(1);
                 }}
               >
-                <SelectTrigger className="mt-1 h-10">
+                <SelectTrigger className="mt-1 h-10" title={travarDatas ? motivoBloqueio : undefined}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1031,6 +1038,8 @@ export function PrazoDialog({
                   min={1}
                   placeholder="Ex.: 9"
                   value={recorrenciaOcorrencias}
+                  disabled={travarDatas}
+                  title={travarDatas ? motivoBloqueio : undefined}
                   onChange={(e) => {
                     const v = e.target.value;
                     setRecorrenciaOcorrencias(v);
