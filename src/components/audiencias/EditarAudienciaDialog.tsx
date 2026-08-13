@@ -23,6 +23,7 @@ import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
 import { usePodeAlterarDatas } from "@/hooks/usePodeAlterarDatas";
+import { usePodeReagendar } from "@/hooks/usePodeReagendar";
 
 interface Props {
   audiencia: AudienciaDetectada | null;
@@ -39,6 +40,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const { podeCancelar } = usePodeCancelarItens();
   const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(((audiencia as any)?.coordenacao_id as string) || null, "AUDIÊNCIA");
   const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas();
+  const { podeReagendar } = usePodeReagendar(((audiencia as any)?.coordenacao_id as string) || null);
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
   const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);
   const [statusInicial, setStatusInicial] = useState<string>("pendente");
@@ -564,10 +566,12 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="button" variant="outline" onClick={() => setReagendarModo("reagendar")} disabled={!audiencia || datasBloqueadas} title={datasBloqueadas ? motivoBloqueio : undefined}>
-              <CalendarClock className="h-4 w-4 mr-2" />
-              Reagendar
-            </Button>
+            {podeReagendar && (
+              <Button type="button" variant="outline" onClick={() => setReagendarModo("reagendar")} disabled={!audiencia || datasBloqueadas} title={datasBloqueadas ? motivoBloqueio : undefined}>
+                <CalendarClock className="h-4 w-4 mr-2" />
+                Reagendar
+              </Button>
+            )}
             <Button type="button" variant="outline" onClick={() => setReagendarModo("nova")} disabled={!audiencia}>
               <CopyPlus className="h-4 w-4 mr-2" />
               Nova audiência
