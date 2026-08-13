@@ -931,6 +931,8 @@ export function PrazoDialog({
                 type="number"
                 min={0}
                 value={prazoDias}
+                disabled={travarDatas}
+                title={travarDatas ? motivoBloqueio : undefined}
                 onChange={(e) => {
                   const dias = parseInt(e.target.value || "0", 10);
                   setPrazoDias(dias);
@@ -941,6 +943,7 @@ export function PrazoDialog({
               />
               <Select
                 value={prazoUnidade}
+                disabled={travarDatas}
                 onValueChange={(v) => {
                   const unidade = v as Unidade;
                   setPrazoUnidade(unidade);
