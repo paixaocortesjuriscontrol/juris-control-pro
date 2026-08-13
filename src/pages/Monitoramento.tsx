@@ -70,6 +70,33 @@ type Grupo = {
   ultima: string | null;
 };
 
+type Divergencia = {
+  id: string;
+  processo_id: string;
+  campo: string;
+  valor_atual: string | null;
+  valor_judit: string | null;
+  detectado_em: string;
+  resolvido_em: string | null;
+  processo?: {
+    numero: string | null;
+    polo_ativo: string | null;
+    polo_passivo: string | null;
+    coordenacao_id: string | null;
+  } | null;
+};
+
+type GrupoDivergencia = {
+  processoId: string;
+  numero: string;
+  parte: string;
+  coordenacaoId: string | null;
+  divergencias: Divergencia[];
+  pendentes: number;
+  ultima: string | null;
+};
+
+
 const PERIODOS = [
   { value: "7", label: "Últimos 7 dias" },
   { value: "30", label: "Últimos 30 dias" },
