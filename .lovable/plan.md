@@ -1,32 +1,31 @@
-# Desfazer última ação — Painel de Controle e Análise DJEN
+# Acompanhamento Especial: frequência e detecção de novidades
 
-Objetivo: em cada uma das duas telas, um botão "Desfazer último" que reverte **somente a última ação feita pelo usuário naquela sessão da tela** (marcação como lida individual, "Marcar todas", descarte em lote, etc.).
+## O que está acontecendo hoje
 
-## Painel de Controle (Mensagens recebidas)
+**Frequência (confirmado):** existem 3 cron jobs (10h, 14h e 18h BRT). O slot 10 roda processos com frequência >= 1, o slot 14 só frequência >= 3 e o slot 18 só frequência >= 2. Todos os 28 processos em acompanhamento especial estão com frequência 1, ou seja, hoje já são consultados **uma vez por dia**. O problema não foi consulta em excesso: quando a execução das 10h travava, o processo simplesmente não era checado naquele dia, porque não existe retomada.
 
-Hoje o painel marca mensagens como lidas (clique no card e botão "Marcar todas") e não existe forma de reverter.
+**"Novidade por identidade do step":** hoje a detecção compara apenas datas. O sistema guarda em `acompanhamento_ultimo_step_date` a data do andamento mais recente já visto e ignora qualquer andamento com data menor ou igual. Como os tribunais e a Judit frequentemente publicam andamentos com data retroativa (uma sentença de 09/08 aparecendo depois de um andamento de 12/08), esses andamentos novos são descartados sem nenhum aviso.
 
-- Guardar em memória a última marcação feita: quais IDs de alerta foram marcados e o rótulo ("Marcar todas (20)" ou "Marcar 1 mensagem como lida").
-- Novo botão **Desfazer último** ao lado de "Marcar todas", ativo apenas quando existe uma ação na sessão. Mostra no título qual ação será revertida.
-- Ao desfazer: remove só os registros de leitura criados por aquela ação (não mexe em mensagens que já estavam lidas antes), atualiza a lista, o contador "não lidas" e o badge do menu.
-- O toast de sucesso de "Marcar todas" também ganha a ação rápida "Desfazer".
-- Depois de desfazer, o botão fica indisponível até que uma nova ação seja feita (apenas a última ação é reversível).
+"Identidade do step" significa decidir se é novidade pelo **identificador do andamento** (`step_id` da Judit, ou uma assinatura data + conteúdo quando não houver id), e não pela data. A tabela `acompanhamento_especial_eventos` já tem `step_id` com restrição de unicidade: se aquele step ainda não existe para o processo, é novidade e avisa — mesmo com data antiga. Se já existe, o registro é rejeitado pela unicidade e nada é avisado, sem risco de e-mail repetido.
 
-## Análise DJEN
+## Mudanças propostas
 
-A tela já tem uma pilha de sessão que cobre: marcar selecionadas como lidas, "Salvar e ler", descarte das selecionadas e item criado a partir da publicação. Faltam ações que hoje não entram nessa pilha:
+1. **Detecção por identidade do step**
+   - Remover o filtro por data e tentar registrar todos os steps retornados; o unique de `step_id` faz a deduplicação.
+   - Manter `acompanhamento_ultimo_step_date` apenas como informação de referência, não como filtro.
+   - Manter o comportamento de primeira execução: gravar todos os steps como baseline silencioso (sem e-mail), para não disparar centenas de avisos no primeiro dia.
+   - Nos avisos, quando a data do andamento for anterior à última já conhecida, sinalizar como "andamento retroativo" no e-mail e na notificação.
 
-- Marcar como lida individual (clique/checkbox de leitura numa publicação da lista).
-- Descarte individual de uma publicação.
-- "Descartar duplicadas" (lote) e o descarte por lote do topo da tela — passam a registrar o lote como última ação, desfeito via reversão do lote.
-- O botão "Desfazer último" passa a exibir o rótulo da última ação (ex.: "Desfazer: Marcar 12 publicação(ões) como lida(s)") e a mensagem de confirmação descreve exatamente o efeito.
-- Se o filtro "Não lidas" estiver ativo, ao desfazer uma leitura as publicações reaparecem imediatamente na lista (atualização otimista, sem recarregar a tela).
+2. **Respeitar exatamente a frequência configurada**
+   - Regra explícita: frequência 1 = só slot 10; frequência 2 = slots 10 e 18; frequência 3 = slots 10, 14 e 18. Nada além disso.
+   - Manter a guarda anti-duplicidade por dia/slot já existente.
 
-Em ambas as telas a pilha é por sessão da tela (não persiste após recarregar a página) e sempre só a última ação fica disponível para desfazer.
+3. **Execuções travadas**
+   - Marcar como `erro` as execuções presas em `executando` há mais de 30 minutos, liberando o processo.
+   - Nos slots seguintes, permitir retomada apenas dos processos que **não foram checados com sucesso no dia**, para que uma falha às 10h não deixe o processo sem nenhuma checagem.
 
 ## Detalhes técnicos
 
-- `src/components/notificacoes/MinhasMensagensRecebidas.tsx`: estado `ultimaAcaoLeitura` ({ ids, label }); `marcarLida` passa a devolver os IDs efetivamente inseridos; `desfazerUltimaLeitura` faz `delete` em `alertas_recebidos_leituras` por `user_id` + `alerta_id in (...)` e invalida `minhas-mensagens-leituras`, `mensagens-nao-lidas` e `alertas-recebidos`.
-- `src/pages/AnaliseDjen.tsx`: novos tipos na união `AcaoSessao` (`descarte_lote` com `lote_id`), chamadas de `registrarAcaoSessao` nos handlers de leitura individual, descarte individual e descarte de duplicadas; `desfazerUltimaAcaoSessao` trata o novo tipo chamando a RPC `desfazer_descarte_lote`.
-- Sem mudanças de banco: as RPCs `desfazer_descarte_individual` / `desfazer_descarte_lote` e a tabela `alertas_recebidos_leituras` já suportam a reversão.
-- Bump de versão em `src/constants/version.ts`.
+- Arquivo: `supabase/functions/judit-acompanhamento-especial/index.ts` (loop de steps, ~linhas 611-674, e filtro de slot, ~linhas 460-485).
+- Deduplicação: unique (`processo_id`, `step_id`) em `acompanhamento_especial_eventos`; quando a Judit não enviar id, usar assinatura `data + conteúdo`.
+- Sem alteração de schema prevista.
