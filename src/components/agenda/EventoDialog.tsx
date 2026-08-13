@@ -663,6 +663,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                     type="time"
                     value={horaInicio}
                     onChange={(e) => setHoraInicio(e.target.value)}
+                    disabled={travarDatas}
+                    title={travarDatas ? motivoBloqueio : undefined}
                     className="w-28"
                   />
                 )}
@@ -680,6 +682,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                     type="time"
                     value={horaFim}
                     onChange={(e) => setHoraFim(e.target.value)}
+                    disabled={travarDatas}
+                    title={travarDatas ? motivoBloqueio : undefined}
                     className="w-28"
                   />
                 )}

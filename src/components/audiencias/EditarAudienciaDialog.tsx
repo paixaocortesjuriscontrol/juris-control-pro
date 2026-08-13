@@ -345,6 +345,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 placeholder="Ex: 14:00"
                 value={formData.hora}
                 onChange={(e) => handleChange("hora", e.target.value)}
+                disabled={datasBloqueadas}
+                title={datasBloqueadas ? motivoBloqueio : undefined}
               />
             </div>
             <div className="space-y-2">
@@ -354,6 +356,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 placeholder="Ex: 14:00"
                 value={formData.hora_local}
                 onChange={(e) => handleChange("hora_local", e.target.value)}
+                disabled={datasBloqueadas}
+                title={datasBloqueadas ? motivoBloqueio : undefined}
               />
             </div>
             <div className="space-y-2">
@@ -363,6 +367,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 placeholder="Ex: 15:00"
                 value={formData.hora_brasilia}
                 onChange={(e) => handleChange("hora_brasilia", e.target.value)}
+                disabled={datasBloqueadas}
+                title={datasBloqueadas ? motivoBloqueio : undefined}
               />
             </div>
           </div>
