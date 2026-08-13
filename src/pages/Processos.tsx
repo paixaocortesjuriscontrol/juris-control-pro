@@ -1102,7 +1102,8 @@ const Processos = () => {
           </div>
         </div>
       ) : processos.length > 0 ? (
-        <>
+        <div className={cn("flex gap-4", lateralProcessoId && "flex-col lg:flex-row")}>
+          <div className="flex-1 min-w-0">
           {/* Header Row */}
           <div className="bg-card rounded-t-xl border border-border/50 overflow-hidden">
             <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-muted/30 border-b border-border/50 text-xs text-muted-foreground">
@@ -1129,6 +1130,10 @@ const Processos = () => {
                     onToggleSelection={toggleProcessoSelection}
                     onNavigate={(id) => navigate(`/processos/${id}`)}
                     etiquetaIds={etiquetasPorProcesso?.get(processo.id) || []}
+                    lateralAberto={lateralProcessoId === processo.id}
+                    onOpenLateral={(id) =>
+                      setLateralProcessoId((prev) => (prev === id ? null : id))
+                    }
                   />
                 );
               })}
