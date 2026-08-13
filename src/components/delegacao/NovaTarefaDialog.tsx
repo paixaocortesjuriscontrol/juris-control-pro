@@ -169,6 +169,8 @@ export function NovaTarefaDialog({
 }: NovaTarefaDialogProps) {
   const [loading, setLoading] = useState(false);
   const secondaryClickedRef = useRef(false);
+  /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
+  const modeloPadroesRef = useRef<Record<string, string> | null>(null);
   const tertiaryClickedRef = useRef(false);
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
@@ -946,16 +948,22 @@ export function NovaTarefaDialog({
                         tipo="tarefa"
                         coordenacaoId={coordenacaoId}
                         onSelect={(m) => {
+                          const anterior = modeloPadroesRef.current || {};
+                          const p = resolverPadroes(m);
                           form.setValue("titulo", m.titulo, { shouldDirty: true });
+                          // Limpa o que o modelo anterior preencheu e o novo não define
+                          for (const [k, v] of Object.entries(anterior)) {
+                            if (k === "titulo" || p[k] !== undefined) continue;
+                            if (String(form.getValues(k as any) ?? "") === v) {
+                              form.setValue(k as any, "" as any, { shouldDirty: true });
+                            }
+                          }
+                          for (const [k, v] of Object.entries(p)) {
+                            if (k === "titulo") continue;
+                            form.setValue(k as any, v, { shouldDirty: true });
+                          }
                           if (m.descricao && !form.getValues("descricao")) {
                             form.setValue("descricao", m.descricao, { shouldDirty: true });
-                          }
-                          const p = resolverPadroes(m);
-                          for (const [k, v] of Object.entries(p)) {
-                            const atual = form.getValues(k as any);
-                            if (atual === undefined || String(atual ?? "").trim() === "") {
-                              form.setValue(k as any, v, { shouldDirty: true });
-                            }
                           }
                           // Prazo pré-programado no modelo → data prevista a partir
                           // da data base (data da publicação, se houver, ou hoje)
@@ -968,6 +976,10 @@ export function NovaTarefaDialog({
                           if (prazoCalculado) {
                             form.setValue("data_vencimento" as any, prazoCalculado, { shouldDirty: true });
                           }
+                          modeloPadroesRef.current = {
+                            ...p,
+                            ...(prazoCalculado ? { data_vencimento: prazoCalculado } : {}),
+                          };
                         }}
                         />
                       </div>
