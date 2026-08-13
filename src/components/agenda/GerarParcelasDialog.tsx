@@ -69,6 +69,8 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const anexosRef = useRef<ItemAnexosHandle>(null);
+  /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
+  const modeloPadroesRef = useRef<Record<string, string> | null>(null);
   const isEditing = !!evento;
   const [situacao, setSituacao] = useState<string>("pendente");
   const { podeCancelar } = usePodeCancelarItens();
