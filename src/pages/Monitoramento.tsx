@@ -451,8 +451,8 @@ export default function Monitoramento() {
         </Button>
       )}
     >
-    <div className="flex flex-col min-h-[600px] lg:h-[calc(100vh-7rem)] overflow-hidden border border-border rounded-lg bg-background">
-      <Tabs defaultValue="movimentacoes" className="flex-1 flex flex-col min-h-0">
+    <div className="flex flex-col border border-border rounded-lg bg-background">
+      <Tabs defaultValue="movimentacoes" className="flex flex-col">
         <div className="px-4 md:px-6 pt-3 border-b border-border bg-card">
           <TabsList>
             <TabsTrigger value="movimentacoes" className="gap-2">
@@ -476,7 +476,7 @@ export default function Monitoramento() {
           </TabsList>
         </div>
 
-        <TabsContent value="movimentacoes" className="flex-1 min-h-0 m-0 flex flex-col">
+        <TabsContent value="movimentacoes" className="m-0 flex flex-col">
           {/* Filtros */}
           <div className="px-4 md:px-6 py-3 border-b border-border bg-card flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[220px]">
