@@ -888,9 +888,35 @@ serve(async (req) => {
       })
       .eq("id", execId);
   }
+  })();
 
-  return new Response(
-    JSON.stringify({ ok: true, slot, processados: resultados.length, resultados }),
-    { headers }
-  );
+  const resposta = () =>
+    new Response(JSON.stringify({ ok: true, slot, execucao_id: execId, background: true }), {
+      headers,
+    });
+
+  // deno-lint-ignore no-explicit-any
+  const rt = (globalThis as any).EdgeRuntime;
+  if (rt?.waitUntil) {
+    rt.waitUntil(
+      job.catch(async (e: any) => {
+        console.error("[acomp-especial] job falhou:", e?.message ?? e);
+        if (execId) {
+          await supabase
+            .from("execucoes_acompanhamento_especial")
+            .update({
+              status: "erro",
+              finalizado_em: new Date().toISOString(),
+              duracao_ms: Date.now() - iniciadoEm.getTime(),
+              erro: String(e?.message ?? e),
+            })
+            .eq("id", execId);
+        }
+      })
+    );
+    return resposta();
+  }
+
+  await job;
+  return resposta();
 });
