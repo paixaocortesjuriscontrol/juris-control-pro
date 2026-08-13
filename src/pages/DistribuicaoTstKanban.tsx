@@ -22,6 +22,7 @@ interface Card {
   processo: string | null;
   dossie: string | null;
   prazo_entrega: string | null;
+  status: string | null;
   status_distribuicao: string | null;
   distribuido_em: string | null;
   observacao_distribuicao: string | null;
@@ -38,19 +39,19 @@ function getDias(prazo: string | null): number | null {
   return differenceInCalendarDays(new Date(prazo + "T12:00:00"), new Date());
 }
 
-type ColKey = "delegada" | "em_andamento" | "finalizada" | "pronto_sem_pendencia";
+type ColKey = "delegada" | "pronto" | "pronto_sem_pendencia" | "faltam";
 
-const isPronto = (c: Card) => c.status_distribuicao === "finalizada" || c.status_distribuicao === "pronto";
+const isPronto = (c: Card) => c.status === "pronto_envio";
 
 const columns: { key: ColKey; label: string; color: string; bg: string; match: (c: Card) => boolean }[] = [
   { key: "delegada", label: "Delegada", color: "text-blue-600", bg: "bg-blue-500/10 border-blue-500/30",
-    match: (c) => !c.status_distribuicao || c.status_distribuicao === "delegada" },
-  { key: "em_andamento", label: "Em análise", color: "text-amber-600", bg: "bg-amber-500/10 border-amber-500/30",
-    match: (c) => c.status_distribuicao === "em_andamento" || c.status_distribuicao === "em_analise" },
-  { key: "finalizada", label: "Pronto", color: "text-teal-600", bg: "bg-teal-500/10 border-teal-500/30",
-    match: (c) => isPronto(c) && !c.semPendencia },
+    match: () => true },
+  { key: "pronto", label: "Pronto", color: "text-teal-600", bg: "bg-teal-500/10 border-teal-500/30",
+    match: (c) => isPronto(c) },
   { key: "pronto_sem_pendencia", label: "Pronto sem pendência", color: "text-emerald-600", bg: "bg-emerald-500/10 border-emerald-500/30",
     match: (c) => isPronto(c) && !!c.semPendencia },
+  { key: "faltam", label: "Faltam", color: "text-amber-600", bg: "bg-amber-500/10 border-amber-500/30",
+    match: (c) => !isPronto(c) },
 ];
 
 export default function DistribuicaoTstKanban() {
@@ -77,16 +78,15 @@ export default function DistribuicaoTstKanban() {
     setLoading(true);
     try {
       const baseCols = [
-        "id", "processo", "dossie", "prazo_entrega", "status_distribuicao",
+        "id", "processo", "dossie", "prazo_entrega", "status", "status_distribuicao",
         "distribuido_em", "observacao_distribuicao", "aba_origem", "fontes_importacao",
       ];
       const selectCols = Array.from(new Set([...baseCols, ...COLUNAS_SELECT_PENDENCIAS])).join(", ");
       let query = supabase
         .from("dados_benner" as any)
         .select(`${selectCols}, dados_benner_responsaveis!inner(usuario_id)`)
-        .not("distribuido_em", "is", null)
         .order("prazo_entrega", { ascending: true, nullsFirst: false })
-        .limit(2000);
+        .limit(filtroAdvogados.length > 0 ? 1000 : 2000);
 
       const advFilter: string[] = [];
       if (filtroAdvogados.length > 0) advFilter.push(...filtroAdvogados);
@@ -108,6 +108,7 @@ export default function DistribuicaoTstKanban() {
         processo: r.processo,
         dossie: r.dossie,
         prazo_entrega: r.prazo_entrega,
+        status: r.status,
         status_distribuicao: r.status_distribuicao,
         distribuido_em: r.distribuido_em,
         observacao_distribuicao: r.observacao_distribuicao,
@@ -233,9 +234,7 @@ export default function DistribuicaoTstKanban() {
                         type="button"
                         onClick={() => {
                           if (r.id === "__sem__") return;
-                          setFiltroAdvogados((prev) =>
-                            prev.includes(r.id) ? prev.filter((x) => x !== r.id) : [...prev, r.id],
-                          );
+                          setFiltroAdvogados((prev) => prev.includes(r.id) ? [] : [r.id]);
                         }}
                         className={`w-[200px] max-w-full text-left rounded-lg border p-2.5 transition-colors bg-card hover:border-primary/60 ${
                           ativo ? "border-primary ring-1 ring-primary/40" : "border-border"
