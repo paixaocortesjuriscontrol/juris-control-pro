@@ -212,6 +212,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       return data || [];
     },
   });
+  // Dialog de cadastro/edição rápida de cliente (usado na seção Partes)
+  const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
+  const [clienteEmEdicao, setClienteEmEdicao] = useState<any>(null);
   // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Contador ao vivo (segundos decorridos) durante a busca Judit — mesma
