@@ -233,7 +233,7 @@ export function NovaTarefaDialog({
   const tipoVinculo = form.watch("tipo_vinculo");
   const coordenacaoId = form.watch("coordenacao_id");
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "TAREFA EQUIPE");
-  const { podeUsarSituacao } = usePermissoesSituacao(coordenacaoId || null, "TAREFA");
+  const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(coordenacaoId || null, "TAREFA");
   // Envolvidos fixos configurados na coordenação para este tipo
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "TAREFA EQUIPE");
   useEffect(() => {
@@ -867,7 +867,7 @@ export function NovaTarefaDialog({
           <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
             <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {situacoesDisponiveis("tarefa", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || podeUsarSituacao(s.value)).map((s) => (
+              {situacoesDisponiveis("tarefa", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
                 <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
               ))}
             </SelectContent>
@@ -894,7 +894,7 @@ export function NovaTarefaDialog({
             <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
               <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {situacoesDisponiveis("tarefa", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || podeUsarSituacao(s.value)).map((s) => (
+                {situacoesDisponiveis("tarefa", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>

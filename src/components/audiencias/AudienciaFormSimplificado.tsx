@@ -150,7 +150,7 @@ export function AudienciaFormSimplificado({
     audienciaParaEditar?.coordenacao_id ?? ""
   );
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
-  const { podeUsarSituacao } = usePermissoesSituacao(coordenacaoId || null, "AUDIÊNCIA");
+  const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(coordenacaoId || null, "AUDIÊNCIA");
   // Envolvidos fixos configurados na coordenação para este tipo
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
   useEffect(() => {
@@ -511,7 +511,7 @@ export function AudienciaFormSimplificado({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || podeUsarSituacao(s.value)).map((s) => (
+                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>

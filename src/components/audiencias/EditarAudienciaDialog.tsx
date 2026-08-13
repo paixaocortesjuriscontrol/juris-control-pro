@@ -37,7 +37,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const { podeCancelar } = usePodeCancelarItens();
-  const { podeUsarSituacao } = usePermissoesSituacao(((audiencia as any)?.coordenacao_id as string) || null, "AUDIÊNCIA");
+  const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(((audiencia as any)?.coordenacao_id as string) || null, "AUDIÊNCIA");
   const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas();
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
   const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);
@@ -610,7 +610,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
             <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
               <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).filter((s) => s.value === formData.status || podeUsarSituacao(s.value)).map((s) => (
+                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).filter((s) => s.value === formData.status || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -636,7 +636,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
             <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
               <SelectTrigger className="h-9 w-[140px] sm:w-[180px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).filter((s) => s.value === formData.status || podeUsarSituacao(s.value)).map((s) => (
+                {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).filter((s) => s.value === formData.status || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
@@ -680,7 +680,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
               <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
                 <SelectTrigger className="h-9 w-[180px]"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).filter((s) => s.value === formData.status || podeUsarSituacao(s.value)).map((s) => (
+                  {situacoesDisponiveis("audiencia", { podeGerenciar: podeCancelar, atual: formData.status }).filter((s) => s.value === formData.status || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
                     <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                   ))}
                 </SelectContent>

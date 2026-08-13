@@ -141,7 +141,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const [alertaUnidade, setAlertaUnidade] = useState<AlertaUnidade>("horas");
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "OUTROS");
-  const { podeUsarSituacao } = usePermissoesSituacao(coordenacaoId || null, "EVENTO");
+  const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(coordenacaoId || null, "EVENTO");
   // Envolvidos fixos configurados na coordenação para este tipo
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "OUTROS");
   useEffect(() => {
@@ -537,7 +537,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {situacoesDisponiveis("evento", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || podeUsarSituacao(s.value)).map((s) => (
+                    {situacoesDisponiveis("evento", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
                       <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                     ))}
                   </SelectContent>

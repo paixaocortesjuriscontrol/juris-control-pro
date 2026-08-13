@@ -446,7 +446,7 @@ export function PrazoDialog({
   // Auto-calcular data limite quando Prazo (dias) muda
   // Responsáveis definidos na configuração da coordenação para o tipo Prazo
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "PRAZO");
-  const { podeUsarSituacao } = usePermissoesSituacao(coordenacaoId || null, "PRAZO");
+  const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(coordenacaoId || null, "PRAZO");
 
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
@@ -708,7 +708,7 @@ export function PrazoDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {situacoesDisponiveis("prazo", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || podeUsarSituacao(s.value)).map((s) => (
+                {situacoesDisponiveis("prazo", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
                 ))}
               </SelectContent>
