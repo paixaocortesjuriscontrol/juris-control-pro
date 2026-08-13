@@ -5438,6 +5438,16 @@ const AnaliseDjen = () => {
         publicacaoIds={Array.from(selectedIds.keys())}
         coordenacaoId={coordenacaoId ?? undefined}
       />
+      <EtiquetarLoteDialog
+        open={etiquetarLoteOpen}
+        onOpenChange={setEtiquetarLoteOpen}
+        entidade="publicacao"
+        entidadeIds={Array.from(selectedIds.keys())}
+        coordenacaoId={coordenacaoFiltroEfetivo ?? undefined}
+        coordenacaoNome={
+          coordenacoesDoCombo?.find((c: any) => c.id === coordenacaoFiltroEfetivo)?.nome ?? null
+        }
+      />
     </MainLayout>
   );
 };
