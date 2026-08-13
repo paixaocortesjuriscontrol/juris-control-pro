@@ -6596,6 +6596,7 @@ export type Database = {
       }
       permissoes_situacao_tipo_tarefa: {
         Row: {
+          ativa: boolean
           coordenacao_id: string
           created_at: string
           created_by: string | null
@@ -6607,6 +6608,7 @@ export type Database = {
           usuarios: string[]
         }
         Insert: {
+          ativa?: boolean
           coordenacao_id: string
           created_at?: string
           created_by?: string | null
@@ -6618,6 +6620,7 @@ export type Database = {
           usuarios?: string[]
         }
         Update: {
+          ativa?: boolean
           coordenacao_id?: string
           created_at?: string
           created_by?: string | null

@@ -2,6 +2,7 @@ import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
+import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { useState, useEffect, useMemo, useRef } from "react";
@@ -74,6 +75,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const { precisaSelecionar, unicaCoordenacaoId, coordenacoes: coordenacoesUsuario, isAdmin } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "OUTROS");
+  const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(coordenacaoId || null, "PARCELAMENTO");
 
   const [formData, setFormData] = useState({
     titulo: "",
@@ -615,7 +617,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
         <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
           <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {situacoesDisponiveis("parcelamento", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+            {situacoesDisponiveis("parcelamento", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
               <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
             ))}
           </SelectContent>
@@ -644,7 +646,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
             <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {situacoesDisponiveis("parcelamento", { podeGerenciar: podeCancelar, atual: situacao }).map((s) => (
+              {situacoesDisponiveis("parcelamento", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
                 <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
               ))}
             </SelectContent>
