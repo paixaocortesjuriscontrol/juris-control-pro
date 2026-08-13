@@ -233,7 +233,7 @@ export function NovaTarefaDialog({
   const tipoVinculo = form.watch("tipo_vinculo");
   const coordenacaoId = form.watch("coordenacao_id");
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "TAREFA EQUIPE");
-  const { podeUsarSituacao } = usePermissoesSituacao(coordenacaoId || null, "TAREFA EQUIPE");
+  const { podeUsarSituacao } = usePermissoesSituacao(coordenacaoId || null, "TAREFA");
   // Envolvidos fixos configurados na coordenação para este tipo
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "TAREFA EQUIPE");
   useEffect(() => {

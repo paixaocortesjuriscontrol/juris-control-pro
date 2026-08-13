@@ -141,7 +141,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const [alertaUnidade, setAlertaUnidade] = useState<AlertaUnidade>("horas");
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "OUTROS");
-  const { podeUsarSituacao } = usePermissoesSituacao(coordenacaoId || null, "OUTROS");
+  const { podeUsarSituacao } = usePermissoesSituacao(coordenacaoId || null, "EVENTO");
   // Envolvidos fixos configurados na coordenação para este tipo
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "OUTROS");
   useEffect(() => {
