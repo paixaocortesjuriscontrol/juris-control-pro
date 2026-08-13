@@ -636,7 +636,7 @@ serve(async (req) => {
         : 0;
       let maiorStepDate = ultimoConhecido;
       let novos = 0;
-      const novosResumo: { data: string; conteudo: string }[] = [];
+      const novosResumo: { data: string; conteudo: string; retroativo: boolean }[] = [];
 
       for (const step of steps) {
         const dataStr = step.step_date || step.date || step.movement_date;
@@ -644,10 +644,9 @@ serve(async (req) => {
         const dt = new Date(dataStr).getTime();
         if (!Number.isFinite(dt)) continue;
         if (dt > maiorStepDate) maiorStepDate = dt;
-        if (ultimoConhecido && dt <= ultimoConhecido) continue;
-        // primeira execução: pula tudo (apenas marca baseline)
-        if (!ultimoConhecido) continue;
 
+        // Novidade é definida pela IDENTIDADE do step (step_id), não pela data:
+        // tribunais publicam andamentos retroativos que ficariam invisíveis.
         const stepId =
           step.step_id || step.id || `${dataStr}-${(step.content || step.title || "").slice(0, 40)}`;
         const conteudo =
@@ -677,17 +676,26 @@ serve(async (req) => {
           continue;
         }
 
+        // Primeira execução do processo: grava baseline em silêncio (sem avisos)
+        if (!ultimoConhecido) continue;
+
         novos++;
         const conteudoStr = typeof conteudo === "string" ? conteudo : JSON.stringify(conteudo);
-        novosResumo.push({ data: dataStr, conteudo: conteudoStr.slice(0, 500) });
+        const retroativo = dt <= ultimoConhecido;
+        novosResumo.push({ data: dataStr, conteudo: conteudoStr.slice(0, 500), retroativo });
 
         // Notificar responsáveis do processo + coordenadores da coordenação
         await notificarUsuarios(supabase, await destinatariosDoProcesso(supabase, p.id), {
-          titulo: `Novidade em ${cnj}`,
+          titulo: `Novidade${retroativo ? " (retroativa)" : ""} em ${cnj}`,
           mensagem: conteudoStr.slice(0, 280),
           tipo: "acompanhamento_especial",
           link: `/processos/${p.id}`,
-          dados: { processo_id: p.id, evento_id: evento?.id ?? null, step_date: dataStr },
+          dados: {
+            processo_id: p.id,
+            evento_id: evento?.id ?? null,
+            step_date: dataStr,
+            retroativo,
+          },
         });
 
         await supabase
