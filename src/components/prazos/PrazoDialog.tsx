@@ -1008,12 +1008,13 @@ export function PrazoDialog({
               <Label className="text-xs text-muted-foreground">Frequência</Label>
               <Select
                 value={recorrenciaTipo}
+                disabled={travarDatas}
                 onValueChange={(v) => {
                   setRecorrenciaTipo(v);
                   setRecorrenciaIntervalo(1);
                 }}
               >
-                <SelectTrigger className="mt-1 h-10">
+                <SelectTrigger className="mt-1 h-10" title={travarDatas ? motivoBloqueio : undefined}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1034,6 +1035,8 @@ export function PrazoDialog({
                   min={1}
                   placeholder="Ex.: 9"
                   value={recorrenciaOcorrencias}
+                  disabled={travarDatas}
+                  title={travarDatas ? motivoBloqueio : undefined}
                   onChange={(e) => {
                     const v = e.target.value;
                     setRecorrenciaOcorrencias(v);
