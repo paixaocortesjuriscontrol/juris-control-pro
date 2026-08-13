@@ -260,7 +260,7 @@ export default function DistribuicaoTstKanban() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {resumoResponsaveis.length > 0 && (
             <div className="mb-3">
               <div className="flex items-center justify-between mb-1.5">
@@ -269,8 +269,8 @@ export default function DistribuicaoTstKanban() {
                 </h3>
                 <span className="text-[11px] text-muted-foreground">filtros aplicados</span>
               </div>
-              <ScrollArea className="w-full">
-                <div className="flex gap-2 pb-2">
+              <div className="w-full">
+                <div className="flex flex-wrap gap-2 pb-2">
                   {resumoResponsaveis.map((r) => {
                     const faltam = r.total - r.pronto;
                     const pct = r.total > 0 ? Math.round((r.pronto / r.total) * 100) : 0;
@@ -285,19 +285,23 @@ export default function DistribuicaoTstKanban() {
                             prev.includes(r.id) ? prev.filter((x) => x !== r.id) : [...prev, r.id],
                           );
                         }}
-                        className={`shrink-0 w-[200px] text-left rounded-lg border p-2.5 transition-colors bg-card hover:border-primary/60 ${
+                        className={`w-[200px] max-w-full text-left rounded-lg border p-2.5 transition-colors bg-card hover:border-primary/60 ${
                           ativo ? "border-primary ring-1 ring-primary/40" : "border-border"
                         }`}
                       >
                         <p className="text-xs font-semibold truncate" title={r.nome}>{r.nome}</p>
-                        <div className="mt-1.5 grid grid-cols-3 gap-1 text-center">
+                        <div className="mt-1.5 grid grid-cols-4 gap-1 text-center">
                           <div>
                             <p className="text-[9px] uppercase text-muted-foreground">Total</p>
                             <p className="text-sm font-bold text-foreground">{r.total}</p>
                           </div>
                           <div>
                             <p className="text-[9px] uppercase text-muted-foreground">Pronto</p>
-                            <p className="text-sm font-bold text-emerald-600">{r.pronto}</p>
+                            <p className="text-sm font-bold text-teal-600">{r.pronto}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] uppercase text-muted-foreground">S/pend</p>
+                            <p className="text-sm font-bold text-emerald-600">{r.semPend}</p>
                           </div>
                           <div>
                             <p className="text-[9px] uppercase text-muted-foreground">Faltam</p>
@@ -315,14 +319,14 @@ export default function DistribuicaoTstKanban() {
                     );
                   })}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 h-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
             {columns.map((col) => {
               const items = cards.filter(col.match);
               return (
-                <div key={col.key} className={`flex flex-col rounded-lg border ${col.bg} min-h-[300px] overflow-hidden`}>
+                <div key={col.key} className={`flex flex-col rounded-lg border ${col.bg} min-h-[300px] max-h-[70vh] overflow-hidden`}>
                   <div className={`px-3 py-2 border-b ${col.bg}`}>
                     <h3 className={`text-sm font-semibold ${col.color} truncate`}>{col.label}</h3>
                     <span className="text-xs text-muted-foreground">{items.length} processo(s)</span>
