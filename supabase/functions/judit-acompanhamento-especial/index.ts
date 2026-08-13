@@ -398,12 +398,16 @@ serve(async (req) => {
 
   // slot BRT (10 | 14 | 18) + processo_id forçado (uso manual via UI / debug)
   let forcedProcessoId: string | null = null;
+  let forcedProcessoIds: string[] | null = null;
   let slot: number | null = null;
   let invocadoPor: string | null = null;
   let disparo = "automatico";
   try {
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     forcedProcessoId = body?.processo_id ?? null;
+    forcedProcessoIds = Array.isArray(body?.processo_ids) && body.processo_ids.length > 0
+      ? body.processo_ids.map((x: any) => String(x))
+      : null;
     slot = typeof body?.slot === "number" ? body.slot : null;
     invocadoPor = body?.invocado_por ?? null;
     if (body?.manual || body?.disparo === "manual" || invocadoPor) disparo = "manual";
