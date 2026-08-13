@@ -12,11 +12,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { differenceInCalendarDays, format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
-import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { loadResponsaveisMap, ProfileBasic } from "@/hooks/useDistribuicaoResponsaveis";
 import { COLUNAS_SELECT_PENDENCIAS, getPendencias } from "@/utils/distribuicaoTstPendencias";
+import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 
 interface Card {
   id: string;
@@ -56,15 +55,11 @@ const columns: { key: ColKey; label: string; color: string; bg: string; match: (
 
 export default function DistribuicaoTstKanban() {
   const { user } = useAuth();
-  const { isAdminOrCoordinator } = useUserRole();
   const navigate = useNavigate();
   const [cards, setCards] = useState<Card[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroAdvogados, setFiltroAdvogados] = useState<string[]>([]);
-  const [filtroStatus, setFiltroStatus] = useState<string>("todos");
-  const [filtroAba, setFiltroAba] = useState<string>("todas");
-  const [abas, setAbas] = useState<string[]>([]);
-  const [meusOnly, setMeusOnly] = useState<boolean>(!isAdminOrCoordinator);
+  const { counts: contagensDistribuicao } = useResponsaveisCounts({});
 
   // Dialog para alterar status / observação
   const [statusCard, setStatusCard] = useState<Card | null>(null);
@@ -77,8 +72,6 @@ export default function DistribuicaoTstKanban() {
     setStatusValue(c.status_distribuicao || "delegada");
     setObsValue(c.observacao_distribuicao || "");
   };
-
-  useEffect(() => { setMeusOnly(!isAdminOrCoordinator); }, [isAdminOrCoordinator]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -96,16 +89,10 @@ export default function DistribuicaoTstKanban() {
         .limit(2000);
 
       const advFilter: string[] = [];
-      if (meusOnly && user?.id) advFilter.push(user.id);
       if (filtroAdvogados.length > 0) advFilter.push(...filtroAdvogados);
       if (advFilter.length > 0) {
         query = query.in("dados_benner_responsaveis.usuario_id", advFilter);
       }
-      if (filtroStatus === "delegada") query = query.or("status_distribuicao.is.null,status_distribuicao.eq.delegada");
-      else if (filtroStatus === "em_andamento") query = query.in("status_distribuicao", ["em_andamento", "em_analise"]);
-      else if (filtroStatus === "finalizada") query = query.in("status_distribuicao", ["finalizada", "pronto"]);
-      if (filtroAba !== "todas") query = query.eq("aba_origem", filtroAba);
-
       const { data, error } = await query;
       if (error) throw error;
 
@@ -137,16 +124,7 @@ export default function DistribuicaoTstKanban() {
     }
   };
 
-  useEffect(() => { fetchData(); /* eslint-disable-next-line */ }, [JSON.stringify(filtroAdvogados), filtroStatus, filtroAba, meusOnly, user?.id]);
-
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabase.from("dados_benner" as any).select("aba_origem").not("aba_origem", "is", null).not("distribuido_em", "is", null);
-      const set = new Set<string>();
-      ((data as any[]) || []).forEach((r) => r.aba_origem && set.add(r.aba_origem));
-      setAbas([...set].sort());
-    })();
-  }, []);
+  useEffect(() => { fetchData(); /* eslint-disable-next-line */ }, [JSON.stringify(filtroAdvogados)]);
 
   const saveStatusDialog = async () => {
     if (!statusCard) return;
@@ -175,7 +153,7 @@ export default function DistribuicaoTstKanban() {
     }
   };
 
-  // Resumo por responsável (obedece filtros aplicados, pois deriva de `cards`)
+  // A quantidade delegada usa exatamente a mesma contagem da tela Distribuição TST.
   const resumoResponsaveis = useMemo(() => {
     const map = new Map<string, { id: string; nome: string; total: number; pronto: number; semPend: number }>();
     cards.forEach((c) => {
@@ -198,13 +176,25 @@ export default function DistribuicaoTstKanban() {
         });
       }
     });
+    contagensDistribuicao.forEach((contagem) => {
+      const cur = map.get(contagem.id) || {
+        id: contagem.id,
+        nome: contagem.nome,
+        total: 0,
+        pronto: contagem.pronto,
+        semPend: 0,
+      };
+      cur.nome = contagem.nome;
+      cur.total = contagem.count;
+      map.set(contagem.id, cur);
+    });
     return [...map.values()].sort((a, b) => {
       const fa = a.total - a.pronto;
       const fb = b.total - b.pronto;
       if (fb !== fa) return fb - fa;
       return a.nome.localeCompare(b.nome, "pt-BR");
     });
-  }, [cards]);
+  }, [cards, contagensDistribuicao]);
 
   return (
     <MainLayout title="Kanban Delegação TST">
@@ -222,44 +212,6 @@ export default function DistribuicaoTstKanban() {
           </Button>
         </div>
 
-        <div className="border rounded-lg p-3 bg-muted/30 grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-          <div className="space-y-1">
-            <Label className="text-xs">Advogado(s)</Label>
-            <ResponsaveisSelector selectedIds={filtroAdvogados} onChange={setFiltroAdvogados} placeholder="Todos" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Status</Label>
-            <Select value={filtroStatus} onValueChange={setFiltroStatus}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="delegada">Delegada</SelectItem>
-                <SelectItem value="em_andamento">Em análise</SelectItem>
-                <SelectItem value="finalizada">Pronto</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Aba origem</Label>
-            <Select value={filtroAba} onValueChange={setFiltroAba}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas</SelectItem>
-                {abas.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={meusOnly ? "default" : "outline"}
-              size="sm"
-              onClick={() => setMeusOnly(!meusOnly)}
-            >
-              {meusOnly ? "Vendo: meus processos" : "Ver meus processos"}
-            </Button>
-          </div>
-        </div>
-
         <div className="flex-1 min-h-0 overflow-y-auto">
           {resumoResponsaveis.length > 0 && (
             <div className="mb-3">
@@ -267,7 +219,6 @@ export default function DistribuicaoTstKanban() {
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   Por responsável <span className="font-normal normal-case">({resumoResponsaveis.length})</span>
                 </h3>
-                <span className="text-[11px] text-muted-foreground">filtros aplicados</span>
               </div>
               <div className="w-full">
                 <div className="flex flex-wrap gap-2 pb-2">
@@ -292,7 +243,7 @@ export default function DistribuicaoTstKanban() {
                         <p className="text-xs font-semibold truncate" title={r.nome}>{r.nome}</p>
                         <div className="mt-1.5 grid grid-cols-4 gap-1 text-center">
                           <div>
-                            <p className="text-[9px] uppercase text-muted-foreground">Total</p>
+                            <p className="text-[9px] uppercase text-muted-foreground">Delegada</p>
                             <p className="text-sm font-bold text-foreground">{r.total}</p>
                           </div>
                           <div>
