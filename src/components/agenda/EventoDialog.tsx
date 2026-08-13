@@ -170,6 +170,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const [situacao, setSituacao] = useState<string>("pendente");
   const [situacaoInicial, setSituacaoInicial] = useState<string>("pendente");
   const [comentarioSituacao, setComentarioSituacao] = useState("");
+  /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
+  const modeloPadroesRef = useRef<Record<string, string> | null>(null);
   const { podeCancelar } = usePodeCancelarItens();
 
   // Recorrência
@@ -616,17 +618,36 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   tipo="evento"
                   coordenacaoId={coordenacaoId}
                   onSelect={(m) => {
-                    setTitulo(m.titulo);
-                    if (m.descricao) setObservacoes((prev) => prev || m.descricao || "");
+                    const anterior = modeloPadroesRef.current;
                     const p = resolverPadroes(m);
-                    if (p.observacoes) setObservacoes((prev) => prev || p.observacoes);
-                    if (!travarDatas && p.data_inicio) setDataInicio((prev) => prev || p.data_inicio);
-                    if (!travarDatas && p.hora_inicio) setHoraInicio((prev) => prev || p.hora_inicio);
-                    if (!travarDatas && p.data_fim) setDataFim((prev) => prev || p.data_fim);
-                    if (!travarDatas && p.hora_fim) setHoraFim((prev) => prev || p.hora_fim);
-                    if (p.dia_inteiro === "true") setDiaInteiro(true);
-                    if (p.local) setLocal((prev) => prev || p.local);
-                    if (p.modalidade) setModalidade((prev) => prev || p.modalidade);
+                    setTitulo(m.titulo);
+                    const obsNova = p.observacoes || m.descricao || "";
+                    const obsAnterior = anterior?.observacoes || "";
+                    setObservacoes((prev) => {
+                      const base = obsAnterior && prev.trim() === obsAnterior.trim() ? "" : prev;
+                      return base.trim() ? base : obsNova;
+                    });
+                    /** Campo do modelo anterior que deve ser limpo se o novo não definir */
+                    const limpar = (key: string, valorAtual: string, set: (v: string) => void) => {
+                      const ant = anterior?.[key];
+                      if (ant && !p[key] && valorAtual === ant) set("");
+                    };
+                    if (!travarDatas) {
+                      limpar("data_inicio", dataInicio, setDataInicio);
+                      limpar("hora_inicio", horaInicio, setHoraInicio);
+                      limpar("data_fim", dataFim, setDataFim);
+                      limpar("hora_fim", horaFim, setHoraFim);
+                      if (p.data_inicio) setDataInicio(p.data_inicio);
+                      if (p.hora_inicio) setHoraInicio(p.hora_inicio);
+                      if (p.data_fim) setDataFim(p.data_fim);
+                      if (p.hora_fim) setHoraFim(p.hora_fim);
+                    }
+                    setDiaInteiro(p.dia_inteiro === "true");
+                    limpar("local", local, setLocal);
+                    limpar("modalidade", modalidade, setModalidade);
+                    if (p.local) setLocal(p.local);
+                    if (p.modalidade) setModalidade(p.modalidade);
+                    modeloPadroesRef.current = { ...p, observacoes: obsNova };
                     // Prazo pré-programado no modelo → data do evento a partir da
                     // data base (data da publicação, se houver, ou hoje)
                     const prazoCalculado = resolverPrazoModelo(
