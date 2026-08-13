@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Mail, MessageCircle, Check, Inbox, ExternalLink } from "lucide-react";
+import { Mail, MessageCircle, Check, Inbox, ExternalLink, Undo2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +57,9 @@ export default function MinhasMensagensRecebidas({
   const queryClient = useQueryClient();
   const [busca, setBusca] = useState("");
   const [filtroLeitura, setFiltroLeitura] = useState<"todas" | "nao_lidas" | "lidas">("todas");
+  /** última ação de marcação de leitura feita pelo usuário nesta sessão (para desfazer) */
+  const [ultimaMarcacao, setUltimaMarcacao] = useState<string[] | null>(null);
+  const [desfazendo, setDesfazendo] = useState(false);
 
   const { data: perfil } = useQuery({
     queryKey: ["perfil-contatos", user?.id],
@@ -281,6 +284,7 @@ export default function MinhasMensagensRecebidas({
       toast.error("Não foi possível marcar como lida");
       return;
     }
+    setUltimaMarcacao(ids);
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["minhas-mensagens-leituras", user.id], refetchType: "all" }),
       queryClient.invalidateQueries({ queryKey: ["mensagens-nao-lidas"], refetchType: "all" }),
@@ -313,6 +317,33 @@ export default function MinhasMensagensRecebidas({
       (id) => !lidos.has(id),
     );
     await marcarLida(ids);
+  };
+
+  /** Desfaz a última marcação como lida realizada pelo usuário */
+  const desfazerUltima = async () => {
+    if (!user?.id || !ultimaMarcacao || ultimaMarcacao.length === 0) return;
+    setDesfazendo(true);
+    const { error } = await supabase
+      .from("alertas_recebidos_leituras")
+      .delete()
+      .eq("user_id", user.id)
+      .in("alerta_id", ultimaMarcacao);
+    setDesfazendo(false);
+    if (error) {
+      toast.error("Não foi possível desfazer");
+      return;
+    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["minhas-mensagens-leituras", user.id], refetchType: "all" }),
+      queryClient.invalidateQueries({ queryKey: ["mensagens-nao-lidas"], refetchType: "all" }),
+      queryClient.invalidateQueries({ queryKey: ["alertas-recebidos"], refetchType: "all" }),
+    ]);
+    toast.success(
+      ultimaMarcacao.length > 1
+        ? `${ultimaMarcacao.length} mensagens voltaram para não lidas`
+        : "Mensagem voltou para não lida"
+    );
+    setUltimaMarcacao(null);
   };
 
   return (
@@ -361,6 +392,15 @@ export default function MinhasMensagensRecebidas({
             onClick={marcarTodasDoUsuario}
           >
             <Check className="h-4 w-4 mr-1" /> Marcar todas
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!ultimaMarcacao || ultimaMarcacao.length === 0 || desfazendo}
+            onClick={desfazerUltima}
+            title="Desfaz a última marcação como lida feita por você"
+          >
+            <Undo2 className="h-4 w-4 mr-1" /> Desfazer última
           </Button>
         </div>
       </div>
