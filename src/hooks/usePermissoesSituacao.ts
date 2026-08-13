@@ -8,6 +8,7 @@ export interface PermissaoSituacaoRow {
   situacao: string;
   perfis: string[];
   usuarios: string[];
+  ativa: boolean;
 }
 
 /**
@@ -28,7 +29,7 @@ export function usePermissoesSituacao(
     queryFn: async (): Promise<PermissaoSituacaoRow[]> => {
       const { data, error } = await supabase
         .from("permissoes_situacao_tipo_tarefa")
-        .select("situacao, perfis, usuarios")
+        .select("situacao, perfis, usuarios, ativa")
         .eq("coordenacao_id", coordenacaoId!)
         .eq("tipo_tarefa", (tipoTarefa || "").trim().toUpperCase());
       if (error) throw error;
@@ -36,9 +37,20 @@ export function usePermissoesSituacao(
         situacao: r.situacao,
         perfis: (r.perfis || []) as string[],
         usuarios: (r.usuarios || []) as string[],
+        ativa: r.ativa !== false,
       }));
     },
   });
+
+  /** Situação desativada por tipo de item não deve aparecer no seletor */
+  const situacaoAtiva = useCallback(
+    (valor?: string | null) => {
+      if (!valor) return true;
+      const regra = data.find((r) => r.situacao === valor);
+      return regra ? regra.ativa : true;
+    },
+    [data],
+  );
 
   const podeUsarSituacao = useCallback(
     (valor?: string | null) => {
@@ -54,5 +66,5 @@ export function usePermissoesSituacao(
     [data, role, user?.id],
   );
 
-  return { regras: data, podeUsarSituacao, loading: isLoading || roleLoading };
+  return { regras: data, podeUsarSituacao, situacaoAtiva, loading: isLoading || roleLoading };
 }
