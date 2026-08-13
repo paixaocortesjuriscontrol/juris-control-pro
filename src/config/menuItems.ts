@@ -19,6 +19,7 @@ import {
   Tag,
   BarChart3,
   Bell,
+  Radar,
 } from "lucide-react";
 
 export type MenuItem = {
@@ -36,6 +37,7 @@ export type MenuItem = {
 export const menuItemsPublicos: MenuItem[] = [
   // Itens destacados (amarelo) - mais utilizados
   { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle", highlight: true },
+  { icon: Radar, label: "Monitoramento", path: "/monitoramento", highlight: true },
   { icon: BarChart3, label: "Indicadores", path: "/indicadores" },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", adminOrCoordOnly: true },
   { icon: Bell, label: "Config. Notificações", path: "/notificacoes" },
