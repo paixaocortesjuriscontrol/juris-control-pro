@@ -39,7 +39,10 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const [isLoading, setIsLoading] = useState(false);
   const { podeCancelar } = usePodeCancelarItens();
   const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(((audiencia as any)?.coordenacao_id as string) || null, "AUDIÊNCIA");
-  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas();
+  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(
+    ((audiencia as any)?.coordenacao_id as string) || null,
+    "AUDIÊNCIA",
+  );
   const { podeReagendar } = usePodeReagendar(((audiencia as any)?.coordenacao_id as string) || null, "AUDIÊNCIA");
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
   const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);

@@ -188,7 +188,15 @@ export function TarefaAgendaPanel({
   
   const [comentario, setComentario] = useState("");
   const { podeCancelar } = usePodeCancelarItens();
-  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas();
+  const tipoPermissao = (() => {
+    const t = (tarefa?.tipo || tarefa?.origem || "").toLowerCase();
+    if (t.includes("audiencia") || t.includes("audiência")) return "AUDIÊNCIA";
+    if (t.includes("prazo") && !t.includes("parcela")) return "PRAZO";
+    if (t.includes("parcela")) return "PARCELAMENTO";
+    if (t.includes("tarefa")) return "TAREFA";
+    return "EVENTO";
+  })();
+  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(null, tipoPermissao);
   const [sendingComment, setSendingComment] = useState(false);
   const [comentariosOpen, setComentariosOpen] = useState(true);
   const [detalhesOpen, setDetalhesOpen] = useState(true);
