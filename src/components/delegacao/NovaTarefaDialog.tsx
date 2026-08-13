@@ -963,7 +963,9 @@ export function NovaTarefaDialog({
                             m,
                             publicacao?.data_publicacao || publicacao?.data_disponibilizacao || null,
                           );
-                          if (prazoCalculado && !String(form.getValues("data_vencimento") ?? "").trim()) {
+                          // O modelo é uma escolha explícita: o prazo programado
+                          // sempre substitui a data prevista atual.
+                          if (prazoCalculado) {
                             form.setValue("data_vencimento" as any, prazoCalculado, { shouldDirty: true });
                           }
                         }}

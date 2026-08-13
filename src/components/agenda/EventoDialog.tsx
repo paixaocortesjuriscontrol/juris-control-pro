@@ -627,8 +627,10 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                       (publicacao as any)?.data_publicacao || (publicacao as any)?.data_disponibilizacao || null,
                     );
                     if (prazoCalculado) {
-                      if (!travarDatas) setDataInicio((prev) => (p.data_inicio ? prev : prazoCalculado));
-                      if (!travarDatas) setDataFim((prev) => (p.data_fim ? prev : prazoCalculado));
+                      // Modelo escolhido explicitamente: o prazo programado
+                      // substitui as datas atuais do formulário.
+                      if (!travarDatas && !p.data_inicio) setDataInicio(prazoCalculado);
+                      if (!travarDatas && !p.data_fim) setDataFim(prazoCalculado);
                     }
                   }}
                 />

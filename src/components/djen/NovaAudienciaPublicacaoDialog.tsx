@@ -175,6 +175,11 @@ export function NovaAudienciaPublicacaoDialog({
                 publicacaoId={publicacao?.id}
                 publicacaoTipoOrigem={publicacao?.tipo_origem}
                 publicacaoConteudo={publicacao?.conteudo}
+                publicacaoDataBase={
+                  (publicacao as any)?.data_publicacao ||
+                  (publicacao as any)?.data_disponibilizacao ||
+                  null
+                }
                 resolveProcessoBeforeSubmit={publicacao && user?.id ? async () => {
                   const proc = await ensureProcessoFromPublicacao(
                     publicacao,

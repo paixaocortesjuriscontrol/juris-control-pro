@@ -47,6 +47,8 @@ type Props = {
   publicacaoId?: string;
   publicacaoTipoOrigem?: "termo" | "processo" | "descartada" | "datajud";
   publicacaoConteudo?: string;
+  /** Data da publicação vinculada — usada como base do prazo programado nos modelos */
+  publicacaoDataBase?: string | null;
   secondarySave?: {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
@@ -94,6 +96,7 @@ export function AudienciaFormSimplificado({
   publicacaoId,
   publicacaoTipoOrigem,
   publicacaoConteudo,
+  publicacaoDataBase,
   secondarySave,
   tertiarySave,
   onAfterCreate,
@@ -573,14 +576,14 @@ export function AudienciaFormSimplificado({
               set("titulo", m.titulo);
               if (m.descricao && !form.observacoes) set("observacoes", m.descricao);
               const p = resolverPadroes(m);
-              const prazoCalculado = resolverPrazoModelo(m, null);
+              const prazoCalculado = resolverPrazoModelo(m, publicacaoDataBase || null);
               setForm((prev) => {
                 const next: any = { ...prev };
                 for (const [k, v] of Object.entries(p)) {
                   if (k === "titulo") continue;
                   if (!String(next[k] ?? "").trim()) next[k] = v;
                 }
-                if (prazoCalculado && !String(next.data_audiencia ?? "").trim()) {
+                if (prazoCalculado) {
                   next.data_audiencia = prazoCalculado;
                 }
                 return next;
