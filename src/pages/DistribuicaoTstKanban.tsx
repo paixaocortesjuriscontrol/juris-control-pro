@@ -186,6 +186,7 @@ export default function DistribuicaoTstKanban() {
       };
       cur.nome = contagem.nome;
       cur.total = contagem.count;
+      cur.pronto = contagem.pronto;
       map.set(contagem.id, cur);
     });
     return [...map.values()].sort((a, b) => {
