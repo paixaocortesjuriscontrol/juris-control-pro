@@ -1506,6 +1506,29 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               <section>
                 <SectionHeader icon={Users} title="Partes e Envolvidos" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <FormField label="Cliente (cadastro)">
+                    <Select
+                      value={form.cliente_id || "__none__"}
+                      onValueChange={(v) => update("cliente_id", v === "__none__" ? null : v)}
+                    >
+                      <SelectTrigger className={inputCls}>
+                        <SelectValue placeholder="Selecione o cliente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Sem cliente vinculado</SelectItem>
+                        {clientesLista.map((c: any) => (
+                          <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormField>
+                  <FormField label="Cliente / Envolvido (texto livre)">
+                    <Input
+                      className={inputCls}
+                      value={form.nome_cliente_envolvido || ""}
+                      onChange={(e) => update("nome_cliente_envolvido", e.target.value)}
+                    />
+                  </FormField>
                   <FormField label="Polo Ativo (Reclamante / Autor)">
                     <Textarea className={cn("text-sm min-h-[60px]", jcls("polo_ativo"))} value={form.polo_ativo || ""} onChange={(e) => update("polo_ativo", e.target.value)} />
                   </FormField>
