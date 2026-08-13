@@ -228,7 +228,7 @@ const corsHeaders = {
 // enxerga movimentação nova e o usuário nunca é avisado.
 const JUDIT_REQUESTS_URL = "https://requests.prod.judit.io/requests";
 const JUDIT_RESPONSES_URL = "https://requests.prod.judit.io/responses";
-const CRAWLER_POLL_TIMEOUT_MS = 25_000;
+const CRAWLER_POLL_TIMEOUT_MS = 15_000;
 const CRAWLER_POLL_INTERVAL_MS = 3_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -525,7 +525,7 @@ serve(async (req) => {
 
       // ── Chamar Judit ──
       const ctl = new AbortController();
-      const to = setTimeout(() => ctl.abort(), 20_000);
+      const to = setTimeout(() => ctl.abort(), 12_000);
       let payload: any = null;
       let erro: string | null = null;
       let statusHttp = 0;
@@ -798,8 +798,10 @@ serve(async (req) => {
   // (até 20s de cache + 25s de crawler cada) estouravam o limite e a execução
   // ficava presa em "executando". Agora rodam em paralelo (5 por vez) e, se o
   // orçamento acabar, o restante é retomado numa nova invocação encadeada.
-  const CONCORRENCIA = 5;
-  const BUDGET_MS = 100_000;
+  const CONCORRENCIA = 8;
+  // Orçamento curto: o runtime encerra a invocação por volta de 90s, então cada
+  // invocação processa um lote e encadeia o restante numa nova invocação.
+  const BUDGET_MS = 40_000;
   const fila = [...(processos ?? [])];
   const adiados: string[] = [];
 
