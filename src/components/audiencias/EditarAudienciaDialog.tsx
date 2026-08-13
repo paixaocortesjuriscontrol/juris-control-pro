@@ -1,6 +1,6 @@
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,8 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);
   const [statusInicial, setStatusInicial] = useState<string>("pendente");
   const [comentarioSituacao, setComentarioSituacao] = useState("");
+  /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
+  const modeloPadroesRef = useRef<Record<string, string> | null>(null);
   const [formData, setFormData] = useState({
     titulo: "",
     data_audiencia: "",
@@ -296,13 +298,21 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
                 tipo="audiencia"
                 coordenacaoId={(audiencia as any)?.coordenacao_id ?? null}
                 onSelect={(m) => {
-                  handleChange("titulo", m.titulo);
+                  const anterior = modeloPadroesRef.current || {};
                   const p = resolverPadroes(m);
-                  for (const [k, v] of Object.entries(p)) {
-                    if (k === "titulo") continue;
-                    if (datasBloqueadas && /(data|hora|prazo|dias)/i.test(k)) continue;
-                    if (!String((formData as any)[k] ?? "").trim()) handleChange(k, String(v));
+                  handleChange("titulo", m.titulo);
+                  const bloqueado = (k: string) =>
+                    datasBloqueadas && /(data|hora|prazo|dias)/i.test(k);
+                  // Limpa o que o modelo anterior preencheu e o novo não define
+                  for (const [k, v] of Object.entries(anterior)) {
+                    if (k === "titulo" || bloqueado(k) || p[k] !== undefined) continue;
+                    if (String((formData as any)[k] ?? "") === v) handleChange(k, "");
                   }
+                  for (const [k, v] of Object.entries(p)) {
+                    if (k === "titulo" || bloqueado(k)) continue;
+                    handleChange(k, String(v));
+                  }
+                  modeloPadroesRef.current = p;
                 }}
                 />
               </div>

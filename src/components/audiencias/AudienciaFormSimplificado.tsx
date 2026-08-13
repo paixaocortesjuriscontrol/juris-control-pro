@@ -2,7 +2,11 @@ import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
-import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
+import {
+  aplicarPadroesEmObjeto,
+  resolverPadroes,
+  resolverPrazoModelo,
+} from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -149,6 +153,8 @@ export function AudienciaFormSimplificado({
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
+  /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
+  const modeloPadroesRef = useRef<Record<string, string> | null>(null);
   const [coordenacaoId, setCoordenacaoId] = useState<string>(
     audienciaParaEditar?.coordenacao_id ?? ""
   );
@@ -573,21 +579,24 @@ export function AudienciaFormSimplificado({
             tipo="audiencia"
             coordenacaoId={coordenacaoId}
             onSelect={(m) => {
-              set("titulo", m.titulo);
-              if (m.descricao && !form.observacoes) set("observacoes", m.descricao);
+              const anterior = modeloPadroesRef.current || {};
               const p = resolverPadroes(m);
               const prazoCalculado = resolverPrazoModelo(m, publicacaoDataBase || null);
+              set("titulo", m.titulo);
               setForm((prev) => {
-                const next: any = { ...prev };
-                for (const [k, v] of Object.entries(p)) {
-                  if (k === "titulo") continue;
-                  if (!String(next[k] ?? "").trim()) next[k] = v;
+                const next: any = aplicarPadroesEmObjeto(prev as any, anterior, p, {
+                  ignorar: (k) => k === "titulo",
+                });
+                if (m.descricao && !String(next.observacoes ?? "").trim()) {
+                  next.observacoes = m.descricao;
                 }
-                if (prazoCalculado) {
-                  next.data_audiencia = prazoCalculado;
-                }
+                if (prazoCalculado) next.data_audiencia = prazoCalculado;
                 return next;
               });
+              modeloPadroesRef.current = {
+                ...p,
+                ...(prazoCalculado ? { data_audiencia: prazoCalculado } : {}),
+              };
             }}
           />
         </div>

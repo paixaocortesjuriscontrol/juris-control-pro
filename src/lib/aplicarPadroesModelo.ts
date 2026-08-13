@@ -142,6 +142,31 @@ function vazio(v: any) {
 }
 
 /**
+ * Troca de modelo: aplica os padrões do novo modelo sobre o objeto de
+ * formulário e limpa os campos que o modelo anterior havia preenchido e que o
+ * novo não define (apenas quando o valor continua igual ao aplicado antes).
+ */
+export function aplicarPadroesEmObjeto<T extends Record<string, any>>(
+  atual: T,
+  anteriores: Record<string, string>,
+  novos: Record<string, string>,
+  opts?: { ignorar?: (key: string) => boolean; vazioDe?: (key: string) => any },
+): T {
+  const next: any = { ...atual };
+  const ignorar = opts?.ignorar ?? (() => false);
+  const vazioDe = opts?.vazioDe ?? (() => "");
+  for (const [k, v] of Object.entries(anteriores)) {
+    if (ignorar(k) || novos[k] !== undefined) continue;
+    if (String(next[k] ?? "") === String(v)) next[k] = vazioDe(k);
+  }
+  for (const [k, v] of Object.entries(novos)) {
+    if (ignorar(k)) continue;
+    next[k] = v;
+  }
+  return next;
+}
+
+/**
  * Aplica os padrões do modelo através de setters, sem sobrescrever
  * valores já preenchidos pelo usuário. Devolve quantos campos foram aplicados.
  */

@@ -253,6 +253,8 @@ export function PrazoDialog({
   const [situacao, setSituacao] = useState<string>("pendente");
   const [situacaoInicial, setSituacaoInicial] = useState<string>("pendente");
   const [comentarioSituacao, setComentarioSituacao] = useState("");
+  /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
+  const modeloPadroesRef = useRef<Record<string, string> | null>(null);
   // Reagendamento: nova data obrigatória quando a situação passa para "reagendado"
   const [novaDataReagendamento, setNovaDataReagendamento] = useState<string>("");
   const { podeCancelar } = usePodeCancelarItens();
@@ -908,10 +910,16 @@ export function PrazoDialog({
               tipo="prazo"
               coordenacaoId={coordenacaoId}
               onSelect={(m) => {
-                setTitulo(m.titulo);
-                if (m.descricao) setObservacoes((prev) => prev || m.descricao || "");
+                const anterior = modeloPadroesRef.current;
                 const p = resolverPadroes(m);
-                if (p.observacoes) setObservacoes((prev) => prev || p.observacoes);
+                setTitulo(m.titulo);
+                const obsNova = p.observacoes || m.descricao || "";
+                const obsAnterior = anterior?.observacoes || "";
+                setObservacoes((prev) => {
+                  const base = obsAnterior && prev.trim() === obsAnterior.trim() ? "" : prev;
+                  return base.trim() ? base : obsNova;
+                });
+                modeloPadroesRef.current = { ...p, observacoes: obsNova };
                 if (travarDatas) return;
                 // Prazo pré-programado no modelo: aplica sempre a partir da data base
                 // (data da publicação vinculada; senão hoje), inclusive em edição.
@@ -928,8 +936,16 @@ export function PrazoDialog({
                 } else if (p.data_limite) {
                   setDataLimite(new Date(`${p.data_limite}T12:00:00`));
                   setDataLimiteEditadaManualmente(true);
+                } else if (anterior && (anterior.prazo_dias || anterior.data_limite)) {
+                  // Modelo novo sem prazo: desfaz o prazo aplicado pelo modelo anterior
+                  setPrazoDias(0);
+                  setDataLimiteEditadaManualmente(false);
                 }
-                if (p.data_fatal) setDataFatal((prev) => prev ?? new Date(`${p.data_fatal}T12:00:00`));
+                if (p.data_fatal) {
+                  setDataFatal(new Date(`${p.data_fatal}T12:00:00`));
+                } else if (anterior?.data_fatal) {
+                  setDataFatal(null);
+                }
               }}
               />
             </div>
