@@ -6597,6 +6597,7 @@ export type Database = {
       permissoes_situacao_tipo_tarefa: {
         Row: {
           ativa: boolean
+          comentario_obrigatorio: boolean
           coordenacao_id: string
           created_at: string
           created_by: string | null
@@ -6609,6 +6610,7 @@ export type Database = {
         }
         Insert: {
           ativa?: boolean
+          comentario_obrigatorio?: boolean
           coordenacao_id: string
           created_at?: string
           created_by?: string | null
@@ -6621,6 +6623,7 @@ export type Database = {
         }
         Update: {
           ativa?: boolean
+          comentario_obrigatorio?: boolean
           coordenacao_id?: string
           created_at?: string
           created_by?: string | null
