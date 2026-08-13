@@ -3342,7 +3342,7 @@ const AnaliseDjen = () => {
     if (paraDescartar.length === 0) {
       toast.error(
         `Nenhuma duplicada encontrada entre as ${selecionadas.length} selecionada(s). ` +
-        `Selecione publicações com mesma coordenação e mesmo id_djen (ou dedup_key).`
+        `Duplicadas = mesma coordenação, mesmo processo, mesmo dia e mesmo conteúdo.`
       );
       return;
     }
