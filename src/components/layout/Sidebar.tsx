@@ -43,6 +43,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import { useMensagensNaoLidas } from "@/hooks/useMensagensNaoLidas";
+import { useMonitoramentoCounts } from "@/hooks/useMonitoramentoCounts";
 import { menuItemsPublicos, menuItemsAdmin, type MenuItem } from "@/config/menuItems";
 import { Button } from "@/components/ui/button";
 
@@ -53,6 +54,7 @@ export function Sidebar() {
   const { coordenacoes: minhasCoordenacoes } = useCoordenacoesDoUsuario();
   const { isMenuAllowed } = useMenuPermissions();
   const { totalNaoLidas } = useMensagensNaoLidas();
+  const { total: totalMonitoramento } = useMonitoramentoCounts();
   const nomesCoordenacoes = new Set((minhasCoordenacoes || []).map((c) => c.nome));
   const isAdvogadoTemporario = role === "advogado_temporario";
 
@@ -116,7 +118,7 @@ export function Sidebar() {
             onClick={() => setMobileOpen(false)}
             className={({ isActive }) =>
               cn(
-                "nav-item",
+                "nav-item relative",
                 isActive && "nav-item-active",
                 item.highlight && "text-amber-400",
                 item.color
@@ -125,6 +127,17 @@ export function Sidebar() {
           >
             <item.icon className="w-5 h-5 flex-shrink-0" />
             {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
+            {item.path === "/monitoramento" && totalMonitoramento > 0 && (
+              <span
+                title={`${totalMonitoramento} novidade(s) de monitoramento`}
+                className={cn(
+                  "inline-flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold leading-none",
+                  collapsed ? "absolute top-1 right-1 h-4 min-w-4 px-1" : "ml-auto h-5 min-w-5 px-1.5"
+                )}
+              >
+                {totalMonitoramento > 99 ? "99+" : totalMonitoramento}
+              </span>
+            )}
           </NavLink>
         ))}
 

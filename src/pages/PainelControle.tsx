@@ -75,8 +75,6 @@ import { EquipeItensAgenda } from "@/components/painel/EquipeItensAgenda";
 import PainelAudiencias from "@/pages/PainelAudiencias";
 import MinhasMensagensRecebidas from "@/components/notificacoes/MinhasMensagensRecebidas";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
-import { AcompanhamentoEspecialEventos } from "@/components/processos/AcompanhamentoEspecialEventos";
-import { AcompanhamentoEspecialResumo } from "@/components/processos/AcompanhamentoEspecialResumo";
 import { Sparkles } from "lucide-react";
 import { horaBrt } from "@/utils/date";
 
@@ -1914,16 +1912,6 @@ export default function PainelControle() {
 
         {/* Cards de Resumo — compactos no mobile */}
         <div className="flex-shrink-0 px-3 md:px-6 py-2 md:py-3 border-b border-border bg-card">
-          <details className="mb-2 group">
-            <summary className="cursor-pointer flex items-center gap-2 text-xs font-semibold text-amber-700 dark:text-amber-400">
-              <Sparkles className="w-3.5 h-3.5" />
-              Acompanhamento Especial — Novidades
-            </summary>
-            <div className="mt-2 max-h-96 overflow-y-auto pr-2 space-y-2">
-              <AcompanhamentoEspecialResumo />
-              <AcompanhamentoEspecialEventos limit={10} showProcesso hideWhenEmpty />
-            </div>
-          </details>
           {!mostrarTotalizadores ? null : isLoading ? (
             <div className="flex gap-2">
               {[...Array(6)].map((_, i) => (
