@@ -977,7 +977,7 @@ export function ProcessoDetalhesCompletos({
       {/* Main Content - Sidebar + Content */}
       <div className="flex min-h-0 flex-col sm:flex-row min-w-0">
         {/* Sidebar Navigation - Horizontal scrollable on mobile, vertical on desktop */}
-        <aside className="w-full sm:w-36 md:w-44 border-b sm:border-b-0 sm:border-r bg-muted/20 flex-shrink-0 sm:min-h-0">
+        <aside className="w-full sm:w-36 md:w-44 border-b sm:border-b-0 sm:border-r bg-muted/20 flex-shrink-0 sm:min-h-0 sm:self-start">
           {/* Mobile: horizontal scroll, agrupado por categoria com separadores */}
           <div className="sm:hidden overflow-x-auto pb-1">
             <nav className="flex items-center gap-1 px-2 py-2 min-w-max">
@@ -1024,7 +1024,7 @@ export function ProcessoDetalhesCompletos({
             </nav>
           </div>
           {/* Desktop: vertical sidebar agrupado estilo Projuris */}
-          <ScrollArea className="hidden sm:block max-h-[calc(100vh-112px)] sticky top-0">
+          <ScrollArea className="hidden sm:block h-[calc(100vh-112px)] sticky top-0">
             <nav className="py-2">
               <button
                 onClick={onVoltar}
