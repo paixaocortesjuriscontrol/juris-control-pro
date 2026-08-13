@@ -394,6 +394,16 @@ export default function Monitoramento() {
 
   const totalPendentes = gruposDiv.reduce((acc, g) => acc + g.pendentes, 0);
 
+  const totalPaginasDiv = Math.max(1, Math.ceil(gruposDiv.length / POR_PAGINA));
+  const paginaAtualDiv = Math.min(paginaDiv, totalPaginasDiv);
+  const gruposDivPagina = useMemo(
+    () => gruposDiv.slice((paginaAtualDiv - 1) * POR_PAGINA, paginaAtualDiv * POR_PAGINA),
+    [gruposDiv, paginaAtualDiv]
+  );
+  useEffect(() => {
+    setPaginaDiv(1);
+  }, [buscaDiv, periodoDiv, dataInicialDiv, dataFinalDiv, coordenacaoIdDiv, somentePendentes]);
+
   const marcarCiente = async (grupo: GrupoDivergencia) => {
     const ids = grupo.divergencias.filter((d) => !d.resolvido_em).map((d) => d.id);
     if (ids.length === 0) return;
