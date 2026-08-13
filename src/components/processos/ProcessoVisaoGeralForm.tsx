@@ -1543,9 +1543,18 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                         className="h-8 shrink-0"
                         disabled={!form.cliente_id}
                         title="Alterar o nome/dados do cliente selecionado"
-                        onClick={() => {
-                          const c = clientesLista.find((x: any) => x.id === form.cliente_id);
-                          if (c) { setClienteEmEdicao(c); setClienteDialogOpen(true); }
+                        onClick={async () => {
+                          const { data, error } = await supabase
+                            .from("clientes")
+                            .select("*")
+                            .eq("id", form.cliente_id)
+                            .maybeSingle();
+                          if (error || !data) {
+                            toast.error("Não foi possível carregar o cliente.");
+                            return;
+                          }
+                          setClienteEmEdicao(data);
+                          setClienteDialogOpen(true);
                         }}
                       >
                         Alterar nome
