@@ -1511,20 +1511,46 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <SectionHeader icon={Users} title="Partes e Envolvidos" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <FormField label="Cliente (cadastro)">
-                    <Select
-                      value={form.cliente_id || "__none__"}
-                      onValueChange={(v) => update("cliente_id", v === "__none__" ? null : v)}
-                    >
-                      <SelectTrigger className={inputCls}>
-                        <SelectValue placeholder="Selecione o cliente" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">Sem cliente vinculado</SelectItem>
-                        {clientesLista.map((c: any) => (
-                          <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={form.cliente_id || "__none__"}
+                        onValueChange={(v) => update("cliente_id", v === "__none__" ? null : v)}
+                      >
+                        <SelectTrigger className={cn(inputCls, "flex-1 min-w-0")}>
+                          <SelectValue placeholder="Selecione o cliente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sem cliente vinculado</SelectItem>
+                          {clientesLista.map((c: any) => (
+                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0"
+                        title="Cadastrar novo cliente"
+                        onClick={() => { setClienteEmEdicao(null); setClienteDialogOpen(true); }}
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Novo
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 shrink-0"
+                        disabled={!form.cliente_id}
+                        title="Alterar o nome/dados do cliente selecionado"
+                        onClick={() => {
+                          const c = clientesLista.find((x: any) => x.id === form.cliente_id);
+                          if (c) { setClienteEmEdicao(c); setClienteDialogOpen(true); }
+                        }}
+                      >
+                        Alterar nome
+                      </Button>
+                    </div>
                   </FormField>
                   <FormField label="Cliente / Envolvido (texto livre)">
                     <Input
