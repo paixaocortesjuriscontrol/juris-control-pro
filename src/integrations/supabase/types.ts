@@ -9824,6 +9824,14 @@ export type Database = {
         Returns: string
       }
       extract_cnj_from_text: { Args: { p_text: string }; Returns: string }
+      find_processo_by_digits: {
+        Args: { _numero: string }
+        Returns: {
+          coordenacao_id: string
+          id: string
+          numero: string
+        }[]
+      }
       find_processo_id_by_numero: { Args: { _numero: string }; Returns: string }
       gerar_numero_remessa_benner: { Args: never; Returns: string }
       get_cliente_ids_for_user: {
