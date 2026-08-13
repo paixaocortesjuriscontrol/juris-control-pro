@@ -561,11 +561,26 @@ serve(async (req) => {
         }
       }
 
+      // Resumo compacto do payload: gravar o JSON completo (~73KB por processo,
+      // duas vezes) estourava o limite de CPU da Edge Function.
+      const rdResumo = payload?.response_data || payload || null;
+      const resumoPayload = rdResumo
+        ? {
+            tribunal: rdResumo.tribunal_acronym || rdResumo.tribunal || rdResumo.court || null,
+            instancia: rdResumo.instance || rdResumo.instancia || null,
+            steps: Array.isArray(rdResumo.steps) ? rdResumo.steps.length : 0,
+            ultimo_step: Array.isArray(rdResumo.steps)
+              ? rdResumo.steps[0]?.step_date ?? null
+              : null,
+            origem_dado: origemDado,
+          }
+        : null;
+
       await supabase.from("consultas_judit").insert({
         processo_id: p.id,
         requisitada_em: new Date().toISOString(),
         status_http: statusHttp,
-        payload_resposta: payload,
+        payload_resposta: resumoPayload,
         erro,
       });
 
@@ -604,7 +619,7 @@ serve(async (req) => {
             origem: "acompanhamento-especial",
             origem_dado: origemDado,
           },
-          raw_response: payload ?? null,
+          raw_response: resumoPayload,
           status: logStatus,
           error_message: erro,
           created_by: null,
@@ -798,7 +813,7 @@ serve(async (req) => {
   // (até 20s de cache + 25s de crawler cada) estouravam o limite e a execução
   // ficava presa em "executando". Agora rodam em paralelo (5 por vez) e, se o
   // orçamento acabar, o restante é retomado numa nova invocação encadeada.
-  const CONCORRENCIA = 8;
+  const CONCORRENCIA = 5;
   // Orçamento curto: o runtime encerra a invocação por volta de 90s, então cada
   // invocação processa um lote e encadeia o restante numa nova invocação.
   const BUDGET_MS = 40_000;
