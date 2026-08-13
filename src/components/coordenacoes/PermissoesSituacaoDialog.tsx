@@ -17,6 +17,7 @@ import { situacoesBase, TipoSituacaoItem } from "@/constants/situacoesItem";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Save, ShieldCheck } from "lucide-react";
+import { SITUACAO_TODAS } from "@/hooks/usePermissoesSituacao";
 
 const PERFIS: { value: string; label: string }[] = [
   { value: "admin", label: "Administrador" },
@@ -53,7 +54,13 @@ function labelDe(key: string): string {
   return TIPOS_ITEM.find((t) => t.key === key)?.label ?? key;
 }
 
-type Regra = { perfis: string[]; usuarios: string[]; ativa: boolean; restrito: boolean };
+type Regra = {
+  perfis: string[];
+  usuarios: string[];
+  ativa: boolean;
+  restrito: boolean;
+  comentarioObrigatorio?: boolean;
+};
 
 const restritoManual = (r?: Regra) => !!r?.restrito;
 
@@ -104,7 +111,7 @@ export function PermissoesSituacaoDialog({
     queryFn: async () => {
       const { data, error } = await supabase
         .from("permissoes_situacao_tipo_tarefa")
-        .select("tipo_tarefa, situacao, perfis, usuarios, ativa")
+        .select("tipo_tarefa, situacao, perfis, usuarios, ativa, comentario_obrigatorio")
         .eq("coordenacao_id", coordenacaoId);
       if (error) throw error;
       return data || [];
@@ -120,6 +127,7 @@ export function PermissoesSituacaoDialog({
         usuarios: (c.usuarios || []) as string[],
         ativa: c.ativa !== false,
         restrito: ((c.perfis || []).length + (c.usuarios || []).length) > 0,
+        comentarioObrigatorio: c.comentario_obrigatorio === true,
       };
     });
     setRegras(next);
@@ -132,6 +140,28 @@ export function PermissoesSituacaoDialog({
 
   const getRegra = (situacao: string): Regra | undefined =>
     regras[`${tipoSelecionado}|${situacao}`];
+
+  const comentarioObrigatorio = !!regras[`${tipoSelecionado}|${SITUACAO_TODAS}`]
+    ?.comentarioObrigatorio;
+
+  const toggleComentarioObrigatorio = (valor: boolean) => {
+    const key = `${tipoSelecionado}|${SITUACAO_TODAS}`;
+    setRegras((prev) => {
+      const next = { ...prev };
+      if (valor) {
+        next[key] = {
+          perfis: [],
+          usuarios: [],
+          ativa: true,
+          restrito: false,
+          comentarioObrigatorio: true,
+        };
+      } else {
+        delete next[key];
+      }
+      return next;
+    });
+  };
 
   const toggleRestricao = (situacao: string, restrito: boolean) => {
     const key = `${tipoSelecionado}|${situacao}`;
@@ -194,6 +224,7 @@ export function PermissoesSituacaoDialog({
           perfis: r.perfis,
           usuarios: r.usuarios,
           ativa: r.ativa,
+          comentario_obrigatorio: !!r.comentarioObrigatorio,
           created_by: uid,
         };
       });
@@ -223,7 +254,9 @@ export function PermissoesSituacaoDialog({
   });
 
   const qtdPorTipo = (tipo: string) =>
-    Object.keys(regras).filter((k) => k.startsWith(`${tipo}|`)).length;
+    Object.keys(regras).filter(
+      (k) => k.startsWith(`${tipo}|`) && !k.endsWith(`|${SITUACAO_TODAS}`),
+    ).length;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -273,6 +306,19 @@ export function PermissoesSituacaoDialog({
                 <p className="text-sm font-medium">
                   {labelDe(tipoSelecionado)}
                 </p>
+                <div className="border rounded-md p-3 bg-muted/40 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Comentário obrigatório</p>
+                    <p className="text-xs text-muted-foreground">
+                      Exige um comentário sempre que a situação de {labelDe(tipoSelecionado)} for
+                      alterada.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={comentarioObrigatorio}
+                    onCheckedChange={(v) => toggleComentarioObrigatorio(!!v)}
+                  />
+                </div>
                 {situacoes.map((s) => {
                   const regra = getRegra(s.value);
                   const ativa = regra ? regra.ativa : true;
