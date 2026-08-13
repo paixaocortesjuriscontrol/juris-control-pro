@@ -228,7 +228,7 @@ const corsHeaders = {
 // enxerga movimentação nova e o usuário nunca é avisado.
 const JUDIT_REQUESTS_URL = "https://requests.prod.judit.io/requests";
 const JUDIT_RESPONSES_URL = "https://requests.prod.judit.io/responses";
-const CRAWLER_POLL_TIMEOUT_MS = 45_000;
+const CRAWLER_POLL_TIMEOUT_MS = 25_000;
 const CRAWLER_POLL_INTERVAL_MS = 3_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
