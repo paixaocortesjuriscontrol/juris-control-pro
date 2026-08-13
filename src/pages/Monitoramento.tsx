@@ -141,7 +141,7 @@ const LABEL_CAMPO: Record<string, string> = {
 
 export default function Monitoramento() {
   const qc = useQueryClient();
-  const { isAdmin, isAdminOrCoordinator } = useUserRole();
+  const { isAdminOrCoordinator } = useUserRole();
   const { processoIds, semRestricao, isLoading: escopoLoading } = useEscopoAcompanhamentoEspecial();
   const { movimentacoes: countMov, divergencias: countDiv } = useMonitoramentoCounts();
 
@@ -209,7 +209,7 @@ export default function Monitoramento() {
         .order("step_date", { ascending: false })
         .limit(1000);
 
-      if (periodo !== "todos") {
+      if (!dataInicial && !dataFinal && periodo !== "todos") {
         const desde = new Date(Date.now() - Number(periodo) * 24 * 60 * 60 * 1000).toISOString();
         q = q.gte("criado_em", desde);
       }
@@ -250,7 +250,7 @@ export default function Monitoramento() {
         .order("detectado_em", { ascending: false })
         .limit(1000);
 
-      if (periodoDiv !== "todos") {
+      if (!dataInicialDiv && !dataFinalDiv && periodoDiv !== "todos") {
         const desde = new Date(Date.now() - Number(periodoDiv) * 24 * 60 * 60 * 1000).toISOString();
         q = q.gte("detectado_em", desde);
       }
@@ -484,7 +484,10 @@ export default function Monitoramento() {
                  type="date"
                  value={dataInicial}
                  max={dataFinal || undefined}
-                 onChange={(e) => setDataInicial(e.target.value)}
+                 onChange={(e) => {
+                   setDataInicial(e.target.value);
+                   if (e.target.value) setPeriodo("todos");
+                 }}
                  className="h-9 w-[145px]"
                />
                <Label htmlFor="mov-data-final" className="text-xs whitespace-nowrap">Até</Label>
@@ -493,7 +496,10 @@ export default function Monitoramento() {
                  type="date"
                  value={dataFinal}
                  min={dataInicial || undefined}
-                 onChange={(e) => setDataFinal(e.target.value)}
+                 onChange={(e) => {
+                   setDataFinal(e.target.value);
+                   if (e.target.value) setPeriodo("todos");
+                 }}
                  className="h-9 w-[145px]"
                />
              </div>
@@ -698,7 +704,10 @@ export default function Monitoramento() {
                 type="date"
                 value={dataInicialDiv}
                 max={dataFinalDiv || undefined}
-                onChange={(e) => setDataInicialDiv(e.target.value)}
+                onChange={(e) => {
+                  setDataInicialDiv(e.target.value);
+                  if (e.target.value) setPeriodoDiv("todos");
+                }}
                 className="h-9 w-[145px]"
               />
               <Label htmlFor="div-data-final" className="text-xs whitespace-nowrap">Até</Label>
@@ -707,7 +716,10 @@ export default function Monitoramento() {
                 type="date"
                 value={dataFinalDiv}
                 min={dataInicialDiv || undefined}
-                onChange={(e) => setDataFinalDiv(e.target.value)}
+                onChange={(e) => {
+                  setDataFinalDiv(e.target.value);
+                  if (e.target.value) setPeriodoDiv("todos");
+                }}
                 className="h-9 w-[145px]"
               />
             </div>
