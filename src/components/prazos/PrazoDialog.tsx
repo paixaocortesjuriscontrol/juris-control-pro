@@ -253,6 +253,8 @@ export function PrazoDialog({
   const [situacao, setSituacao] = useState<string>("pendente");
   const [situacaoInicial, setSituacaoInicial] = useState<string>("pendente");
   const [comentarioSituacao, setComentarioSituacao] = useState("");
+  /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
+  const modeloPadroesRef = useRef<Record<string, string> | null>(null);
   // Reagendamento: nova data obrigatória quando a situação passa para "reagendado"
   const [novaDataReagendamento, setNovaDataReagendamento] = useState<string>("");
   const { podeCancelar } = usePodeCancelarItens();
