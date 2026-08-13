@@ -3802,11 +3802,20 @@ const AnaliseDjen = () => {
                 }
               }
 
-              await Promise.all([
-                queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
-                queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas-stats-header"] }),
-                queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
-              ]);
+              // Atualização otimista do cache: evita refetch da lista inteira
+              // (que reexibia o spinner de carregamento da tela).
+              const idsLidos = new Set(relacionadas.map((r) => r.publicacao_id));
+              queryClient.setQueriesData<any>({ queryKey: ["publicacoes-unificadas"] }, (old: any) => {
+                if (!old?.rows) return old;
+                const rows = apenasNaoLidas
+                  ? old.rows.filter((p: any) => !idsLidos.has(p.id))
+                  : old.rows.map((p: any) => (idsLidos.has(p.id) ? { ...p, lida: true } : p));
+                return { ...old, rows };
+              });
+              // Marca como obsoleto sem refetch imediato; os contadores atualizam em background.
+              queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"], refetchType: "none" });
+              queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas-stats-header"] });
+              queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"], refetchType: "none" });
               registrarAcaoSessao({
                 tipo: "leitura",
                 label: `Marcar ${relacionadas.length} publicação(ões) como lida(s)`,
