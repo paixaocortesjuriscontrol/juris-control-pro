@@ -38,7 +38,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const { podeCancelar } = usePodeCancelarItens();
-  const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(((audiencia as any)?.coordenacao_id as string) || null, "AUDIÊNCIA");
+  const { podeUsarSituacao, situacaoAtiva, comentarioObrigatorio } = usePermissoesSituacao(((audiencia as any)?.coordenacao_id as string) || null, "AUDIÊNCIA");
   const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(
     ((audiencia as any)?.coordenacao_id as string) || null,
     "AUDIÊNCIA",
@@ -154,6 +154,10 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
     if (!audiencia) return;
 
     const situacaoMudou = formData.status !== statusInicial;
+    if (situacaoMudou && comentarioObrigatorio && !comentarioSituacao.trim()) {
+      toast.error("Comentário obrigatório para mudar a situação");
+      return;
+    }
 
 
     setIsLoading(true);
@@ -263,7 +267,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
           {formData.status !== statusInicial && (
             <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
               <Label className="text-xs font-semibold">
-                Comentário da mudança de situação (opcional)
+                Comentário da mudança de situação{comentarioObrigatorio ? " (obrigatório)" : " (opcional)"}
               </Label>
               <Textarea
                 value={comentarioSituacao}

@@ -141,7 +141,10 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const [alertaUnidade, setAlertaUnidade] = useState<AlertaUnidade>("horas");
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "OUTROS");
-  const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(coordenacaoId || null, "EVENTO");
+  const { podeUsarSituacao, situacaoAtiva, comentarioObrigatorio } = usePermissoesSituacao(
+    coordenacaoId || null,
+    "EVENTO",
+  );
   // Envolvidos fixos configurados na coordenação para este tipo
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "OUTROS");
   useEffect(() => {
@@ -349,6 +352,10 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       return;
     }
     const situacaoMudou = situacao !== situacaoInicial;
+    if (situacaoMudou && comentarioObrigatorio && !comentarioSituacao.trim()) {
+      toast.error("Comentário obrigatório para mudar a situação");
+      return;
+    }
 
 
     let processoIdParaSalvar = processoId;
@@ -578,7 +585,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             {situacao !== situacaoInicial && (
               <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
                 <Label className="text-xs font-semibold">
-                  Comentário da mudança de situação (opcional)
+                  Comentário da mudança de situação{comentarioObrigatorio ? " (obrigatório)" : " (opcional)"}
                 </Label>
                 <Textarea
                   value={comentarioSituacao}

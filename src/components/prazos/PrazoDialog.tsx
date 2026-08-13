@@ -446,7 +446,10 @@ export function PrazoDialog({
   // Auto-calcular data limite quando Prazo (dias) muda
   // Responsáveis definidos na configuração da coordenação para o tipo Prazo
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "PRAZO");
-  const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(coordenacaoId || null, "PRAZO");
+  const { podeUsarSituacao, situacaoAtiva, comentarioObrigatorio } = usePermissoesSituacao(
+    coordenacaoId || null,
+    "PRAZO",
+  );
 
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
@@ -497,6 +500,10 @@ export function PrazoDialog({
       return;
     }
     const situacaoMudou = situacao !== situacaoInicial;
+    if (situacaoMudou && comentarioObrigatorio && !comentarioSituacao.trim()) {
+      toast.error("Comentário obrigatório para mudar a situação");
+      return;
+    }
 
     // Reagendamento: se uma nova data for informada, move o prazo para ela;
     // caso contrário, mantém a data atual e apenas marca a situação como
@@ -775,7 +782,7 @@ export function PrazoDialog({
             )}
 
             <Label className="text-xs font-semibold">
-              Comentário da mudança de situação (opcional)
+              Comentário da mudança de situação{comentarioObrigatorio ? " (obrigatório)" : " (opcional)"}
             </Label>
             <Textarea
               value={comentarioSituacao}
