@@ -10,12 +10,14 @@ import {
   Paperclip,
   ChevronRight,
   X,
+  Check,
   CheckCheck,
   ExternalLink,
   Loader2,
   Sparkles,
   AlertTriangle,
 } from "lucide-react";
+
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
