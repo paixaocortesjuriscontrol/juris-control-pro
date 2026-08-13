@@ -16,6 +16,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { loadResponsaveisMap, ProfileBasic } from "@/hooks/useDistribuicaoResponsaveis";
+import { COLUNAS_SELECT_PENDENCIAS, getPendencias } from "@/utils/distribuicaoTstPendencias";
 
 interface Card {
   id: string;
@@ -28,6 +29,9 @@ interface Card {
   aba_origem: string | null;
   fontes_importacao?: string[] | null;
   responsaveis: ProfileBasic[];
+  /** Linha completa (colunas de pendências) para calcular "Pronto sem pendência". */
+  raw?: any;
+  semPendencia?: boolean;
 }
 
 function getDias(prazo: string | null): number | null {
@@ -35,15 +39,19 @@ function getDias(prazo: string | null): number | null {
   return differenceInCalendarDays(new Date(prazo + "T12:00:00"), new Date());
 }
 
-type ColKey = "delegada" | "em_andamento" | "finalizada";
+type ColKey = "delegada" | "em_andamento" | "finalizada" | "pronto_sem_pendencia";
+
+const isPronto = (c: Card) => c.status_distribuicao === "finalizada" || c.status_distribuicao === "pronto";
 
 const columns: { key: ColKey; label: string; color: string; bg: string; match: (c: Card) => boolean }[] = [
   { key: "delegada", label: "Delegada", color: "text-blue-600", bg: "bg-blue-500/10 border-blue-500/30",
-    match: (c) => (c.status_distribuicao || "delegada") === "delegada" },
-  { key: "em_andamento", label: "Em andamento", color: "text-amber-600", bg: "bg-amber-500/10 border-amber-500/30",
-    match: (c) => c.status_distribuicao === "em_andamento" },
-  { key: "finalizada", label: "Finalizada", color: "text-emerald-600", bg: "bg-emerald-500/10 border-emerald-500/30",
-    match: (c) => c.status_distribuicao === "finalizada" },
+    match: (c) => !c.status_distribuicao || c.status_distribuicao === "delegada" },
+  { key: "em_andamento", label: "Em análise", color: "text-amber-600", bg: "bg-amber-500/10 border-amber-500/30",
+    match: (c) => c.status_distribuicao === "em_andamento" || c.status_distribuicao === "em_analise" },
+  { key: "finalizada", label: "Pronto", color: "text-teal-600", bg: "bg-teal-500/10 border-teal-500/30",
+    match: (c) => isPronto(c) && !c.semPendencia },
+  { key: "pronto_sem_pendencia", label: "Pronto sem pendência", color: "text-emerald-600", bg: "bg-emerald-500/10 border-emerald-500/30",
+    match: (c) => isPronto(c) && !!c.semPendencia },
 ];
 
 export default function DistribuicaoTstKanban() {
@@ -75,9 +83,14 @@ export default function DistribuicaoTstKanban() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      const baseCols = [
+        "id", "processo", "dossie", "prazo_entrega", "status_distribuicao",
+        "distribuido_em", "observacao_distribuicao", "aba_origem", "fontes_importacao",
+      ];
+      const selectCols = Array.from(new Set([...baseCols, ...COLUNAS_SELECT_PENDENCIAS])).join(", ");
       let query = supabase
         .from("dados_benner" as any)
-        .select("id, processo, dossie, prazo_entrega, status_distribuicao, distribuido_em, observacao_distribuicao, aba_origem, fontes_importacao, dados_benner_responsaveis!inner(usuario_id)")
+        .select(`${selectCols}, dados_benner_responsaveis!inner(usuario_id)`)
         .not("distribuido_em", "is", null)
         .order("prazo_entrega", { ascending: true, nullsFirst: false })
         .limit(2000);
@@ -88,7 +101,9 @@ export default function DistribuicaoTstKanban() {
       if (advFilter.length > 0) {
         query = query.in("dados_benner_responsaveis.usuario_id", advFilter);
       }
-      if (filtroStatus !== "todos") query = query.eq("status_distribuicao", filtroStatus);
+      if (filtroStatus === "delegada") query = query.or("status_distribuicao.is.null,status_distribuicao.eq.delegada");
+      else if (filtroStatus === "em_andamento") query = query.in("status_distribuicao", ["em_andamento", "em_analise"]);
+      else if (filtroStatus === "finalizada") query = query.in("status_distribuicao", ["finalizada", "pronto"]);
       if (filtroAba !== "todas") query = query.eq("aba_origem", filtroAba);
 
       const { data, error } = await query;
@@ -112,6 +127,8 @@ export default function DistribuicaoTstKanban() {
         aba_origem: r.aba_origem,
         fontes_importacao: r.fontes_importacao || [],
         responsaveis: respMap.get(r.id) || [],
+        raw: r,
+        semPendencia: getPendencias(r).length === 0,
       })));
     } catch (e: any) {
       toast.error("Erro ao carregar Kanban: " + (e?.message || ""));
@@ -158,24 +175,25 @@ export default function DistribuicaoTstKanban() {
     }
   };
 
-  const totals = useMemo(() => columns.map((c) => ({ key: c.key, count: cards.filter(c.match).length })), [cards]);
-
   // Resumo por responsável (obedece filtros aplicados, pois deriva de `cards`)
   const resumoResponsaveis = useMemo(() => {
-    const map = new Map<string, { id: string; nome: string; total: number; pronto: number }>();
+    const map = new Map<string, { id: string; nome: string; total: number; pronto: number; semPend: number }>();
     cards.forEach((c) => {
-      const isPronto = c.status_distribuicao === "finalizada";
+      const pronto = isPronto(c);
+      const prontoOk = pronto && !!c.semPendencia;
       if (c.responsaveis.length === 0) {
         const k = "__sem__";
-        const cur = map.get(k) || { id: k, nome: "Sem responsável", total: 0, pronto: 0 };
+        const cur = map.get(k) || { id: k, nome: "Sem responsável", total: 0, pronto: 0, semPend: 0 };
         cur.total += 1;
-        if (isPronto) cur.pronto += 1;
+        if (pronto) cur.pronto += 1;
+        if (prontoOk) cur.semPend += 1;
         map.set(k, cur);
       } else {
         c.responsaveis.forEach((r) => {
-          const cur = map.get(r.id) || { id: r.id, nome: r.nome, total: 0, pronto: 0 };
+          const cur = map.get(r.id) || { id: r.id, nome: r.nome, total: 0, pronto: 0, semPend: 0 };
           cur.total += 1;
-          if (isPronto) cur.pronto += 1;
+          if (pronto) cur.pronto += 1;
+          if (prontoOk) cur.semPend += 1;
           map.set(r.id, cur);
         });
       }
@@ -216,8 +234,8 @@ export default function DistribuicaoTstKanban() {
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="delegada">Delegada</SelectItem>
-                <SelectItem value="em_andamento">Em andamento</SelectItem>
-                <SelectItem value="finalizada">Finalizada</SelectItem>
+                <SelectItem value="em_andamento">Em análise</SelectItem>
+                <SelectItem value="finalizada">Pronto</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -242,7 +260,7 @@ export default function DistribuicaoTstKanban() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {resumoResponsaveis.length > 0 && (
             <div className="mb-3">
               <div className="flex items-center justify-between mb-1.5">
@@ -251,8 +269,8 @@ export default function DistribuicaoTstKanban() {
                 </h3>
                 <span className="text-[11px] text-muted-foreground">filtros aplicados</span>
               </div>
-              <ScrollArea className="w-full">
-                <div className="flex gap-2 pb-2">
+              <div className="w-full">
+                <div className="flex flex-wrap gap-2 pb-2">
                   {resumoResponsaveis.map((r) => {
                     const faltam = r.total - r.pronto;
                     const pct = r.total > 0 ? Math.round((r.pronto / r.total) * 100) : 0;
@@ -267,19 +285,23 @@ export default function DistribuicaoTstKanban() {
                             prev.includes(r.id) ? prev.filter((x) => x !== r.id) : [...prev, r.id],
                           );
                         }}
-                        className={`shrink-0 w-[200px] text-left rounded-lg border p-2.5 transition-colors bg-card hover:border-primary/60 ${
+                        className={`w-[200px] max-w-full text-left rounded-lg border p-2.5 transition-colors bg-card hover:border-primary/60 ${
                           ativo ? "border-primary ring-1 ring-primary/40" : "border-border"
                         }`}
                       >
                         <p className="text-xs font-semibold truncate" title={r.nome}>{r.nome}</p>
-                        <div className="mt-1.5 grid grid-cols-3 gap-1 text-center">
+                        <div className="mt-1.5 grid grid-cols-4 gap-1 text-center">
                           <div>
                             <p className="text-[9px] uppercase text-muted-foreground">Total</p>
                             <p className="text-sm font-bold text-foreground">{r.total}</p>
                           </div>
                           <div>
                             <p className="text-[9px] uppercase text-muted-foreground">Pronto</p>
-                            <p className="text-sm font-bold text-emerald-600">{r.pronto}</p>
+                            <p className="text-sm font-bold text-teal-600">{r.pronto}</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] uppercase text-muted-foreground">S/pend</p>
+                            <p className="text-sm font-bold text-emerald-600">{r.semPend}</p>
                           </div>
                           <div>
                             <p className="text-[9px] uppercase text-muted-foreground">Faltam</p>
@@ -297,14 +319,14 @@ export default function DistribuicaoTstKanban() {
                     );
                   })}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 h-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
             {columns.map((col) => {
               const items = cards.filter(col.match);
               return (
-                <div key={col.key} className={`flex flex-col rounded-lg border ${col.bg} min-h-[300px] overflow-hidden`}>
+                <div key={col.key} className={`flex flex-col rounded-lg border ${col.bg} min-h-[300px] max-h-[70vh] overflow-hidden`}>
                   <div className={`px-3 py-2 border-b ${col.bg}`}>
                     <h3 className={`text-sm font-semibold ${col.color} truncate`}>{col.label}</h3>
                     <span className="text-xs text-muted-foreground">{items.length} processo(s)</span>
@@ -387,8 +409,8 @@ export default function DistribuicaoTstKanban() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="delegada">Delegada</SelectItem>
-                  <SelectItem value="em_andamento">Em andamento</SelectItem>
-                  <SelectItem value="finalizada">Finalizada</SelectItem>
+                  <SelectItem value="em_andamento">Em análise</SelectItem>
+                  <SelectItem value="finalizada">Pronto</SelectItem>
                 </SelectContent>
               </Select>
             </div>
