@@ -37,13 +37,13 @@ export const menuItemsPublicos: MenuItem[] = [
   // Itens destacados (amarelo) - mais utilizados
   { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle", highlight: true },
   { icon: BarChart3, label: "Indicadores", path: "/indicadores" },
+  { icon: Users, label: "Coordenações", path: "/coordenacoes", adminOrCoordOnly: true },
   { icon: Bell, label: "Config. Notificações", path: "/notificacoes" },
   { icon: FileText, label: "Rel. Auditoria", path: "/auditoria-itens", adminOrCoordOnly: true },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
   { icon: ArrowRightLeft, label: "Comparar DJEN", path: "/comparar-dj-santander", highlight: true, adminOnly: true },
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true, adminOrCoordOnly: true },
   { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
-  { icon: Users, label: "Coordenações", path: "/coordenacoes", highlight: true, adminOrCoordOnly: true },
   { icon: Tag, label: "Etiquetas", path: "/etiquetas", highlight: true },
   // Demais itens
   { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400", restrictedCoordenacoes: ["Coordenação Dra. Renata com termos do João", "Dr. Renata com termos do João", "Coordenação Dra. Renata Santander"] },
