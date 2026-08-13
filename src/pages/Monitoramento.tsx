@@ -1,5 +1,4 @@
-import { useMemo, useState } from "react";
-import { Helmet } from "react-helmet-async";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -90,6 +89,10 @@ export default function Monitoramento() {
   const [somenteNaoLidas, setSomenteNaoLidas] = useState(false);
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [marcando, setMarcando] = useState(false);
+
+  useEffect(() => {
+    document.title = "Monitoramento de Processos | Juris Control";
+  }, []);
 
   const { data: coordenacoes } = useQuery({
     queryKey: ["monitoramento-coordenacoes"],
@@ -214,15 +217,6 @@ export default function Monitoramento() {
 
   return (
     <div className="flex flex-col h-full">
-      <Helmet>
-        <title>Monitoramento de Processos | Juris Control</title>
-        <meta
-          name="description"
-          content="Acompanhe movimentações processuais encontradas pelo monitoramento e as divergências Judit da sua coordenação."
-        />
-        <link rel="canonical" href="/monitoramento" />
-      </Helmet>
-
       <header className="px-4 md:px-6 py-4 border-b border-border bg-card">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
