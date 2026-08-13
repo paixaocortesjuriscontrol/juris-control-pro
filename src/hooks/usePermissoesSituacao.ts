@@ -10,7 +10,11 @@ export interface PermissaoSituacaoRow {
   perfis: string[];
   usuarios: string[];
   ativa: boolean;
+  comentarioObrigatorio: boolean;
 }
+
+/** Linha usada para guardar regras que valem para todo o tipo de tarefa */
+export const SITUACAO_TODAS = "__TODAS__";
 
 /**
  * Restrições de situação por coordenação + tipo de tarefa.
@@ -41,7 +45,7 @@ export function usePermissoesSituacao(
     queryFn: async (): Promise<PermissaoSituacaoRow[]> => {
       const { data, error } = await supabase
         .from("permissoes_situacao_tipo_tarefa")
-        .select("situacao, perfis, usuarios, ativa")
+        .select("situacao, perfis, usuarios, ativa, comentario_obrigatorio")
         .in("coordenacao_id", idsEfetivos)
         .eq("tipo_tarefa", (tipoTarefa || "").trim().toUpperCase());
       if (error) throw error;
@@ -50,9 +54,15 @@ export function usePermissoesSituacao(
         perfis: (r.perfis || []) as string[],
         usuarios: (r.usuarios || []) as string[],
         ativa: r.ativa !== false,
+        comentarioObrigatorio: r.comentario_obrigatorio === true,
       }));
     },
   });
+
+  /** Comentário obrigatório ao mudar a situação deste tipo de tarefa */
+  const comentarioObrigatorio = data.some(
+    (r) => r.situacao === SITUACAO_TODAS && r.comentarioObrigatorio,
+  );
 
   /** Situação desativada por tipo de item não deve aparecer no seletor */
   const situacaoAtiva = useCallback(
@@ -80,5 +90,11 @@ export function usePermissoesSituacao(
     [data, role, user?.id],
   );
 
-  return { regras: data, podeUsarSituacao, situacaoAtiva, loading: isLoading || roleLoading };
+  return {
+    regras: data,
+    podeUsarSituacao,
+    situacaoAtiva,
+    comentarioObrigatorio,
+    loading: isLoading || roleLoading,
+  };
 }
