@@ -559,14 +559,14 @@ export default function Monitoramento() {
           </div>
 
           {/* Lista + painel lateral */}
-          <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
+          <div className="flex flex-col lg:flex-row lg:items-start">
             <div
               className={cn(
-                "min-h-0 border-b lg:border-b-0 lg:border-r border-border transition-all duration-300",
+                "border-b lg:border-b-0 lg:border-r border-border",
                 grupoAtivo ? "lg:w-[38%]" : "w-full"
               )}
             >
-              <ScrollArea className="h-[40vh] lg:h-full">
+              <div>
                 <div className="p-3 md:p-4 space-y-2">
                   {isLoading || escopoLoading ? (
                     [...Array(6)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
@@ -576,7 +576,7 @@ export default function Monitoramento() {
                       Nenhuma movimentação encontrada com os filtros atuais.
                     </div>
                   ) : (
-                    grupos.map((g) => (
+                    gruposPagina.map((g) => (
                       <button
                         key={g.processoId}
                         onClick={() =>
@@ -611,11 +611,36 @@ export default function Monitoramento() {
                     ))
                   )}
                 </div>
-              </ScrollArea>
+                {totalPaginas > 1 && (
+                  <div className="flex items-center justify-between gap-2 px-3 md:px-4 py-3 border-t border-border">
+                    <span className="text-xs text-muted-foreground">
+                      Página {paginaAtual} de {totalPaginas} · {grupos.length} processo(s)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={paginaAtual <= 1}
+                        onClick={() => setPagina((p) => Math.max(1, p - 1))}
+                      >
+                        Anterior
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={paginaAtual >= totalPaginas}
+                        onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+                      >
+                        Próxima
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {grupoAtivo && (
-              <div className="flex-1 min-h-0 flex flex-col bg-background animate-fade-in">
+              <div className="flex-1 flex flex-col bg-background animate-fade-in lg:sticky lg:top-4">
                 <div className="px-4 py-3 border-b border-border flex items-start gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="font-mono text-sm truncate">{grupoAtivo.numero}</p>
@@ -648,7 +673,7 @@ export default function Monitoramento() {
                   </Button>
                 </div>
 
-                <ScrollArea className="flex-1">
+                <div className="lg:max-h-[70vh] lg:overflow-y-auto">
                   <div className="p-4 space-y-3">
                     {grupoAtivo.eventos.map((ev) => (
                       <Card
@@ -690,13 +715,13 @@ export default function Monitoramento() {
                       </Card>
                     ))}
                   </div>
-                </ScrollArea>
+                </div>
               </div>
             )}
           </div>
         </TabsContent>
 
-        <TabsContent value="divergencias" className="flex-1 min-h-0 m-0 flex flex-col">
+        <TabsContent value="divergencias" className="m-0 flex flex-col">
           {/* Filtros */}
           <div className="px-4 md:px-6 py-3 border-b border-border bg-card flex flex-wrap items-center gap-2">
             <div className="relative flex-1 min-w-[220px]">
