@@ -530,6 +530,21 @@ export function ProcessoExpandableRow({
               <TooltipContent>{processo.advogado_responsavel.nome}</TooltipContent>
             </Tooltip>
           )}
+          {onOpenLateral && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className={cn("h-8 w-8", lateralAberto && "bg-primary/10 border-primary text-primary")}
+                  onClick={(e) => { e.stopPropagation(); onOpenLateral(processo.id); }}
+                >
+                  <PanelRightOpen className="w-3.5 h-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Resumo e itens do processo</TooltipContent>
+            </Tooltip>
+          )}
           <Button
             variant="outline"
             size="icon"
