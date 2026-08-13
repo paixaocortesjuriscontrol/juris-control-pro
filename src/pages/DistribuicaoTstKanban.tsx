@@ -234,8 +234,8 @@ export default function DistribuicaoTstKanban() {
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
                 <SelectItem value="delegada">Delegada</SelectItem>
-                <SelectItem value="em_andamento">Em andamento</SelectItem>
-                <SelectItem value="finalizada">Finalizada</SelectItem>
+                <SelectItem value="em_andamento">Em análise</SelectItem>
+                <SelectItem value="finalizada">Pronto</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -409,8 +409,8 @@ export default function DistribuicaoTstKanban() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="delegada">Delegada</SelectItem>
-                  <SelectItem value="em_andamento">Em andamento</SelectItem>
-                  <SelectItem value="finalizada">Finalizada</SelectItem>
+                  <SelectItem value="em_andamento">Em análise</SelectItem>
+                  <SelectItem value="finalizada">Pronto</SelectItem>
                 </SelectContent>
               </Select>
             </div>
