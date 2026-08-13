@@ -83,9 +83,14 @@ export default function DistribuicaoTstKanban() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      const baseCols = [
+        "id", "processo", "dossie", "prazo_entrega", "status_distribuicao",
+        "distribuido_em", "observacao_distribuicao", "aba_origem", "fontes_importacao",
+      ];
+      const selectCols = Array.from(new Set([...baseCols, ...COLUNAS_SELECT_PENDENCIAS])).join(", ");
       let query = supabase
         .from("dados_benner" as any)
-        .select("id, processo, dossie, prazo_entrega, status_distribuicao, distribuido_em, observacao_distribuicao, aba_origem, fontes_importacao, dados_benner_responsaveis!inner(usuario_id)")
+        .select(`${selectCols}, dados_benner_responsaveis!inner(usuario_id)`)
         .not("distribuido_em", "is", null)
         .order("prazo_entrega", { ascending: true, nullsFirst: false })
         .limit(2000);
@@ -96,7 +101,9 @@ export default function DistribuicaoTstKanban() {
       if (advFilter.length > 0) {
         query = query.in("dados_benner_responsaveis.usuario_id", advFilter);
       }
-      if (filtroStatus !== "todos") query = query.eq("status_distribuicao", filtroStatus);
+      if (filtroStatus === "delegada") query = query.or("status_distribuicao.is.null,status_distribuicao.eq.delegada");
+      else if (filtroStatus === "em_andamento") query = query.in("status_distribuicao", ["em_andamento", "em_analise"]);
+      else if (filtroStatus === "finalizada") query = query.in("status_distribuicao", ["finalizada", "pronto"]);
       if (filtroAba !== "todas") query = query.eq("aba_origem", filtroAba);
 
       const { data, error } = await query;
@@ -120,6 +127,8 @@ export default function DistribuicaoTstKanban() {
         aba_origem: r.aba_origem,
         fontes_importacao: r.fontes_importacao || [],
         responsaveis: respMap.get(r.id) || [],
+        raw: r,
+        semPendencia: getPendencias(r).length === 0,
       })));
     } catch (e: any) {
       toast.error("Erro ao carregar Kanban: " + (e?.message || ""));
