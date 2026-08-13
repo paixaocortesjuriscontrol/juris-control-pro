@@ -10,12 +10,14 @@ import {
   Paperclip,
   ChevronRight,
   X,
+  Check,
   CheckCheck,
   ExternalLink,
   Loader2,
   Sparkles,
   AlertTriangle,
 } from "lucide-react";
+
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +28,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -40,7 +44,7 @@ import {
 import { useEscopoAcompanhamentoEspecial } from "@/hooks/useEscopoAcompanhamentoEspecial";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useMonitoramentoCounts } from "@/hooks/useMonitoramentoCounts";
-import { AcompanhamentoEspecialDivergencias } from "@/components/djen/AcompanhamentoEspecialDivergencias";
+
 
 type Evento = {
   id: string;
@@ -70,12 +74,69 @@ type Grupo = {
   ultima: string | null;
 };
 
+type Divergencia = {
+  id: string;
+  processo_id: string;
+  campo: string;
+  valor_atual: string | null;
+  valor_judit: string | null;
+  detectado_em: string;
+  resolvido_em: string | null;
+  processo?: {
+    numero: string | null;
+    polo_ativo: string | null;
+    polo_passivo: string | null;
+    coordenacao_id: string | null;
+  } | null;
+};
+
+type GrupoDivergencia = {
+  processoId: string;
+  numero: string;
+  parte: string;
+  coordenacaoId: string | null;
+  divergencias: Divergencia[];
+  pendentes: number;
+  ultima: string | null;
+};
+
+
 const PERIODOS = [
   { value: "7", label: "Últimos 7 dias" },
   { value: "30", label: "Últimos 30 dias" },
   { value: "90", label: "Últimos 90 dias" },
   { value: "todos", label: "Todo o período" },
 ];
+
+const LABEL_CAMPO: Record<string, string> = {
+  tribunal: "Tribunal",
+  orgao_julgador: "Órgão julgador",
+  classe: "Classe",
+  natureza: "Natureza",
+  assunto: "Assunto",
+  materia: "Matéria",
+  comarca: "Comarca",
+  vara: "Vara/Câmara",
+  uf: "UF",
+  instancia: "Instância",
+  justica: "Justiça",
+  esfera: "Esfera",
+  area: "Área",
+  sistema: "Sistema",
+  data_distribuicao: "Data de distribuição",
+  data_citacao: "Data de citação",
+  data_recebimento: "Data de recebimento",
+  valor_causa: "Valor da causa",
+  polo_ativo: "Polo ativo",
+  polo_passivo: "Polo passivo",
+  reclamante: "Reclamante",
+  reclamados: "Reclamado(s)",
+  terceiro_envolvido: "Terceiro envolvido",
+  pedidos: "Pedidos",
+  fase: "Fase",
+  segredo_justica: "Segredo de justiça",
+};
+
 
 export default function Monitoramento() {
   const qc = useQueryClient();
@@ -89,6 +150,14 @@ export default function Monitoramento() {
   const [somenteNaoLidas, setSomenteNaoLidas] = useState(false);
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [marcando, setMarcando] = useState(false);
+
+  const [buscaDiv, setBuscaDiv] = useState("");
+  const [periodoDiv, setPeriodoDiv] = useState("30");
+  const [coordenacaoIdDiv, setCoordenacaoIdDiv] = useState("todas");
+  const [somentePendentes, setSomentePendentes] = useState(true);
+  const [selecionadoDiv, setSelecionadoDiv] = useState<string | null>(null);
+  const [resolvendo, setResolvendo] = useState(false);
+
 
   useEffect(() => {
     document.title = "Monitoramento de Processos | Juris Control";
@@ -144,6 +213,44 @@ export default function Monitoramento() {
       return (data ?? []) as unknown as Evento[];
     },
   });
+
+  const {
+    data: divergencias,
+    isLoading: isLoadingDiv,
+    isFetching: isFetchingDiv,
+    refetch: refetchDiv,
+  } = useQuery({
+    queryKey: [
+      "monitoramento-divergencias",
+      semRestricao ? "all" : processoIds.join(","),
+      periodoDiv,
+    ],
+    enabled: !escopoLoading,
+    staleTime: 30_000,
+    refetchInterval: 120_000,
+    queryFn: async () => {
+      if (!semRestricao && processoIds.length === 0) return [] as Divergencia[];
+
+      let q = supabase
+        .from("acompanhamento_especial_divergencias")
+        .select(
+          "id, processo_id, campo, valor_atual, valor_judit, detectado_em, resolvido_em, processo:processos(numero, polo_ativo, polo_passivo, coordenacao_id)"
+        )
+        .order("detectado_em", { ascending: false })
+        .limit(1000);
+
+      if (periodoDiv !== "todos") {
+        const desde = new Date(Date.now() - Number(periodoDiv) * 24 * 60 * 60 * 1000).toISOString();
+        q = q.gte("detectado_em", desde);
+      }
+      if (!semRestricao) q = q.in("processo_id", processoIds);
+
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as unknown as Divergencia[];
+    },
+  });
+
 
   const grupos = useMemo<Grupo[]>(() => {
     const map = new Map<string, Grupo>();
@@ -215,8 +322,82 @@ export default function Monitoramento() {
     }
   };
 
+  const gruposDiv = useMemo<GrupoDivergencia[]>(() => {
+    const map = new Map<string, GrupoDivergencia>();
+    for (const d of divergencias ?? []) {
+      const g = map.get(d.processo_id) ?? {
+        processoId: d.processo_id,
+        numero: d.processo?.numero || "Processo sem número",
+        parte: [d.processo?.polo_ativo, d.processo?.polo_passivo].filter(Boolean).join(" × "),
+        coordenacaoId: d.processo?.coordenacao_id ?? null,
+        divergencias: [],
+        pendentes: 0,
+        ultima: null,
+      };
+      g.divergencias.push(d);
+      if (!d.resolvido_em) g.pendentes += 1;
+      if (d.detectado_em && (!g.ultima || d.detectado_em > g.ultima)) g.ultima = d.detectado_em;
+      map.set(d.processo_id, g);
+    }
+
+    const termo = buscaDiv.trim().toLowerCase();
+    const somenteDigitos = termo.replace(/\D/g, "");
+
+    return Array.from(map.values())
+      .filter((g) => {
+        if (somentePendentes && g.pendentes === 0) return false;
+        if (coordenacaoIdDiv !== "todas" && g.coordenacaoId !== coordenacaoIdDiv) return false;
+        if (!termo) return true;
+        const numeroDigitos = g.numero.replace(/\D/g, "");
+        return (
+          g.numero.toLowerCase().includes(termo) ||
+          g.parte.toLowerCase().includes(termo) ||
+          (somenteDigitos.length >= 4 && numeroDigitos.includes(somenteDigitos))
+        );
+      })
+      .sort((a, b) => {
+        if (a.pendentes !== b.pendentes) return b.pendentes - a.pendentes;
+        return (b.ultima ?? "").localeCompare(a.ultima ?? "");
+      });
+  }, [divergencias, buscaDiv, somentePendentes, coordenacaoIdDiv]);
+
+  const grupoDivAtivo = useMemo(
+    () => gruposDiv.find((g) => g.processoId === selecionadoDiv) ?? null,
+    [gruposDiv, selecionadoDiv]
+  );
+
+  const totalPendentes = gruposDiv.reduce((acc, g) => acc + g.pendentes, 0);
+
+  const marcarCiente = async (grupo: GrupoDivergencia) => {
+    const ids = grupo.divergencias.filter((d) => !d.resolvido_em).map((d) => d.id);
+    if (ids.length === 0) return;
+    setResolvendo(true);
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      for (let i = 0; i < ids.length; i += 200) {
+        const { error } = await supabase
+          .from("acompanhamento_especial_divergencias")
+          .update({ resolvido_em: new Date().toISOString(), resolvido_por: userData.user?.id ?? null })
+          .in("id", ids.slice(i, i + 200));
+        if (error) throw error;
+      }
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["monitoramento-divergencias"] }),
+        qc.invalidateQueries({ queryKey: ["monitoramento-counts"] }),
+        qc.invalidateQueries({ queryKey: ["acomp-especial-novidades"] }),
+        qc.invalidateQueries({ queryKey: ["acomp-especial-divergencias"] }),
+      ]);
+      toast.success(`${ids.length} divergência(s) marcada(s) como ciente`);
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível marcar como ciente");
+    } finally {
+      setResolvendo(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
+
       <header className="px-4 md:px-6 py-4 border-b border-border bg-card">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
@@ -459,9 +640,210 @@ export default function Monitoramento() {
           </div>
         </TabsContent>
 
-        <TabsContent value="divergencias" className="flex-1 min-h-0 m-0 overflow-y-auto p-4 md:p-6">
-          <AcompanhamentoEspecialDivergencias />
+        <TabsContent value="divergencias" className="flex-1 min-h-0 m-0 flex flex-col">
+          {/* Filtros */}
+          <div className="px-4 md:px-6 py-3 border-b border-border bg-card flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={buscaDiv}
+                onChange={(e) => setBuscaDiv(e.target.value)}
+                placeholder="Buscar por número do processo ou parte…"
+                className="pl-8 h-9"
+              />
+            </div>
+            <Select value={periodoDiv} onValueChange={setPeriodoDiv}>
+              <SelectTrigger className="h-9 w-[170px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PERIODOS.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {isAdminOrCoordinator && (
+              <Select value={coordenacaoIdDiv} onValueChange={setCoordenacaoIdDiv}>
+                <SelectTrigger className="h-9 w-[220px]">
+                  <SelectValue placeholder="Coordenação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas as coordenações</SelectItem>
+                  {(coordenacoes ?? []).map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <div className="flex items-center gap-2">
+              <Switch
+                id="pendentes-div"
+                checked={somentePendentes}
+                onCheckedChange={setSomentePendentes}
+              />
+              <Label htmlFor="pendentes-div" className="text-xs">
+                Só pendentes
+              </Label>
+            </div>
+            <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
+              <span>
+                {gruposDiv.length} processo(s) · {totalPendentes} pendente(s)
+              </span>
+            </div>
+          </div>
+
+          {/* Lista + painel lateral */}
+          <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
+            <div
+              className={cn(
+                "min-h-0 border-b lg:border-b-0 lg:border-r border-border transition-all duration-300",
+                grupoDivAtivo ? "lg:w-[38%]" : "w-full"
+              )}
+            >
+              <ScrollArea className="h-[40vh] lg:h-full">
+                <div className="p-3 md:p-4 space-y-2">
+                  {isLoadingDiv || escopoLoading ? (
+                    [...Array(6)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
+                  ) : gruposDiv.length === 0 ? (
+                    <div className="text-center py-16 text-sm text-muted-foreground">
+                      <AlertTriangle className="w-8 h-8 mx-auto mb-3 text-amber-500/50" />
+                      Nenhuma divergência encontrada com os filtros atuais.
+                    </div>
+                  ) : (
+                    gruposDiv.map((g) => (
+                      <button
+                        key={g.processoId}
+                        onClick={() =>
+                          setSelecionadoDiv((prev) => (prev === g.processoId ? null : g.processoId))
+                        }
+                        className={cn(
+                          "w-full text-left rounded-lg border border-border bg-card px-3 py-2.5 hover:bg-muted/50 transition-colors",
+                          selecionadoDiv === g.processoId && "border-amber-500/70 bg-amber-500/5"
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-mono text-sm truncate">{g.numero}</p>
+                            {g.parte && (
+                              <p className="text-xs text-muted-foreground truncate">{g.parte}</p>
+                            )}
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {g.divergencias.length} divergência(s)
+                              {g.ultima
+                                ? ` · última em ${format(new Date(g.ultima), "dd/MM/yyyy", { locale: ptBR })}`
+                                : ""}
+                            </p>
+                          </div>
+                          {g.pendentes > 0 && (
+                            <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+                              {g.pendentes}
+                            </Badge>
+                          )}
+                          <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+
+            {grupoDivAtivo && (
+              <div className="flex-1 min-h-0 flex flex-col bg-background animate-fade-in">
+                <div className="px-4 py-3 border-b border-border flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-sm truncate">{grupoDivAtivo.numero}</p>
+                    {grupoDivAtivo.parte && (
+                      <p className="text-xs text-muted-foreground truncate">{grupoDivAtivo.parte}</p>
+                    )}
+                  </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to={`/processos/${grupoDivAtivo.processoId}`}>
+                      <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                      Abrir processo
+                    </Link>
+                  </Button>
+                  {grupoDivAtivo.pendentes > 0 && (
+                    <Button size="sm" onClick={() => marcarCiente(grupoDivAtivo)} disabled={resolvendo}>
+                      {resolvendo ? (
+                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      ) : (
+                        <CheckCheck className="w-3.5 h-3.5 mr-1.5" />
+                      )}
+                      Marcar como ciente
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="icon" onClick={() => setSelecionadoDiv(null)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+
+                <ScrollArea className="flex-1">
+                  <div className="p-4 space-y-3">
+                    <div className="rounded-md border overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Detectado</TableHead>
+                            <TableHead>Campo</TableHead>
+                            <TableHead>No formulário</TableHead>
+                            <TableHead>Judit</TableHead>
+                            <TableHead className="text-right">Ação</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {grupoDivAtivo.divergencias.map((d) => (
+                            <TableRow key={d.id}>
+                              <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                                {format(new Date(d.detectado_em), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                              </TableCell>
+                              <TableCell className="text-sm font-medium">
+                                {LABEL_CAMPO[d.campo] ?? d.campo}
+                              </TableCell>
+                              <TableCell className="text-xs max-w-[220px] truncate" title={d.valor_atual ?? ""}>
+                                {d.valor_atual || "—"}
+                              </TableCell>
+                              <TableCell className="text-xs max-w-[220px] truncate text-emerald-700" title={d.valor_judit ?? ""}>
+                                {d.valor_judit || "—"}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {!d.resolvido_em ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={resolvendo}
+                                    onClick={() => marcarCiente({ ...grupoDivAtivo, divergencias: [d], pendentes: 1 })}
+                                  >
+                                    {resolvendo ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Check className="mr-1 h-3 w-3" /> Ciente
+                                      </>
+                                    )}
+                                  </Button>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px]">
+                                    Ciente
+                                  </Badge>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
+          </div>
         </TabsContent>
+
       </Tabs>
     </div>
   );
