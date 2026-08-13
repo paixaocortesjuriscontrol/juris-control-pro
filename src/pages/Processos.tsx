@@ -1195,7 +1195,7 @@ const Processos = () => {
           </div>
 
           {lateralProcessoId && (
-            <aside className="w-full lg:w-[420px] xl:w-[460px] flex-none bg-card rounded-xl border border-border/50 overflow-hidden flex flex-col max-h-[calc(100vh-12rem)] lg:sticky lg:top-4">
+            <aside className="w-full lg:w-[640px] xl:w-[720px] flex-none bg-card rounded-xl border border-border/50 overflow-hidden flex flex-col max-h-[calc(100vh-12rem)] lg:sticky lg:top-4">
               <ProcessoItensLateral
                 key={lateralProcessoId}
                 processoId={lateralProcessoId}
