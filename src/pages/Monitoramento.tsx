@@ -104,6 +104,36 @@ const PERIODOS = [
   { value: "todos", label: "Todo o período" },
 ];
 
+const LABEL_CAMPO: Record<string, string> = {
+  tribunal: "Tribunal",
+  orgao_julgador: "Órgão julgador",
+  classe: "Classe",
+  natureza: "Natureza",
+  assunto: "Assunto",
+  materia: "Matéria",
+  comarca: "Comarca",
+  vara: "Vara/Câmara",
+  uf: "UF",
+  instancia: "Instância",
+  justica: "Justiça",
+  esfera: "Esfera",
+  area: "Área",
+  sistema: "Sistema",
+  data_distribuicao: "Data de distribuição",
+  data_citacao: "Data de citação",
+  data_recebimento: "Data de recebimento",
+  valor_causa: "Valor da causa",
+  polo_ativo: "Polo ativo",
+  polo_passivo: "Polo passivo",
+  reclamante: "Reclamante",
+  reclamados: "Reclamado(s)",
+  terceiro_envolvido: "Terceiro envolvido",
+  pedidos: "Pedidos",
+  fase: "Fase",
+  segredo_justica: "Segredo de justiça",
+};
+
+
 export default function Monitoramento() {
   const qc = useQueryClient();
   const { isAdmin, isAdminOrCoordinator } = useUserRole();
