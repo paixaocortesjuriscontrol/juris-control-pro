@@ -161,7 +161,9 @@ export default function DistribuicaoTstKanban() {
       const pronto = isPronto(c);
       const prontoOk = pronto && !!c.semPendencia;
       if (c.responsaveis.length === 0) {
-        const k = "__sem__";
+        // Mesmo id usado por useResponsaveisCounts para o bucket "Sem responsável",
+        // evitando dois cards duplicados no resumo.
+        const k = "00000000-0000-0000-0000-000000000000";
         const cur = map.get(k) || { id: k, nome: "Sem responsável", total: 0, pronto: 0, semPend: 0 };
         cur.total += 1;
         if (pronto) cur.pronto += 1;
@@ -233,7 +235,7 @@ export default function DistribuicaoTstKanban() {
                         key={r.id}
                         type="button"
                         onClick={() => {
-                          if (r.id === "__sem__") return;
+                          if (r.id === "00000000-0000-0000-0000-000000000000") return;
                           setFiltroAdvogados((prev) => prev.includes(r.id) ? [] : [r.id]);
                         }}
                         className={`w-[200px] max-w-full text-left rounded-lg border p-2.5 transition-colors bg-card hover:border-primary/60 ${
