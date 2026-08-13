@@ -35,6 +35,18 @@ export function labelSituacaoAtividade(valor?: string | null): string {
   return SITUACOES_ATIVIDADE.find((s) => s.value === (valor ?? "pendente"))?.label ?? (valor ?? "Pendente");
 }
 
+/** Formata data/hora com segurança (valores inválidos não podem quebrar a aba). */
+function fmtDataHora(valor?: string | null): string | null {
+  if (!valor) return null;
+  try {
+    const d = parseISO(valor);
+    if (isNaN(d.getTime())) return null;
+    return format(d, "dd/MM/yyyy HH:mm", { locale: ptBR });
+  } catch {
+    return null;
+  }
+}
+
 export interface Subatividade {
   id: string;
   tipo_item: string;
@@ -277,9 +289,9 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
                   }}
                   className="text-xs ml-6 w-[calc(100%-1.5rem)]"
                 />
-                {concluida && a.concluida_em && (
+                {concluida && fmtDataHora(a.concluida_em) && (
                   <p className="pl-6 text-[11px] text-emerald-600 dark:text-emerald-400">
-                    Concluída em {format(parseISO(a.concluida_em), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                    Concluída em {fmtDataHora(a.concluida_em)}
                   </p>
                 )}
               </li>
