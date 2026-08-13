@@ -53,7 +53,9 @@ function labelDe(key: string): string {
   return TIPOS_ITEM.find((t) => t.key === key)?.label ?? key;
 }
 
-type Regra = { perfis: string[]; usuarios: string[]; ativa: boolean };
+type Regra = { perfis: string[]; usuarios: string[]; ativa: boolean; restrito: boolean };
+
+const restritoManual = (r?: Regra) => !!r?.restrito;
 
 export function PermissoesSituacaoDialog({
   open,
@@ -117,6 +119,7 @@ export function PermissoesSituacaoDialog({
         perfis: (c.perfis || []) as string[],
         usuarios: (c.usuarios || []) as string[],
         ativa: c.ativa !== false,
+        restrito: ((c.perfis || []).length + (c.usuarios || []).length) > 0,
       };
     });
     setRegras(next);
@@ -135,10 +138,13 @@ export function PermissoesSituacaoDialog({
     setRegras((prev) => {
       const next = { ...prev };
       const atual = prev[key];
-      if (restrito) next[key] = { perfis: [], usuarios: [], ativa: true, ...(atual || {}) };
-      else if (atual && atual.ativa === false)
-        next[key] = { perfis: [], usuarios: [], ativa: false };
-      else delete next[key];
+      if (restrito) {
+        next[key] = { perfis: [], usuarios: [], ativa: true, ...(atual || {}), restrito: true };
+      } else if (atual && atual.ativa === false) {
+        next[key] = { perfis: [], usuarios: [], ativa: false, restrito: false };
+      } else {
+        delete next[key];
+      }
       return next;
     });
   };
@@ -148,19 +154,24 @@ export function PermissoesSituacaoDialog({
     setRegras((prev) => {
       const next = { ...prev };
       const atual = prev[key];
-      if (ativa && atual && atual.perfis.length === 0 && atual.usuarios.length === 0 && !restritoManual(atual)) {
+      if (ativa && (!atual || !restritoManual(atual))) {
         delete next[key];
         return next;
       }
-      next[key] = { perfis: atual?.perfis || [], usuarios: atual?.usuarios || [], ativa };
+      next[key] = {
+        perfis: atual?.perfis || [],
+        usuarios: atual?.usuarios || [],
+        restrito: !!atual?.restrito,
+        ativa,
+      };
       return next;
     });
   };
 
-  const toggleItem = (situacao: string, campo: keyof Regra, valor: string) => {
+  const toggleItem = (situacao: string, campo: "perfis" | "usuarios", valor: string) => {
     const key = `${tipoSelecionado}|${situacao}`;
     setRegras((prev) => {
-      const atual = prev[key] || { perfis: [], usuarios: [], ativa: true };
+      const atual: Regra = prev[key] || { perfis: [], usuarios: [], ativa: true, restrito: true };
       const lista = atual[campo];
       const nova = lista.includes(valor)
         ? lista.filter((v) => v !== valor)
