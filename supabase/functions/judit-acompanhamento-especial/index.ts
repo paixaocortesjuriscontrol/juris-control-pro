@@ -550,7 +550,7 @@ serve(async (req) => {
       // Fallback: cache sem dados úteis (ou 404) → dispara crawler
       let origemDado = "cache";
       if (!payload || !temDadosUteis(payload.response_data || payload)) {
-        const viaCrawler = await juditCrawler(juditApiKey, cnj, comAnexosProc);
+        const viaCrawler = await juditCrawler(juditApiKey!, cnj, comAnexosProc);
         if (viaCrawler) {
           payload = viaCrawler;
           erro = null;
