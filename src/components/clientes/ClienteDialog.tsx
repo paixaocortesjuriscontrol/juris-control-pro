@@ -156,9 +156,12 @@ export function ClienteDialog({ open, onOpenChange, cliente, onSaved }: ClienteD
           .update(clienteData)
           .eq("id", cliente.id)
           .select("id, nome")
-          .single();
+          .maybeSingle();
 
         if (error) throw error;
+        if (!data) {
+          throw new Error("Você não tem permissão para alterar este cliente. Fale com o coordenador.");
+        }
 
         toast({
           title: "Cliente atualizado",
@@ -170,9 +173,12 @@ export function ClienteDialog({ open, onOpenChange, cliente, onSaved }: ClienteD
           .from("clientes")
           .insert(clienteData)
           .select("id, nome")
-          .single();
+          .maybeSingle();
 
         if (error) throw error;
+        if (!data) {
+          throw new Error("Você não tem permissão para cadastrar clientes. Fale com o coordenador.");
+        }
 
         toast({
           title: "Cliente cadastrado",
