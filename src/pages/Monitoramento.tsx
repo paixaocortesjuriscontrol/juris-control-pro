@@ -511,26 +511,6 @@ export default function Monitoramento() {
                   ))}
                 </SelectContent>
               </Select>
-             <div className="flex items-center gap-1.5">
-               <Label htmlFor="div-data-inicial" className="text-xs whitespace-nowrap">De</Label>
-               <Input
-                 id="div-data-inicial"
-                 type="date"
-                 value={dataInicialDiv}
-                 max={dataFinalDiv || undefined}
-                 onChange={(e) => setDataInicialDiv(e.target.value)}
-                 className="h-9 w-[145px]"
-               />
-               <Label htmlFor="div-data-final" className="text-xs whitespace-nowrap">Até</Label>
-               <Input
-                 id="div-data-final"
-                 type="date"
-                 value={dataFinalDiv}
-                 min={dataInicialDiv || undefined}
-                 onChange={(e) => setDataFinalDiv(e.target.value)}
-                 className="h-9 w-[145px]"
-               />
-             </div>
             )}
             <div className="flex items-center gap-2">
               <Switch
@@ -711,6 +691,26 @@ export default function Monitoramento() {
                 ))}
               </SelectContent>
             </Select>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="div-data-inicial" className="text-xs whitespace-nowrap">De</Label>
+              <Input
+                id="div-data-inicial"
+                type="date"
+                value={dataInicialDiv}
+                max={dataFinalDiv || undefined}
+                onChange={(e) => setDataInicialDiv(e.target.value)}
+                className="h-9 w-[145px]"
+              />
+              <Label htmlFor="div-data-final" className="text-xs whitespace-nowrap">Até</Label>
+              <Input
+                id="div-data-final"
+                type="date"
+                value={dataFinalDiv}
+                min={dataInicialDiv || undefined}
+                onChange={(e) => setDataFinalDiv(e.target.value)}
+                className="h-9 w-[145px]"
+              />
+            </div>
             {isAdminOrCoordinator && (
               <Select value={coordenacaoIdDiv} onValueChange={setCoordenacaoIdDiv}>
                 <SelectTrigger className="h-9 w-[220px]">
