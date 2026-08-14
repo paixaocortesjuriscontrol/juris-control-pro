@@ -30,6 +30,7 @@ import {
 } from "@/hooks/useWorkflows";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useUsuariosCoordenacao } from "@/hooks/useUsuariosCoordenacao";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { WorkflowEtapa, WorkflowItemType } from "@/lib/workflowExecutor";
 import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 import { toast } from "sonner";
@@ -64,8 +65,11 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const createEtapa = useCreateWorkflowEtapa();
   const updateEtapa = useUpdateWorkflowEtapa();
   const deleteEtapa = useDeleteWorkflowEtapa();
-  const { data: usuarios = [] } = useUsuariosCoordenacao(workflow?.coordenacao_id);
   const { data: respMap = {} } = useWorkflowEtapasResponsaveis(workflowId);
+  const { coordenacoes } = useCoordenacoesDoUsuario();
+  const [coordSelecionada, setCoordSelecionada] = useState<string>("");
+  const coordEfetiva = coordSelecionada || workflow?.coordenacao_id || "";
+  const { data: usuarios = [] } = useUsuariosCoordenacao(coordEfetiva || undefined);
 
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -94,11 +98,13 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
 
   const handleOpen = () => {
     resetForm();
+    setCoordSelecionada(workflow?.coordenacao_id || "");
     setDialogOpen(true);
   };
 
   const handleEdit = (etapa: WorkflowEtapa) => {
     setEditing(etapa);
+    setCoordSelecionada(workflow?.coordenacao_id || "");
     setForm({
       ...etapa,
       dias_fatal: etapa.dias_fatal ?? null,
