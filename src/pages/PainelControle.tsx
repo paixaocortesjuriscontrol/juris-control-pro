@@ -1405,14 +1405,29 @@ export default function PainelControle() {
   const rangeAtividadesInicio = useMemo(() => format(dataInicio, "yyyy-MM-dd"), [dataInicio]);
   const rangeAtividadesFim = useMemo(() => format(dataFim, "yyyy-MM-dd"), [dataFim]);
 
+  // Escopo de pessoas das atividades: respeita o filtro de responsáveis da tela
+  // (e, na falta dele, o escopo da aba/coordenação). Evita ver atividades de terceiros.
+  const atividadesScopeIds = useMemo<string[] | null>(() => {
+    if (painelFiltros.responsavelIds.length > 0) return painelFiltros.responsavelIds;
+    if ((filters as any).fetchAll) return null;
+    const ids = (filters as any).responsavelIds as string[] | undefined;
+    if (ids && ids.length > 0) return ids;
+    return user?.id ? [user.id] : null;
+  }, [painelFiltros.responsavelIds, filters, user?.id]);
+
   const { data: atividadesCalendario = [] } = useQuery({
-    queryKey: ["painel-subatividades-calendario", rangeAtividadesInicio, rangeAtividadesFim],
+    queryKey: ["painel-subatividades-calendario", rangeAtividadesInicio, rangeAtividadesFim, atividadesScopeIds],
     queryFn: async () => {
-      const { data, error } = await (supabase as any)
+      let q = (supabase as any)
         .from("subatividades_item")
         .select("id, item_id, tipo_item, titulo, situacao, data_prevista, responsavel_id, observacao, criado_por")
         .gte("data_prevista", rangeAtividadesInicio)
         .lte("data_prevista", rangeAtividadesFim);
+      if (atividadesScopeIds && atividadesScopeIds.length > 0) {
+        const lista = atividadesScopeIds.join(",");
+        q = q.or(`responsavel_id.in.(${lista}),criado_por.in.(${lista})`);
+      }
+      const { data, error } = await q;
       if (error) throw error;
       return data || [];
     },
