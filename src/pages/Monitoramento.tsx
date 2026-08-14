@@ -196,6 +196,7 @@ export default function Monitoramento() {
       periodo,
       dataInicial,
       dataFinal,
+      somenteNaoLidas ? "nao-lidas" : "todas",
     ],
     enabled: !escopoLoading,
     staleTime: 30_000,
@@ -208,8 +209,12 @@ export default function Monitoramento() {
         .select(
           "id, processo_id, step_date, criado_em, conteudo, instancia, tribunal, anexos_count, lido_em, processo:processos(numero, polo_ativo, polo_passivo, coordenacao_id)"
         )
-        .order("step_date", { ascending: false })
-        .limit(1000);
+        .order("criado_em", { ascending: false })
+        .limit(2000);
+
+      // Filtro de não lidas aplicado no banco: garante que registros antigos
+      // não lidos apareçam mesmo com "Todo o período" (evita corte pelo limite).
+      if (somenteNaoLidas) q = q.is("lido_em", null);
 
       if (!dataInicial && !dataFinal && periodo !== "todos") {
         const desde = new Date(Date.now() - Number(periodo) * 24 * 60 * 60 * 1000).toISOString();
@@ -237,6 +242,7 @@ export default function Monitoramento() {
       periodoDiv,
       dataInicialDiv,
       dataFinalDiv,
+      somentePendentes ? "pendentes" : "todas",
     ],
     enabled: !escopoLoading,
     staleTime: 30_000,
@@ -250,7 +256,9 @@ export default function Monitoramento() {
           "id, processo_id, campo, valor_atual, valor_judit, detectado_em, resolvido_em, processo:processos(numero, polo_ativo, polo_passivo, coordenacao_id)"
         )
         .order("detectado_em", { ascending: false })
-        .limit(1000);
+        .limit(2000);
+
+      if (somentePendentes) q = q.is("resolvido_em", null);
 
       if (!dataInicialDiv && !dataFinalDiv && periodoDiv !== "todos") {
         const desde = new Date(Date.now() - Number(periodoDiv) * 24 * 60 * 60 * 1000).toISOString();
