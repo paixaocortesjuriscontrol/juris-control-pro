@@ -449,6 +449,7 @@ export default function ListaAtividadesView({
   }, [externalItems, page, usingExternalItems, etiquetaIdsSet]);
 
   const rows: ListaRow[] = usingExternalItems ? externalRows : (result?.rows || []);
+  const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(rows.map(tarefaToAgendaItem));
   const total = usingExternalItems
     ? (etiquetaIdsSet
         ? (externalItems || []).filter((i: any) => etiquetaIdsSet.has(i.id)).length
