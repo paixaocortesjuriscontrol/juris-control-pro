@@ -9730,6 +9730,7 @@ export type Database = {
           id: string
           item_id: string | null
           item_tipo: string
+          ordem: number
           status: string
           sucesso: boolean
           updated_at: string
@@ -9743,6 +9744,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           item_tipo: string
+          ordem?: number
           status?: string
           sucesso?: boolean
           updated_at?: string
@@ -9756,6 +9758,7 @@ export type Database = {
           id?: string
           item_id?: string | null
           item_tipo?: string
+          ordem?: number
           status?: string
           sucesso?: boolean
           updated_at?: string
