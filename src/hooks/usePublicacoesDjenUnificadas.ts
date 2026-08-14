@@ -1596,13 +1596,48 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   // com motivo "descartado_manualmente" (chama RPC SECURITY DEFINER).
   const descartarManualmente = useMutation({
     mutationFn: async ({ id, tipo_origem }: { id: string; tipo_origem: 'termo' | 'processo'; silent?: boolean }) => {
-      const { data, error } = await (supabase as any).rpc('descartar_publicacao_manualmente', {
-        p_id: id,
-        p_tipo_origem: tipo_origem,
-        p_motivo: 'descartado_manualmente',
-      });
-      if (error) throw error;
-      return data;
+      // ============================================================
+      // EXPANSÃO POR DEDUP: a tela mostra publicações deduplicadas.
+      // Descartar só o registro clicado deixa as irmãs (mesmo processo +
+      // data + cabeçalho) na base, e no próximo refresh o dedup escolhe
+      // uma irmã — a publicação "volta a aparecer". Então descartamos
+      // TODAS as irmãs do grupo.
+      // ============================================================
+      const alvos = new Map<string, 'termo' | 'processo'>([[id, tipo_origem]]);
+      try {
+        const { data: relacionadas } = await (supabase as any).rpc(
+          'get_publicacoes_relacionadas_por_dedup',
+          {
+            p_ids_termos: tipo_origem === 'termo' ? [id] : null,
+            p_ids_processos: tipo_origem === 'processo' ? [id] : null,
+            p_ids_descartadas: null,
+          }
+        );
+        (relacionadas || []).forEach((r: any) => {
+          if (r?.publicacao_id && (r.tabela_origem === 'termo' || r.tabela_origem === 'processo')) {
+            alvos.set(r.publicacao_id as string, r.tabela_origem);
+          }
+        });
+      } catch (e: any) {
+        console.warn('[DJEN] Falha ao expandir irmãs no descarte (best-effort):', e?.message || e);
+      }
+
+      let ultimo: any = null;
+      for (const [alvoId, alvoTipo] of alvos) {
+        const { data, error } = await (supabase as any).rpc('descartar_publicacao_manualmente', {
+          p_id: alvoId,
+          p_tipo_origem: alvoTipo,
+          p_motivo: 'descartado_manualmente',
+        });
+        // Só propaga erro do registro clicado; irmãs são best-effort.
+        if (error) {
+          if (alvoId === id) throw error;
+          console.warn('[DJEN] Falha ao descartar irmã:', alvoId, error.message);
+          continue;
+        }
+        if (alvoId === id) ultimo = data;
+      }
+      return ultimo;
     },
     onSuccess: async (_data, variables) => {
       // Em ações em lote (silent), não invalida nem exibe toast por item:
