@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Trash2, ListChecks, AlertTriangle } from "lucide-react";
+import { Loader2, Plus, ListChecks, AlertTriangle } from "lucide-react";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { toast } from "sonner";
