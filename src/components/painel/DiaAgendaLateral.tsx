@@ -113,10 +113,12 @@ export function AgendaItemRow({
   item,
   userId,
   onSelect,
+  temAtividade,
 }: {
   item: ItemAgendaUnificado;
   userId?: string;
   onSelect: (item: ItemAgendaUnificado) => void;
+  temAtividade?: boolean;
 }) {
   const concluido = isItemTratado(item);
   const cancelado = isCancelado(item);
@@ -146,12 +148,13 @@ export function AgendaItemRow({
         </p>
         <p
           className={cn(
-            "text-sm text-foreground leading-snug",
+            "text-sm text-foreground leading-snug flex items-center gap-1.5",
             (concluido || cancelado) && "line-through text-muted-foreground"
           )}
         >
           {item.titulo || TIPO_LABELS[item.tipo] || "Sem título"}
           {hora ? `: ${hora}` : ""}
+          {temAtividade && <AtividadeBadge />}
         </p>
         {(item.local || item.descricao) && (
           <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">
