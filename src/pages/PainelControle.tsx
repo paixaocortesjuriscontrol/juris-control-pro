@@ -1429,6 +1429,14 @@ export default function PainelControle() {
     return map;
   }, [atividadesCalendario]);
 
+  const itensComAtividades = useMemo(() => {
+    const set = new Set<string>();
+    (atividadesCalendario as any[]).forEach((a) => {
+      if (a?.item_id) set.add(getItemRawId(a.item_id));
+    });
+    return set;
+  }, [atividadesCalendario]);
+
   const handleItemClick = (item: ItemAgendaUnificado) => {
     handleEditItem(item);
   };
