@@ -116,7 +116,7 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
                                   variant="ghost"
                                   size="icon"
                                   className="h-6 w-6"
-                                  onClick={() => avancar.mutate(exec.id)}
+                                  onClick={() => avancar.mutate({ execucaoId: exec.id })}
                                   disabled={avancar.isPending}
                                   title="Concluir etapa e avançar"
                                 >
