@@ -26,7 +26,9 @@ import {
   useCreateWorkflowEtapa,
   useUpdateWorkflowEtapa,
   useDeleteWorkflowEtapa,
+  useWorkflowEtapasResponsaveis,
 } from "@/hooks/useWorkflows";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useUsuariosCoordenacao } from "@/hooks/useUsuariosCoordenacao";
 import { WorkflowEtapa, WorkflowItemType } from "@/lib/workflowExecutor";
 import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
@@ -41,7 +43,7 @@ const TIPOS: { value: WorkflowItemType; label: string }[] = [
 ];
 
 const REGRAS_RESPONSAVEL = [
-  { value: "predefinido", label: "Responsável predefinido" },
+  { value: "predefinido", label: "Responsáveis predefinidos" },
   { value: "iniciador", label: "Quem iniciou o fluxo" },
   { value: "etapa_anterior", label: "Responsável da etapa anterior" },
 ];
@@ -63,6 +65,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const updateEtapa = useUpdateWorkflowEtapa();
   const deleteEtapa = useDeleteWorkflowEtapa();
   const { data: usuarios = [] } = useUsuariosCoordenacao(workflow?.coordenacao_id);
+  const { data: respMap = {} } = useWorkflowEtapasResponsaveis(workflowId);
 
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -83,7 +86,8 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       exibir_kanban: false,
       regra_responsavel: "predefinido",
       condicao: "sempre",
-      responsavel_id: "",
+      responsavel_id: null,
+      responsaveis: [] as string[],
     });
     setEditing(null);
   };
@@ -98,6 +102,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
     setForm({
       ...etapa,
       dias_fatal: etapa.dias_fatal ?? null,
+      responsaveis: respMap[etapa.id] || (etapa.responsavel_id ? [etapa.responsavel_id] : []),
     });
     setDialogOpen(true);
   };
@@ -111,6 +116,12 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
     const payload = {
       ...form,
       dias_fatal: form.dias_fatal ? parseInt(form.dias_fatal) : null,
+      responsaveis:
+        form.regra_responsavel === "predefinido" ? (form.responsaveis || []) : [],
+      responsavel_id:
+        form.regra_responsavel === "predefinido"
+          ? (form.responsaveis || [])[0] || null
+          : null,
     };
 
     if (editing) {
@@ -287,22 +298,42 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
               </div>
               {form.regra_responsavel === "predefinido" && (
                 <div className="space-y-2">
-                  <Label htmlFor="resp_id">Responsável predefinido</Label>
-                  <Select
-                    value={form.responsavel_id || ""}
-                    onValueChange={(v) => setForm({ ...form, responsavel_id: v || null })}
-                  >
-                    <SelectTrigger id="resp_id">
-                      <SelectValue placeholder="Selecione um usuário" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {usuarios.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>
-                          {u.nome} {u.cargo ? `(${u.cargo})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Responsáveis da etapa</Label>
+                  <div className="max-h-48 overflow-y-auto rounded-md border p-2 space-y-1">
+                    {usuarios.length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        Nenhum usuário na coordenação.
+                      </p>
+                    )}
+                    {usuarios.map((u) => {
+                      const selecionados: string[] = form.responsaveis || [];
+                      const checked = selecionados.includes(u.id);
+                      return (
+                        <label
+                          key={u.id}
+                          className="flex items-center gap-2 text-sm cursor-pointer py-1"
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={(v) =>
+                              setForm({
+                                ...form,
+                                responsaveis: v
+                                  ? [...selecionados, u.id]
+                                  : selecionados.filter((id) => id !== u.id),
+                              })
+                            }
+                          />
+                          <span>
+                            {u.nome} {u.cargo ? `(${u.cargo})` : ""}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Pode alterar depois editando a etapa.
+                  </p>
                 </div>
               )}
               <div className="space-y-2">
@@ -416,6 +447,11 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                       <Badge variant="secondary">
                         {REGRAS_RESPONSAVEL.find((t) => t.value === etapa.regra_responsavel)?.label}
                       </Badge>
+                      {(respMap[etapa.id] || []).map((uid) => (
+                        <Badge key={uid} variant="outline">
+                          {usuarios.find((u) => u.id === uid)?.nome || "Usuário"}
+                        </Badge>
+                      ))}
                       {etapa.condicao !== "sempre" && (
                         <Badge variant="secondary">
                           {CONDICOES.find((t) => t.value === etapa.condicao)?.label}
