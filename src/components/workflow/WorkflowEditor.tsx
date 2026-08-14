@@ -27,6 +27,7 @@ import {
   useUpdateWorkflowEtapa,
   useDeleteWorkflowEtapa,
 } from "@/hooks/useWorkflows";
+import { useUsuariosCoordenacao } from "@/hooks/useUsuariosCoordenacao";
 import { WorkflowEtapa, WorkflowItemType } from "@/lib/workflowExecutor";
 import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 import { toast } from "sonner";
