@@ -15,11 +15,14 @@ interface Props {
 
 export function AcompanhamentoEspecialEventos({ processoId, limit = 20, showProcesso = false, hideWhenEmpty = false }: Props) {
   const { data, isLoading } = useQuery({
-    queryKey: ["acompanhamento-eventos", processoId, limit],
+    queryKey: ["acompanhamento-eventos", "novidades", processoId, limit],
     queryFn: async () => {
       let q = supabase
         .from("acompanhamento_especial_eventos")
-        .select("id, step_date, conteudo, instancia, tribunal, anexos_count, processo_id, criado_em, processo:processos(numero, polo_ativo)")
+        .select("id, step_date, conteudo, instancia, tribunal, anexos_count, processo_id, criado_em, retroativo, lido_em, processo:processos(numero, polo_ativo)")
+        // Novidades = apenas movimentações realmente novas (não retroativas e ainda não lidas)
+        .or("retroativo.is.null,retroativo.eq.false")
+        .is("lido_em", null)
         .order("step_date", { ascending: false })
         .limit(limit);
       if (processoId) q = q.eq("processo_id", processoId);
