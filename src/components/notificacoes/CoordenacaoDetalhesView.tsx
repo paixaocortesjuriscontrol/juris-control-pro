@@ -599,10 +599,14 @@ export function CoordenacaoDetalhesView({
                 key={`${item.tipo}-${item.id}`}
                 className="p-3 rounded-lg border bg-red-500/5 hover:bg-red-500/10 cursor-pointer transition-colors"
                 onClick={() => {
-                  if (item.processoId || item.processoNumero) {
-                    handleNavigateProcesso(item.processoId || item.processoNumero, "tarefas");
+                  if (item.tipo === "Evento") {
+                    navigate(`/painel-controle?view=agenda&selectedId=${item.id}&origem=evento`);
+                  } else if (item.tipo === "Tarefa" || item.tipo === "Prazo") {
+                    navigate(`/painel-controle?view=agenda&selectedId=${item.id}&origem=tarefa`);
+                  } else if (item.processoId || item.processoNumero) {
+                    handleNavigateProcesso(item.processoId || item.processoNumero, "audiencias");
                   } else {
-                    navigate(`/minha-agenda?selectedId=${item.id}`);
+                    toast.error("Item sem tela de destino");
                   }
                 }}
               >
