@@ -2298,6 +2298,7 @@ export default function PainelControle() {
                               {visiveis.map((item) => {
                                 const isConcluido = isItemTratado(item);
                                 const isCancelado = isItemCancelado(item);
+                                const temAtividade = itensComAtividades.has(getItemRawId(item.id));
                                 return (
                                 <div
                                   key={item.id}
@@ -2323,6 +2324,9 @@ export default function PainelControle() {
                                   <span className={cn("truncate", (isConcluido || isCancelado) && "line-through")}>
                                     {item.titulo || TIPO_LABELS[item.tipo]}
                                   </span>
+                                  {temAtividade && (
+                                    <AtividadeBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
+                                  )}
                                 </div>
                               )})}
                               {atividadesDia.map((a: any) => (
