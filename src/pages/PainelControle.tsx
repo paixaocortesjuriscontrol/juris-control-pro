@@ -77,6 +77,7 @@ import MinhasMensagensRecebidas from "@/components/notificacoes/MinhasMensagensR
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 import { Sparkles } from "lucide-react";
 import { horaBrt } from "@/utils/date";
+import { useSituacoesPainel, statusCasaSituacao } from "@/hooks/useSituacoesPainel";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
@@ -229,6 +230,7 @@ export default function PainelControle() {
     })();
   }, [searchParams, setSearchParams]);
   const [situacaoFilter, setSituacaoFilter] = useState<string>("todos");
+  const { options: situacoesOptions } = useSituacoesPainel();
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
   const limparFiltrosPainel = useCallback(() => {
@@ -881,7 +883,7 @@ export default function PainelControle() {
 
       // Situação detalhada (avançado)
       if (painelFiltros.situacoes.length > 0) {
-        if (!painelFiltros.situacoes.includes(item.status)) return false;
+        if (!painelFiltros.situacoes.some((v) => statusCasaSituacao(item.status, v))) return false;
       }
 
       // Envolvimento filter
@@ -951,7 +953,7 @@ export default function PainelControle() {
 
       // Filtro rápido de Situação (global)
       if (situacaoFilter && situacaoFilter !== "todos") {
-        if ((item.status ?? "").toLowerCase() !== situacaoFilter) return false;
+        if (!statusCasaSituacao(item.status, situacaoFilter)) return false;
       }
 
       return true;
@@ -1285,7 +1287,11 @@ export default function PainelControle() {
         // Nesses filtros o calendário mostra encerrados; os cards continuam zerados.
         return false;
       }
-      if (painelFiltros.situacoes.length > 0 && !painelFiltros.situacoes.includes(item.status)) return false;
+      if (
+        painelFiltros.situacoes.length > 0 &&
+        !painelFiltros.situacoes.some((v) => statusCasaSituacao(item.status, v))
+      )
+        return false;
       if (painelFiltros.souResponsavel || painelFiltros.estouEnvolvido) {
         const userId = user?.id;
         if (!userId) return false;
@@ -1325,7 +1331,7 @@ export default function PainelControle() {
         if ((dateStr ?? "").slice(0, 10) !== hoje_str) return false;
       }
       if (situacaoFilter && situacaoFilter !== "todos") {
-        if ((item.status ?? "").toLowerCase() !== situacaoFilter) return false;
+        if (!statusCasaSituacao(item.status, situacaoFilter)) return false;
       }
       return true;
     });
@@ -1727,12 +1733,11 @@ export default function PainelControle() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="pendente">⏳ Pendentes</SelectItem>
-                <SelectItem value="confirmado">✅ Confirmados</SelectItem>
-                <SelectItem value="reagendado">🔄 Reagendados</SelectItem>
-                <SelectItem value="tratado">✔️ Tratados</SelectItem>
-                <SelectItem value="cancelado">❌ Cancelados</SelectItem>
-                <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
+                {situacoesOptions.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button

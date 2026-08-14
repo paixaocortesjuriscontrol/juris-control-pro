@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSituacoesPainel } from "@/hooks/useSituacoesPainel";
 
 export interface PainelFiltrosState {
   // Prazo
@@ -41,22 +42,6 @@ export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
   responsavelIds: [],
 };
 
-const SITUACOES = [
-  { value: "a_confirmar", label: "A confirmar" },
-  { value: "pendente", label: "Pendente" },
-  { value: "cancelado", label: "Cancelado" },
-  { value: "em_execucao", label: "Em execução" },
-  { value: "cumprido", label: "Concluído com sucesso" },
-  { value: "concluido_sem_sucesso", label: "Concluído sem sucesso" },
-  { value: "revisao", label: "Revisão" },
-  { value: "verificado", label: "Verificado" },
-  { value: "minutado_revisao", label: "Minutado - Revisão" },
-  { value: "protocolado", label: "Protocolado" },
-  { value: "baixado", label: "Baixado" },
-  { value: "reagendado", label: "Reagendado" },
-  { value: "tratado", label: "Tratado" },
-];
-
 const CLASSIFICACOES = [
   { value: "tarefa", label: "Tarefas" },
   { value: "evento", label: "Eventos" },
@@ -79,6 +64,7 @@ interface PainelFiltrosProps {
 
 export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
   const [open, setOpen] = useState(false);
+  const { options: situacoesOptions } = useSituacoesPainel();
   // Rascunho local: só aplica ao clicar em "Filtrar"
   const [draft, setDraft] = useState<PainelFiltrosState>(filtros);
 
@@ -254,7 +240,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
               Situação (avançado)
             </p>
             <div className="space-y-1.5">
-              {SITUACOES.map((s) => (
+              {situacoesOptions.map((s) => (
                 <label key={s.value} className="flex items-center gap-2 text-sm cursor-pointer">
                   <Checkbox
                     checked={draft.situacoes.includes(s.value)}

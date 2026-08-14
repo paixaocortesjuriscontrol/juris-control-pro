@@ -160,7 +160,10 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
 
       // Filtro de status no banco
       if (filtros.status && filtros.status !== 'todos') {
-        query = query.eq('status', filtros.status);
+        const valores = filtros.status.split('|').filter(Boolean);
+        query = valores.length > 1
+          ? query.in('status', valores)
+          : query.eq('status', valores[0]);
       }
 
       // Filtro de coordenação no banco
