@@ -30,6 +30,7 @@ import {
 } from "@/hooks/useWorkflows";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useUsuariosCoordenacao } from "@/hooks/useUsuariosCoordenacao";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { WorkflowEtapa, WorkflowItemType } from "@/lib/workflowExecutor";
 import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 import { toast } from "sonner";
@@ -64,8 +65,11 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const createEtapa = useCreateWorkflowEtapa();
   const updateEtapa = useUpdateWorkflowEtapa();
   const deleteEtapa = useDeleteWorkflowEtapa();
-  const { data: usuarios = [] } = useUsuariosCoordenacao(workflow?.coordenacao_id);
   const { data: respMap = {} } = useWorkflowEtapasResponsaveis(workflowId);
+  const { coordenacoes } = useCoordenacoesDoUsuario();
+  const [coordSelecionada, setCoordSelecionada] = useState<string>("");
+  const coordEfetiva = coordSelecionada || workflow?.coordenacao_id || "";
+  const { data: usuarios = [] } = useUsuariosCoordenacao(coordEfetiva || undefined);
 
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -94,11 +98,13 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
 
   const handleOpen = () => {
     resetForm();
+    setCoordSelecionada(workflow?.coordenacao_id || "");
     setDialogOpen(true);
   };
 
   const handleEdit = (etapa: WorkflowEtapa) => {
     setEditing(etapa);
+    setCoordSelecionada(workflow?.coordenacao_id || "");
     setForm({
       ...etapa,
       dias_fatal: etapa.dias_fatal ?? null,
@@ -298,11 +304,39 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
               </div>
               {form.regra_responsavel === "predefinido" && (
                 <div className="space-y-2">
+                  {coordenacoes.length > 1 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="coord-etapa">Coordenação dos responsáveis</Label>
+                      <Select
+                        value={coordEfetiva}
+                        onValueChange={(v) => {
+                          setCoordSelecionada(v);
+                          setForm({ ...form, responsaveis: [] });
+                        }}
+                      >
+                        <SelectTrigger id="coord-etapa">
+                          <SelectValue placeholder="Selecione a coordenação" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {coordenacoes.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <Label>Responsáveis da etapa</Label>
                   <div className="max-h-48 overflow-y-auto rounded-md border p-2 space-y-1">
-                    {usuarios.length === 0 && (
+                    {!coordEfetiva && (
                       <p className="text-sm text-muted-foreground">
-                        Nenhum usuário na coordenação.
+                        Selecione uma coordenação para listar os usuários.
+                      </p>
+                    )}
+                    {!!coordEfetiva && usuarios.length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        Nenhum usuário nesta coordenação.
                       </p>
                     )}
                     {usuarios.map((u) => {
