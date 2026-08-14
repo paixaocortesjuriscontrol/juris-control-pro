@@ -40,6 +40,7 @@ export interface WorkflowEtapa {
   regra_responsavel: "predefinido" | "etapa_anterior" | "iniciador";
   condicao: "sempre" | "sucesso_anterior";
   etapa_anterior_id?: string | null;
+  responsavel_id?: string | null;
   created_at?: string;
   updated_at?: string;
 }
