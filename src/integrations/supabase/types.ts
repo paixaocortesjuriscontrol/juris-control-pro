@@ -9644,6 +9644,7 @@ export type Database = {
           ordem: number
           prioridade: Database["public"]["Enums"]["prioridade_tarefa"]
           regra_responsavel: string
+          responsavel_id: string | null
           tipo_item: string
           tipo_prazo: string
           titulo: string
@@ -9662,6 +9663,7 @@ export type Database = {
           ordem?: number
           prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
           regra_responsavel?: string
+          responsavel_id?: string | null
           tipo_item: string
           tipo_prazo?: string
           titulo: string
@@ -9680,6 +9682,7 @@ export type Database = {
           ordem?: number
           prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
           regra_responsavel?: string
+          responsavel_id?: string | null
           tipo_item?: string
           tipo_prazo?: string
           titulo?: string
@@ -9692,6 +9695,20 @@ export type Database = {
             columns: ["etapa_anterior_id"]
             isOneToOne: false
             referencedRelation: "workflow_etapas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_etapas_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_etapas_responsavel_id_fkey"
+            columns: ["responsavel_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
             referencedColumns: ["id"]
           },
           {
