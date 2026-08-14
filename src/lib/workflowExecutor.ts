@@ -178,7 +178,7 @@ export async function criarItemWorkflow(
       )
     : dataBaseStr;
 
-  const tipo = etapa.tipo_item;
+  const tipo = String(etapa.tipo_item || "TAREFA").toUpperCase() as WorkflowItemType;
   const itemBase: Record<string, any> = {
     coordenacao_id: execucao.coordenacao_id,
     criado_por: userId,
