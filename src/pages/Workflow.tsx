@@ -4,7 +4,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WorkflowList } from "@/components/workflow/WorkflowList";
 import { WorkflowEditor } from "@/components/workflow/WorkflowEditor";
 import { WorkflowExecucoesList } from "@/components/workflow/WorkflowExecucoesList";
-import { IniciarWorkflowDialog } from "@/components/workflow/IniciarWorkflowDialog";
 
 export default function Workflow() {
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
@@ -19,9 +18,6 @@ export default function Workflow() {
               Fluxos de trabalho com etapas dependentes por coordenação.
             </p>
           </div>
-          {selectedWorkflowId && (
-            <IniciarWorkflowDialog workflowId={selectedWorkflowId} />
-          )}
         </div>
 
         <Tabs defaultValue="fluxos" className="space-y-4">
