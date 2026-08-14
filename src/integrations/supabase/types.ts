@@ -78,6 +78,7 @@ export type Database = {
           lido_em: string | null
           notificou_em: string | null
           processo_id: string
+          retroativo: boolean
           step_date: string | null
           step_id: string | null
           tribunal: string | null
@@ -92,6 +93,7 @@ export type Database = {
           lido_em?: string | null
           notificou_em?: string | null
           processo_id: string
+          retroativo?: boolean
           step_date?: string | null
           step_id?: string | null
           tribunal?: string | null
@@ -106,6 +108,7 @@ export type Database = {
           lido_em?: string | null
           notificou_em?: string | null
           processo_id?: string
+          retroativo?: boolean
           step_date?: string | null
           step_id?: string | null
           tribunal?: string | null
@@ -1845,6 +1848,41 @@ export type Database = {
             columns: ["tarefa_id"]
             isOneToOne: false
             referencedRelation: "tarefas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      config_acompanhamento_especial: {
+        Row: {
+          coordenacao_id: string
+          created_at: string
+          dias_janela_aviso: number
+          id: string
+          notificar_retroativos: boolean
+          updated_at: string
+        }
+        Insert: {
+          coordenacao_id: string
+          created_at?: string
+          dias_janela_aviso?: number
+          id?: string
+          notificar_retroativos?: boolean
+          updated_at?: string
+        }
+        Update: {
+          coordenacao_id?: string
+          created_at?: string
+          dias_janela_aviso?: number
+          id?: string
+          notificar_retroativos?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_acompanhamento_especial_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: true
+            referencedRelation: "coordenacoes"
             referencedColumns: ["id"]
           },
         ]
