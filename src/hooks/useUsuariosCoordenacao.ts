@@ -21,7 +21,7 @@ export function useUsuariosCoordenacao(coordenacaoId?: string | null) {
           .eq("coordenacao_id", coordenacaoId!),
         supabase
           .from("coordenacoes")
-          .select("coordenador_id, coordenador:profiles_basic!coordenacoes_coordenador_id_fkey(id, nome, email)")
+          .select("coordenador_id")
           .eq("id", coordenacaoId!)
           .maybeSingle(),
       ]);
@@ -35,13 +35,17 @@ export function useUsuariosCoordenacao(coordenacaoId?: string | null) {
       }));
 
       // Garante que o coordenador apareça mesmo sem registro em membros_coordenacao
-      const c: any = coord as any;
-      const coordId = c?.coordenador_id || c?.coordenador?.id;
+      const coordId = (coord as any)?.coordenador_id as string | undefined;
       if (coordId && !lista.some((u) => u.id === coordId)) {
+        const { data: perfil } = await supabase
+          .from("profiles_basic")
+          .select("id, nome, email")
+          .eq("id", coordId)
+          .maybeSingle();
         lista.push({
           id: coordId,
-          nome: c?.coordenador?.nome || "Coordenador",
-          email: c?.coordenador?.email,
+          nome: (perfil as any)?.nome || "Coordenador",
+          email: (perfil as any)?.email,
           cargo: "coordenador",
         });
       }
