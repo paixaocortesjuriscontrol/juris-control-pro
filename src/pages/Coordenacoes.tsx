@@ -34,6 +34,7 @@ import { NivelAcessoDialog } from "@/components/coordenacoes/NivelAcessoDialog";
 import { ResponsaveisFixosTipoDialog } from "@/components/coordenacoes/ResponsaveisFixosTipoDialog";
 import { PermissoesSituacaoDialog } from "@/components/coordenacoes/PermissoesSituacaoDialog";
 import { PermissoesReagendamentoDialog } from "@/components/coordenacoes/PermissoesReagendamentoDialog";
+import { ConfigAcompanhamentoEspecialDialog } from "@/components/coordenacoes/ConfigAcompanhamentoEspecialDialog";
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -79,6 +80,7 @@ const Coordenacoes = () => {
   const [respFixosDialog, setRespFixosDialog] = useState(false);
   const [permSituacaoDialog, setPermSituacaoDialog] = useState(false);
   const [permReagendamentoDialog, setPermReagendamentoDialog] = useState(false);
+  const [configAcompDialog, setConfigAcompDialog] = useState(false);
   const [nivelAcessoMembro, setNivelAcessoMembro] = useState<any>(null);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null);
@@ -447,6 +449,14 @@ const Coordenacoes = () => {
                           <RefreshCw className="w-4 h-4 mr-1" />
                           <span className="hidden sm:inline">Quem Pode Reagendar</span>
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setConfigAcompDialog(true)}
+                        >
+                          <ShieldCheck className="w-4 h-4 mr-1" />
+                          <span className="hidden sm:inline">Acompanhamento Especial</span>
+                        </Button>
                         <Button size="sm" variant="outline" asChild>
                           <Link to="/modelos-titulo">
                             <FileType className="w-4 h-4 mr-1" />
@@ -705,6 +715,13 @@ const Coordenacoes = () => {
           <PermissoesReagendamentoDialog
             open={permReagendamentoDialog}
             onOpenChange={setPermReagendamentoDialog}
+            coordenacaoId={selectedCoord.id}
+            coordenacaoNome={selectedCoord.nome}
+          />
+
+          <ConfigAcompanhamentoEspecialDialog
+            open={configAcompDialog}
+            onOpenChange={setConfigAcompDialog}
             coordenacaoId={selectedCoord.id}
             coordenacaoNome={selectedCoord.nome}
           />
