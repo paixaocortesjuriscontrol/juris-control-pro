@@ -417,25 +417,6 @@ export function CoordenacaoDetalhesView({
     },
   });
 
-  const naoTratadosFiltrados = useMemo(() => {
-    return naoTratadosItens.filter((i: any) => matchesSearch(i.titulo) || matchesSearch(i.processoNumero, true));
-  }, [naoTratadosItens, searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const _matchesPeriodoUnused = useMemo(() => {
-    return (dateStr: string | null | undefined) => {
-      if (!dateStr) return true;
-      if (!periodoInicio && !periodoFim) return true;
-      try {
-        const date = startOfDay(parseISO(dateStr));
-        if (periodoInicio && isBefore(date, startOfDay(periodoInicio))) return false;
-        if (periodoFim && isAfter(date, startOfDay(periodoFim))) return false;
-        return true;
-      } catch {
-        return true;
-      }
-    };
-  }, [periodoInicio, periodoFim]);
-
   // Helper para busca: FRASE EXATA (evita "Super" casar com "SUPERIOR")
   // O segundo parâmetro (isProcessNumber) é ignorado - mantido para compatibilidade
   const matchesSearch = useMemo(() => {
@@ -444,6 +425,12 @@ export function CoordenacaoDetalhesView({
       return conteudoContemFraseExata(text, searchQuery);
     };
   }, [searchQuery]);
+
+  const naoTratadosFiltrados = useMemo(() => {
+    return (naoTratadosItens as any[]).filter(
+      (i: any) => matchesSearch(i.titulo) || matchesSearch(i.processoNumero, true)
+    );
+  }, [naoTratadosItens, matchesSearch]);
 
   // Publicações já vem filtradas e deduplicadas pelo hook unificado
   // Aplicar apenas filtros adicionais de busca textual
