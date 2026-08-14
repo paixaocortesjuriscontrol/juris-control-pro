@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/table";
 import { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
+import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
