@@ -217,7 +217,7 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
           {atividades.map((a) => {
             const concluida = a.situacao === "concluida";
             return (
-              <li key={a.id} className="rounded-md border p-2.5 bg-blue-50 dark:bg-blue-950/30 space-y-2">
+              <li key={a.id} className="rounded-md border p-2.5 bg-blue-100 dark:bg-blue-900/40 space-y-2">
                 <div className="flex items-start gap-2">
                   <Checkbox
                     checked={concluida}
