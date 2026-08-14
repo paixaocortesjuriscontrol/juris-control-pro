@@ -561,10 +561,11 @@ export function useAvancarWorkflowEtapa() {
 }
 
 async function buscarResponsavelItem(
-  tipo: WorkflowItemType | null,
+  tipoRaw: WorkflowItemType | null,
   itemId: string | null
 ): Promise<string | null> {
-  if (!tipo || !itemId) return null;
+  if (!tipoRaw || !itemId) return null;
+  const tipo = String(tipoRaw).toUpperCase() as WorkflowItemType;
   try {
     switch (tipo) {
       case "PRAZO":
