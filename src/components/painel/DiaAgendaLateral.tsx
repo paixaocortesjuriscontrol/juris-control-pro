@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ListChecks, X } from "lucide-react";
@@ -6,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 import { labelSituacaoAtividade } from "@/components/comum/ItemAtividades";
+import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { getItemRawId } from "@/hooks/useItensComAtividades";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 
 const TIPO_TEXTO: Record<string, string> = {
@@ -111,10 +114,12 @@ export function AgendaItemRow({
   item,
   userId,
   onSelect,
+  temAtividade,
 }: {
   item: ItemAgendaUnificado;
   userId?: string;
   onSelect: (item: ItemAgendaUnificado) => void;
+  temAtividade?: boolean;
 }) {
   const concluido = isItemTratado(item);
   const cancelado = isCancelado(item);
@@ -144,12 +149,13 @@ export function AgendaItemRow({
         </p>
         <p
           className={cn(
-            "text-sm text-foreground leading-snug",
+            "text-sm text-foreground leading-snug flex items-center gap-1.5",
             (concluido || cancelado) && "line-through text-muted-foreground"
           )}
         >
           {item.titulo || TIPO_LABELS[item.tipo] || "Sem título"}
           {hora ? `: ${hora}` : ""}
+          {temAtividade && <AtividadeBadge />}
         </p>
         {(item.local || item.descricao) && (
           <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">
@@ -204,6 +210,15 @@ export function DiaAgendaLateral({
   onClose,
 }: DiaAgendaLateralProps) {
   const total = itens.length + atividades.length;
+
+  const itensComAtividades = useMemo(() => {
+    const set = new Set<string>();
+    atividades.forEach((a) => {
+      if (a?.item_id) set.add(getItemRawId(a.item_id));
+    });
+    return set;
+  }, [atividades]);
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border flex-shrink-0">
@@ -227,7 +242,13 @@ export function DiaAgendaLateral({
             <p className="p-4 text-xs text-muted-foreground">Nenhuma atividade neste dia.</p>
           )}
           {itens.map((item) => (
-            <AgendaItemRow key={item.id} item={item} userId={userId} onSelect={onSelectItem} />
+            <AgendaItemRow
+              key={item.id}
+              item={item}
+              userId={userId}
+              onSelect={onSelectItem}
+              temAtividade={itensComAtividades.has(getItemRawId(item.id))}
+            />
           ))}
           {atividades.map((a: any) => {
             const encerrada = a.situacao === "concluida" || a.situacao === "cancelada";

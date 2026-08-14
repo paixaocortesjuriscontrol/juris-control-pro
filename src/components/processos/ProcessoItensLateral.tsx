@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { X, ExternalLink } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInline";
 import { AgendaItemRow } from "@/components/painel/DiaAgendaLateral";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
+import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 
 const soData = (v?: string | null) => (v ? String(v).slice(0, 10) : null);
@@ -104,6 +105,8 @@ export function ProcessoItensLateral({ processoId, processoNumero, onClose, onNa
     enabled: !!processoId,
   });
 
+  const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itens);
+
   if (selectedItem) {
     return (
       <EdicaoItemPanel
@@ -166,6 +169,7 @@ export function ProcessoItensLateral({ processoId, processoNumero, onClose, onNa
                 item={item}
                 userId={user?.id}
                 onSelect={setSelectedItem}
+                temAtividade={itensComAtividades.has(getItemRawId(item.id))}
               />
             ))}
         </div>

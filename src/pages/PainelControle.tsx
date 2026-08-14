@@ -78,6 +78,8 @@ import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 import { Sparkles } from "lucide-react";
 import { horaBrt } from "@/utils/date";
 import { useSituacoesPainel, statusCasaSituacao } from "@/hooks/useSituacoesPainel";
+import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { getItemRawId } from "@/hooks/useItensComAtividades";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
@@ -1427,6 +1429,14 @@ export default function PainelControle() {
     return map;
   }, [atividadesCalendario]);
 
+  const itensComAtividades = useMemo(() => {
+    const set = new Set<string>();
+    (atividadesCalendario as any[]).forEach((a) => {
+      if (a?.item_id) set.add(getItemRawId(a.item_id));
+    });
+    return set;
+  }, [atividadesCalendario]);
+
   const handleItemClick = (item: ItemAgendaUnificado) => {
     handleEditItem(item);
   };
@@ -2288,6 +2298,7 @@ export default function PainelControle() {
                               {visiveis.map((item) => {
                                 const isConcluido = isItemTratado(item);
                                 const isCancelado = isItemCancelado(item);
+                                const temAtividade = itensComAtividades.has(getItemRawId(item.id));
                                 return (
                                 <div
                                   key={item.id}
@@ -2313,6 +2324,9 @@ export default function PainelControle() {
                                   <span className={cn("truncate", (isConcluido || isCancelado) && "line-through")}>
                                     {item.titulo || TIPO_LABELS[item.tipo]}
                                   </span>
+                                  {temAtividade && (
+                                    <AtividadeBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
+                                  )}
                                 </div>
                               )})}
                               {atividadesDia.map((a: any) => (

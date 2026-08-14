@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/table";
 import { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
+import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -303,6 +305,7 @@ export function EquipeItensAgenda({
     () => listaItens.slice((paginaAtual - 1) * ITENS_POR_PAGINA, paginaAtual * ITENS_POR_PAGINA),
     [listaItens, paginaAtual]
   );
+  const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itensPagina);
 
   // Volta para a primeira página apenas quando o membro/busca realmente mudam
   // (não em remontagens nem ao salvar um item, para preservar os filtros).
@@ -479,7 +482,10 @@ export function EquipeItensAgenda({
                       className={cn("absolute left-0 top-0 h-full w-1", TIPO_BAR_CLASSES[item.tipo] || "bg-muted")}
                     />
                     <div className="max-w-[260px]">
-                      <p className="font-medium truncate text-sm" title={item.titulo || undefined}>{item.titulo || "(sem título)"}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-medium truncate text-sm" title={item.titulo || undefined}>{item.titulo || "(sem título)"}</p>
+                        {itensComAtividades.has(getItemRawId(item.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
+                      </div>
                       {item.descricao && (
                         <p className="text-xs text-muted-foreground truncate">{item.descricao}</p>
                       )}

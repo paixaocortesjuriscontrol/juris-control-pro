@@ -98,6 +98,8 @@ interface QuickDateOption {
 const TIME_ZONE = "America/Sao_Paulo";
 
 import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
+import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 
 const TIPO_CORES: Record<string, string> = {
   evento: "bg-blue-500",
@@ -519,6 +521,7 @@ export default function MinhaAgenda() {
     
     return result;
   }, [itensAgenda, search, statusFiltro, prioridadeFiltro, tipoTarefaFiltro, ordenacao]);
+  const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itensFiltrados);
 
   // Handlers
   const clearAllFilters = () => {
@@ -745,10 +748,11 @@ export default function MinhaAgenda() {
               </div>
               
               <h3 className={cn(
-                "font-medium text-sm line-clamp-2",
+                "font-medium text-sm line-clamp-2 flex items-center gap-1.5",
                 (item.status === "concluido" || item.status === "cumprido" || item.status === "cancelado") && "line-through text-muted-foreground"
               )}>
                 {item.titulo || "Sem título"}
+                {itensComAtividades.has(getItemRawId(item.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px] shrink-0" />}
               </h3>
             </div>
             
