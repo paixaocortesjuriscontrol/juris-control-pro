@@ -1456,6 +1456,22 @@ export default function PainelControle() {
     handleEditItem(item);
   };
 
+  // Abre a tarefa/prazo/audiência/evento PAI de uma atividade clicada.
+  // Se o pai não estiver na lista carregada (filtrado/concluído), busca no banco.
+  const abrirPaiDaAtividade = async (a: any) => {
+    const rawId = String(a?.item_id || "");
+    if (!rawId) return;
+    const pai = itemPorRawId.get(rawId);
+    if (pai) {
+      setDiaLateralKey(null);
+      handleItemClick(pai);
+      return;
+    }
+    setDiaLateralKey(null);
+    const ok = await abrirItemPorReferencia(rawId, true);
+    if (!ok) toast.error("Não foi possível abrir a tarefa vinculada a esta atividade.");
+  };
+
   const handleEditItem = (item: ItemAgendaUnificado) => {
     setSelectedItem(item);
   };
@@ -2355,9 +2371,7 @@ export default function PainelControle() {
                                   )}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    const pai = itemPorRawId.get(String(a.item_id));
-                                    if (pai) handleItemClick(pai);
-                                    else setDiaLateralKey(key);
+                                    void abrirPaiDaAtividade(a);
                                   }}
                                   title={`Atividade: ${a.titulo} — ${labelSituacaoAtividade(a.situacao)}`}
                                 >
@@ -2400,11 +2414,7 @@ export default function PainelControle() {
                   handleItemClick(item);
                 }}
                 onSelectAtividade={(a) => {
-                  const pai = itemPorRawId.get(String(a.item_id));
-                  if (pai) {
-                    setDiaLateralKey(null);
-                    handleItemClick(pai);
-                  }
+                  void abrirPaiDaAtividade(a);
                 }}
                 onClose={() => setDiaLateralKey(null)}
               />
