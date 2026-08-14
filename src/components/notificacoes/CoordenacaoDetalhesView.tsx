@@ -323,6 +323,100 @@ export function CoordenacaoDetalhesView({
     };
   }, [periodoInicio, periodoFim]);
 
+  // ===== Itens vencidos sem tratamento (mesma regra do card do dashboard) =====
+  // Não depende do período selecionado: são itens antigos que continuam pendentes.
+  const { data: naoTratadosItens = [] } = useQuery({
+    queryKey: ["itens-nao-tratados-detalhe", coordenacaoId],
+    enabled: !!coordenacaoId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const hojeISO = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+      const FINALIZADOS_TAREFA = [
+        "cumprido", "cumprida", "cancelado", "cancelada", "verificado", "tratado", "tratada",
+        "concluido_sem_sucesso", "concluido", "concluida", "arquivado", "arquivada",
+      ];
+      const FINALIZADOS_EVENTO = [
+        "cancelado", "cancelada", "verificado", "tratado", "tratada", "concluido", "concluida",
+        "arquivado", "arquivada", "concluido_sem_sucesso",
+      ];
+      const FINALIZADOS_AUDIENCIA = [
+        ...FINALIZADOS_EVENTO, "realizada", "realizado", "ignorado", "reagendado",
+      ];
+
+      const [tarefasRes, eventosRes, audienciasRes] = await Promise.all([
+        supabase
+          .from("tarefas")
+          .select("id, titulo, status, tipo_registro, data_fatal, data_vencimento, processo:processos!tarefas_processo_id_fkey(id, numero)")
+          .eq("coordenacao_id", coordenacaoId)
+          .limit(500),
+        supabase
+          .from("eventos_agenda")
+          .select("id, titulo, status, data_inicio, processo_id")
+          .eq("coordenacao_id", coordenacaoId)
+          .lt("data_inicio", `${hojeISO}T00:00:00`)
+          .limit(500),
+        supabase
+          .from("audiencias_detectadas")
+          .select("id, tipo_audiencia, status, data_audiencia, processo_numero, processo_id")
+          .eq("coordenacao_id", coordenacaoId)
+          .lt("data_audiencia", `${hojeISO}T00:00:00`)
+          .limit(500),
+      ]);
+
+      type ItemVencido = {
+        id: string;
+        tipo: string;
+        titulo: string;
+        data: string | null;
+        status: string | null;
+        processoId: string | null;
+        processoNumero: string | null;
+      };
+      const out: ItemVencido[] = [];
+
+      for (const t of ((tarefasRes.data ?? []) as any[])) {
+        const data = t.data_fatal || t.data_vencimento;
+        if (!data || String(data).slice(0, 10) >= hojeISO) continue;
+        if (FINALIZADOS_TAREFA.includes(String(t.status ?? "").toLowerCase())) continue;
+        out.push({
+          id: t.id,
+          tipo: t.tipo_registro === "prazo" ? "Prazo" : "Tarefa",
+          titulo: t.titulo || "Sem título",
+          data,
+          status: t.status,
+          processoId: t.processo?.id ?? null,
+          processoNumero: t.processo?.numero ?? null,
+        });
+      }
+      for (const e of ((eventosRes.data ?? []) as any[])) {
+        if (FINALIZADOS_EVENTO.includes(String(e.status ?? "").toLowerCase())) continue;
+        out.push({
+          id: e.id,
+          tipo: "Evento",
+          titulo: e.titulo || "Sem título",
+          data: e.data_inicio,
+          status: e.status,
+          processoId: e.processo_id ?? null,
+          processoNumero: null,
+        });
+      }
+      for (const a of ((audienciasRes.data ?? []) as any[])) {
+        if (FINALIZADOS_AUDIENCIA.includes(String(a.status ?? "").toLowerCase())) continue;
+        out.push({
+          id: a.id,
+          tipo: "Audiência",
+          titulo: a.tipo_audiencia || "Audiência",
+          data: a.data_audiencia,
+          status: a.status,
+          processoId: a.processo_id ?? null,
+          processoNumero: a.processo_numero ?? null,
+        });
+      }
+
+      return out.sort((x, y) => String(x.data ?? "").localeCompare(String(y.data ?? "")));
+    },
+  });
+
   // Helper para busca: FRASE EXATA (evita "Super" casar com "SUPERIOR")
   // O segundo parâmetro (isProcessNumber) é ignorado - mantido para compatibilidade
   const matchesSearch = useMemo(() => {
@@ -331,6 +425,12 @@ export function CoordenacaoDetalhesView({
       return conteudoContemFraseExata(text, searchQuery);
     };
   }, [searchQuery]);
+
+  const naoTratadosFiltrados = useMemo(() => {
+    return (naoTratadosItens as any[]).filter(
+      (i: any) => matchesSearch(i.titulo) || matchesSearch(i.processoNumero, true)
+    );
+  }, [naoTratadosItens, matchesSearch]);
 
   // Publicações já vem filtradas e deduplicadas pelo hook unificado
   // Aplicar apenas filtros adicionais de busca textual
@@ -480,7 +580,52 @@ export function CoordenacaoDetalhesView({
 
   const total = publicacoesFiltradas.length + distribuicoesFiltradas.length + alertasFiltrados.length +
     redistribuicoesFiltradas.length + prazosFiltrados.length + tarefasFiltradas.length +
-    audienciasFiltradas.length + intimacoesFiltradas.length + andamentosFiltrados.length + naoCadastradosFiltrados.length;
+    audienciasFiltradas.length + intimacoesFiltradas.length + andamentosFiltrados.length +
+    naoCadastradosFiltrados.length + naoTratadosFiltrados.length;
+
+  const renderNaoTratadosCard = () => naoTratadosFiltrados.length > 0 && (
+    <Card className="border-red-500/50">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Timer className="w-4 h-4 text-red-500" />
+          Itens vencidos sem tratamento ({naoTratadosFiltrados.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[400px] px-4 pb-4">
+          <div className="space-y-3 pt-2">
+            {naoTratadosFiltrados.map((item: any) => (
+              <div
+                key={`${item.tipo}-${item.id}`}
+                className="p-3 rounded-lg border bg-red-500/5 hover:bg-red-500/10 cursor-pointer transition-colors"
+                onClick={() => handleNavigateProcesso(item.processoId || item.processoNumero, "tarefas")}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className="text-xs">{item.tipo}</Badge>
+                      {item.status && getStatusBadge(item.status)}
+                    </div>
+                    <p className="text-sm font-medium truncate">{item.titulo}</p>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>{formatDate(item.data)}</span>
+                      </div>
+                      {item.processoNumero && (
+                        <span className="font-mono">{item.processoNumero}</span>
+                      )}
+                    </div>
+                  </div>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
 
   // ============ RENDER CARDS COM DETALHES COMPLETOS ============
 
@@ -1083,6 +1228,7 @@ export function CoordenacaoDetalhesView({
 
   // Montar array de cards na ordem: todos menos redistribuições, depois redistribuições por último
   const allCards = [
+    { key: 'nao-tratados', render: renderNaoTratadosCard, hasData: naoTratadosFiltrados.length > 0 },
     { key: 'djen', render: renderDjenCard, hasData: publicacoesFiltradas.length > 0 },
     { key: 'distribuicoes', render: renderDistribuicoesCard, hasData: distribuicoesFiltradas.length > 0 },
     { key: 'alertas', render: renderAlertasCard, hasData: alertasFiltrados.length > 0 },
@@ -1101,6 +1247,7 @@ export function CoordenacaoDetalhesView({
     : allCards.filter(card => card.hasData);
 
   const categoryLabels: Record<string, string> = {
+    'nao-tratados': "Itens vencidos sem tratamento",
     djen: "Publicações DJEN",
     distribuicoes: "Distribuições",
     alertas: "Alertas 360°",
