@@ -304,11 +304,39 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
               </div>
               {form.regra_responsavel === "predefinido" && (
                 <div className="space-y-2">
+                  {coordenacoes.length > 1 && (
+                    <div className="space-y-2">
+                      <Label htmlFor="coord-etapa">Coordenação dos responsáveis</Label>
+                      <Select
+                        value={coordEfetiva}
+                        onValueChange={(v) => {
+                          setCoordSelecionada(v);
+                          setForm({ ...form, responsaveis: [] });
+                        }}
+                      >
+                        <SelectTrigger id="coord-etapa">
+                          <SelectValue placeholder="Selecione a coordenação" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {coordenacoes.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nome}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <Label>Responsáveis da etapa</Label>
                   <div className="max-h-48 overflow-y-auto rounded-md border p-2 space-y-1">
-                    {usuarios.length === 0 && (
+                    {!coordEfetiva && (
                       <p className="text-sm text-muted-foreground">
-                        Nenhum usuário na coordenação.
+                        Selecione uma coordenação para listar os usuários.
+                      </p>
+                    )}
+                    {!!coordEfetiva && usuarios.length === 0 && (
+                      <p className="text-sm text-muted-foreground">
+                        Nenhum usuário nesta coordenação.
                       </p>
                     )}
                     {usuarios.map((u) => {
