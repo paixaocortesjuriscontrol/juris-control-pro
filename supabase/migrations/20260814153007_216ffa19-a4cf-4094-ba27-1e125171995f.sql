@@ -1,0 +1,1 @@
+ALTER TABLE public.workflow_execucao_etapas ADD COLUMN IF NOT EXISTS sucesso boolean NOT NULL DEFAULT true;

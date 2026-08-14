@@ -9731,6 +9731,7 @@ export type Database = {
           item_id: string | null
           item_tipo: string
           status: string
+          sucesso: boolean
           updated_at: string
         }
         Insert: {
@@ -9743,6 +9744,7 @@ export type Database = {
           item_id?: string | null
           item_tipo: string
           status?: string
+          sucesso?: boolean
           updated_at?: string
         }
         Update: {
@@ -9755,6 +9757,7 @@ export type Database = {
           item_id?: string | null
           item_tipo?: string
           status?: string
+          sucesso?: boolean
           updated_at?: string
         }
         Relationships: [
