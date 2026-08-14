@@ -1456,6 +1456,22 @@ export default function PainelControle() {
     handleEditItem(item);
   };
 
+  // Abre a tarefa/prazo/audiência/evento PAI de uma atividade clicada.
+  // Se o pai não estiver na lista carregada (filtrado/concluído), busca no banco.
+  const abrirPaiDaAtividade = async (a: any) => {
+    const rawId = String(a?.item_id || "");
+    if (!rawId) return;
+    const pai = itemPorRawId.get(rawId);
+    if (pai) {
+      setDiaLateralKey(null);
+      handleItemClick(pai);
+      return;
+    }
+    setDiaLateralKey(null);
+    const ok = await abrirItemPorReferencia(rawId, true);
+    if (!ok) toast.error("Não foi possível abrir a tarefa vinculada a esta atividade.");
+  };
+
   const handleEditItem = (item: ItemAgendaUnificado) => {
     setSelectedItem(item);
   };
