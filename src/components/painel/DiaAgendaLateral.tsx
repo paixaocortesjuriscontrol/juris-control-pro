@@ -209,6 +209,15 @@ export function DiaAgendaLateral({
   onClose,
 }: DiaAgendaLateralProps) {
   const total = itens.length + atividades.length;
+
+  const itensComAtividades = useMemo(() => {
+    const set = new Set<string>();
+    atividades.forEach((a) => {
+      if (a?.item_id) set.add(getItemRawId(a.item_id));
+    });
+    return set;
+  }, [atividades]);
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border flex-shrink-0">
@@ -232,7 +241,13 @@ export function DiaAgendaLateral({
             <p className="p-4 text-xs text-muted-foreground">Nenhuma atividade neste dia.</p>
           )}
           {itens.map((item) => (
-            <AgendaItemRow key={item.id} item={item} userId={userId} onSelect={onSelectItem} />
+            <AgendaItemRow
+              key={item.id}
+              item={item}
+              userId={userId}
+              onSelect={onSelectItem}
+              temAtividade={itensComAtividades.has(getItemRawId(item.id))}
+            />
           ))}
           {atividades.map((a: any) => {
             const encerrada = a.situacao === "concluida" || a.situacao === "cancelada";
