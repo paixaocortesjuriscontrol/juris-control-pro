@@ -467,9 +467,9 @@ const SIGLAS_RECURSO_FULL: Record<string, string> = {
 };
 
 
-// `contextoTst`: no TST a sigla genérica "AI" significa Agravo de Instrumento em
-// Recurso de Revista (AIRR). Fora do TST NÃO expandimos "AI" — a classe de 1ª/2ª
-// instância não é um tipo de recurso do TST e não deve virar nome de recurso.
+// `contextoTst`: no TST a sigla genérica "AI" significa Agravo de Instrumento.
+// Fora do TST NÃO expandimos "AI" — a classe de 1ª/2ª instância não é um tipo
+// de recurso do TST e não deve virar nome de recurso.
 function expandirSiglaRecurso(
   raw: string | null | undefined,
   contextoTst = false,
@@ -478,8 +478,9 @@ function expandirSiglaRecurso(
   const txt = String(raw).trim();
   if (!txt) return null;
   const siglas: Record<string, string> = contextoTst
-    ? { ...SIGLAS_RECURSO_FULL, ai: "Agravo de Instrumento em Recurso de Revista" }
+    ? { ...SIGLAS_RECURSO_FULL, ai: "Agravo de Instrumento" }
     : SIGLAS_RECURSO_FULL;
+
   const norm = (s: string) =>
     s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
   // Quebra por "+" (composições já formatadas) e por "-" (siglas compostas
