@@ -56,6 +56,7 @@ type Evento = {
   tribunal: string | null;
   anexos_count: number | null;
   lido_em: string | null;
+  retroativo?: boolean | null;
   processo?: {
     numero: string | null;
     polo_ativo: string | null;
@@ -207,7 +208,7 @@ export default function Monitoramento() {
       let q = supabase
         .from("acompanhamento_especial_eventos")
         .select(
-          "id, processo_id, step_date, criado_em, conteudo, instancia, tribunal, anexos_count, lido_em, processo:processos(numero, polo_ativo, polo_passivo, coordenacao_id)"
+          "id, processo_id, step_date, criado_em, conteudo, instancia, tribunal, anexos_count, lido_em, retroativo, processo:processos(numero, polo_ativo, polo_passivo, coordenacao_id)"
         )
         .order("criado_em", { ascending: false })
         .limit(2000);
@@ -761,6 +762,11 @@ export default function Monitoramento() {
                           {!ev.lido_em && (
                             <Badge variant="destructive" className="text-[10px] h-4">
                               Nova
+                            </Badge>
+                          )}
+                          {ev.retroativo && (
+                            <Badge variant="secondary" className="text-[10px] h-4">
+                              Retroativa
                             </Badge>
                           )}
                         </div>
