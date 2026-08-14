@@ -1395,27 +1395,22 @@ export default function PainelControle() {
     return map;
   }, [itensPainelFiltrados]);
 
-  const idsAtividadesKey = useMemo(
-    () => Array.from(itemPorRawId.keys()).sort().join(","),
-    [itemPorRawId],
-  );
+  // As atividades são buscadas pelo PERÍODO exibido no calendário (e não pelos
+  // itens filtrados): elas são independentes do item pai, então continuam
+  // visíveis mesmo que a tarefa/prazo esteja concluída, cancelada ou filtrada.
+  const rangeAtividadesInicio = useMemo(() => format(dataInicio, "yyyy-MM-dd"), [dataInicio]);
+  const rangeAtividadesFim = useMemo(() => format(dataFim, "yyyy-MM-dd"), [dataFim]);
 
   const { data: atividadesCalendario = [] } = useQuery({
-    queryKey: ["painel-subatividades-calendario", idsAtividadesKey],
-    enabled: itemPorRawId.size > 0,
+    queryKey: ["painel-subatividades-calendario", rangeAtividadesInicio, rangeAtividadesFim],
     queryFn: async () => {
-      const ids = Array.from(itemPorRawId.keys());
-      const out: any[] = [];
-      for (let i = 0; i < ids.length; i += 300) {
-        const { data, error } = await (supabase as any)
-          .from("subatividades_item")
-          .select("id, item_id, tipo_item, titulo, situacao, data_prevista, responsavel_id")
-          .in("item_id", ids.slice(i, i + 300))
-          .not("data_prevista", "is", null);
-        if (error) throw error;
-        out.push(...(data || []));
-      }
-      return out;
+      const { data, error } = await (supabase as any)
+        .from("subatividades_item")
+        .select("id, item_id, tipo_item, titulo, situacao, data_prevista, responsavel_id, observacao, criado_por")
+        .gte("data_prevista", rangeAtividadesInicio)
+        .lte("data_prevista", rangeAtividadesFim);
+      if (error) throw error;
+      return data || [];
     },
   });
 
