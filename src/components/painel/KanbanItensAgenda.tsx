@@ -3,6 +3,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
+import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { AlertTriangle, CalendarClock, CalendarDays, CheckCircle2, Clock } from "lucide-react";
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
