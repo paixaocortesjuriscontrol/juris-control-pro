@@ -45,6 +45,9 @@ export function IniciarWorkflowDialog({
   const [responsavelInicial, setResponsavelInicial] = useState("");
   const [observacoes, setObservacoes] = useState("");
 
+  const { data: usuarios = [] } = useUsuariosCoordenacao(coordenacaoId || undefined);
+
+
   const { data: processosData } = useProcessosPaginados({
     search,
     coordenacao_id: coordenacaoId || "all",
