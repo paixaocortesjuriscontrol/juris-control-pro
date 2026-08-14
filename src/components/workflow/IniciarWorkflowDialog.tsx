@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { useIniciarWorkflow, useWorkflows } from "@/hooks/useWorkflows";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { useUsuariosCoordenacao } from "@/hooks/useUsuariosCoordenacao";
 import { useProcessosPaginados } from "@/hooks/useProcessosPaginados";
 import { Play, Search } from "lucide-react";
 import { toast } from "sonner";
