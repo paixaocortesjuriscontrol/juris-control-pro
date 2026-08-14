@@ -9,7 +9,7 @@ interface UsuarioCoordenacao {
 
 export function useUsuariosCoordenacao(coordenacaoId?: string | null) {
   return useQuery({
-    queryKey: ["usuarios-coordenacao", coordenacaoId],
+    queryKey: ["usuarios-coordenacao", "v2", coordenacaoId],
     enabled: !!coordenacaoId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<UsuarioCoordenacao[]> => {
