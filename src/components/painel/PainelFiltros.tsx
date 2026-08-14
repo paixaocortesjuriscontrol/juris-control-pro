@@ -64,6 +64,7 @@ interface PainelFiltrosProps {
 
 export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
   const [open, setOpen] = useState(false);
+  const { options: situacoesOptions } = useSituacoesPainel();
   // Rascunho local: só aplica ao clicar em "Filtrar"
   const [draft, setDraft] = useState<PainelFiltrosState>(filtros);
 
