@@ -28,6 +28,9 @@ interface IniciarWorkflowDialogProps {
   workflowName?: string;
   preSelectedProcesso?: { id: string; numero: string; coordenacao_id?: string } | null;
   trigger?: React.ReactNode;
+  /** Renderiza o formulário direto na página, sem abrir janela/popup */
+  inline?: boolean;
+  onDone?: () => void;
 }
 
 export function IniciarWorkflowDialog({
@@ -35,8 +38,10 @@ export function IniciarWorkflowDialog({
   workflowName: initialWorkflowName,
   preSelectedProcesso,
   trigger,
+  inline,
+  onDone,
 }: IniciarWorkflowDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!inline);
   const { coordenacoes } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState(preSelectedProcesso?.coordenacao_id || "");
   const [selectedWorkflowId, setSelectedWorkflowId] = useState(initialWorkflowId || "");
@@ -84,8 +89,9 @@ export function IniciarWorkflowDialog({
       responsavel_inicial: responsavelInicial || undefined,
       observacoes: observacoes || undefined,
     });
-    setOpen(false);
+    if (!inline) setOpen(false);
     reset();
+    onDone?.();
   };
 
   const reset = () => {
