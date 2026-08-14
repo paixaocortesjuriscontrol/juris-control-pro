@@ -521,6 +521,7 @@ export default function MinhaAgenda() {
     
     return result;
   }, [itensAgenda, search, statusFiltro, prioridadeFiltro, tipoTarefaFiltro, ordenacao]);
+  const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itensFiltrados);
 
   // Handlers
   const clearAllFilters = () => {
