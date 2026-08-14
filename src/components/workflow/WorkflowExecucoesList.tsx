@@ -2,9 +2,13 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useWorkflowExecucoes, useWorkflowExecucaoEtapas } from "@/hooks/useWorkflows";
+import {
+  useWorkflowExecucoes,
+  useWorkflowExecucaoEtapas,
+  useAvancarWorkflowEtapa,
+} from "@/hooks/useWorkflows";
 import { WorkflowExecucao, WorkflowExecucaoEtapa } from "@/lib/workflowExecutor";
-import { Eye, CheckCircle } from "lucide-react";
+import { Eye, CheckCircle, ChevronRight } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -25,6 +29,8 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
   const { data: execucoes = [], isLoading } = useWorkflowExecucoes();
   const [selected, setSelected] = useState<string | null>(null);
   const { data: etapas = [] } = useWorkflowExecucaoEtapas(selected || undefined);
+  const avancar = useAvancarWorkflowEtapa();
+
 
   if (isLoading) {
     return (
@@ -101,9 +107,21 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
                                 {STATUS_LABELS[etapa.status] || etapa.status}
                               </Badge>
                             </div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               {etapa.data_prevista_calculada && (
                                 <span>Prev: {etapa.data_prevista_calculada}</span>
+                              )}
+                              {etapa.status === "materializada" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => avancar.mutate(exec.id)}
+                                  disabled={avancar.isPending}
+                                  title="Concluir etapa e avançar"
+                                >
+                                  <ChevronRight className="h-4 w-4 text-primary" />
+                                </Button>
                               )}
                             </div>
                           </div>

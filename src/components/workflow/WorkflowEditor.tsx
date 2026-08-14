@@ -27,6 +27,7 @@ import {
   useUpdateWorkflowEtapa,
   useDeleteWorkflowEtapa,
 } from "@/hooks/useWorkflows";
+import { useUsuariosCoordenacao } from "@/hooks/useUsuariosCoordenacao";
 import { WorkflowEtapa, WorkflowItemType } from "@/lib/workflowExecutor";
 import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
 import { toast } from "sonner";
@@ -61,6 +62,8 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const createEtapa = useCreateWorkflowEtapa();
   const updateEtapa = useUpdateWorkflowEtapa();
   const deleteEtapa = useDeleteWorkflowEtapa();
+  const { data: usuarios = [] } = useUsuariosCoordenacao(workflow?.coordenacao_id);
+
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<WorkflowEtapa | null>(null);
@@ -284,13 +287,22 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
               </div>
               {form.regra_responsavel === "predefinido" && (
                 <div className="space-y-2">
-                  <Label htmlFor="resp_id">ID do responsável predefinido</Label>
-                  <Input
-                    id="resp_id"
+                  <Label htmlFor="resp_id">Responsável predefinido</Label>
+                  <Select
                     value={form.responsavel_id || ""}
-                    onChange={(e) => setForm({ ...form, responsavel_id: e.target.value })}
-                    placeholder="UUID do usuário"
-                  />
+                    onValueChange={(v) => setForm({ ...form, responsavel_id: v || null })}
+                  >
+                    <SelectTrigger id="resp_id">
+                      <SelectValue placeholder="Selecione um usuário" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {usuarios.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.nome} {u.cargo ? `(${u.cargo})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
               <div className="space-y-2">
