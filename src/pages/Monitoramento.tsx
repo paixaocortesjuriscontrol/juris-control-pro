@@ -347,6 +347,41 @@ export default function Monitoramento() {
     }
   };
 
+  // Marca TODAS as movimentações não lidas do escopo do usuário (ignora filtros de data)
+  const marcarTodasLidas = async () => {
+    setMarcando(true);
+    try {
+      const agora = new Date().toISOString();
+      if (semRestricao) {
+        const { error } = await supabase
+          .from("acompanhamento_especial_eventos")
+          .update({ lido_em: agora })
+          .is("lido_em", null);
+        if (error) throw error;
+      } else {
+        for (let i = 0; i < processoIds.length; i += 150) {
+          const lote = processoIds.slice(i, i + 150);
+          const { error } = await supabase
+            .from("acompanhamento_especial_eventos")
+            .update({ lido_em: agora })
+            .is("lido_em", null)
+            .in("processo_id", lote);
+          if (error) throw error;
+        }
+      }
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["monitoramento-eventos"] }),
+        qc.invalidateQueries({ queryKey: ["monitoramento-counts"] }),
+        qc.invalidateQueries({ queryKey: ["acomp-especial-novidades"] }),
+      ]);
+      toast.success("Todas as movimentações foram marcadas como lidas");
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível marcar todas como lidas");
+    } finally {
+      setMarcando(false);
+    }
+  };
+
   const gruposDiv = useMemo<GrupoDivergencia[]>(() => {
     const map = new Map<string, GrupoDivergencia>();
     for (const d of divergencias ?? []) {
@@ -554,6 +589,17 @@ export default function Monitoramento() {
               <span>
                 {grupos.length} processo(s) · {totalNaoLidos} não lida(s)
               </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={marcarTodasLidas}
+                disabled={marcando || countMov === 0}
+                title="Marca como lidas todas as movimentações do seu escopo, inclusive fora do período filtrado"
+              >
+                {marcando ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : null}
+                Marcar todas como lidas
+              </Button>
             </div>
           </div>
 
