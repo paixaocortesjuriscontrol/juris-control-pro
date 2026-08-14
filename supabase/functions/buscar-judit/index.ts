@@ -456,7 +456,6 @@ const SIGLAS_RECURSO_FULL: Record<string, string> = {
   agr: "Agravo Regimental",
   agint: "Agravo Interno",
   agi: "Agravo Interno",
-  ai: "Agravo de Instrumento",
   re: "Recurso Extraordinário",
   are: "Agravo em Recurso Extraordinário",
   resp: "Recurso Especial",
@@ -467,10 +466,19 @@ const SIGLAS_RECURSO_FULL: Record<string, string> = {
   radesivo: "Recurso Adesivo",
 };
 
-function expandirSiglaRecurso(raw: string | null | undefined): string | null {
+// `contextoTst`: no TST a sigla genérica "AI" significa Agravo de Instrumento em
+// Recurso de Revista (AIRR). Fora do TST NÃO expandimos "AI" — a classe de 1ª/2ª
+// instância não é um tipo de recurso do TST e não deve virar nome de recurso.
+function expandirSiglaRecurso(
+  raw: string | null | undefined,
+  contextoTst = false,
+): string | null {
   if (!raw) return null;
   const txt = String(raw).trim();
   if (!txt) return null;
+  const siglas: Record<string, string> = contextoTst
+    ? { ...SIGLAS_RECURSO_FULL, ai: "Agravo de Instrumento em Recurso de Revista" }
+    : SIGLAS_RECURSO_FULL;
   const norm = (s: string) =>
     s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
   // Quebra por "+" (composições já formatadas) e por "-" (siglas compostas
@@ -481,7 +489,7 @@ function expandirSiglaRecurso(raw: string | null | undefined): string | null {
     const b = bloco.trim();
     if (!b) continue;
     const subs = b.split(/\s*-\s*/).map((s) => s.trim()).filter(Boolean);
-    if (subs.length > 1 && subs.every((s) => SIGLAS_RECURSO_FULL[norm(s)])) {
+    if (subs.length > 1 && subs.every((s) => siglas[norm(s)])) {
       partes.push(...subs);
     } else {
       partes.push(b);
@@ -491,7 +499,7 @@ function expandirSiglaRecurso(raw: string | null | undefined): string | null {
   const vistos = new Set<string>();
   for (const p of partes) {
     const alvo = norm(p);
-    const nome = SIGLAS_RECURSO_FULL[alvo] || p;
+    const nome = siglas[alvo] || p;
     const k = norm(nome);
     if (vistos.has(k)) continue;
     vistos.add(k);
@@ -914,7 +922,12 @@ serve(async (req) => {
     // ---------- Extração simples ----------
     const { poloAtivo, poloPassivo, partiesDetail } = extrairPartes(rdSelecionada);
     const classeRaw = extrairClasse(rdSelecionada);
-    const classe = expandirSiglaRecurso(classeRaw);
+    const classe = expandirSiglaRecurso(classeRaw, foiTst);
+    // Tipo de recurso só existe quando a instância selecionada é RECURSAL (TST).
+    // Com apenas a 1ª instância, a classe da capa (ex.: "Ação Trabalhista",
+    // "Agravo de Instrumento" de execução) NÃO é tipo de recurso do TST e não
+    // pode ser aplicada nos campos de recurso.
+    const classeRecursal = foiTst ? classe : null;
     const { orgao, relator, turma } = extrairOrgaoERelator(rdSelecionada);
     // Fallback: no TST a Judit costuma devolver "Gabinete do Ministro Fulano"
     // como nome do órgão, sem expor a Turma. Quando temos relator mas a turma
@@ -1130,7 +1143,7 @@ serve(async (req) => {
     let tipoRecursoReclamante: string | null = null;
     let tipoRecursoBanco: string | null = null;
     let tipoRecursoTerceiro: string | null = null;
-    if (classe) {
+    if (classeRecursal) {
       // Mapa documento/nome -> person_type original. Preferimos uma instância
       // que tenha RECLAMANTE/RECLAMADO explícito, porque cache/crawler podem
       // devolver TST como ACTIVE/RECORRENTE para todas as partes.
@@ -1168,18 +1181,18 @@ serve(async (req) => {
         // Override Santander: se o recorrente é o Banco, é sempre tipo_recurso_banco,
         // independente do que origem ou side digam.
         if (isSantanderCnpj(p?.main_document) || isSantanderNome(p?.name)) {
-          tipoRecursoBanco = classe;
+          tipoRecursoBanco = classeRecursal;
           continue;
         }
-        if (/RECLAMANTE|AUTOR|EXEQUENTE/.test(origemPt)) tipoRecursoReclamante = classe;
+        if (/RECLAMANTE|AUTOR|EXEQUENTE/.test(origemPt)) tipoRecursoReclamante = classeRecursal;
         else if (/RECLAMAD|R[ÉE]U|EXECUTAD/.test(origemPt)) {
           // Recorrente é RECLAMADO na origem mas NÃO é o Banco Santander →
           // trata-se de outro reclamado (litisconsorte passivo) recorrendo.
-          tipoRecursoTerceiro = classe;
+          tipoRecursoTerceiro = classeRecursal;
         }
         else if (/MINIST[ÉE]RIO|MPT|SINDICATO|TERCEIRO|ASSISTENTE|AMICUS/.test(origemPt) ||
                  /MINIST[ÉE]RIO|MPT|SINDICATO/i.test(String(p?.name || ""))) {
-          tipoRecursoTerceiro = classe;
+          tipoRecursoTerceiro = classeRecursal;
         }
         else {
           // Sem dados de origem e não é Santander: trata como terceiro
@@ -1187,13 +1200,13 @@ serve(async (req) => {
           // No TST todas as partes recorrentes são side=ACTIVE, então
           // usar "side" como discriminador classificaria erradamente
           // qualquer recorrente como Banco. Banco só via override Santander.
-          tipoRecursoTerceiro = classe;
+          tipoRecursoTerceiro = classeRecursal;
         }
       }
-      // Fallback: se nenhum dos dois preenchido mas há classe, marca o lado ativo.
-      if (!tipoRecursoReclamante && !tipoRecursoBanco && !tipoRecursoTerceiro) {
-        tipoRecursoBanco = classe; // Banco é o cliente; assume que é ele recorrendo
-      }
+      // NUNCA chutar o lado do recurso: se nenhuma parte recorrente foi
+      // identificada, os três campos ficam vazios para preenchimento
+      // manual/IA. Preencher "recurso do banco" por suposição gerava dados
+      // errados (banco marcado como recorrente sem ter recorrido).
     }
 
     const result = {
@@ -1214,7 +1227,7 @@ serve(async (req) => {
       recorrente: recorrente,
       polo_passivo: poloPassivo || null,
       situacao_processo: situacao,
-      tipo_recurso: classe,
+      tipo_recurso: classeRecursal,
       tipo_recurso_reclamante: tipoRecursoReclamante,
       tipo_recurso_banco: tipoRecursoBanco,
       tipo_recurso_terceiro: tipoRecursoTerceiro,
@@ -1256,6 +1269,9 @@ serve(async (req) => {
         santander_detectado: santanderNomes,
         origem_disponivel: !origemAusente,
         litisconsorcio_ativo_tst: litisconsorcio,
+        fonte_tipo_recurso: classeRecursal
+          ? "classe_instancia_tst"
+          : (classe ? "classe_nao_recursal_ignorada" : "nenhuma"),
         requer_revisao_polo: requerRevisaoPolo,
         retentativa_tst: retentativaTst,
         retentativa_tst_trouxe_tst: retentativaTstTrouxeTst,
