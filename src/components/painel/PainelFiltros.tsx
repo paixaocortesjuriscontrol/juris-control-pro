@@ -240,7 +240,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
               Situação (avançado)
             </p>
             <div className="space-y-1.5">
-              {SITUACOES.map((s) => (
+              {situacoesOptions.map((s) => (
                 <label key={s.value} className="flex items-center gap-2 text-sm cursor-pointer">
                   <Checkbox
                     checked={draft.situacoes.includes(s.value)}
