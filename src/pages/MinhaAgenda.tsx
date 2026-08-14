@@ -748,10 +748,11 @@ export default function MinhaAgenda() {
               </div>
               
               <h3 className={cn(
-                "font-medium text-sm line-clamp-2",
+                "font-medium text-sm line-clamp-2 flex items-center gap-1.5",
                 (item.status === "concluido" || item.status === "cumprido" || item.status === "cancelado") && "line-through text-muted-foreground"
               )}>
                 {item.titulo || "Sem título"}
+                {itensComAtividades.has(getItemRawId(item.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px] shrink-0" />}
               </h3>
             </div>
             
