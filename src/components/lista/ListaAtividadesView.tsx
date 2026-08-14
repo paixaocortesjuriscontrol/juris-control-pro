@@ -47,6 +47,8 @@ import { fetchIdsPorEtiquetas, useEtiquetasDeItens } from "@/hooks/useEtiquetas"
 import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
+import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { AGENDA_INFINITE_QUERY_KEY, type ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
