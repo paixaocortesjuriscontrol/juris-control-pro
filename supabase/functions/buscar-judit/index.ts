@@ -1227,7 +1227,7 @@ serve(async (req) => {
       recorrente: recorrente,
       polo_passivo: poloPassivo || null,
       situacao_processo: situacao,
-      tipo_recurso: classe,
+      tipo_recurso: classeRecursal,
       tipo_recurso_reclamante: tipoRecursoReclamante,
       tipo_recurso_banco: tipoRecursoBanco,
       tipo_recurso_terceiro: tipoRecursoTerceiro,
@@ -1269,6 +1269,9 @@ serve(async (req) => {
         santander_detectado: santanderNomes,
         origem_disponivel: !origemAusente,
         litisconsorcio_ativo_tst: litisconsorcio,
+        fonte_tipo_recurso: classeRecursal
+          ? "classe_instancia_tst"
+          : (classe ? "classe_nao_recursal_ignorada" : "nenhuma"),
         requer_revisao_polo: requerRevisaoPolo,
         retentativa_tst: retentativaTst,
         retentativa_tst_trouxe_tst: retentativaTstTrouxeTst,
