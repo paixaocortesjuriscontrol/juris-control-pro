@@ -1385,7 +1385,9 @@ export default function PainelControle() {
   // da conclusão do item pai (concluir o item NÃO conclui a atividade).
   const itemPorRawId = useMemo(() => {
     const map = new Map<string, ItemAgendaUnificado>();
-    itensPainelFiltrados.forEach((item) => {
+    // Lista completa (sem filtros): serve apenas para abrir o item pai ao
+    // clicar em uma atividade — inclusive quando o pai está concluído/filtrado.
+    itensAgenda.forEach((item) => {
       const raw = String(item.id)
         .replace(/^audiencia-det-/, "")
         .replace(/^prazo-tst-/, "")
@@ -1393,7 +1395,7 @@ export default function PainelControle() {
       if (raw) map.set(raw, item);
     });
     return map;
-  }, [itensPainelFiltrados]);
+  }, [itensAgenda]);
 
   // As atividades são buscadas pelo PERÍODO exibido no calendário (e não pelos
   // itens filtrados): elas são independentes do item pai, então continuam
