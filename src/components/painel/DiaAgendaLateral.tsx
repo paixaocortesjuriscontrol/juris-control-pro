@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ListChecks, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,27 @@ const horaDoItem = (item: ItemAgendaUnificado) => {
   if (!bruta) return null;
   const hhmm = String(bruta).slice(0, 5);
   return /^\d{2}:\d{2}$/.test(hhmm) && hhmm !== "00:00" ? hhmm : null;
+};
+
+const formatarData = (data?: string | null) => {
+  if (!data) return null;
+  try {
+    const d = data.includes("T") ? parseISO(data) : new Date(data + "T00:00:00");
+    if (isNaN(d.getTime())) return null;
+    return format(d, "dd/MM/yyyy", { locale: ptBR });
+  } catch {
+    return null;
+  }
+};
+
+const datasDoItem = (item: ItemAgendaUnificado) => {
+  const prevista = formatarData((item as any).data_prevista);
+  const fatal = formatarData(item.data_fatal || item.data_vencimento);
+  const inicio = formatarData(item.data_inicio);
+  const partes: string[] = [];
+  if (prevista && prevista !== inicio) partes.push(`Prevista: ${prevista}`);
+  if (fatal && fatal !== inicio) partes.push(`Fatal: ${fatal}`);
+  return partes;
 };
 
 /** Linha de item usada no menu lateral (mesmo layout no Painel de Controle e em Processos). */
