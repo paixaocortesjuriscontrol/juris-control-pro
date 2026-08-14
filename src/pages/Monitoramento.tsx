@@ -870,10 +870,24 @@ export default function Monitoramento() {
                 Só pendentes
               </Label>
             </div>
-            <div className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-              <span>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
                 {gruposDiv.length} processo(s) · {totalPendentes} pendente(s)
               </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-9"
+                disabled={resolvendo || totalPendentes === 0}
+                onClick={marcarTodasCiente}
+              >
+                {resolvendo ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <CheckCheck className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                Marcar todas como ciente
+              </Button>
             </div>
           </div>
 
