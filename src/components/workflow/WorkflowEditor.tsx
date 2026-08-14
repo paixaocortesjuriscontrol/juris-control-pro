@@ -62,6 +62,8 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const createEtapa = useCreateWorkflowEtapa();
   const updateEtapa = useUpdateWorkflowEtapa();
   const deleteEtapa = useDeleteWorkflowEtapa();
+  const { data: usuarios = [] } = useUsuariosCoordenacao(workflow?.coordenacao_id);
+
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<WorkflowEtapa | null>(null);
