@@ -36,12 +36,14 @@ Timeline vertical espelhando a prévia do Projuris: cada etapa em card com prazo
 
 ## 2. Iniciar um fluxo
 
-Disponível em: painel lateral da tela Workflow, tela **Processos e Casos** (menu lateral do processo) e detalhe do processo.
+Disponível em:
+1. **Tela Workflow** — ação principal, botão **Iniciar fluxo** no painel lateral de cada fluxo.
+2. **Menu de iniciação rápida** — a ser incluído no Painel de Controle e no Detalhe do Processo (o menu lateral de cada processo), permitindo escolher qualquer fluxo da coordenação e iniciar em um processo sem sair da tela atual.
 
 Ao iniciar: escolhe processo, data de início e (se a etapa permitir) ajusta responsáveis. O sistema:
 1. Cria a execução do fluxo vinculada ao processo e à coordenação.
-2. Cria apenas as tarefas cujas etapas têm condição "Ao iniciar o fluxo" — elas já aparecem no Painel de Controle dos responsáveis, com etiquetas do processo herdadas.
-3. As demais etapas ficam pendentes (não existem como tarefa ainda).
+2. Cria as etapas cuja condição é "Ao iniciar o fluxo" — elas já aparecem no Painel de Controle dos responsáveis, com etiquetas do processo herdadas.
+3. As etapas dependentes ("Ao concluir a etapa X") ficam pendentes (não existem como tarefa ainda).
 
 ## 3. Encadeamento automático
 
