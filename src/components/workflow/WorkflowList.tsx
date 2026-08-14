@@ -1,18 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   useWorkflows,
   useCreateWorkflow,
@@ -21,7 +21,7 @@ import {
 } from "@/hooks/useWorkflows";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { IniciarWorkflowDialog } from "./IniciarWorkflowDialog";
-import { Plus, Pencil, Trash2, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronRight, X, Play } from "lucide-react";
 import { toast } from "sonner";
 
 interface WorkflowListProps {
@@ -29,14 +29,27 @@ interface WorkflowListProps {
   onIniciar?: (workflowId: string) => void;
 }
 
-export function WorkflowList({ onSelect, onIniciar }: WorkflowListProps) {
-  const { coordenacoes } = useCoordenacoesDoUsuario();
-  const { data: workflows = [], isLoading } = useWorkflows();
+export function WorkflowList({ onSelect }: WorkflowListProps) {
+  const { coordenacoes, isAdmin, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
+  const [filtroCoordenacao, setFiltroCoordenacao] = useState<string>("todas");
+  const [busca, setBusca] = useState("");
+  const [filtroAtivo, setFiltroAtivo] = useState<string>("ativos");
+  const [iniciandoId, setIniciandoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAdmin && unicaCoordenacaoId) setFiltroCoordenacao(unicaCoordenacaoId);
+  }, [isAdmin, unicaCoordenacaoId]);
+
+  const { data: workflows = [], isLoading } = useWorkflows({
+    coordenacaoId: filtroCoordenacao !== "todas" ? filtroCoordenacao : undefined,
+    ativo: filtroAtivo === "todos" ? undefined : filtroAtivo === "ativos",
+  });
+
   const createMutation = useCreateWorkflow();
   const updateMutation = useUpdateWorkflow();
   const deleteMutation = useDeleteWorkflow();
 
-  const [openDialog, setOpenDialog] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({
     nome: "",
@@ -49,7 +62,10 @@ export function WorkflowList({ onSelect, onIniciar }: WorkflowListProps) {
     setForm({
       nome: "",
       descricao: "",
-      coordenacao_id: coordenacoes?.[0]?.id || "",
+      coordenacao_id:
+        filtroCoordenacao !== "todas"
+          ? filtroCoordenacao
+          : unicaCoordenacaoId || coordenacoes?.[0]?.id || "",
       ativo: true,
     });
     setEditing(null);
@@ -57,7 +73,7 @@ export function WorkflowList({ onSelect, onIniciar }: WorkflowListProps) {
 
   const handleOpen = () => {
     resetForm();
-    setOpenDialog(true);
+    setShowForm(true);
   };
 
   const handleEdit = (wf: any) => {
@@ -68,7 +84,7 @@ export function WorkflowList({ onSelect, onIniciar }: WorkflowListProps) {
       coordenacao_id: wf.coordenacao_id || "",
       ativo: wf.ativo ?? true,
     });
-    setOpenDialog(true);
+    setShowForm(true);
   };
 
   const handleSubmit = async () => {
@@ -81,36 +97,93 @@ export function WorkflowList({ onSelect, onIniciar }: WorkflowListProps) {
     } else {
       await createMutation.mutateAsync(form as any);
     }
-    setOpenDialog(false);
+    setShowForm(false);
     resetForm();
   };
 
-  if (isLoading) {
+  const listaFiltrada = workflows.filter((wf: any) => {
+    if (!busca.trim()) return true;
+    const t = busca.toLowerCase();
     return (
-      <Card>
-        <CardContent className="p-6">Carregando workflows...</CardContent>
-      </Card>
+      (wf.nome || "").toLowerCase().includes(t) ||
+      (wf.descricao || "").toLowerCase().includes(t)
     );
-  }
+  });
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <h2 className="text-lg font-semibold">Fluxos de Trabalho</h2>
-        <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-          <DialogTrigger asChild>
-            <Button onClick={handleOpen}>
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Workflow
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>
-                {editing ? "Editar Workflow" : "Novo Workflow"}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
+        <Button onClick={handleOpen} disabled={showForm && !editing}>
+          <Plus className="h-4 w-4 mr-2" />
+          Novo Workflow
+        </Button>
+      </div>
+
+      <Card>
+        <CardContent className="p-4 grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label>Coordenação</Label>
+            <Select value={filtroCoordenacao} onValueChange={setFiltroCoordenacao}>
+              <SelectTrigger>
+                <SelectValue placeholder="Coordenação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as coordenações</SelectItem>
+                {coordenacoes?.map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Situação</Label>
+            <Select value={filtroAtivo} onValueChange={setFiltroAtivo}>
+              <SelectTrigger>
+                <SelectValue placeholder="Situação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ativos">Somente ativos</SelectItem>
+                <SelectItem value="inativos">Somente inativos</SelectItem>
+                <SelectItem value="todos">Todos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Buscar</Label>
+            <Input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Nome ou descrição do fluxo"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {showForm && (
+        <Card className="border-primary/40">
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">
+                {editing ? "Editar workflow" : "Novo workflow"}
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  setShowForm(false);
+                  resetForm();
+                }}
+                title="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="nome">Nome</Label>
                 <Input
@@ -121,91 +194,97 @@ export function WorkflowList({ onSelect, onIniciar }: WorkflowListProps) {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="descricao">Descrição</Label>
-                <Textarea
-                  id="descricao"
-                  value={form.descricao}
-                  onChange={(e) =>
-                    setForm({ ...form, descricao: e.target.value })
-                  }
-                  placeholder="Resumo do objetivo do fluxo"
-                />
-              </div>
-              <div className="space-y-2">
                 <Label htmlFor="coordenacao">Coordenação</Label>
-                <select
-                  id="coordenacao"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                <Select
                   value={form.coordenacao_id}
-                  onChange={(e) =>
-                    setForm({ ...form, coordenacao_id: e.target.value })
-                  }
+                  onValueChange={(v) => setForm({ ...form, coordenacao_id: v })}
                 >
-                  <option value="">Selecione...</option>
-                  {coordenacoes?.map((c: any) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nome}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id="coordenacao">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {coordenacoes?.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="ativo"
-                  checked={form.ativo}
-                  onCheckedChange={(v) => setForm({ ...form, ativo: v })}
-                />
-                <Label htmlFor="ativo">Ativo</Label>
-              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="descricao">Descrição</Label>
+              <Textarea
+                id="descricao"
+                value={form.descricao}
+                onChange={(e) => setForm({ ...form, descricao: e.target.value })}
+                placeholder="Resumo do objetivo do fluxo"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="ativo"
+                checked={form.ativo}
+                onCheckedChange={(v) => setForm({ ...form, ativo: v })}
+              />
+              <Label htmlFor="ativo">Ativo</Label>
+            </div>
+            <div className="flex gap-2">
               <Button
                 onClick={handleSubmit}
                 disabled={createMutation.isPending || updateMutation.isPending}
-                className="w-full"
               >
                 {editing ? "Salvar alterações" : "Criar workflow"}
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowForm(false);
+                  resetForm();
+                }}
+              >
+                Cancelar
+              </Button>
             </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+          </CardContent>
+        </Card>
+      )}
 
-      {workflows.length === 0 ? (
+      {isLoading ? (
+        <Card>
+          <CardContent className="p-6">Carregando workflows...</CardContent>
+        </Card>
+      ) : listaFiltrada.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-muted-foreground">
-            Nenhum workflow cadastrado. Clique em "Novo Workflow" para criar.
+            Nenhum workflow encontrado com os filtros atuais.
           </CardContent>
         </Card>
       ) : (
         <div className="grid gap-3">
-          {workflows.map((wf) => (
-            <Card
-              key={wf.id}
-              className="cursor-pointer hover:bg-accent/50 transition-colors"
-              onClick={() => onSelect?.(wf.id)}
-            >
-              <CardHeader className="pb-2">
+          {listaFiltrada.map((wf: any) => (
+            <Card key={wf.id} className="transition-colors">
+              <CardHeader
+                className="pb-2 cursor-pointer hover:bg-accent/40"
+                onClick={() => onSelect?.(wf.id)}
+              >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
                     <CardTitle className="text-base">{wf.nome}</CardTitle>
-                    {!wf.ativo && (
-                      <Badge variant="secondary">Inativo</Badge>
-                    )}
+                    {!wf.ativo && <Badge variant="secondary">Inativo</Badge>}
                   </div>
                   <div className="flex items-center gap-1">
-                    <IniciarWorkflowDialog
-                      workflowId={wf.id}
-                      workflowName={wf.nome}
-                      trigger={
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => e.stopPropagation()}
-                          title="Iniciar fluxo"
-                        >
-                          <span className="text-primary text-xs font-bold">▶</span>
-                        </Button>
-                      }
-                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIniciandoId(iniciandoId === wf.id ? null : wf.id);
+                      }}
+                      title="Iniciar fluxo"
+                    >
+                      <Play className="h-4 w-4 text-primary" />
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
@@ -236,10 +315,22 @@ export function WorkflowList({ onSelect, onIniciar }: WorkflowListProps) {
                   {wf.descricao || "Sem descrição"}
                 </p>
                 <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Badge variant="outline">{wf.coordenacao?.nome || "Coordenação"}</Badge>
+                  <Badge variant="outline">
+                    {wf.coordenacao?.nome || "Coordenação"}
+                  </Badge>
                   <ChevronRight className="h-3 w-3" />
-                  <span>Clique para configurar etapas</span>
+                  <span>Clique no título para configurar etapas</span>
                 </div>
+                {iniciandoId === wf.id && (
+                  <div className="mt-4 rounded-md border p-3">
+                    <IniciarWorkflowDialog
+                      inline
+                      workflowId={wf.id}
+                      workflowName={wf.nome}
+                      onDone={() => setIniciandoId(null)}
+                    />
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
