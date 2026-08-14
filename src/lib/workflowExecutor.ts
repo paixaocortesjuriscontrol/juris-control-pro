@@ -78,12 +78,12 @@ export interface WorkflowExecucaoEtapa {
   item_tipo: WorkflowItemType;
   status: "pendente" | "materializada" | "concluida" | "cancelada";
   sucesso: boolean;
+  ordem: number;
   data_prevista_calculada: string | null;
   data_fatal_calculada: string | null;
   created_at: string;
   updated_at: string;
   etapa?: WorkflowEtapa | null;
-  ordem?: number;
 }
 
 export interface IniciarWorkflowInput {
