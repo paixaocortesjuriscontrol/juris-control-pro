@@ -78,6 +78,8 @@ import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 import { Sparkles } from "lucide-react";
 import { horaBrt } from "@/utils/date";
 import { useSituacoesPainel, statusCasaSituacao } from "@/hooks/useSituacoesPainel";
+import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { getItemRawId } from "@/hooks/useItensComAtividades";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
