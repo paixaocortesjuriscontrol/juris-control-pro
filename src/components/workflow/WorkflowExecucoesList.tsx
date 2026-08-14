@@ -8,7 +8,7 @@ import {
   useAvancarWorkflowEtapa,
 } from "@/hooks/useWorkflows";
 import { WorkflowExecucao, WorkflowExecucaoEtapa } from "@/lib/workflowExecutor";
-import { Eye, CheckCircle, ChevronRight } from "lucide-react";
+import { Eye, CheckCircle, ChevronRight, XCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -112,16 +112,48 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
                                 <span>Prev: {etapa.data_prevista_calculada}</span>
                               )}
                               {etapa.status === "materializada" && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-6 w-6"
-                                  onClick={() => avancar.mutate({ execucaoId: exec.id })}
-                                  disabled={avancar.isPending}
-                                  title="Concluir etapa e avançar"
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={() => avancar.mutate({ execucaoId: exec.id, sucesso: true })}
+                                    disabled={avancar.isPending}
+                                    title="Concluir etapa com sucesso e avançar"
+                                  >
+                                    <ChevronRight className="h-4 w-4 text-primary" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={() => {
+                                      if (
+                                        window.confirm(
+                                          "Concluir esta etapa SEM SUCESSO?\n\nAs etapas que dependem do sucesso desta serão canceladas."
+                                        )
+                                      ) {
+                                        avancar.mutate({ execucaoId: exec.id, sucesso: false });
+                                      }
+                                    }}
+                                    disabled={avancar.isPending}
+                                    title="Concluir etapa sem sucesso"
+                                  >
+                                    <XCircle className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </>
+                              )}
+                              {etapa.status === "concluida" && (
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    etapa.sucesso
+                                      ? "text-xs border-primary/40 text-primary"
+                                      : "text-xs border-destructive/40 text-destructive"
+                                  }
                                 >
-                                  <ChevronRight className="h-4 w-4 text-primary" />
-                                </Button>
+                                  {etapa.sucesso ? "Com sucesso" : "Sem sucesso"}
+                                </Badge>
                               )}
                             </div>
                           </div>

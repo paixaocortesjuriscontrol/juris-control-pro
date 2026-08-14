@@ -381,15 +381,9 @@ export function useAvancarWorkflowEtapa() {
         .from("workflow_execucao_etapas")
         .update({ status: "concluida", sucesso })
         .eq("id", etapaConcluida.id);
-
-      if (!sucesso) {
-        // sem sucesso: encerra workflow como concluido (sem materializar próxima)
-        await supabase
-          .from("workflow_execucoes")
-          .update({ status: "concluido" })
-          .eq("id", execucaoId);
-        return { concluido: true };
-      }
+      // reflete o resultado na cópia local para a avaliação das condições abaixo
+      etapaConcluida.status = "concluida" as any;
+      etapaConcluida.sucesso = sucesso as any;
 
       // encontra próxima etapa cujas condições sejam satisfeitas
       let proxima = etapas.find((e) => (e.etapa?.ordem || 0) > ordemAtual && e.status === "pendente");

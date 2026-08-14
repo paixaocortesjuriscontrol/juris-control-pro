@@ -1366,8 +1366,21 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         return out;
       };
 
+      // Executa promessas em paralelo com concorrência limitada (mais rápido que serial,
+      // sem estourar o pool de conexões do banco).
+      const runPool = async (tasks: (() => Promise<void>)[], concurrency = 4) => {
+        let idx = 0;
+        const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, async () => {
+          while (idx < tasks.length) {
+            const my = idx++;
+            await tasks[my]();
+          }
+        });
+        await Promise.all(workers);
+      };
+
       // Expansão de irmãs em CHUNKS — evita timeout quando o usuário marca centenas de uma vez.
-      const SEED_CHUNK = 100;
+      const SEED_CHUNK = 150;
       const expandSeeds = async (
         t: string[] | null,
         p: string[] | null,
@@ -1393,9 +1406,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           console.warn('[DJEN] Exceção ao expandir irmãs via RPC (best-effort):', e?.message || e);
         }
       };
-      for (const c of chunkArr(seedTermos, SEED_CHUNK)) await expandSeeds(c, null, null);
-      for (const c of chunkArr(seedProcessos, SEED_CHUNK)) await expandSeeds(null, c, null);
-      for (const c of chunkArr(seedDescartadas, SEED_CHUNK)) await expandSeeds(null, null, c);
+      await runPool([
+        ...chunkArr(seedTermos, SEED_CHUNK).map((c) => () => expandSeeds(c, null, null)),
+        ...chunkArr(seedProcessos, SEED_CHUNK).map((c) => () => expandSeeds(null, c, null)),
+        ...chunkArr(seedDescartadas, SEED_CHUNK).map((c) => () => expandSeeds(null, null, c)),
+      ]);
 
       const expanded = Array.from(expandedMap.entries()).map(([id, tipo_origem]) => ({ id, tipo_origem }));
       const totalExpandido = expanded.length;
@@ -1414,16 +1429,18 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
       // Mark DataJud items directly (em chunks)
       if (datajudIds.length > 0) {
-        for (const c of chunk(datajudIds, 200)) {
-          await supabase.from('movimentacoes_datajud').update({ lida: true }).in('id', c);
-        }
+        await runPool(
+          chunk(datajudIds, 200).map((c) => async () => {
+            await supabase.from('movimentacoes_datajud').update({ lida: true }).in('id', c);
+          })
+        );
       }
 
       // Legacy: marca global flag via RPC (backwards compat) — agora em CHUNKS e best-effort.
       // A flag global `lida` na tabela é redundante com `publicacoes_djen_leituras` (per-user),
       // então se a RPC falhar (timeout em lotes muito grandes) seguimos em frente — a UI usa
       // a leitura per-user para mostrar status correto.
-      const RPC_CHUNK = 100;
+      const RPC_CHUNK = 150;
       const rpcAggregate = { termos_atualizados: 0, processos_atualizados: 0, descartadas_atualizados: 0 };
       const callRpc = async (
         t: string[] | null,
@@ -1448,10 +1465,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         }
       };
 
-      // Processa cada origem em chunks separados
-      for (const c of chunk(termos, RPC_CHUNK)) await callRpc(c, null, null);
-      for (const c of chunk(processos, RPC_CHUNK)) await callRpc(null, c, null);
-      for (const c of chunk(descartadas, RPC_CHUNK)) await callRpc(null, null, c);
+      // Processa cada origem em chunks separados, em paralelo (concorrência limitada)
+      const rpcTasks = [
+        ...chunk(termos, RPC_CHUNK).map((c) => () => callRpc(c, null, null)),
+        ...chunk(processos, RPC_CHUNK).map((c) => () => callRpc(null, c, null)),
+        ...chunk(descartadas, RPC_CHUNK).map((c) => () => callRpc(null, null, c)),
+      ];
 
       // Per-user tracking: insert into leituras table
       // Get user's name from profiles
@@ -1470,30 +1489,30 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           usuario_nome: userName,
         }));
 
-      if (leiturasToInsert.length > 0) {
-        // Upsert per-user em chunks menores (200) — payloads grandes causam timeout
-        // e deixam algumas marcações pendentes. Em caso de falha de um chunk,
-        // tentamos novamente uma vez antes de propagar o erro.
-        let firstError: string | null = null;
-        for (const c of chunk(leiturasToInsert, 200)) {
-          let attempts = 0;
-          let lastErr: string | null = null;
-          while (attempts < 2) {
-            const { error: upErr } = await (supabase as any)
-              .from('publicacoes_djen_leituras')
-              .upsert(c, { onConflict: 'publicacao_id,tabela_origem,usuario_id' });
-            if (!upErr) { lastErr = null; break; }
-            lastErr = upErr.message;
-            attempts++;
-            await new Promise(r => setTimeout(r, 300));
-          }
-          if (lastErr) {
-            console.error('[DJEN] Chunk falhou após retry:', lastErr);
-            if (!firstError) firstError = lastErr;
-          }
+      // Upsert per-user em chunks (300) — payloads grandes causam timeout e deixam
+      // marcações pendentes. Em caso de falha de um chunk, tenta novamente uma vez.
+      let firstError: string | null = null;
+      const upsertTasks = chunk(leiturasToInsert, 300).map((c) => async () => {
+        let attempts = 0;
+        let lastErr: string | null = null;
+        while (attempts < 2) {
+          const { error: upErr } = await (supabase as any)
+            .from('publicacoes_djen_leituras')
+            .upsert(c, { onConflict: 'publicacao_id,tabela_origem,usuario_id' });
+          if (!upErr) { lastErr = null; break; }
+          lastErr = upErr.message;
+          attempts++;
+          await new Promise(r => setTimeout(r, 300));
         }
-        if (firstError) throw new Error(firstError);
-      }
+        if (lastErr) {
+          console.error('[DJEN] Chunk falhou após retry:', lastErr);
+          if (!firstError) firstError = lastErr;
+        }
+      });
+
+      // Leituras per-user (essencial) e RPC legacy (best-effort) rodam juntas.
+      await Promise.all([runPool(upsertTasks, 3), runPool(rpcTasks, 3)]);
+      if (firstError) throw new Error(firstError);
 
       console.log('[DJEN] Publicações marcadas (RPC agregado):', rpcAggregate);
       return {
@@ -1537,10 +1556,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       return { previousData };
     },
     onSuccess: (result) => {
-      // NÃO recarrega a lista principal — o optimistic update em onMutate já
-      // reflete o estado correto. Marcar stale (refetchType: 'none') garante que
-      // uma navegação futura busque dados frescos, sem "piscar" a página agora.
-      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'], refetchType: 'none' });
+      // Recarrega a lista principal: ao marcar um lote grande (ex.: 500) com o filtro
+      // "Não lidas", as linhas saem da tela e as próximas não lidas precisam entrar
+      // sem exigir F5 do usuário.
+      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
       // Contadores/estatísticas SIM devem refletir a mudança imediatamente.
       queryClient.invalidateQueries({ queryKey: ['descartadas-count'] });
       queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
@@ -1577,13 +1596,48 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   // com motivo "descartado_manualmente" (chama RPC SECURITY DEFINER).
   const descartarManualmente = useMutation({
     mutationFn: async ({ id, tipo_origem }: { id: string; tipo_origem: 'termo' | 'processo'; silent?: boolean }) => {
-      const { data, error } = await (supabase as any).rpc('descartar_publicacao_manualmente', {
-        p_id: id,
-        p_tipo_origem: tipo_origem,
-        p_motivo: 'descartado_manualmente',
-      });
-      if (error) throw error;
-      return data;
+      // ============================================================
+      // EXPANSÃO POR DEDUP: a tela mostra publicações deduplicadas.
+      // Descartar só o registro clicado deixa as irmãs (mesmo processo +
+      // data + cabeçalho) na base, e no próximo refresh o dedup escolhe
+      // uma irmã — a publicação "volta a aparecer". Então descartamos
+      // TODAS as irmãs do grupo.
+      // ============================================================
+      const alvos = new Map<string, 'termo' | 'processo'>([[id, tipo_origem]]);
+      try {
+        const { data: relacionadas } = await (supabase as any).rpc(
+          'get_publicacoes_relacionadas_por_dedup',
+          {
+            p_ids_termos: tipo_origem === 'termo' ? [id] : null,
+            p_ids_processos: tipo_origem === 'processo' ? [id] : null,
+            p_ids_descartadas: null,
+          }
+        );
+        (relacionadas || []).forEach((r: any) => {
+          if (r?.publicacao_id && (r.tabela_origem === 'termo' || r.tabela_origem === 'processo')) {
+            alvos.set(r.publicacao_id as string, r.tabela_origem);
+          }
+        });
+      } catch (e: any) {
+        console.warn('[DJEN] Falha ao expandir irmãs no descarte (best-effort):', e?.message || e);
+      }
+
+      let ultimo: any = null;
+      for (const [alvoId, alvoTipo] of alvos) {
+        const { data, error } = await (supabase as any).rpc('descartar_publicacao_manualmente', {
+          p_id: alvoId,
+          p_tipo_origem: alvoTipo,
+          p_motivo: 'descartado_manualmente',
+        });
+        // Só propaga erro do registro clicado; irmãs são best-effort.
+        if (error) {
+          if (alvoId === id) throw error;
+          console.warn('[DJEN] Falha ao descartar irmã:', alvoId, error.message);
+          continue;
+        }
+        if (alvoId === id) ultimo = data;
+      }
+      return ultimo;
     },
     onSuccess: async (_data, variables) => {
       // Em ações em lote (silent), não invalida nem exibe toast por item:
