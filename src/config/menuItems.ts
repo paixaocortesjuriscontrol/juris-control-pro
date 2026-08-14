@@ -20,6 +20,7 @@ import {
   BarChart3,
   Bell,
   Radar,
+  Workflow,
 } from "lucide-react";
 
 export type MenuItem = {
@@ -38,6 +39,7 @@ export const menuItemsPublicos: MenuItem[] = [
   // Itens destacados (amarelo) - mais utilizados
   { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle", highlight: true },
   { icon: Radar, label: "Monitoramento", path: "/monitoramento", highlight: true },
+  { icon: Workflow, label: "Workflow", path: "/workflow", adminOrCoordOnly: true },
   { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
   { icon: BarChart3, label: "Indicadores", path: "/indicadores" },

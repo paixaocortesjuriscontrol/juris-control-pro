@@ -90,6 +90,7 @@ import ClassificacaoTst from "./pages/ClassificacaoTst";
 import IaResponde from "./pages/IaResponde";
 import ConsumoIA from "./pages/ConsumoIA";
 import ConsumoJudit from "./pages/ConsumoJudit";
+import Workflow from "./pages/Workflow";
 import AdminTst from "./pages/AdminTst";
 import AdminTstImportacoes from "./pages/AdminTstImportacoes";
 import ImportarCertidaoPdf from "./pages/admin-tst/ImportarCertidaoPdf";
@@ -144,6 +145,7 @@ function App() {
               <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/indicadores" element={<ProtectedRoute><Indicadores /></ProtectedRoute>} />
               <Route path="/monitoramento" element={<ProtectedRoute><Monitoramento /></ProtectedRoute>} />
+              <Route path="/workflow" element={<ProtectedRoute><Workflow /></ProtectedRoute>} />
               {/* Redirect central-delegacao to unified agenda */}
             <Route path="/central-delegacao" element={<Navigate to="/minha-agenda" replace />} />
             <Route path="/prazos" element={<Navigate to="/minha-agenda" replace />} />

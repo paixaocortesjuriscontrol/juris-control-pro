@@ -42,6 +42,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { IniciarWorkflowDialog } from "@/components/workflow/IniciarWorkflowDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useToast } from "@/hooks/use-toast";
@@ -1806,9 +1807,14 @@ export default function ProcessoDetalhes() {
               <ListTodo className="w-5 h-5" />
               Tarefas
             </CardTitle>
-            <Button size="sm" onClick={() => navigate(`/nova-tarefa?processo_id=${id}`)}>
-              + Nova Tarefa
-            </Button>
+            <div className="flex items-center gap-2">
+              <IniciarWorkflowDialog
+                preSelectedProcesso={processo ? { id: processo.id, numero: processo.numero, coordenacao_id: processo.coordenacao_id } : null}
+              />
+              <Button size="sm" onClick={() => navigate(`/nova-tarefa?processo_id=${id}`)}>
+                + Nova Tarefa
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {loadingTarefas ? (
