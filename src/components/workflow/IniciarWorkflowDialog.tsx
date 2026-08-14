@@ -103,23 +103,8 @@ export function IniciarWorkflowDialog({
     setObservacoes("");
   };
 
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {trigger || (
-          <Button variant="outline" size="sm">
-            <Play className="h-4 w-4 mr-2" />
-            Iniciar
-          </Button>
-        )}
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            Iniciar Workflow{initialWorkflowName ? `: ${initialWorkflowName}` : ""}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
+  const body = (
+    <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label htmlFor="coord">Coordenação *</Label>
             <Select
@@ -249,14 +234,51 @@ export function IniciarWorkflowDialog({
               placeholder="Opcional"
             />
           </div>
-          <Button
-            onClick={handleSubmit}
-            disabled={iniciar.isPending || !selectedWorkflowId}
-            className="w-full"
-          >
-            {iniciar.isPending ? "Iniciando..." : "Iniciar execução"}
+      <div className="flex gap-2">
+        <Button
+          onClick={handleSubmit}
+          disabled={iniciar.isPending || !selectedWorkflowId}
+          className={inline ? "" : "w-full"}
+        >
+          {iniciar.isPending ? "Iniciando..." : "Iniciar execução"}
+        </Button>
+        {inline && onDone && (
+          <Button variant="outline" onClick={onDone}>
+            Cancelar
           </Button>
-        </div>
+        )}
+      </div>
+    </div>
+  );
+
+  if (inline) {
+    return (
+      <div>
+        <p className="text-sm font-semibold">
+          Iniciar Workflow{initialWorkflowName ? `: ${initialWorkflowName}` : ""}
+        </p>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        {trigger || (
+          <Button variant="outline" size="sm">
+            <Play className="h-4 w-4 mr-2" />
+            Iniciar
+          </Button>
+        )}
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            Iniciar Workflow{initialWorkflowName ? `: ${initialWorkflowName}` : ""}
+          </DialogTitle>
+        </DialogHeader>
+        {body}
       </DialogContent>
     </Dialog>
   );
