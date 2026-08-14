@@ -314,6 +314,7 @@ export function useIniciarWorkflow() {
       const etapasExecucao = etapas.map((etapa, idx) => ({
         execucao_id: execucaoId,
         etapa_id: etapa.id,
+        ordem: (etapa as WorkflowEtapa).ordem || idx + 1,
         status: idx === 0 ? "materializada" : "pendente",
         item_id: idx === 0 ? (item?.id || null) : null,
         item_tipo: idx === 0 ? (item?.tipo || null) : (etapa as WorkflowEtapa).tipo_item,
