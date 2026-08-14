@@ -1385,7 +1385,9 @@ export default function PainelControle() {
   // da conclusão do item pai (concluir o item NÃO conclui a atividade).
   const itemPorRawId = useMemo(() => {
     const map = new Map<string, ItemAgendaUnificado>();
-    itensPainelFiltrados.forEach((item) => {
+    // Lista completa (sem filtros): serve apenas para abrir o item pai ao
+    // clicar em uma atividade — inclusive quando o pai está concluído/filtrado.
+    itensAgenda.forEach((item) => {
       const raw = String(item.id)
         .replace(/^audiencia-det-/, "")
         .replace(/^prazo-tst-/, "")
@@ -1393,29 +1395,24 @@ export default function PainelControle() {
       if (raw) map.set(raw, item);
     });
     return map;
-  }, [itensPainelFiltrados]);
+  }, [itensAgenda]);
 
-  const idsAtividadesKey = useMemo(
-    () => Array.from(itemPorRawId.keys()).sort().join(","),
-    [itemPorRawId],
-  );
+  // As atividades são buscadas pelo PERÍODO exibido no calendário (e não pelos
+  // itens filtrados): elas são independentes do item pai, então continuam
+  // visíveis mesmo que a tarefa/prazo esteja concluída, cancelada ou filtrada.
+  const rangeAtividadesInicio = useMemo(() => format(dataInicio, "yyyy-MM-dd"), [dataInicio]);
+  const rangeAtividadesFim = useMemo(() => format(dataFim, "yyyy-MM-dd"), [dataFim]);
 
   const { data: atividadesCalendario = [] } = useQuery({
-    queryKey: ["painel-subatividades-calendario", idsAtividadesKey],
-    enabled: itemPorRawId.size > 0,
+    queryKey: ["painel-subatividades-calendario", rangeAtividadesInicio, rangeAtividadesFim],
     queryFn: async () => {
-      const ids = Array.from(itemPorRawId.keys());
-      const out: any[] = [];
-      for (let i = 0; i < ids.length; i += 300) {
-        const { data, error } = await (supabase as any)
-          .from("subatividades_item")
-          .select("id, item_id, tipo_item, titulo, situacao, data_prevista, responsavel_id")
-          .in("item_id", ids.slice(i, i + 300))
-          .not("data_prevista", "is", null);
-        if (error) throw error;
-        out.push(...(data || []));
-      }
-      return out;
+      const { data, error } = await (supabase as any)
+        .from("subatividades_item")
+        .select("id, item_id, tipo_item, titulo, situacao, data_prevista, responsavel_id, observacao, criado_por")
+        .gte("data_prevista", rangeAtividadesInicio)
+        .lte("data_prevista", rangeAtividadesFim);
+      if (error) throw error;
+      return data || [];
     },
   });
 

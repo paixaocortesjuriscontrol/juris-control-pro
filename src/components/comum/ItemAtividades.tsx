@@ -61,10 +61,15 @@ export interface Subatividade {
   created_at: string;
 }
 
-export function subatividadesQueryKey(tipo: TipoItemAtividade, itemId?: string | null) {
-  return ["subatividades-item", tipo, itemId ?? null];
+export function subatividadesQueryKey(_tipo: TipoItemAtividade, itemId?: string | null) {
+  return ["subatividades-item", itemId ?? null];
 }
 
+/**
+ * As atividades são buscadas apenas pelo `item_id` — um mesmo registro pode ser
+ * aberto como tarefa ou prazo, e as atividades vinculadas devem aparecer em
+ * qualquer um dos formulários.
+ */
 export function useSubatividades(tipo: TipoItemAtividade, itemId?: string | null) {
   return useQuery({
     queryKey: subatividadesQueryKey(tipo, itemId),
@@ -74,7 +79,6 @@ export function useSubatividades(tipo: TipoItemAtividade, itemId?: string | null
       const { data, error } = await (supabase as any)
         .from("subatividades_item")
         .select("*")
-        .eq("tipo_item", tipo)
         .eq("item_id", itemId)
         .order("created_at", { ascending: true });
       if (error) throw error;
