@@ -229,6 +229,7 @@ export default function PainelControle() {
     })();
   }, [searchParams, setSearchParams]);
   const [situacaoFilter, setSituacaoFilter] = useState<string>("todos");
+  const { options: situacoesOptions } = useSituacoesPainel();
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
   const limparFiltrosPainel = useCallback(() => {
@@ -881,7 +882,7 @@ export default function PainelControle() {
 
       // Situação detalhada (avançado)
       if (painelFiltros.situacoes.length > 0) {
-        if (!painelFiltros.situacoes.includes(item.status)) return false;
+        if (!painelFiltros.situacoes.some((v) => statusCasaSituacao(item.status, v))) return false;
       }
 
       // Envolvimento filter
@@ -951,7 +952,7 @@ export default function PainelControle() {
 
       // Filtro rápido de Situação (global)
       if (situacaoFilter && situacaoFilter !== "todos") {
-        if ((item.status ?? "").toLowerCase() !== situacaoFilter) return false;
+        if (!statusCasaSituacao(item.status, situacaoFilter)) return false;
       }
 
       return true;
