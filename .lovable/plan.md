@@ -26,8 +26,10 @@ Layout em duas colunas, igual ao Painel de Controle:
 - Data prevista: +N dias; Data fatal: +N dias — contados da conclusão da etapa anterior (a 1ª conta da data de início do fluxo)
 - Responsáveis: pré-definidos (usuários) ou "mesmo responsável da etapa anterior" / "quem iniciou o fluxo"
 - Envolvidos (opcional)
-- Condição de início: "Ao iniciar o fluxo" (1ª etapa) ou "Ao concluir a etapa X com sucesso" — permitindo várias etapas dispararem da mesma etapa anterior (ramificação paralela)
+- Condição de início: "Ao iniciar o fluxo" ou "Ao concluir a etapa X com sucesso". O encadeamento é opcional: um fluxo pode ter todas as etapas com condição "Ao iniciar o fluxo" (todas nascem juntas, sem dependência), ter só algumas encadeadas, ou várias etapas disparando da mesma etapa anterior (ramificação paralela)
 - Prioridade, descrição/observações, exibir no kanban
+
+Os tipos disponíveis são exatamente os mesmos do botão **Adicionar** (Prazo, Tarefa, Audiência, Evento, Parcelamento recorrente) e cada etapa gera o item no seu formato nativo — audiência com data/hora, prazo com data limite e fatal, evento com início/fim, parcelamento com parcelas.
 
 ### Aba Prévia
 Timeline vertical espelhando a prévia do Projuris: cada etapa em card com prazos previsto/fatal, condição de início e avatares dos responsáveis, além do botão **Iniciar fluxo**.
