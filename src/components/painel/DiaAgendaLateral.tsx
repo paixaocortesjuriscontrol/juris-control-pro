@@ -55,13 +55,54 @@ const formatarData = (data?: string | null) => {
   }
 };
 
+const formatarHora = (valor?: string | null) => {
+  if (!valor) return null;
+  const bruta = String(valor).includes("T") ? String(valor).slice(11, 16) : String(valor).slice(0, 5);
+  return /^\d{2}:\d{2}$/.test(bruta) && bruta !== "00:00" ? bruta : null;
+};
+
+/** Detalhes de data/hora conforme o tipo do item — só o que estiver preenchido. */
 const datasDoItem = (item: ItemAgendaUnificado) => {
-  const prevista = formatarData((item as any).data_prevista);
-  const fatal = formatarData(item.data_fatal || item.data_vencimento);
-  const inicio = formatarData(item.data_inicio);
+  const it = item as any;
   const partes: string[] = [];
-  if (prevista && prevista !== inicio) partes.push(`Prevista: ${prevista}`);
-  if (fatal && fatal !== inicio) partes.push(`Fatal: ${fatal}`);
+  const add = (label: string, valor?: string | null) => {
+    if (valor) partes.push(`${label}: ${valor}`);
+  };
+
+  switch (item.tipo) {
+    case "audiencia": {
+      add("Data", formatarData(it.data_audiencia || item.data_inicio));
+      add("Hora", formatarHora(it.hora || it.hora_prevista || item.data_inicio));
+      break;
+    }
+    case "prazo": {
+      add("Data limite", formatarData(it.data_prevista || item.data_vencimento));
+      add("Data fatal", formatarData(item.data_fatal));
+      break;
+    }
+    case "prazo_parcela":
+    case "parcelamento": {
+      if (it.total_parcelas) partes.push(`Parcelas: ${it.total_parcelas}`);
+      if (it.numero_parcela) partes.push(`Parcela nº ${it.numero_parcela}`);
+      add("Vencimento", formatarData(item.data_vencimento || item.data_inicio));
+      break;
+    }
+    case "evento": {
+      add("Início", formatarData(item.data_inicio));
+      add("Hora início", formatarHora(item.data_inicio));
+      add("Fim", formatarData(it.data_fim));
+      add("Hora fim", formatarHora(it.data_fim));
+      break;
+    }
+    default: {
+      // tarefa / tarefa_delegada
+      add("Data base", formatarData(it.data_base || it.data_publicacao));
+      add("Data prevista", formatarData(it.data_prevista));
+      add("Hora prevista", formatarHora(it.hora_prevista));
+      add("Data fatal", formatarData(item.data_fatal));
+      break;
+    }
+  }
   return partes;
 };
 
