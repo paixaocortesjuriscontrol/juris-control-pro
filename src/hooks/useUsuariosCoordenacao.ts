@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 interface UsuarioCoordenacao {
   id: string;
   nome: string;
-  email?: string;
   cargo?: string | null;
 }
 
@@ -14,44 +13,47 @@ export function useUsuariosCoordenacao(coordenacaoId?: string | null) {
     enabled: !!coordenacaoId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<UsuarioCoordenacao[]> => {
-      const [{ data, error }, { data: coord }] = await Promise.all([
+      if (!coordenacaoId) return [];
+
+      const [{ data: membros, error: membrosError }, { data: coord, error: coordError }] = await Promise.all([
         supabase
           .from("membros_coordenacao")
-          .select("usuario_id, cargo, usuario:profiles_basic!membros_coordenacao_usuario_id_fkey(id, nome, email)")
-          .eq("coordenacao_id", coordenacaoId!),
+          .select("usuario_id, cargo")
+          .eq("coordenacao_id", coordenacaoId),
         supabase
           .from("coordenacoes")
           .select("coordenador_id")
-          .eq("id", coordenacaoId!)
+          .eq("id", coordenacaoId)
           .maybeSingle(),
       ]);
-      if (error) throw error;
+      if (membrosError) throw membrosError;
+      if (coordError) throw coordError;
 
-      const lista: UsuarioCoordenacao[] = ((data || []) as any[]).map((m) => ({
-        id: m.usuario_id || m.usuario?.id,
-        nome: m.usuario?.nome || "Sem nome",
-        email: m.usuario?.email,
-        cargo: m.cargo,
+      const coordId = coord?.coordenador_id;
+      const ids = Array.from(new Set([
+        ...(membros || []).map((m) => m.usuario_id).filter(Boolean),
+        ...(coordId ? [coordId] : []),
+      ]));
+      if (ids.length === 0) return [];
+
+      // profiles_basic expõe apenas id e nome. A consulta anterior pedia email,
+      // fazendo o PostgREST rejeitar toda a listagem e exibir zero usuários.
+      const { data: perfis, error: perfisError } = await supabase
+        .from("profiles_basic")
+        .select("id, nome")
+        .in("id", ids);
+      if (perfisError) throw perfisError;
+
+      const cargos = new Map(
+        (membros || []).map((m) => [m.usuario_id, m.cargo] as const),
+      );
+      const lista: UsuarioCoordenacao[] = (perfis || []).map((perfil) => ({
+        id: perfil.id,
+        nome: perfil.nome || "Sem nome",
+        cargo: cargos.get(perfil.id) || (perfil.id === coordId ? "coordenador" : null),
       }));
 
-      // Garante que o coordenador apareça mesmo sem registro em membros_coordenacao
-      const coordId = (coord as any)?.coordenador_id as string | undefined;
-      if (coordId && !lista.some((u) => u.id === coordId)) {
-        const { data: perfil } = await supabase
-          .from("profiles_basic")
-          .select("id, nome, email")
-          .eq("id", coordId)
-          .maybeSingle();
-        lista.push({
-          id: coordId,
-          nome: (perfil as any)?.nome || "Coordenador",
-          email: (perfil as any)?.email,
-          cargo: "coordenador",
-        });
-      }
-
       return lista
-        .filter((u) => !!u.id)
         .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
     },
   });
