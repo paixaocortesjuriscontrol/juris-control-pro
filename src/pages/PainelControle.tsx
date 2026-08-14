@@ -1727,12 +1727,11 @@ export default function PainelControle() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="pendente">⏳ Pendentes</SelectItem>
-                <SelectItem value="confirmado">✅ Confirmados</SelectItem>
-                <SelectItem value="reagendado">🔄 Reagendados</SelectItem>
-                <SelectItem value="tratado">✔️ Tratados</SelectItem>
-                <SelectItem value="cancelado">❌ Cancelados</SelectItem>
-                <SelectItem value="ignorado">🚫 Ignorados</SelectItem>
+                {situacoesOptions.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button
