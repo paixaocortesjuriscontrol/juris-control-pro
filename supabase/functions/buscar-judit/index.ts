@@ -456,7 +456,6 @@ const SIGLAS_RECURSO_FULL: Record<string, string> = {
   agr: "Agravo Regimental",
   agint: "Agravo Interno",
   agi: "Agravo Interno",
-  ai: "Agravo de Instrumento",
   re: "Recurso Extraordinário",
   are: "Agravo em Recurso Extraordinário",
   resp: "Recurso Especial",
