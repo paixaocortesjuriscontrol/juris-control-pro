@@ -10,6 +10,9 @@ Na função `buscar-judit` há dois pontos que produzem exatamente esse comporta
 
 ## O que será feito
 
+0. **Subir a versão para v4.5.2**
+   - Atualizar `src/constants/version.ts` e `public/version.json` antes das correções.
+
 1. **Nunca chutar o lado do recurso**
    - Remover o fallback que atribui a classe ao banco quando a origem é desconhecida.
    - Sem parte identificada como RECORRENTE/AGRAVANTE/EMBARGANTE cruzada com a origem, os três campos (`tipo_recurso_banco`, `tipo_recurso_reclamante`, `tipo_recurso_terceiro`) voltam vazios.
