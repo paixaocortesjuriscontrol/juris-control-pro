@@ -1025,6 +1025,7 @@ export default function ListaAtividadesView({
                               <div className="font-medium text-xs text-foreground break-words leading-snug flex items-center gap-1">
                                 <TratadoCheck tratado={isItemTratado({ ...item, ...r })} />
                                 <span>{r.titulo || "(sem título)"}</span>
+                                {itensComAtividades.has(getItemRawId(r.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                               </div>
                               <div data-stop>
                                 <EtiquetaPicker
