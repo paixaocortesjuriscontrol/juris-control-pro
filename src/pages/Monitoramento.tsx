@@ -449,6 +449,10 @@ export default function Monitoramento() {
 
   const marcarCiente = async (grupo: GrupoDivergencia) => {
     const ids = grupo.divergencias.filter((d) => !d.resolvido_em).map((d) => d.id);
+    await marcarCienteIds(ids);
+  };
+
+  const marcarCienteIds = async (ids: string[]) => {
     if (ids.length === 0) return;
     setResolvendo(true);
     try {
@@ -472,6 +476,17 @@ export default function Monitoramento() {
     } finally {
       setResolvendo(false);
     }
+  };
+
+  const marcarTodasCiente = async () => {
+    const ids = gruposDiv.flatMap((g) =>
+      g.divergencias.filter((d) => !d.resolvido_em).map((d) => d.id)
+    );
+    if (ids.length === 0) {
+      toast.info("Nenhuma divergência pendente nos filtros atuais");
+      return;
+    }
+    await marcarCienteIds(ids);
   };
 
   return (
