@@ -150,6 +150,22 @@ export async function criarItemWorkflow(
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id || execucao.iniciado_por;
 
+  // Responsáveis configurados na etapa (múltiplos)
+  let responsaveisEtapa: string[] = [];
+  try {
+    const { data: resp } = await supabase
+      .from("workflow_etapa_responsaveis")
+      .select("usuario_id")
+      .eq("etapa_id", etapa.id);
+    responsaveisEtapa = ((resp as any[]) || []).map((r) => r.usuario_id).filter(Boolean);
+  } catch {
+    responsaveisEtapa = [];
+  }
+  const responsavelPrincipal = responsavelId || responsaveisEtapa[0] || null;
+  const todosResponsaveis = Array.from(
+    new Set([...(responsavelPrincipal ? [responsavelPrincipal] : []), ...responsaveisEtapa])
+  );
+
   const dataBase = calcularDataOffset(
     dataReferencia,
     etapa.dias_previsto || 0,
@@ -186,7 +202,7 @@ export async function criarItemWorkflow(
             data_base: dataBaseStr,
             data_fatal: dataFatal,
             prioridade: etapa.prioridade || "media",
-            responsavel_id: responsavelId || null,
+            responsavel_id: responsavelPrincipal,
             observacoes: etapa.descricao || null,
             prazo_dias: etapa.dias_previsto || 0,
             prazo_unidade: etapa.tipo_prazo === "dias_uteis" ? "uteis" : "corridos",
@@ -194,6 +210,11 @@ export async function criarItemWorkflow(
           .select("id")
           .single();
         if (error) throw error;
+        if (todosResponsaveis.length) {
+          await supabase.from("tarefa_responsaveis").insert(
+            todosResponsaveis.map((u) => ({ tarefa_id: data.id, usuario_id: u }))
+          );
+        }
         return { id: data.id, tipo };
       }
 
@@ -221,10 +242,10 @@ export async function criarItemWorkflow(
           novaAudienciaId ||
           (await buscarAudienciaPorTituloData(etapa.titulo, dataAudienciaISO)) ||
           "";
-        if (id && responsavelId) {
+        if (id && todosResponsaveis.length) {
           await supabase
             .from("audiencia_envolvidos")
-            .insert([{ audiencia_id: id, usuario_id: responsavelId }]);
+            .insert(todosResponsaveis.map((u) => ({ audiencia_id: id, usuario_id: u })));
         }
         return { id, tipo };
       }
@@ -246,10 +267,10 @@ export async function criarItemWorkflow(
           .select("id")
           .single();
         if (error) throw error;
-        if (responsavelId) {
+        if (todosResponsaveis.length) {
           await supabase
             .from("participantes_evento")
-            .insert([{ evento_id: data.id, usuario_id: responsavelId }]);
+            .insert(todosResponsaveis.map((u) => ({ evento_id: data.id, usuario_id: u })));
         }
         return { id: data.id, tipo };
       }
@@ -275,10 +296,10 @@ export async function criarItemWorkflow(
           .select("id")
           .single();
         if (error) throw error;
-        if (responsavelId) {
+        if (todosResponsaveis.length) {
           await supabase
             .from("participantes_evento")
-            .insert([{ evento_id: evento.id, usuario_id: responsavelId }]);
+            .insert(todosResponsaveis.map((u) => ({ evento_id: evento.id, usuario_id: u })));
         }
         const parcelas = Array.from({ length: totalParcelas }, (_, i) => ({
           evento_id: evento.id,

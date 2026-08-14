@@ -186,20 +186,78 @@ export function useDeleteWorkflow() {
   });
 }
 
+function sanitizeEtapaPayload(input: Record<string, any>) {
+  const {
+    responsaveis,
+    created_at,
+    updated_at,
+    ...rest
+  } = input as any;
+  const uuidFields = ["responsavel_id", "etapa_anterior_id"];
+  for (const f of uuidFields) {
+    if (f in rest && (rest[f] === "" || rest[f] === undefined)) rest[f] = null;
+  }
+  if (rest.dias_fatal === "" || rest.dias_fatal === undefined) rest.dias_fatal = null;
+  return rest;
+}
+
+async function salvarResponsaveisEtapa(etapaId: string, responsaveis?: string[]) {
+  if (!responsaveis) return;
+  await supabase.from("workflow_etapa_responsaveis").delete().eq("etapa_id", etapaId);
+  const rows = Array.from(new Set(responsaveis.filter(Boolean))).map((usuario_id) => ({
+    etapa_id: etapaId,
+    usuario_id,
+  }));
+  if (rows.length) {
+    const { error } = await supabase.from("workflow_etapa_responsaveis").insert(rows);
+    if (error) throw error;
+  }
+}
+
+export function useWorkflowEtapasResponsaveis(workflowId?: string) {
+  return useQuery({
+    queryKey: ["workflow-etapas-responsaveis", workflowId],
+    queryFn: async () => {
+      if (!workflowId) return {} as Record<string, string[]>;
+      const { data: etapas } = await supabase
+        .from("workflow_etapas")
+        .select("id")
+        .eq("workflow_id", workflowId);
+      const ids = ((etapas as any[]) || []).map((e) => e.id);
+      if (!ids.length) return {} as Record<string, string[]>;
+      const { data, error } = await supabase
+        .from("workflow_etapa_responsaveis")
+        .select("etapa_id, usuario_id")
+        .in("etapa_id", ids);
+      if (error) throw error;
+      const map: Record<string, string[]> = {};
+      for (const r of (data as any[]) || []) {
+        map[r.etapa_id] = [...(map[r.etapa_id] || []), r.usuario_id];
+      }
+      return map;
+    },
+    enabled: !!workflowId,
+  });
+}
+
 export function useCreateWorkflowEtapa() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: Omit<WorkflowEtapa, "id" | "created_at" | "updated_at">) => {
+    mutationFn: async (
+      input: Omit<WorkflowEtapa, "id" | "created_at" | "updated_at"> & { responsaveis?: string[] }
+    ) => {
       const { data, error } = await supabase
         .from("workflow_etapas")
-        .insert(input)
+        .insert(sanitizeEtapaPayload(input) as any)
         .select()
         .single();
       if (error) throw error;
+      await salvarResponsaveisEtapa((data as any).id, (input as any).responsaveis);
       return data as unknown as WorkflowEtapa;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["workflow-etapas", variables.workflow_id] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-etapas-responsaveis"] });
       toast.success("Etapa adicionada!");
     },
     onError: (err: Error) => toast.error("Erro ao adicionar etapa: " + err.message),
@@ -209,18 +267,23 @@ export function useCreateWorkflowEtapa() {
 export function useUpdateWorkflowEtapa() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<WorkflowEtapa> & { id: string }) => {
+    mutationFn: async ({
+      id,
+      ...updates
+    }: Partial<WorkflowEtapa> & { id: string; responsaveis?: string[] }) => {
       const { data, error } = await supabase
         .from("workflow_etapas")
-        .update(updates)
+        .update(sanitizeEtapaPayload(updates) as any)
         .eq("id", id)
         .select()
         .single();
       if (error) throw error;
+      await salvarResponsaveisEtapa(id, (updates as any).responsaveis);
       return data as unknown as WorkflowEtapa;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workflow-etapas"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-etapas-responsaveis"] });
       toast.success("Etapa atualizada!");
     },
     onError: (err: Error) => toast.error("Erro ao atualizar etapa: " + err.message),
