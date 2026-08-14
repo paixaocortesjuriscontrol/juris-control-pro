@@ -125,6 +125,14 @@ export function AgendaItemRow({
             Responsável: {item.responsavel.nome}
           </p>
         )}
+        {(() => {
+          const datas = datasDoItem(item);
+          return datas.length > 0 ? (
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {datas.join("  ·  ")}
+            </p>
+          ) : null;
+        })()}
       </div>
       {sou && (
         <span className="flex-shrink-0 self-start text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground">
