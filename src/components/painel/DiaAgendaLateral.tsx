@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 import { labelSituacaoAtividade } from "@/components/comum/ItemAtividades";
+import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { getItemRawId } from "@/hooks/useItensComAtividades";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 
 const TIPO_TEXTO: Record<string, string> = {
