@@ -342,7 +342,13 @@ export function useAvancarWorkflowEtapa() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (execucaoId: string) => {
+    mutationFn: async ({
+      execucaoId,
+      sucesso = true,
+    }: {
+      execucaoId: string;
+      sucesso?: boolean;
+    }) => {
       if (!user?.id) throw new Error("Usuário não autenticado");
 
       const { data: execucao, error: execError } = await supabase
@@ -369,7 +375,52 @@ export function useAvancarWorkflowEtapa() {
       if (!etapaConcluida) throw new Error("Nenhuma etapa ativa para concluir");
 
       const ordemAtual = etapaConcluida.etapa?.ordem || 0;
-      const proxima = etapas.find((e) => (e.etapa?.ordem || 0) > ordemAtual);
+      // atualiza a etapa atual como concluída, com sucesso ou insucesso
+      await supabase
+        .from("workflow_execucao_etapas")
+        .update({ status: "concluida", sucesso })
+        .eq("id", etapaConcluida.id);
+
+      if (!sucesso) {
+        // sem sucesso: encerra workflow como concluido (sem materializar próxima)
+        await supabase
+          .from("workflow_execucoes")
+          .update({ status: "concluido" })
+          .eq("id", execucaoId);
+        return { concluido: true };
+      }
+
+      // encontra próxima etapa cujas condições sejam satisfeitas
+      let proxima = etapas.find((e) => (e.etapa?.ordem || 0) > ordemAtual && e.status === "pendente");
+      while (proxima) {
+        const condicao = proxima.etapa?.condicao || "sempre";
+        if (condicao === "sucesso_anterior") {
+          // valida se a etapa anterior imediata (ou a definida por etapa_anterior_id) foi concluída com sucesso
+          const refId = proxima.etapa?.etapa_anterior_id;
+          let anteriorConcluidaComSucesso: boolean;
+          if (refId) {
+            const ref = etapas.find((e) => e.etapa_id === refId);
+            anteriorConcluidaComSucesso = ref?.status === "concluida" && ref?.sucesso;
+          } else {
+            const anterior = etapas.find((e) => (e.etapa?.ordem || 0) < (proxima.etapa?.ordem || 0) && e.status === "concluida");
+            anteriorConcluidaComSucesso = anterior?.sucesso || false;
+          }
+          if (!anteriorConcluidaComSucesso) {
+            // pula esta etapa: marca como cancelada e continua procurando
+            await supabase
+              .from("workflow_execucao_etapas")
+              .update({ status: "cancelada", sucesso: false })
+              .eq("id", proxima.id);
+            const proximaOrdem = proxima.etapa?.ordem || 0;
+            proxima = etapas.find(
+              (e) => (e.etapa?.ordem || 0) > proximaOrdem && e.status === "pendente"
+            );
+            continue;
+          }
+        }
+        break;
+      }
+
       if (!proxima) {
         await supabase
           .from("workflow_execucoes")
@@ -406,11 +457,6 @@ export function useAvancarWorkflowEtapa() {
 
       await supabase
         .from("workflow_execucao_etapas")
-        .update({ status: "concluida" })
-        .eq("id", etapaConcluida.id);
-
-      await supabase
-        .from("workflow_execucao_etapas")
         .update({
           status: "materializada",
           item_id: item?.id || null,
@@ -422,7 +468,8 @@ export function useAvancarWorkflowEtapa() {
 
       return { concluido: false };
     },
-    onSuccess: (_, execucaoId) => {
+    onSuccess: (_, variables) => {
+      const execucaoId = variables.execucaoId;
       queryClient.invalidateQueries({ queryKey: ["workflow-execucao", execucaoId] });
       queryClient.invalidateQueries({ queryKey: ["workflow-execucao-etapas", execucaoId] });
       queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] });
