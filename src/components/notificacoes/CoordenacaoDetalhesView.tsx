@@ -323,6 +323,119 @@ export function CoordenacaoDetalhesView({
     };
   }, [periodoInicio, periodoFim]);
 
+  // ===== Itens vencidos sem tratamento (mesma regra do card do dashboard) =====
+  // Não depende do período selecionado: são itens antigos que continuam pendentes.
+  const { data: naoTratadosItens = [] } = useQuery({
+    queryKey: ["itens-nao-tratados-detalhe", coordenacaoId],
+    enabled: !!coordenacaoId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const hojeISO = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+      const FINALIZADOS_TAREFA = [
+        "cumprido", "cumprida", "cancelado", "cancelada", "verificado", "tratado", "tratada",
+        "concluido_sem_sucesso", "concluido", "concluida", "arquivado", "arquivada",
+      ];
+      const FINALIZADOS_EVENTO = [
+        "cancelado", "cancelada", "verificado", "tratado", "tratada", "concluido", "concluida",
+        "arquivado", "arquivada", "concluido_sem_sucesso",
+      ];
+      const FINALIZADOS_AUDIENCIA = [
+        ...FINALIZADOS_EVENTO, "realizada", "realizado", "ignorado", "reagendado",
+      ];
+
+      const [tarefasRes, eventosRes, audienciasRes] = await Promise.all([
+        supabase
+          .from("tarefas")
+          .select("id, titulo, status, tipo_registro, data_fatal, data_vencimento, processo:processos!tarefas_processo_id_fkey(id, numero)")
+          .eq("coordenacao_id", coordenacaoId)
+          .limit(500),
+        supabase
+          .from("eventos_agenda")
+          .select("id, titulo, status, data_inicio, processo_id")
+          .eq("coordenacao_id", coordenacaoId)
+          .lt("data_inicio", `${hojeISO}T00:00:00`)
+          .limit(500),
+        supabase
+          .from("audiencias_detectadas")
+          .select("id, tipo_audiencia, status, data_audiencia, processo_numero, processo_id")
+          .eq("coordenacao_id", coordenacaoId)
+          .lt("data_audiencia", `${hojeISO}T00:00:00`)
+          .limit(500),
+      ]);
+
+      type ItemVencido = {
+        id: string;
+        tipo: string;
+        titulo: string;
+        data: string | null;
+        status: string | null;
+        processoId: string | null;
+        processoNumero: string | null;
+      };
+      const out: ItemVencido[] = [];
+
+      for (const t of ((tarefasRes.data ?? []) as any[])) {
+        const data = t.data_fatal || t.data_vencimento;
+        if (!data || String(data).slice(0, 10) >= hojeISO) continue;
+        if (FINALIZADOS_TAREFA.includes(String(t.status ?? "").toLowerCase())) continue;
+        out.push({
+          id: t.id,
+          tipo: t.tipo_registro === "prazo" ? "Prazo" : "Tarefa",
+          titulo: t.titulo || "Sem título",
+          data,
+          status: t.status,
+          processoId: t.processo?.id ?? null,
+          processoNumero: t.processo?.numero ?? null,
+        });
+      }
+      for (const e of ((eventosRes.data ?? []) as any[])) {
+        if (FINALIZADOS_EVENTO.includes(String(e.status ?? "").toLowerCase())) continue;
+        out.push({
+          id: e.id,
+          tipo: "Evento",
+          titulo: e.titulo || "Sem título",
+          data: e.data_inicio,
+          status: e.status,
+          processoId: e.processo_id ?? null,
+          processoNumero: null,
+        });
+      }
+      for (const a of ((audienciasRes.data ?? []) as any[])) {
+        if (FINALIZADOS_AUDIENCIA.includes(String(a.status ?? "").toLowerCase())) continue;
+        out.push({
+          id: a.id,
+          tipo: "Audiência",
+          titulo: a.tipo_audiencia || "Audiência",
+          data: a.data_audiencia,
+          status: a.status,
+          processoId: a.processo_id ?? null,
+          processoNumero: a.processo_numero ?? null,
+        });
+      }
+
+      return out.sort((x, y) => String(x.data ?? "").localeCompare(String(y.data ?? "")));
+    },
+  });
+
+  const naoTratadosFiltrados = useMemo(() => {
+    return naoTratadosItens.filter((i: any) => matchesSearch(i.titulo) || matchesSearch(i.processoNumero, true));
+  }, [naoTratadosItens, searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const _matchesPeriodoUnused = useMemo(() => {
+    return (dateStr: string | null | undefined) => {
+      if (!dateStr) return true;
+      if (!periodoInicio && !periodoFim) return true;
+      try {
+        const date = startOfDay(parseISO(dateStr));
+        if (periodoInicio && isBefore(date, startOfDay(periodoInicio))) return false;
+        if (periodoFim && isAfter(date, startOfDay(periodoFim))) return false;
+        return true;
+      } catch {
+        return true;
+      }
+    };
+  }, [periodoInicio, periodoFim]);
+
   // Helper para busca: FRASE EXATA (evita "Super" casar com "SUPERIOR")
   // O segundo parâmetro (isProcessNumber) é ignorado - mantido para compatibilidade
   const matchesSearch = useMemo(() => {
