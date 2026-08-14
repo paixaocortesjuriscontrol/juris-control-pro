@@ -482,7 +482,10 @@ export function EquipeItensAgenda({
                       className={cn("absolute left-0 top-0 h-full w-1", TIPO_BAR_CLASSES[item.tipo] || "bg-muted")}
                     />
                     <div className="max-w-[260px]">
-                      <p className="font-medium truncate text-sm" title={item.titulo || undefined}>{item.titulo || "(sem título)"}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-medium truncate text-sm" title={item.titulo || undefined}>{item.titulo || "(sem título)"}</p>
+                        {itensComAtividades.has(getItemRawId(item.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
+                      </div>
                       {item.descricao && (
                         <p className="text-xs text-muted-foreground truncate">{item.descricao}</p>
                       )}
