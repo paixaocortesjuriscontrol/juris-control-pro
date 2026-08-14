@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "4.5.0";
+export const APP_VERSION = "4.5.1";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -36,4 +36,5 @@ export const VERSION_HISTORY = [
   { version: "4.4.8", date: "2026-08-12", notes: "Relatório de auditoria da coordenação em PDF, horários das exportações Excel em BRT e conclusão apenas como situação (sem botão Concluir)" },
   { version: "4.4.9", date: "2026-08-12", notes: "Divergências Judit × formulário: botão 'Marcar todas como Ciente'; Acompanhamento Especial passa a buscar movimentações via crawler quando o cache vem sem andamentos" },
   { version: "4.5.0", date: "2026-08-12", notes: "Ajustes na Carga Benner: 'Problema Judit' não rejeita mais e coluna 'Risco' respeita a flag de mídia negativa" },
+  { version: "4.5.1", date: "2026-08-14", notes: "Workflow: correção das validações de etapas (tipos, prazos e situações) e badge do menu Monitoramento contando apenas movimentações não lidas" },
 ];
