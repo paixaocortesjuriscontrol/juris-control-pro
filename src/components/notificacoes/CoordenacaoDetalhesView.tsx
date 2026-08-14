@@ -1228,6 +1228,7 @@ export function CoordenacaoDetalhesView({
 
   // Montar array de cards na ordem: todos menos redistribuições, depois redistribuições por último
   const allCards = [
+    { key: 'nao-tratados', render: renderNaoTratadosCard, hasData: naoTratadosFiltrados.length > 0 },
     { key: 'djen', render: renderDjenCard, hasData: publicacoesFiltradas.length > 0 },
     { key: 'distribuicoes', render: renderDistribuicoesCard, hasData: distribuicoesFiltradas.length > 0 },
     { key: 'alertas', render: renderAlertasCard, hasData: alertasFiltrados.length > 0 },
@@ -1246,6 +1247,7 @@ export function CoordenacaoDetalhesView({
     : allCards.filter(card => card.hasData);
 
   const categoryLabels: Record<string, string> = {
+    'nao-tratados': "Itens vencidos sem tratamento",
     djen: "Publicações DJEN",
     distribuicoes: "Distribuições",
     alertas: "Alertas 360°",
