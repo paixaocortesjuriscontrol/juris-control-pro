@@ -98,6 +98,8 @@ interface QuickDateOption {
 const TIME_ZONE = "America/Sao_Paulo";
 
 import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
+import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 
 const TIPO_CORES: Record<string, string> = {
   evento: "bg-blue-500",
