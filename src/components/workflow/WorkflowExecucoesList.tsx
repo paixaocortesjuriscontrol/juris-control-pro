@@ -29,6 +29,8 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
   const { data: execucoes = [], isLoading } = useWorkflowExecucoes();
   const [selected, setSelected] = useState<string | null>(null);
   const { data: etapas = [] } = useWorkflowExecucaoEtapas(selected || undefined);
+  const avancar = useAvancarWorkflowEtapa();
+
 
   if (isLoading) {
     return (
