@@ -466,10 +466,19 @@ const SIGLAS_RECURSO_FULL: Record<string, string> = {
   radesivo: "Recurso Adesivo",
 };
 
-function expandirSiglaRecurso(raw: string | null | undefined): string | null {
+// `contextoTst`: no TST a sigla genérica "AI" significa Agravo de Instrumento em
+// Recurso de Revista (AIRR). Fora do TST NÃO expandimos "AI" — a classe de 1ª/2ª
+// instância não é um tipo de recurso do TST e não deve virar nome de recurso.
+function expandirSiglaRecurso(
+  raw: string | null | undefined,
+  contextoTst = false,
+): string | null {
   if (!raw) return null;
   const txt = String(raw).trim();
   if (!txt) return null;
+  const siglas: Record<string, string> = contextoTst
+    ? { ...SIGLAS_RECURSO_FULL, ai: "Agravo de Instrumento em Recurso de Revista" }
+    : SIGLAS_RECURSO_FULL;
   const norm = (s: string) =>
     s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
   // Quebra por "+" (composições já formatadas) e por "-" (siglas compostas
@@ -480,7 +489,7 @@ function expandirSiglaRecurso(raw: string | null | undefined): string | null {
     const b = bloco.trim();
     if (!b) continue;
     const subs = b.split(/\s*-\s*/).map((s) => s.trim()).filter(Boolean);
-    if (subs.length > 1 && subs.every((s) => SIGLAS_RECURSO_FULL[norm(s)])) {
+    if (subs.length > 1 && subs.every((s) => siglas[norm(s)])) {
       partes.push(...subs);
     } else {
       partes.push(b);
@@ -490,7 +499,7 @@ function expandirSiglaRecurso(raw: string | null | undefined): string | null {
   const vistos = new Set<string>();
   for (const p of partes) {
     const alvo = norm(p);
-    const nome = SIGLAS_RECURSO_FULL[alvo] || p;
+    const nome = siglas[alvo] || p;
     const k = norm(nome);
     if (vistos.has(k)) continue;
     vistos.add(k);
@@ -913,7 +922,12 @@ serve(async (req) => {
     // ---------- Extração simples ----------
     const { poloAtivo, poloPassivo, partiesDetail } = extrairPartes(rdSelecionada);
     const classeRaw = extrairClasse(rdSelecionada);
-    const classe = expandirSiglaRecurso(classeRaw);
+    const classe = expandirSiglaRecurso(classeRaw, foiTst);
+    // Tipo de recurso só existe quando a instância selecionada é RECURSAL (TST).
+    // Com apenas a 1ª instância, a classe da capa (ex.: "Ação Trabalhista",
+    // "Agravo de Instrumento" de execução) NÃO é tipo de recurso do TST e não
+    // pode ser aplicada nos campos de recurso.
+    const classeRecursal = foiTst ? classe : null;
     const { orgao, relator, turma } = extrairOrgaoERelator(rdSelecionada);
     // Fallback: no TST a Judit costuma devolver "Gabinete do Ministro Fulano"
     // como nome do órgão, sem expor a Turma. Quando temos relator mas a turma
