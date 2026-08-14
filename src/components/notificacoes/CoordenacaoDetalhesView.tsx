@@ -580,7 +580,52 @@ export function CoordenacaoDetalhesView({
 
   const total = publicacoesFiltradas.length + distribuicoesFiltradas.length + alertasFiltrados.length +
     redistribuicoesFiltradas.length + prazosFiltrados.length + tarefasFiltradas.length +
-    audienciasFiltradas.length + intimacoesFiltradas.length + andamentosFiltrados.length + naoCadastradosFiltrados.length;
+    audienciasFiltradas.length + intimacoesFiltradas.length + andamentosFiltrados.length +
+    naoCadastradosFiltrados.length + naoTratadosFiltrados.length;
+
+  const renderNaoTratadosCard = () => naoTratadosFiltrados.length > 0 && (
+    <Card className="border-red-500/50">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Timer className="w-4 h-4 text-red-500" />
+          Itens vencidos sem tratamento ({naoTratadosFiltrados.length})
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <ScrollArea className="h-[400px] px-4 pb-4">
+          <div className="space-y-3 pt-2">
+            {naoTratadosFiltrados.map((item: any) => (
+              <div
+                key={`${item.tipo}-${item.id}`}
+                className="p-3 rounded-lg border bg-red-500/5 hover:bg-red-500/10 cursor-pointer transition-colors"
+                onClick={() => handleNavigateProcesso(item.processoId || item.processoNumero, "tarefas")}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0 space-y-1.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className="text-xs">{item.tipo}</Badge>
+                      {item.status && getStatusBadge(item.status)}
+                    </div>
+                    <p className="text-sm font-medium truncate">{item.titulo}</p>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>{formatDate(item.data)}</span>
+                      </div>
+                      {item.processoNumero && (
+                        <span className="font-mono">{item.processoNumero}</span>
+                      )}
+                    </div>
+                  </div>
+                  <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </CardContent>
+    </Card>
+  );
 
   // ============ RENDER CARDS COM DETALHES COMPLETOS ============
 
