@@ -77,6 +77,7 @@ import MinhasMensagensRecebidas from "@/components/notificacoes/MinhasMensagensR
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 import { Sparkles } from "lucide-react";
 import { horaBrt } from "@/utils/date";
+import { useSituacoesPainel, statusCasaSituacao } from "@/hooks/useSituacoesPainel";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
@@ -1286,7 +1287,11 @@ export default function PainelControle() {
         // Nesses filtros o calendário mostra encerrados; os cards continuam zerados.
         return false;
       }
-      if (painelFiltros.situacoes.length > 0 && !painelFiltros.situacoes.includes(item.status)) return false;
+      if (
+        painelFiltros.situacoes.length > 0 &&
+        !painelFiltros.situacoes.some((v) => statusCasaSituacao(item.status, v))
+      )
+        return false;
       if (painelFiltros.souResponsavel || painelFiltros.estouEnvolvido) {
         const userId = user?.id;
         if (!userId) return false;
@@ -1326,7 +1331,7 @@ export default function PainelControle() {
         if ((dateStr ?? "").slice(0, 10) !== hoje_str) return false;
       }
       if (situacaoFilter && situacaoFilter !== "todos") {
-        if ((item.status ?? "").toLowerCase() !== situacaoFilter) return false;
+        if (!statusCasaSituacao(item.status, situacaoFilter)) return false;
       }
       return true;
     });
