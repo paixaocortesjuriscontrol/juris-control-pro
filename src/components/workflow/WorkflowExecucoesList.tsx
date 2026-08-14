@@ -107,9 +107,21 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
                                 {STATUS_LABELS[etapa.status] || etapa.status}
                               </Badge>
                             </div>
-                            <div className="text-xs text-muted-foreground">
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               {etapa.data_prevista_calculada && (
                                 <span>Prev: {etapa.data_prevista_calculada}</span>
+                              )}
+                              {etapa.status === "materializada" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6"
+                                  onClick={() => avancar.mutate(exec.id)}
+                                  disabled={avancar.isPending}
+                                  title="Concluir etapa e avançar"
+                                >
+                                  <ChevronRight className="h-4 w-4 text-primary" />
+                                </Button>
                               )}
                             </div>
                           </div>
