@@ -436,9 +436,9 @@ const SIGLAS_RECURSO_FULL: Record<string, string> = {
   rrag: "Recurso de Revista com Agravo",
   arr: "Recurso de Revista com Agravo",
   ararr: "Recurso de Revista com Agravo",
-  airr: "Agravo de Instrumento em Recurso de Revista",
-  aiarr: "Agravo de Instrumento em Recurso de Revista",
-  air: "Agravo de Instrumento em Recurso de Revista",
+  airr: "Agravo de Instrumento",
+  aiarr: "Agravo de Instrumento",
+  air: "Agravo de Instrumento",
   e: "Embargos à SDI",
   err: "Embargos em Recurso de Revista",
   ro: "Recurso Ordinário",
@@ -465,6 +465,7 @@ const SIGLAS_RECURSO_FULL: Record<string, string> = {
   rcl: "Reclamação",
   radesivo: "Recurso Adesivo",
 };
+
 
 // `contextoTst`: no TST a sigla genérica "AI" significa Agravo de Instrumento em
 // Recurso de Revista (AIRR). Fora do TST NÃO expandimos "AI" — a classe de 1ª/2ª
