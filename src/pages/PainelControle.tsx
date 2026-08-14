@@ -2371,9 +2371,7 @@ export default function PainelControle() {
                                   )}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    const pai = itemPorRawId.get(String(a.item_id));
-                                    if (pai) handleItemClick(pai);
-                                    else setDiaLateralKey(key);
+                                    void abrirPaiDaAtividade(a);
                                   }}
                                   title={`Atividade: ${a.titulo} — ${labelSituacaoAtividade(a.situacao)}`}
                                 >
@@ -2416,11 +2414,7 @@ export default function PainelControle() {
                   handleItemClick(item);
                 }}
                 onSelectAtividade={(a) => {
-                  const pai = itemPorRawId.get(String(a.item_id));
-                  if (pai) {
-                    setDiaLateralKey(null);
-                    handleItemClick(pai);
-                  }
+                  void abrirPaiDaAtividade(a);
                 }}
                 onClose={() => setDiaLateralKey(null)}
               />
