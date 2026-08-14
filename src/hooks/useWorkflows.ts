@@ -193,11 +193,34 @@ function sanitizeEtapaPayload(input: Record<string, any>) {
     updated_at,
     ...rest
   } = input as any;
+  // remove relações/objetos que não são colunas da tabela
+  for (const k of Object.keys(rest)) {
+    const v = rest[k];
+    if (v !== null && typeof v === "object") delete rest[k];
+  }
   const uuidFields = ["responsavel_id", "etapa_anterior_id"];
   for (const f of uuidFields) {
     if (f in rest && (rest[f] === "" || rest[f] === undefined)) rest[f] = null;
   }
-  if (rest.dias_fatal === "" || rest.dias_fatal === undefined) rest.dias_fatal = null;
+  // números: string vazia -> null, string numérica -> int
+  for (const f of ["dias_previsto", "dias_fatal", "ordem"]) {
+    if (!(f in rest)) continue;
+    const v = rest[f];
+    if (v === "" || v === undefined || v === null) {
+      rest[f] = f === "dias_fatal" ? null : f === "dias_previsto" ? 0 : rest[f] ?? null;
+    } else {
+      const n = parseInt(String(v), 10);
+      rest[f] = Number.isNaN(n) ? null : n;
+    }
+  }
+  // normaliza vocabulários validados pelo banco
+  if (rest.tipo_item) rest.tipo_item = String(rest.tipo_item).toUpperCase();
+  if (rest.tipo_prazo) {
+    const tp = String(rest.tipo_prazo).toLowerCase().replace("dias_", "");
+    rest.tipo_prazo = tp === "uteis" ? "dias_uteis" : "dias_corridos";
+  }
+  if (!rest.condicao) delete rest.condicao;
+  if (!rest.regra_responsavel) delete rest.regra_responsavel;
   return rest;
 }
 
