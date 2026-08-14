@@ -105,6 +105,8 @@ export function ProcessoItensLateral({ processoId, processoNumero, onClose, onNa
     enabled: !!processoId,
   });
 
+  const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itens);
+
   if (selectedItem) {
     return (
       <EdicaoItemPanel
@@ -167,6 +169,7 @@ export function ProcessoItensLateral({ processoId, processoNumero, onClose, onNa
                 item={item}
                 userId={user?.id}
                 onSelect={setSelectedItem}
+                temAtividade={itensComAtividades.has(getItemRawId(item.id))}
               />
             ))}
         </div>
