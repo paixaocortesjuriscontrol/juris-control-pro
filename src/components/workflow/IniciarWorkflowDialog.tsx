@@ -216,13 +216,23 @@ export function IniciarWorkflowDialog({
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="resp">Responsável inicial (UUID)</Label>
-            <Input
-              id="resp"
-              value={responsavelInicial}
-              onChange={(e) => setResponsavelInicial(e.target.value)}
-              placeholder="UUID do usuário (opcional)"
-            />
+            <Label htmlFor="resp">Responsável inicial</Label>
+            <Select
+              value={responsavelInicial || ""}
+              onValueChange={(v) => setResponsavelInicial(v || "")}
+              disabled={!coordenacaoId}
+            >
+              <SelectTrigger id="resp">
+                <SelectValue placeholder="Selecione um usuário (opcional)" />
+              </SelectTrigger>
+              <SelectContent>
+                {usuarios.map((u) => (
+                  <SelectItem key={u.id} value={u.id}>
+                    {u.nome} {u.cargo ? `(${u.cargo})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="obs">Observações</Label>
