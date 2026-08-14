@@ -467,7 +467,7 @@ serve(async (req) => {
   let query = supabase
     .from("processos")
     .select(
-      "id, numero, acompanhamento_freq_diaria, acompanhamento_com_anexos, acompanhamento_ultima_checagem_em, acompanhamento_ultimo_step_date"
+      "id, numero, coordenacao_id, acompanhamento_freq_diaria, acompanhamento_com_anexos, acompanhamento_ultima_checagem_em, acompanhamento_ultimo_step_date, acompanhamento_ativado_em"
     )
     .eq("acompanhamento_especial", true);
   if (forcedProcessoId) query = query.eq("id", forcedProcessoId);
@@ -490,6 +490,24 @@ serve(async (req) => {
   }
 
   const resultados: any[] = [];
+  // Configuração por coordenação: janela de dias que gera aviso e se
+  // retroativos devem ou não notificar. Movimentações antigas (fora da
+  // janela) são gravadas em silêncio para consulta na tela Monitoramento.
+  const configPorCoordenacao = new Map<string, { dias: number; notificarRetro: boolean }>();
+  try {
+    const { data: configs } = await supabase
+      .from("config_acompanhamento_especial")
+      .select("coordenacao_id, dias_janela_aviso, notificar_retroativos");
+    for (const c of ((configs as any[]) || [])) {
+      configPorCoordenacao.set(c.coordenacao_id, {
+        dias: Math.max(1, Number(c.dias_janela_aviso) || 7),
+        notificarRetro: !!c.notificar_retroativos,
+      });
+    }
+  } catch (e) {
+    console.warn("[acomp-especial] config não carregada:", (e as Error).message);
+  }
+  const CONFIG_PADRAO = { dias: 7, notificarRetro: false };
   // Data BRT (YYYY-MM-DD) para guard anti-duplicidade no mesmo slot/dia
   const nowBrt = new Date(Date.now() - 3 * 60 * 60 * 1000);
   const dataBrtStr = nowBrt.toISOString().slice(0, 10);
@@ -665,6 +683,27 @@ serve(async (req) => {
       const ultimoConhecido = p.acompanhamento_ultimo_step_date
         ? new Date(p.acompanhamento_ultimo_step_date).getTime()
         : 0;
+
+      // ── Baseline e janela de aviso ──────────────────────────────────────
+      // 1) Baseline: se o processo ainda NÃO possui eventos gravados, a
+      //    primeira carga registra todo o histórico da Judit em silêncio.
+      // 2) Janela: só avisa movimentações com data dentro dos últimos N dias
+      //    (configurável por coordenação) e nunca anteriores à ativação do
+      //    Acompanhamento Especial. Fora disso o evento é gravado como
+      //    retroativo, já lido, sem e-mail/WhatsApp/notificação.
+      const { count: eventosExistentes } = await supabase
+        .from("acompanhamento_especial_eventos")
+        .select("id", { count: "exact", head: true })
+        .eq("processo_id", p.id);
+      const primeiraCarga = !eventosExistentes;
+
+      const cfg = configPorCoordenacao.get(p.coordenacao_id) || CONFIG_PADRAO;
+      const limiteJanela = Date.now() - cfg.dias * 24 * 60 * 60 * 1000;
+      const ativadoEm = p.acompanhamento_ativado_em
+        ? new Date(p.acompanhamento_ativado_em).getTime()
+        : 0;
+      const limiteAviso = Math.max(limiteJanela, ativadoEm);
+
       let maiorStepDate = ultimoConhecido;
       let novos = 0;
       const novosResumo: { data: string; conteudo: string; retroativo: boolean }[] = [];
@@ -688,6 +727,9 @@ serve(async (req) => {
           ? step.documents.length
           : 0;
 
+        const retroativo = dt < limiteAviso;
+        const silencioso = primeiraCarga || (retroativo && !cfg.notificarRetro);
+
         const { data: evento, error: evErr } = await supabase
           .from("acompanhamento_especial_eventos")
           .insert({
@@ -698,6 +740,8 @@ serve(async (req) => {
             instancia,
             tribunal,
             anexos_count: anexosCount,
+            retroativo,
+            lido_em: silencioso ? new Date().toISOString() : null,
           })
           .select("id")
           .maybeSingle();
@@ -707,12 +751,11 @@ serve(async (req) => {
           continue;
         }
 
-        // Primeira execução do processo: grava baseline em silêncio (sem avisos)
-        if (!ultimoConhecido) continue;
+        // Baseline (primeira carga) ou movimentação antiga: grava sem avisar
+        if (silencioso) continue;
 
         novos++;
         const conteudoStr = typeof conteudo === "string" ? conteudo : JSON.stringify(conteudo);
-        const retroativo = dt <= ultimoConhecido;
         novosResumo.push({ data: dataStr, conteudo: conteudoStr.slice(0, 500), retroativo });
 
         // Notificar responsáveis do processo + coordenadores da coordenação
