@@ -467,7 +467,7 @@ serve(async (req) => {
   let query = supabase
     .from("processos")
     .select(
-      "id, numero, acompanhamento_freq_diaria, acompanhamento_com_anexos, acompanhamento_ultima_checagem_em, acompanhamento_ultimo_step_date"
+      "id, numero, coordenacao_id, acompanhamento_freq_diaria, acompanhamento_com_anexos, acompanhamento_ultima_checagem_em, acompanhamento_ultimo_step_date, acompanhamento_ativado_em"
     )
     .eq("acompanhamento_especial", true);
   if (forcedProcessoId) query = query.eq("id", forcedProcessoId);
@@ -490,6 +490,24 @@ serve(async (req) => {
   }
 
   const resultados: any[] = [];
+  // Configuração por coordenação: janela de dias que gera aviso e se
+  // retroativos devem ou não notificar. Movimentações antigas (fora da
+  // janela) são gravadas em silêncio para consulta na tela Monitoramento.
+  const configPorCoordenacao = new Map<string, { dias: number; notificarRetro: boolean }>();
+  try {
+    const { data: configs } = await supabase
+      .from("config_acompanhamento_especial")
+      .select("coordenacao_id, dias_janela_aviso, notificar_retroativos");
+    for (const c of ((configs as any[]) || [])) {
+      configPorCoordenacao.set(c.coordenacao_id, {
+        dias: Math.max(1, Number(c.dias_janela_aviso) || 7),
+        notificarRetro: !!c.notificar_retroativos,
+      });
+    }
+  } catch (e) {
+    console.warn("[acomp-especial] config não carregada:", (e as Error).message);
+  }
+  const CONFIG_PADRAO = { dias: 7, notificarRetro: false };
   // Data BRT (YYYY-MM-DD) para guard anti-duplicidade no mesmo slot/dia
   const nowBrt = new Date(Date.now() - 3 * 60 * 60 * 1000);
   const dataBrtStr = nowBrt.toISOString().slice(0, 10);
