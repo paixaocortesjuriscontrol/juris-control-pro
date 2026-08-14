@@ -2,9 +2,13 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useWorkflowExecucoes, useWorkflowExecucaoEtapas } from "@/hooks/useWorkflows";
+import {
+  useWorkflowExecucoes,
+  useWorkflowExecucaoEtapas,
+  useAvancarWorkflowEtapa,
+} from "@/hooks/useWorkflows";
 import { WorkflowExecucao, WorkflowExecucaoEtapa } from "@/lib/workflowExecutor";
-import { Eye, CheckCircle } from "lucide-react";
+import { Eye, CheckCircle, ChevronRight } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
