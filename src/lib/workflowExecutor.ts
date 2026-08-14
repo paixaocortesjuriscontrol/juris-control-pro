@@ -77,6 +77,7 @@ export interface WorkflowExecucaoEtapa {
   item_id: string | null;
   item_tipo: WorkflowItemType;
   status: "pendente" | "materializada" | "concluida" | "cancelada";
+  sucesso: boolean;
   data_prevista_calculada: string | null;
   data_fatal_calculada: string | null;
   created_at: string;
