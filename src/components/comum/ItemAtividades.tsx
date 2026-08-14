@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Plus, Trash2, ListChecks, AlertTriangle } from "lucide-react";
+import { Loader2, Plus, ListChecks, AlertTriangle } from "lucide-react";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { toast } from "sonner";
@@ -150,18 +150,6 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
     onError: (e: any) => toast.error(e.message || "Erro ao salvar atividade"),
   });
 
-  const remover = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await (supabase as any).from("subatividades_item").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: async () => {
-      await invalidar();
-      toast.success("Atividade removida");
-    },
-    onError: (e: any) => toast.error(e.message || "Erro ao remover atividade"),
-  });
-
   if (!itemId) {
     return (
       <p className={cn("text-sm text-muted-foreground py-6 text-center", className)}>
@@ -232,16 +220,6 @@ export function ItemAtividades({ tipo, itemId, className }: Props) {
                     }}
                     className={cn("h-8 border-transparent px-1 focus-visible:border-input", concluida && "line-through text-muted-foreground")}
                   />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive"
-                    onClick={() => remover.mutate(a.id)}
-                    title="Remover"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pl-6">
                   <Input
