@@ -9579,6 +9579,286 @@ export type Database = {
           },
         ]
       }
+      workflow_etapa_envolvidos: {
+        Row: {
+          etapa_id: string
+          id: string
+          usuario_id: string
+        }
+        Insert: {
+          etapa_id: string
+          id?: string
+          usuario_id: string
+        }
+        Update: {
+          etapa_id?: string
+          id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_etapa_envolvidos_etapa_id_fkey"
+            columns: ["etapa_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_etapas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_etapa_responsaveis: {
+        Row: {
+          etapa_id: string
+          id: string
+          usuario_id: string
+        }
+        Insert: {
+          etapa_id: string
+          id?: string
+          usuario_id: string
+        }
+        Update: {
+          etapa_id?: string
+          id?: string
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_etapa_responsaveis_etapa_id_fkey"
+            columns: ["etapa_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_etapas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_etapas: {
+        Row: {
+          condicao: string
+          created_at: string
+          descricao: string | null
+          dias_fatal: number | null
+          dias_previsto: number
+          etapa_anterior_id: string | null
+          exibir_kanban: boolean
+          id: string
+          ordem: number
+          prioridade: Database["public"]["Enums"]["prioridade_tarefa"]
+          regra_responsavel: string
+          tipo_item: string
+          tipo_prazo: string
+          titulo: string
+          updated_at: string
+          workflow_id: string
+        }
+        Insert: {
+          condicao?: string
+          created_at?: string
+          descricao?: string | null
+          dias_fatal?: number | null
+          dias_previsto?: number
+          etapa_anterior_id?: string | null
+          exibir_kanban?: boolean
+          id?: string
+          ordem?: number
+          prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
+          regra_responsavel?: string
+          tipo_item: string
+          tipo_prazo?: string
+          titulo: string
+          updated_at?: string
+          workflow_id: string
+        }
+        Update: {
+          condicao?: string
+          created_at?: string
+          descricao?: string | null
+          dias_fatal?: number | null
+          dias_previsto?: number
+          etapa_anterior_id?: string | null
+          exibir_kanban?: boolean
+          id?: string
+          ordem?: number
+          prioridade?: Database["public"]["Enums"]["prioridade_tarefa"]
+          regra_responsavel?: string
+          tipo_item?: string
+          tipo_prazo?: string
+          titulo?: string
+          updated_at?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_etapas_etapa_anterior_id_fkey"
+            columns: ["etapa_anterior_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_etapas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_etapas_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_execucao_etapas: {
+        Row: {
+          created_at: string
+          data_fatal_calculada: string | null
+          data_prevista_calculada: string | null
+          etapa_id: string
+          execucao_id: string
+          id: string
+          item_id: string | null
+          item_tipo: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          data_fatal_calculada?: string | null
+          data_prevista_calculada?: string | null
+          etapa_id: string
+          execucao_id: string
+          id?: string
+          item_id?: string | null
+          item_tipo: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          data_fatal_calculada?: string | null
+          data_prevista_calculada?: string | null
+          etapa_id?: string
+          execucao_id?: string
+          id?: string
+          item_id?: string | null
+          item_tipo?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_execucao_etapas_etapa_id_fkey"
+            columns: ["etapa_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_etapas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_execucao_etapas_execucao_id_fkey"
+            columns: ["execucao_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_execucoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_execucoes: {
+        Row: {
+          coordenacao_id: string
+          created_at: string
+          data_inicio: string
+          id: string
+          iniciado_por: string | null
+          observacoes: string | null
+          processo_id: string
+          status: string
+          updated_at: string
+          workflow_id: string
+        }
+        Insert: {
+          coordenacao_id: string
+          created_at?: string
+          data_inicio?: string
+          id?: string
+          iniciado_por?: string | null
+          observacoes?: string | null
+          processo_id: string
+          status?: string
+          updated_at?: string
+          workflow_id: string
+        }
+        Update: {
+          coordenacao_id?: string
+          created_at?: string
+          data_inicio?: string
+          id?: string
+          iniciado_por?: string | null
+          observacoes?: string | null
+          processo_id?: string
+          status?: string
+          updated_at?: string
+          workflow_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_execucoes_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_execucoes_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_execucoes_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflows: {
+        Row: {
+          ativo: boolean
+          coordenacao_id: string
+          created_at: string
+          criado_por: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          coordenacao_id: string
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          coordenacao_id?: string
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflows_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       profiles_basic: {
