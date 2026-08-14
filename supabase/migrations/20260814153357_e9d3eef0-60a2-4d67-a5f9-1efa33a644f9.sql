@@ -1,0 +1,1 @@
+ALTER TABLE public.workflow_execucao_etapas ADD COLUMN IF NOT EXISTS ordem integer NOT NULL DEFAULT 0;
