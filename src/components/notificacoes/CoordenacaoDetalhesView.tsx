@@ -598,7 +598,13 @@ export function CoordenacaoDetalhesView({
               <div
                 key={`${item.tipo}-${item.id}`}
                 className="p-3 rounded-lg border bg-red-500/5 hover:bg-red-500/10 cursor-pointer transition-colors"
-                onClick={() => handleNavigateProcesso(item.processoId || item.processoNumero, "tarefas")}
+                onClick={() => {
+                  if (item.processoId || item.processoNumero) {
+                    handleNavigateProcesso(item.processoId || item.processoNumero, "tarefas");
+                  } else {
+                    navigate(`/minha-agenda?selectedId=${item.id}`);
+                  }
+                }}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0 space-y-1.5">
