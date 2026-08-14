@@ -221,6 +221,11 @@ export async function criarItemWorkflow(
           novaAudienciaId ||
           (await buscarAudienciaPorTituloData(etapa.titulo, dataAudienciaISO)) ||
           "";
+        if (id && responsavelId) {
+          await supabase
+            .from("audiencia_envolvidos")
+            .insert([{ audiencia_id: id, usuario_id: responsavelId }]);
+        }
         return { id, tipo };
       }
 
