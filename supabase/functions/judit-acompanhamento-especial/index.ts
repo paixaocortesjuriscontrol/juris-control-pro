@@ -683,6 +683,27 @@ serve(async (req) => {
       const ultimoConhecido = p.acompanhamento_ultimo_step_date
         ? new Date(p.acompanhamento_ultimo_step_date).getTime()
         : 0;
+
+      // ── Baseline e janela de aviso ──────────────────────────────────────
+      // 1) Baseline: se o processo ainda NÃO possui eventos gravados, a
+      //    primeira carga registra todo o histórico da Judit em silêncio.
+      // 2) Janela: só avisa movimentações com data dentro dos últimos N dias
+      //    (configurável por coordenação) e nunca anteriores à ativação do
+      //    Acompanhamento Especial. Fora disso o evento é gravado como
+      //    retroativo, já lido, sem e-mail/WhatsApp/notificação.
+      const { count: eventosExistentes } = await supabase
+        .from("acompanhamento_especial_eventos")
+        .select("id", { count: "exact", head: true })
+        .eq("processo_id", p.id);
+      const primeiraCarga = !eventosExistentes;
+
+      const cfg = configPorCoordenacao.get(p.coordenacao_id) || CONFIG_PADRAO;
+      const limiteJanela = Date.now() - cfg.dias * 24 * 60 * 60 * 1000;
+      const ativadoEm = p.acompanhamento_ativado_em
+        ? new Date(p.acompanhamento_ativado_em).getTime()
+        : 0;
+      const limiteAviso = Math.max(limiteJanela, ativadoEm);
+
       let maiorStepDate = ultimoConhecido;
       let novos = 0;
       const novosResumo: { data: string; conteudo: string; retroativo: boolean }[] = [];
@@ -706,6 +727,9 @@ serve(async (req) => {
           ? step.documents.length
           : 0;
 
+        const retroativo = dt < limiteAviso;
+        const silencioso = primeiraCarga || (retroativo && !cfg.notificarRetro);
+
         const { data: evento, error: evErr } = await supabase
           .from("acompanhamento_especial_eventos")
           .insert({
@@ -716,6 +740,8 @@ serve(async (req) => {
             instancia,
             tribunal,
             anexos_count: anexosCount,
+            retroativo,
+            lido_em: silencioso ? new Date().toISOString() : null,
           })
           .select("id")
           .maybeSingle();
@@ -725,12 +751,11 @@ serve(async (req) => {
           continue;
         }
 
-        // Primeira execução do processo: grava baseline em silêncio (sem avisos)
-        if (!ultimoConhecido) continue;
+        // Baseline (primeira carga) ou movimentação antiga: grava sem avisar
+        if (silencioso) continue;
 
         novos++;
         const conteudoStr = typeof conteudo === "string" ? conteudo : JSON.stringify(conteudo);
-        const retroativo = dt <= ultimoConhecido;
         novosResumo.push({ data: dataStr, conteudo: conteudoStr.slice(0, 500), retroativo });
 
         // Notificar responsáveis do processo + coordenadores da coordenação
