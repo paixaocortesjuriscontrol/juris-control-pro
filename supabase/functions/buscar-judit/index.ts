@@ -1143,7 +1143,7 @@ serve(async (req) => {
     let tipoRecursoReclamante: string | null = null;
     let tipoRecursoBanco: string | null = null;
     let tipoRecursoTerceiro: string | null = null;
-    if (classe) {
+    if (classeRecursal) {
       // Mapa documento/nome -> person_type original. Preferimos uma instância
       // que tenha RECLAMANTE/RECLAMADO explícito, porque cache/crawler podem
       // devolver TST como ACTIVE/RECORRENTE para todas as partes.
@@ -1181,18 +1181,18 @@ serve(async (req) => {
         // Override Santander: se o recorrente é o Banco, é sempre tipo_recurso_banco,
         // independente do que origem ou side digam.
         if (isSantanderCnpj(p?.main_document) || isSantanderNome(p?.name)) {
-          tipoRecursoBanco = classe;
+          tipoRecursoBanco = classeRecursal;
           continue;
         }
-        if (/RECLAMANTE|AUTOR|EXEQUENTE/.test(origemPt)) tipoRecursoReclamante = classe;
+        if (/RECLAMANTE|AUTOR|EXEQUENTE/.test(origemPt)) tipoRecursoReclamante = classeRecursal;
         else if (/RECLAMAD|R[ÉE]U|EXECUTAD/.test(origemPt)) {
           // Recorrente é RECLAMADO na origem mas NÃO é o Banco Santander →
           // trata-se de outro reclamado (litisconsorte passivo) recorrendo.
-          tipoRecursoTerceiro = classe;
+          tipoRecursoTerceiro = classeRecursal;
         }
         else if (/MINIST[ÉE]RIO|MPT|SINDICATO|TERCEIRO|ASSISTENTE|AMICUS/.test(origemPt) ||
                  /MINIST[ÉE]RIO|MPT|SINDICATO/i.test(String(p?.name || ""))) {
-          tipoRecursoTerceiro = classe;
+          tipoRecursoTerceiro = classeRecursal;
         }
         else {
           // Sem dados de origem e não é Santander: trata como terceiro
@@ -1200,13 +1200,13 @@ serve(async (req) => {
           // No TST todas as partes recorrentes são side=ACTIVE, então
           // usar "side" como discriminador classificaria erradamente
           // qualquer recorrente como Banco. Banco só via override Santander.
-          tipoRecursoTerceiro = classe;
+          tipoRecursoTerceiro = classeRecursal;
         }
       }
-      // Fallback: se nenhum dos dois preenchido mas há classe, marca o lado ativo.
-      if (!tipoRecursoReclamante && !tipoRecursoBanco && !tipoRecursoTerceiro) {
-        tipoRecursoBanco = classe; // Banco é o cliente; assume que é ele recorrendo
-      }
+      // NUNCA chutar o lado do recurso: se nenhuma parte recorrente foi
+      // identificada, os três campos ficam vazios para preenchimento
+      // manual/IA. Preencher "recurso do banco" por suposição gerava dados
+      // errados (banco marcado como recorrente sem ter recorrido).
     }
 
     const result = {
