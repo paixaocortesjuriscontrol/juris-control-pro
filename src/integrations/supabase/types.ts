@@ -10729,6 +10729,45 @@ export type Database = {
           tabela_origem: string
         }[]
       }
+      get_ranking_atendimento_geral: {
+        Args: {
+          p_coordenacao_id?: string
+          p_fim: string
+          p_inicio: string
+          p_usuario_id?: string
+        }
+        Returns: {
+          abertos_audiencias: number
+          abertos_eventos: number
+          abertos_parcelamentos: number
+          abertos_prazos: number
+          abertos_tarefas: number
+          abertos_total: number
+          concluidos: number
+          concluidos_atraso: number
+          concluidos_no_prazo: number
+          nome: string
+          prazos_perdidos: number
+          usuario_id: string
+        }[]
+      }
+      get_ranking_atendimento_tst: {
+        Args: {
+          p_coordenacao_id?: string
+          p_fim: string
+          p_inicio: string
+          p_usuario_id?: string
+        }
+        Returns: {
+          com_pendencia: number
+          judit_preenchidos: number
+          nome: string
+          pendencias_total: number
+          sem_pendencia: number
+          total: number
+          usuario_id: string
+        }[]
+      }
       get_relatorio_andamentos: { Args: never; Returns: Json }
       get_relatorio_atividades: { Args: never; Returns: Json }
       get_relatorio_clientes: { Args: never; Returns: Json }
@@ -10851,6 +10890,10 @@ export type Database = {
         Returns: string
       }
       try_uuid: { Args: { _txt: string }; Returns: string }
+      tst_pendencias_count: {
+        Args: { r: Database["public"]["Tables"]["dados_benner"]["Row"] }
+        Returns: number
+      }
       unaccent: { Args: { "": string }; Returns: string }
       user_can_access_publicacao_djen: {
         Args: { _publicacao_id: string; _user_id: string }
