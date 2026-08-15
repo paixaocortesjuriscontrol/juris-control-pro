@@ -1,4 +1,5 @@
 import {
+  Trophy,
   LayoutDashboard,
   Scale,
   Users,
@@ -42,6 +43,7 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
   { icon: BarChart3, label: "Indicadores", path: "/indicadores" },
+  { icon: Trophy, label: "Ranking Atendimento", path: "/ranking-atendimento", adminOrCoordOnly: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", adminOrCoordOnly: true },
   { icon: Bell, label: "Config. Notificações", path: "/notificacoes" },
   { icon: FileText, label: "Rel. Auditoria", path: "/auditoria-itens", adminOrCoordOnly: true },

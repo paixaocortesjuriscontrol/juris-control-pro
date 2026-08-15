@@ -19,7 +19,9 @@ import {
   CartesianGrid,
   LabelList,
 } from "recharts";
-import { BarChart3, HelpCircle } from "lucide-react";
+import { BarChart3, HelpCircle, Trophy } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 
 type Serie = {
@@ -229,6 +231,14 @@ export default function Indicadores() {
           : ano === "todos"
           ? "Produtividade por tipo de atividade, consolidada por ano"
           : `Produtividade por tipo de atividade em ${ano}`
+      }
+      headerActions={
+        <Button asChild variant="outline" className="gap-2">
+          <Link to="/ranking-atendimento">
+            <Trophy className="w-4 h-4" />
+            Ranking de Atendimento
+          </Link>
+        </Button>
       }
     >
       <div className="space-y-4">
