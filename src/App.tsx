@@ -51,6 +51,7 @@ import Pastas from "./pages/Pastas";
 import PastaDetalhes from "./pages/PastaDetalhes";
 import Notificacoes from "./pages/Notificacoes";
 import Indicadores from "./pages/Indicadores";
+import RankingAtendimento from "./pages/RankingAtendimento";
 import Monitoramento from "./pages/Monitoramento";
 import AnaliseTarefasProjuris from "./pages/AnaliseTarefasProjuris";
 import ImportarTarefas from "./pages/ImportarTarefas";
@@ -144,6 +145,7 @@ function App() {
               <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/indicadores" element={<ProtectedRoute><Indicadores /></ProtectedRoute>} />
+              <Route path="/ranking-atendimento" element={<ProtectedRoute><RankingAtendimento /></ProtectedRoute>} />
               <Route path="/monitoramento" element={<ProtectedRoute><Monitoramento /></ProtectedRoute>} />
               <Route path="/workflow" element={<ProtectedRoute><Workflow /></ProtectedRoute>} />
               {/* Redirect central-delegacao to unified agenda */}

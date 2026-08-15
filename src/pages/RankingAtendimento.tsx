@@ -304,7 +304,7 @@ export default function RankingAtendimento() {
   return (
     <MainLayout
       title="Ranking de Atendimento"
-      description="Desempenho do escritório por profissional, coordenação e período"
+      subtitle="Desempenho do escritório por profissional, coordenação e período"
     >
       <div className="space-y-4">
         {/* Filtros */}
