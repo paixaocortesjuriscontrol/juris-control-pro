@@ -10743,6 +10743,8 @@ export type Database = {
           abertos_prazos: number
           abertos_tarefas: number
           abertos_total: number
+          atividades_concluidas: number
+          atividades_total: number
           concluidos: number
           concluidos_atraso: number
           concluidos_no_prazo: number
