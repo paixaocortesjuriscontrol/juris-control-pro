@@ -36,6 +36,8 @@ type LinhaGeral = {
   concluidos_no_prazo: number;
   concluidos_atraso: number;
   prazos_perdidos: number;
+  atividades_total: number;
+  atividades_concluidas: number;
 };
 
 type LinhaTst = {
@@ -140,8 +142,10 @@ export default function RankingAtendimento() {
         concluidos: acc.concluidos + Number(l.concluidos),
         noPrazo: acc.noPrazo + Number(l.concluidos_no_prazo),
         perdidos: acc.perdidos + Number(l.prazos_perdidos),
+        atividades: acc.atividades + Number(l.atividades_total || 0),
+        atividadesConcl: acc.atividadesConcl + Number(l.atividades_concluidas || 0),
       }),
-      { abertos: 0, concluidos: 0, noPrazo: 0, perdidos: 0 }
+      { abertos: 0, concluidos: 0, noPrazo: 0, perdidos: 0, atividades: 0, atividadesConcl: 0 }
     );
   }, [geral]);
 
@@ -210,6 +214,8 @@ export default function RankingAtendimento() {
           { header: "Concluídos", width: 24, key: "concluidos", align: "right" },
           { header: "No prazo", width: 22, key: "concluidos_no_prazo", align: "right" },
           { header: "Atraso", width: 20, key: "concluidos_atraso", align: "right" },
+          { header: "Ativid.", width: 20, key: "atividades_total", align: "right" },
+          { header: "Ativid. concl.", width: 26, key: "atividades_concluidas", align: "right" },
           { header: "% no prazo", width: 24, key: "taxa", align: "right" },
           { header: "Prazos perdidos", width: 28, key: "prazos_perdidos", align: "right" },
         ].map((c: any, i) => ({ ...c, key: c.key || `pos${i}` })),
@@ -226,6 +232,8 @@ export default function RankingAtendimento() {
             concluidos: l.concluidos,
             concluidos_no_prazo: l.concluidos_no_prazo,
             concluidos_atraso: l.concluidos_atraso,
+            atividades_total: l.atividades_total ?? 0,
+            atividades_concluidas: l.atividades_concluidas ?? 0,
             taxa: `${pct(Number(l.concluidos_no_prazo), Number(l.concluidos))}%`,
             prazos_perdidos: l.prazos_perdidos,
           })),
@@ -233,6 +241,7 @@ export default function RankingAtendimento() {
           { label: "Itens abertos", valor: totaisGeral.abertos },
           { label: "Concluídos", valor: totaisGeral.concluidos },
           { label: "Concluídos no prazo", valor: totaisGeral.noPrazo },
+          { label: "Atividades concluídas", valor: `${totaisGeral.atividadesConcl}/${totaisGeral.atividades}` },
           { label: "% no prazo", valor: `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%` },
           { label: "Prazos perdidos", valor: totaisGeral.perdidos },
         ],
@@ -461,6 +470,8 @@ export default function RankingAtendimento() {
                       <TableHead className="text-right">Concluídos</TableHead>
                       <TableHead className="text-right">No prazo</TableHead>
                       <TableHead className="text-right">Atraso</TableHead>
+                      <TableHead className="text-right">Atividades</TableHead>
+                      <TableHead className="text-right">Ativid. concl.</TableHead>
                       <TableHead className="text-right">% no prazo</TableHead>
                       <TableHead className="text-right">Prazos perdidos</TableHead>
                     </TableRow>
@@ -468,13 +479,13 @@ export default function RankingAtendimento() {
                   <TableBody>
                     {geralQuery.isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={12}>
+                        <TableCell colSpan={14}>
                           <Skeleton className="h-24 w-full" />
                         </TableCell>
                       </TableRow>
                     ) : geralOrdenado.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={12} className="text-center text-muted-foreground py-10">
+                        <TableCell colSpan={14} className="text-center text-muted-foreground py-10">
                           Nenhum dado no período selecionado
                         </TableCell>
                       </TableRow>
@@ -496,6 +507,8 @@ export default function RankingAtendimento() {
                           <TableCell className="text-right font-semibold">{l.concluidos}</TableCell>
                           <TableCell className="text-right text-green-600">{l.concluidos_no_prazo}</TableCell>
                           <TableCell className="text-right text-amber-600">{l.concluidos_atraso}</TableCell>
+                          <TableCell className="text-right">{l.atividades_total ?? 0}</TableCell>
+                          <TableCell className="text-right text-blue-600">{l.atividades_concluidas ?? 0}</TableCell>
                           <TableCell className="text-right">
                             <Badge variant="outline" className="gap-1">
                               <CheckCircle2 className="w-3 h-3" />
