@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "4.5.3";
+export const APP_VERSION = "4.5.4";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -39,4 +39,5 @@ export const VERSION_HISTORY = [
   { version: "4.5.1", date: "2026-08-14", notes: "Workflow: correção das validações de etapas (tipos, prazos e situações) e badge do menu Monitoramento contando apenas movimentações não lidas" },
   { version: "4.5.2", date: "2026-08-14", notes: "Judit deixa de chutar tipo de recurso: só preenche quando há instância recursal (TST) e nunca atribui o recurso ao banco sem evidência" },
   { version: "4.5.3", date: "2026-08-14", notes: "Ajustes de versão e menu" },
+  { version: "4.5.4", date: "2026-08-16", notes: "Análise DJEN: exportações 'sem repetição' passam a unificar a mesma comunicação (processo + data + ID do documento + teor), ignorando ordem de advogados e bloco 'Intimado(s) / Citado(s)'" },
 ];
