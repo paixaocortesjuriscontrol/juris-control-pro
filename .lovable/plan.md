@@ -28,8 +28,13 @@ Agravante secundário: a chave de comparação usa apenas os primeiros 400 carac
 4. **Preservar a informação dos intimados**: ao unificar duplicatas, listar no item mantido todos os intimados encontrados nas cópias, para nada ser perdido.
 5. Aplicar a mesma regra nos exportadores que usam esse filtro (Resumo PDF sem repetição, Resumo DOC sem repetição, Doc Resumo Intimação sem repetição), centralizando a lógica em `src/utils/djenDedup.ts` para Análise DJEN e Análise DJEN Servidor usarem o mesmo código.
 
+## Versão
+
+Antes de aplicar a correção, o sistema passa a exibir **v4.5.4** no menu, com nota de release sobre a deduplicação dos resumos sem repetição. Assim fica fácil identificar (e reverter) esta versão caso o resultado não agrade.
+
 ## Detalhes técnicos
 
+- `src/constants/version.ts`: `APP_VERSION = "4.5.4"` e nova entrada em `VERSION_HISTORY`; `public/version.json` atualizado para 4.5.4.
 - `src/utils/djenDedup.ts`: reescrever `stripDestinatarios` e adicionar `dedupPubsSemDestinatarios` (chave: dígitos do processo + data de publicação + ID do documento extraído por regex + hash do teor normalizado com tokens ordenados), devolvendo também os intimados agregados por item mantido.
 - `src/pages/AnaliseDjen.tsx` e `src/pages/AnaliseDjenServidor.tsx`: substituir a função local `dedupPubsPorProcessoSemDestinatarios` pela versão compartilhada; sem mudança de layout dos documentos além da linha de intimados unificados.
 - A deduplicação de tela/contagem (por `coordenacao_id + id_djen`) permanece intacta — o ajuste é exclusivo das exportações "sem repetição".
