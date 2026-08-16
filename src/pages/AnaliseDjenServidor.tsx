@@ -97,7 +97,7 @@ import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
 import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicacaoDjen";
 import { jsPDF } from "jspdf";
-import { dedupePublicacoesDjen, stripDestinatarios } from "@/utils/djenDedup";
+import { dedupePublicacoesDjen, stripDestinatarios, dedupPubsSemDestinatarios } from "@/utils/djenDedup";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas' | 'kurier';
@@ -2477,41 +2477,9 @@ const AnaliseDjenServidor = () => {
     }
   };
 
-  // ===== Dedup: remove publicações com mesmo processo + conteúdo idêntico
-  // (ignorando o bloco final "Destinatário(s): ..."). Mantém a de maior
-  // conteúdo, preservando a ordem original.
-  const dedupPubsPorProcessoSemDestinatarios = <T extends { processo_numero?: string | null; conteudo?: string | null }>(
-    pubs: T[]
-  ): T[] => {
-    const normalize = (s: string) =>
-      stripDestinatarios(s)
-        .replace(/<[^>]*>/g, " ")
-        .replace(/[^\w\s]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .toLowerCase();
-    const bestIdxByKey = new Map<string, number>();
-    const keep = new Array<boolean>(pubs.length).fill(false);
-    pubs.forEach((p, i) => {
-      const digits = String(p.processo_numero || "").replace(/\D/g, "");
-      if (!digits) { keep[i] = true; return; }
-      const norm = normalize(String(p.conteudo || ""));
-      // Usa um prefixo do conteúdo normalizado para tolerar pequenas
-      // variações no final (nomes adicionais, ordem de advogados, etc.)
-      const head = norm.slice(0, 400);
-      const key = `${digits}|${head}`;
-      const prev = bestIdxByKey.get(key);
-      if (prev === undefined) {
-        bestIdxByKey.set(key, i);
-      } else {
-        const prevLen = (pubs[prev].conteudo || "").length;
-        const curLen = (p.conteudo || "").length;
-        if (curLen > prevLen) bestIdxByKey.set(key, i);
-      }
-    });
-    bestIdxByKey.forEach((i) => { keep[i] = true; });
-    return pubs.filter((_, i) => keep[i]);
-  };
+  // ===== Dedup das exportações "sem repetição": lógica centralizada em
+  // src/utils/djenDedup.ts (processo + data + ID do documento + teor).
+  const dedupPubsPorProcessoSemDestinatarios = dedupPubsSemDestinatarios;
 
   // ===== "Resumo PDF sem repetição" — mesmo fluxo do "Resumo sem IA",
   // mas descartando publicações duplicadas para o mesmo processo
