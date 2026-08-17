@@ -10753,6 +10753,7 @@ export type Database = {
           atividades_total: number
           concluidos: number
           concluidos_atraso: number
+          concluidos_avaliaveis: number
           concluidos_no_prazo: number
           nome: string
           prazos_perdidos: number
