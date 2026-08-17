@@ -368,7 +368,7 @@ export default function RankingAtendimento() {
             prazos_perdidos: l.prazos_perdidos,
           })),
         },
-        {
+        ...(tstOrdenado.length > 0 ? [{
           titulo: "TST — Distribuição",
           subtitulo: "Qualidade do preenchimento dos dados da Distribuição TST",
           resumo: [
@@ -406,7 +406,7 @@ export default function RankingAtendimento() {
             pendencias_total: l.pendencias_total,
             judit_preenchidos: l.judit_preenchidos,
           })),
-        },
+        }] : []),
       ],
     });
   };
