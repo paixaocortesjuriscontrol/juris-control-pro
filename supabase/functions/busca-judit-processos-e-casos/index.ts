@@ -359,7 +359,11 @@ function extrairMovimentacoes(pageData: any[], cached: any): any[] {
   for (const rd of fontes) {
     const steps = Array.isArray(rd?.steps) ? rd.steps : [];
     for (const s of steps) {
-      const data = isoToInput(s?.step_date || s?.date || s?.movement_date);
+      // O cache da Judit pode omitir step_date e trazer somente created_at.
+      // Preserve o andamento recuperado em vez de descartá-lo silenciosamente.
+      const data = isoToInput(
+        s?.step_date || s?.date || s?.movement_date || s?.created_at || s?.updated_at,
+      );
       const bruto = s?.content ?? s?.title ?? s?.description ?? "";
       const descricao = (typeof bruto === "string" ? bruto : JSON.stringify(bruto)).trim();
       if (!data || !descricao) continue;
