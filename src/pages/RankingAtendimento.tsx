@@ -191,7 +191,7 @@ export default function RankingAtendimento() {
         .slice(0, 12)
         .map((l) => ({
           nome: l.nome.split(" ").slice(0, 2).join(" "),
-          Abertos: Number(l.abertos_total),
+          Criados: Number(l.abertos_total),
           "No prazo": Number(l.concluidos_no_prazo),
           "Com atraso": Number(l.concluidos_atraso),
         })),
@@ -636,7 +636,7 @@ export default function RankingAtendimento() {
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
               {(
                 [
-                  ["Itens abertos", totaisGeral.abertos, AZUL],
+                  ["Criados no período", totaisGeral.abertos, AZUL],
                   ["Concluídos", totaisGeral.concluidos, NAVY],
                   ["Concluídos no prazo", totaisGeral.noPrazo, VERDE],
                   ["% no prazo", `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%`, GOLD],
@@ -662,7 +662,7 @@ export default function RankingAtendimento() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Top 12 — produtividade e pontualidade</CardTitle>
-                <CardDescription>Itens abertos, concluídos no prazo e concluídos com atraso</CardDescription>
+                <CardDescription>Itens criados no período, concluídos no prazo e concluídos com atraso</CardDescription>
               </CardHeader>
               <CardContent className="h-80">
                 {geralQuery.isLoading ? (
@@ -681,7 +681,7 @@ export default function RankingAtendimento() {
                         }}
                       />
                       <Legend />
-                      <Bar dataKey="Abertos" fill={AZUL} radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Criados" fill={AZUL} radius={[4, 4, 0, 0]} />
                       <Bar dataKey="No prazo" fill={VERDE} radius={[4, 4, 0, 0]} />
                       <Bar dataKey="Com atraso" fill={VERMELHO} radius={[4, 4, 0, 0]} />
                     </BarChart>
@@ -701,7 +701,7 @@ export default function RankingAtendimento() {
                     <TableRow>
                       <TableHead className="w-12">#</TableHead>
                       <TableHead>Profissional</TableHead>
-                      <TableHead className="text-right">Abertos</TableHead>
+                      <TableHead className="text-right">Criados</TableHead>
                       <TableHead className="text-right">Prazos</TableHead>
                       <TableHead className="text-right">Audiências</TableHead>
                       <TableHead className="text-right">Eventos</TableHead>
@@ -782,7 +782,7 @@ export default function RankingAtendimento() {
                   ["Itens concluídos", totaisGeral.concluidos, NAVY],
                   ["Atividades concluídas", totaisGeral.atividadesConcl, AZUL],
                   ["Entregas totais", totaisGeral.concluidos + totaisGeral.atividadesConcl, VERDE],
-                  ["Itens abertos", totaisGeral.abertos, GOLD],
+                  ["Criados no período", totaisGeral.abertos, GOLD],
                 ] as [string, number | string, string][]
               ).map(([label, valor, cor]) => (
                 <Card key={label}>
@@ -844,7 +844,7 @@ export default function RankingAtendimento() {
                     <TableRow>
                       <TableHead className="w-12">#</TableHead>
                       <TableHead>Profissional</TableHead>
-                      <TableHead className="text-right">Abertos</TableHead>
+                      <TableHead className="text-right">Criados</TableHead>
                       <TableHead className="text-right">Concluídos</TableHead>
                       <TableHead className="text-right">Atividades concl.</TableHead>
                       <TableHead className="text-right">Entregas totais</TableHead>
