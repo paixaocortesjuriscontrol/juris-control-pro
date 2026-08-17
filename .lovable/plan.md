@@ -1,28 +1,27 @@
-# Por que as duas publicações não apareceram na Coordenação Dr. Thomás
+# Cadastrar monitoramentos por processo — Segredo de Justiça (Coordenação Dra. Beatriz Costa)
 
-Processo 0000671-18.2019.5.06.0017 — TRT6 — disponibilização 17/08/2026.
+## O que a planilha traz
 
-## O que a base mostra (verificado)
+A planilha `BASE - RELATÓRIOS - TODOS OS CLIENTES` tem 974 linhas. Na coluna "SEGREDO DE JUSTIÇA? (SIM OU NÃO)" há **26 processos com SIM** (todos com número CNJ válido e sem repetição).
 
-- As duas publicações **existem no sistema** (id_djen 698952741 e 698952770), mas gravadas na coordenação **"Kurier - paixaoc - Somente Kurier"**, via fonte `kurier`.
-- Na Coordenação Dr. Thomás **não há registro** dessas duas publicações — nem em encontradas, nem em descartadas.
-- Os monitoramentos do Dr. Thomás que alcançariam esse processo são dois, ambos com termo **BRADESCO** (um tipo `parte`, um `palavra-chave`), cobrindo TRT6, e **ambos exigem condição concomitante "OSMAR MENDES"**.
-- Os advogados dessa publicação são ISAAC BERTOLINI AULER, FRANCISCO SAMPAIO DE MENEZES JUNIOR, FELIPE MEINEM GARBIN, RAPHAEL BERNARDES DA SILVA, ANTONIO MILLER MADEIRA e WILSON BELCHIOR — **não há OSMAR MENDES**.
-- Prova histórica do mesmo processo: em 18/05/2026 o sistema capturou publicações desse processo por esses dois monitoramentos do Dr. Thomás e as **descartou com motivo `condicao_concomitante`**.
-- Os demais monitoramentos do Dr. Thomás são por advogado (OSMAR MENDES PAIXÃO CORTES, CARLOS JOSÉ ELIAS JUNIOR, THOMAS RIETH MARCELLO) — nenhum figura na publicação. E o número desse processo **não está cadastrado como monitoramento tipo `processo`** em nenhuma coordenação.
+Na coordenação da Dra. Beatriz Costa já existem 4 monitoramentos do tipo "processo", sendo **3 deles justamente processos dessa lista de segredo**:
+- 1000791-37.2024.5.02.0031 (descrição "SEGREDO DE JUSTIÇA")
+- 0001337-37.2025.5.10.0101 (descrição "SEGREDO DE JUSTIÇA (cópia)")
+- 0020341-29.2026.5.04.0251 (sem descrição)
 
-## Conclusão
+Ou seja, faltam cadastrar **23 processos**.
 
-Não é falha de captura do DJEN: a publicação simplesmente **não atende ao critério configurado** na coordenação do Dr. Thomás. O filtro "BRADESCO + OSMAR MENDES" só deixa passar publicações em que Osmar consta como advogado; nesse alvará o intimado é a reclamante e os advogados listados são outros.
+## O que será feito
 
-## Opções para corrigir (escolha do usuário)
+Cadastrar os 26 processos com SIM como termos de busca do tipo **processo** na coordenação da Dra. Beatriz Costa:
 
-1. **Monitoramento por processo**: cadastrar 0000671-18.2019.5.06.0017 como monitoramento tipo `processo` (TRT6) na coordenação do Dr. Thomás — pega tudo desse processo, independente de advogado.
-2. **Ampliar a condição concomitante**: incluir os demais advogados do escritório (ex.: THOMAS RIETH MARCELLO) nos termos OR dos monitoramentos BRADESCO, ou remover a exigência de "OSMAR MENDES" quando a parte BRADESCO já for suficiente (isso aumenta muito o volume).
-3. **Resgate por processo cadastrado**: se o processo estiver cadastrado em Processos e Casos na coordenação do Dr. Thomás, criar uma regra de resgate — publicação do dia cujo número pertence a processo da coordenação entra mesmo sem casar advogado/concomitante.
-4. **Importar manualmente estas duas** publicações para a coordenação do Dr. Thomás (ação pontual, sem mudar regra).
+- Um monitoramento por número de processo, ativo, com descrição padronizada `SEGREDO DE JUSTIÇA`.
+- Nada é duplicado: os 3 já existentes são mantidos como estão (apenas a descrição do que está sem descrição é padronizada para `SEGREDO DE JUSTIÇA`).
+- Sem UF/tribunal fixo, seguindo o padrão dos monitoramentos por processo já existentes na coordenação (busca em todos os tribunais).
+- Cadastro feito diretamente na base (carga única), aparecendo normalmente na tela de Monitoramento/Detecção da coordenação e entrando nas próximas execuções do DJEN Servidor.
 
 ## Detalhes técnicos
 
-- Descartes são registrados em `publicacoes_djen_descartadas.motivo_descarte` (`sem_concomitante: <termo>`, `sem_match_parte`, `duplicada_lote`). Nos últimos dias a coordenação do Dr. Thomás teve 4 descartes por `sem_concomitante: OSMAR MENDES`.
-- A opção 3 exigiria alterar o motor DJEN (servidor/browser) para consultar `processos`/`processos_coordenacoes_responsaveis` por dígitos do número antes de aplicar concomitante — mudança de lógica de captura, não só de configuração.
+- Insert em `monitoramentos_djen` com `tipo = 'processo'`, `termo_busca = <CNJ mascarado>`, `coordenacao_id = d997ca10-0012-4a0e-8856-664812366fec`, `ativo = true`, `arquivado = false`, `descricao = 'SEGREDO DE JUSTIÇA'`.
+- Deduplicação por `coordenacao_id + tipo + apenas dígitos do termo_busca`, para não recriar os 3 existentes.
+- Números gravados com máscara CNJ, como já é padrão do projeto.
