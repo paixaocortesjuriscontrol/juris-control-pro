@@ -406,7 +406,7 @@ export default function RankingAtendimento() {
             pendencias_total: l.pendencias_total,
             judit_preenchidos: l.judit_preenchidos,
           })),
-        }] : []),
+        }] as any : []),
       ],
     });
   };
