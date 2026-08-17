@@ -173,6 +173,14 @@ export function gerarRankingPdfCompleto(opts: {
   const rowH = 6.6;
   const headH = 8;
 
+  const ajustarColunas = (colunas: ColunaPdf[]) => {
+    const larguraDisponivel = pageW - ml * 2;
+    const larguraInformada = colunas.reduce((total, coluna) => total + coluna.width, 0);
+    if (larguraInformada <= larguraDisponivel) return colunas;
+    const escala = larguraDisponivel / larguraInformada;
+    return colunas.map((coluna) => ({ ...coluna, width: coluna.width * escala }));
+  };
+
   const cabecalho = (secao: string) => {
     doc.setFillColor(...NAVY);
     doc.rect(0, 0, pageW, 20, "F");
@@ -279,6 +287,7 @@ export function gerarRankingPdfCompleto(opts: {
   };
 
   secoes.forEach((secao, si) => {
+    const colunas = ajustarColunas(secao.colunas);
     if (si > 0) doc.addPage();
     cabecalho(secao.titulo);
     let y = 26;
@@ -326,18 +335,18 @@ export function gerarRankingPdfCompleto(opts: {
       y += 2;
     }
 
-    y = desenharCabecalhoTabela(secao.colunas, y);
+    y = desenharCabecalhoTabela(colunas, y);
 
     secao.linhas.forEach((linha, idx) => {
       if (y + rowH > pageH - 12) {
         doc.addPage();
         cabecalho(secao.titulo);
-        y = desenharCabecalhoTabela(secao.colunas, 26);
+        y = desenharCabecalhoTabela(colunas, 26);
       }
       if (idx % 2 === 0) {
         doc.setFillColor(...ZEBRA);
         let x = ml;
-        secao.colunas.forEach((c) => {
+        colunas.forEach((c) => {
           doc.rect(x, y, c.width, rowH, "F");
           x += c.width;
         });
@@ -346,7 +355,7 @@ export function gerarRankingPdfCompleto(opts: {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7);
       let x = ml;
-      secao.colunas.forEach((c) => {
+      colunas.forEach((c) => {
         let valor = String(linha[c.key] ?? "-");
         const maxChars = Math.floor(c.width / 1.6);
         if (valor.length > maxChars) valor = valor.substring(0, maxChars - 1) + "…";
