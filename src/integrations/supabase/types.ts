@@ -3942,35 +3942,59 @@ export type Database = {
       djen_proxy_pool: {
         Row: {
           base_url: string
+          cert_dias_restantes: number | null
+          cert_expira_em: string | null
           created_at: string
           criado_por: string | null
           enabled: boolean
           id: string
           label: string
+          latencia_ms: number | null
           pool_enabled_global: boolean
+          saude_motivo: string | null
+          saude_status: string | null
           token: string
+          ultima_checagem_em: string | null
+          ultimo_alerta_cert_em: string | null
+          ultimo_alerta_offline_em: string | null
           updated_at: string
         }
         Insert: {
           base_url: string
+          cert_dias_restantes?: number | null
+          cert_expira_em?: string | null
           created_at?: string
           criado_por?: string | null
           enabled?: boolean
           id?: string
           label: string
+          latencia_ms?: number | null
           pool_enabled_global?: boolean
+          saude_motivo?: string | null
+          saude_status?: string | null
           token: string
+          ultima_checagem_em?: string | null
+          ultimo_alerta_cert_em?: string | null
+          ultimo_alerta_offline_em?: string | null
           updated_at?: string
         }
         Update: {
           base_url?: string
+          cert_dias_restantes?: number | null
+          cert_expira_em?: string | null
           created_at?: string
           criado_por?: string | null
           enabled?: boolean
           id?: string
           label?: string
+          latencia_ms?: number | null
           pool_enabled_global?: boolean
+          saude_motivo?: string | null
+          saude_status?: string | null
           token?: string
+          ultima_checagem_em?: string | null
+          ultimo_alerta_cert_em?: string | null
+          ultimo_alerta_offline_em?: string | null
           updated_at?: string
         }
         Relationships: []
