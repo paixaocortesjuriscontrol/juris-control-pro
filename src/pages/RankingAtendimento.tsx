@@ -986,13 +986,13 @@ export default function RankingAtendimento() {
                   <TableBody>
                     {geralQuery.isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={7}>
+                        <TableCell colSpan={8}>
                           <Skeleton className="h-24 w-full" />
                         </TableCell>
                       </TableRow>
                     ) : pontualidade.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                        <TableCell colSpan={8} className="text-center text-muted-foreground py-10">
                           Nenhum dado no período selecionado
                         </TableCell>
                       </TableRow>
@@ -1012,6 +1012,7 @@ export default function RankingAtendimento() {
                             )}
                           </TableCell>
                           <TableCell className="text-right font-semibold">{l.concluidos}</TableCell>
+                          <TableCell className="text-right">{l.avaliaveis}</TableCell>
                           <TableCell className="text-right text-green-600">{l.concluidos_no_prazo}</TableCell>
                           <TableCell className="text-right text-amber-600">{l.concluidos_atraso}</TableCell>
                           <TableCell className="text-right">
