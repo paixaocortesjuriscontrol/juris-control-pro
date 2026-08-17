@@ -1,0 +1,1 @@
+update djen_proxy_pool set enabled = true, saude_status = null, saude_motivo = null where label = 'Google VPS 9';
