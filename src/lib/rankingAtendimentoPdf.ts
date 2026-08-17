@@ -174,7 +174,7 @@ export function gerarRankingPdfCompleto(opts: {
   const headH = 8;
 
   const ajustarColunas = (colunas: ColunaPdf[]) => {
-    const larguraDisponivel = pageW - ml * 2;
+    const larguraDisponivel = pageW - ml * 2 - 2;
     const larguraInformada = colunas.reduce((total, coluna) => total + coluna.width, 0);
     if (larguraInformada <= larguraDisponivel) return colunas;
     const escala = larguraDisponivel / larguraInformada;
