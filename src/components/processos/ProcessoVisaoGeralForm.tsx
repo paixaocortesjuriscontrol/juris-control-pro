@@ -57,6 +57,7 @@ import { ClienteDialog } from "@/components/clientes/ClienteDialog";
 interface Props {
   processo: any;
   audiencias?: any[];
+
   intimacoes?: any[];
   tarefas?: any[];
   movimentacoes?: any[];
