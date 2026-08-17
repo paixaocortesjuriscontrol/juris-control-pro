@@ -77,6 +77,16 @@ export default function RankingAtendimento() {
   const [coordenacaoId, setCoordenacaoId] = useState("todas");
   const [usuarioId, setUsuarioId] = useState("todos");
   const [aba, setAba] = useState("geral");
+  const [preset, setPreset] = useState<Preset>("ano");
+
+  const aplicarPreset = (p: Preset) => {
+    setPreset(p);
+    const r = rangeDoPreset(p);
+    if (r) {
+      setInicio(r.inicio);
+      setFim(r.fim);
+    }
+  };
 
   const { data: roles } = useQuery({
     queryKey: ["ranking-roles", user?.id],
@@ -487,12 +497,43 @@ export default function RankingAtendimento() {
         <Card className="border-l-4" style={{ borderLeftColor: GOLD }}>
           <CardContent className="p-4 flex flex-wrap items-end gap-3">
             <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Período</p>
+              <Select value={preset} onValueChange={(v) => aplicarPreset(v as Preset)}>
+                <SelectTrigger className="h-9 w-44">
+                  <SelectValue placeholder="Período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mes">Mês atual</SelectItem>
+                  <SelectItem value="trimestre">Último trimestre</SelectItem>
+                  <SelectItem value="semestre">Último semestre</SelectItem>
+                  <SelectItem value="ano">Anual (ano corrente)</SelectItem>
+                  <SelectItem value="custom">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground">Data inicial</p>
-              <Input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} className="h-9 w-40" />
+              <Input
+                type="date"
+                value={inicio}
+                onChange={(e) => {
+                  setInicio(e.target.value);
+                  setPreset("custom");
+                }}
+                className="h-9 w-40"
+              />
             </div>
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground">Data final</p>
-              <Input type="date" value={fim} onChange={(e) => setFim(e.target.value)} className="h-9 w-40" />
+              <Input
+                type="date"
+                value={fim}
+                onChange={(e) => {
+                  setFim(e.target.value);
+                  setPreset("custom");
+                }}
+                className="h-9 w-40"
+              />
             </div>
             {podeVerOutros && (
               <>
@@ -541,9 +582,32 @@ export default function RankingAtendimento() {
             <div className="ml-auto">
               <Button onClick={exportarPdf} className="gap-2">
                 <FileDown className="w-4 h-4" />
-                Exportar PDF
+                Exportar PDF (todas as abas)
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Legenda dos indicadores */}
+        <Card className="bg-muted/40">
+          <CardContent className="p-4 grid gap-2 md:grid-cols-2 text-xs text-muted-foreground">
+            <p className="flex gap-2">
+              <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>
+                <strong className="text-foreground">Criados no período</strong> (antes “Abertos”): itens — prazos,
+                tarefas, audiências, eventos e parcelamentos — cadastrados dentro do período em que o profissional é o
+                autor do cadastro ou responsável. Cargas e importações em massa não são contadas.
+              </span>
+            </p>
+            <p className="flex gap-2">
+              <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>
+                <strong className="text-foreground">Atividades concl.</strong>: subatividades criadas dentro de um item
+                (aba “Atividades” da tarefa) e concluídas no período, em que o profissional é responsável, envolvido ou
+                quem concluiu. Fica próximo de zero porque o recurso de atividades ainda é pouco usado — quanto mais as
+                equipes registrarem atividades, mais esse número cresce.
+              </span>
+            </p>
           </CardContent>
         </Card>
 
