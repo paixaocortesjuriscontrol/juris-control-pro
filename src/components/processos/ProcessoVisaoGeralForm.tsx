@@ -267,7 +267,36 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     } else {
       setJuditSessionFields(new Set());
     }
+    // Modo criação: nada é gravado no banco até o usuário salvar, então
+    // restauramos o rascunho (inclusive o que a Judit trouxe) para que a
+    // navegação entre abas (Pasta, Andamentos...) não apague o formulário.
+    if (isNovo) {
+      try {
+        const raw = sessionStorage.getItem(DRAFT_KEY);
+        if (raw) {
+          const draft = JSON.parse(raw);
+          if (draft?.form && typeof draft.form === "object") {
+            setForm({ ...next, ...draft.form });
+          }
+          if (Array.isArray(draft?.juditFields)) {
+            setJuditSessionFields(new Set(draft.juditFields.filter((s: any) => typeof s === "string")));
+          }
+        }
+      } catch { /* rascunho inválido: ignora */ }
+    }
   }, [processo?.id, processo?.updated_at, isNovo]);
+
+  // Salva o rascunho do modo criação a cada alteração do formulário.
+  useEffect(() => {
+    if (!isNovo) return;
+    if (!form || Object.keys(form).length === 0) return;
+    try {
+      sessionStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ form, juditFields: Array.from(juditSessionFields) }),
+      );
+    } catch { /* storage cheio: ignora */ }
+  }, [isNovo, form, juditSessionFields]);
 
   const update = (field: string, value: any) =>
     setForm((prev) => ({ ...prev, [field]: value }));
