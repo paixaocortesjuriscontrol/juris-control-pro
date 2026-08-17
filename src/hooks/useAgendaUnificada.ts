@@ -966,7 +966,7 @@ export async function fetchAgendaPage(
           // as audiências criadas manualmente (ou por vínculo real de advogado/envolvido).
           if (targetUserIds.length > 0) {
             orParts.push(
-              `and(criado_por.in.(${targetUserIds.join(",")}),origem.not.in.(importacao,pauta_excel))`
+              `and(criado_por.in.(${targetUserIds.join(",")}),or(origem.is.null,origem.not.in.(importacao,pauta_excel)))`
             );
           }
           if (audIds.length > 0) orParts.push(`id.in.(${audIds.join(",")})`);
