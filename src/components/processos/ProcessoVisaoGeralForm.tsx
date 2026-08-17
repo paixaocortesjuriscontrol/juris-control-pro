@@ -58,6 +58,15 @@ import { ClienteDialog } from "@/components/clientes/ClienteDialog";
 // Judit preencheu enquanto o usuário navega entre as abas da tela.
 const DRAFT_KEY = "processo-novo-form-draft";
 
+// Traduz erros do Postgres para mensagens úteis ao advogado.
+function mensagemErroSalvar(err: any): string {
+  const msg = String(err?.message || err || "");
+  if (err?.code === "23505" || /duplicate key|processos_numero_uidx/i.test(msg)) {
+    return "este número de processo já está cadastrado no sistema. Abra o processo existente para completar os dados.";
+  }
+  return msg;
+}
+
 interface Props {
   processo: any;
   audiencias?: any[];
