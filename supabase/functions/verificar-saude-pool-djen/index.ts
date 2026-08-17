@@ -167,6 +167,7 @@ Deno.serve(async (req) => {
         const port = Number(url.port || 443);
         const info = await lerCertificado(url.hostname, port);
         certErro = info.erro;
+        if (!info.validTo) log(`sem notAfter para ${label}`, info.erro || "handshake sem certificado");
         if (info.validTo) {
           const d = new Date(info.validTo);
           if (!Number.isNaN(d.getTime())) certExpiraEm = d.toISOString();
