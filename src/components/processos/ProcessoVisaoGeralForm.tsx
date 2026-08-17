@@ -244,6 +244,10 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [clienteEmEdicao, setClienteEmEdicao] = useState<any>(null);
   // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
+  // Último payload Judit desta sessão. No modo criação não existe `processo.id`,
+  // então os andamentos/partes só podem ser gravados depois do INSERT (ou ao
+  // adotar um processo já existente).
+  const [juditPayloadPendente, setJuditPayloadPendente] = useState<any>(null);
   // Contador ao vivo (segundos decorridos) durante a busca Judit — mesma
   // experiência da tela de Distribuição TST: o usuário vê que algo está
   // acontecendo e não pensa que travou.
