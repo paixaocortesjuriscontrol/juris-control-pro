@@ -315,10 +315,79 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     setForm((prev) => ({ ...prev, [field]: value }));
 
   const getNumeroProcessoAtual = () => {
-
     const numeroRaw = String(form.numero || processo?.numero || "").trim();
     const cnjMatch = numeroRaw.match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
     return cnjMatch ? cnjMatch[0] : numeroRaw;
+  };
+
+  /**
+   * Procura um processo já cadastrado com o mesmo número (comparando as
+   * variantes com/sem máscara). Usado no modo criação para evitar o erro de
+   * chave duplicada do índice único global de número.
+   */
+  const buscarProcessoPorNumero = async (numero: string) => {
+    const variantes = obterVariantesCnjBusca(numero);
+    if (variantes.length === 0) return null;
+    const { data, error } = await supabase
+      .from("processos")
+      .select("id, numero, coordenacao_id, created_at")
+      .in("numero", variantes)
+      .limit(1);
+    if (error) return null;
+    return data && data.length > 0 ? data[0] : null;
+  };
+
+  /**
+   * "Abrir e completar o processo existente": grava no processo já cadastrado
+   * apenas os campos que estão vazios lá, preservando tudo o que já existe, e
+   * navega para ele.
+   */
+  const adotarProcessoExistente = async () => {
+    if (!processoExistente?.id) return;
+    setAdotandoExistente(true);
+    try {
+      const { data: atual, error: errAtual } = await supabase
+        .from("processos")
+        .select("*")
+        .eq("id", processoExistente.id)
+        .single();
+      if (errAtual) throw errAtual;
+
+      const patch: Record<string, any> = {};
+      for (const f of FIELDS) {
+        if (BOOLEAN_FIELDS.has(f)) continue;
+        const atualVal = (atual as any)?.[f];
+        const vazioNoBanco = atualVal === null || atualVal === undefined || atualVal === "";
+        if (!vazioNoBanco) continue;
+        const novoVal = form[f];
+        if (novoVal === "" || novoVal === null || novoVal === undefined) continue;
+        patch[f] = NUMERIC_FIELDS.has(f) ? Number(novoVal) : novoVal;
+      }
+
+      if (Object.keys(patch).length > 0) {
+        const { error } = await supabase
+          .from("processos")
+          .update(patch as any)
+          .eq("id", processoExistente.id);
+        if (error) throw error;
+      }
+
+      try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignora */ }
+      await queryClient.invalidateQueries({ queryKey: ["processos"] });
+      await queryClient.invalidateQueries({ queryKey: ["processo"] });
+      toast.success(
+        Object.keys(patch).length > 0
+          ? `Processo existente completado (${Object.keys(patch).length} campo(s) preenchido(s)).`
+          : "Processo existente aberto — nenhum campo vazio para completar.",
+      );
+      const destino = processoExistente.id;
+      setProcessoExistente(null);
+      navigate(`/processos/${destino}`, { replace: true });
+    } catch (e: any) {
+      toast.error("Falha ao completar o processo existente: " + mensagemErroSalvar(e));
+    } finally {
+      setAdotandoExistente(false);
+    }
   };
 
   const handleSave = async (opts?: { silent?: boolean }) => {
