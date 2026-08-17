@@ -346,6 +346,17 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       if (isNovo) {
         // Modo criação: INSERT e redireciona para a página do novo processo.
         payload.numero = String(form.numero || "").trim();
+        // Antes de inserir, verifica se o número já existe no sistema — o
+        // índice único global (`processos_numero_uidx`) recusaria o INSERT com
+        // uma mensagem técnica de "duplicate key".
+        const existente = await buscarProcessoPorNumero(payload.numero);
+        if (existente) {
+          setProcessoExistente(existente);
+          if (!silent) {
+            toast.error("Este número de processo já está cadastrado no sistema.");
+          }
+          return;
+        }
         // Remove chaves nulas para permitir que os DEFAULTs do banco
         // preencham colunas NOT NULL (impactante, status, acompanhamento_*,
         // monitorar_andamentos, judit_campos, etc.).
@@ -373,6 +384,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         }
 
         await queryClient.invalidateQueries({ queryKey: ["processos"] });
+        try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignora */ }
         if (!silent) toast.success("Processo criado com sucesso!");
         navigate(`/processos/${novo.id}`, { replace: true });
         return;
@@ -414,7 +426,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       await queryClient.invalidateQueries({ queryKey: ["processos-responsaveis"] });
       if (!silent) toast.success("Processo atualizado com sucesso!");
     } catch (err: any) {
-      if (!silent) toast.error("Erro ao salvar: " + err.message);
+      if (!silent) toast.error("Erro ao salvar: " + mensagemErroSalvar(err));
     } finally {
       setSaving(false);
     }
