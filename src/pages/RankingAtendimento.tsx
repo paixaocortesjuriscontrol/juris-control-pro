@@ -35,6 +35,8 @@ type LinhaGeral = {
   concluidos: number;
   concluidos_no_prazo: number;
   concluidos_atraso: number;
+  /** Conclusões com prazo próprio (data fatal/prevista) — base do % no prazo */
+  concluidos_avaliaveis?: number;
   prazos_perdidos: number;
   atividades_total: number;
   atividades_concluidas: number;
@@ -165,11 +167,12 @@ export default function RankingAtendimento() {
         abertos: acc.abertos + Number(l.abertos_total),
         concluidos: acc.concluidos + Number(l.concluidos),
         noPrazo: acc.noPrazo + Number(l.concluidos_no_prazo),
+        avaliaveis: acc.avaliaveis + Number(l.concluidos_avaliaveis ?? 0),
         perdidos: acc.perdidos + Number(l.prazos_perdidos),
         atividades: acc.atividades + Number(l.atividades_total || 0),
         atividadesConcl: acc.atividadesConcl + Number(l.atividades_concluidas || 0),
       }),
-      { abertos: 0, concluidos: 0, noPrazo: 0, perdidos: 0, atividades: 0, atividadesConcl: 0 }
+      { abertos: 0, concluidos: 0, noPrazo: 0, avaliaveis: 0, perdidos: 0, atividades: 0, atividadesConcl: 0 }
     );
   }, [geral]);
 
@@ -243,7 +246,7 @@ export default function RankingAtendimento() {
             { label: "Criados no período", valor: totaisGeral.abertos },
             { label: "Concluídos", valor: totaisGeral.concluidos },
             { label: "No prazo", valor: totaisGeral.noPrazo },
-            { label: "% no prazo", valor: `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%` },
+            { label: "% no prazo", valor: `${pct(totaisGeral.noPrazo, totaisGeral.avaliaveis)}%` },
             { label: "Atividades concl.", valor: `${totaisGeral.atividadesConcl}/${totaisGeral.atividades}` },
             { label: "Prazos perdidos", valor: totaisGeral.perdidos },
           ],
@@ -285,7 +288,7 @@ export default function RankingAtendimento() {
             concluidos_atraso: l.concluidos_atraso,
             atividades_total: l.atividades_total ?? 0,
             atividades_concluidas: l.atividades_concluidas ?? 0,
-            taxa: `${pct(Number(l.concluidos_no_prazo), Number(l.concluidos))}%`,
+            taxa: `${pct(Number(l.concluidos_no_prazo), Number(l.concluidos_avaliaveis ?? 0))}%`,
             prazos_perdidos: l.prazos_perdidos,
           })),
         },
@@ -333,7 +336,7 @@ export default function RankingAtendimento() {
           resumo: [
             { label: "Concluídos", valor: totaisGeral.concluidos },
             { label: "No prazo", valor: totaisGeral.noPrazo },
-            { label: "% no prazo", valor: `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%` },
+            { label: "% no prazo", valor: `${pct(totaisGeral.noPrazo, totaisGeral.avaliaveis)}%` },
             { label: "Prazos perdidos", valor: totaisGeral.perdidos },
           ],
           grafico: {
@@ -356,6 +359,7 @@ export default function RankingAtendimento() {
             { header: "#", width: 12, key: "pos" },
             { header: "Profissional", width: 70, key: "nome" },
             { header: "Concluídos", width: 28, key: "concluidos", align: "right" },
+            { header: "Com prazo", width: 26, key: "avaliaveis", align: "right" },
             { header: "No prazo", width: 26, key: "concluidos_no_prazo", align: "right" },
             { header: "Com atraso", width: 28, key: "concluidos_atraso", align: "right" },
             { header: "% no prazo", width: 28, key: "taxa", align: "right" },
@@ -365,6 +369,7 @@ export default function RankingAtendimento() {
             pos: String(idx + 1),
             nome: l.relevante ? l.nome : `${l.nome} (amostra baixa)`,
             concluidos: l.concluidos,
+            avaliaveis: l.avaliaveis,
             concluidos_no_prazo: l.concluidos_no_prazo,
             concluidos_atraso: l.concluidos_atraso,
             taxa: `${l.taxa}%`,
@@ -425,8 +430,9 @@ export default function RankingAtendimento() {
     () =>
       [...geral].sort(
         (a, b) =>
-          pct(Number(b.concluidos_no_prazo), Number(b.concluidos)) -
-            pct(Number(a.concluidos_no_prazo), Number(a.concluidos)) || Number(b.concluidos) - Number(a.concluidos)
+          pct(Number(b.concluidos_no_prazo), Number(b.concluidos_avaliaveis ?? 0)) -
+            pct(Number(a.concluidos_no_prazo), Number(a.concluidos_avaliaveis ?? 0)) ||
+          Number(b.concluidos) - Number(a.concluidos)
       ),
     [geral]
   );
@@ -449,8 +455,9 @@ export default function RankingAtendimento() {
       [...geral]
         .map((l) => ({
           ...l,
-          taxa: pct(Number(l.concluidos_no_prazo), Number(l.concluidos)),
-          relevante: Number(l.concluidos) >= 5,
+          avaliaveis: Number(l.concluidos_avaliaveis ?? 0),
+          taxa: pct(Number(l.concluidos_no_prazo), Number(l.concluidos_avaliaveis ?? 0)),
+          relevante: Number(l.concluidos_avaliaveis ?? 0) >= 5,
         }))
         .sort(
           (a, b) =>
@@ -647,7 +654,7 @@ export default function RankingAtendimento() {
                   ["Criados no período", totaisGeral.abertos, AZUL],
                   ["Concluídos", totaisGeral.concluidos, NAVY],
                   ["Concluídos no prazo", totaisGeral.noPrazo, VERDE],
-                  ["% no prazo", `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%`, GOLD],
+                  ["% no prazo", `${pct(totaisGeral.noPrazo, totaisGeral.avaliaveis)}%`, GOLD],
                   ["Prazos perdidos", totaisGeral.perdidos, VERMELHO],
                 ] as [string, number | string, string][]
               ).map(([label, valor, cor]) => (
@@ -759,7 +766,7 @@ export default function RankingAtendimento() {
                           <TableCell className="text-right">
                             <Badge variant="outline" className="gap-1">
                               <CheckCircle2 className="w-3 h-3" />
-                              {pct(Number(l.concluidos_no_prazo), Number(l.concluidos))}%
+                              {pct(Number(l.concluidos_no_prazo), Number(l.concluidos_avaliaveis ?? 0))}%
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
@@ -901,7 +908,7 @@ export default function RankingAtendimento() {
                 [
                   ["Concluídos", totaisGeral.concluidos, NAVY],
                   ["No prazo", totaisGeral.noPrazo, VERDE],
-                  ["% no prazo", `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%`, GOLD],
+                  ["% no prazo", `${pct(totaisGeral.noPrazo, totaisGeral.avaliaveis)}%`, GOLD],
                   ["Prazos perdidos", totaisGeral.perdidos, VERMELHO],
                 ] as [string, number | string, string][]
               ).map(([label, valor, cor]) => (
@@ -924,7 +931,9 @@ export default function RankingAtendimento() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Top 12 — pontualidade</CardTitle>
-                <CardDescription>Percentual no prazo (mínimo de 5 conclusões no período)</CardDescription>
+                <CardDescription>
+                  Percentual no prazo (mínimo de 5 conclusões com prazo próprio no período)
+                </CardDescription>
               </CardHeader>
               <CardContent className="h-80">
                 {geralQuery.isLoading ? (
@@ -957,7 +966,9 @@ export default function RankingAtendimento() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Ranking de pontualidade</CardTitle>
                 <CardDescription>
-                  Ordenado pelo percentual no prazo; quem tem menos de 5 conclusões aparece ao final
+                  O percentual considera apenas conclusões com prazo próprio (data fatal/prevista). Tarefas vindas de
+                  importações sem prazo próprio — em que a data do compromisso é a própria data de conclusão — ficam de
+                  fora do cálculo. Quem tem menos de 5 conclusões avaliáveis aparece ao final.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
@@ -967,6 +978,7 @@ export default function RankingAtendimento() {
                       <TableHead className="w-12">#</TableHead>
                       <TableHead>Profissional</TableHead>
                       <TableHead className="text-right">Concluídos</TableHead>
+                      <TableHead className="text-right">Com prazo</TableHead>
                       <TableHead className="text-right">No prazo</TableHead>
                       <TableHead className="text-right">Atraso</TableHead>
                       <TableHead className="text-right">% no prazo</TableHead>
@@ -976,13 +988,13 @@ export default function RankingAtendimento() {
                   <TableBody>
                     {geralQuery.isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={7}>
+                        <TableCell colSpan={8}>
                           <Skeleton className="h-24 w-full" />
                         </TableCell>
                       </TableRow>
                     ) : pontualidade.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                        <TableCell colSpan={8} className="text-center text-muted-foreground py-10">
                           Nenhum dado no período selecionado
                         </TableCell>
                       </TableRow>
@@ -1002,6 +1014,7 @@ export default function RankingAtendimento() {
                             )}
                           </TableCell>
                           <TableCell className="text-right font-semibold">{l.concluidos}</TableCell>
+                          <TableCell className="text-right">{l.avaliaveis}</TableCell>
                           <TableCell className="text-right text-green-600">{l.concluidos_no_prazo}</TableCell>
                           <TableCell className="text-right text-amber-600">{l.concluidos_atraso}</TableCell>
                           <TableCell className="text-right">
