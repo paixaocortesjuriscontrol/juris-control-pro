@@ -774,7 +774,10 @@ export default function DistribuicaoTst() {
       const nowIso = new Date().toISOString();
       for (let i = 0; i < ids.length; i += BATCH) {
         const batch = ids.slice(i, i + BATCH);
-        const { error } = await supabase.from("dados_benner" as any).update({ status: "pronto_envio" } as any).in("id", batch);
+        const { error } = await supabase
+          .from("dados_benner" as any)
+          .update({ status: "pronto_envio", pronto_em: nowIso, pronto_por: uid } as any)
+          .in("id", batch);
         if (error) { toast.error("Erro ao atualizar: " + error.message); return; }
         // Se estavam Em análise, passam para Analisado e saem da lista padrão
         const { error: errAna } = await supabase

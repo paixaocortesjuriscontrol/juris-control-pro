@@ -2585,6 +2585,8 @@ export type Database = {
           processo: string | null
           processo_baixado: string | null
           processo_outro_escritorio: boolean
+          pronto_em: string | null
+          pronto_por: string | null
           provas_digitais: string | null
           reclamada: string | null
           reclamante: string | null
@@ -2707,6 +2709,8 @@ export type Database = {
           processo?: string | null
           processo_baixado?: string | null
           processo_outro_escritorio?: boolean
+          pronto_em?: string | null
+          pronto_por?: string | null
           provas_digitais?: string | null
           reclamada?: string | null
           reclamante?: string | null
@@ -2829,6 +2833,8 @@ export type Database = {
           processo?: string | null
           processo_baixado?: string | null
           processo_outro_escritorio?: boolean
+          pronto_em?: string | null
+          pronto_por?: string | null
           provas_digitais?: string | null
           reclamada?: string | null
           reclamante?: string | null
@@ -10765,6 +10771,7 @@ export type Database = {
           judit_preenchidos: number
           nome: string
           pendencias_total: number
+          prontos: number
           sem_pendencia: number
           total: number
           usuario_id: string
