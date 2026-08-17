@@ -217,11 +217,14 @@ export async function ensureProcessoFromPublicacao(
   const coordFinal = coordenacaoIdOverride || pub.coordenacao_id || userCoordenacaoId || null;
 
   const vincularExistente = async (proc: { id: string; numero?: string | null }) => {
-    if (coordenacaoIdOverride) {
-      await supabase
-        .from("processos")
-        .update({ coordenacao_id: coordenacaoIdOverride })
-        .eq("id", proc.id)
+    // O processo é único por número. Quando ele já existe (inclusive em outra
+    // coordenação), NÃO sobrescrevemos a coordenação dele: apenas acrescentamos
+    // a coordenação atual como responsável adicional.
+    const coordParaVincular = coordenacaoIdOverride || coordFinal;
+    if (coordParaVincular) {
+      await (supabase as any)
+        .from("processos_coordenacoes_responsaveis")
+        .insert({ processo_id: proc.id, coordenacao_id: coordParaVincular, principal: false })
         .then(() => {}, () => {});
     }
     await salvarPublicacaoNoProcesso(pub, proc.id);
