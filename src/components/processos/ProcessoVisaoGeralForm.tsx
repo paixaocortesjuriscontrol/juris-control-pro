@@ -315,6 +315,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     setForm((prev) => ({ ...prev, [field]: value }));
 
   const getNumeroProcessoAtual = () => {
+
     const numeroRaw = String(form.numero || processo?.numero || "").trim();
     const cnjMatch = numeroRaw.match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
     return cnjMatch ? cnjMatch[0] : numeroRaw;
