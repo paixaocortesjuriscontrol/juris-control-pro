@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_auditoria_tarefas_tarefa_acao_created ON public.auditoria_tarefas (tarefa_id, acao, created_at);
