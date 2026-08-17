@@ -1,32 +1,32 @@
-# Ajuste final da deduplicação "sem repetição"
+# Corrigir erro de duplicidade ao salvar processo novo (e perda do preenchimento da Judit)
 
-## Resultado da comparação
+## O que está acontecendo
 
-A correção funcionou na maior parte:
+A tela aberta é a de **criação** de processo (`/processos/novo`), não a de um processo já existente. Nesse modo o botão Salvar sempre faz um **INSERT**.
 
-| | Antes (13/08 11:27) | Depois (16/08 17:47) |
-|---|---|---|
-| Processos repetidos no documento | 5 pares | 1 par |
+O número `0766781-06.2024.8.07.0016` **já existe** no banco (1 registro, criado em 30/04/2026, sem coordenação responsável). Como existe um índice único global de número (`processos_numero_uidx`), o INSERT é recusado e o Postgres devolve a mensagem crua `duplicate key value violates unique constraint`.
 
-Os pares de 0000094-62.2022.5.05.0017, 0011534-36.2017.5.03.0001, 0100965-57.2022.5.01.0035 e 0100524-20.2020.5.01.0044 deixaram de se repetir. Sobrou **1001198-74.2022.5.02.0205** (itens 21 e 22 do novo documento).
+A perda do preenchimento tem a mesma origem: no modo criação o formulário só vive na memória da tela. Ao trocar para a aba "Pasta" e voltar, nada havia sido gravado ainda, então os campos vieram vazios (segunda imagem) e foi preciso clicar na Judit outra vez.
 
-## Por que esse par escapou
+## O que será feito
 
-As duas cópias são a mesma intimação da 6ª Turma (mesmo relator, mesmo texto, mesma data), mas o cabeçalho vem gravado diferente pelo DJEN:
+1. **Detectar o processo existente antes de salvar (modo criação)**
+   - Ao clicar em Salvar, buscar processo pelo número (comparando só os dígitos).
+   - Se já existir, em vez de erro exibir um aviso claro com duas ações:
+     - **Abrir e completar o processo existente**: navega para o processo já cadastrado e aplica o preenchimento da Judit **somente nos campos vazios** (mesma regra `applyIfEmpty` já usada), preservando o que o advogado tinha digitado; e grava.
+     - **Cancelar**: fica na tela para o usuário corrigir o número.
 
-- item 21: `AGRAVANTE: EVELLYN PARDINI LIMA AGRAVADO: EVELLYN PARDINI LIMA E OUTROS (5)`
-- item 22: `AGRAVANTE: AGRAVADO: EVELLYN PARDINI LIMA E OUTROS (5)`
+2. **Mensagem de erro amigável**
+   - Se ainda assim o banco recusar por duplicidade, mostrar: "Este número de processo já está cadastrado no sistema. Abra o processo existente para completar os dados." em vez do texto técnico do Postgres.
 
-Ou seja, uma delas está sem o nome do agravante. Como a comparação atual exige teor idêntico (tokens), essa diferença de nome no preâmbulo mantém as duas. Além disso, essa comunicação não traz o identificador `ID <hash>` que serviu para casar os outros pares.
-
-## Correção proposta
-
-1. **Comparar o corpo da comunicação, não o preâmbulo.** Antes de gerar a chave, recortar o trecho de partes do cabeçalho (`AGRAVANTE:`, `AGRAVADO:`, `RECORRENTE:`, `RECORRIDO:`, `RECLAMANTE:`, `RECLAMADO:`, `EMBARGANTE:`, `EMBARGADO:` e variações) e comparar a partir do marcador do ato (`INTIMAÇÃO`, `DECISÃO`, `DESPACHO`, `ACÓRDÃO`, `CERTIDÃO`) quando existir.
-2. **Rede de segurança por similaridade.** Dentro do mesmo processo + mesma data, se o corpo de duas publicações tiver similaridade muito alta (≥ 92% dos tokens em comum), tratar como a mesma comunicação. Isso cobre variações futuras de grafia/ordem sem unir comunicações realmente distintas (que diferem em relator, ato ou prazo).
-3. **Manter tudo o que já funciona:** ID do documento, corte do bloco `Intimado(s) / Citado(s)`, união dos nomes de intimados no item mantido, e a deduplicação de tela por `coordenacao_id + id_djen` intacta.
+3. **Não perder o preenchimento ao navegar entre as abas**
+   - Guardar um rascunho do formulário do modo criação (incluindo o que a Judit trouxe) enquanto a tela de criação estiver aberta, restaurando ao voltar de abas como Pasta/Andamentos.
+   - Descartar o rascunho depois que o processo é criado com sucesso ou quando o usuário sai da criação.
 
 ## Detalhes técnicos
 
-- `src/utils/djenDedup.ts`: em `dedupPubsSemDestinatarios`, adicionar `extrairCorpoAto` (remove preâmbulo de partes e corta a partir do marcador do ato) e usar seu teor normalizado na chave; depois da passagem por chave exata, rodar uma segunda passagem agrupando por `processo + data` e unindo grupos com Jaccard ≥ 0,92 sobre os tokens do corpo.
-- Sem mudanças nas telas: `AnaliseDjen.tsx` e `AnaliseDjenServidor.tsx` já usam a função compartilhada.
-- Versão passa para **v4.5.5** (`src/constants/version.ts` e `public/version.json`).
+- `src/components/processos/ProcessoVisaoGeralForm.tsx`
+  - `handleSave` (modo `isNovo`): pré-consulta `processos` por dígitos do número antes do INSERT; estado novo para o diálogo/aviso de "número já cadastrado" com a ação de abrir o existente.
+  - Tratamento do erro `23505` / `processos_numero_uidx` → mensagem em português.
+  - Persistência do rascunho por `sessionStorage` (chave por rota de criação), aplicada no `useEffect` de inicialização do `form` quando `isNovo`.
+- Nenhuma mudança de schema: o índice único global de número é mantido.
