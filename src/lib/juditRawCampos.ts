@@ -308,7 +308,13 @@ export function extrairStepsDoJuditRaw(payload: any): JuditStepNormalizado[] {
   // 1) Formato novo já normalizado
   const jaNormalizados = Array.isArray(payload?.movimentacoes) ? payload.movimentacoes : [];
   for (const m of jaNormalizados) {
-    push(isoToInput(m?.data), m?.descricao, m?.codigo, m, m?.raw ?? m);
+    push(
+      isoToInput(m?.data || m?.step_date || m?.movement_date || m?.created_at || m?.updated_at),
+      m?.descricao ?? m?.content ?? m?.title ?? m?.description,
+      m?.codigo ?? m?.step_code ?? m?.code ?? m?.movement_code,
+      m,
+      m?.raw ?? m,
+    );
   }
 
   // 2) Steps brutos de todas as instâncias
@@ -316,7 +322,10 @@ export function extrairStepsDoJuditRaw(payload: any): JuditStepNormalizado[] {
     const steps = Array.isArray(rd?.steps) ? rd.steps : [];
     for (const s of steps) {
       push(
-        isoToInput(s?.step_date || s?.date || s?.movement_date),
+        // O endpoint de cache da Judit frequentemente devolve os andamentos
+        // apenas com `created_at`/`updated_at`. Sem esses fallbacks, o conteúdo
+        // já recuperado era exibido na análise, mas descartado ao preencher.
+        isoToInput(s?.step_date || s?.date || s?.movement_date || s?.created_at || s?.updated_at),
         s?.content ?? s?.title ?? s?.description ?? "",
         s?.step_code ?? s?.code ?? s?.movement_code ?? null,
         rd,
