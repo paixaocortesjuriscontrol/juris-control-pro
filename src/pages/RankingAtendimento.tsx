@@ -501,6 +501,14 @@ export default function RankingAtendimento() {
               <Trophy className="w-4 h-4" />
               Geral
             </TabsTrigger>
+            <TabsTrigger value="produtividade" className="gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Produtividade
+            </TabsTrigger>
+            <TabsTrigger value="pontualidade" className="gap-2">
+              <Gauge className="w-4 h-4" />
+              Pontualidade
+            </TabsTrigger>
             <TabsTrigger value="tst" className="gap-2">
               <Target className="w-4 h-4" />
               TST
