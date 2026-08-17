@@ -12,10 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
-import { format, startOfYear } from "date-fns";
+import { format, startOfYear, startOfMonth, subMonths } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid, LabelList } from "recharts";
-import { Trophy, FileDown, Medal, Target, AlertTriangle, CheckCircle2, Gauge, TrendingUp } from "lucide-react";
-import { gerarRankingPdf } from "@/lib/rankingAtendimentoPdf";
+import { Trophy, FileDown, Medal, Target, AlertTriangle, CheckCircle2, Gauge, TrendingUp, Info } from "lucide-react";
+import { gerarRankingPdfCompleto } from "@/lib/rankingAtendimentoPdf";
 
 const NAVY = "hsl(222 47% 18%)";
 const GOLD = "hsl(43 74% 49%)";
@@ -53,6 +53,19 @@ type LinhaTst = {
 function pct(parte: number, total: number) {
   if (!total) return 0;
   return Math.round((parte / total) * 100);
+}
+
+const HOJE = () => format(new Date(), "yyyy-MM-dd");
+
+type Preset = "mes" | "trimestre" | "semestre" | "ano" | "custom";
+
+function rangeDoPreset(preset: Preset): { inicio: string; fim: string } | null {
+  const hoje = new Date();
+  if (preset === "mes") return { inicio: format(startOfMonth(hoje), "yyyy-MM-dd"), fim: HOJE() };
+  if (preset === "trimestre") return { inicio: format(startOfMonth(subMonths(hoje, 2)), "yyyy-MM-dd"), fim: HOJE() };
+  if (preset === "semestre") return { inicio: format(startOfMonth(subMonths(hoje, 5)), "yyyy-MM-dd"), fim: HOJE() };
+  if (preset === "ano") return { inicio: format(startOfYear(hoje), "yyyy-MM-dd"), fim: HOJE() };
+  return null;
 }
 
 export default function RankingAtendimento() {
