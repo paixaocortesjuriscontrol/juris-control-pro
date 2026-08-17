@@ -12,6 +12,16 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -43,6 +53,19 @@ import { obterVariantesCnjBusca, mascararCnjDigitacao } from "@/utils/cnjMask";
 import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
 import { ClienteDialog } from "@/components/clientes/ClienteDialog";
+
+// Rascunho do formulário no modo criação (/processos/novo). Mantém o que a
+// Judit preencheu enquanto o usuário navega entre as abas da tela.
+const DRAFT_KEY = "processo-novo-form-draft";
+
+// Traduz erros do Postgres para mensagens úteis ao advogado.
+function mensagemErroSalvar(err: any): string {
+  const msg = String(err?.message || err || "");
+  if (err?.code === "23505" || /duplicate key|processos_numero_uidx/i.test(msg)) {
+    return "este número de processo já está cadastrado no sistema. Abra o processo existente para completar os dados.";
+  }
+  return msg;
+}
 
 interface Props {
   processo: any;
@@ -168,6 +191,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [syncingInterno, setSyncingInterno] = useState(false);
   const [comAnexosJudit, setComAnexosJudit] = useState(false);
   const [juditNovoCardVisible, setJuditNovoCardVisible] = useState(false);
+  // Diálogo "número já cadastrado" (modo criação)
+  const [processoExistente, setProcessoExistente] = useState<any>(null);
+  const [adotandoExistente, setAdotandoExistente] = useState(false);
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
@@ -254,7 +280,36 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     } else {
       setJuditSessionFields(new Set());
     }
+    // Modo criação: nada é gravado no banco até o usuário salvar, então
+    // restauramos o rascunho (inclusive o que a Judit trouxe) para que a
+    // navegação entre abas (Pasta, Andamentos...) não apague o formulário.
+    if (isNovo) {
+      try {
+        const raw = sessionStorage.getItem(DRAFT_KEY);
+        if (raw) {
+          const draft = JSON.parse(raw);
+          if (draft?.form && typeof draft.form === "object") {
+            setForm({ ...next, ...draft.form });
+          }
+          if (Array.isArray(draft?.juditFields)) {
+            setJuditSessionFields(new Set(draft.juditFields.filter((s: any) => typeof s === "string")));
+          }
+        }
+      } catch { /* rascunho inválido: ignora */ }
+    }
   }, [processo?.id, processo?.updated_at, isNovo]);
+
+  // Salva o rascunho do modo criação a cada alteração do formulário.
+  useEffect(() => {
+    if (!isNovo) return;
+    if (!form || Object.keys(form).length === 0) return;
+    try {
+      sessionStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ form, juditFields: Array.from(juditSessionFields) }),
+      );
+    } catch { /* storage cheio: ignora */ }
+  }, [isNovo, form, juditSessionFields]);
 
   const update = (field: string, value: any) =>
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -263,6 +318,76 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     const numeroRaw = String(form.numero || processo?.numero || "").trim();
     const cnjMatch = numeroRaw.match(/\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/);
     return cnjMatch ? cnjMatch[0] : numeroRaw;
+  };
+
+  /**
+   * Procura um processo já cadastrado com o mesmo número (comparando as
+   * variantes com/sem máscara). Usado no modo criação para evitar o erro de
+   * chave duplicada do índice único global de número.
+   */
+  const buscarProcessoPorNumero = async (numero: string) => {
+    const variantes = obterVariantesCnjBusca(numero);
+    if (variantes.length === 0) return null;
+    const { data, error } = await supabase
+      .from("processos")
+      .select("id, numero, coordenacao_id, created_at")
+      .in("numero", variantes)
+      .limit(1);
+    if (error) return null;
+    return data && data.length > 0 ? data[0] : null;
+  };
+
+  /**
+   * "Abrir e completar o processo existente": grava no processo já cadastrado
+   * apenas os campos que estão vazios lá, preservando tudo o que já existe, e
+   * navega para ele.
+   */
+  const adotarProcessoExistente = async () => {
+    if (!processoExistente?.id) return;
+    setAdotandoExistente(true);
+    try {
+      const { data: atual, error: errAtual } = await supabase
+        .from("processos")
+        .select("*")
+        .eq("id", processoExistente.id)
+        .single();
+      if (errAtual) throw errAtual;
+
+      const patch: Record<string, any> = {};
+      for (const f of FIELDS) {
+        if (BOOLEAN_FIELDS.has(f)) continue;
+        const atualVal = (atual as any)?.[f];
+        const vazioNoBanco = atualVal === null || atualVal === undefined || atualVal === "";
+        if (!vazioNoBanco) continue;
+        const novoVal = form[f];
+        if (novoVal === "" || novoVal === null || novoVal === undefined) continue;
+        patch[f] = NUMERIC_FIELDS.has(f) ? Number(novoVal) : novoVal;
+      }
+
+      if (Object.keys(patch).length > 0) {
+        const { error } = await supabase
+          .from("processos")
+          .update(patch as any)
+          .eq("id", processoExistente.id);
+        if (error) throw error;
+      }
+
+      try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignora */ }
+      await queryClient.invalidateQueries({ queryKey: ["processos"] });
+      await queryClient.invalidateQueries({ queryKey: ["processo"] });
+      toast.success(
+        Object.keys(patch).length > 0
+          ? `Processo existente completado (${Object.keys(patch).length} campo(s) preenchido(s)).`
+          : "Processo existente aberto — nenhum campo vazio para completar.",
+      );
+      const destino = processoExistente.id;
+      setProcessoExistente(null);
+      navigate(`/processos/${destino}`, { replace: true });
+    } catch (e: any) {
+      toast.error("Falha ao completar o processo existente: " + mensagemErroSalvar(e));
+    } finally {
+      setAdotandoExistente(false);
+    }
   };
 
   const handleSave = async (opts?: { silent?: boolean }) => {
@@ -300,6 +425,17 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       if (isNovo) {
         // Modo criação: INSERT e redireciona para a página do novo processo.
         payload.numero = String(form.numero || "").trim();
+        // Antes de inserir, verifica se o número já existe no sistema — o
+        // índice único global (`processos_numero_uidx`) recusaria o INSERT com
+        // uma mensagem técnica de "duplicate key".
+        const existente = await buscarProcessoPorNumero(payload.numero);
+        if (existente) {
+          setProcessoExistente(existente);
+          if (!silent) {
+            toast.error("Este número de processo já está cadastrado no sistema.");
+          }
+          return;
+        }
         // Remove chaves nulas para permitir que os DEFAULTs do banco
         // preencham colunas NOT NULL (impactante, status, acompanhamento_*,
         // monitorar_andamentos, judit_campos, etc.).
@@ -327,6 +463,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         }
 
         await queryClient.invalidateQueries({ queryKey: ["processos"] });
+        try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignora */ }
         if (!silent) toast.success("Processo criado com sucesso!");
         navigate(`/processos/${novo.id}`, { replace: true });
         return;
@@ -368,7 +505,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       await queryClient.invalidateQueries({ queryKey: ["processos-responsaveis"] });
       if (!silent) toast.success("Processo atualizado com sucesso!");
     } catch (err: any) {
-      if (!silent) toast.error("Erro ao salvar: " + err.message);
+      if (!silent) toast.error("Erro ao salvar: " + mensagemErroSalvar(err));
     } finally {
       setSaving(false);
     }
@@ -1831,6 +1968,31 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           if (processo?.id) queryClient.invalidateQueries({ queryKey: ["processo", processo.id] });
         }}
       />
+      <AlertDialog open={!!processoExistente} onOpenChange={(o) => { if (!o) setProcessoExistente(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Número de processo já cadastrado</AlertDialogTitle>
+            <AlertDialogDescription>
+              O processo <span className="font-medium">{processoExistente?.numero}</span> já existe no sistema
+              {processoExistente?.created_at
+                ? ` (cadastrado em ${new Date(processoExistente.created_at).toLocaleDateString("pt-BR")})`
+                : ""}
+              . Você pode abrir o processo existente e completar apenas os campos que estão vazios lá — nada que
+              já está preenchido será sobrescrito. Se o número estiver errado, cancele e corrija.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={adotandoExistente}>Cancelar e corrigir o número</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={adotandoExistente}
+              onClick={(e) => { e.preventDefault(); adotarProcessoExistente(); }}
+            >
+              {adotandoExistente && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Abrir e completar o processo existente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 });
