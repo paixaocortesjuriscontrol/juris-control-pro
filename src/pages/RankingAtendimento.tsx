@@ -197,7 +197,69 @@ export default function RankingAtendimento() {
   )}`;
 
   const exportarPdf = () => {
-    if (aba === "geral") {
+    if (aba === "produtividade") {
+      gerarRankingPdf({
+        titulo: "Ranking de Atendimento — Produtividade",
+        subtitulo: "Volume entregue por profissional (itens e atividades concluídas)",
+        periodo: periodoLabel,
+        filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
+        colunas: [
+          { header: "#", width: 12, key: "pos" },
+          { header: "Profissional", width: 70, key: "nome" },
+          { header: "Abertos", width: 26, key: "abertos_total", align: "right" as const },
+          { header: "Concluídos", width: 30, key: "concluidos", align: "right" as const },
+          { header: "Atividades concl.", width: 36, key: "atividades_concluidas", align: "right" as const },
+          { header: "Entregas totais", width: 34, key: "entregas", align: "right" as const },
+        ],
+        linhas: produtividade.map((l, idx) => ({
+          pos: String(idx + 1),
+          nome: l.nome,
+          abertos_total: l.abertos_total,
+          concluidos: l.concluidos,
+          atividades_concluidas: l.atividades_concluidas ?? 0,
+          entregas: l.entregas,
+        })),
+        resumo: [
+          { label: "Itens concluídos", valor: totaisGeral.concluidos },
+          { label: "Atividades concluídas", valor: totaisGeral.atividadesConcl },
+          { label: "Entregas totais", valor: totaisGeral.concluidos + totaisGeral.atividadesConcl },
+          { label: "Itens abertos", valor: totaisGeral.abertos },
+        ],
+        nomeArquivo: "ranking_produtividade",
+      });
+    } else if (aba === "pontualidade") {
+      gerarRankingPdf({
+        titulo: "Ranking de Atendimento — Pontualidade",
+        subtitulo: "Cumprimento de prazos por profissional",
+        periodo: periodoLabel,
+        filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
+        colunas: [
+          { header: "#", width: 12, key: "pos" },
+          { header: "Profissional", width: 70, key: "nome" },
+          { header: "Concluídos", width: 28, key: "concluidos", align: "right" as const },
+          { header: "No prazo", width: 26, key: "concluidos_no_prazo", align: "right" as const },
+          { header: "Com atraso", width: 28, key: "concluidos_atraso", align: "right" as const },
+          { header: "% no prazo", width: 28, key: "taxa", align: "right" as const },
+          { header: "Prazos perdidos", width: 34, key: "prazos_perdidos", align: "right" as const },
+        ],
+        linhas: pontualidade.map((l, idx) => ({
+          pos: String(idx + 1),
+          nome: l.nome,
+          concluidos: l.concluidos,
+          concluidos_no_prazo: l.concluidos_no_prazo,
+          concluidos_atraso: l.concluidos_atraso,
+          taxa: `${l.taxa}%`,
+          prazos_perdidos: l.prazos_perdidos,
+        })),
+        resumo: [
+          { label: "Concluídos", valor: totaisGeral.concluidos },
+          { label: "No prazo", valor: totaisGeral.noPrazo },
+          { label: "% no prazo", valor: `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%` },
+          { label: "Prazos perdidos", valor: totaisGeral.perdidos },
+        ],
+        nomeArquivo: "ranking_pontualidade",
+      });
+    } else if (aba === "geral") {
       gerarRankingPdf({
         titulo: "Ranking de Atendimento — Geral",
         subtitulo: "Produtividade e cumprimento de prazos por profissional",
