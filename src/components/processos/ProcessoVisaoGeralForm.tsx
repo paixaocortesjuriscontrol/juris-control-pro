@@ -631,6 +631,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData?.user?.id || null;
       await persistirPartesJudit(processo.id, data, uid);
+      // Grava também os andamentos retornados (aba "Andamentos").
+      await persistirMovimentacoesJudit(processo.id, data);
 
       // Log
       await supabase.from("consultas_judit").insert({
