@@ -6,7 +6,7 @@
 // quando a VPS está fora do ar.
 // ============================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
-import * as tls from "node:tls";
+import { lerNotAfter } from "./certTls.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,34 +42,17 @@ type Resultado = {
 
 const log = (...a: unknown[]) => console.log(TAG, ...a);
 
-/** Lê notAfter do certificado do peer via handshake TLS (aceita cert expirado). */
-function lerCertificado(
+/** Lê notAfter do certificado do peer (handshake TLS 1.2 manual). */
+async function lerCertificado(
   host: string,
   port: number,
 ): Promise<{ validTo: string | null; erro: string | null }> {
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = (validTo: string | null, erro: string | null) => {
-      if (done) return;
-      done = true;
-      try { socket?.destroy(); } catch { /* ignore */ }
-      resolve({ validTo, erro });
-    };
-    let socket: tls.TLSSocket | undefined;
-    try {
-      socket = tls.connect(
-        { host, port, servername: host, rejectUnauthorized: false, timeout: 12_000 },
-        () => {
-          const cert = socket!.getPeerCertificate();
-          finish(cert && cert.valid_to ? cert.valid_to : null, null);
-        },
-      );
-      socket.on("timeout", () => finish(null, "timeout no handshake TLS"));
-      socket.on("error", (e: Error) => finish(null, e.message));
-    } catch (e) {
-      finish(null, e instanceof Error ? e.message : String(e));
-    }
-  });
+  try {
+    const notAfter = await lerNotAfter(host, port);
+    return { validTo: notAfter ? notAfter.toISOString() : null, erro: notAfter ? null : "handshake sem certificado" };
+  } catch (e) {
+    return { validTo: null, erro: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /** GET /health respeitando o certificado (é assim que o daemon enxerga a VPS). */
@@ -168,10 +151,7 @@ Deno.serve(async (req) => {
         const info = await lerCertificado(url.hostname, port);
         certErro = info.erro;
         if (!info.validTo) log(`sem notAfter para ${label}`, info.erro || "handshake sem certificado");
-        if (info.validTo) {
-          const d = new Date(info.validTo);
-          if (!Number.isNaN(d.getTime())) certExpiraEm = d.toISOString();
-        }
+        if (info.validTo) certExpiraEm = info.validTo;
       }
 
       const dias = diasAte(certExpiraEm);
