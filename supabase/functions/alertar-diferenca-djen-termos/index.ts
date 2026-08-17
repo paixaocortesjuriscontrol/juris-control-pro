@@ -367,7 +367,7 @@ serve(async (req) => {
 
         const enviados = await enviarEmail(
           emails,
-          `DJEN Termos — novas publicações na execução das ${horaAtual} — ${linha.nome} — ${dataBr(ymd)}`,
+          "Publicações DJEN - Alerta - Diferença entre execuções",
           emailBase(
             "DJEN Termos — diferença entre execuções",
             `${linha.nome} · ${dataBr(ymd)} · execução das ${horaAtual} (BRT)`,
@@ -416,7 +416,7 @@ serve(async (req) => {
 
         const enviadosAdmin = await enviarEmail(
           adminEmails,
-          `DJEN Termos — diferença na execução das ${horaAtual} — ${dataBr(ymd)} (visão administrativa)`,
+          "Publicações DJEN - Alerta - Diferença entre execuções",
           emailBase(
             "DJEN Termos — diferença entre execuções (Administração)",
             `${dataBr(ymd)} · execução das ${horaAtual} vs ${horaAnterior} (BRT)`,
