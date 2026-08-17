@@ -117,11 +117,13 @@ export function AgendaItemRow({
   userId,
   onSelect,
   temAtividade,
+  veioDeWorkflow,
 }: {
   item: ItemAgendaUnificado;
   userId?: string;
   onSelect: (item: ItemAgendaUnificado) => void;
   temAtividade?: boolean;
+  veioDeWorkflow?: boolean;
 }) {
   const concluido = isItemTratado(item);
   const cancelado = isCancelado(item);
